@@ -2,5 +2,23 @@
   "$schema": "https://ui.shadcn.com/schema/registry.json",
   "name": "tradecn",
   "homepage": "https://tradecn.dev",
-  "items": []
+  "items": [
+    {
+      "name": "format",
+      "type": "registry:lib",
+      "title": "Format",
+      "description": "Number formatting for trading screens: tick-derived precision, 32nds and 64ths with + halves, yields, basis points, DV01, compact notional, signed values, one null sentinel.",
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "format"
+      ],
+      "docs": "Pure functions, no dependencies. Bind a convention per instrument with createInstrumentFormatter and pass its price() to a grid column."
+    }
+  ]
 }

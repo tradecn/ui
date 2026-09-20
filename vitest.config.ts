@@ -8,8 +8,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
-      { find: /^@\/registry\//, replacement: `${path.resolve(__dirname, "registry")}/` },
-      { find: /^@\//, replacement: `${path.resolve(__dirname, "playground/src")}/` },
+      { find: /^@\/registry\//, replacement: `${path.resolve(import.meta.dirname, "registry")}/` },
+      { find: /^@\//, replacement: `${path.resolve(import.meta.dirname, "playground/src")}/` },
     ],
   },
   test: {
