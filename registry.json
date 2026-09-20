@@ -41,6 +41,57 @@
         "feed"
       ],
       "docs": "Your feed calls store.applyDeltas(batch) once per frame. Components read rows with useRow(store, id) and re-render only when that row changes. Wrap message-at-a-time feeds in createFrameBatcher."
+    },
+    {
+      "name": "flash-cell",
+      "type": "registry:ui",
+      "title": "Flash Cell",
+      "description": "A cell that flashes on change, colored up, down, or flat, as a fill or an inset ring. Web Animations on the existing element, a shared memory so virtualized rows resume mid-flash, reduced-motion aware. Introduces the up/down/flat tokens.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/flash-cell.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        }
+      ],
+      "categories": [
+        "grid",
+        "feed"
+      ],
+      "docs": "Adds up, down, flat and their -soft tokens to your stylesheet as bg-up-soft, text-down and so on. Override --up and --down in your own CSS; later installs keep your values. Zero change is flat, never up.",
+      "meta": {
+        "components": [
+          {
+            "title": "FlashCell",
+            "description": "Cell wrapper that flashes on value change."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.58 0.19 45)",
+          "down-soft": "oklch(0.58 0.19 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "up": "oklch(0.58 0.14 165)",
+          "up-soft": "oklch(0.58 0.14 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.74 0.18 45)",
+          "down-soft": "oklch(0.74 0.18 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      }
     }
   ]
 }

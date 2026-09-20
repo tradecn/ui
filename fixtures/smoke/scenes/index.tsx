@@ -1,4 +1,5 @@
 import type { ComponentType } from "react"
+import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
 import { RowStoreScene } from "./row-store"
 
@@ -11,5 +12,6 @@ export interface SmokeScene {
 export const scenes: SmokeScene[] = [
   { name: "format", Scene: FormatScene },
   { name: "row-store", Scene: RowStoreScene },
+  { name: "flash-cell", Scene: FlashCellScene },
 ]
-export const tokens: string[] = []
+export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft"]
