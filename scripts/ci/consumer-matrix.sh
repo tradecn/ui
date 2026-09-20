@@ -36,7 +36,9 @@ cp "$root/fixtures/smoke/smoke.spec.ts" "$fixture/smoke.spec.ts"
 [ "$latest" = "--latest" ] && bun add -d --cwd "$fixture" @playwright/test
 
 cd "$fixture"
-bunx tsc -p tsconfig.app.json --noEmit
-bun run build
-bunx playwright install --with-deps chromium
+# Typecheck the consumer. Errors in files tradecn installed (or in the smoke scenes) fail the job;
+# errors in the consumer's own shadcn files are upstream's and are reported, not blamed on tradecn.
+bun "$root/scripts/ci/typecheck-consumer.ts" "$fixture"
+bunx vite build
+if [ -n "${CI:-}" ]; then bunx playwright install --with-deps chromium; else bunx playwright install chromium; fi
 bunx playwright test
