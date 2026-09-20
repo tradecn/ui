@@ -15,6 +15,8 @@ export interface BenchParams {
   seconds: number
   preset: DataGridPreset
   hold: number
+  /** Milliseconds discarded at the start (page load, JIT warm-up). The load runs throughout. */
+  warmupMs: number
 }
 
 export interface BenchResult {
@@ -26,8 +28,16 @@ export interface BenchResult {
   max: number
   mean: number
   droppedFrames: number
+  /** A frame counts as dropped when it runs longer than this: 1.5 times the median frame. */
+  droppedThresholdMs: number
+  /** Index (after warm-up) and length of each dropped frame, to see whether drops cluster. */
+  droppedAt: { frame: number; ms: number; scriptMs: number }[]
   longTasks: number
   cellsPaintedPerFrame: number
+  /** Script time per frame: building the batch, applyDeltas, and React's render and commit. Excludes style, layout, paint. */
+  scriptP50: number
+  scriptP99: number
+  scriptMax: number
   userAgent: string
 }
 
@@ -49,7 +59,7 @@ function readParams(): BenchParams {
     return Number.isFinite(v) && v > 0 ? v : d
   }
   const preset = (q.get("preset") ?? "rfq") as DataGridPreset
-  return { rows: n("rows", 1000), visible: n("visible", 60), cols: n("cols", 12), updates: n("updates", 2000), seconds: n("seconds", 10), preset: preset in DATA_GRID_PRESETS ? preset : "rfq", hold: Number(q.get("hold") ?? 0) }
+  return { rows: n("rows", 1000), visible: n("visible", 60), cols: n("cols", 12), updates: n("updates", 2000), seconds: n("seconds", 10), preset: preset in DATA_GRID_PRESETS ? preset : "rfq", hold: Number(q.get("hold") ?? 0), warmupMs: Number(q.get("warmupMs") ?? 1000) }
 }
 
 // Deterministic values so two runs see the same data.
@@ -100,13 +110,18 @@ export function BenchPage() {
     if (started.current) return
     started.current = true
     const ids = store.getIds()
+    // Every frame is recorded with its timestamp and the warm-up is cut by timestamp at the end.
+    // Nothing in the hot loop changes shape at the warm-up boundary: clearing arrays or reassigning
+    // the end time mid-run deoptimizes the loop and shows up as one slow frame that is the bench's own.
     const deltas: number[] = []
-    let painted = 0
-    let longTasks = 0
+    const stamps: number[] = []
+    const script: number[] = []
+    const hitsPerFrame: number[] = []
+    const longTaskStarts: number[] = []
     let observer: PerformanceObserver | null = null
     try {
       observer = new PerformanceObserver((list) => {
-        longTasks += list.getEntries().length
+        for (const e of list.getEntries()) longTaskStarts.push(e.startTime)
       })
       observer.observe({ type: "longtask", buffered: false })
     } catch {
@@ -114,10 +129,18 @@ export function BenchPage() {
     }
     let last = -1
     let raf = 0
+    let measureStart = 0
+    let end = 0
     const visibleCount = Math.min(params.visible + 8, ids.length)
-    const end = performance.now() + params.seconds * 1000
     const tick = (t: number) => {
-      if (last >= 0) deltas.push(t - last)
+      const frameStart = performance.now()
+      if (last < 0) {
+        measureStart = t + params.warmupMs
+        end = measureStart + params.seconds * 1000
+      } else {
+        deltas.push(t - last)
+        stamps.push(t)
+      }
       last = t
       const patch: { id: string; fields: Partial<Row> }[] = []
       let hits = 0
@@ -130,24 +153,38 @@ export function BenchPage() {
         if (idx < visibleCount) hits++
       }
       store.applyDeltas({ patch })
-      painted += hits
+      // React renders the woken rows in a microtask it queued during applyDeltas; this one runs after it.
+      queueMicrotask(() => script.push(performance.now() - frameStart))
+      hitsPerFrame.push(hits)
       if (t < end) {
         raf = requestAnimationFrame(tick)
         return
       }
       observer?.disconnect()
-      const sorted = [...deltas].sort((a, b) => a - b)
+      // deltas[i] is the interval that ended at frame i+1; script[i] is the work of the frame before that interval.
+      const from = Math.max(0, stamps.findIndex((s) => s >= measureStart))
+      const measured = deltas.slice(from)
+      const measuredScript = script.slice(from, from + measured.length)
+      const measuredHits = hitsPerFrame.slice(from, from + measured.length)
+      const sorted = [...measured].sort((a, b) => a - b)
+      const droppedThresholdMs = percentile(sorted, 50) * 1.5
+      const scriptSorted = [...measuredScript].sort((a, b) => a - b)
       const r: BenchResult = {
         done: true,
         params,
-        frames: deltas.length,
+        frames: measured.length,
         p50: percentile(sorted, 50),
         p99: percentile(sorted, 99),
         max: sorted[sorted.length - 1] ?? 0,
-        mean: deltas.reduce((a, b) => a + b, 0) / Math.max(1, deltas.length),
-        droppedFrames: deltas.filter((d) => d > 33.4).length,
-        longTasks,
-        cellsPaintedPerFrame: painted / Math.max(1, deltas.length),
+        mean: measured.reduce((a, b) => a + b, 0) / Math.max(1, measured.length),
+        droppedFrames: measured.filter((d) => d > droppedThresholdMs).length,
+        droppedThresholdMs,
+        droppedAt: measured.flatMap((d, i) => (d > droppedThresholdMs ? [{ frame: i, ms: d, scriptMs: measuredScript[i] ?? 0 }] : [])).slice(0, 50),
+        longTasks: longTaskStarts.filter((s) => s >= measureStart).length,
+        cellsPaintedPerFrame: measuredHits.reduce((a, b) => a + b, 0) / Math.max(1, measuredHits.length),
+        scriptP50: percentile(scriptSorted, 50),
+        scriptP99: percentile(scriptSorted, 99),
+        scriptMax: scriptSorted[scriptSorted.length - 1] ?? 0,
         userAgent: navigator.userAgent,
       }
       window.__tradecnBench = r
@@ -166,7 +203,7 @@ export function BenchPage() {
         </span>
         {result ? (
           <span data-testid="result" className="ml-auto">
-            frames {result.frames} p50 {result.p50.toFixed(2)} p99 {result.p99.toFixed(2)} max {result.max.toFixed(2)} dropped {result.droppedFrames} long {result.longTasks} cells/frame {result.cellsPaintedPerFrame.toFixed(0)}
+            frames {result.frames} p50 {result.p50.toFixed(2)} p99 {result.p99.toFixed(2)} max {result.max.toFixed(2)} dropped {result.droppedFrames} long {result.longTasks} cells/frame {result.cellsPaintedPerFrame.toFixed(0)} script p50 {result.scriptP50.toFixed(2)} p99 {result.scriptP99.toFixed(2)}
           </span>
         ) : (
           <span className="ml-auto text-muted-foreground">running</span>

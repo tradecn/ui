@@ -1,5 +1,5 @@
 // Run the browser bench against a production build of the playground and print the numbers.
-//   bun scripts/bench.ts [--machine "<name>"] [--rows N] [--visible N] [--cols N] [--updates N] [--seconds N] [--preset rfq] [--hold MS]
+//   bun scripts/bench.ts [--machine "<name>"] [--rows N] [--visible N] [--cols N] [--updates N] [--seconds N] [--warmup-ms MS] [--preset rfq] [--hold MS] [--no-build]
 // Without --machine nothing is written. With it, results land in bench/results/<machine>/<date>.json and,
 // if bench/thresholds/<machine>.json exists, the run fails when it misses a threshold written before the run.
 import { existsSync, mkdirSync, writeFileSync } from "node:fs"
@@ -15,8 +15,13 @@ interface BenchResult {
   max: number
   mean: number
   droppedFrames: number
+  droppedThresholdMs: number
+  droppedAt: { frame: number; ms: number; scriptMs: number }[]
   longTasks: number
   cellsPaintedPerFrame: number
+  scriptP50: number
+  scriptP99: number
+  scriptMax: number
   userAgent: string
 }
 type BenchWindow = Window & { __tradecnBench?: BenchResult }
@@ -48,22 +53,27 @@ const params = {
   seconds: Number(opt("seconds") ?? 10),
   preset: opt("preset") ?? "rfq",
   hold: Number(opt("hold") ?? 0),
+  warmupMs: Number(opt("warmup-ms") ?? 1000),
 }
 const port = 5181
 const playground = path.join(ROOT, "playground")
 
-console.log("building playground")
-const build = Bun.spawnSync(["bun", "run", "build"], { cwd: playground, stdout: "ignore", stderr: "inherit" })
-if (build.exitCode !== 0) process.exit(build.exitCode)
+if (!args.includes("--no-build")) {
+  console.log("building playground")
+  const build = Bun.spawnSync(["bun", "run", "build"], { cwd: playground, stdout: "ignore", stderr: "inherit" })
+  if (build.exitCode !== 0) process.exit(build.exitCode)
+}
 
-const server = Bun.spawn(["bunx", "vite", "preview", "--port", String(port), "--strictPort", "--host", "127.0.0.1"], { cwd: playground, stdout: "ignore", stderr: "inherit" })
+// Spawn vite itself with no inherited pipes: killing a wrapper leaves the server holding stderr open and the script never exits.
+const server = Bun.spawn([path.join(ROOT, "node_modules/.bin/vite"), "preview", "--port", String(port), "--strictPort", "--host", "127.0.0.1"], { cwd: playground, stdin: "ignore", stdout: "ignore", stderr: "ignore" })
+let exitCode = 0
 try {
   await waitFor(`http://127.0.0.1:${port}/`)
   const browser = await chromium.launch()
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
   const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)] as [string, string]))
   await page.goto(`http://127.0.0.1:${port}/bench?${query}`)
-  await page.waitForFunction(() => (window as BenchWindow).__tradecnBench?.done === true, undefined, { timeout: (params.seconds + 30) * 1000 })
+  await page.waitForFunction(() => (window as BenchWindow).__tradecnBench?.done === true, undefined, { timeout: (params.seconds + params.warmupMs / 1000 + 30) * 1000 })
   const result = (await page.evaluate(() => (window as BenchWindow).__tradecnBench))!
   await browser.close()
 
@@ -73,21 +83,35 @@ try {
     ["p99 ms", result.p99.toFixed(2)],
     ["max ms", result.max.toFixed(2)],
     ["mean ms", result.mean.toFixed(2)],
-    ["dropped (>33.4 ms)", String(result.droppedFrames)],
+    [`dropped (>${result.droppedThresholdMs.toFixed(1)} ms)`, String(result.droppedFrames)],
     ["long tasks", String(result.longTasks)],
     ["cells painted / frame", result.cellsPaintedPerFrame.toFixed(0)],
+    ["script p50 ms", result.scriptP50.toFixed(2)],
+    ["script p99 ms", result.scriptP99.toFixed(2)],
+    ["script max ms", result.scriptMax.toFixed(2)],
   ]
   console.log(`\nbench ${params.rows} rows, ${params.visible} visible, ${params.cols} cols, ${params.updates} patches/frame, ${params.seconds}s, preset ${params.preset}`)
   for (const [k, v] of rows) console.log(`  ${k.padEnd(22)} ${v}`)
+  if (result.droppedAt.length) console.log("  dropped at             " + result.droppedAt.slice(0, 12).map((d) => `#${d.frame} ${d.ms.toFixed(1)}ms (script ${d.scriptMs.toFixed(1)})`).join(", "))
 
   if (!machine) {
     console.log("\nno --machine given: nothing written")
-    process.exit(0)
+  } else {
+    exitCode = record(result)
   }
-  const date = new Date().toISOString().slice(0, 10)
+} finally {
+  server.kill("SIGKILL")
+}
+process.exit(exitCode)
+
+function record(result: BenchResult): number {
+  if (!machine) return 0
+  const now = new Date()
+  const date = now.toISOString().slice(0, 10)
+  const time = now.toISOString().slice(11, 16).replace(":", "")
   const dir = path.join(ROOT, "bench/results", machine)
   mkdirSync(dir, { recursive: true })
-  const file = path.join(dir, `${date}-${params.preset}-${params.rows}x${params.cols}-u${params.updates}.json`)
+  const file = path.join(dir, `${date}T${time}-${params.preset}-${params.rows}x${params.cols}-u${params.updates}.json`)
   writeFileSync(file, JSON.stringify({ machine, date, ...result, userAgent: result.userAgent }, null, 2) + "\n")
   console.log(`\nwrote ${path.relative(ROOT, file)}`)
 
@@ -104,13 +128,12 @@ try {
       if (result.longTasks > t.longTasksAllowed) fails.push(`long tasks ${result.longTasks} > ${t.longTasksAllowed}`)
       if (fails.length) {
         console.error(`\nthresholds (written ${t.writtenOn}) missed:\n  ` + fails.join("\n  "))
-        process.exit(1)
+        return 1
       }
       console.log(`thresholds written ${t.writtenOn} met`)
     }
   }
-} finally {
-  server.kill()
+  return 0
 }
 
 async function waitFor(url: string) {
