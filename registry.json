@@ -169,6 +169,64 @@
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
         }
       }
+    },
+    {
+      "name": "feed-health",
+      "type": "registry:ui",
+      "title": "Feed Health",
+      "description": "A strip that shows each feed's connection state, the age of its data, and a staleness tier, with drop counts for coalesced lanes and gap indicators for ordered ones. Pluggable thresholds and session calendar; only the leaves tick.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [
+        "badge",
+        "separator",
+        "spinner",
+        "tooltip"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/feed-health.tsx",
+          "type": "registry:ui"
+        }
+      ],
+      "categories": [
+        "feed",
+        "chrome"
+      ],
+      "docs": "Adds the stale and up tokens. The default thresholds (2 s aging, 10 s stale) are placeholders: agree real ones with the people who trade on the data and pass them in.",
+      "meta": {
+        "components": [
+          {
+            "title": "FeedHealth",
+            "description": "The strip."
+          },
+          {
+            "title": "FeedAge",
+            "description": "A self-ticking age for one feed."
+          },
+          {
+            "title": "stalenessTier",
+            "description": "Pure tiering: live, aging, stale, offline, closed."
+          },
+          {
+            "title": "createClock",
+            "description": "A shared interval that runs only while subscribed."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "stale": "oklch(0.72 0.16 75)",
+          "stale-soft": "oklch(0.72 0.16 75 / 16%)",
+          "up": "oklch(0.58 0.14 165)"
+        },
+        "dark": {
+          "stale": "oklch(0.8 0.15 80)",
+          "stale-soft": "oklch(0.8 0.15 80 / 16%)",
+          "up": "oklch(0.74 0.15 165)"
+        }
+      }
     }
   ]
 }
