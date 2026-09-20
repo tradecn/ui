@@ -19,6 +19,28 @@
         "format"
       ],
       "docs": "Pure functions, no dependencies. Bind a convention per instrument with createInstrumentFormatter and pass its price() to a grid column."
+    },
+    {
+      "name": "row-store",
+      "type": "registry:lib",
+      "title": "Row Store",
+      "description": "Store-agnostic row store for high-rate feeds: apply one delta batch per frame, subscribe per row, sorted and filtered views with a reorder hold, and a frame batcher for message-driven feeds.",
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        }
+      ],
+      "categories": [
+        "grid",
+        "feed"
+      ],
+      "docs": "Your feed calls store.applyDeltas(batch) once per frame. Components read rows with useRow(store, id) and re-render only when that row changes. Wrap message-at-a-time feeds in createFrameBatcher."
     }
   ]
 }

@@ -7,6 +7,7 @@ import { defineConfig } from "vitest/config"
 export default defineConfig({
   plugins: [react()],
   resolve: {
+    dedupe: ["react", "react-dom"],
     alias: [
       { find: /^@\/registry\//, replacement: `${path.resolve(import.meta.dirname, "registry")}/` },
       { find: /^@\//, replacement: `${path.resolve(import.meta.dirname, "playground/src")}/` },

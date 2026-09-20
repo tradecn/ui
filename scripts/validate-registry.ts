@@ -124,7 +124,7 @@ for (const item of registry.items) {
       } else if (spec === "@/lib/utils" || /^@\/registry\/[^/]+\/lib\/utils$/.test(spec)) {
         fail(id, `${where}: import { cn } from "cn" instead`)
       } else if (/^@\/registry\/tradecn\/(ui|hooks|lib)\/[\w-]+$/.test(spec)) {
-        const rel = spec.replace(/^@\//, "registry/")
+        const rel = spec.replace(/^@\//, "")
         const target = [`${rel}.ts`, `${rel}.tsx`].find((p) => existsSync(path.join(ROOT, p)))
         if (!target) fail(id, `${where}: no such registry file`)
         else if (!filePaths.has(target)) fail(id, `${where}: ${target} must be listed in this item's files[] (items never depend on each other through the registry)`)
