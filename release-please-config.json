@@ -7,7 +7,10 @@
   "packages": {
     ".": {
       "changelog-path": "CHANGELOG.md",
-      "extra-files": ["version.txt"]
+      "extra-files": [
+        "version.txt"
+      ],
+      "initial-version": "0.1.0"
     }
   }
 }

@@ -15,6 +15,10 @@ if [ "$latest" = "--latest" ]; then
   base="${style%%-*}"; preset="${style##*-}"
   bunx "$shadcn" init -t vite -b "$base" -p "$preset" -n consumer -c "$work" -y --no-monorepo
   fixture="$work/consumer"
+  # Base UI styles default to hugeicons, whose package imports two files under the wrong letter case
+  # and cannot be bundled on a case-sensitive filesystem. The icon library is not what this tests.
+  bun -e 'const f=process.argv[1]+"/components.json";const j=JSON.parse(require("fs").readFileSync(f,"utf8"));j.iconLibrary="lucide";require("fs").writeFileSync(f,JSON.stringify(j,null,2)+"\n")' "$fixture"
+  bun add --cwd "$fixture" lucide-react
 else
   fixture="$root/fixtures/consumers/$style"
   bun install --frozen-lockfile --cwd "$fixture"
