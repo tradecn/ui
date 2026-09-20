@@ -10,10 +10,24 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 shadcn="shadcn@$(bun -e 'console.log(require("'"$root"'/package.json").devDependencies.shadcn)')"
 [ "$latest" = "--latest" ] && shadcn="shadcn@latest"
 
+# The CLI fetches from ui.shadcn.com; one timeout should not fail a run.
+retry() {
+  local n
+  for n in 1 2 3; do
+    "$@" && return 0
+    echo "attempt $n failed: $*" >&2
+  done
+  return 1
+}
+
 if [ "$latest" = "--latest" ]; then
   work="$(mktemp -d)"
   base="${style%%-*}"; preset="${style##*-}"
-  bunx "$shadcn" init -t vite -b "$base" -p "$preset" -n consumer -c "$work" -y --no-monorepo
+  init_consumer() {
+    rm -rf "$work/consumer"
+    bunx "$shadcn" init -t vite -b "$base" -p "$preset" -n consumer -c "$work" -y --no-monorepo
+  }
+  retry init_consumer
   fixture="$work/consumer"
   # Base UI styles default to hugeicons, whose package imports two files under the wrong letter case
   # and cannot be bundled on a case-sensitive filesystem. The icon library is not what this tests.
@@ -30,7 +44,7 @@ for f in "$root"/public/r/*.json; do
 done
 if [ "${#items[@]}" -eq 0 ]; then echo "no built items in public/r; nothing to install"; exit 0; fi
 
-bunx "$shadcn" add -y -o -c "$fixture" "${items[@]}"
+retry bunx "$shadcn" add -y -o -c "$fixture" "${items[@]}"
 
 mkdir -p "$fixture/src/smoke"
 cp "$root"/fixtures/smoke/scenes/*.tsx "$fixture/src/smoke/" 2>/dev/null || true
