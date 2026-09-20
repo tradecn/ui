@@ -2,6 +2,12 @@ name: ci
 
 on:
   pull_request:
+    # Release pull requests only touch these files. They are opened by a bot, and GitHub holds a
+    # bot-opened pull request's workflows for manual approval, so skip them instead of parking a run.
+    paths-ignore:
+      - CHANGELOG.md
+      - version.txt
+      - .release-please-manifest.json
   push:
     branches: [main]
 
