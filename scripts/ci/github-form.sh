@@ -21,10 +21,12 @@ init_probe() {
   bunx "$shadcn" init -t vite -b radix -p nova -n probe -c "$work" -y --no-monorepo
 }
 retry init_probe
-mapfile -t names < <(bun -e 'for (const i of require("'"$root"'/registry.json").items) console.log(i.name)')
-if [ "${#names[@]}" -eq 0 ]; then echo "no items yet"; exit 0; fi
+# No mapfile: macOS still ships bash 3.2.
 addresses=()
-for n in "${names[@]}"; do addresses+=("tradecn/ui/$n#$sha"); done
+while IFS= read -r n; do
+  [ -n "$n" ] && addresses+=("tradecn/ui/$n#$sha")
+done < <(bun -e 'for (const i of require("'"$root"'/registry.json").items) console.log(i.name)')
+if [ "${#addresses[@]}" -eq 0 ]; then echo "no items yet"; exit 0; fi
 retry bunx "$shadcn" add -y -o -c "$work/probe" "${addresses[@]}"
 cd "$work/probe" && bunx tsc -p tsconfig.app.json --noEmit
-echo "github form OK for ${#names[@]} items at $sha"
+echo "github form OK for ${#addresses[@]} items at $sha"

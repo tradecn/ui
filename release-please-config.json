@@ -12,5 +12,7 @@
       ],
       "initial-version": "0.1.0"
     }
-  }
+  },
+  "pull-request-header": "Release notes",
+  "pull-request-footer": "Merging this pull request tags the release."
 }
