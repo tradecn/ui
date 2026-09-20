@@ -1,0 +1,639 @@
+{
+  "generatedAt": "2026-09-20",
+  "styles": [
+    "radix-nova",
+    "base-mira",
+    "base-vega"
+  ],
+  "items": {
+    "badge": {
+      "radix-nova": {
+        "exports": [
+          "Badge",
+          "badgeVariants"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Badge",
+          "badgeVariants"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Badge",
+          "badgeVariants"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "button": {
+      "radix-nova": {
+        "exports": [
+          "Button",
+          "buttonVariants"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Button",
+          "buttonVariants"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Button",
+          "buttonVariants"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "button-group": {
+      "radix-nova": {
+        "exports": [
+          "ButtonGroup",
+          "ButtonGroupSeparator",
+          "ButtonGroupText",
+          "buttonGroupVariants"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "ButtonGroup",
+          "ButtonGroupSeparator",
+          "ButtonGroupText",
+          "buttonGroupVariants"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "ButtonGroup",
+          "ButtonGroupSeparator",
+          "ButtonGroupText",
+          "buttonGroupVariants"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "checkbox": {
+      "radix-nova": {
+        "exports": [
+          "Checkbox"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Checkbox"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Checkbox"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "command": {
+      "radix-nova": {
+        "exports": [
+          "Command",
+          "CommandDialog",
+          "CommandEmpty",
+          "CommandGroup",
+          "CommandInput",
+          "CommandItem",
+          "CommandList",
+          "CommandSeparator",
+          "CommandShortcut"
+        ],
+        "dependencies": [
+          "cmdk",
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Command",
+          "CommandDialog",
+          "CommandEmpty",
+          "CommandGroup",
+          "CommandInput",
+          "CommandItem",
+          "CommandList",
+          "CommandSeparator",
+          "CommandShortcut"
+        ],
+        "dependencies": [
+          "cmdk",
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Command",
+          "CommandDialog",
+          "CommandEmpty",
+          "CommandGroup",
+          "CommandInput",
+          "CommandItem",
+          "CommandList",
+          "CommandSeparator",
+          "CommandShortcut"
+        ],
+        "dependencies": [
+          "cmdk",
+          "cn"
+        ]
+      }
+    },
+    "context-menu": {
+      "radix-nova": {
+        "exports": [
+          "ContextMenu",
+          "ContextMenuCheckboxItem",
+          "ContextMenuContent",
+          "ContextMenuGroup",
+          "ContextMenuItem",
+          "ContextMenuLabel",
+          "ContextMenuPortal",
+          "ContextMenuRadioGroup",
+          "ContextMenuRadioItem",
+          "ContextMenuSeparator",
+          "ContextMenuShortcut",
+          "ContextMenuSub",
+          "ContextMenuSubContent",
+          "ContextMenuSubTrigger",
+          "ContextMenuTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "ContextMenu",
+          "ContextMenuCheckboxItem",
+          "ContextMenuContent",
+          "ContextMenuGroup",
+          "ContextMenuItem",
+          "ContextMenuLabel",
+          "ContextMenuPortal",
+          "ContextMenuRadioGroup",
+          "ContextMenuRadioItem",
+          "ContextMenuSeparator",
+          "ContextMenuShortcut",
+          "ContextMenuSub",
+          "ContextMenuSubContent",
+          "ContextMenuSubTrigger",
+          "ContextMenuTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "ContextMenu",
+          "ContextMenuCheckboxItem",
+          "ContextMenuContent",
+          "ContextMenuGroup",
+          "ContextMenuItem",
+          "ContextMenuLabel",
+          "ContextMenuPortal",
+          "ContextMenuRadioGroup",
+          "ContextMenuRadioItem",
+          "ContextMenuSeparator",
+          "ContextMenuShortcut",
+          "ContextMenuSub",
+          "ContextMenuSubContent",
+          "ContextMenuSubTrigger",
+          "ContextMenuTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "dialog": {
+      "radix-nova": {
+        "exports": [
+          "Dialog",
+          "DialogClose",
+          "DialogContent",
+          "DialogDescription",
+          "DialogFooter",
+          "DialogHeader",
+          "DialogOverlay",
+          "DialogPortal",
+          "DialogTitle",
+          "DialogTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Dialog",
+          "DialogClose",
+          "DialogContent",
+          "DialogDescription",
+          "DialogFooter",
+          "DialogHeader",
+          "DialogOverlay",
+          "DialogPortal",
+          "DialogTitle",
+          "DialogTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Dialog",
+          "DialogClose",
+          "DialogContent",
+          "DialogDescription",
+          "DialogFooter",
+          "DialogHeader",
+          "DialogOverlay",
+          "DialogPortal",
+          "DialogTitle",
+          "DialogTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "dropdown-menu": {
+      "radix-nova": {
+        "exports": [
+          "DropdownMenu",
+          "DropdownMenuCheckboxItem",
+          "DropdownMenuContent",
+          "DropdownMenuGroup",
+          "DropdownMenuItem",
+          "DropdownMenuLabel",
+          "DropdownMenuPortal",
+          "DropdownMenuRadioGroup",
+          "DropdownMenuRadioItem",
+          "DropdownMenuSeparator",
+          "DropdownMenuShortcut",
+          "DropdownMenuSub",
+          "DropdownMenuSubContent",
+          "DropdownMenuSubTrigger",
+          "DropdownMenuTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "DropdownMenu",
+          "DropdownMenuCheckboxItem",
+          "DropdownMenuContent",
+          "DropdownMenuGroup",
+          "DropdownMenuItem",
+          "DropdownMenuLabel",
+          "DropdownMenuPortal",
+          "DropdownMenuRadioGroup",
+          "DropdownMenuRadioItem",
+          "DropdownMenuSeparator",
+          "DropdownMenuShortcut",
+          "DropdownMenuSub",
+          "DropdownMenuSubContent",
+          "DropdownMenuSubTrigger",
+          "DropdownMenuTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "DropdownMenu",
+          "DropdownMenuCheckboxItem",
+          "DropdownMenuContent",
+          "DropdownMenuGroup",
+          "DropdownMenuItem",
+          "DropdownMenuLabel",
+          "DropdownMenuPortal",
+          "DropdownMenuRadioGroup",
+          "DropdownMenuRadioItem",
+          "DropdownMenuSeparator",
+          "DropdownMenuShortcut",
+          "DropdownMenuSub",
+          "DropdownMenuSubContent",
+          "DropdownMenuSubTrigger",
+          "DropdownMenuTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "field": {
+      "radix-nova": {
+        "exports": [
+          "Field",
+          "FieldContent",
+          "FieldDescription",
+          "FieldError",
+          "FieldGroup",
+          "FieldLabel",
+          "FieldLegend",
+          "FieldSeparator",
+          "FieldSet",
+          "FieldTitle"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Field",
+          "FieldContent",
+          "FieldDescription",
+          "FieldError",
+          "FieldGroup",
+          "FieldLabel",
+          "FieldLegend",
+          "FieldSeparator",
+          "FieldSet",
+          "FieldTitle"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Field",
+          "FieldContent",
+          "FieldDescription",
+          "FieldError",
+          "FieldGroup",
+          "FieldLabel",
+          "FieldLegend",
+          "FieldSeparator",
+          "FieldSet",
+          "FieldTitle"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "input": {
+      "radix-nova": {
+        "exports": [
+          "Input"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Input"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Input"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "input-group": {
+      "radix-nova": {
+        "exports": [
+          "InputGroup",
+          "InputGroupAddon",
+          "InputGroupButton",
+          "InputGroupInput",
+          "InputGroupText",
+          "InputGroupTextarea"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "InputGroup",
+          "InputGroupAddon",
+          "InputGroupButton",
+          "InputGroupInput",
+          "InputGroupText",
+          "InputGroupTextarea"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "InputGroup",
+          "InputGroupAddon",
+          "InputGroupButton",
+          "InputGroupInput",
+          "InputGroupText",
+          "InputGroupTextarea"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "kbd": {
+      "radix-nova": {
+        "exports": [
+          "Kbd",
+          "KbdGroup"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Kbd",
+          "KbdGroup"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Kbd",
+          "KbdGroup"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "native-select": {
+      "radix-nova": {
+        "exports": [
+          "NativeSelect",
+          "NativeSelectOptGroup",
+          "NativeSelectOption"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "NativeSelect",
+          "NativeSelectOptGroup",
+          "NativeSelectOption"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "NativeSelect",
+          "NativeSelectOptGroup",
+          "NativeSelectOption"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "separator": {
+      "radix-nova": {
+        "exports": [
+          "Separator"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Separator"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Separator"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "spinner": {
+      "radix-nova": {
+        "exports": [
+          "Spinner"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Spinner"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Spinner"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "tooltip": {
+      "radix-nova": {
+        "exports": [
+          "Tooltip",
+          "TooltipContent",
+          "TooltipProvider",
+          "TooltipTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Tooltip",
+          "TooltipContent",
+          "TooltipProvider",
+          "TooltipTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Tooltip",
+          "TooltipContent",
+          "TooltipProvider",
+          "TooltipTrigger"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    }
+  }
+}

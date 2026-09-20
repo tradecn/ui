@@ -1,0 +1,51 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  BUN_VERSION: 1.4.2
+
+jobs:
+  # Did any composed shadcn built-in change its exports upstream?
+  upstream-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - id: check
+        run: bun run lock:builtins:check 2>&1 | tee drift.txt
+        continue-on-error: true
+      - if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$(gh issue list --label upstream-drift --state open --json number --jq '.[0].number')" ]; then
+            gh issue create --title "upstream drift: a composed shadcn built-in changed" --label upstream-drift --body-file drift.txt
+          fi
+          exit 1
+
+  # Fresh consumers on shadcn@latest, so init and add drift show up here first.
+  latest-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        style: [radix-nova, base-mira, base-vega]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bunx shadcn@latest build -o public/r
+      - run: bash scripts/ci/consumer-matrix.sh ${{ matrix.style }} --latest

@@ -1,0 +1,5 @@
+{
+  "$comment": "Every npm dependency a registry item may declare, with the one range every item must use. Keep this list short; a consumer's locked-down estate pays for each entry.",
+  "cn": "^0.3.0",
+  "@tanstack/react-virtual": "^3.14.13"
+}

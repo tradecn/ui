@@ -1,0 +1,21 @@
+# Dependencies and build output
+node_modules/
+dist/
+public/r/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.DS_Store
+
+# Fixture consumers: `shadcn add` installs these at CI time
+fixtures/consumers/*/src/components/
+fixtures/consumers/*/src/lib/
+fixtures/consumers/*/src/hooks/
+fixtures/consumers/*/src/smoke/
+fixtures/consumers/*/playwright.config.ts
+
+# Local Claude Code config
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+AGENTS.md
