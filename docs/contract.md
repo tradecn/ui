@@ -13,4 +13,6 @@ Every item in `registry.json` passes these rules before it merges. `scripts/vali
 9. `title`, `description`, and `categories` are required; `docs` is required when an item has `css`, `cssVars`, or a dependency beyond `cn`; `meta.components` names real exports.
 10. The item's name is its primary file's basename, and a `registry:ui` root element carries `data-slot="tradecn-<name>"`.
 
+11. A built-in that needs a provider in any base gets one from the item. Radix tooltips throw without a `TooltipProvider` above them and Base UI tooltips do not care, so an item that uses `tooltip` wraps itself in the `TooltipProvider` every style exports, with no props (the prop names differ by base). The export lock cannot see this kind of difference; the browser matrix does, which is why every item has a smoke scene in all three consumers.
+
 How a consumer updates: `npx shadcn add tradecn/ui/<item>#v0.2.0 --diff` to review a tradecn change, `npx shadcn add table --diff` to review a shadcn change underneath. Neither touches the other's files.

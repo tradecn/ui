@@ -3,7 +3,7 @@ import { useState, useSyncExternalStore } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 // A strip that says, for each feed, whether it is connected and how old its data is.
 //
@@ -240,15 +240,19 @@ export interface FeedHealthProps {
 
 export function FeedHealth({ feeds, thresholds = PROVISIONAL_THRESHOLDS, session = alwaysOpen, clock, compact = false, className }: FeedHealthProps) {
   const c = clock ?? sharedClock()
+  // Radix tooltips throw without a provider above them; Base UI tooltips do not need one. Every style
+  // exports TooltipProvider, so the strip brings its own and works in a consumer that never added one.
   return (
-    <div role="group" aria-label="Feed health" data-slot="tradecn-feed-health" className={cn("flex items-center gap-1", className)}>
-      {feeds.map((feed, i) => (
-        <span key={feed.id} className="inline-flex items-center gap-1">
-          {i > 0 && <Separator orientation="vertical" className="h-3" />}
-          <FeedItem feed={feed} thresholds={thresholds} session={session} clock={c} compact={compact} />
-        </span>
-      ))}
-      <Announcer feeds={feeds} thresholds={thresholds} session={session} clock={c} />
-    </div>
+    <TooltipProvider>
+      <div role="group" aria-label="Feed health" data-slot="tradecn-feed-health" className={cn("flex items-center gap-1", className)}>
+        {feeds.map((feed, i) => (
+          <span key={feed.id} className="inline-flex items-center gap-1">
+            {i > 0 && <Separator orientation="vertical" className="h-3" />}
+            <FeedItem feed={feed} thresholds={thresholds} session={session} clock={c} compact={compact} />
+          </span>
+        ))}
+        <Announcer feeds={feeds} thresholds={thresholds} session={session} clock={c} />
+      </div>
+    </TooltipProvider>
   )
 }

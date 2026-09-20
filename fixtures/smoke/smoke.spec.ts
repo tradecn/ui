@@ -6,6 +6,9 @@ test("tradecn items render in this consumer", async ({ page }) => {
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
   page.on("pageerror", (e) => errors.push(e.message))
   await page.goto("/")
+  await page.waitForLoadState("networkidle")
+  // Report a crash as the exception it was, not as a missing element.
+  expect(errors, "page errors on load").toEqual([])
   await expect(page.locator("main[data-smoke]")).toBeVisible()
   const expected = Number(await page.locator("main[data-smoke]").getAttribute("data-scenes"))
   await expect(page.locator("[data-slot^='tradecn-']")).toHaveCount(expected, { timeout: 10_000 })
