@@ -1,7 +1,7 @@
 {
   "$schema": "https://ui.shadcn.com/schema/registry.json",
   "name": "tradecn",
-  "homepage": "https://tradecn.dev",
+  "homepage": "https://github.com/tradecn/ui",
   "items": [
     {
       "name": "format",
