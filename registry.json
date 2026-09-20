@@ -92,6 +92,83 @@
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
         }
       }
+    },
+    {
+      "name": "data-grid",
+      "type": "registry:ui",
+      "title": "Data Grid",
+      "description": "Virtualized grid fed by a row store one row at a time: a delta re-renders one row, numeric cells flash by direction, frozen and resizable columns, keyboard selection by row id, a reorder hold, a right-click menu, presets for blotter, watchlist, RFQ, and option chain.",
+      "dependencies": [
+        "cn@^0.3.0",
+        "@tanstack/react-virtual@^3.14.13"
+      ],
+      "registryDependencies": [
+        "checkbox",
+        "context-menu",
+        "dropdown-menu"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/data-grid.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "grid",
+        "blotter",
+        "watchlist"
+      ],
+      "docs": "Feed it a RowStore (installed alongside) and column definitions. Fixed row height; the grid positions rows itself. Adds @tanstack/react-virtual and the up/down/flat tokens. Composes your checkbox, context-menu, and dropdown-menu.",
+      "meta": {
+        "components": [
+          {
+            "title": "DataGrid",
+            "description": "The grid."
+          },
+          {
+            "title": "DATA_GRID_PRESETS",
+            "description": "Density and behavior bundles: blotter, watchlist, rfq, option-chain."
+          },
+          {
+            "title": "exportCsv",
+            "description": "CSV of given rows through the column formatters."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.58 0.19 45)",
+          "down-soft": "oklch(0.58 0.19 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "up": "oklch(0.58 0.14 165)",
+          "up-soft": "oklch(0.58 0.14 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.74 0.18 45)",
+          "down-soft": "oklch(0.74 0.18 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      }
     }
   ]
 }

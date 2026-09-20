@@ -1,0 +1,3 @@
+[install]
+# One node_modules for the workspace: the playground and the registry tests must share one React.
+linker = "hoisted"
