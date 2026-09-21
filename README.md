@@ -7,9 +7,13 @@
 
 Trading-terminal components you install with `shadcn add`. The source lands in your repo and it's yours.
 
+<!-- x-release-please-start-version -->
+
 ```bash
-npx shadcn@latest add tradecn/ui/data-grid#v0.1.0
+npx shadcn@latest add tradecn/ui/data-grid#v0.1.6
 ```
+
+<!-- x-release-please-end -->
 
 Pin the tag. The tag is the version. There is no npm package.
 
@@ -23,9 +27,15 @@ Or point a namespace at [tradecn.dev](https://tradecn.dev) in `components.json`:
 npx shadcn@latest add @tradecn/data-grid
 ```
 
-That URL is the latest release. Put the tag in it to pin: `https://tradecn.dev/r/v0.1.3/{name}.json`. Same files either way.
+<!-- x-release-please-start-version -->
 
-You already have shadcn's menus and tooltips. This adds what a trading screen needs on top of them: a grid that takes a feed, cells that flash the direction of a tick, prices in 32nds, a strip that says how old your data is.
+That URL is the latest release. Put the tag in it to pin: `https://tradecn.dev/r/v0.1.6/{name}.json`. Same files either way.
+
+<!-- x-release-please-end -->
+
+Every item is running at [tradecn.dev](https://tradecn.dev/docs/components/), docs beside it.
+
+You already have shadcn's menus and tooltips. This adds what a trading screen needs on top of them: a grid that takes a feed, cells that flash the direction of a tick, prices in 32nds, hotkeys that know which panel has focus, an order ticket that types `99-16+`.
 
 | Item | What it does |
 |---|---|
@@ -55,16 +65,20 @@ It has already caught one. Radix tooltips throw without a provider above them. B
 
 ## Updating
 
-Two commands. Neither touches the other's files.
+Two commands. Neither touches the other's files. Put the tag you're moving to in the first one.
+
+<!-- x-release-please-start-version -->
 
 ```bash
-npx shadcn@latest add tradecn/ui/data-grid#v0.2.0 --diff   # a tradecn change
+npx shadcn@latest add tradecn/ui/data-grid#v0.1.6 --diff   # a tradecn change
 npx shadcn@latest add tooltip --diff                       # a shadcn change underneath
 ```
 
+<!-- x-release-please-end -->
+
 ## Dependencies
 
-`cn` and `@tanstack/react-virtual`. That's the list. It's short on purpose: some of you ship into places where every package is a form to fill out.
+`cn`, `@tanstack/react-virtual` under the grids, `dockview-react` under the workspace (it brings `dockview` and `dockview-core`, same repo, nothing else). That's the list, and an item only pulls in the part it uses. It's short on purpose: some of you ship into places where every package is a form to fill out.
 
 No icon library either. shadcn picks a different one per base, so the grid draws its own three dots.
 
@@ -84,6 +98,6 @@ A laptop in headless Chromium is not your users' machine. `just bench --machine 
 
 ## Working on it
 
-`bun install`, then `just dev` for the playground and `just check` for everything CI runs. Pull request titles pick the next tag; [`CONTRIBUTING.md`](CONTRIBUTING.md) has the table.
+`bun install`, then `just dev` for the playground and `just check` for everything CI runs. Each item has a demo in `playground/src/demos/`; it's the one tradecn.dev shows, so a new item ships with one. Pull request titles pick the next tag; [`CONTRIBUTING.md`](CONTRIBUTING.md) has the table.
 
 MIT. I'm John Carmack (the Rust and TypeScript one, not the Doom one).
