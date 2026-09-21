@@ -24,6 +24,10 @@ import {
   render,
   renderMarkdown,
   renderPage,
+  SEARCH_BUTTON,
+  SEARCH_INDEX,
+  searchDialog,
+  searchIndex,
   SITE_DOCS,
   siteDocs,
   siteHeader,
@@ -31,6 +35,7 @@ import {
   START_PAGES,
   tables,
   templateValues,
+  textOf,
   THEME_ITEM,
   toc,
 } from "./build"
@@ -79,15 +84,30 @@ describe("the opening page", () => {
     expect(page).not.toContain("shadcn@latest add")
   })
 
-  it("wears the header every page shares, with the sections and the links out", () => {
+  it("wears the header every page shares, with the sections, the search, and the links out", () => {
     expect(page).toContain('<header class="site-header">')
     expect(page).toContain('<a href="/docs/">Docs</a><a href="/docs/components/">Components</a><a href="/docs/changelog/">Changelog</a>')
-    expect(page).toContain('<a href="https://github.com/tradecn/ui">GitHub</a><a href="/r/registry.json">registry.json</a>')
+    expect(page).toContain(`${SEARCH_BUTTON}<a href="https://github.com/tradecn/ui">GitHub</a><a href="/r/registry.json">registry.json</a>`)
     expect(page).toContain(`<span class="tag">${tag}</span>`)
     expect(page).toContain('<link rel="stylesheet" href="/site.css">')
     expect(siteHeader(tag, "components")).toContain('<a href="/docs/components/" aria-current="true">Components</a>')
     expect(siteHeader(tag, "docs", true)).toContain('<a href="/docs/" aria-current="page">Docs</a>')
     expect(siteHeader(tag)).not.toContain("aria-current")
+  })
+
+  it("carries the search dialog, closed, after the header; the 404 page has no script and none", () => {
+    const dialog = searchDialog()
+    expect(dialog).toMatch(/^<dialog class="search" aria-label="Search the docs">\n/)
+    expect(dialog).not.toContain("<dialog open")
+    expect(dialog).toContain('<input type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="search-results">')
+    expect(dialog).toContain('<button type="button" class="search-close" aria-label="Close">Esc</button>')
+    expect(dialog).toContain('<div class="search-results" id="search-results" role="listbox" aria-label="Results"></div>')
+    expect(page.indexOf("</header>")).toBeLessThan(page.indexOf('<dialog class="search"'))
+    expect(page.match(/<dialog /g)).toHaveLength(1)
+    expect(SEARCH_BUTTON).toContain('class="search-button" aria-label="Search the docs" aria-keyshortcuts="Meta+K Control+K"')
+    expect(SEARCH_BUTTON).toContain("<span>Search the docs</span><kbd>⌘K</kbd>")
+    expect(renderPage(template("404.html"), values)).not.toContain("<dialog")
+    expect(renderPage(template("404.html"), values)).not.toContain("search-button")
   })
 
   it("shows every item as a card, linking its doc on GitHub when the tag ships no page for it", () => {
@@ -258,6 +278,58 @@ describe("markdown", () => {
     expect(firstParagraph("# t\n\n```ts\nnot this\n```\n\n- not this\n\n<table>not this</table>\n\nUse `formatPrice` for [prices](x.md).\n")).toBe(
       "Use formatPrice for prices.",
     )
+  })
+})
+
+describe("the search index", () => {
+  it("reads rendered HTML as the words on the page", () => {
+    expect(textOf('<p>Install with <code>shadcn add</code>.</p>\n<ul>\n<li>a &lt; b &amp;&amp; c &gt; d</li>\n<li>Tom &amp; Jerry&#39;s &quot;x&quot; &#x27;y&#x27;</li>\n</ul>')).toBe("Install with shadcn add. a < b && c > d Tom & Jerry's \"x\" 'y'")
+    expect(textOf('<a href="/docs/x/">x</a>, <a href="#y">y</a><br>z')).toBe("x, y z")
+    expect(textOf("&unknown;")).toBe("&unknown;")
+  })
+
+  it("has a page per doc in nav order, with its group, its opening text, and every h2 and h3 with the text under it", () => {
+    const docs: Doc[] = [
+      {
+        slug: "index",
+        path: "/docs/",
+        label: "Introduction",
+        source: "index.md",
+        title: "Introduction",
+        description: "One line.",
+        html: '<h1 id="introduction"><a href="#introduction">Introduction</a></h1>\n<p>One <code>line</code>.</p>\n<p>Two.</p>\n<h2 id="it-rides-shadcn"><a href="#it-rides-shadcn">It rides shadcn</a></h2>\n<p>Never copies.</p>\n<h2 id="0-1-5"><a href="https://example.com">0.1.5</a> (date)</h2>\n<h3 id="features"><a href="#features">Features</a></h3>\n<ul>\n<li>a thing</li>\n</ul>\n<h3 id="fixes"><a href="#fixes">Fixes</a></h3>\n<p>x &lt; y</p>\n',
+      },
+      { slug: "format", path: "/docs/format/", label: "format", source: "format.md", title: "format", description: "", html: '<h1 id="format"><a href="#format">format</a></h1>\n<p>Prices in 32nds.</p>\n<pre><code class="language-tsx">formatPrice(99.5)</code></pre>\n', item: registry.items[0] },
+    ]
+    expect(searchIndex(docs)).toEqual([
+      {
+        path: "/docs/",
+        title: "Introduction",
+        group: "Get Started",
+        text: "One line. Two.",
+        sections: [
+          { id: "it-rides-shadcn", heading: "It rides shadcn", text: "Never copies." },
+          { id: "0-1-5", heading: "0.1.5 (date)", text: "" },
+          { id: "features", heading: "Features", parent: "0.1.5 (date)", text: "a thing" },
+          { id: "fixes", heading: "Fixes", parent: "0.1.5 (date)", text: "x < y" },
+        ],
+      },
+      { path: "/docs/format/", title: "format", group: "Components", text: "Prices in 32nds. formatPrice(99.5)", sections: [] },
+    ])
+  })
+
+  it("is written beside the pages, fetched by the script, allowed by the policy, and invalidated by the release", () => {
+    const build = readFileSync(resolve(root, "scripts/site/build.ts"), "utf8")
+    expect(build).toContain("await writeFile(join(out, SEARCH_INDEX), JSON.stringify(searchIndex(docs)))")
+    const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
+    expect(script).toContain(`const SEARCH_INDEX = "/${SEARCH_INDEX}"`)
+    expect(script).toContain("fetch(SEARCH_INDEX)")
+    expect(script).toContain('dialog.querySelector("input")')
+    expect(script).toContain("dialog.showModal()")
+    // mod+k opens and closes it, with either modifier, so a Mac reader's ⌘K and everyone else's Ctrl+K both work.
+    expect(script).toContain('event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey)')
+    const release = readFileSync(resolve(root, ".github/workflows/release-please.yml"), "utf8")
+    expect(release).toContain(`"/${SEARCH_INDEX}"`)
   })
 })
 
@@ -536,5 +608,33 @@ describe("the docs pages", async () => {
       expect(page.html).not.toMatch(/(?<!<div class="code">)<pre>/)
       expect(page.html.match(/<pre id="pm-/g)?.length ?? 0).toBe((page.html.match(/<div class="code command">/g)?.length ?? 0) * 4)
     }
+  })
+
+  it("indexes every page for the search, with the doc's own headings and none the builder adds", () => {
+    const index = searchIndex(docs)
+    expect(index.map((page) => page.path)).toEqual(docs.map((doc) => doc.path))
+    expect(index.map((page) => page.group)).toEqual(docs.map((doc) => (doc.item ? "Components" : "Get Started")))
+    const intro = index.find((page) => page.path === "/docs/")!
+    expect(intro.title).toBe("Introduction")
+    expect(intro.text).toMatch(/^Trading-terminal components you install with shadcn add\. The source lands in your repo and it's yours\./)
+    expect(intro.sections.map((section) => section.id)).toEqual(["it-rides-shadcn", "no-npm-package", "dependencies"])
+    const palette = index.find((page) => page.path === "/docs/command-palette/")!
+    expect(palette.sections).toContainEqual(expect.objectContaining({ id: "recents", heading: "Recents", parent: "API Reference" }))
+    expect(palette.sections.find((section) => section.id === "usage")?.parent).toBeUndefined()
+    const format = index.find((page) => page.path === "/docs/format/")!
+    expect(format.sections.find((section) => section.id === "prices")?.text).toContain("32nds")
+    const changelog = index.find((page) => page.path === "/docs/changelog/")!
+    expect(changelog.sections[0]?.heading).toMatch(/^\d+\.\d+\.\d+ \(\d{4}-\d{2}-\d{2}\)$/)
+    for (const page of index) {
+      // The doc's text, not the page's: no Installation, no file source, no markup, no entity left encoded.
+      expect(page.sections.map((section) => section.id)).not.toContain("installation")
+      for (const text of [page.title, page.text, ...page.sections.flatMap((section) => [section.heading, section.text])]) {
+        // Decoded code stays (`</FlashCell>`, `var(--color-<token>)`); the tags the renderer writes do not.
+        expect(text).not.toMatch(/<\/?(p|a|code|pre|h[1-6]|li|ul|ol|table|thead|tbody|tr|td|th|span|div|em|strong|br)(\s[^>]*)?>/)
+        expect(text).not.toMatch(/&(lt|gt|amp|quot|#\d+|#x[0-9a-f]+);/)
+        expect(text).not.toContain("Copy the files into your project")
+      }
+    }
+    expect(JSON.stringify(index).length).toBeLessThan(200_000)
   })
 })

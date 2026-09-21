@@ -125,7 +125,7 @@ jobs:
           aws s3 sync site/dist "s3://$BUCKET" --delete --exclude "r/*" --exclude "preview/assets/*" \
             --cache-control "no-cache, no-store, must-revalidate"
           id="$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" \
-            --paths "/" "/index.html" "/404.html" "/favicon.svg" "/site.js" "/site.css" "/popout.html" "/docs/*" "/preview/*" "/r/*" --query Invalidation.Id --output text)"
+            --paths "/" "/index.html" "/404.html" "/favicon.svg" "/site.js" "/site.css" "/search.json" "/popout.html" "/docs/*" "/preview/*" "/r/*" --query Invalidation.Id --output text)"
           aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION" --id "$id"
           echo "Latest pointer and page moved to $TAG." >> "$GITHUB_STEP_SUMMARY"
       - name: Install every item through the namespace

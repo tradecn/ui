@@ -5,11 +5,14 @@ on:
   pull_request:
     paths:
       - infra/**
+      - site/headers.json
       - .github/workflows/infra.yml
   push:
     branches: [main]
     paths:
       - infra/**
+      # The stack reads the security headers from here, so a policy change has to redeploy it.
+      - site/headers.json
       - .github/workflows/infra.yml
   workflow_dispatch:
 

@@ -15,12 +15,14 @@ const csp = new Map(
 // The first previews went live against a policy written for a page with no script, and only the
 // check against tradecn.dev saw it. This is the policy the stack deploys and the smoke serves.
 describe("the site's security headers", () => {
-  it("let the docs page run its script, frame a preview, and let the preview load its bundle", () => {
+  it("let the docs page run its script, frame a preview, let the preview load its bundle, and let the search fetch its index", () => {
     expect(csp.get("default-src")).toEqual(["'none'"])
     expect(csp.get("script-src")).toEqual(["'self'"])
     expect(csp.get("style-src")).toEqual(["'self'", "'unsafe-inline'"])
     expect(csp.get("frame-src")).toEqual(["'self'"])
     expect(csp.get("frame-ancestors")).toEqual(["'self'"])
+    // default-src 'none' covers fetch, so the search index needs this or the dialog says it did not load.
+    expect(csp.get("connect-src")).toEqual(["'self'"])
     expect(csp.get("base-uri")).toEqual(["'none'"])
     expect(csp.get("form-action")).toEqual(["'none'"])
     expect(headers["x-frame-options"]).toBe("SAMEORIGIN")
@@ -58,5 +60,12 @@ describe("the site's security headers", () => {
     const smoke = readFileSync(resolve(root, "scripts/site/smoke.ts"), "utf8")
     expect(smoke).toContain("HEADERS_FILE")
     expect(smoke).toContain("new Response(file, { headers })")
+  })
+
+  it("redeploy the stack when they change, since the policy lives at the edge and a page publish alone would leave the old one there", () => {
+    const infra = readFileSync(resolve(root, ".github/workflows/infra.yml"), "utf8")
+    const [, pullRequest = "", push = ""] = infra.split(/^ {2}(?:pull_request|push):$/m)
+    expect(pullRequest).toContain(`- site/${HEADERS_FILE}`)
+    expect(push).toContain(`- site/${HEADERS_FILE}`)
   })
 })

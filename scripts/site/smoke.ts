@@ -4,6 +4,8 @@
 // page: the two ways in, and every item running in the showcase at the height it reported. Then the
 // Installation page: the install blocks switch package manager together, the choice survives to the
 // next page, and the copy buttons copy what is showing. Then the Components and Changelog pages answer.
+// Then the search: the button and mod+k open it, it lists every page, ranks a heading first, goes there
+// on Enter, and a key pressed inside a preview never opens it, nor its key a demo's palette.
 //   bun scripts/site/smoke.ts [--dist site/dist] [--base https://tradecn.dev] [--port 4174] [--headers site/headers.json]
 // Without --base it serves --dist itself, with the index.html rewrite the CloudFront function does and
 // the security headers the edge sends (--headers names another file, to prove a policy breaks the pages).
@@ -11,7 +13,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { chromium, type Page } from "@playwright/test"
-import { HEADERS_FILE, PREVIEW_PATH, SITE_SCRIPT } from "./build"
+import { HEADERS_FILE, PREVIEW_PATH, SEARCH_INDEX, SITE_SCRIPT } from "./build"
+import type { SearchPage } from "./build"
 
 const { values: args } = parseArgs({
   options: {
@@ -217,6 +220,104 @@ for (const item of items) {
   }
 }
 
+// The search: the header's button and mod+k open a dialog that lists every page until a query narrows
+// it, ranks a heading that matches above text that does, goes to the hit on Enter, and says when
+// nothing matches. A key pressed inside a preview iframe stays there: the command-palette demo's mod+k
+// opens the demo's palette, not the page's search, and the page's opens nothing in the demo.
+{
+  const page = await context.newPage()
+  watch(page, "search")
+  const dialog = page.locator("dialog.search")
+  const options = dialog.locator("[role='option']")
+  const selected = dialog.locator("[role='option'][aria-selected='true']")
+  const key = "ControlOrMeta+k"
+  try {
+    const index = await page.request.get(`${base}/${SEARCH_INDEX}`)
+    if (!index.ok()) failures.push(`search: /${SEARCH_INDEX} answered ${index.status()}`)
+    const pages = (await index.json()) as SearchPage[]
+    if (pages.length < items.length + 5) failures.push(`search: the index has ${pages.length} pages for ${items.length} items and the site's own pages`)
+    await page.goto(`${base}/`, { waitUntil: "load" })
+    const button = page.locator(".site-header .search-button")
+    if (!(await button.isVisible())) failures.push("search: no search button in the header")
+    const label = await button.locator("kbd").innerText()
+    if (label !== (process.platform === "darwin" ? "⌘K" : "Ctrl K")) failures.push(`search: the button's key reads "${label}" on ${process.platform}`)
+    if (await dialog.evaluate((el) => (el as HTMLDialogElement).open)) failures.push("search: the dialog is open before anything opened it")
+    await button.click()
+    await options.first().waitFor({ timeout: 10_000 })
+    if (!(await dialog.evaluate((el) => (el as HTMLDialogElement).open))) failures.push("search: the button did not open the dialog")
+    if (!(await page.evaluate(() => document.activeElement === document.querySelector("dialog.search input")))) failures.push("search: the input is not focused when the dialog opens")
+    // An empty query lists every page in nav order, grouped the way the sidebar is.
+    if ((await options.count()) !== pages.length) failures.push(`search: ${await options.count()} options for an empty query, not one per page (${pages.length})`)
+    const listed = await options.evaluateAll((els) => els.map((el) => (el as HTMLAnchorElement).getAttribute("href")))
+    if (listed.join(",") !== pages.map((entry) => entry.path).join(",")) failures.push(`search: an empty query lists ${listed.slice(0, 3).join(", ")}…, not the pages in nav order`)
+    const groups = await dialog.locator(".search-page").evaluateAll((els) => els.map((el) => el.textContent ?? ""))
+    if (groups.join(",") !== "Get Started,Components") failures.push(`search: an empty query is grouped as ${groups.join(", ")}, not Get Started and Components`)
+    // A query groups its hits by page, the page named over them.
+    await page.keyboard.type("flash")
+    await page.waitForFunction(() => document.querySelector("dialog.search .search-page")?.textContent?.startsWith("flash-cell"), undefined, { timeout: 5_000 })
+    await page.fill("dialog.search input", "")
+    // Text that is on one item's page finds that page's heading.
+    await page.keyboard.type("32nds")
+    await page.waitForFunction(() => document.querySelector("dialog.search [role='option'][href='/docs/format/#prices']"), undefined, { timeout: 5_000 })
+    if (!(await dialog.locator("mark", { hasText: "32nds" }).count())) failures.push("search: the matched word is not marked in the results")
+    // A heading that matches ranks above text that does, and Enter goes to it.
+    await page.fill("dialog.search input", "recents")
+    await page.waitForFunction(() => document.querySelector("dialog.search [role='option'][aria-selected='true']")?.getAttribute("href") === "/docs/command-palette/#recents", undefined, { timeout: 5_000 })
+    const activedescendant = await page.locator("dialog.search input").getAttribute("aria-activedescendant")
+    if (activedescendant !== (await selected.getAttribute("id"))) failures.push(`search: aria-activedescendant is ${activedescendant}, not the selected option`)
+    await page.keyboard.press("Enter")
+    await page.waitForURL(`${base}/docs/command-palette/#recents`, { timeout: 10_000 })
+    await page.waitForLoadState("load")
+    const heading = page.locator("h3#recents")
+    const top = await heading.evaluate((el) => el.getBoundingClientRect().top)
+    if (top < 0 || top > 200) failures.push(`search: after Enter the Recents heading sits at ${Math.round(top)}px, not under the header`)
+    // mod+k opens it from the page, toggles it closed, and the arrow keys move the selection.
+    await page.locator("article h1").click()
+    await page.keyboard.press(key)
+    await options.first().waitFor({ timeout: 10_000 })
+    await page.keyboard.type("hotkey")
+    await page.waitForFunction(() => document.querySelectorAll("dialog.search [role='option']").length > 1, undefined, { timeout: 5_000 })
+    const first = await selected.getAttribute("href")
+    await page.keyboard.press("ArrowDown")
+    if ((await selected.getAttribute("href")) === first) failures.push("search: ArrowDown did not move the selection")
+    await page.keyboard.press("ArrowUp")
+    if ((await selected.getAttribute("href")) !== first) failures.push("search: ArrowUp did not move the selection back")
+    await page.fill("dialog.search input", "zzqqxxjj")
+    const note = dialog.locator(".search-note")
+    await note.waitFor({ timeout: 5_000 })
+    if ((await note.innerText()) !== "No results for “zzqqxxjj”.") failures.push(`search: an empty result reads "${await note.innerText()}"`)
+    await page.keyboard.press(key)
+    if (await dialog.evaluate((el) => (el as HTMLDialogElement).open)) failures.push("search: mod+k did not close the open dialog")
+    await page.keyboard.press(key)
+    if (!(await dialog.evaluate((el) => (el as HTMLDialogElement).open))) failures.push("search: mod+k did not reopen the dialog")
+    if ((await page.locator("dialog.search input").inputValue()) !== "") failures.push("search: the query was kept across a close and reopen")
+    await page.keyboard.press("Escape")
+    if (await dialog.evaluate((el) => (el as HTMLDialogElement).open)) failures.push("search: Escape did not close the dialog")
+    // Inside the preview, mod+k is the demo's: its palette opens and the page's search does not.
+    if (items.includes("command-palette")) {
+      const frame = page.frameLocator(".preview[data-preview='command-palette'] iframe")
+      await frame.locator("#root[data-state='ready']").waitFor({ timeout: 15_000 })
+      await frame.locator("body").click({ position: { x: 8, y: 8 } })
+      await page.keyboard.press(key)
+      await frame.locator("[role='dialog']").waitFor({ timeout: 5_000 })
+      if (await dialog.evaluate((el) => (el as HTMLDialogElement).open)) failures.push("search: mod+k inside the command-palette demo opened the page's search")
+      await page.keyboard.press("Escape")
+      await frame.locator("[role='dialog']").waitFor({ state: "detached", timeout: 5_000 })
+      // And from the page, mod+k is the search's: nothing opens in the demo.
+      await page.locator("article h1").click()
+      await page.keyboard.press(key)
+      await options.first().waitFor({ timeout: 10_000 })
+      if (await frame.locator("[role='dialog']").count()) failures.push("search: the page's mod+k opened the demo's palette")
+      await page.keyboard.press("Escape")
+    }
+    console.log(`ok  search: ${pages.length} pages indexed, the button, mod+k, a heading hit, Enter, and the preview kept its own keys`)
+  } catch (error) {
+    failures.push(`search: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
 // No page scrolls sideways, at a desktop, a laptop under the on-page column's breakpoint, a tablet, and a phone:
 // a wide table or code block scrolls inside its own box, never the page. The tokens table once did.
 {
@@ -248,4 +349,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ${failure}`)
   process.exit(1)
 }
-console.log(`\n${items.length} previews, the opening page, and the docs pages checked at ${base}`)
+console.log(`\n${items.length} previews, the opening page, the docs pages, and the search checked at ${base}`)
