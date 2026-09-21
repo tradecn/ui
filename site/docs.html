@@ -70,6 +70,8 @@ article hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
   aside ul { display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
 }
 </style>
+<!-- Blocking, in the head, so the page is listening for a preview's height before the iframe exists. -->
+<script src="/docs.js"></script>
 </head>
 <body>
 <header>
@@ -90,6 +92,5 @@ article hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 {{foot}}
   </article>
 </div>
-<script src="/docs.js" defer></script>
 </body>
 </html>

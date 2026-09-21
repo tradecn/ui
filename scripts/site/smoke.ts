@@ -8,7 +8,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { chromium, type Page } from "@playwright/test"
-import { HEADERS_FILE, PREVIEW_PATH } from "./build"
+import { DOCS_SCRIPT, HEADERS_FILE, PREVIEW_PATH } from "./build"
 
 const { values: args } = parseArgs({
   options: {
@@ -34,6 +34,9 @@ function serve() {
       else if (pathname.lastIndexOf(".") <= pathname.lastIndexOf("/")) pathname += "/index.html"
       const file = Bun.file(path.join(dist, pathname))
       if (!(await file.exists())) return new Response("not found", { status: 404, headers })
+      // The docs script is a no-store round trip on the edge while the preview bundle is cached, so on
+      // the live site a preview can mount before the page is listening. Make it lose that race here, every run.
+      if (pathname === `/${DOCS_SCRIPT}`) await Bun.sleep(300)
       return new Response(file, { headers })
     },
   })
