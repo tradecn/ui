@@ -185,10 +185,15 @@ describe("the preview card", () => {
 
   it("has the tab and height plumbing in the docs script, and the layout in the template", () => {
     const docs = template(DOCS_TEMPLATE)
-    expect(docs).toContain('<script src="/docs.js" defer></script>')
+    expect(docs).toContain('<script src="/docs.js"></script>')
     expect(docs).toContain("article > :not(.preview) { max-width: 72ch; }")
     const script = readFileSync(resolve(root, "site", "docs.js"), "utf8")
     expect(script).toContain('event.data.type !== "tradecn-preview"')
     expect(script).toContain("event.origin !== location.origin")
+    // The handshake: the page asks once it is listening, and the embed answers, so the order they load in does not matter.
+    expect(script).toContain('postMessage({ type: "tradecn-preview-ask" }, location.origin)')
+    const embed = readFileSync(resolve(root, "playground/src/embed.tsx"), "utf8")
+    expect(embed).toContain('event.data?.type === "tradecn-preview-ask"')
+    expect(embed).toContain("event.source === window.parent")
   })
 })

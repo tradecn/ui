@@ -28,7 +28,12 @@ describe("the site's security headers", () => {
 
   it("keep every script in a file: no inline script in the docs template, and the file the builder copies", () => {
     const docs = readFileSync(resolve(root, "site", DOCS_TEMPLATE), "utf8")
-    expect(docs).toContain(`<script src="/${DOCS_SCRIPT}" defer></script>`)
+    // In the head and blocking: the listener must exist before any preview iframe is parsed, or a
+    // preview that mounts first posts its height to nobody. That is what happened on the live site.
+    const tag = `<script src="/${DOCS_SCRIPT}"></script>`
+    expect(docs).toContain(tag)
+    expect(docs.indexOf(tag)).toBeLessThan(docs.indexOf("</head>"))
+    expect(docs).not.toMatch(/<script[^>]*\b(defer|async)\b/)
     expect(docs).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/)
     const script = readFileSync(resolve(root, "site", DOCS_SCRIPT), "utf8")
     expect(script).toContain('event.data.type !== "tradecn-preview"')

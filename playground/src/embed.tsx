@@ -29,5 +29,9 @@ if (!load) {
     root.dataset.state = "ready"
     // The observer reports once when it starts, after the demo's first commit, and again on every change.
     new ResizeObserver(report).observe(document.body)
+    // The docs page asks when its script is up, in case this mounted before the page was listening.
+    window.addEventListener("message", (event) => {
+      if (event.origin === window.location.origin && event.source === window.parent && event.data?.type === "tradecn-preview-ask") report()
+    })
   })
 }
