@@ -1,4 +1,5 @@
 import type { ComponentType } from "react"
+import { CommandPaletteScene } from "./command-palette"
 import { DataGridScene } from "./data-grid"
 import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
@@ -19,5 +20,6 @@ export const scenes: SmokeScene[] = [
   { name: "data-grid", Scene: DataGridScene },
   { name: "feed-health", Scene: FeedHealthScene },
   { name: "use-hotkeys", Scene: UseHotkeysScene },
+  { name: "command-palette", Scene: CommandPaletteScene },
 ]
 export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft"]

@@ -276,6 +276,55 @@
           }
         ]
       }
+    },
+    {
+      "name": "command-palette",
+      "type": "registry:ui",
+      "title": "Command Palette",
+      "description": "A command palette on your own shadcn command: actions from a registry, a second action per row on Shift+Enter, async symbol search through an adapter you supply, recents, and shortcuts rendered live from the hotkey registry. A go-bar variant renders inline and reads SYMBOL FUNCTION commands through your grammar.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [
+        "badge",
+        "command",
+        "kbd"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/command-palette.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-hotkeys.tsx",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/hotkeys.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "palette",
+        "hotkeys"
+      ],
+      "docs": "Composes your command (and the dialog and input-group it brings), kbd, and badge. Installs the hotkey registry alongside; inside a HotkeysProvider the palette declares palette.open on mod+k, and remaps show on the rows. No dependency beyond cn: cmdk comes with your own command component.",
+      "meta": {
+        "components": [
+          {
+            "title": "CommandPalette",
+            "description": "The palette, as a dialog or an inline go-bar."
+          },
+          {
+            "title": "createActionRegistry",
+            "description": "Actions and recents, shared by every palette that reads it."
+          },
+          {
+            "title": "scorePaletteAction",
+            "description": "The ranking the palette filters with, as a pure function."
+          }
+        ]
+      }
     }
   ]
 }
