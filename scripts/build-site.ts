@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 // Render the tradecn.dev landing page from a registry.json and a version.txt.
-//   bun scripts/build-site.ts [--registry registry.json] [--version version.txt] [--out site/dist]
+//   bun scripts/build-site.ts [--registry registry.json] [--version version.txt] [--theme registry.json] [--out site/dist]
 // The page says what a release ships, so the release job points --registry and --version at the
-// tag's checkout while the templates in site/ and this script come from main.
+// tag's checkout while the templates in site/, this script, and the palette come from main. The
+// palette is main's because a tag from before the theme existed has none to give.
 import { mkdir } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { parseArgs } from "node:util"
@@ -42,10 +43,10 @@ export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => ENTITIES[c] ?? c)
 }
 
-/** Every value a template may use. */
-export function templateValues(registry: Registry, version: string): Record<string, string> {
+/** Every value a template may use. Items and version come from `registry`, the palette from `themeSource`. */
+export function templateValues(registry: Registry, version: string, themeSource: Registry = registry): Record<string, string> {
   const tag = `v${version}`
-  const theme = registry.items.find((item) => item.name === THEME_ITEM)
+  const theme = themeSource.items.find((item) => item.name === THEME_ITEM)
   const light = theme?.cssVars?.light
   if (!theme || !light) throw new Error(`${THEME_ITEM} has no cssVars.light and the page takes its palette from it`)
   const palette = PALETTE.map((token) => {
@@ -85,18 +86,20 @@ export function render(template: string, values: Record<string, string>): string
 export const PAGES = ["index.html", "404.html"] as const
 
 async function main() {
+  const root = resolve(import.meta.dirname, "..")
   const { values: args } = parseArgs({
     options: {
       registry: { type: "string", default: "registry.json" },
       version: { type: "string", default: "version.txt" },
+      theme: { type: "string", default: join(root, "registry.json") },
       out: { type: "string", default: "site/dist" },
     },
   })
-  const root = resolve(import.meta.dirname, "..")
   const registry = (await Bun.file(resolve(args.registry)).json()) as Registry
+  const themeSource = (await Bun.file(resolve(args.theme)).json()) as Registry
   const version = (await Bun.file(resolve(args.version)).text()).trim()
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`${args.version} holds "${version}", which is not a version`)
-  const values = templateValues(registry, version)
+  const values = templateValues(registry, version, themeSource)
   const out = resolve(args.out)
   await mkdir(out, { recursive: true })
   for (const page of PAGES) {
