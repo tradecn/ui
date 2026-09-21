@@ -17,8 +17,37 @@ code { font-family: var(--font); }
 .site-header nav { display: flex; flex-wrap: wrap; gap: 1.1rem; }
 .site-header nav a { color: var(--muted-foreground); }
 .site-header nav a[aria-current] { color: var(--foreground); }
-.site-header .side { margin-left: auto; }
+.site-header .side { margin-left: auto; align-items: center; }
 .site-header .tag { color: var(--muted-foreground); }
+
+/* The search: a button in the header, and a dialog over every page's headings and text that it and mod+k open. */
+.search-button { display: inline-flex; align-items: center; gap: .5rem; margin: -.3rem 0; padding: .3rem .6rem; font: inherit; font-size: .85rem; color: var(--muted-foreground); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+.search-button:hover, .search-button:focus-visible { color: var(--foreground); border-color: var(--primary); }
+.search-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.search-button svg, .search-box svg { width: .95rem; height: .95rem; flex: none; }
+.search-button kbd, .search-close { font: inherit; font-size: .75rem; padding: .05rem .4rem; color: var(--muted-foreground); background: var(--background); border: 1px solid var(--border); border-radius: 4px; }
+dialog.search { width: min(40rem, calc(100vw - 2rem)); max-height: min(70vh, 40rem); margin: 10vh auto auto; padding: 0; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1.5rem 4rem rgb(0 0 0 / .55); overflow: hidden; }
+dialog.search[open] { display: flex; flex-direction: column; }
+dialog.search::backdrop { background: rgb(0 0 0 / .6); }
+.search-box { display: flex; align-items: center; gap: .6rem; padding: .65rem .9rem; border-bottom: 1px solid var(--border); color: var(--muted-foreground); }
+.search-box input { flex: 1; min-width: 0; margin: 0; padding: .15rem 0; font: inherit; color: var(--foreground); background: none; border: 0; outline: none; appearance: none; -webkit-appearance: none; }
+.search-box input::-webkit-search-cancel-button, .search-box input::-webkit-search-decoration { -webkit-appearance: none; }
+.search-close { cursor: pointer; }
+.search-close:hover, .search-close:focus-visible { color: var(--foreground); }
+.search-close:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.search-results { overflow-y: auto; padding: .4rem; }
+.search-page { padding: .6rem .6rem .25rem; font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
+.search-page .kind { margin-left: .5rem; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.search-results [role="option"] { display: block; padding: .45rem .6rem; color: var(--foreground); border-radius: var(--radius); }
+.search-results [role="option"]:hover, .search-results [role="option"]:focus-visible { text-decoration: none; }
+.search-results [role="option"][aria-selected="true"] { background: var(--card); }
+.search-hit { display: block; }
+.search-hit .parent { color: var(--muted-foreground); }
+.search-snippet { display: block; overflow: hidden; font-size: .85rem; color: var(--muted-foreground); white-space: nowrap; text-overflow: ellipsis; }
+.search-results mark { color: var(--primary); background: none; }
+.search-note { margin: 0; padding: 1.5rem .6rem; text-align: center; color: var(--muted-foreground); }
+/* Without the script the button would open nothing, so it is not there. The dialog stays closed on its own. */
+html:not(.js) .search-button { display: none; }
 
 /* The opening: one line, one paragraph, two ways in, then every item running. */
 .hero { padding: 4.5rem 0 3rem; text-align: center; }
@@ -158,4 +187,8 @@ html:not(.js) .tabs [role="tabpanel"][hidden] { display: block; }
   .sidebar ul { display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
   .hero { padding-top: 2.5rem; }
   .cta { flex-wrap: wrap; }
+  /* On a phone the search is its icon, and the dialog takes the screen. */
+  .search-button span, .search-button kbd { display: none; }
+  .search-button { padding: .3rem .45rem; }
+  dialog.search { margin: 1rem auto auto; max-height: calc(100vh - 2rem); }
 }

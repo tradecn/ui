@@ -66,7 +66,29 @@ const MARK = `<svg viewBox="0 0 256 256" fill="none" aria-hidden="true"><path d=
 /** The sections the header names; a page says which one it is in. */
 export type Section = "docs" | "components" | "changelog"
 
-/** The header on every page: the mark, the three sections, and the links out. `current` marks the section a page is in, `page` that it is the section's own page. */
+const SEARCH_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>`
+
+/**
+ * The search button in the header. It opens the dialog below; so does mod+k, and site.js writes the key
+ * for the reader's platform into the kbd. Without a script it does nothing, so the stylesheet hides it.
+ */
+export const SEARCH_BUTTON = `<button type="button" class="search-button" aria-label="Search the docs" aria-keyshortcuts="Meta+K Control+K">${SEARCH_ICON}<span>Search the docs</span><kbd>⌘K</kbd></button>`
+
+/**
+ * The search dialog, on the opening page and every docs page, closed until the button or mod+k opens it.
+ * A native dialog: the browser gives it the top layer, the backdrop, Escape, and focus back to the button.
+ * The results are written by site.js from /search.json, one option per hit, grouped by page.
+ */
+export function searchDialog(): string {
+  return [
+    `<dialog class="search" aria-label="Search the docs">`,
+    `<div class="search-box">${SEARCH_ICON}<input type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="search-results"><button type="button" class="search-close" aria-label="Close">Esc</button></div>`,
+    `<div class="search-results" id="search-results" role="listbox" aria-label="Results"></div>`,
+    `</dialog>`,
+  ].join("\n")
+}
+
+/** The header on every page: the mark, the three sections, the search, and the links out. `current` marks the section a page is in, `page` that it is the section's own page. */
 export function siteHeader(tag: string, current: Section | null = null, page = false): string {
   const link = (section: Section, href: string, text: string) =>
     `<a href="${href}"${section === current ? ` aria-current="${page ? "page" : "true"}"` : ""}>${text}</a>`
@@ -75,7 +97,7 @@ export function siteHeader(tag: string, current: Section | null = null, page = f
     `<div class="wrap">`,
     `<a class="name" href="/">${MARK}<span>tradecn<span class="slash">/</span>ui</span></a>`,
     `<nav aria-label="Sections">${link("docs", "/docs/", "Docs")}${link("components", "/docs/components/", "Components")}${link("changelog", "/docs/changelog/", "Changelog")}</nav>`,
-    `<nav class="side" aria-label="Links"><a href="${REPO_URL}">GitHub</a><a href="/r/registry.json">registry.json</a><span class="tag">${escapeHtml(tag)}</span></nav>`,
+    `<nav class="side" aria-label="Links">${SEARCH_BUTTON}<a href="${REPO_URL}">GitHub</a><a href="/r/registry.json">registry.json</a><span class="tag">${escapeHtml(tag)}</span></nav>`,
     `</div>`,
     `</header>`,
   ].join("\n")
@@ -105,6 +127,7 @@ export function templateValues(
     palette,
     font,
     header: siteHeader(tag),
+    search: searchDialog(),
     showcase: showcase(registry, tag, docSlugs, previews),
     itemCount: String(registry.items.length),
     siteUrl: SITE_URL,
@@ -193,6 +216,8 @@ export const FAVICON = "favicon.svg"
 export const SITE_SCRIPT = "site.js"
 /** The pages' one stylesheet; each page adds only its palette inline. */
 export const SITE_STYLES = "site.css"
+/** The search index: every page's title, headings, and text, which site.js fetches the first time the search opens. */
+export const SEARCH_INDEX = "search.json"
 /** The headers every response carries; the stack and the smoke both read this file. */
 export const HEADERS_FILE = "headers.json"
 export const DOCS_TEMPLATE = "docs.html"
@@ -626,9 +651,52 @@ export function arrows(docs: Doc[], index: number): string {
   ].join("\n")
 }
 
+/** An h2 or h3 as `renderMarkdown` writes it: its level, its id, and what is inside it. */
+const HEADING = /<h([23]) id="([^"]+)">([\s\S]*?)<\/h\1>/g
+
+const NAMED_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " }
+
+/** Rendered HTML as the words on the page: a block's end is a space, an inline tag is nothing, entities decoded, whitespace folded. */
+export function textOf(html: string): string {
+  return html
+    .replace(/<\/?(p|li|h[1-6]|br|hr|td|th|tr|pre|div|ul|ol|blockquote|table|thead|tbody|dl|dt|dd)\b[^>]*>/g, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity: string, code: string) => {
+      if (code[0] === "#") return String.fromCodePoint(code[1]?.toLowerCase() === "x" ? parseInt(code.slice(2), 16) : Number(code.slice(1)))
+      return NAMED_ENTITIES[code.toLowerCase()] ?? entity
+    })
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+export type SearchSection = { id: string; heading: string; parent?: string; text: string }
+/** A page in the search index: where it is, what it is called, which sidebar group it is in, its opening text, and every h2 and h3 with the text under it. */
+export type SearchPage = { path: string; title: string; group: "Get Started" | "Components"; text: string; sections: SearchSection[] }
+
+/**
+ * The search index, from the docs in nav order. It reads each doc's own HTML, so the generated parts of an item's
+ * page (the preview, the Installation with every file's source) are not in it: a hit is a page or one of the
+ * doc's headings, and its text is what the doc says there. An h3 names the h2 it is under.
+ */
+export function searchIndex(docs: Doc[]): SearchPage[] {
+  return docs.map((doc) => {
+    const headings = [...doc.html.matchAll(HEADING)]
+    const intro = doc.html.slice(0, headings[0]?.index ?? doc.html.length).replace(/<h1\b[\s\S]*?<\/h1>/, "")
+    let parent: string | undefined
+    const sections = headings.map((match, index): SearchSection => {
+      const [whole, level, id = "", inner = ""] = match
+      const heading = textOf(inner)
+      if (level === "2") parent = heading
+      const text = textOf(doc.html.slice(match.index + whole.length, headings[index + 1]?.index ?? doc.html.length))
+      return level === "3" && parent ? { id, heading, parent, text } : { id, heading, text }
+    })
+    return { path: doc.path, title: doc.title, group: doc.item ? "Components" : "Get Started", text: textOf(intro), sections }
+  })
+}
+
 /** The page's h2 and h3 headings as a nested list of anchors, or nothing when it has fewer than two. */
 export function toc(html: string): string {
-  const headings = [...html.matchAll(/<h([23]) id="([^"]+)">([\s\S]*?)<\/h\1>/g)].map(([, level, id, inner]) => ({
+  const headings = [...html.matchAll(HEADING)].map(([, level, id, inner]) => ({
     level: Number(level),
     id: id ?? "",
     // The heading's own anchor, and any link in it, would nest inside the entry's link.
@@ -778,6 +846,7 @@ async function main() {
     await mkdir(join(out, dirname(page.path)), { recursive: true })
     await writeFile(join(out, page.path), page.html)
   }
+  await writeFile(join(out, SEARCH_INDEX), JSON.stringify(searchIndex(docs)))
   const pages = previewPages(registry, themeSource, previews, values, await readFile(join(root, "site", PREVIEW_TEMPLATE), "utf8"))
   if (previews.embed) {
     await cp(join(previews.embed.dir, "assets"), join(out, PREVIEW_PATH, "assets"), { recursive: true })
@@ -788,7 +857,7 @@ async function main() {
     }
   }
   const previewNote = previews.embed ? `${pages.length} previews` : "no previews (no embed build)"
-  console.log(`site: ${registry.items.length} items, ${docs.length} docs pages, ${previewNote} at v${version} -> ${out}`)
+  console.log(`site: ${registry.items.length} items, ${docs.length} docs pages, ${previewNote}, ${SEARCH_INDEX} at v${version} -> ${out}`)
 }
 
 if (import.meta.main) await main()
