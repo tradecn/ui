@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/tradecn/ui/compare/v0.1.5...v0.1.6) (2026-09-21)
+
+
+### Maintenance
+
+* **site:** item pages in shadcn's shape, one sentence up top and the install spelled out under Command and Manual ([#32](https://github.com/tradecn/ui/issues/32)) ([a3353f0](https://github.com/tradecn/ui/commit/a3353f087c2a95e3057068b4f7197f6d5632eaad))
+
 ## [0.1.5](https://github.com/tradecn/ui/compare/v0.1.4...v0.1.5) (2026-09-21)
 
 
