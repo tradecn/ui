@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.4](https://github.com/tradecn/ui/compare/v0.1.3...v0.1.4) (2026-09-21)
+
+
+### Maintenance
+
+* **registry:** point homepage and the README at tradecn.dev ([#21](https://github.com/tradecn/ui/issues/21)) ([8c57463](https://github.com/tradecn/ui/commit/8c574637ab39bb8f4509f0ba75011e3415e9c7c9))
+* **repo:** New Earth Technologies holds the license, and the logo lands in the repo and on the site ([#22](https://github.com/tradecn/ui/issues/22)) ([ff7dcf2](https://github.com/tradecn/ui/commit/ff7dcf2cbd5f52aca9c56008a3eff84cff5bad17))
+* **repo:** pull request titles pick the next tag, checked the way release-please reads them ([#24](https://github.com/tradecn/ui/issues/24)) ([9b5441a](https://github.com/tradecn/ui/commit/9b5441a2409de9af544111d0c7d1578ec00a3a66))
+* **site:** docs pages on tradecn.dev, one per docs/*.md at the tag ([#23](https://github.com/tradecn/ui/issues/23)) ([0f90d2a](https://github.com/tradecn/ui/commit/0f90d2a7f02fdeb13e1734c892b7b1c0573faf3b))
+* **site:** take the page's palette from main's registry, not the tag's ([#20](https://github.com/tradecn/ui/issues/20)) ([6b58a9c](https://github.com/tradecn/ui/commit/6b58a9c4b4979d4876f4190a80799ba391c3c0ab))
+
 ## [0.1.3](https://github.com/tradecn/ui/compare/v0.1.2...v0.1.3) (2026-09-21)
 
 
