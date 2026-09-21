@@ -18,6 +18,14 @@ test("tradecn items render in this consumer", async ({ page }) => {
     const value = await page.evaluate((t) => getComputedStyle(document.documentElement).getPropertyValue(`--${t}`).trim(), token)
     expect(value, `--${token} is defined`).not.toBe("")
   }
+  // A token that exists as a custom property proves the CLI wrote it, not that anything uses it. These
+  // two hold only when the consumer's stylesheet has utility CSS for the installed files: the grid
+  // keeps to the 200 px its scene gives it, and `bg-up` on a connected feed's dot paints a color.
+  // Soft, so a page that lost its styles reports both.
+  const grid = await page.locator("[data-slot='tradecn-data-grid']").boundingBox()
+  expect.soft(grid?.height, "the grid is clipped to its container").toBeLessThanOrEqual(200)
+  const dot = await page.locator("[data-feed='md'] span[aria-hidden]").first().evaluate((el) => getComputedStyle(el).backgroundColor)
+  expect.soft(dot, "bg-up resolves to a color").not.toBe("rgba(0, 0, 0, 0)")
   expect(errors).toEqual([])
 })
 

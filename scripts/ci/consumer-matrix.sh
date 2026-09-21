@@ -53,6 +53,16 @@ cp "$root/fixtures/smoke/playwright.config.ts" "$fixture/playwright.config.ts"
 cp "$root/fixtures/smoke/smoke.spec.ts" "$fixture/smoke.spec.ts"
 [ "$latest" = "--latest" ] && bun add -d --cwd "$fixture" @playwright/test
 
+# Tailwind leaves gitignored files out when it looks for class names, and the committed fixtures
+# gitignore every directory the CLI installs into. Left alone, the page gets no utility CSS for
+# anything tradecn or shadcn put there: a grid with no height and no overflow runs to 1,224 px and
+# covers the scenes under it, and every check that only asks "is it visible" still passes. Naming
+# the directories puts them back. A consumer's own src is not ignored, so this is the rig's problem
+# and not theirs; a --latest consumer lives outside the repository and never had it.
+if ! grep -q '^@source "./components";$' "$fixture/src/index.css"; then
+  printf '\n@source "./components";\n@source "./hooks";\n@source "./lib";\n@source "./smoke";\n' >> "$fixture/src/index.css"
+fi
+
 cd "$fixture"
 # Typecheck the consumer. Errors in files tradecn installed (or in the smoke scenes) fail the job;
 # errors in the consumer's own shadcn files are upstream's and are reported, not blamed on tradecn.
