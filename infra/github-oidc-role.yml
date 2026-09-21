@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: GitHub Actions deploy role for tradecn/ui, scoped to the tradecn.dev stack and its bucket
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Default: tradecn
+  GitHubRepository:
+    Type: String
+    Default: ui
+  GitHubOrgId:
+    Type: String
+    Description: Numeric org id (gh api orgs/tradecn -q .id). The immutable ID-form subject claim carries it, so a transfer changes it and the role has to be redeployed.
+  GitHubRepositoryId:
+    Type: String
+    Description: Numeric repository id (gh api repos/tradecn/ui -q .id). It survives transfers.
+  ExistingOidcProviderArn:
+    Type: String
+    Description: The account's token.actions.githubusercontent.com provider ARN.
+  SiteStackName:
+    Type: String
+    Default: TradecnSiteStack
+  SiteBucketName:
+    Type: String
+    Default: tradecn-dev-site
+  BootstrapQualifier:
+    Type: String
+    Default: hnb659fds
+    Description: The CDK bootstrap qualifier in this account and region.
+
+Resources:
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: tradecn-github-deploy
+      Description: Deploys the tradecn.dev stack through the CDK bootstrap roles and writes the site bucket. Nothing else.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref ExistingOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub:
+                  - !Sub repo:${GitHubOrg}/${GitHubRepository}:ref:refs/heads/main
+                  - !Sub repo:${GitHubOrg}/${GitHubRepository}:environment:production
+                  - !Sub repo:${GitHubOrg}@${GitHubOrgId}/${GitHubRepository}@${GitHubRepositoryId}:ref:refs/heads/main
+                  - !Sub repo:${GitHubOrg}@${GitHubOrgId}/${GitHubRepository}@${GitHubRepositoryId}:environment:production
+      Policies:
+        - PolicyName: tradecn-dev-deploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # `cdk deploy` runs through the bootstrap roles; the CloudFormation execution role does
+              # the resource work with its own permissions.
+              - Sid: AssumeCdkBootstrapRoles
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/cdk-${BootstrapQualifier}-deploy-role-${AWS::AccountId}-${AWS::Region}
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/cdk-${BootstrapQualifier}-file-publishing-role-${AWS::AccountId}-${AWS::Region}
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/cdk-${BootstrapQualifier}-lookup-role-${AWS::AccountId}-${AWS::Region}
+              - Sid: ReadSiteStackOutputs
+                Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${SiteStackName}/*
+              - Sid: ListSiteBucket
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !Sub arn:aws:s3:::${SiteBucketName}
+              - Sid: WriteSiteObjects
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub arn:aws:s3:::${SiteBucketName}/*
+              - Sid: InvalidateDistribution
+                Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                Resource: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/*
+
+Outputs:
+  RoleArn:
+    Description: Store this value as the AWS_DEPLOY_ROLE_ARN GitHub Actions secret.
+    Value: !GetAtt GitHubDeployRole.Arn

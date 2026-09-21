@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tradecn/ui</title>
+<meta name="description" content="Trading-terminal components you install with shadcn add. The source lands in your repo and it's yours.">
+<meta name="color-scheme" content="dark">
+<link rel="canonical" href="{{siteUrl}}/">
+<style>
+:root {
+{{palette}}
+  --font: {{font}};
+}
+* { box-sizing: border-box; }
+html { background: var(--background); color: var(--foreground); font: 15px/1.55 var(--font); -webkit-text-size-adjust: 100%; }
+body { margin: 0 auto; padding: 0 16px 4rem; max-width: 72rem; }
+a { color: var(--primary); text-decoration: none; }
+a:hover, a:focus-visible { text-decoration: underline; }
+code { font-family: var(--font); }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1.5rem; padding: 1.75rem 0 1rem; border-bottom: 1px solid var(--border); }
+h1 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+h1 .slash { color: var(--primary); }
+h1 .tag { margin-left: .75rem; color: var(--muted-foreground); font-weight: 400; font-size: .95rem; }
+nav { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+nav a { color: var(--muted-foreground); }
+.lede { max-width: 62ch; margin: 1.75rem 0 0; font-size: 1.1rem; }
+.note { color: var(--muted-foreground); }
+h2 { margin: 2.5rem 0 .75rem; font-size: .8rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
+.install { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+.install p { margin: 0 0 .5rem; }
+pre { margin: 0 0 .75rem; padding: .9rem 1rem; overflow-x: auto; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: .65rem .9rem .65rem 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+th { font-weight: 500; color: var(--muted-foreground); }
+td.kind { white-space: nowrap; color: var(--muted-foreground); }
+.up { color: var(--up); }
+.down { color: var(--down); }
+footer { margin-top: 3rem; font-size: .9rem; color: var(--muted-foreground); }
+</style>
+</head>
+<body>
+<header>
+  <h1>tradecn<span class="slash">/</span>ui<span class="tag">{{tag}}</span></h1>
+  <nav>
+    <a href="{{repoUrl}}">GitHub</a>
+    <a href="{{repoUrl}}/blob/{{tag}}/CHANGELOG.md">Changelog</a>
+    <a href="/r/registry.json">registry.json</a>
+  </nav>
+</header>
+<main>
+  <p class="lede">Trading-terminal components you install with <code>shadcn add</code>. The source lands in your repo and it's yours.</p>
+
+  <h2>Install</h2>
+  <div class="install">
+    <div>
+      <p>GitHub form</p>
+      <pre><code>npx shadcn@latest add tradecn/ui/data-grid#{{tag}}</code></pre>
+      <p class="note">Pin the tag. The tag is the version. There is no npm package.</p>
+    </div>
+    <div>
+      <p>Namespace form, in <code>components.json</code></p>
+      <pre><code>{
+  "registries": {
+    "@tradecn": "{{siteUrl}}/r/{name}.json"
+  }
+}</code></pre>
+      <pre><code>npx shadcn@latest add @tradecn/data-grid</code></pre>
+      <p class="note"><code>/r/{name}.json</code> is the latest release. <code>/r/{{tag}}/{name}.json</code> is this one, for good.</p>
+    </div>
+  </div>
+
+  <h2>Items</h2>
+  <table>
+    <thead><tr><th>Item</th><th>Type</th><th>What it does</th></tr></thead>
+    <tbody>
+{{items}}
+    </tbody>
+  </table>
+</main>
+<footer>
+  <p>MIT. Source and docs at <a href="{{repoUrl}}">github.com/tradecn/ui</a>. Prices go <span class="up">up</span> and <span class="down">down</span> in the colors the theme uses.</p>
+</footer>
+</body>
+</html>

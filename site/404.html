@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found</title>
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark">
+<style>
+:root {
+{{palette}}
+  --font: {{font}};
+}
+html { background: var(--background); color: var(--foreground); font: 15px/1.55 var(--font); }
+body { margin: 0 auto; padding: 4rem 16px; max-width: 40rem; }
+a { color: var(--primary); text-decoration: none; }
+a:hover, a:focus-visible { text-decoration: underline; }
+code { font-family: var(--font); }
+h1 { font-size: 1.25rem; font-weight: 600; }
+p { color: var(--muted-foreground); }
+</style>
+</head>
+<body>
+<h1>404</h1>
+<p>Nothing here. The latest registry is <a href="/r/registry.json"><code>/r/registry.json</code></a> and this release is <a href="/r/{{tag}}/registry.json"><code>/r/{{tag}}/registry.json</code></a>. <a href="/">Home</a>.</p>
+</body>
+</html>

@@ -8,6 +8,7 @@ export default tseslint.config(
     ignores: [
       "**/node_modules/**",
       "**/dist/**",
+      "**/cdk.out/**",
       "public/**",
       "fixtures/consumers/**",
       "playground/src/components/ui/**",
