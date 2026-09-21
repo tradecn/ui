@@ -50,7 +50,8 @@ function features(options: PopoutOptions): string {
   return parts.join(",")
 }
 
-function mirrorRoot(from: Document, to: Document) {
+/** Makes `to`'s root element carry the attributes of `from`'s, which is where a theme class lives. */
+export function mirrorRoot(from: Document, to: Document) {
   for (const name of to.documentElement.getAttributeNames()) if (!from.documentElement.hasAttribute(name)) to.documentElement.removeAttribute(name)
   for (const name of from.documentElement.getAttributeNames()) to.documentElement.setAttribute(name, from.documentElement.getAttribute(name) ?? "")
 }

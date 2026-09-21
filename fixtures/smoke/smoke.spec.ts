@@ -93,7 +93,8 @@ test("a panel retypes its symbol, carries it through a link group, and keeps its
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
   page.on("pageerror", (e) => errors.push(e.message))
   await page.goto("/")
-  const panel = page.locator("[data-slot='tradecn-panel']")
+  // Scoped to its scene: a workspace's panels are panels too.
+  const panel = page.locator("section[data-scene='panel'] [data-slot='tradecn-panel']")
   const follower = page.locator("[data-panel-follower]")
   await expect(panel).toHaveAttribute("data-hotkey-scope", "panel:smoke-panel")
   await expect(follower).toHaveAttribute("data-panel-follower", "ZN")
@@ -219,6 +220,91 @@ test("a blotter offers an action only for the orders the server allows, and says
   await row("o3").click({ button: "right" })
   await expect(page.getByRole("menuitem", { name: "Nothing to do here" })).toBeVisible()
   await page.keyboard.press("Escape")
+  expect(errors).toEqual([])
+})
+
+// The first item with a third-party stylesheet in play, and a `css` block written into the consumer's
+// own. So: the dock has geometry (its stylesheet arrived), the theme class landed and maps onto the
+// consumer's tokens, a tab click aims the keyboard at that panel and only that panel, a change is
+// saved and comes back after a reload, and a popout carries the keys and the theme class with it.
+test("a workspace docks its panels, keeps their keys apart, saves, restores, and pops out", async ({ page, context }) => {
+  const errors: string[] = []
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
+  page.on("pageerror", (e) => errors.push(e.message))
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='workspace']")
+  const state = scene.locator("[data-ws-saves]")
+  const workspace = scene.locator("[data-slot='tradecn-workspace']")
+  const book = scene.locator("[data-ws-book='book-1']")
+  const chart = scene.locator("[data-ws-chart='chart-1']")
+  await expect(book).toBeVisible()
+  await expect(chart).toBeVisible()
+  await expect(state).toHaveAttribute("data-ws-restored", "no")
+  // Geometry: the dock laid the two out side by side, which needs its stylesheet.
+  const left = await book.boundingBox()
+  const right = await chart.boundingBox()
+  expect(left!.width, "the dock gave the book a width").toBeGreaterThan(200)
+  expect(right!.x, "the chart is to the right of the book").toBeGreaterThan(left!.x + left!.width - 1)
+  // The theme: our class on the dock, and the tab strip painted with the consumer's --muted.
+  await expect(workspace.locator(".dockview-theme-tradecn")).toHaveCount(1)
+  const strip = await page.evaluate(() => {
+    const strip = document.querySelector("section[data-scene='workspace'] .dv-tabs-and-actions-container")!
+    const probe = document.createElement("i")
+    probe.style.backgroundColor = "var(--muted)"
+    document.body.append(probe)
+    const out = { strip: getComputedStyle(strip).backgroundColor, muted: getComputedStyle(probe).backgroundColor }
+    probe.remove()
+    return out
+  })
+  expect(strip.strip, "the tab strip is painted with --muted").toBe(strip.muted)
+  expect(strip.strip).not.toBe("rgba(0, 0, 0, 0)")
+  // Keys: clicking a tab puts the keyboard in that panel.
+  await scene.locator("[data-workspace-tab='chart-1']").click()
+  await page.keyboard.press("k")
+  await expect(chart).toHaveAttribute("data-ws-keys", "1")
+  await expect(book).toHaveAttribute("data-ws-keys", "0")
+  await scene.locator("[data-workspace-tab='book-1']").click()
+  await page.keyboard.press("k")
+  await expect(book).toHaveAttribute("data-ws-keys", "1")
+  await expect(chart).toHaveAttribute("data-ws-keys", "1")
+  // A change is saved, and comes back. The new book joins the active group as a tab, so it is the one
+  // showing and the first book is behind it: a group draws one panel at a time.
+  const tabs = scene.locator("[data-workspace-tab]")
+  const saves = Number(await state.getAttribute("data-ws-saves"))
+  await scene.getByRole("button", { name: "add book" }).click()
+  await expect(tabs).toHaveCount(3)
+  // Named by its kind: the seed's `book-1` was an explicit id.
+  await expect(scene.locator("[data-ws-book='ws-book-1']")).toBeVisible()
+  await expect(book).toHaveCount(0)
+  await expect.poll(async () => Number(await state.getAttribute("data-ws-saves"))).toBeGreaterThan(saves)
+  await scene.locator("[data-workspace-tab='book-1']").click()
+  await book.getByRole("button", { name: "to ES" }).click()
+  await expect(book.locator("[data-ws-symbol]")).toHaveText("ES")
+  await expect.poll(async () => Number(await state.getAttribute("data-ws-saves"))).toBeGreaterThan(saves + 1)
+  await page.reload()
+  await expect(state).toHaveAttribute("data-ws-restored", "yes")
+  await expect(tabs).toHaveCount(3)
+  await expect(book.locator("[data-ws-symbol]")).toHaveText("ES")
+  // Closing from the tab: the second book goes, the first stays.
+  await scene.getByRole("button", { name: "Close Book" }).last().click()
+  await expect(tabs).toHaveCount(2)
+  await expect(book).toBeVisible()
+  // A popout: the panel moves to the new window with its state, the theme class follows, and its key still counts.
+  await page.evaluate(() => document.documentElement.classList.add("dark"))
+  const [popup] = await Promise.all([context.waitForEvent("page"), scene.getByRole("button", { name: "pop out book" }).click()])
+  await popup.waitForLoadState()
+  const outBook = popup.locator("[data-ws-book='book-1']")
+  await expect(outBook).toBeVisible()
+  await expect(outBook).toHaveAttribute("data-ws-location", "popout")
+  await expect(outBook.locator("[data-ws-symbol]")).toHaveText("ES")
+  await expect.poll(() => popup.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(true)
+  await outBook.click()
+  await popup.keyboard.press("k")
+  await expect(outBook).toHaveAttribute("data-ws-keys", "1")
+  // As a person closes it: the dock hears about the window through beforeunload.
+  await popup.close({ runBeforeUnload: true })
+  await expect(scene.locator("[data-ws-book='book-1']")).toBeVisible()
+  await expect(scene.locator("[data-ws-book='book-1']")).toHaveAttribute("data-ws-location", "grid")
   expect(errors).toEqual([])
 })
 

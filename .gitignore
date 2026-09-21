@@ -13,6 +13,7 @@ fixtures/consumers/*/src/components/
 fixtures/consumers/*/src/lib/
 fixtures/consumers/*/src/hooks/
 fixtures/consumers/*/src/smoke/
+fixtures/consumers/*/public/
 fixtures/consumers/*/playwright.config.ts
 fixtures/consumers/*/smoke.spec.ts
 
@@ -20,4 +21,5 @@ fixtures/consumers/*/smoke.spec.ts
 CLAUDE.md
 CLAUDE.local.md
 .claude/
+.agents/
 AGENTS.md
