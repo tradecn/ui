@@ -217,6 +217,30 @@ for (const item of items) {
   }
 }
 
+// No page scrolls sideways, at a desktop, a laptop under the on-page column's breakpoint, a tablet, and a phone:
+// a wide table or code block scrolls inside its own box, never the page. The tokens table once did.
+{
+  const pages = ["/", "/docs/", "/docs/installation/", "/docs/components/", "/docs/theming/", "/docs/changelog/", `/docs/${items[0]}/`]
+  const widths = [1280, 1024, 768, 390]
+  const page = await context.newPage()
+  watch(page, "overflow")
+  try {
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 900 })
+      for (const route of pages) {
+        await page.goto(`${base}${route}`, { waitUntil: "load" })
+        const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+        if (over > 0) failures.push(`overflow: ${route} scrolls ${over}px sideways at ${width}px`)
+      }
+    }
+    console.log(`ok  no page scrolls sideways at ${widths.join(", ")}px`)
+  } catch (error) {
+    failures.push(`overflow: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
 await browser.close()
 server?.stop(true)
 if (failures.length) {
