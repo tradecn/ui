@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.2](https://github.com/tradecn/ui/compare/v0.1.1...v0.1.2) (2026-09-21)
+
+
+### Features
+
+* **blotter:** the data grid as an order blotter, with the server's status and actions gated by what it allows ([#13](https://github.com/tradecn/ui/issues/13)) ([e401f13](https://github.com/tradecn/ui/commit/e401f131a068a2ebd6864c29d61ba144ca878538))
+* **panel:** panel chrome as a hotkey scope, with a symbol tag, link groups across windows, and a popout that keeps state ([#9](https://github.com/tradecn/ui/issues/9)) ([9f65030](https://github.com/tradecn/ui/commit/9f6503043ff6497ffeece9c49c42c9a7f94b9c17))
+* **sparkline:** a line for a grid cell, colored and worded by direction, with gaps kept and an optional crosshair ([#11](https://github.com/tradecn/ui/issues/11)) ([a71463c](https://github.com/tradecn/ui/commit/a71463ce41cc513be65cbfc293c385395285ffc0))
+* **tradecn-terminal-classic:** the terminal theme with green and red ([#15](https://github.com/tradecn/ui/issues/15)) ([3fc5854](https://github.com/tradecn/ui/commit/3fc5854c762e12ee1af72cea7d9cd5847e20f02b))
+* **tradecn-terminal:** a terminal theme, black and amber with square corners and a monospace stack ([#14](https://github.com/tradecn/ui/issues/14)) ([c8cfc2f](https://github.com/tradecn/ui/commit/c8cfc2f4c59fc14e0a6e853a200b2392a757272a))
+* **watchlist:** the data grid as a watchlist, with an add field that finds what is already there and three ways to remove ([#12](https://github.com/tradecn/ui/issues/12)) ([57c31d1](https://github.com/tradecn/ui/commit/57c31d14096600df7308dc6820d8250c3b4e4ac1))
+
 ## [0.1.1](https://github.com/tradecn/ui/compare/v0.1.0...v0.1.1) (2026-09-21)
 
 
