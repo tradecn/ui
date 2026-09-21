@@ -559,6 +559,87 @@
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
         }
       }
+    },
+    {
+      "name": "blotter",
+      "type": "registry:ui",
+      "title": "Blotter",
+      "description": "The data grid as an order blotter: time, symbol, side, quantity, filled, price, status, and account. The status is the server's word, printed as it arrives and never worked out. An action such as Cancel is offered only for the orders whose allowedActions the server put it in, the button says how many that is, and the check is made again against the store as the click lands.",
+      "dependencies": [
+        "cn@^0.3.0",
+        "@tanstack/react-virtual@^3.14.13"
+      ],
+      "registryDependencies": [
+        "button",
+        "checkbox",
+        "context-menu",
+        "dropdown-menu"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/blotter.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/ui/data-grid.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "blotter",
+        "grid"
+      ],
+      "docs": "Installs the data grid, the row store, and format alongside, and adds @tanstack/react-virtual and the up/down/flat tokens. Composes your button and context-menu, plus the checkbox and dropdown-menu the grid uses. Delete cancels nothing until you name the action it runs.",
+      "meta": {
+        "components": [
+          {
+            "title": "Blotter",
+            "description": "The grid, the toolbar, and the actions."
+          },
+          {
+            "title": "blotterColumns",
+            "description": "The default columns, as a list to spread into your own."
+          },
+          {
+            "title": "allowedRows",
+            "description": "The orders among some ids that allow an action, read from the store now."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.58 0.19 45)",
+          "down-soft": "oklch(0.58 0.19 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "up": "oklch(0.58 0.14 165)",
+          "up-soft": "oklch(0.58 0.14 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.74 0.18 45)",
+          "down-soft": "oklch(0.74 0.18 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      }
     }
   ]
 }

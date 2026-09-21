@@ -1,4 +1,5 @@
 import type { ComponentType } from "react"
+import { BlotterScene } from "./blotter"
 import { CommandPaletteScene } from "./command-palette"
 import { DataGridScene } from "./data-grid"
 import { FeedHealthScene } from "./feed-health"
@@ -27,4 +28,5 @@ export const items: Record<string, ItemScene> = {
   panel: { title: "panel", Scene: PanelScene },
   sparkline: { title: "sparkline", Scene: SparklineScene },
   watchlist: { title: "watchlist", Scene: WatchlistScene },
+  blotter: { title: "blotter", Scene: BlotterScene },
 }
