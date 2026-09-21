@@ -1,26 +1,30 @@
 #!/usr/bin/env bun
 // Open the built site in a browser and check every preview: the docs page frames it, the embed page
 // mounts it, the iframe takes the height it reports, and nothing errors on the way.
-//   bun scripts/site/smoke.ts [--dist site/dist] [--base https://tradecn.dev] [--port 4174]
-// Without --base it serves --dist itself, with the index.html rewrite the CloudFront function does.
-import { existsSync, readdirSync } from "node:fs"
+//   bun scripts/site/smoke.ts [--dist site/dist] [--base https://tradecn.dev] [--port 4174] [--headers site/headers.json]
+// Without --base it serves --dist itself, with the index.html rewrite the CloudFront function does and
+// the security headers the edge sends (--headers names another file, to prove a policy breaks the pages).
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { chromium, type Page } from "@playwright/test"
-import { PREVIEW_PATH } from "./build"
+import { HEADERS_FILE, PREVIEW_PATH } from "./build"
 
 const { values: args } = parseArgs({
   options: {
     dist: { type: "string", default: "site/dist" },
     base: { type: "string" },
     port: { type: "string", default: "4174" },
+    headers: { type: "string", default: path.resolve(import.meta.dirname, "../../site", HEADERS_FILE) },
   },
 })
 const dist = path.resolve(args.dist)
 const port = Number(args.port)
 
-// The same rewrite the edge does: a route without an extension is its index.html.
+// The same rewrite the edge does, a route without an extension is its index.html, and the same
+// security headers on every response, so a Content-Security-Policy that would block a page blocks it here first.
 function serve() {
+  const headers = Object.fromEntries(Object.entries(JSON.parse(readFileSync(path.resolve(args.headers), "utf8")) as Record<string, string>).filter(([name]) => name !== "_"))
   return Bun.serve({
     port,
     hostname: "127.0.0.1",
@@ -29,8 +33,8 @@ function serve() {
       if (pathname.endsWith("/")) pathname += "index.html"
       else if (pathname.lastIndexOf(".") <= pathname.lastIndexOf("/")) pathname += "/index.html"
       const file = Bun.file(path.join(dist, pathname))
-      if (!(await file.exists())) return new Response("not found", { status: 404 })
-      return new Response(file)
+      if (!(await file.exists())) return new Response("not found", { status: 404, headers })
+      return new Response(file, { headers })
     },
   })
 }

@@ -90,27 +90,6 @@ article hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 {{foot}}
   </article>
 </div>
-<script>
-// The preview card's tabs, and the iframe's height from the message its page posts.
-for (const preview of document.querySelectorAll(".preview")) {
-  const tabs = [...preview.querySelectorAll("[role='tab']")];
-  for (const tab of tabs) {
-    tab.addEventListener("click", () => {
-      for (const other of tabs) {
-        const on = other === tab;
-        other.setAttribute("aria-selected", String(on));
-        const panel = document.getElementById(other.getAttribute("aria-controls"));
-        if (panel) panel.hidden = !on;
-      }
-    });
-  }
-}
-addEventListener("message", (event) => {
-  if (event.origin !== location.origin || !event.data || event.data.type !== "tradecn-preview") return;
-  for (const frame of document.querySelectorAll(".preview iframe")) {
-    if (frame.contentWindow === event.source) frame.style.height = Math.ceil(event.data.height) + "px";
-  }
-});
-</script>
+<script src="/docs.js" defer></script>
 </body>
 </html>

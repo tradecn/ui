@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+import path from "node:path"
 import { CfnOutput, Duration, RemovalPolicy, Stack } from "aws-cdk-lib"
 import type { StackProps } from "aws-cdk-lib"
 import * as acm from "aws-cdk-lib/aws-certificatemanager"
@@ -18,6 +20,14 @@ export const HOSTED_ZONE_ID = "Z08196132ZI9KWD707HU7"
 // else in the account. No dots: a dotted bucket name breaks TLS between CloudFront and S3.
 export const SITE_BUCKET = "tradecn-dev-site"
 export const LOGS_BUCKET = "tradecn-dev-logs"
+
+// The security headers every response carries, shared with scripts/site/smoke.ts, which serves them
+// locally: a page this policy would break fails the smoke before it is published. The first
+// previews shipped against a policy written for a page with no script, and only the live check saw it.
+export const SITE_HEADERS = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../site/headers.json"), "utf8")) as {
+  "content-security-policy": string
+  "x-frame-options": "DENY" | "SAMEORIGIN"
+}
 
 /**
  * tradecn.dev: one private bucket behind CloudFront. The landing page lives at the root and the
@@ -72,16 +82,16 @@ export class TradecnSiteStack extends Stack {
 
     const siteHeaders = new cloudfront.ResponseHeadersPolicy(this, "SiteHeaders", {
       responseHeadersPolicyName: "tradecn-dev-site",
-      comment: "Security headers for the tradecn.dev landing page",
+      comment: "Security headers for the tradecn.dev pages and previews",
       securityHeadersBehavior: {
-        // The page is one HTML file with its stylesheet inline and no script.
-        contentSecurityPolicy: {
-          contentSecurityPolicy:
-            "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'self' data:; style-src 'unsafe-inline'",
+        // From site/headers.json: scripts and frames are 'self' (the docs page's /docs.js, the
+        // /preview/ bundle, the preview iframes); styles allow inline for the pages' palette blocks.
+        contentSecurityPolicy: { contentSecurityPolicy: SITE_HEADERS["content-security-policy"], override: true },
+        contentTypeOptions: { override: true },
+        frameOptions: {
+          frameOption: SITE_HEADERS["x-frame-options"] === "DENY" ? cloudfront.HeadersFrameOption.DENY : cloudfront.HeadersFrameOption.SAMEORIGIN,
           override: true,
         },
-        contentTypeOptions: { override: true },
-        frameOptions: { frameOption: cloudfront.HeadersFrameOption.DENY, override: true },
         referrerPolicy: { referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN, override: true },
         strictTransportSecurity: { accessControlMaxAge: Duration.days(365), includeSubdomains: true, preload: true, override: true },
       },
