@@ -481,6 +481,84 @@
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
         }
       }
+    },
+    {
+      "name": "watchlist",
+      "type": "registry:ui",
+      "title": "Watchlist",
+      "description": "The data grid as a watchlist: symbol, last, bid, ask, change, change %, and volume, with prices printed through your convention per row. A field that adds a symbol and goes to it instead when it is already there, and three ways to take one off: Delete, a button on the row, and the right-click menu. The list stays yours.",
+      "dependencies": [
+        "cn@^0.3.0",
+        "@tanstack/react-virtual@^3.14.13"
+      ],
+      "registryDependencies": [
+        "button",
+        "checkbox",
+        "context-menu",
+        "dropdown-menu",
+        "input"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/watchlist.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/ui/data-grid.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "watchlist",
+        "grid"
+      ],
+      "docs": "Installs the data grid, the row store, and format alongside, and adds @tanstack/react-virtual and the up/down/flat tokens. Composes your input, button, and context-menu, plus the checkbox and dropdown-menu the grid uses. Rows are keyed by symbol: createRowStore({ getRowId: (r) => r.symbol }).",
+      "meta": {
+        "components": [
+          {
+            "title": "Watchlist",
+            "description": "The grid, the add field, and the remove affordances."
+          },
+          {
+            "title": "watchlistColumns",
+            "description": "The default columns, as a list to spread into your own."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.58 0.19 45)",
+          "down-soft": "oklch(0.58 0.19 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "up": "oklch(0.58 0.14 165)",
+          "up-soft": "oklch(0.58 0.14 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.74 0.18 45)",
+          "down-soft": "oklch(0.74 0.18 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      }
     }
   ]
 }
