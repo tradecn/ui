@@ -426,6 +426,61 @@
           "panel-sync": "oklch(0.78 0.12 220)"
         }
       }
+    },
+    {
+      "name": "sparkline",
+      "type": "registry:ui",
+      "title": "Sparkline",
+      "description": "A line small enough for a grid cell that still says which way, how far, and between what. Colored by direction against the first reading or a baseline, with the same direction in words for a screen reader. A missing reading is a gap, not a shift. Fixed size for a grid column, or it fills its box through one shared ResizeObserver. An optional crosshair that moves with the pointer and the arrow keys.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/sparkline.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/sparkline-geometry.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "grid",
+        "watchlist"
+      ],
+      "docs": "Adds the up, down, flat tokens and their -soft variants, the same ones flash-cell uses. Give it width and height inside a grid column and it observes nothing. It draws every reading you pass; decimate a long history before it gets here.",
+      "meta": {
+        "components": [
+          {
+            "title": "Sparkline",
+            "description": "The line, and the crosshair when interactive."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.58 0.19 45)",
+          "down-soft": "oklch(0.58 0.19 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "up": "oklch(0.58 0.14 165)",
+          "up-soft": "oklch(0.58 0.14 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.74 0.18 45)",
+          "down-soft": "oklch(0.74 0.18 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      }
     }
   ]
 }

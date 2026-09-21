@@ -6,6 +6,7 @@ import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
 import { PanelScene } from "./panel"
 import { RowStoreScene } from "./row-store"
+import { SparklineScene } from "./sparkline"
 import { UseHotkeysScene } from "./use-hotkeys"
 
 export interface ItemScene {
@@ -23,4 +24,5 @@ export const items: Record<string, ItemScene> = {
   "use-hotkeys": { title: "use-hotkeys", Scene: UseHotkeysScene },
   "command-palette": { title: "command-palette", Scene: CommandPaletteScene },
   panel: { title: "panel", Scene: PanelScene },
+  sparkline: { title: "sparkline", Scene: SparklineScene },
 }
