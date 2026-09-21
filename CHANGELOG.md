@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/tradecn/ui/compare/v0.1.0...v0.1.1) (2026-09-21)
+
+
+### Features
+
+* **command-palette:** palette and go-bar on the consumer's command, with a second action, symbol search, and live shortcuts ([#7](https://github.com/tradecn/ui/issues/7)) ([499301a](https://github.com/tradecn/ui/commit/499301aff9a28815cd482d6be8fdd42c2fefffe6))
+* **use-hotkeys:** hotkey registry with DOM scopes, chords, conflict detection, and remapping ([#5](https://github.com/tradecn/ui/issues/5)) ([5bbc872](https://github.com/tradecn/ui/commit/5bbc8727f880ee1a9a776c5bdf777b2e535ad806))
+
 ## 0.1.0 (2026-09-20)
 
 
