@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // Render tradecn.dev: the landing page and one page per docs/*.md.
-//   bun scripts/build-site.ts [--registry registry.json] [--version version.txt] [--docs docs] [--theme registry.json] [--out site/dist]
+//   bun scripts/site/build.ts [--registry registry.json] [--version version.txt] [--docs docs] [--theme registry.json] [--out site/dist]
 // The pages say what a release ships, so the release job points --registry, --version, and --docs
 // at the tag's checkout while the templates in site/, this script, and the palette come from main.
 // The palette is main's because a tag from before the theme existed has none to give.
@@ -217,7 +217,7 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
 }
 
 async function main() {
-  const root = resolve(import.meta.dirname, "..")
+  const root = resolve(import.meta.dirname, "../..")
   const { values: args } = parseArgs({
     options: {
       registry: { type: "string", default: "registry.json" },

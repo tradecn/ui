@@ -52,7 +52,7 @@ bench *args:
 
 # Render the tradecn.dev landing page into site/dist from registry.json and version.txt.
 site:
-    bun scripts/build-site.ts
+    bun scripts/site/build.ts
 
 # The tradecn.dev stack (infra/). Synth needs no credentials; diff and deploy need the account's.
 infra-synth:

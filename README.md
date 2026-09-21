@@ -84,6 +84,6 @@ A laptop in headless Chromium is not your users' machine. `just bench --machine 
 
 ## Working on it
 
-`bun install`, then `just dev` for the playground and `just check` for everything CI runs.
+`bun install`, then `just dev` for the playground and `just check` for everything CI runs. Pull request titles pick the next tag; [`CONTRIBUTING.md`](CONTRIBUTING.md) has the table.
 
 MIT. I'm John Carmack (the Rust and TypeScript one, not the Doom one).
