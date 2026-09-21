@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/tradecn/ui/compare/v0.1.4...v0.1.5) (2026-09-21)
+
+
+### Maintenance
+
+* **site:** live previews on every docs page, one demo per item embedded from the playground ([#27](https://github.com/tradecn/ui/issues/27)) ([9566f7e](https://github.com/tradecn/ui/commit/9566f7e792ebce7407d4688b413322bf9572f5b9))
+
 ## [0.1.4](https://github.com/tradecn/ui/compare/v0.1.3...v0.1.4) (2026-09-21)
 
 
