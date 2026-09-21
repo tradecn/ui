@@ -29,6 +29,7 @@ import {
   siteHeader,
   sitePageValues,
   START_PAGES,
+  tables,
   templateValues,
   THEME_ITEM,
   toc,
@@ -199,6 +200,14 @@ describe("code blocks", () => {
     const html = codeBlocks("<pre><code>npm install cn</code></pre>")
     expect(html).toContain('data-pm="yarn"><code>yarn add cn</code>')
     expect(html).toContain('data-pm="npm"><code>npm install cn</code>')
+  })
+})
+
+describe("tables", () => {
+  it("each get a wrapper that scrolls sideways, whatever wrote them", () => {
+    const html = tables('<p>x</p>\n<table class="tokens">\n<tr><td>a</td></tr>\n</table>\n<table><tr><td>b</td></tr></table>')
+    expect(html).toBe('<p>x</p>\n<div class="table"><table class="tokens">\n<tr><td>a</td></tr>\n</table></div>\n<div class="table"><table><tr><td>b</td></tr></table></div>')
+    expect(renderPage("<table><tr><td>npx x</td></tr></table>", {})).toContain('<div class="table"><table>')
   })
 })
 
@@ -394,9 +403,15 @@ describe("the docs pages", async () => {
   it("tables every token the items add on the Theming page, with a swatch, and lists the themes", () => {
     const theming = at("docs/theming/index.html")
     expect(theming).toContain('<table class="tokens">')
-    expect(theming).toContain("<thead><tr><th>Token</th><th>Light</th><th>Dark</th><th>Added by</th></tr></thead>")
+    expect(theming).toContain("<thead><tr><th>Token</th><th>Light, then dark</th><th>Added by</th></tr></thead>")
     const up = registry.items.find((item) => item.name === "flash-cell")?.cssVars
-    expect(theming).toContain(`<tr><td><code>--up</code></td><td><span class="swatch" style="background: ${up?.light?.up}"></span><code>${up?.light?.up}</code></td><td><span class="swatch" style="background: ${up?.dark?.up}"></span><code>${up?.dark?.up}</code></td><td><a href="/docs/flash-cell/"><code>flash-cell</code></a>, `)
+    // Light over dark in one cell, three columns in all, so a laptop shows the table without scrolling it.
+    expect(theming).toContain(`<tr><td><code>--up</code></td><td class="value"><span class="swatch" style="background: ${up?.light?.up}"></span><code>${up?.light?.up}</code><br><span class="swatch" style="background: ${up?.dark?.up}"></span><code>${up?.dark?.up}</code></td><td><a href="/docs/flash-cell/"><code>flash-cell</code></a>, `)
+    // A token whose two values agree shows one line.
+    expect(theming).toContain('<td class="value"><span class="swatch" style="background: var(--muted-foreground)"></span><code>var(--color-muted-foreground)</code></td>')
+    // In a wrapper that scrolls sideways, so a narrow window never scrolls the page itself.
+    expect(theming).toContain('<div class="table"><table class="tokens">')
+    expect(at("docs/index.html")).toContain('<div class="table"><table class="dependencies">')
     // A shadcn variable paints through the page's own palette.
     expect(theming).toContain('<span class="swatch" style="background: var(--muted-foreground)"></span><code>var(--color-muted-foreground)</code>')
     expect(theming).toContain("<code>--link-1</code>")

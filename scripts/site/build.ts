@@ -173,9 +173,18 @@ export function codeBlocks(html: string): string {
   })
 }
 
-/** A page: the template filled, then every code block given its copy button and, for a command, its package-manager tabs. */
+/**
+ * Every table on a page gets a wrapper that scrolls sideways, so a table wider than the column (the tokens table
+ * under a narrow window) scrolls inside it instead of widening the whole page. Tables come from the builder and
+ * from marked, so this is a pass over the page like `codeBlocks`; no table here holds another.
+ */
+export function tables(html: string): string {
+  return html.replace(/<table\b[\s\S]*?<\/table>/g, (table) => `<div class="table">${table}</div>`)
+}
+
+/** A page: the template filled, then every code block given its copy button and, for a command, its package-manager tabs, and every table its scroll wrapper. */
 export function renderPage(template: string, values: Record<string, string>): string {
-  return codeBlocks(render(template, values))
+  return tables(codeBlocks(render(template, values)))
 }
 
 export const PAGES = ["index.html", "404.html"] as const
@@ -330,11 +339,13 @@ export function tokensTable(registry: Registry, tag: string, docSlugs: ReadonlyS
       tokens.set(token, entry)
     }
   }
+  // Light over dark in one cell, so the table is three columns and fits a laptop without scrolling; one line when they agree.
+  const value = (text: string) => `${swatch(text)}<code>${escapeHtml(text)}</code>`
   const rows = [...tokens].map(
     ([token, { light, dark, items }]) =>
-      `<tr><td><code>--${escapeHtml(token)}</code></td><td>${swatch(light)}<code>${escapeHtml(light)}</code></td><td>${swatch(dark)}<code>${escapeHtml(dark)}</code></td><td>${items.map((item) => `<a href="${docHref(item, tag, docSlugs)}"><code>${escapeHtml(item.name)}</code></a>`).join(", ")}</td></tr>`,
+      `<tr><td><code>--${escapeHtml(token)}</code></td><td class="value">${light === dark ? value(light) : `${value(light)}<br>${value(dark)}`}</td><td>${items.map((item) => `<a href="${docHref(item, tag, docSlugs)}"><code>${escapeHtml(item.name)}</code></a>`).join(", ")}</td></tr>`,
   )
-  return `<table class="tokens">\n<thead><tr><th>Token</th><th>Light</th><th>Dark</th><th>Added by</th></tr></thead>\n<tbody>\n${rows.join("\n")}\n</tbody>\n</table>`
+  return `<table class="tokens">\n<thead><tr><th>Token</th><th>Light, then dark</th><th>Added by</th></tr></thead>\n<tbody>\n${rows.join("\n")}\n</tbody>\n</table>`
 }
 
 /** The theme items, each linked, with its one line. */

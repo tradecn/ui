@@ -65,7 +65,7 @@ footer.site-foot p { margin: 0; }
 article { min-width: 0; padding-bottom: 4rem; }
 /* The prose keeps its measure; the preview, the cards, and the generated tables take the whole column. */
 article > :not(.preview) { max-width: 72ch; }
-article > .cards, article > .tokens, article > .dependencies { max-width: none; }
+article > .cards, article > .table { max-width: none; }
 article h1 { margin: .5rem 0 .5rem; font-size: 1.75rem; font-weight: 600; letter-spacing: -.01em; }
 /* The one sentence under the title is the page's lede. */
 article > h1 + p { margin: 0 0 1.5rem; font-size: 1.05rem; color: var(--muted-foreground); }
@@ -95,8 +95,13 @@ article hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 .pager a:hover, .pager a:focus-visible { text-decoration: none; background: var(--card); }
 .built-on { margin-top: 2rem; color: var(--muted-foreground); }
 .foot { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: .9rem; color: var(--muted-foreground); }
-/* The tokens table on the Theming page: each value beside a swatch of it. */
-.tokens td code { white-space: nowrap; }
+/* Every table sits in a wrapper that scrolls sideways, so a wide one never widens the page itself. */
+.table { margin: 1rem 0; overflow-x: auto; }
+.table table { margin: 0; }
+.table code { font-size: .9em; }
+/* The tokens table on the Theming page: each value beside a swatch of it, on one line; the items that add it wrap. */
+.tokens td:first-child, .tokens td.value { white-space: nowrap; }
+.tokens td code, .dependencies td code { white-space: nowrap; }
 .swatch { display: inline-block; width: .9em; height: .9em; margin-right: .4em; vertical-align: -.1em; border: 1px solid var(--border); border-radius: 2px; }
 
 /* A code block: the pre, a copy button over its top-right corner, and for a command the package-manager tabs above it. */
