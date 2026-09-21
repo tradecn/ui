@@ -189,3 +189,34 @@ test("a watchlist adds through the field, finds a symbol it already has, and rem
   await expect(grid).toHaveAttribute("aria-rowcount", "1")
   expect(errors).toEqual([])
 })
+
+// The blotter's selection goes through the consumer's checkbox, and its actions through their button
+// and their context menu. Two orders allow a cancel and one is already filled.
+test("a blotter offers an action only for the orders the server allows, and says how many", async ({ page }) => {
+  const errors: string[] = []
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
+  page.on("pageerror", (e) => errors.push(e.message))
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='blotter']")
+  const blotter = scene.locator("[data-slot='tradecn-blotter']")
+  const row = (id: string) => blotter.locator(`[data-row-id='${id}']`)
+  const action = blotter.locator("button[data-action='cancel']")
+  await expect(row("o1")).toContainText("PartiallyFilled")
+  await expect(action).toBeDisabled()
+  await blotter.getByRole("button", { name: "New order" }).click()
+  await expect(scene.locator("[data-blotter-new]")).toHaveAttribute("data-blotter-new", "1")
+  // All three, through the consumer's checkbox. One of them is filled and does not allow a cancel.
+  for (const id of ["o1", "o2", "o3"]) await row(id).getByRole("checkbox").click()
+  await expect(action).toHaveText("Cancel 2 of 3")
+  await action.click()
+  await expect(row("o1")).toContainText("Cancelled")
+  await expect(row("o2")).toContainText("Cancelled")
+  // The filled order was left alone, and nothing allows a cancel any more.
+  await expect(row("o3")).toContainText("Filled")
+  await expect(action).toBeDisabled()
+  // The menu has nothing to offer for a filled order, and says so.
+  await row("o3").click({ button: "right" })
+  await expect(page.getByRole("menuitem", { name: "Nothing to do here" })).toBeVisible()
+  await page.keyboard.press("Escape")
+  expect(errors).toEqual([])
+})
