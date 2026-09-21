@@ -1,0 +1,13 @@
+{
+  "$comment": "Written before the first run on this machine, never edited to pass. The frame budget is the threshold.",
+  "machine": "Apple M5 Max, 128 GB, macOS 27.0, Playwright Chromium headless",
+  "writtenOn": "2026-09-20",
+  "rows": 1000,
+  "visible": 60,
+  "columns": 12,
+  "updatesPerFrame": 2000,
+  "seconds": 10,
+  "p99FrameMs": 16.7,
+  "droppedFramesAllowed": 0,
+  "longTasksAllowed": 0
+}

@@ -34,9 +34,14 @@ interface Thresholds {
   columns: number
   updatesPerFrame: number
   seconds: number
-  p99FrameMs: number
+  /** Frame p99 under vsync is quantized to the display interval, so a limit here says only whether a frame was missed. The first m5-max file used it; later files gate script time instead. */
+  p99FrameMs?: number
+  /** Script time per frame at p99: the headroom number. */
+  scriptP99Ms?: number
   droppedFramesAllowed: number
   longTasksAllowed: number
+  /** The file this one replaced. A superseded file is kept beside it, unedited, as the record. */
+  supersedes?: string
 }
 
 const args = process.argv.slice(2)
@@ -123,7 +128,8 @@ function record(result: BenchResult): number {
       console.log(`thresholds in ${path.relative(ROOT, thresholdsFile)} are for a different shape; not compared`)
     } else {
       const fails: string[] = []
-      if (result.p99 > t.p99FrameMs) fails.push(`p99 ${result.p99.toFixed(2)} ms > ${t.p99FrameMs} ms`)
+      if (t.p99FrameMs !== undefined && result.p99 > t.p99FrameMs) fails.push(`p99 ${result.p99.toFixed(2)} ms > ${t.p99FrameMs} ms`)
+      if (t.scriptP99Ms !== undefined && result.scriptP99 > t.scriptP99Ms) fails.push(`script p99 ${result.scriptP99.toFixed(2)} ms > ${t.scriptP99Ms} ms`)
       if (result.droppedFrames > t.droppedFramesAllowed) fails.push(`dropped ${result.droppedFrames} > ${t.droppedFramesAllowed}`)
       if (result.longTasks > t.longTasksAllowed) fails.push(`long tasks ${result.longTasks} > ${t.longTasksAllowed}`)
       if (fails.length) {
