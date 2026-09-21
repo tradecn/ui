@@ -84,6 +84,7 @@ export function render(template: string, values: Record<string, string>): string
 }
 
 export const PAGES = ["index.html", "404.html"] as const
+export const FAVICON = "favicon.svg"
 
 async function main() {
   const root = resolve(import.meta.dirname, "..")
@@ -106,6 +107,8 @@ async function main() {
     const template = await Bun.file(join(root, "site", page)).text()
     await Bun.write(join(out, page), render(template, values))
   }
+  // The amber mark: readable on a dark tab strip, and the same file the README shows in dark mode.
+  await Bun.write(join(out, FAVICON), Bun.file(join(root, "assets", "logo-dark.svg")))
   console.log(`site: ${registry.items.length} items at v${version} -> ${out}`)
 }
 
