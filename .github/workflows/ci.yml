@@ -62,6 +62,22 @@ jobs:
           path: public/r
       - run: bash scripts/ci/consumer-matrix.sh ${{ matrix.style }}
 
+  # tradecn.dev as this commit would publish it: the pages, the embedded previews, and a browser
+  # pass over every preview. The release job builds the same thing from the tag.
+  site:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun run --cwd playground build:embed
+      - run: bun scripts/site/build.ts
+      - run: bunx playwright install --with-deps chromium
+      - run: bun scripts/site/smoke.ts
+
   # The real distribution path, against this exact commit.
   github-form:
     needs: verify
