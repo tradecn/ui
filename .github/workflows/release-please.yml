@@ -74,7 +74,7 @@ jobs:
       - name: Build the pages for the tag
         run: |
           bun install --frozen-lockfile
-          bun scripts/build-site.ts --registry release/registry.json --version release/version.txt --docs release/docs --out site/dist
+          bun scripts/site/build.ts --registry release/registry.json --version release/version.txt --docs release/docs --out site/dist
       - name: Find the highest tag
         id: highest
         run: |

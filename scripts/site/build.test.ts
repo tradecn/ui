@@ -13,10 +13,10 @@ import {
   renderMarkdown,
   templateValues,
   THEME_ITEM,
-} from "./build-site"
-import type { Registry } from "./build-site"
+} from "./build"
+import type { Registry } from "./build"
 
-const root = resolve(import.meta.dirname, "..")
+const root = resolve(import.meta.dirname, "../..")
 const registry = JSON.parse(readFileSync(resolve(root, "registry.json"), "utf8")) as Registry
 const version = readFileSync(resolve(root, "version.txt"), "utf8").trim()
 const template = (page: string) => readFileSync(resolve(root, "site", page), "utf8")

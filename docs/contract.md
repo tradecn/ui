@@ -19,3 +19,13 @@ Every item in `registry.json` passes these rules before it merges. `scripts/vali
 13. A `registry:theme` item is its `cssVars` and nothing else: no files, both `light` and `dark` present, and every tradecn token set in each, so a token added later cannot be left at a value tuned for the background the theme replaced. Colors take the same two forms as everywhere else. `just tokens` leaves a theme alone. It has to: a theme has no files, so "the tokens its files use" comes to nothing, and writing that back deletes the theme. The validator rejects an empty one. A theme is the only kind of item that overwrites a consumer's variables, and its docs say so first.
 
 How a consumer updates: `npx shadcn add tradecn/ui/<item>#v0.2.0 --diff` to review a tradecn change, `npx shadcn add table --diff` to review a shadcn change underneath. Neither touches the other's files.
+
+## What a version means
+
+The tag is the version, and from `v0.1.3` on it is semver with no pre-1.0 exceptions.
+
+- A **major** (`v1.0.0`, `v2.0.0`) means a file you installed changed its API: a prop, an export, a hotkey, a token name, a `data-slot`. The release notes say what moved under ⚠ Breaking Changes. `--diff` before you take it.
+- A **minor** means new items or new props. What you installed keeps working as it did.
+- A **patch** means a file changed and its API did not: a fix, a performance change, a refactor, a tidy. `--diff` shows you the bytes.
+
+Docs, CI, and test changes cut no release, so tradecn.dev shows the docs of the tag it serves. [`CONTRIBUTING.md`](https://github.com/tradecn/ui/blob/main/CONTRIBUTING.md) says how a pull request title picks the bump.

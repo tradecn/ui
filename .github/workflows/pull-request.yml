@@ -1,0 +1,36 @@
+name: pull-request
+
+on:
+  pull_request:
+    # `edited` is here so a corrected title or body reruns the check. Release pull requests only
+    # touch these files and are skipped for the reason ci.yml gives.
+    types: [opened, edited, synchronize, reopened]
+    paths-ignore:
+      - CHANGELOG.md
+      - version.txt
+      - .release-please-manifest.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pull-request-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: 1.4.2
+
+jobs:
+  # The title becomes the squash commit's subject and the body its message, and that text is what
+  # release-please reads to pick the next tag. scripts/ci/pull-request.ts holds the rules.
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun scripts/ci/pull-request.ts
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
