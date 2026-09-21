@@ -23,6 +23,7 @@ You already have shadcn's menus and tooltips. This adds what a trading screen ne
 | [`sparkline`](docs/sparkline.md) | A line that fits a grid cell. Up, down, or flat against the first reading or a previous close, in color and in words. A missing reading leaves a gap. It doesn't slide the afternoon left. |
 | [`watchlist`](docs/watchlist.md) | The grid with a watchlist's columns, prices printed per instrument. Add a symbol that's already there and it takes you to it. Delete takes one off. The list stays yours. |
 | [`blotter`](docs/blotter.md) | The grid with a blotter's columns. The status is the server's word, never worked out. Cancel only shows for orders the server says can be cancelled, the button says how many, and it asks again when you click. |
+| [`tradecn-terminal`](docs/tradecn-terminal.md) | A theme, not a component. Black, amber, square corners, monospace. It's the one item that overwrites your variables, so `--diff` it first. Keeps the colorblind-safe up and down. |
 
 ## It rides shadcn
 

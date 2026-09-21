@@ -1,0 +1,104 @@
+import { describe, expect, it } from "vitest"
+import { contrast, luminance, parseOklch, type Oklch } from "./lib/oklch"
+import { readRegistry, readTokens } from "./lib/registry"
+
+// The theme colors were picked by hand, so they are checked by arithmetic: WCAG contrast, from the
+// oklch() values as written. The converter is checked first, against colors whose answers are known.
+
+const must = (value: string): Oklch => {
+  const parsed = parseOklch(value)
+  if (!parsed) throw new Error(`not an oklch() color: ${value}`)
+  return parsed
+}
+
+describe("the oklch converter", () => {
+  it("knows white, black, and the contrast between them", () => {
+    expect(luminance(must("oklch(1 0 0)"))).toBeCloseTo(1, 3)
+    expect(luminance(must("oklch(0 0 0)"))).toBeCloseTo(0, 6)
+    expect(contrast(must("oklch(1 0 0)"), must("oklch(0 0 0)"))).toBeCloseTo(21, 1)
+  })
+
+  it("lands sRGB red and green on their WCAG luminance coefficients", () => {
+    // #ff0000 and #00ff00 in oklch; their relative luminances are the 0.2126 and 0.7152 of the formula.
+    expect(luminance(must("oklch(0.62796 0.25768 29.2339)"))).toBeCloseTo(0.2126, 2)
+    expect(luminance(must("oklch(0.86644 0.29483 142.4953)"))).toBeCloseTo(0.7152, 2)
+  })
+
+  it("reads an alpha, as a number or a percentage, and composites it over the backdrop", () => {
+    expect(must("oklch(0.74 0.15 165 / 18%)").alpha).toBeCloseTo(0.18)
+    expect(must("oklch(0.74 0.15 165 / 0.5)").alpha).toBeCloseTo(0.5)
+    const half = luminance(must("oklch(1 0 0 / 50%)"), must("oklch(0 0 0)"))
+    expect(half).toBeCloseTo(0.5, 2)
+    expect(parseOklch("var(--color-primary)")).toBeNull()
+  })
+})
+
+const themes = readRegistry().items.filter((item) => item.type === "registry:theme")
+const tokenNames = Object.keys(readTokens().dark)
+
+// Text on the surface it sits on: 4.5 to 1.
+const TEXT: [string, string][] = [
+  ["foreground", "background"],
+  ["foreground", "card"],
+  ["card-foreground", "card"],
+  ["popover-foreground", "popover"],
+  ["primary-foreground", "primary"],
+  ["secondary-foreground", "secondary"],
+  ["muted-foreground", "background"],
+  ["muted-foreground", "card"],
+  ["muted-foreground", "muted"],
+  ["accent-foreground", "accent"],
+  ["sidebar-foreground", "sidebar"],
+  ["sidebar-primary-foreground", "sidebar-primary"],
+  ["sidebar-accent-foreground", "sidebar-accent"],
+]
+// Things read by their color, as text or as a mark: a price, a link dot, a focus ring. They are used as text too, so 4.5 to 1.
+const MARKS = ["primary", "up", "down", "stale", "link-1", "link-2", "link-3", "link-4", "panel-sync", "destructive", "ring"]
+const SURFACES = ["background", "card"]
+
+describe("the themes", () => {
+  it("exist", () => {
+    expect(themes.length).toBeGreaterThan(0)
+  })
+
+  for (const theme of themes) {
+    for (const mode of ["light", "dark"] as const) {
+      const vars = theme.cssVars?.[mode] ?? {}
+      // A token given as var(--color-x) takes the theme's own x.
+      const resolve = (name: string): Oklch => {
+        const value = vars[name]
+        if (value === undefined) throw new Error(`${theme.name} ${mode} has no --${name}`)
+        const ref = /^var\(--color-([\w-]+)\)$/.exec(value)
+        return ref ? resolve(ref[1]!) : must(value)
+      }
+
+      it(`${theme.name} ${mode}: text clears 4.5 to 1 on its surface`, () => {
+        for (const [fg, bg] of TEXT) expect(contrast(resolve(fg), resolve(bg)), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5)
+      })
+
+      it(`${theme.name} ${mode}: every color that carries meaning clears 4.5 to 1 on the background and on a card`, () => {
+        for (const mark of MARKS) for (const surface of SURFACES) expect(contrast(resolve(mark), resolve(surface)), `${mark} on ${surface}`).toBeGreaterThanOrEqual(4.5)
+      })
+
+      it(`${theme.name} ${mode}: a soft tint stays a tint, and the value on it still reads`, () => {
+        for (const soft of ["up-soft", "down-soft", "flat-soft", "stale-soft"]) {
+          const tint = resolve(soft)
+          // Over black the tint has to stay dark enough that the foreground still clears 4.5 on it.
+          const over = luminance(tint, resolve("background"))
+          const fg = luminance(resolve("foreground"))
+          expect((fg + 0.05) / (over + 0.05), `foreground on ${soft}`).toBeGreaterThanOrEqual(4.5)
+        }
+      })
+
+      it(`${theme.name} ${mode}: sets every tradecn token`, () => {
+        for (const name of tokenNames) expect(vars[name], name).toBeDefined()
+      })
+    }
+
+    it(`${theme.name}: is the same terminal in both modes, except that radius lives in :root`, () => {
+      const { radius, ...light } = theme.cssVars?.light ?? {}
+      expect(radius).toBe("0rem")
+      expect(light).toEqual(theme.cssVars?.dark)
+    })
+  }
+})

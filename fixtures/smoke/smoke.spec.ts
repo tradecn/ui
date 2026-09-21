@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs"
 import { expect, test } from "@playwright/test"
 
 // Every installed tradecn item renders, the page is error-free, and the tokens it declared exist.
@@ -219,4 +220,58 @@ test("a blotter offers an action only for the orders the server allows, and says
   await expect(page.getByRole("menuitem", { name: "Nothing to do here" })).toBeVisible()
   await page.keyboard.press("Escape")
   expect(errors).toEqual([])
+})
+
+// A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
+// runs this once per theme, after installing that theme alone, and runs every test above again under
+// it. Without TRADECN_THEME this is the plain run and there is no theme to check.
+test("the installed theme is what the page is drawn with, in both modes", async ({ page }) => {
+  const name = process.env.TRADECN_THEME
+  test.skip(!name, "no theme installed in this run")
+  const theme = JSON.parse(readFileSync(process.env.TRADECN_THEME_JSON!, "utf8")) as { cssVars: { theme?: Record<string, string>; light: Record<string, string>; dark: Record<string, string> } }
+  await page.goto("/")
+  await page.waitForLoadState("networkidle")
+  // Colors are compared as colors, not as text: the production build respells them (`oklch(0.26 0.03 70)`
+  // comes back as `oklch(26% .03 70)`) and the browser hands back a var() already substituted. Both sides
+  // go through one probe element, so the browser writes them the same way. A token given as
+  // var(--color-x) is expected to be the theme's own x.
+  const expected = (vars: Record<string, string>) => {
+    const resolve = (name: string): string => {
+      const ref = /^var\(--color-([\w-]+)\)$/.exec(vars[name] ?? "")
+      return ref ? resolve(ref[1]!) : (vars[name] ?? "")
+    }
+    return Object.keys(vars).filter((name) => name !== "radius").map((name) => [name, resolve(name)] as [string, string])
+  }
+  const mismatches = (pairs: [string, string][]) =>
+    page.evaluate((list) => {
+      const probe = document.createElement("i")
+      document.body.append(probe)
+      const as = (value: string) => ((probe.style.color = ""), (probe.style.color = value), getComputedStyle(probe).color)
+      const out = list.flatMap(([name, want]) => {
+        const got = as(`var(--${name})`)
+        return got === as(want) && got !== "" ? [] : [`--${name}: wanted ${want}, the page has ${getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim() || "nothing"}`]
+      })
+      probe.remove()
+      return out
+    }, pairs)
+  expect(await mismatches(expected(theme.cssVars.light)), `${name}: every light color`).toEqual([])
+  // What those variables do to the page: the body is the theme's background, corners are square, the sans stack is the theme's.
+  const drawn = await page.evaluate(() => {
+    const probe = document.createElement("i")
+    probe.style.backgroundColor = "var(--background)"
+    document.body.append(probe)
+    const out = {
+      body: getComputedStyle(document.body).backgroundColor,
+      background: getComputedStyle(probe).backgroundColor,
+      radius: getComputedStyle(document.querySelector("[data-slot='tradecn-panel']")!).borderTopLeftRadius,
+      font: getComputedStyle(document.documentElement).fontFamily,
+    }
+    probe.remove()
+    return out
+  })
+  expect(drawn.body, "the body is painted with --background").toBe(drawn.background)
+  expect(drawn.radius, "rounded-md is square").toBe("0px")
+  expect(drawn.font.replace(/["']/g, ""), "font-sans is the theme's stack").toBe(theme.cssVars.theme?.["font-sans"]?.replace(/["']/g, ""))
+  await page.evaluate(() => document.documentElement.classList.add("dark"))
+  expect(await mismatches(expected(theme.cssVars.dark)), `${name}: every dark color`).toEqual([])
 })

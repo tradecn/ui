@@ -38,9 +38,18 @@ else
   bun install --frozen-lockfile --cwd "$fixture"
 fi
 
+# A theme overwrites the consumer's whole palette, so it does not go in with everything else: the
+# scenes would all be judged under it, and with two themes the last one in would be the only one
+# tested. Themes are held back and installed one at a time, after the plain run.
 items=()
+themes=()
 for f in "$root"/public/r/*.json; do
-  case "$(basename "$f")" in registry.json) ;; *) items+=("$f") ;; esac
+  case "$(basename "$f")" in
+    registry.json) ;;
+    *)
+      if [ "$(bun -e 'console.log(require(process.argv[1]).type)' "$f")" = "registry:theme" ]; then themes+=("$f"); else items+=("$f"); fi
+      ;;
+  esac
 done
 if [ "${#items[@]}" -eq 0 ]; then echo "no built items in public/r; nothing to install"; exit 0; fi
 
@@ -70,3 +79,16 @@ bun "$root/scripts/ci/typecheck-consumer.ts" "$fixture"
 bunx vite build
 if [ -n "${CI:-}" ]; then bunx playwright install --with-deps chromium; else bunx playwright install chromium; fi
 bunx playwright test
+
+# Each theme on its own, the way someone would install it: add it, rebuild, run every test again
+# under it, and one more that reads the theme's values back out of the browser. Bash 3.2 on macOS
+# calls an empty array unset under `set -u`, hence the count first.
+if [ "${#themes[@]}" -gt 0 ]; then
+  for theme in "${themes[@]}"; do
+    name="$(basename "$theme" .json)"
+    echo "== theme: $name"
+    retry bunx "$shadcn" add -y -o -c "$fixture" "$theme"
+    bunx vite build
+    TRADECN_THEME="$name" TRADECN_THEME_JSON="$theme" bunx playwright test
+  done
+fi
