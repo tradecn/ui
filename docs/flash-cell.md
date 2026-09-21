@@ -1,13 +1,19 @@
 # flash-cell
 
-`npx shadcn add tradecn/ui/flash-cell` puts `flash-cell.tsx` in your `ui` alias and `use-flash.ts` in your `hooks` alias, and adds the market tokens to your stylesheet: `up`, `down`, `flat`, and their `-soft` variants, usable as `text-up`, `bg-down-soft`, and so on. Dependency: `cn`.
+A cell that flashes on change, colored up, down, or flat, as a fill or an inset ring.
+
+## Usage
+
+```tsx
+import { FlashCell } from "@/components/ui/flash-cell"
+```
 
 ```tsx
 <FlashCell value={quote.px}>{format.price(quote.px)}</FlashCell>
 <FlashCell value={level.size} variant="ring" />
 ```
 
-What it does, and why it does it that way:
+## API Reference
 
 - Direction is a tri-state. A rise flashes `up`, a fall `down`, and zero or a non-numeric change flashes `flat`. Zero is never up.
 - The flash is a Web Animations API animation on the cell's own element, from the soft token to transparent (or an inset ring from the solid token). Nothing remounts, so a burst of ticks costs a cancel and a new animation per tick, not a reconcile. A new tick cancels the running flash and starts over.
@@ -18,4 +24,10 @@ What it does, and why it does it that way:
 
 `flashOnEqual` flashes flat when the same value arrives again; pass `revision` (the row object or a store version) so the hook can tell it arrived. `disabled` turns the hook off. `compare` replaces the numeric comparison for values that are not numbers.
 
-The hook is `useFlash(ref, value, options)` if you would rather flash your own element.
+### The hook
+
+`useFlash(ref, value, options)` from `@/hooks/use-flash` flashes your own element, with `createFlashMemory`, `directionOf`, and `directionClass` beside it.
+
+### Tokens
+
+The install adds the market tokens to your stylesheet, `up`, `down`, `flat`, and their `-soft` variants, usable as `text-up`, `bg-down-soft`, and so on. Your own values survive a later install.

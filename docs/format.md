@@ -1,10 +1,27 @@
 # format
 
-`npx shadcn add tradecn/ui/format` puts `format.ts` in your `lib` alias. Pure functions, no dependencies, no React.
+Number formatting for trading screens: prices by convention, yields, basis points, DV01, notional, signed values, and one null sentinel.
 
-Every formatter takes `number | null | undefined` and returns `NULL_TOKEN` (an en dash) for null, undefined, NaN, and infinities, so a cell never prints `NaN` while a feed warms up. Negative numbers use the typographic minus (U+2212). Tabular numerals are your CSS (`tabular-nums`); the formatters never pad.
+## Usage
 
-## Prices
+```ts
+import { createInstrumentFormatter, formatBps, formatSigned, parsePrice } from "@/lib/format"
+```
+
+```ts
+const ust = createInstrumentFormatter({ price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 })
+
+ust.price(99.515625) // "99-16+"
+parsePrice("99-16+", { kind: "fraction", denominator: 32, half: "+" }) // 99.515625
+formatSigned(0.12) // "+0.12"
+formatBps(12.5) // "12.5 bp"
+```
+
+## API Reference
+
+Pure functions, no React. Every formatter takes `number | null | undefined` and returns `NULL_TOKEN` (an en dash) for null, undefined, NaN, and infinities, so a cell never prints `NaN` while a feed warms up. Negative numbers use the typographic minus (U+2212). Tabular numerals are your CSS (`tabular-nums`); the formatters never pad.
+
+### Prices
 
 A `PriceConvention` says how an instrument quotes:
 
@@ -16,6 +33,6 @@ A `PriceConvention` says how an instrument quotes:
 
 `createInstrumentFormatter({ price, tick, yieldDecimals })` binds a convention once; a grid column then calls `formatters[row.instrumentId].price(value)`. Conventions are data, so a new instrument type is a new object, not new code.
 
-## The rest
+### The rest
 
 `formatYield(4.2531)` is `4.253%`. `formatBps(12.5)` is `12.5 bp`, with `signed` and `unit` options. `formatDv01(1234)` is `$1,234`, `compact` gives `$1.23K`. `formatNotional(1250000, { compact: true })` is `1.25M` (K, M, B, T). `formatSigned(0.12)` is `+0.12`, and zero is `0.00` with no sign: flat carries no sign, the same rule the flash cell uses for direction. `formatPercent`, `formatQuantity` as you would expect. Locale is an option on each (`{ locale: "de-DE" }`), and `Intl.NumberFormat` instances are cached per locale and option set.

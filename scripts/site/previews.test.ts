@@ -13,6 +13,7 @@ import {
   readDemos,
   readDocs,
   readEmbed,
+  readSources,
   templateValues,
   THEME_ITEM,
   themeCss,
@@ -149,8 +150,9 @@ describe("the preview card", () => {
     expect(block).toContain('<a class="preview-open" href="/preview/flash-cell/" target="_blank" rel="noopener">')
     expect(block).toContain('<code class="language-tsx">import { FlashCell } from &quot;@/components/ui/flash-cell&quot;\n&lt;b&gt;</code>')
     expect(block).toContain("https://github.com/tradecn/ui/blob/v9.9.9/playground/src/demos/flash-cell.tsx")
-    expect(block).toContain('role="tab" id="preview-tab-live" aria-selected="true"')
-    expect(block).toContain('id="preview-code" role="tabpanel" aria-labelledby="preview-tab-code" hidden')
+    expect(block).toContain('<div class="preview" data-preview="flash-cell" data-tabs>')
+    expect(block).toContain('role="tab" id="preview-flash-cell-tab-live" aria-selected="true" aria-controls="preview-flash-cell-live"')
+    expect(block).toContain('id="preview-flash-cell-code" role="tabpanel" aria-labelledby="preview-flash-cell-tab-code" hidden')
   })
 
   it("shows a theme's stylesheet under Code, not the sample's source", () => {
@@ -171,18 +173,20 @@ describe("the preview card", () => {
     const docs = await readDocs(resolve(root, "docs"), registry)
     const values = templateValues(registry, version, registry, new Set(docs.map((doc) => doc.slug)))
     const demos = await readDemos(resolve(root, "playground/src/demos"))
-    const withEmbed = new Map(docPages(docs, values, template(DOCS_TEMPLATE), { demos, embed: await readEmbed(fakeEmbed()) }).map((page) => [page.path, page.html]))
+    const sources = await readSources(registry, root)
+    const withEmbed = new Map(docPages(docs, values, template(DOCS_TEMPLATE), { demos, embed: await readEmbed(fakeEmbed()) }, sources).map((page) => [page.path, page.html]))
     for (const doc of docs) {
       const html = withEmbed.get(`docs/${doc.slug}/index.html`) ?? ""
       if (doc.item) {
         expect(html).toContain(`<iframe src="/preview/${doc.slug}/"`)
-        // The Code tab's source is a code block like any other: wrapped, with its copy button.
-        expect(html).toMatch(/id="preview-code"[\s\S]*?<div class="code"><pre><code class="language-(tsx|css)">[\s\S]*?<\/pre><button type="button" class="copy"/)
+        // The card sits between the one sentence and Installation, and its Code tab's source is a code block like any other: wrapped, with its copy button.
+        expect(html.indexOf('<div class="preview"')).toBeLessThan(html.indexOf('<h2 id="installation">'))
+        expect(html).toMatch(/class="preview-code" id="preview-[\w-]+-code"[\s\S]*?<div class="code"><pre><code class="language-(tsx|css)">[\s\S]*?<\/pre><button type="button" class="copy"/)
       } else expect(html).not.toContain("<iframe")
       expect(html).not.toMatch(/\{\{\w+\}\}/)
     }
     expect(withEmbed.get("docs/index.html")).not.toContain("<iframe")
-    const without = docPages(docs, values, template(DOCS_TEMPLATE), { demos, embed: null })
+    const without = docPages(docs, values, template(DOCS_TEMPLATE), { demos, embed: null }, sources)
     for (const page of without) expect(page.html).not.toContain("<iframe")
   })
 

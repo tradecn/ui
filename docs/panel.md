@@ -1,6 +1,14 @@
 # panel
 
-`npx shadcn add tradecn/ui/panel` puts `panel.tsx` in your `ui` alias, `use-link-group.tsx`, `use-popout.ts`, and `use-hotkeys.tsx` in your `hooks` alias, `link-group.ts` and `hotkeys.ts` in your `lib` alias, and brings your own `input` if you do not have it. It adds the panel tokens to your stylesheet: `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` to `link-4`. Dependency: `cn`.
+The frame around a book, a chart, or a blotter: a hotkey scope with a header, a symbol tag, link groups, and a popout.
+
+## Usage
+
+```tsx
+import { LinkGroupDot, Panel, PanelActions, PanelContent, PanelHeader, PanelTitle, SymbolTag } from "@/components/ui/panel"
+import { LinkGroupProvider, useLinkGroup } from "@/hooks/use-link-group"
+import { HotkeysProvider, useHotkey } from "@/hooks/use-hotkeys"
+```
 
 ```tsx
 function Book({ id }: { id: string }) {
@@ -29,7 +37,25 @@ function Book({ id }: { id: string }) {
 </HotkeysProvider>
 ```
 
-## A panel is a hotkey scope
+## Composition
+
+Use the following composition to build a panel:
+
+```
+Panel
+├── PanelHeader
+│   ├── PanelTitle
+│   ├── SymbolTag
+│   ├── LinkGroupDot
+│   └── PanelActions
+└── PanelContent
+```
+
+`PanelPopout` wraps a `Panel` to move it into a window of its own; see Popout below.
+
+## API Reference
+
+### A panel is a hotkey scope
 
 `kind="book"` is the scope `panel:book`. It names a kind of panel, not an instance: declare `book.cancel` once, call `useHotkey("book.cancel", ...)` inside the panel, and with two books on screen the one holding focus is the one that answers. Clicking anywhere in a panel is enough to aim the keyboard at it. Palette actions with `scope: "panel:book"` are on offer only when the palette was opened from inside one. A `Panel` renders without a `HotkeysProvider`; its keys start working inside one.
 
@@ -37,13 +63,13 @@ function Book({ id }: { id: string }) {
 
 The border says one thing at a time. `error` outranks `dragTarget`, which outranks active. Leave `active` out and the panel is active while focus is inside it; pass it when a layout decides which panel is active, and `active={false}` holds the border off even with focus inside. The state is on the element as `data-state`.
 
-## The header is a drag handle
+### The header is a drag handle
 
 `PanelHeader` carries `data-panel-handle`, for a layout that takes a handle selector. The panel does not drag anything itself. `SymbolTag`, `LinkGroupDot`, and everything inside `PanelActions` stop `pointerdown`, `mousedown`, and `touchstart` from reaching the header, so pressing a button does not pick the panel up. A layout built on HTML drag and drop (`draggable`) starts its drag from `dragstart`, which these do not stop; give such a layout its own handle element beside them.
 
 There is no icon here, because shadcn ships a different icon library per base. `PanelActions` is a place for your buttons.
 
-## SymbolTag
+### SymbolTag
 
 Click it, or press Enter on it, and it becomes your `input` with the symbol selected. Enter commits, Escape and clicking away put the old symbol back. A blank draft, or the symbol already showing, commits nothing. After Enter or Escape focus returns to the tag, so it stays inside the panel and the panel's keys keep working; after a click away, focus stays where you clicked.
 
@@ -57,7 +83,7 @@ The tag does not open when you start typing at it. Focus rests on the tag after 
 
 When the symbol changes and it was not typed into this tag, the tag rings once in `panel-sync`. That is how a panel shows it followed its link group. Under `prefers-reduced-motion` it does not ring.
 
-## Link groups
+### Link groups
 
 Panels in the same group show the same symbol. `useLinkGroup()` gives a panel `{ group, symbol, setSymbol, setGroup, cycleGroup }`, and needs a `LinkGroupProvider` above it. There is no module-level store to fall back on: on a server that would be one store shared by every request.
 
@@ -71,7 +97,7 @@ Groups are `1` to `4`, or `null` for unlinked, and they are numbers because the 
 
 Persistence is yours. `group`, `defaultGroup`, and `onGroupChange` control the group. `defaultSymbol` is where the panel starts, and `onSymbolChange` fires whenever what the panel shows changes, by its own hand or through its group, and not on the first render. `source` is recorded on the group with each write.
 
-### Between windows
+#### Between windows
 
 The provider opens a `BroadcastChannel` named `tradecn-link`, so every same-origin window or tab with a provider follows. `channel="rates"` renames it, `transport={null}` keeps links inside one window, and `transport` takes anything with `post(message)` and `subscribe(cb)`, which is how a desktop shell uses its own events instead. The channel opens when the provider mounts and closes when it unmounts.
 
@@ -79,7 +105,7 @@ A store that connects asks the others what they hold, so a window opened late sh
 
 One narrow race is not closed: a window that reloads and writes within a few milliseconds, before the others have answered its hello, can have that first write replaced by what they held.
 
-## Popout
+### Popout
 
 `usePopout()` and `PanelPopout` move a panel into a window of its own and back, without remounting it.
 
@@ -106,6 +132,10 @@ What does not come along:
 - In dev, a stylesheet hot-reloaded after the popout opened is not copied again.
 - A desktop shell whose windows are separate JavaScript contexts cannot do this at all. There, each window renders its own panels and a `LinkTransport` carries the links.
 
-## What it does not do
+### Tokens
 
-Layout, docking, resizing, or tabs. That is `workspace`. It does not persist a group or a symbol, and it does not fetch anything for the symbol it holds.
+The install adds `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` to `link-4` to your stylesheet if you do not have them. The border and the dots draw from them.
+
+### What it does not do
+
+Layout, docking, resizing, or tabs. That is [`workspace`](workspace.md). It does not persist a group or a symbol, and it does not fetch anything for the symbol it holds.

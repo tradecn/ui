@@ -94,9 +94,13 @@ function copyButton(button) {
 }
 
 addEventListener("DOMContentLoaded", () => {
-  for (const preview of document.querySelectorAll(".preview")) {
-    tablist(preview.querySelector("[role='tablist']"), (tab) => {
-      for (const other of preview.querySelectorAll("[role='tab']")) {
+  // Tabbed cards: the preview's Preview / Code and the Installation's Command / Manual. The card's bar is its
+  // own first child tablist; a package-manager bar inside one of its panels is wired separately below.
+  for (const card of document.querySelectorAll("[data-tabs]")) {
+    const list = card.querySelector(":scope > [role='tablist']")
+    if (!list) continue
+    tablist(list, (tab) => {
+      for (const other of list.querySelectorAll("[role='tab']")) {
         const on = other === tab
         other.setAttribute("aria-selected", String(on))
         const panel = document.getElementById(other.getAttribute("aria-controls"))

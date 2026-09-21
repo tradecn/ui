@@ -1,6 +1,13 @@
 # command-palette
 
-`npx shadcn add tradecn/ui/command-palette` puts `command-palette.tsx` in your `ui` alias, the hotkey registry (`use-hotkeys.tsx`, `hotkeys.ts`) in your `hooks` and `lib` aliases, and brings your own `command`, `kbd`, and `badge` if you do not have them. Dependency: `cn`. `cmdk` arrives with your `command` component, not with this one.
+A command palette on your own shadcn `command`: actions from a registry, symbol search through your adapter, recents, and shortcuts read live from the hotkey registry.
+
+## Usage
+
+```tsx
+import { CommandPalette, createActionRegistry } from "@/components/ui/command-palette"
+import { HotkeysProvider } from "@/hooks/use-hotkeys"
+```
 
 ```tsx
 const actions = createActionRegistry()
@@ -20,7 +27,9 @@ actions.register([
 </HotkeysProvider>
 ```
 
-## Actions
+## API Reference
+
+### Actions
 
 An action is `{ id, title, subtitle?, scope?, keywords?, group?, bindingId?, run, secondary? }`. The registry is a list with a subscription, so panels can register their actions when they mount and take them back when they leave; `register` returns the unregister. Every palette reading one registry shows the same rows.
 
@@ -30,15 +39,15 @@ Enter runs the row. Shift+Enter runs `secondary`, and the hint for it (`⇧ ↵ 
 
 The palette does its own filtering and ordering instead of leaving it to `cmdk`, because three sources land in one list and one of them is asynchronous. Every word of the query has to land somewhere: the start of the title beats the inside of it, which beats a keyword, the group, or the id, which beats letters in order. `scorePaletteAction(action, query)` is that ranking as a pure function.
 
-## Symbols
+### Symbols
 
 `symbols` is an adapter with one method, `search(query, signal)`. The palette debounces, aborts the request in flight when the query moves on, and shows only answers to the query on screen: a row left over from three letters ago is how the wrong symbol gets loaded. While a search is out and nothing else matches, the list says so. A rejected search is no results. `SymbolResult` is `{ symbol, name?, exchange?, kind? }`; `kind` renders as a badge.
 
-## Recents
+### Recents
 
 On an empty query the last things run come first, actions and symbols both. They live in the action registry, so both variants share them. Persistence is yours: `onRecentsChange` fires after a run and `loadRecents` puts them back. A recent whose action is gone is skipped.
 
-## Hotkeys
+### Hotkeys
 
 Inside a `HotkeysProvider` the palette declares `palette.open` on `mod+k` in the `editing` scope, so it opens while you type, and removes it on unmount. The shortcut on a row is whatever the hotkey registry currently holds for the action's `bindingId`, so a `remap` shows up without anyone telling the palette. If you declared `palette.open` yourself, your keys and wording stand and the palette only attaches its handler. `hotkey="mod+p"` changes the default, `hotkey={false}` declares nothing, `hotkeys={registry}` passes one without a provider, and `hotkeys={null}` opts out.
 
@@ -46,7 +55,7 @@ The dispatcher stops at a dialog, so the palette answers its own key from inside
 
 Radix focuses a dialog in the commit that mounts it. Base UI does it about 10 ms later (headless Chromium, production build, Apple M5 Max, 2026-09-20), and under a busy main thread that gap is longer. Keys typed in it land on the body, where a single-key hotkey would take them. Someone who pressed `mod+k` is already working the palette, so until focus arrives its keys are the palette's: text goes into the query, Enter and Shift+Enter run the highlighted row, Escape closes, and none of them reach the dispatcher. The browser matrix types and presses Shift+Enter the instant the dialog appears, in all three styles, to keep it that way.
 
-## Go-bar
+### Go-bar
 
 `variant="go-bar"` is the same registry, rows, and recents rendered inline: an input with the rows dropping below it while it has focus. It declares `go-bar.focus` on `/`. Escape clears and leaves.
 
@@ -62,10 +71,10 @@ const grammar = (input: string): PaletteAction[] => {
 
 `AAPL` offers every function, `AAPL G` narrows to `AAPL GP`, Enter runs it. The grammar needs no request, so it answers before the symbol search does. It applies in the dialog too.
 
-## The rest
+### The rest
 
-`open`, `defaultOpen`, and `onOpenChange` control the dialog. `className` lands on the dialog's content (width, say) or on the go-bar's root. `labels` replaces any of the strings: title, description, placeholder, empty, searching, the group headings, and the binding's description.
+`open`, `defaultOpen`, and `onOpenChange` control the dialog. `className` lands on the dialog's content (width, say) or on the go-bar's root. `labels` replaces any of the strings: title, description, placeholder, empty, searching, the group headings, and the binding's description. `cmdk` arrives with your `command` component, not with this one.
 
-## What it does not do
+### What it does not do
 
 Nested pages, a preview pane, or fetching. It does not persist recents and it does not know what a symbol is.

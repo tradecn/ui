@@ -4,20 +4,22 @@ import { describe, expect, it } from "vitest"
 import {
   codeBlocks,
   commandFor,
+  consumerPath,
   DOCS_TEMPLATE,
   docPages,
   escapeHtml,
   FAVICON,
   firstParagraph,
-  installSection,
+  installationSection,
   PAGES,
   readDocs,
+  readSources,
+  registryCss,
   render,
   renderMarkdown,
   renderPage,
   templateValues,
   THEME_ITEM,
-  withInstall,
 } from "./build"
 import type { Doc, Registry } from "./build"
 
@@ -134,9 +136,28 @@ describe("code blocks", () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it("write the runner shadcn's site shows for each manager", () => {
-    expect(commandFor("npx shadcn@latest add x\n", "bunx --bun")).toBe("bunx --bun shadcn@latest add x\n")
-    expect(commandFor("echo npx\nnpx x", "pnpm dlx")).toBe("echo npx\npnpm dlx x")
+  it("write the runner and the add shadcn's site shows for each manager", () => {
+    const bun = { run: "bunx --bun", add: "bun add" }
+    expect(commandFor("npx shadcn@latest add x\n", bun)).toBe("bunx --bun shadcn@latest add x\n")
+    expect(commandFor("npm install cn @tanstack/react-virtual", bun)).toBe("bun add cn @tanstack/react-virtual")
+    expect(commandFor("echo npx\nnpx x", { run: "pnpm dlx", add: "pnpm add" })).toBe("echo npx\npnpm dlx x")
+    const html = codeBlocks("<pre><code>npm install cn</code></pre>")
+    expect(html).toContain('data-pm="yarn"><code>yarn add cn</code>')
+    expect(html).toContain('data-pm="npm"><code>npm install cn</code>')
+  })
+})
+
+describe("the Manual tab", () => {
+  it("names the path a file lands on in a consumer", () => {
+    expect(consumerPath({ path: "registry/tradecn/ui/x.tsx", type: "registry:ui" })).toBe("components/ui/x.tsx")
+    expect(consumerPath({ path: "registry/tradecn/hooks/use-x.ts", type: "registry:hook" })).toBe("hooks/use-x.ts")
+    expect(consumerPath({ path: "registry/tradecn/lib/x.ts", type: "registry:lib" })).toBe("lib/x.ts")
+    expect(consumerPath({ path: "registry/tradecn/blocks/t/t.tsx", type: "registry:block" })).toBe("components/t.tsx")
+    expect(consumerPath({ path: "a/b.tsx", type: "registry:block", target: "~/components/c.tsx" })).toBe("components/c.tsx")
+  })
+
+  it("writes a registry css block as the stylesheet the CLI appends", () => {
+    expect(registryCss({ "@layer components": { ".x": { "--a": "1", color: "red" } } })).toBe("@layer components {\n  .x {\n    --a: 1;\n    color: red;\n  }\n}")
   })
 })
 
@@ -156,6 +177,12 @@ describe("markdown", () => {
     expect(doc.html).not.toContain("<DataGrid")
   })
 
+  it("points a link to a sibling doc at its page, and leaves other links alone", () => {
+    const doc = renderMarkdown("# x\n\nRead [data-grid](data-grid.md) and [the CLI](https://ui.shadcn.com/docs/cli).\n")
+    expect(doc.html).toContain('<a href="/docs/data-grid/">data-grid</a>')
+    expect(doc.html).toContain('<a href="https://ui.shadcn.com/docs/cli">the CLI</a>')
+  })
+
   it("describes a page by its first paragraph, without markup", () => {
     expect(firstParagraph("# t\n\n```ts\nnot this\n```\n\n- not this\n\nUse `formatPrice` for [prices](x.md).\n")).toBe(
       "Use formatPrice for prices.",
@@ -166,8 +193,10 @@ describe("markdown", () => {
 describe("the docs pages", async () => {
   const docs = await readDocs(resolve(root, "docs"), registry)
   const values = templateValues(registry, version, registry, new Set(docs.map((doc) => doc.slug)))
-  const pages = docPages(docs, values, template(DOCS_TEMPLATE))
+  const sources = await readSources(registry, root)
+  const pages = docPages(docs, values, template(DOCS_TEMPLATE), undefined, sources)
   const byPath = new Map(pages.map((page) => [page.path, page.html]))
+  const items = docs.filter((doc) => doc.item)
 
   it("renders one page per docs/*.md plus an index, with no placeholder left", () => {
     expect(byPath.size).toBe(docs.length + 1)
@@ -187,40 +216,85 @@ describe("the docs pages", async () => {
     for (const doc of docs) expect(format).toContain(`href="/docs/${doc.slug}/"`)
   })
 
-  it("puts an Install section with both forms on an item page, after the intro and before its first section", () => {
-    const panel = byPath.get("docs/panel/index.html") ?? ""
-    const install = panel.indexOf('<h2 id="install"><a href="#install">Install</a></h2>')
-    expect(install).toBeGreaterThan(0)
-    for (const run of ["npx", "pnpm dlx", "yarn dlx", "bunx --bun"]) {
-      expect(panel).toContain(`${run} shadcn@latest add tradecn/ui/panel#v${version}`)
-      expect(panel).toContain(`${run} shadcn@latest add @tradecn/panel`)
+  it("keeps every item doc in the page's shape: the title, one sentence, then Usage first and API Reference last", () => {
+    for (const doc of items) {
+      const markdown = readFileSync(resolve(root, "docs", doc.source), "utf8")
+      const [intro = "", ...sections] = markdown.split(/^## /m)
+      const paragraphs = intro.split(/\n{2,}/).map((text) => text.trim()).filter(Boolean)
+      expect(paragraphs, `${doc.source}: the title and one paragraph before the first section`).toHaveLength(2)
+      expect(paragraphs[1], `${doc.source}: one sentence`).toMatch(/^[^.!?]+[.!?]$/)
+      expect(paragraphs[1], `${doc.source}: the install is the builder's`).not.toMatch(/shadcn add|npx /)
+      const headings = sections.map((section) => section.split("\n")[0]?.trim())
+      expect(headings[0], doc.source).toBe("Usage")
+      expect(headings.at(-1), doc.source).toBe("API Reference")
+      expect(headings, doc.source).not.toContain("Installation")
     }
-    // The intro's usage block comes first; the doc's own sections follow.
-    expect(panel.indexOf('class="language-tsx"')).toBeLessThan(install)
-    expect(install).toBeLessThan(panel.indexOf('<h2 id="a-panel-is-a-hotkey-scope">'))
-    expect(panel).toContain('<a href="/#install">')
-    expect(panel).not.toContain("Install: <code>")
   })
 
-  it("ends a page with no sections with the Install section, and puts none on the contract", () => {
-    const flash = byPath.get("docs/flash-cell/index.html") ?? ""
-    const install = flash.indexOf('<h2 id="install">')
-    expect(install).toBeGreaterThan(flash.lastIndexOf('class="language-tsx"'))
-    expect(install).toBeLessThan(flash.indexOf('class="foot"'))
+  it("puts Installation after the one sentence and before Usage, with Command and Manual tabs", () => {
+    const grid = byPath.get("docs/data-grid/index.html") ?? ""
+    const installation = grid.indexOf('<h2 id="installation"><a href="#installation">Installation</a></h2>')
+    expect(installation).toBeGreaterThan(grid.indexOf("</h1>"))
+    expect(installation).toBeLessThan(grid.indexOf('<h2 id="usage">'))
+    expect(grid).toContain('<div class="tabs" data-tabs>')
+    expect(grid).toContain('role="tab" id="installation-tab-command" aria-selected="true" aria-controls="installation-command"')
+    expect(grid).toContain('<div id="installation-manual" role="tabpanel" aria-labelledby="installation-tab-manual" hidden>')
+    for (const run of ["npx", "pnpm dlx", "yarn dlx", "bunx --bun"]) expect(grid).toContain(`${run} shadcn@latest add tradecn/ui/data-grid#v${version}`)
+    expect(grid).not.toContain("@tradecn/data-grid")
+  })
+
+  it("spells the install out under Manual: packages, built-ins, every file at its path with a consumer's imports, and the CSS", () => {
+    const grid = byPath.get("docs/data-grid/index.html") ?? ""
+    expect(grid).toContain("<p>Install the dependencies:</p>")
+    for (const add of ["npm install", "pnpm add", "yarn add", "bun add"]) expect(grid).toContain(`${add} cn @tanstack/react-virtual`)
+    expect(grid).toContain("<p>Add the shadcn components it composes:</p>")
+    expect(grid).toContain("pnpm dlx shadcn@latest add checkbox context-menu dropdown-menu")
+    expect(grid).toContain("<p>Copy the files into your project:</p>")
+    for (const path of ["components/ui/data-grid.tsx", "hooks/use-flash.ts", "hooks/use-row-store.ts", "lib/row-store.ts", "lib/format.ts"]) {
+      expect(grid).toContain(`<p class="file"><code>${path}</code></p>`)
+    }
+    expect(grid).toContain('<code class="language-tsx">')
+    expect(grid).toContain("@/hooks/use-row-store")
+    expect(grid).not.toContain("@/registry/")
+    expect(grid).toContain("<p>Add the tokens to your stylesheet:</p>")
+    expect(grid).toMatch(/<code class="language-css">:root \{\n {2}--(up|down|flat)/)
+    expect(grid).toContain("  --up: ")
+    const ticket = byPath.get("docs/ticket/index.html") ?? ""
+    expect(ticket).toContain('<p class="file"><code>components/ticket.tsx</code></p>')
+    const workspace = byPath.get("docs/workspace/index.html") ?? ""
+    expect(workspace).toContain("<p>Append this to your stylesheet:</p>")
+    expect(workspace).toContain("@layer components {\n  .dockview-theme-tradecn {\n    --dv-")
+    const format = byPath.get("docs/format/index.html") ?? ""
+    expect(format).not.toContain("Install the dependencies")
+    expect(format).not.toContain("Add the shadcn components")
+    expect(format).toContain('<p class="file"><code>lib/format.ts</code></p>')
+    const theme = byPath.get("docs/tradecn-terminal/index.html") ?? ""
+    expect(theme).toContain("<p>Replace the variables in your stylesheet with these:</p>")
+    expect(theme).toContain("@theme inline {")
+    expect(theme).not.toContain("Copy the files")
     const contract = byPath.get("docs/contract/index.html") ?? ""
-    expect(contract).not.toContain("shadcn@latest add")
-    expect(contract).not.toContain('id="install"')
-    expect(contract).toContain("docs/contract.md")
+    expect(contract).not.toContain('id="installation"')
+    expect(contract).not.toContain("shadcn@latest add tradecn/ui/")
   })
 
-  it("lands before the first section heading, or last, and refuses a doc with its own Install heading", () => {
-    expect(withInstall('<h1>t</h1>\n<p>a</p>\n<pre><code>u</code></pre>\n<h2 id="x">x</h2>\n<p>b</p>\n', "<h2>I</h2>")).toBe(
-      '<h1>t</h1>\n<p>a</p>\n<pre><code>u</code></pre>\n<h2>I</h2>\n<h2 id="x">x</h2>\n<p>b</p>\n',
+  it("names the shadcn components an item is built on and links the pages before and after", () => {
+    const grid = byPath.get("docs/data-grid/index.html") ?? ""
+    expect(grid).toContain(
+      `<p class="built-on">Built on shadcn's <a href="https://ui.shadcn.com/docs/components/checkbox"><code>checkbox</code></a>, <a href="https://ui.shadcn.com/docs/components/context-menu"><code>context-menu</code></a>, and <a href="https://ui.shadcn.com/docs/components/dropdown-menu"><code>dropdown-menu</code></a>.</p>`,
     )
-    expect(withInstall("<h1>t</h1>\n<p>a</p>\n", "<h2>I</h2>")).toBe("<h1>t</h1>\n<p>a</p>\n<h2>I</h2>\n")
-    expect(installSection("panel", "v1.2.3")).toContain("npx shadcn@latest add tradecn/ui/panel#v1.2.3")
-    const doc: Doc = { ...docs[0]!, html: '<h1 id="x">x</h1>\n<h2 id="install"><a href="#install">Install</a></h2>\n' }
-    expect(() => docPages([doc], values, template(DOCS_TEMPLATE))).toThrow(/Install heading/)
+    expect(byPath.get("docs/panel/index.html")).toContain(`<p class="built-on">Built on shadcn's <a href="https://ui.shadcn.com/docs/components/input"><code>input</code></a>.</p>`)
+    expect(byPath.get("docs/format/index.html")).not.toContain('<p class="built-on">')
+    const first = byPath.get(`docs/${docs[0]!.slug}/index.html`) ?? ""
+    expect(first).toContain(`<nav class="pager" aria-label="Previous and next">\n<span></span>\n<a rel="next" href="/docs/${docs[1]!.slug}/">${docs[1]!.slug} →</a>`)
+    const last = byPath.get(`docs/${docs.at(-1)!.slug}/index.html`) ?? ""
+    expect(last).toContain(`<a rel="prev" href="/docs/${docs.at(-2)!.slug}/">← ${docs.at(-2)!.slug}</a>\n<span></span>`)
+    expect(byPath.get(`docs/${docs.at(-2)!.slug}/index.html`)).toContain(`<a rel="next" href="/docs/contract/">The item contract →</a>`)
+  })
+
+  it("refuses a doc with its own Installation heading, and an item whose files the checkout lacks", () => {
+    const doc: Doc = { ...docs[0]!, html: '<h1 id="x">x</h1>\n<h2 id="installation"><a href="#installation">Installation</a></h2>\n' }
+    expect(() => docPages([doc], values, template(DOCS_TEMPLATE), undefined, sources)).toThrow(/Installation heading/)
+    expect(() => installationSection(registry.items[0]!, "v1.0.0", new Map())).toThrow(/checkout does not have/)
   })
 
   it("gives every code block on every page a copy button", () => {
