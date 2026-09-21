@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+  <img src="assets/logo.svg" alt="" width="64" height="64">
+</picture>
+
 # tradecn/ui
 
 Trading-terminal components you install with `shadcn add`. The source lands in your repo and it's yours.

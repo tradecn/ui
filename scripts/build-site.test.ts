@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
-import { escapeHtml, PAGES, render, templateValues, THEME_ITEM } from "./build-site"
+import { escapeHtml, FAVICON, PAGES, render, templateValues, THEME_ITEM } from "./build-site"
 import type { Registry } from "./build-site"
 
 const root = resolve(import.meta.dirname, "..")
@@ -15,6 +15,13 @@ describe("the landing page", () => {
 
   it("renders every template without a placeholder left", () => {
     for (const name of PAGES) expect(render(template(name), values)).not.toMatch(/\{\{\w+\}\}/)
+  })
+
+  it("links the favicon the builder copies from the amber logo", () => {
+    for (const name of PAGES) expect(template(name)).toContain(`href="/${FAVICON}"`)
+    const mark = readFileSync(resolve(root, "assets", "logo-dark.svg"), "utf8")
+    expect(mark).toContain('stroke="#f7a224"')
+    expect(mark).not.toContain('stroke="black"')
   })
 
   it("lists every item with its docs pinned to the tag", () => {
