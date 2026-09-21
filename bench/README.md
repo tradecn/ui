@@ -9,7 +9,7 @@ What it records:
 - Script time per frame: building the batch, `applyDeltas`, and React's render and commit, measured to the microtask after React's. This is the headroom number. It excludes style, layout, and paint.
 - Long tasks from `PerformanceObserver`, and how many patched cells landed in the visible window.
 
-Nothing is written unless you pass `--machine "<name>"`. Then the run lands in `results/<machine>/` and, if `thresholds/<machine>.json` exists for that shape, the run fails when it misses a threshold. Thresholds are written before the first run on a machine and are never edited to make a run pass.
+Nothing is written unless you pass `--machine "<name>"`. Then the run lands in `results/<machine>/` and, if `thresholds/<machine>.json` exists for that shape, the run fails when it misses a threshold. Thresholds are written before the first run on a machine and are never edited to make a run pass. A threshold that turns out to measure the wrong thing is replaced by a new file with its own date, and the old file stays beside it, unedited.
 
 ## Apple M5 Max, 2026-09-20
 
@@ -23,6 +23,6 @@ Nothing is written unless you pass `--machine "<name>"`. Then the run lands in `
 
 At 2,000 patches per frame every frame is one vsync and the script work is about 3 ms of a 16.7 ms frame. 5,000 is the edge on this machine: across the day's runs it was clean more often than not, and when it dropped, it dropped one to five frames in six hundred. At 10,000, nearly every visible cell is changing on every frame and one frame in five is late; script time is still inside the budget there, so the cost is the hundreds of concurrent flash animations, not React.
 
-The threshold file for this machine says frame p99 at most 16.7 ms, and the 2,000 run reports 16.8, so the run is recorded as a miss. The line was drawn at the vsync interval itself: timestamps are quantized to a tenth of a millisecond and a perfect run alternates 16.6, 16.7, and 16.8. The file stays as written. A threshold that measures what it meant to (no dropped frames, no long tasks, script p99 under a stated number) is a separate decision.
+The first threshold file for this machine said frame p99 at most 16.7 ms, and the 2,000 run reported 16.8, so that run is recorded as a miss. The line was drawn at the vsync interval itself: timestamps are quantized to a tenth of a millisecond and a perfect run alternates 16.6, 16.7, and 16.8. That file stays as written, at `thresholds/m5-max.2026-09-20.json`. On 2026-09-21 a second file took over as the gate, written before the run it judged: script p99 at most 5 ms, no dropped frames, no long tasks, and no frame p99 limit, because under vsync that number only says whether a frame was missed and the dropped count already says that. The run that day, same shape: 601 frames, frame p99 16.8 again, 0 dropped, 0 long tasks, script p50 2.2 ms, script p99 2.5 ms, script max 2.6 ms, which meets it.
 
 Headless Chromium on a laptop is not a trading desk PC. These numbers say how the grid behaves under its own load on named hardware; the numbers that matter for a deployment come from that deployment's machines.

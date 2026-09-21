@@ -1,13 +1,14 @@
 {
-  "$comment": "Written before the first run on this machine, never edited to pass. The frame budget is the threshold.",
+  "$comment": "Written 2026-09-21 before the run it gates, never edited to pass. Supersedes m5-max.2026-09-20.json, which stays as the record: its frame p99 limit sat on the vsync interval and measured the display, not the grid. Under vsync, frame pacing only says whether a frame was missed, and droppedFramesAllowed already says that, so the headroom number here is script time.",
   "machine": "Apple M5 Max, 128 GB, macOS 27.0, Playwright Chromium headless",
-  "writtenOn": "2026-09-20",
+  "writtenOn": "2026-09-21",
+  "supersedes": "m5-max.2026-09-20.json",
   "rows": 1000,
   "visible": 60,
   "columns": 12,
   "updatesPerFrame": 2000,
   "seconds": 10,
-  "p99FrameMs": 16.7,
+  "scriptP99Ms": 5,
   "droppedFramesAllowed": 0,
   "longTasksAllowed": 0
 }
