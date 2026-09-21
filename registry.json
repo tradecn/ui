@@ -791,6 +791,92 @@
       }
     },
     {
+      "name": "ticket",
+      "type": "registry:block",
+      "title": "Ticket",
+      "description": "An order ticket that types a price the way the instrument quotes it (99-16+), steps it by the tick with the arrows and the buttons, and hands a checked draft to the action you named. Buttons are the actions the server allowed and nothing else; the status is the server word, printed as it is; an acknowledgement rings the ticket once in primary. Its keys work while you type in it, and inside a dialog.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [
+        "button",
+        "button-group",
+        "field",
+        "input",
+        "input-group",
+        "kbd",
+        "native-select"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/blocks/ticket/ticket.tsx",
+          "type": "registry:block"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-hotkeys.tsx",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/hotkeys.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "ticket"
+      ],
+      "docs": "The registry first block: ticket.tsx goes to your components alias, not components/ui. Installs format, use-flash, and the hotkey registry alongside, composes your button, button-group, field, input, input-group, kbd, and native-select, and adds the up and down tokens. Inside a HotkeysProvider it declares ticket.send (mod+enter), ticket.flip, ticket.tick-up, and ticket.tick-down as editing bindings unless you did.",
+      "meta": {
+        "components": [
+          {
+            "title": "Ticket",
+            "description": "The ticket."
+          },
+          {
+            "title": "TICKET_BINDINGS",
+            "description": "Its four editing bindings, to spread into your own list or leave to it."
+          },
+          {
+            "title": "describeDraft",
+            "description": "A draft in words: Buy 5 ZN @ 99-16+."
+          },
+          {
+            "title": "checkDraft",
+            "description": "What stops a draft from being sent, as a pure function."
+          },
+          {
+            "title": "parseQuantity",
+            "description": "Whole numbers with or without separators, or null."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.58 0.19 45)",
+          "down-soft": "oklch(0.58 0.19 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "up": "oklch(0.58 0.14 165)",
+          "up-soft": "oklch(0.58 0.14 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.74 0.18 45)",
+          "down-soft": "oklch(0.74 0.18 45 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      }
+    },
+    {
       "name": "tradecn-terminal",
       "type": "registry:theme",
       "title": "Terminal",

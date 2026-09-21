@@ -30,7 +30,7 @@ const CSS_KEYS = [/^@keyframes tradecn-[\w-]+$/, /^@layer components$/]
 // The classes a `@layer components` restyle may start from: dockview's.
 const CSS_RESTYLE_SELECTORS = [/^\.dockview-theme-tradecn\b/, /^\.dv-[\w-]+/]
 const FORBIDDEN_JSX_ATTRS = new Set(["asChild", "render", "nativeButton"])
-const SOURCE_DIRS = ["ui", "hooks", "lib"]
+const SOURCE_DIRS = ["ui", "hooks", "lib", "blocks"]
 
 const registry = readRegistry()
 const tokens = readTokens()
@@ -125,7 +125,7 @@ for (const item of registry.items) {
     if (!source) continue
     const sf = project.addSourceFileAtPath(abs)
     if (file.path === primary) exportsOfPrimary = new Set(sf.getExportedDeclarations().keys())
-    if (item.type === "registry:ui" && file.path === primary && !source.includes(`data-slot="tradecn-${id}"`)) fail(id, `${file.path} must put data-slot="tradecn-${id}" on its root element`)
+    if ((item.type === "registry:ui" || item.type === "registry:block") && file.path === primary && !source.includes(`data-slot="tradecn-${id}"`)) fail(id, `${file.path} must put data-slot="tradecn-${id}" on its root element`)
 
     const specifiers = [
       ...sf.getImportDeclarations().map((d) => ({ spec: d.getModuleSpecifierValue(), names: d.getNamedImports().map((n) => n.getName()), node: d })),
@@ -234,13 +234,18 @@ for (const item of registry.items) {
   }
 }
 
-// orphans: every source file belongs to at least one item
+// orphans: every source file belongs to at least one item. Blocks nest one directory per block.
+function* sourceFiles(dir: string): Generator<string> {
+  for (const f of readdirSync(dir)) {
+    const p = path.join(dir, f)
+    if (statSync(p).isDirectory()) yield* sourceFiles(p)
+    else if (/\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f)) yield p
+  }
+}
 for (const dir of SOURCE_DIRS) {
   const abs = path.join(ROOT, "registry/tradecn", dir)
   if (!existsSync(abs)) continue
-  for (const f of readdirSync(abs)) {
-    const p = path.join(abs, f)
-    if (!statSync(p).isFile() || !/\.tsx?$/.test(f) || /\.test\.tsx?$/.test(f)) continue
+  for (const p of sourceFiles(abs)) {
     const rel = path.relative(ROOT, p)
     if (!referenced.has(rel)) fail("registry", `${rel} is not referenced by any item`)
   }

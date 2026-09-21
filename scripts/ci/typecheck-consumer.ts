@@ -19,7 +19,8 @@ for (const f of readdirSync(built)) {
   const item = JSON.parse(readFileSync(path.join(built, f), "utf8")) as { files?: { path: string; type: string }[] }
   for (const file of item.files ?? []) {
     const base = path.basename(file.path)
-    const dir = file.type === "registry:ui" ? "src/components/ui" : file.type === "registry:hook" ? "src/hooks" : file.type === "registry:lib" ? "src/lib" : null
+    // Where the CLI puts each type: ui, hooks, lib to their aliases; a block's own files to the components alias.
+    const dir = file.type === "registry:ui" ? "src/components/ui" : file.type === "registry:hook" ? "src/hooks" : file.type === "registry:lib" ? "src/lib" : file.type === "registry:block" || file.type === "registry:component" ? "src/components" : null
     if (dir) ours.add(`${dir}/${base}`)
   }
 }
