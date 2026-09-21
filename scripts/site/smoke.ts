@@ -97,16 +97,25 @@ for (const item of items) {
     const height = await frame.evaluate((el) => parseFloat((el as HTMLIFrameElement).style.height))
     // The Code tab shows something, and swapping tabs works without a framework.
     await page.getByRole("tab", { name: "Code" }).click()
-    if (!(await page.locator("#preview-code pre code").isVisible())) failures.push(`${item}: the Code tab shows no code`)
-    const code = await page.locator("#preview-code pre code").innerText()
+    const previewCode = page.locator(".preview-code pre code")
+    if (!(await previewCode.isVisible())) failures.push(`${item}: the Code tab shows no code`)
+    const code = await previewCode.innerText()
     if (code.includes("@/registry/")) failures.push(`${item}: the Code tab shows a playground import, not the consumer's`)
     // Its copy button puts that source on the clipboard, without the trailing newline.
-    const source = await page.locator("#preview-code pre code").evaluate((el) => el.textContent ?? "")
-    await page.locator("#preview-code .copy").click()
+    const source = await previewCode.evaluate((el) => el.textContent ?? "")
+    await page.locator(".preview-code .copy").click()
     if ((await clipboard(page)) !== source.trimEnd()) failures.push(`${item}: the Code tab's copy button copied something else`)
-    // The Install section shows the pinned command under the page's package manager: npm until a reader picks one.
-    const install = await page.locator("#install + .command pre:visible code").innerText()
-    if (!install.startsWith(`npx shadcn@latest add tradecn/ui/${item}#v`)) failures.push(`${item}: the Install section shows "${install}"`)
+    // Installation: Command shows the pinned command under the page's package manager, npm until a reader picks
+    // one; Manual opens on its tab and spells the install out with a consumer's imports, never the playground's.
+    const command = await page.locator("#installation-command .command pre:visible code").innerText()
+    if (!command.startsWith(`npx shadcn@latest add tradecn/ui/${item}#v`)) failures.push(`${item}: Installation's Command shows "${command}"`)
+    if (await page.locator("#installation-manual").isVisible()) failures.push(`${item}: Manual is showing before its tab was clicked`)
+    await page.getByRole("tab", { name: "Manual" }).click()
+    if (!(await page.locator("#installation-manual").isVisible())) failures.push(`${item}: Manual did not open on its tab`)
+    if (await page.locator("#installation-command").isVisible()) failures.push(`${item}: Command is still showing beside Manual`)
+    const manual = await page.locator("#installation-manual").innerText()
+    if (manual.includes("@/registry/")) failures.push(`${item}: Manual shows a playground import, not the consumer's`)
+    if (!(await page.locator("#installation-manual .code").count())) failures.push(`${item}: Manual has nothing to copy`)
     console.log(`ok  ${item.padEnd(26)} ${Math.round(height)}px`)
   } catch (error) {
     failures.push(`${item}: ${firstLine(error)}`)
@@ -137,9 +146,9 @@ for (const item of items) {
     if (!(await clipboard(page)).includes('"@tradecn": "')) failures.push("landing: the components.json block did not copy")
     // The choice holds on the next page.
     await page.goto(`${base}/docs/${items[0]}/`, { waitUntil: "load" })
-    const kept = await page.locator("#install + .command pre:visible code").innerText()
+    const kept = await page.locator("#installation-command .command pre:visible code").innerText()
     if (!kept.startsWith("pnpm dlx ")) failures.push(`${items[0]}: shows "${kept}" after pnpm was picked on the landing page`)
-    const tab = await page.locator("#install + .command [role='tab'][aria-selected='true']").innerText()
+    const tab = await page.locator("#installation-command .command [role='tab'][aria-selected='true']").innerText()
     if (tab !== "pnpm") failures.push(`${items[0]}: the ${tab} tab is selected after pnpm was picked on the landing page`)
     console.log("ok  landing page: the install blocks, their copy buttons, and the package manager choice")
   } catch (error) {

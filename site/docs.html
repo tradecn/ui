@@ -68,6 +68,20 @@ article pre code { padding: 0; background: none; border: 0; font-size: 1em; }
 html:not([data-pm]) .command pre[data-pm="npm"], html[data-pm="npm"] .command pre[data-pm="npm"], html[data-pm="pnpm"] .command pre[data-pm="pnpm"], html[data-pm="yarn"] .command pre[data-pm="yarn"], html[data-pm="bun"] .command pre[data-pm="bun"] { display: block; }
 /* Without the script the tabs and the buttons would do nothing, so they are not there. */
 html:not(.js) .copy, html:not(.js) .managers { display: none; }
+/* Installation: Command / Manual as underline tabs; the Manual's sources scroll inside their blocks. */
+.tabs-bar { display: flex; gap: 1.25rem; margin: .75rem 0 1rem; border-bottom: 1px solid var(--border); }
+.tabs-bar [role="tab"] { font: inherit; color: var(--muted-foreground); background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: .35rem 0; cursor: pointer; }
+.tabs-bar [role="tab"][aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--foreground); }
+.tabs-bar [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.tabs pre { max-height: 24rem; }
+.file { margin: 1.25rem 0 .35rem; font-size: .85rem; color: var(--muted-foreground); }
+.file + .code { margin-top: 0; }
+html:not(.js) .tabs-bar { display: none; }
+html:not(.js) .tabs [role="tabpanel"][hidden] { display: block; }
+.built-on { margin-top: 2rem; color: var(--muted-foreground); }
+.pager { display: flex; justify-content: space-between; gap: 1rem; margin-top: 3rem; }
+.pager a { padding: .5rem .8rem; border: 1px solid var(--border); border-radius: var(--radius); color: var(--foreground); }
+.pager a:hover, .pager a:focus-visible { text-decoration: none; background: var(--card); }
 article blockquote { margin: 1rem 0; padding: 0 1rem; border-left: 2px solid var(--primary); color: var(--muted-foreground); }
 article table { border-collapse: collapse; width: 100%; }
 article th, article td { padding: .5rem .75rem .5rem 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }

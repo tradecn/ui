@@ -31,12 +31,17 @@ const PALETTE = [
   "radius",
 ] as const
 
+export type RegistryFile = { path: string; type: string; target?: string }
 export type RegistryItem = {
   name: string
   type: string
   title?: string
   description?: string
+  dependencies?: string[]
+  registryDependencies?: string[]
+  files?: RegistryFile[]
   cssVars?: { theme?: Record<string, string>; light?: Record<string, string>; dark?: Record<string, string> }
+  css?: Record<string, unknown>
 }
 export type Registry = { name: string; items: RegistryItem[] }
 
@@ -92,20 +97,24 @@ export function render(template: string, values: Record<string, string>): string
   })
 }
 
-/** The runners the install blocks offer, in the order shadcn's own site lists them. `npx` is the form every doc writes. */
+/** The package managers the install blocks offer, in the order shadcn's own site lists them, each with its runner and its add. npm's forms are the ones every doc writes. */
 export const PACKAGE_MANAGERS = [
-  { name: "pnpm", run: "pnpm dlx" },
-  { name: "npm", run: "npx" },
-  { name: "yarn", run: "yarn dlx" },
-  { name: "bun", run: "bunx --bun" },
+  { name: "pnpm", run: "pnpm dlx", add: "pnpm add" },
+  { name: "npm", run: "npx", add: "npm install" },
+  { name: "yarn", run: "yarn dlx", add: "yarn add" },
+  { name: "bun", run: "bunx --bun", add: "bun add" },
 ] as const
 export type PackageManager = (typeof PACKAGE_MANAGERS)[number]["name"]
+export type Runner = { run: string; add: string }
 /** What a page shows before the reader picks a manager, and all it shows without a script. */
 export const DEFAULT_MANAGER: PackageManager = "npm"
 
-/** The same block under another runner: only the lines that start with `npx` change, so a comment or a second command rides along. */
-export function commandFor(code: string, run: string): string {
-  return code.replace(/^npx /gm, `${run} `)
+/** A line that starts with one of npm's forms, which is what makes a block an install block. */
+const COMMAND_LINE = /^(npx |npm install )/m
+
+/** The same block under another package manager: only the lines that start with `npx` or `npm install` change, so a comment or a second command rides along. */
+export function commandFor(code: string, manager: Runner): string {
+  return code.replace(/^npx /gm, `${manager.run} `).replace(/^npm install /gm, `${manager.add} `)
 }
 
 // The icons are inline so a page loads no image, and drawn here so they carry no licence of their own.
@@ -115,24 +124,24 @@ const COPY_BUTTON = `<button type="button" class="copy" aria-label="Copy">${icon
 const PROMPT_ICON = icon('<path d="M4 7l5 5-5 5M11 17h9"/>', "prompt")
 
 /**
- * Every code block on a page gets a copy button, and a block with a line that starts with `npx` becomes an
- * install block: the same command under pnpm, npm, yarn, and bun, one of them showing. Which one is the page's
- * `data-pm`, which site.js sets from the reader's last choice before the body parses, and the tabs follow it.
- * The last pass over a page, on its HTML, because the blocks come from three places: the templates, marked,
- * and the preview card.
+ * Every code block on a page gets a copy button, and a block with a line that starts with `npx` or `npm install`
+ * becomes an install block: the same command under pnpm, npm, yarn, and bun, one of them showing. Which one is
+ * the page's `data-pm`, which site.js sets from the reader's last choice before the body parses, and the tabs
+ * follow it. The last pass over a page, on its HTML, because the blocks come from four places: the templates,
+ * marked, the preview card, and the Installation section.
  */
 export function codeBlocks(html: string): string {
   let blocks = 0
   return html.replace(/<pre><code( class="language-[\w-]+")?>([\s\S]*?)<\/code><\/pre>/g, (block: string, attributes: string | undefined, code: string) => {
-    if (!/^npx /m.test(code)) return `<div class="code">${block}${COPY_BUTTON}</div>`
+    if (!COMMAND_LINE.test(code)) return `<div class="code">${block}${COPY_BUTTON}</div>`
     const id = `pm-${++blocks}`
     const tabs = PACKAGE_MANAGERS.map(
       ({ name }) =>
         `<button type="button" role="tab" id="${id}-${name}" aria-controls="${id}-${name}-code" aria-selected="${name === DEFAULT_MANAGER}" data-pm="${name}">${name}</button>`,
     ).join("")
     const panels = PACKAGE_MANAGERS.map(
-      ({ name, run }) =>
-        `<pre id="${id}-${name}-code" role="tabpanel" aria-labelledby="${id}-${name}" data-pm="${name}"><code${attributes ?? ""}>${commandFor(code, run)}</code></pre>`,
+      (manager) =>
+        `<pre id="${id}-${manager.name}-code" role="tabpanel" aria-labelledby="${id}-${manager.name}" data-pm="${manager.name}"><code${attributes ?? ""}>${commandFor(code, manager)}</code></pre>`,
     ).join("\n")
     return `<div class="code command">\n<div class="managers" role="tablist" aria-label="Package manager">${PROMPT_ICON}${tabs}</div>\n${panels}\n${COPY_BUTTON}\n</div>`
   })
@@ -182,13 +191,19 @@ export function firstParagraph(markdown: string): string {
   return ""
 }
 
-/** Markdown to HTML with the first `#` as the title and an anchor on every heading. */
+/** Markdown to HTML with the first `#` as the title, an anchor on every heading, and a link to `x.md` pointing at that page. */
 export function renderMarkdown(markdown: string): RenderedDoc {
   const ids = new Map<string, number>()
   let title = ""
   const marked = new Marked({ gfm: true })
   marked.use({
     renderer: {
+      link(token) {
+        // A doc links a sibling as `data-grid.md`, which works on GitHub; here that page is /docs/data-grid/.
+        const href = /^[\w-]+\.md$/.test(token.href) ? `/docs/${token.href.slice(0, -".md".length)}/` : token.href
+        const title = token.title ? ` title="${escapeHtml(token.title)}"` : ""
+        return `<a href="${escapeHtml(href)}"${title}>${this.parser.parseInline(token.tokens)}</a>`
+      },
       heading(token) {
         const plain = token.text.replace(/`/g, "")
         if (token.depth === 1 && !title) title = plain
@@ -295,17 +310,19 @@ export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
   const code = theme && doc.item ? themeCss(doc.item) : demo.code
   const language = theme ? "css" : "tsx"
   const codeSource = theme ? `what <code>${escapeHtml(name)}</code> writes into your stylesheet` : `<code>playground/src/demos/${escapeHtml(name)}.tsx</code>`
+  // Ids carry the demo's name, so a page could hold more than one card.
+  const id = `preview-${escapeHtml(name)}`
   return [
-    `<div class="preview" data-preview="${escapeHtml(name)}">`,
+    `<div class="preview" data-preview="${escapeHtml(name)}" data-tabs>`,
     `<div class="preview-bar" role="tablist" aria-label="${escapeHtml(name)} preview">`,
-    `<button type="button" role="tab" id="preview-tab-live" aria-selected="true" aria-controls="preview-live">Preview</button>`,
-    `<button type="button" role="tab" id="preview-tab-code" aria-selected="false" aria-controls="preview-code">Code</button>`,
+    `<button type="button" role="tab" id="${id}-tab-live" aria-selected="true" aria-controls="${id}-live">Preview</button>`,
+    `<button type="button" role="tab" id="${id}-tab-code" aria-selected="false" aria-controls="${id}-code">Code</button>`,
     `<a class="preview-open" href="/${PREVIEW_PATH}/${escapeHtml(name)}/" target="_blank" rel="noopener">Open in a new tab</a>`,
     `</div>`,
-    `<div class="preview-live" id="preview-live" role="tabpanel" aria-labelledby="preview-tab-live">`,
+    `<div class="preview-live" id="${id}-live" role="tabpanel" aria-labelledby="${id}-tab-live">`,
     `<iframe src="/${PREVIEW_PATH}/${escapeHtml(name)}/" title="${escapeHtml(name)}, live" loading="lazy"></iframe>`,
     `</div>`,
-    `<div class="preview-code" id="preview-code" role="tabpanel" aria-labelledby="preview-tab-code" hidden>`,
+    `<div class="preview-code" id="${id}-code" role="tabpanel" aria-labelledby="${id}-tab-code" hidden>`,
     `<p class="preview-source">${codeSource}, at <a href="${REPO_URL}/blob/${tag}/playground/src/demos/${escapeHtml(name)}.tsx">${tag}</a>.</p>`,
     `<pre><code class="language-${language}">${escapeHtml(code)}</code></pre>`,
     `</div>`,
@@ -313,7 +330,7 @@ export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
   ].join("\n")
 }
 
-/** The preview goes after the first paragraph: the title, what the item is, then the item itself. */
+/** The preview and the Installation go after the first paragraph: the title, the one sentence, then the item itself and how to get it. */
 export function withPreview(html: string, block: string): string {
   const h1 = html.indexOf("</h1>")
   const p = html.indexOf("</p>\n", h1 < 0 ? 0 : h1)
@@ -321,24 +338,110 @@ export function withPreview(html: string, block: string): string {
   return `${html.slice(0, at)}${block}\n${html.slice(at)}`
 }
 
-/** The Install section of an item's page: the pinned GitHub form, then the namespace form the landing page sets up. */
-export function installSection(name: string, tag: string): string {
-  const item = escapeHtml(name)
+// The Installation section. Command is what the landing page says: `shadcn add` with the tag pinned. Manual is
+// what that command does, step by step, from registry.json and the files it names.
+
+/** Every file any item installs, in the form `shadcn add` writes it (a consumer's imports), by its registry path. */
+export type Sources = Map<string, string>
+
+/** Read the files the items install from the checkout that holds their `registry.json`. */
+export async function readSources(registry: Registry, dir: string): Promise<Sources> {
+  const sources: Sources = new Map()
+  for (const item of registry.items) {
+    for (const file of item.files ?? []) {
+      if (!sources.has(file.path)) sources.set(file.path, consumerImports(await readFile(join(dir, file.path), "utf8")))
+    }
+  }
+  return sources
+}
+
+/** Where `shadcn add` puts a registry file in a consumer, by the file's type: the path the Manual tab shows above its source. */
+export function consumerPath(file: RegistryFile): string {
+  if (file.target) return file.target.replace(/^~\//, "")
+  const base = file.path.slice(file.path.lastIndexOf("/") + 1)
+  const dir = { "registry:ui": "components/ui", "registry:hook": "hooks", "registry:lib": "lib", "registry:block": "components" }[file.type]
+  return dir ? `${dir}/${base}` : base
+}
+
+/** A registry `css` block as the stylesheet text the CLI appends: at-rules and selectors nested, declarations inside. */
+export function registryCss(css: Record<string, unknown>, depth = 0): string {
+  const pad = "  ".repeat(depth)
+  return Object.entries(css)
+    .map(([key, value]) =>
+      typeof value === "string" ? `${pad}${key}: ${value};` : `${pad}${key} {\n${registryCss(value as Record<string, unknown>, depth + 1)}\n${pad}}`,
+    )
+    .join("\n")
+}
+
+/** An npm dependency as the registry writes it, `name@^x.y.z`, without the range: the Manual tab installs by name, as shadcn's does. */
+const packageName = (dependency: string) => dependency.replace(/@[\^~]?\d[^@]*$/, "")
+
+/**
+ * The Installation section of an item's page, in shadcn's shape. Command is `shadcn add` with the tag pinned, under
+ * the reader's package manager. Manual is the same install by hand: the packages, the shadcn built-ins the item
+ * composes, every file at the path it lands on with a consumer's imports, and the CSS the command appends.
+ */
+export function installationSection(item: RegistryItem, tag: string, sources: Sources): string {
+  const bash = (code: string) => `<pre><code class="language-bash">${escapeHtml(code)}</code></pre>`
+  const manual: string[] = []
+  const packages = (item.dependencies ?? []).map(packageName)
+  if (packages.length) manual.push(`<p>Install the dependencies:</p>`, bash(`npm install ${packages.join(" ")}`))
+  const builtins = item.registryDependencies ?? []
+  if (builtins.length) manual.push(`<p>Add the shadcn components it composes:</p>`, bash(`npx shadcn@latest add ${builtins.join(" ")}`))
+  const files = item.files ?? []
+  if (files.length) manual.push(`<p>Copy the files into your project:</p>`)
+  for (const file of files) {
+    const source = sources.get(file.path)
+    if (source === undefined) throw new Error(`${item.name} installs ${file.path}, which the checkout does not have`)
+    const language = file.path.endsWith(".tsx") ? "tsx" : "ts"
+    manual.push(`<p class="file"><code>${escapeHtml(consumerPath(file))}</code></p>`, `<pre><code class="language-${language}">${escapeHtml(source)}</code></pre>`)
+  }
+  if (item.cssVars) {
+    const theme = item.type === "registry:theme"
+    manual.push(`<p>${theme ? "Replace the variables in your stylesheet with these:" : "Add the tokens to your stylesheet:"}</p>`, `<pre><code class="language-css">${escapeHtml(themeCss(item))}</code></pre>`)
+  }
+  if (item.css) manual.push(`<p>Append this to your stylesheet:</p>`, `<pre><code class="language-css">${escapeHtml(registryCss(item.css))}</code></pre>`)
   return [
-    `<h2 id="install"><a href="#install">Install</a></h2>`,
-    `<pre><code class="language-bash">npx shadcn@latest add tradecn/ui/${item}#${escapeHtml(tag)}</code></pre>`,
-    `<p>Pin the tag. The tag is the version. Or the namespace form, once <code>@tradecn</code> is <a href="/#install">in your <code>components.json</code></a>:</p>`,
-    `<pre><code class="language-bash">npx shadcn@latest add @tradecn/${item}</code></pre>`,
+    `<h2 id="installation"><a href="#installation">Installation</a></h2>`,
+    `<div class="tabs" data-tabs>`,
+    `<div class="tabs-bar" role="tablist" aria-label="Installation">`,
+    `<button type="button" role="tab" id="installation-tab-command" aria-selected="true" aria-controls="installation-command">Command</button>`,
+    `<button type="button" role="tab" id="installation-tab-manual" aria-selected="false" aria-controls="installation-manual">Manual</button>`,
+    `</div>`,
+    `<div id="installation-command" role="tabpanel" aria-labelledby="installation-tab-command">`,
+    bash(`npx shadcn@latest add tradecn/ui/${item.name}#${tag}`),
+    `</div>`,
+    `<div id="installation-manual" role="tabpanel" aria-labelledby="installation-tab-manual" hidden>`,
+    ...manual,
+    `</div>`,
+    `</div>`,
   ].join("\n")
 }
 
-/**
- * The Install section goes before the doc's first section heading: after the intro and its usage block, before
- * the reference, so the usage does not read as part of the install. A doc with no sections gets it last.
- */
-export function withInstall(html: string, section: string): string {
-  const at = html.indexOf("<h2")
-  return at < 0 ? `${html}${section}\n` : `${html.slice(0, at)}${section}\n${html.slice(at)}`
+const SHADCN_DOCS = "https://ui.shadcn.com/docs/components"
+
+/** "a, b, and c" from links, the way a sentence lists them. */
+const listOf = (parts: string[]) => (parts.length < 3 ? parts.join(" and ") : `${parts.slice(0, -1).join(", ")}, and ${parts.at(-1)}`)
+
+/** The last line of an item's API Reference: the shadcn components it composes, each linked to its own page. */
+export function builtOn(item: RegistryItem): string {
+  const builtins = item.registryDependencies ?? []
+  if (!builtins.length) return ""
+  const links = builtins.map((name) => `<a href="${SHADCN_DOCS}/${escapeHtml(name)}"><code>${escapeHtml(name)}</code></a>`)
+  return `<p class="built-on">Built on shadcn's ${listOf(links)}.</p>`
+}
+
+/** Previous and next, in the nav's order: items in registry order, then the rest. */
+export function pager(docs: Doc[], index: number): string {
+  const label = (doc: Doc) => escapeHtml(doc.item ? doc.slug : doc.title)
+  const prev = docs[index - 1]
+  const next = docs[index + 1]
+  return [
+    `<nav class="pager" aria-label="Previous and next">`,
+    prev ? `<a rel="prev" href="/docs/${prev.slug}/">← ${label(prev)}</a>` : `<span></span>`,
+    next ? `<a rel="next" href="/docs/${next.slug}/">${label(next)} →</a>` : `<span></span>`,
+    `</nav>`,
+  ].join("\n")
 }
 
 export function docsNav(docs: Doc[], current: string | null): string {
@@ -357,17 +460,19 @@ export function docsNav(docs: Doc[], current: string | null): string {
 export type Previews = { demos: Map<string, Demo>; embed: Embed | null }
 const NO_PREVIEWS: Previews = { demos: new Map(), embed: null }
 
-/** The rendered docs pages and their index, as paths under the output directory. */
-export function docPages(docs: Doc[], values: Record<string, string>, template: string, previews: Previews = NO_PREVIEWS): Array<{ path: string; html: string }> {
+/**
+ * The rendered docs pages and their index, as paths under the output directory. An item's page is the doc in
+ * shadcn's shape: title, one sentence, the preview, Installation, then the doc's own Usage and API Reference,
+ * the shadcn components it is built on, and the pager.
+ */
+export function docPages(docs: Doc[], values: Record<string, string>, template: string, previews: Previews = NO_PREVIEWS, sources: Sources = new Map()): Array<{ path: string; html: string }> {
   const { tag = "", repoUrl } = values
-  const pages = docs.map((doc) => {
+  const pages = docs.map((doc, index) => {
     const demo = doc.item && previews.embed ? previews.demos.get(doc.slug) : undefined
     const foot = `<p class="foot">This page is <code>docs/${doc.source}</code> at <a href="${repoUrl}/blob/${tag}/docs/${doc.source}">${tag}</a>.</p>`
-    let content = demo ? withPreview(doc.html, previewBlock(doc, demo, tag)) : doc.html
-    if (doc.item) {
-      if (doc.html.includes('id="install"')) throw new Error(`docs/${doc.source} has its own Install heading, and the builder adds one`)
-      content = withInstall(content, installSection(doc.slug, tag))
-    }
+    if (doc.item && doc.html.includes('id="installation"')) throw new Error(`docs/${doc.source} has its own Installation heading, and the builder adds one`)
+    const lead = [demo ? previewBlock(doc, demo, tag) : "", doc.item ? installationSection(doc.item, tag, sources) : ""].filter(Boolean).join("\n")
+    const content = [lead ? withPreview(doc.html, lead) : doc.html, doc.item ? builtOn(doc.item) : "", pager(docs, index)].filter(Boolean).join("\n")
     return {
       path: `docs/${doc.slug}/index.html`,
       html: renderPage(template, {
@@ -448,6 +553,8 @@ async function main() {
   const docs = await readDocs(resolve(args.docs), registry)
   const values = templateValues(registry, version, themeSource, new Set(docs.map((doc) => doc.slug)))
   const previews: Previews = { demos: await readDemos(resolve(args.demos)), embed: await readEmbed(resolve(args.embed)) }
+  // The files the Manual tab shows live beside the registry.json they are listed in: the tag's checkout in the release job.
+  const sources = await readSources(registry, dirname(resolve(args.registry)))
   const out = resolve(args.out)
   await mkdir(out, { recursive: true })
   for (const page of PAGES) {
@@ -458,7 +565,7 @@ async function main() {
   await writeFile(join(out, FAVICON), await readFile(join(root, "assets", "logo-dark.svg")))
   await cp(join(root, "site", SITE_SCRIPT), join(out, SITE_SCRIPT))
   const docsTemplate = await readFile(join(root, "site", DOCS_TEMPLATE), "utf8")
-  for (const page of docPages(docs, values, docsTemplate, previews)) {
+  for (const page of docPages(docs, values, docsTemplate, previews, sources)) {
     await mkdir(join(out, dirname(page.path)), { recursive: true })
     await writeFile(join(out, page.path), page.html)
   }

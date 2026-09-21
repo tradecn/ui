@@ -1,6 +1,13 @@
 # blotter
 
-`npx shadcn add tradecn/ui/blotter` puts `blotter.tsx` and `data-grid.tsx` in your `ui` alias, brings `row-store`, `use-row-store`, `use-flash`, and `format` with them, and your own `button`, `context-menu`, `checkbox`, and `dropdown-menu` if you do not have them. Dependencies: `cn`, `@tanstack/react-virtual`. If you already installed `data-grid` or `watchlist`, the shared files are byte-identical and nothing of yours changes.
+The data grid as an order blotter: time, symbol, side, quantity, filled, price, status, and account, with actions on the orders in hand.
+
+## Usage
+
+```tsx
+import { Blotter, blotterColumns, type BlotterRow } from "@/components/ui/blotter"
+import { createRowStore } from "@/lib/row-store"
+```
 
 ```tsx
 const store = createRowStore<BlotterRow>({ getRowId: (o) => o.id, lane: "ordered" })
@@ -17,13 +24,15 @@ const store = createRowStore<BlotterRow>({ getRowId: (o) => o.id, lane: "ordered
 />
 ```
 
-It is the data grid in its `blotter` preset (24 px rows, multi-select, a checkbox column, new rows highlighted and the viewport pinned when they arrive above you) with a set of columns, a button that starts an order, and actions on the orders in hand. Every `DataGrid` prop passes through except `preset`. Read `docs/data-grid.md` for sorting, the reorder hold, column state, and the keyboard.
+## API Reference
 
-## The status is the server's
+It is the data grid in its `blotter` preset (24 px rows, multi-select, a checkbox column, new rows highlighted and the viewport pinned when they arrive above you) with a set of columns, a button that starts an order, and actions on the orders in hand. Every `DataGrid` prop passes through except `preset`. Sorting, the reorder hold, column state, and the keyboard are [`data-grid`](data-grid.md)'s. If you already installed `data-grid` or `watchlist`, the shared files are byte-identical and nothing of yours changes.
+
+### The status is the server's
 
 `status` is a string and the blotter prints it as it arrives. It never works one out. An order that is 5,000 of 5,000 by the numbers still says `PartiallyFilled` until the server says something else, because the server may know about a bust, a correction, or a fill still in flight, and a screen that gets ahead of it is a screen that is sometimes wrong about money. A change of status flashes flat: something happened, and it has no direction.
 
-## Actions are the server's too
+### Actions are the server's too
 
 Each order carries `allowedActions`, a list of action ids the server says may be done to it now. No list means nothing may. An action shows in the toolbar and in the right-click menu, and applies only to the orders that list its `id`.
 
@@ -35,11 +44,11 @@ The toolbar listens to the orders in hand for itself, so when a fill takes `canc
 
 `allowedRows(store, ids, action)` is the same filter as a function, for a hotkey or a menu of your own.
 
-## Delete cancels nothing by default
+### Delete cancels nothing by default
 
 `deleteAction="cancel"` makes Delete and Backspace on the grid run that action on the orders in hand, through the same check. It is off unless you turn it on. A key that cancels orders is a decision for the people who trade on the screen, not a default. From the toolbar's buttons those keys do nothing.
 
-## Columns
+### Columns
 
 `blotterColumns({ price, time })` returns time, symbol, side, quantity, filled, price, status, and account. It is a plain list: spread it into your own to add a column, drop one, or reorder.
 
@@ -49,10 +58,10 @@ Filled and price flash on change. Quantity and time do not. Pass `sort` for newe
 
 Keep `columns`, `price`, and `time` stable (a module constant, or `useMemo`). Your `actions`, `renderContextMenu`, `onSelectionChange`, and `onFocusedRowChange` are read through a ref and can be inline.
 
-## Adding
+### Adding
 
 `onNew` puts a button in the toolbar (`newLabel`, "New order" by default). The blotter does not make orders. It tells you someone asked for one, and the order appears when your feed upserts it.
 
-## What it does not do
+### What it does not do
 
 Build or send an order, confirm a cancel, group by parent order, or total anything. A confirmation dialog belongs in your `run`. It has no notion of fills as rows of their own; that is a second blotter over a second store.
