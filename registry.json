@@ -642,6 +642,155 @@
       }
     },
     {
+      "name": "workspace",
+      "type": "registry:ui",
+      "title": "Workspace",
+      "description": "Panels that dock, tab, float, and pop out, on dockview. The dock owns where things sit; tradecn owns what each panel is: a kind, a title, and the small JSON it asked to keep. Every docked panel is a hotkey scope of its kind with the active border, and the dock decides which one is active. A layout is written out some milliseconds after the last change, carries its own persistence boundaries, and is read back through a parser that takes nothing on trust.",
+      "dependencies": [
+        "cn@^0.3.0",
+        "dockview-react@^8.3.1"
+      ],
+      "registryDependencies": [
+        "input"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/workspace.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/ui/panel.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-link-group.tsx",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-popout.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-hotkeys.tsx",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/workspace-layout.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/link-group.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/hotkeys.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "layout",
+        "chrome"
+      ],
+      "docs": "Adds dockview-react, which brings dockview and dockview-core: three MIT packages from one repository and nothing under them. Installs panel and the hotkey registry alongside, composes your input, and adds the panel and link tokens. Appends one class to your stylesheet, dockview-theme-tradecn, that maps the dock onto your own tokens. A popout opens /popout.html on your origin, so serve one, or pass popoutUrl.",
+      "meta": {
+        "components": [
+          {
+            "title": "Workspace",
+            "description": "The dock, with your panels by kind."
+          },
+          {
+            "title": "useWorkspacePanel",
+            "description": "Inside a panel: its id, kind, title, kept state, whether it is active, and close, float, pop out, maximize."
+          }
+        ]
+      },
+      "css": {
+        "@layer components": {
+          ".dockview-theme-tradecn": {
+            "--dv-group-view-background-color": "var(--background)",
+            "--dv-tabs-and-actions-container-background-color": "var(--muted)",
+            "--dv-tabs-and-actions-container-font-size": "0.75rem",
+            "--dv-tabs-and-actions-container-height": "1.75rem",
+            "--dv-activegroup-visiblepanel-tab-background-color": "var(--background)",
+            "--dv-activegroup-hiddenpanel-tab-background-color": "var(--muted)",
+            "--dv-inactivegroup-visiblepanel-tab-background-color": "var(--background)",
+            "--dv-inactivegroup-hiddenpanel-tab-background-color": "var(--muted)",
+            "--dv-activegroup-visiblepanel-tab-color": "var(--foreground)",
+            "--dv-activegroup-hiddenpanel-tab-color": "var(--muted-foreground)",
+            "--dv-inactivegroup-visiblepanel-tab-color": "var(--muted-foreground)",
+            "--dv-inactivegroup-hiddenpanel-tab-color": "var(--muted-foreground)",
+            "--dv-tab-divider-color": "var(--border)",
+            "--dv-tab-font-size": "inherit",
+            "--dv-tab-margin": "0",
+            "--dv-tab-border-radius": "0px",
+            "--dv-tab-close-icon-size": "inherit",
+            "--dv-tabs-container-scrollbar-color": "var(--border)",
+            "--dv-separator-border": "var(--border)",
+            "--dv-border-radius": "0px",
+            "--dv-spacing-padding": "0px",
+            "--dv-sash-color": "transparent",
+            "--dv-sash-border-radius": "0px",
+            "--dv-active-sash-color": "var(--ring)",
+            "--dv-active-sash-transition-duration": "0.1s",
+            "--dv-active-sash-transition-delay": "0.3s",
+            "--dv-drag-over-background-color": "color-mix(in oklab, var(--ring) 20%, transparent)",
+            "--dv-drag-over-border-color": "var(--ring)",
+            "--dv-drag-over-border": "1px solid var(--ring)",
+            "--dv-edge-dock-indicator-color": "var(--ring)",
+            "--dv-icon-hover-background-color": "var(--accent)",
+            "--dv-scrollbar-background-color": "var(--border)",
+            "--dv-paneview-active-outline-color": "var(--ring)",
+            "--dv-paneview-header-border-color": "var(--border)",
+            "--dv-dropdown-border-radius": "var(--radius)",
+            "--dv-overlay-z-index": "30",
+            "--dv-floating-box-shadow": "0 8px 32px rgb(0 0 0 / 0.25), 0 2px 8px rgb(0 0 0 / 0.15)",
+            "--dv-floating-border": "1px solid var(--border)",
+            "--dv-floating-group-border": "1px solid var(--border)",
+            "--dv-floating-group-dragging-opacity": "0.6",
+            "--dv-floating-titlebar-height": "1.75rem",
+            "--dv-floating-titlebar-background-color": "var(--muted)",
+            "--dv-floating-titlebar-border-bottom": "1px solid var(--border)",
+            "--dv-tab-group-color-grey": "var(--muted-foreground)",
+            "--dv-tab-group-color-blue": "var(--chart-1)",
+            "--dv-tab-group-color-red": "var(--chart-2)",
+            "--dv-tab-group-color-yellow": "var(--chart-3)",
+            "--dv-tab-group-color-green": "var(--chart-4)",
+            "--dv-tab-group-color-pink": "var(--chart-5)",
+            "--dv-tab-group-color-purple": "var(--chart-1)",
+            "--dv-tab-group-color-cyan": "var(--chart-2)",
+            "--dv-tab-group-color-orange": "var(--chart-3)",
+            "--dv-tab-group-chip-padding": "0 0.375rem",
+            "--dv-tab-group-chip-border-radius": "var(--radius)",
+            "--dv-tab-group-chip-font-size": "0.6875rem",
+            "--dv-tab-group-line-height": "2px",
+            "--dv-tab-group-line-opacity": "0.6"
+          }
+        }
+      },
+      "cssVars": {
+        "light": {
+          "link-1": "oklch(0.62 0.2 25)",
+          "link-2": "oklch(0.62 0.15 250)",
+          "link-3": "oklch(0.65 0.15 150)",
+          "link-4": "oklch(0.8 0.16 90)",
+          "panel-active": "var(--color-primary)",
+          "panel-drag-target": "var(--color-ring)",
+          "panel-error": "var(--color-destructive)",
+          "panel-sync": "oklch(0.7 0.12 220)"
+        },
+        "dark": {
+          "link-1": "oklch(0.7 0.19 25)",
+          "link-2": "oklch(0.7 0.14 250)",
+          "link-3": "oklch(0.74 0.14 150)",
+          "link-4": "oklch(0.85 0.15 90)",
+          "panel-active": "var(--color-primary)",
+          "panel-drag-target": "var(--color-ring)",
+          "panel-error": "var(--color-destructive)",
+          "panel-sync": "oklch(0.78 0.12 220)"
+        }
+      }
+    },
+    {
       "name": "tradecn-terminal",
       "type": "registry:theme",
       "title": "Terminal",

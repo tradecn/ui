@@ -10,6 +10,7 @@ import { RowStoreScene } from "./row-store"
 import { SparklineScene } from "./sparkline"
 import { UseHotkeysScene } from "./use-hotkeys"
 import { WatchlistScene } from "./watchlist"
+import { WorkspaceScene } from "./workspace"
 
 export interface SmokeScene {
   name: string
@@ -29,5 +30,6 @@ export const scenes: SmokeScene[] = [
   { name: "sparkline", Scene: SparklineScene },
   { name: "watchlist", Scene: WatchlistScene },
   { name: "blotter", Scene: BlotterScene },
+  { name: "workspace", Scene: WorkspaceScene },
 ]
 export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4"]

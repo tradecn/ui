@@ -60,6 +60,9 @@ cp "$root"/fixtures/smoke/scenes/*.tsx "$fixture/src/smoke/" 2>/dev/null || true
 cp "$root/fixtures/smoke/main.tsx" "$fixture/src/main.tsx"
 cp "$root/fixtures/smoke/playwright.config.ts" "$fixture/playwright.config.ts"
 cp "$root/fixtures/smoke/smoke.spec.ts" "$fixture/smoke.spec.ts"
+# The page a workspace popout opens; a consumer serves its own.
+mkdir -p "$fixture/public"
+cp "$root/fixtures/smoke/popout.html" "$fixture/public/popout.html"
 [ "$latest" = "--latest" ] && bun add -d --cwd "$fixture" @playwright/test
 
 # Tailwind leaves gitignored files out when it looks for class names, and the committed fixtures
