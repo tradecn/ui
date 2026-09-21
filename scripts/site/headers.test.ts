@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
-import { DOCS_TEMPLATE, HEADERS_FILE, SITE_SCRIPT } from "./build"
+import { DOCS_TEMPLATE, HEADERS_FILE, SITE_SCRIPT, SITE_STYLES } from "./build"
 
 const root = resolve(import.meta.dirname, "../..")
 const headers = JSON.parse(readFileSync(resolve(root, "site", HEADERS_FILE), "utf8")) as Record<string, string>
@@ -43,6 +43,11 @@ describe("the site's security headers", () => {
     expect(script).toContain("event.origin !== location.origin")
     const build = readFileSync(resolve(root, "scripts/site/build.ts"), "utf8")
     expect(build).toContain('cp(join(root, "site", SITE_SCRIPT), join(out, SITE_SCRIPT))')
+    // The stylesheet is a file too, and the release job invalidates both so a page never runs an old script against new markup.
+    expect(build).toContain('cp(join(root, "site", SITE_STYLES), join(out, SITE_STYLES))')
+    const release = readFileSync(resolve(root, ".github/workflows/release-please.yml"), "utf8")
+    expect(release).toContain(`"/${SITE_SCRIPT}" "/${SITE_STYLES}"`)
+    expect(release).toContain("--changelog release/CHANGELOG.md")
   })
 
   it("are the ones the stack deploys and the smoke serves", () => {

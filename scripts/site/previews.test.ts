@@ -13,7 +13,12 @@ import {
   readDemos,
   readDocs,
   readEmbed,
+  readSitePages,
   readSources,
+  SITE_DOCS,
+  SITE_STYLES,
+  siteDocs,
+  sitePageValues,
   templateValues,
   THEME_ITEM,
   themeCss,
@@ -141,12 +146,12 @@ describe("a theme on the site", () => {
 })
 
 describe("the preview card", () => {
-  const doc: Doc = { slug: "flash-cell", source: "flash-cell.md", title: "flash-cell", description: "", html: "<h1 id=\"flash-cell\">flash-cell</h1>\n<p>What it is.</p>\n<pre><code>usage</code></pre>\n", item: registry.items.find((item) => item.name === "flash-cell") }
+  const doc: Doc = { slug: "flash-cell", path: "/docs/flash-cell/", label: "flash-cell", source: "flash-cell.md", title: "flash-cell", description: "", html: "<h1 id=\"flash-cell\">flash-cell</h1>\n<p>What it is.</p>\n<pre><code>usage</code></pre>\n", item: registry.items.find((item) => item.name === "flash-cell") }
   const demo = { name: "flash-cell", source: 'import { FlashCell } from "@/registry/tradecn/ui/flash-cell"\n<b>', code: 'import { FlashCell } from "@/components/ui/flash-cell"\n<b>' }
 
   it("frames the item's embed page and shows its source, escaped, under Code", () => {
     const block = previewBlock(doc, demo, "v9.9.9")
-    expect(block).toContain('<iframe src="/preview/flash-cell/" title="flash-cell, live" loading="lazy">')
+    expect(block).toContain('<iframe src="/preview/flash-cell/" title="flash-cell, live" loading="lazy" data-preview="flash-cell">')
     expect(block).toContain('<a class="preview-open" href="/preview/flash-cell/" target="_blank" rel="noopener">')
     expect(block).toContain('<code class="language-tsx">import { FlashCell } from &quot;@/components/ui/flash-cell&quot;\n&lt;b&gt;</code>')
     expect(block).toContain("https://github.com/tradecn/ui/blob/v9.9.9/playground/src/demos/flash-cell.tsx")
@@ -170,33 +175,42 @@ describe("the preview card", () => {
   })
 
   it("is on every item page and on no other page, and only when the tag has an embed build", async () => {
-    const docs = await readDocs(resolve(root, "docs"), registry)
-    const values = templateValues(registry, version, registry, new Set(docs.map((doc) => doc.slug)))
+    const tagDocs = await readDocs(resolve(root, "docs"), registry)
+    const docSlugs = new Set(tagDocs.map((doc) => doc.slug))
+    const values = templateValues(registry, version, registry, docSlugs)
+    const docs = siteDocs(await readSitePages(resolve(root, "site", SITE_DOCS), sitePageValues(registry, values, docSlugs, "")), tagDocs)
     const demos = await readDemos(resolve(root, "playground/src/demos"))
     const sources = await readSources(registry, root)
     const withEmbed = new Map(docPages(docs, values, template(DOCS_TEMPLATE), { demos, embed: await readEmbed(fakeEmbed()) }, sources).map((page) => [page.path, page.html]))
     for (const doc of docs) {
-      const html = withEmbed.get(`docs/${doc.slug}/index.html`) ?? ""
+      const html = withEmbed.get(`${doc.path.slice(1)}index.html`) ?? ""
       if (doc.item) {
         expect(html).toContain(`<iframe src="/preview/${doc.slug}/"`)
         // The card sits between the one sentence and Installation, and its Code tab's source is a code block like any other: wrapped, with its copy button.
         expect(html.indexOf('<div class="preview"')).toBeLessThan(html.indexOf('<h2 id="installation">'))
         expect(html).toMatch(/class="preview-code" id="preview-[\w-]+-code"[\s\S]*?<div class="code"><pre><code class="language-(tsx|css)">[\s\S]*?<\/pre><button type="button" class="copy"/)
-      } else expect(html).not.toContain("<iframe")
+      } else expect(html, doc.path).not.toContain("<iframe")
       expect(html).not.toMatch(/\{\{\w+\}\}/)
     }
     expect(withEmbed.get("docs/index.html")).not.toContain("<iframe")
+    expect(withEmbed.get("docs/components/index.html")).not.toContain("<iframe")
     const without = docPages(docs, values, template(DOCS_TEMPLATE), { demos, embed: null }, sources)
     for (const page of without) expect(page.html).not.toContain("<iframe")
   })
 
-  it("has the tab and height plumbing in the site script, and the layout in the template", () => {
+  it("has the tab and height plumbing in the site script, and the layout in the stylesheet", () => {
     const docs = template(DOCS_TEMPLATE)
     expect(docs).toContain('<script src="/site.js"></script>')
-    expect(docs).toContain("article > :not(.preview) { max-width: 72ch; }")
+    expect(docs).toContain('<link rel="stylesheet" href="/site.css">')
+    const styles = readFileSync(resolve(root, "site", SITE_STYLES), "utf8")
+    expect(styles).toContain("article > :not(.preview) { max-width: 72ch; }")
+    expect(styles).toContain(".showcase iframe {")
     const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
     expect(script).toContain('event.data.type !== "tradecn-preview"')
     expect(script).toContain("event.origin !== location.origin")
+    // Every preview frame, the docs page's card and the opening page's showcase alike, is sized and asked.
+    expect(script.match(/querySelectorAll\("iframe\[data-preview\]"\)/g)).toHaveLength(2)
+    expect(script).not.toContain('".preview iframe"')
     // The package-manager choice is on <html> before the body parses, and the copy button uses the clipboard API.
     expect(script).toContain("document.documentElement.dataset.pm = storedManager()")
     expect(script).toContain("navigator.clipboard.writeText(code.textContent.trimEnd())")

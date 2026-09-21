@@ -1,0 +1,156 @@
+/* tradecn.dev, every page. The palette is on :root in each page's own <style>, from the terminal theme. */
+* { box-sizing: border-box; }
+html { background: var(--background); color: var(--foreground); font: 15px/1.55 var(--font); -webkit-text-size-adjust: 100%; scroll-padding-top: 4.5rem; }
+body { margin: 0; }
+a { color: var(--primary); text-decoration: none; }
+a:hover, a:focus-visible { text-decoration: underline; }
+code { font-family: var(--font); }
+.wrap { margin: 0 auto; padding: 0 16px; max-width: 80rem; }
+
+/* The header: the mark, the sections, and the links out. Sticky, so the docs never lose their way back. */
+.site-header { position: sticky; top: 0; z-index: 10; background: var(--background); border-bottom: 1px solid var(--border); }
+.site-header .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.5rem; padding-top: .75rem; padding-bottom: .75rem; }
+.site-header .name { display: flex; align-items: center; gap: .6rem; margin: 0; font-size: 1.15rem; font-weight: 600; color: var(--foreground); }
+.site-header .name:hover, .site-header .name:focus-visible { text-decoration: none; }
+.site-header .name svg { width: 1.4rem; height: 1.4rem; color: var(--primary); flex: none; }
+.site-header .name .slash { color: var(--primary); }
+.site-header nav { display: flex; flex-wrap: wrap; gap: 1.1rem; }
+.site-header nav a { color: var(--muted-foreground); }
+.site-header nav a[aria-current] { color: var(--foreground); }
+.site-header .side { margin-left: auto; }
+.site-header .tag { color: var(--muted-foreground); }
+
+/* The opening: one line, one paragraph, two ways in, then every item running. */
+.hero { padding: 4.5rem 0 3rem; text-align: center; }
+.badge { display: inline-block; padding: .2rem .75rem; font-size: .85rem; color: var(--foreground); background: var(--card); border: 1px solid var(--border); border-radius: 999px; }
+.badge:hover, .badge:focus-visible { text-decoration: none; border-color: var(--primary); }
+.hero h1 { margin: 1.25rem auto .75rem; max-width: 30ch; font-size: clamp(1.75rem, 4.5vw, 2.75rem); line-height: 1.15; font-weight: 600; letter-spacing: -.01em; }
+.hero h1 code { color: var(--primary); }
+.hero .lede { margin: 0 auto; max-width: 60ch; font-size: 1.1rem; color: var(--muted-foreground); }
+.cta { display: flex; justify-content: center; gap: .75rem; margin: 1.75rem 0 0; }
+.button { display: inline-block; padding: .5rem 1rem; color: var(--foreground); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+.button.primary { color: var(--primary-foreground); background: var(--primary); border-color: var(--primary); }
+.button:hover, .button:focus-visible { text-decoration: none; border-color: var(--primary); }
+.showcase { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 32rem), 1fr)); align-items: start; padding-bottom: 3rem; }
+.showcase .card { margin: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); overflow: hidden; }
+.card-bar { display: flex; align-items: baseline; gap: .75rem; padding: .5rem .75rem; border-bottom: 1px solid var(--border); }
+.card-bar .kind, .cards .kind { font-size: .8rem; color: var(--muted-foreground); }
+.card-bar .open { margin-left: auto; font-size: .85rem; color: var(--muted-foreground); }
+.showcase iframe { display: block; width: 100%; height: 16rem; max-height: 36rem; border: 0; background: var(--background); transition: height .15s ease; }
+
+/* The components index: one card per item, its name, its kind, and its one line. */
+.cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); margin: 1.5rem 0; }
+.cards .card { display: flex; flex-direction: column; gap: .35rem; padding: .9rem 1rem; color: var(--foreground); border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+.cards .card:hover, .cards .card:focus-visible { text-decoration: none; border-color: var(--primary); }
+.cards .card-title { display: flex; align-items: baseline; gap: .6rem; }
+.cards .card-title code { color: var(--primary); }
+.cards .card-text { font-size: .9rem; color: var(--muted-foreground); }
+
+footer.site-foot { padding: 1.5rem 0 3rem; font-size: .9rem; color: var(--muted-foreground); border-top: 1px solid var(--border); }
+footer.site-foot p { margin: 0; }
+.up { color: var(--up); }
+.down { color: var(--down); }
+
+/* The docs: the sections down the left, the page, and its headings down the right. */
+.page { display: grid; grid-template-columns: 14rem minmax(0, 1fr) 13rem; gap: 3rem; padding-top: 1.5rem; max-width: 90rem; }
+.sidebar, .toc { position: sticky; top: 4.5rem; align-self: start; max-height: calc(100vh - 4.5rem); overflow-y: auto; font-size: .9rem; }
+.sidebar h2, .toc h2 { margin: .5rem 0 .5rem; font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
+.sidebar h2 a { color: inherit; }
+.sidebar ul, .toc ul { list-style: none; margin: 0 0 1.25rem; padding: 0; }
+.sidebar li, .toc li { padding: .15rem 0; }
+.sidebar a, .toc a { color: var(--muted-foreground); }
+.sidebar a[aria-current="page"] { color: var(--primary); }
+.toc ul ul { margin: 0; padding-left: .9rem; }
+.toc code { font-size: .95em; }
+article { min-width: 0; padding-bottom: 4rem; }
+/* The prose keeps its measure; the preview, the cards, and the generated tables take the whole column. */
+article > :not(.preview) { max-width: 72ch; }
+article > .cards, article > .tokens, article > .dependencies { max-width: none; }
+article h1 { margin: .5rem 0 .5rem; font-size: 1.75rem; font-weight: 600; letter-spacing: -.01em; }
+/* The one sentence under the title is the page's lede. */
+article > h1 + p { margin: 0 0 1.5rem; font-size: 1.05rem; color: var(--muted-foreground); }
+article h2 { margin: 2.25rem 0 .75rem; font-size: 1.15rem; font-weight: 600; }
+article h3 { margin: 1.75rem 0 .5rem; font-size: 1rem; font-weight: 600; }
+article h1 a, article h2 a, article h3 a { color: inherit; }
+article p, article li { line-height: 1.65; }
+article ul, article ol { padding-left: 1.4rem; }
+article li { margin: .35rem 0; }
+article li::marker { color: var(--muted-foreground); }
+article code { padding: .1em .35em; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); font-size: .95em; }
+article pre { margin: 0; padding: .9rem 2.75rem .9rem 1rem; overflow: auto; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); line-height: 1.5; }
+article pre code { padding: 0; background: none; border: 0; font-size: 1em; }
+article blockquote { margin: 1rem 0; padding: 0 1rem; border-left: 2px solid var(--primary); color: var(--muted-foreground); }
+article table { border-collapse: collapse; width: 100%; }
+article th, article td { padding: .5rem .75rem .5rem 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+article th { color: var(--muted-foreground); font-weight: 500; }
+article hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+/* Previous and next, as arrows beside the title and as named links at the foot. */
+.arrows { float: right; display: flex; gap: .35rem; margin: .5rem 0 0 1rem; }
+.arrows a, .arrows span { display: inline-flex; align-items: center; justify-content: center; width: 1.9rem; height: 1.9rem; color: var(--muted-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+.arrows a:hover, .arrows a:focus-visible { color: var(--foreground); text-decoration: none; background: var(--card); }
+.arrows span { opacity: .35; }
+.arrows svg { width: 1rem; height: 1rem; }
+.pager { display: flex; justify-content: space-between; gap: 1rem; margin-top: 3rem; }
+.pager a { padding: .5rem .8rem; border: 1px solid var(--border); border-radius: var(--radius); color: var(--foreground); }
+.pager a:hover, .pager a:focus-visible { text-decoration: none; background: var(--card); }
+.built-on { margin-top: 2rem; color: var(--muted-foreground); }
+.foot { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: .9rem; color: var(--muted-foreground); }
+/* The tokens table on the Theming page: each value beside a swatch of it. */
+.tokens td code { white-space: nowrap; }
+.swatch { display: inline-block; width: .9em; height: .9em; margin-right: .4em; vertical-align: -.1em; border: 1px solid var(--border); border-radius: 2px; }
+
+/* A code block: the pre, a copy button over its top-right corner, and for a command the package-manager tabs above it. */
+.code { position: relative; margin: 1rem 0; }
+.copy { position: absolute; top: .45rem; right: .45rem; display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; padding: 0; color: var(--muted-foreground); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+.copy:hover, .copy:focus-visible, .copy[data-copied] { color: var(--foreground); }
+.copy:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.copy svg { width: 1rem; height: 1rem; }
+.copy .check-icon, .copy[data-copied] .copy-icon { display: none; }
+.copy[data-copied] .check-icon { display: block; }
+.command { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+.command pre { border: 0; border-radius: 0; background: none; }
+.command .copy { top: .35rem; }
+.managers { display: flex; align-items: center; gap: .15rem; padding: .35rem 2.75rem .35rem .5rem; border-bottom: 1px solid var(--border); color: var(--muted-foreground); }
+.managers .prompt { width: 1rem; height: 1rem; margin: 0 .4rem 0 .2rem; flex: none; }
+.managers [role="tab"] { font: inherit; font-size: .85rem; color: var(--muted-foreground); background: none; border: 1px solid transparent; padding: .15rem .5rem; border-radius: var(--radius); cursor: pointer; }
+.managers [role="tab"][aria-selected="true"] { color: var(--foreground); background: var(--background); border-color: var(--border); }
+.managers [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+/* One command shows: the page's data-pm, which site.js sets from the reader's last choice before the body parses. npm until then. */
+.command pre[data-pm] { display: none; }
+html:not([data-pm]) .command pre[data-pm="npm"], html[data-pm="npm"] .command pre[data-pm="npm"], html[data-pm="pnpm"] .command pre[data-pm="pnpm"], html[data-pm="yarn"] .command pre[data-pm="yarn"], html[data-pm="bun"] .command pre[data-pm="bun"] { display: block; }
+/* Without the script the tabs and the buttons would do nothing, so they are not there. */
+html:not(.js) .copy, html:not(.js) .managers { display: none; }
+/* Installation: Command / Manual as underline tabs; the Manual's sources scroll inside their blocks. */
+.tabs-bar { display: flex; gap: 1.25rem; margin: .75rem 0 1rem; border-bottom: 1px solid var(--border); }
+.tabs-bar [role="tab"] { font: inherit; color: var(--muted-foreground); background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: .35rem 0; cursor: pointer; }
+.tabs-bar [role="tab"][aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--foreground); }
+.tabs-bar [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.tabs pre { max-height: 24rem; }
+.file { margin: 1.25rem 0 .35rem; font-size: .85rem; color: var(--muted-foreground); }
+.file + .code { margin-top: 0; }
+html:not(.js) .tabs-bar { display: none; }
+html:not(.js) .tabs [role="tabpanel"][hidden] { display: block; }
+/* The live preview: the item itself in an iframe, sized by the height it reports, with its source beside it. */
+.preview { margin: 1.25rem 0 2rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); }
+.preview-bar { display: flex; align-items: center; gap: .25rem; padding: .35rem .5rem; border-bottom: 1px solid var(--border); }
+.preview-bar [role="tab"] { font: inherit; color: var(--muted-foreground); background: none; border: 0; padding: .3rem .6rem; cursor: pointer; border-radius: var(--radius); }
+.preview-bar [role="tab"][aria-selected="true"] { color: var(--foreground); background: var(--card); }
+.preview-bar [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.preview-open { margin-left: auto; font-size: .85rem; color: var(--muted-foreground); }
+.preview iframe { display: block; width: 100%; height: 22rem; border: 0; background: var(--background); transition: height .15s ease; }
+.preview-code .preview-source { margin: 0; padding: .6rem 1rem 0; font-size: .85rem; color: var(--muted-foreground); }
+/* The source scrolls inside the card while its copy button stays put in the corner. */
+.preview-code .code { margin: 0; }
+.preview-code pre { max-height: 36rem; border: 0; border-radius: 0; background: none; }
+
+@media (max-width: 72rem) {
+  .page { grid-template-columns: 14rem minmax(0, 1fr); }
+  .toc { display: none; }
+}
+@media (max-width: 48rem) {
+  .page { grid-template-columns: 1fr; gap: 1.5rem; }
+  .sidebar { position: static; max-height: none; }
+  .sidebar ul { display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
+  .hero { padding-top: 2.5rem; }
+  .cta { flex-wrap: wrap; }
+}

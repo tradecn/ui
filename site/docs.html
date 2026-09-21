@@ -13,121 +13,25 @@
 {{palette}}
   --font: {{font}};
 }
-* { box-sizing: border-box; }
-html { background: var(--background); color: var(--foreground); font: 15px/1.55 var(--font); -webkit-text-size-adjust: 100%; }
-body { margin: 0 auto; padding: 0 16px 4rem; max-width: 72rem; }
-a { color: var(--primary); text-decoration: none; }
-a:hover, a:focus-visible { text-decoration: underline; }
-code { font-family: var(--font); }
-header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1.5rem; padding: 1.75rem 0 1rem; border-bottom: 1px solid var(--border); }
-header .name { display: flex; align-items: center; gap: .6rem; margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--foreground); }
-header .name svg { width: 1.5rem; height: 1.5rem; color: var(--primary); flex: none; }
-header .name .slash { color: var(--primary); }
-header .name .tag { margin-left: .75rem; color: var(--muted-foreground); font-weight: 400; font-size: .95rem; }
-header nav { display: flex; flex-wrap: wrap; gap: 1.25rem; }
-header nav a { color: var(--muted-foreground); }
-.page { display: grid; grid-template-columns: 14rem minmax(0, 1fr); gap: 2.5rem; padding-top: 1.5rem; }
-aside { position: sticky; top: 1rem; align-self: start; }
-aside h2 { margin: .5rem 0 .5rem; font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
-aside ul { list-style: none; margin: 0 0 1.25rem; padding: 0; }
-aside li { padding: .15rem 0; }
-aside a { color: var(--muted-foreground); }
-aside a[aria-current="page"] { color: var(--primary); }
-article { min-width: 0; }
-/* The prose keeps its measure; the preview takes the whole column. */
-article > :not(.preview) { max-width: 72ch; }
-article h1 { margin: .5rem 0 1rem; font-size: 1.5rem; font-weight: 600; }
-article h2 { margin: 2.25rem 0 .75rem; font-size: 1.1rem; font-weight: 600; }
-article h3 { margin: 1.75rem 0 .5rem; font-size: 1rem; font-weight: 600; }
-article h1 a, article h2 a, article h3 a { color: inherit; }
-article p, article li { line-height: 1.65; }
-article ul, article ol { padding-left: 1.4rem; }
-article li { margin: .35rem 0; }
-article li::marker { color: var(--muted-foreground); }
-article code { padding: .1em .35em; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); font-size: .95em; }
-article pre { margin: 0; padding: .9rem 2.75rem .9rem 1rem; overflow: auto; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); line-height: 1.5; }
-article pre code { padding: 0; background: none; border: 0; font-size: 1em; }
-/* A code block: the pre, a copy button over its top-right corner, and for a command the package-manager tabs above it. */
-.code { position: relative; margin: 1rem 0; }
-.copy { position: absolute; top: .45rem; right: .45rem; display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; padding: 0; color: var(--muted-foreground); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
-.copy:hover, .copy:focus-visible, .copy[data-copied] { color: var(--foreground); }
-.copy:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.copy svg { width: 1rem; height: 1rem; }
-.copy .check-icon, .copy[data-copied] .copy-icon { display: none; }
-.copy[data-copied] .check-icon { display: block; }
-.command { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
-.command pre { border: 0; border-radius: 0; background: none; }
-.command .copy { top: .35rem; }
-.managers { display: flex; align-items: center; gap: .15rem; padding: .35rem 2.75rem .35rem .5rem; border-bottom: 1px solid var(--border); color: var(--muted-foreground); }
-.managers .prompt { width: 1rem; height: 1rem; margin: 0 .4rem 0 .2rem; flex: none; }
-.managers [role="tab"] { font: inherit; font-size: .85rem; color: var(--muted-foreground); background: none; border: 1px solid transparent; padding: .15rem .5rem; border-radius: var(--radius); cursor: pointer; }
-.managers [role="tab"][aria-selected="true"] { color: var(--foreground); background: var(--background); border-color: var(--border); }
-.managers [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-/* One command shows: the page's data-pm, which site.js sets from the reader's last choice before the body parses. npm until then. */
-.command pre[data-pm] { display: none; }
-html:not([data-pm]) .command pre[data-pm="npm"], html[data-pm="npm"] .command pre[data-pm="npm"], html[data-pm="pnpm"] .command pre[data-pm="pnpm"], html[data-pm="yarn"] .command pre[data-pm="yarn"], html[data-pm="bun"] .command pre[data-pm="bun"] { display: block; }
-/* Without the script the tabs and the buttons would do nothing, so they are not there. */
-html:not(.js) .copy, html:not(.js) .managers { display: none; }
-/* Installation: Command / Manual as underline tabs; the Manual's sources scroll inside their blocks. */
-.tabs-bar { display: flex; gap: 1.25rem; margin: .75rem 0 1rem; border-bottom: 1px solid var(--border); }
-.tabs-bar [role="tab"] { font: inherit; color: var(--muted-foreground); background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: .35rem 0; cursor: pointer; }
-.tabs-bar [role="tab"][aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--foreground); }
-.tabs-bar [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.tabs pre { max-height: 24rem; }
-.file { margin: 1.25rem 0 .35rem; font-size: .85rem; color: var(--muted-foreground); }
-.file + .code { margin-top: 0; }
-html:not(.js) .tabs-bar { display: none; }
-html:not(.js) .tabs [role="tabpanel"][hidden] { display: block; }
-.built-on { margin-top: 2rem; color: var(--muted-foreground); }
-.pager { display: flex; justify-content: space-between; gap: 1rem; margin-top: 3rem; }
-.pager a { padding: .5rem .8rem; border: 1px solid var(--border); border-radius: var(--radius); color: var(--foreground); }
-.pager a:hover, .pager a:focus-visible { text-decoration: none; background: var(--card); }
-article blockquote { margin: 1rem 0; padding: 0 1rem; border-left: 2px solid var(--primary); color: var(--muted-foreground); }
-article table { border-collapse: collapse; width: 100%; }
-article th, article td { padding: .5rem .75rem .5rem 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
-article th { color: var(--muted-foreground); font-weight: 500; }
-article hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
-.foot { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: .9rem; color: var(--muted-foreground); }
-/* The live preview: the item itself in an iframe, sized by the height it reports, with its source beside it. */
-.preview { margin: 1.25rem 0 2rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); }
-.preview-bar { display: flex; align-items: center; gap: .25rem; padding: .35rem .5rem; border-bottom: 1px solid var(--border); }
-.preview-bar [role="tab"] { font: inherit; color: var(--muted-foreground); background: none; border: 0; padding: .3rem .6rem; cursor: pointer; border-radius: var(--radius); }
-.preview-bar [role="tab"][aria-selected="true"] { color: var(--foreground); background: var(--card); }
-.preview-bar [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.preview-open { margin-left: auto; font-size: .85rem; color: var(--muted-foreground); }
-.preview iframe { display: block; width: 100%; height: 22rem; border: 0; background: var(--background); transition: height .15s ease; }
-.preview-code .preview-source { margin: 0; padding: .6rem 1rem 0; font-size: .85rem; color: var(--muted-foreground); }
-/* The source scrolls inside the card while its copy button stays put in the corner. */
-.preview-code .code { margin: 0; }
-.preview-code pre { max-height: 36rem; border: 0; border-radius: 0; background: none; }
-@media (max-width: 48rem) {
-  .page { grid-template-columns: 1fr; gap: 1.5rem; }
-  aside { position: static; }
-  aside ul { display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
-}
 </style>
+<link rel="stylesheet" href="/site.css">
 <!-- Blocking, in the head, so the page is listening for a preview's height before the iframe exists,
      and knows the reader's package manager before the first install block is parsed. -->
 <script src="/site.js"></script>
 </head>
 <body>
-<header>
-  <a class="name" href="/"><svg viewBox="0 0 256 256" fill="none" aria-hidden="true"><path d="M104 108L24 188M233 68L153 148M104.5 108.5L152.5 148" stroke="currentColor" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/></svg><span>tradecn<span class="slash">/</span>ui</span><span class="tag">{{tag}}</span></a>
-  <nav>
-    <a href="/docs/">Docs</a>
-    <a href="{{repoUrl}}">GitHub</a>
-    <a href="{{repoUrl}}/blob/{{tag}}/CHANGELOG.md">Changelog</a>
-    <a href="/r/registry.json">registry.json</a>
-  </nav>
-</header>
-<div class="page">
-  <aside>
+{{header}}
+<div class="wrap page">
+  <aside class="sidebar" aria-label="Docs">
 {{nav}}
   </aside>
   <article>
 {{content}}
 {{foot}}
   </article>
+  <aside class="toc" aria-label="On this page">
+{{toc}}
+  </aside>
 </div>
 </body>
 </html>
