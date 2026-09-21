@@ -71,10 +71,21 @@ jobs:
           bun install --frozen-lockfile
           bun run registry:build
           test -f public/r/registry.json
+      # The previews are the tag's demos over the tag's registry source. A tag from before they
+      # existed has no embed config, and its pages go out without them.
+      - name: Build the previews from the tag
+        working-directory: release
+        run: |
+          if [ -f playground/vite.embed.config.ts ]; then
+            bun run --cwd playground build:embed
+          else
+            echo "$TAG predates the embedded previews; its docs pages carry none." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Build the pages for the tag
         run: |
           bun install --frozen-lockfile
-          bun scripts/site/build.ts --registry release/registry.json --version release/version.txt --docs release/docs --out site/dist
+          bun scripts/site/build.ts --registry release/registry.json --version release/version.txt --docs release/docs \
+            --demos release/playground/src/demos --embed release/playground/dist/embed --out site/dist
       - name: Find the highest tag
         id: highest
         run: |
@@ -106,11 +117,23 @@ jobs:
         run: |
           aws s3 sync release/public/r "s3://$BUCKET/r" --delete --exclude "v*/*" \
             --content-type application/json --cache-control "public, max-age=300"
-          aws s3 sync site/dist "s3://$BUCKET" --delete --exclude "r/*" \
+          # The preview bundle is content-hashed, so it can be cached for good; the pages cannot.
+          if [ -d site/dist/preview/assets ]; then
+            aws s3 sync site/dist/preview/assets "s3://$BUCKET/preview/assets" --delete \
+              --cache-control "public, max-age=31536000, immutable"
+          fi
+          aws s3 sync site/dist "s3://$BUCKET" --delete --exclude "r/*" --exclude "preview/assets/*" \
             --cache-control "no-cache, no-store, must-revalidate"
           id="$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" \
-            --paths "/" "/index.html" "/404.html" "/favicon.svg" "/docs/*" "/r/*" --query Invalidation.Id --output text)"
+            --paths "/" "/index.html" "/404.html" "/favicon.svg" "/popout.html" "/docs/*" "/preview/*" "/r/*" --query Invalidation.Id --output text)"
           aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION" --id "$id"
           echo "Latest pointer and page moved to $TAG." >> "$GITHUB_STEP_SUMMARY"
       - name: Install every item through the namespace
         run: bash scripts/ci/namespace-form.sh "$SITE_URL" "$TAG"
+      # The previews, live: each one mounts on tradecn.dev and the docs page frames it.
+      - name: Check every preview on the live site
+        if: steps.highest.outputs.highest == env.TAG && hashFiles('site/dist/preview/**/index.html') != ''
+        run: |
+          bunx playwright install --with-deps chromium
+          SMOKE_ITEMS="$(ls -d site/dist/preview/*/ | xargs -n1 basename | grep -v '^assets$' | paste -sd, -)" \
+            bun scripts/site/smoke.ts --base "$SITE_URL"

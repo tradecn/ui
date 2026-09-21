@@ -3,7 +3,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 default: check
 
 # Everything CI runs, in CI's order.
-check: lint typecheck test validate tokens-check registry-validate build-registry
+check: lint typecheck test validate tokens-check registry-validate build-registry site site-smoke
 
 lint:
     bun run lint
@@ -50,9 +50,15 @@ style base preset:
 bench *args:
     bun scripts/bench.ts {{args}}
 
-# Render the tradecn.dev landing page into site/dist from registry.json and version.txt.
+# Render tradecn.dev into site/dist: the pages from registry.json, version.txt, and docs/, and the
+# embedded previews from playground/src/demos through a Vite build of the playground.
 site:
+    cd playground && bun run build:embed
     bun scripts/site/build.ts
+
+# Open the built site in a browser: every preview mounts, sizes itself, and shows its code.
+site-smoke:
+    bun scripts/site/smoke.ts
 
 # The tradecn.dev stack (infra/). Synth needs no credentials; diff and deploy need the account's.
 infra-synth:
