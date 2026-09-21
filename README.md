@@ -21,6 +21,7 @@ You already have shadcn's menus and tooltips. This adds what a trading screen ne
 | [`command-palette`](docs/command-palette.md) | Your shadcn `command`, fed by an action registry and your symbol search. Shift+Enter runs a row's second action. Also a go-bar that reads `AAPL GP`. |
 | [`panel`](docs/panel.md) | The frame around a book or a chart, and a hotkey scope: with two books up, the one with focus answers. Click the symbol to retype it. Link groups carry it across panels and windows. Pop a panel out and its state comes with it. |
 | [`sparkline`](docs/sparkline.md) | A line that fits a grid cell. Up, down, or flat against the first reading or a previous close, in color and in words. A missing reading leaves a gap. It doesn't slide the afternoon left. |
+| [`watchlist`](docs/watchlist.md) | The grid with a watchlist's columns, prices printed per instrument. Add a symbol that's already there and it takes you to it. Delete takes one off. The list stays yours. |
 
 ## It rides shadcn
 

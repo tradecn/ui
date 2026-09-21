@@ -10,9 +10,13 @@ test("tradecn items render in this consumer", async ({ page }) => {
   // Report a crash as the exception it was, not as a missing element.
   expect(errors, "page errors on load").toEqual([])
   await expect(page.locator("main[data-smoke]")).toBeVisible()
+  // Every scene shows its own item. Asked scene by scene and not as one count of slots on the page:
+  // a preset wraps a grid, so its scene shows two, and a count can come out right while the wrong
+  // scene is the empty one.
   const expected = Number(await page.locator("main[data-smoke]").getAttribute("data-scenes"))
-  await expect(page.locator("[data-slot^='tradecn-']")).toHaveCount(expected, { timeout: 10_000 })
-  for (const slot of await page.locator("[data-slot^='tradecn-']").all()) await expect(slot).toBeVisible()
+  const scenes = await page.locator("main[data-smoke] > section[data-scene]").evaluateAll((els) => els.map((el) => el.getAttribute("data-scene") ?? ""))
+  expect(scenes).toHaveLength(expected)
+  for (const name of scenes) await expect(page.locator(`section[data-scene='${name}'] [data-slot='tradecn-${name}']`).first(), `the ${name} scene shows its item`).toBeVisible({ timeout: 10_000 })
   const tokens = (await page.locator("main[data-smoke]").getAttribute("data-tokens"))?.split(" ").filter(Boolean) ?? []
   for (const token of tokens) {
     const value = await page.evaluate((t) => getComputedStyle(document.documentElement).getPropertyValue(`--${t}`).trim(), token)
@@ -22,7 +26,7 @@ test("tradecn items render in this consumer", async ({ page }) => {
   // two hold only when the consumer's stylesheet has utility CSS for the installed files: the grid
   // keeps to the 200 px its scene gives it, and `bg-up` on a connected feed's dot paints a color.
   // Soft, so a page that lost its styles reports both.
-  const grid = await page.locator("[data-slot='tradecn-data-grid']").boundingBox()
+  const grid = await page.locator("section[data-scene='data-grid'] [data-slot='tradecn-data-grid']").boundingBox()
   expect.soft(grid?.height, "the grid is clipped to its container").toBeLessThanOrEqual(200)
   const dot = await page.locator("[data-feed='md'] span[aria-hidden]").first().evaluate((el) => getComputedStyle(el).backgroundColor)
   expect.soft(dot, "bg-up resolves to a color").not.toBe("rgba(0, 0, 0, 0)")
@@ -144,4 +148,44 @@ test("a sparkline measures its box, draws in its direction's color, and walks it
   // Three steps back from t5 is t1: the gap at t2 is stepped over.
   await expect(chart).toHaveAttribute("aria-valuetext", "t1 101")
   await expect(chart.locator("[data-sparkline-readout]")).toHaveText("t1 101")
+})
+
+// A watchlist goes through three of the consumer's own components: their input, their button, and
+// their context menu, which is the one the bases build differently.
+test("a watchlist adds through the field, finds a symbol it already has, and removes three ways", async ({ page }) => {
+  const errors: string[] = []
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
+  page.on("pageerror", (e) => errors.push(e.message))
+  await page.goto("/")
+  const list = page.locator("[data-slot='tradecn-watchlist']")
+  const grid = list.getByRole("grid", { name: "Watchlist" })
+  const row = (symbol: string) => list.locator(`[data-row-id='${symbol}']`)
+  await expect(row("ZN")).toBeVisible()
+  await expect(row("ZN")).toContainText("+0.25")
+  const field = list.getByRole("textbox", { name: "Add symbol" })
+  await field.click()
+  await page.keyboard.type("cl")
+  await page.keyboard.press("Enter")
+  await expect(row("CL")).toBeVisible()
+  await expect(field).toHaveValue("")
+  await expect(field).toBeFocused()
+  // Already there: nothing is added, the row is selected.
+  await page.keyboard.type("zn")
+  await page.keyboard.press("Enter")
+  await expect(grid).toHaveAttribute("aria-rowcount", "4")
+  await expect(row("ZN")).toHaveAttribute("aria-selected", "true")
+  // One: the button on the row, which only shows on hover.
+  await row("CL").hover()
+  await row("CL").getByRole("button", { name: "Remove CL" }).click()
+  await expect(row("CL")).toHaveCount(0)
+  // Two: Delete, with the row in hand.
+  await row("ES").click()
+  await page.keyboard.press("Delete")
+  await expect(row("ES")).toHaveCount(0)
+  // Three: the consumer's context menu.
+  await row("ZN").click({ button: "right" })
+  await page.getByRole("menuitem", { name: "Remove ZN" }).click()
+  await expect(row("ZN")).toHaveCount(0)
+  await expect(grid).toHaveAttribute("aria-rowcount", "1")
+  expect(errors).toEqual([])
 })

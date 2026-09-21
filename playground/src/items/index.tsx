@@ -8,6 +8,7 @@ import { PanelScene } from "./panel"
 import { RowStoreScene } from "./row-store"
 import { SparklineScene } from "./sparkline"
 import { UseHotkeysScene } from "./use-hotkeys"
+import { WatchlistScene } from "./watchlist"
 
 export interface ItemScene {
   title: string
@@ -25,4 +26,5 @@ export const items: Record<string, ItemScene> = {
   "command-palette": { title: "command-palette", Scene: CommandPaletteScene },
   panel: { title: "panel", Scene: PanelScene },
   sparkline: { title: "sparkline", Scene: SparklineScene },
+  watchlist: { title: "watchlist", Scene: WatchlistScene },
 }
