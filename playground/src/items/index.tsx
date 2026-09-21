@@ -4,6 +4,7 @@ import { DataGridScene } from "./data-grid"
 import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
+import { PanelScene } from "./panel"
 import { RowStoreScene } from "./row-store"
 import { UseHotkeysScene } from "./use-hotkeys"
 
@@ -21,4 +22,5 @@ export const items: Record<string, ItemScene> = {
   "row-store": { title: "row-store", Scene: RowStoreScene },
   "use-hotkeys": { title: "use-hotkeys", Scene: UseHotkeysScene },
   "command-palette": { title: "command-palette", Scene: CommandPaletteScene },
+  panel: { title: "panel", Scene: PanelScene },
 }

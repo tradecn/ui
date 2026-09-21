@@ -4,6 +4,7 @@ import { DataGridScene } from "./data-grid"
 import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
+import { PanelScene } from "./panel"
 import { RowStoreScene } from "./row-store"
 import { UseHotkeysScene } from "./use-hotkeys"
 
@@ -21,5 +22,6 @@ export const scenes: SmokeScene[] = [
   { name: "feed-health", Scene: FeedHealthScene },
   { name: "use-hotkeys", Scene: UseHotkeysScene },
   { name: "command-palette", Scene: CommandPaletteScene },
+  { name: "panel", Scene: PanelScene },
 ]
-export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft"]
+export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4"]
