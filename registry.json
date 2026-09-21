@@ -227,6 +227,55 @@
           "up": "oklch(0.74 0.15 165)"
         }
       }
+    },
+    {
+      "name": "use-hotkeys",
+      "type": "registry:hook",
+      "title": "Hotkeys",
+      "description": "A hotkey registry: bindings declared as data with an id, keys, a scope, and a description; one keydown listener; scopes read from the DOM so a panel's keys beat global ones; chords with a timeout; conflict detection; remapping with the consumer's persistence. Typing is protected, menus are left alone, and a dialog is a wall.",
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/hooks/use-hotkeys.tsx",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/hotkeys.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "hotkeys"
+      ],
+      "docs": "Declare bindings once, wrap the app in HotkeysProvider, attach handlers with useHotkey. list() is the single source for a palette's shortcut column and a help overlay. No dependencies beyond React.",
+      "meta": {
+        "components": [
+          {
+            "title": "HotkeysProvider",
+            "description": "Puts a registry in context and listens for keydown."
+          },
+          {
+            "title": "HotkeyScope",
+            "description": "Marks a subtree as a scope; keys pressed inside it reach that scope's bindings first."
+          },
+          {
+            "title": "useHotkey",
+            "description": "Attaches a handler to a declared binding while the component is mounted."
+          },
+          {
+            "title": "useHotkeys",
+            "description": "The registry from context."
+          },
+          {
+            "title": "useHotkeyList",
+            "description": "Every binding with its keys in force, live."
+          },
+          {
+            "title": "usePendingChord",
+            "description": "The chord typed so far, or null."
+          }
+        ]
+      }
     }
   ]
 }
