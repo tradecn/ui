@@ -1,0 +1,8 @@
+{
+  "app": "bun run bin/tradecn-site.ts",
+  "output": "cdk.out",
+  "context": {
+    "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021": true,
+    "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true
+  }
+}

@@ -6,6 +6,7 @@ playwright-report/
 test-results/
 *.tsbuildinfo
 .DS_Store
+cdk.out/
 
 # Fixture consumers: `shadcn add` installs these at CI time
 fixtures/consumers/*/src/components/

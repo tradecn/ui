@@ -4,6 +4,11 @@
   "include-component-in-tag": false,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
+  "exclude-paths": [
+    "site",
+    "infra",
+    ".github"
+  ],
   "packages": {
     ".": {
       "changelog-path": "CHANGELOG.md",
