@@ -308,6 +308,69 @@ test("a workspace docks its panels, keeps their keys apart, saves, restores, and
   expect(errors).toEqual([])
 })
 
+// The first block, and seven of the consumer's components in one place. The price field goes
+// through the consumer's input-group, the side through their button-group, the errors through their
+// field. Then the two rules: buttons are what the server allowed, and the status is what it said.
+test("a ticket types a price in 32nds, steps it, sends from a key, and shows only what the server allows", async ({ page }) => {
+  const errors: string[] = []
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
+  page.on("pageerror", (e) => errors.push(e.message))
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='ticket']")
+  const state = scene.locator("[data-ticket-sent]")
+  const ticket = scene.getByRole("group", { name: "Order ticket ZN" })
+  const price = ticket.getByLabel("Price", { exact: true })
+  const quantity = ticket.getByLabel("Quantity")
+  await expect(ticket).toBeVisible()
+  // The notation, in and out, through the consumer's input-group.
+  await price.click()
+  await page.keyboard.type("99-16+")
+  await quantity.click()
+  await expect(price).toHaveValue("99-16+")
+  await price.click()
+  await page.keyboard.press("ArrowUp")
+  await expect(price).toHaveValue("99-17")
+  await page.keyboard.press("Shift+ArrowDown")
+  await expect(price).toHaveValue("99-12")
+  await ticket.getByRole("button", { name: "Price up one tick" }).click()
+  await expect(price).toHaveValue("99-12+")
+  // Not a price: said under the field, through the consumer's field.
+  await price.fill("abc")
+  await quantity.click()
+  await expect(price).toHaveAttribute("aria-invalid", "true")
+  await expect(ticket.getByText("Not a price in this instrument's notation.")).toBeVisible()
+  // A reference price is one click.
+  await ticket.getByRole("button", { name: /^Ask 99-16\+/ }).click()
+  await expect(price).toHaveValue("99-16+")
+  await expect(price).not.toHaveAttribute("aria-invalid", "true")
+  // The side, through the consumer's button-group.
+  await ticket.getByRole("button", { name: "Sell" }).click()
+  await expect(ticket).toHaveAttribute("data-side", "sell")
+  await ticket.getByRole("button", { name: "Buy" }).click()
+  await expect(ticket).toHaveAttribute("data-side", "buy")
+  // No quantity: the check stops it and says so. Then a quantity, and mod+enter from inside the field sends.
+  await ticket.getByRole("button", { name: /^Send/ }).click()
+  await expect(ticket.getByText("Enter a quantity above zero.")).toBeVisible()
+  await expect(state).toHaveAttribute("data-ticket-sent", "[]")
+  await quantity.click()
+  await page.keyboard.type("5")
+  await page.keyboard.press("ControlOrMeta+Enter")
+  await expect.poll(async () => JSON.parse((await state.getAttribute("data-ticket-sent")) ?? "[]")).toEqual([{ side: "buy", quantity: 5, price: 99.515625, type: "limit", tif: "day", account: null }])
+  // The status is the scene's word for the server's, printed as is; the acknowledgement rings the box.
+  await expect(ticket.locator("[data-ticket-status]")).toHaveText("Sent")
+  await scene.getByRole("button", { name: "acknowledge" }).click()
+  await expect(ticket.locator("[data-ticket-status]")).toHaveText("Acknowledged")
+  await expect(ticket.locator("[data-direction='flat']")).toHaveCount(1)
+  // The server allows nothing: no buttons, a line that says so, and the key does nothing.
+  await scene.getByRole("button", { name: "close market" }).click()
+  await expect(ticket.getByRole("button", { name: /^Send/ })).toHaveCount(0)
+  await expect(ticket.getByText("Nothing can be done with this ticket right now.")).toBeVisible()
+  await quantity.click()
+  await page.keyboard.press("ControlOrMeta+Enter")
+  await expect.poll(async () => JSON.parse((await state.getAttribute("data-ticket-sent")) ?? "[]").length).toBe(1)
+  expect(errors).toEqual([])
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.

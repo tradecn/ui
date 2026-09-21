@@ -24,6 +24,7 @@ You already have shadcn's menus and tooltips. This adds what a trading screen ne
 | [`watchlist`](docs/watchlist.md) | The grid with a watchlist's columns, prices printed per instrument. Add a symbol that's already there and it takes you to it. Delete takes one off. The list stays yours. |
 | [`blotter`](docs/blotter.md) | The grid with a blotter's columns. The status is the server's word, never worked out. Cancel only shows for orders the server says can be cancelled, the button says how many, and it asks again when you click. |
 | [`workspace`](docs/workspace.md) | Panels that dock, tab, float, and pop out, on dockview. Every one keeps its keys. The layout is yours to save, and it says in the payload what it left out. |
+| [`ticket`](docs/ticket.md) | An order ticket, the registry's first block. Types `99-16+` and steps by the tick. The buttons are the actions the server allowed and nothing else; the status is the server's word. It sends nothing: it hands you a checked draft. |
 | [`tradecn-terminal`](docs/tradecn-terminal.md) | A theme, not a component. Black, amber, square corners, monospace. It's the one item that overwrites your variables, so `--diff` it first. Keeps the colorblind-safe up and down. |
 | [`tradecn-terminal-classic`](docs/tradecn-terminal-classic.md) | The same theme with green and red. Four tokens differ and nothing else. The signs and the words matter more with this one, not less. |
 

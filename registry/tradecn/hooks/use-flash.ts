@@ -63,6 +63,8 @@ export interface FlashOptions {
   windowMs?: number
   /** `fill` tints the background; `ring` draws an inset outline, for cells that already carry a bar. */
   variant?: "fill" | "ring"
+  /** Paint with this instead of the direction's token: `var(--primary)` for an acknowledgement that has no direction. */
+  color?: string
   compare?: Compare
   /**
    * Flash flat when the same value arrives again. Needs `revision` to know it arrived: pass the row object
@@ -112,13 +114,13 @@ export function resetReducedMotionCache() {
   reducedMotion = null
 }
 
-function keyframes(dir: Direction, variant: "fill" | "ring"): Keyframe[] {
-  if (variant === "ring") return [{ boxShadow: `inset 0 0 0 1px ${RING_COLORS[dir]}` }, { boxShadow: "inset 0 0 0 1px transparent" }]
-  return [{ backgroundColor: FILL_COLORS[dir] }, { backgroundColor: "transparent" }]
+function keyframes(dir: Direction, variant: "fill" | "ring", color?: string): Keyframe[] {
+  if (variant === "ring") return [{ boxShadow: `inset 0 0 0 1px ${color ?? RING_COLORS[dir]}` }, { boxShadow: "inset 0 0 0 1px transparent" }]
+  return [{ backgroundColor: color ?? FILL_COLORS[dir] }, { backgroundColor: "transparent" }]
 }
 
 /** Start (or resume, `elapsed` ms in) a flash on an element. */
-export function playFlash(el: HTMLElement, dir: Direction, opts: { windowMs: number; variant: "fill" | "ring"; elapsed?: number }) {
+export function playFlash(el: HTMLElement, dir: Direction, opts: { windowMs: number; variant: "fill" | "ring"; color?: string; elapsed?: number }) {
   const elapsed = Math.max(0, Math.min(opts.elapsed ?? 0, opts.windowMs))
   animations.get(el)?.cancel()
   const pending = clearTimers.get(el)
@@ -132,7 +134,7 @@ export function playFlash(el: HTMLElement, dir: Direction, opts: { windowMs: num
     clearTimers.set(el, setTimeout(done, opts.windowMs - elapsed))
     return
   }
-  const anim = el.animate(keyframes(dir, opts.variant), { duration: opts.windowMs, easing: "ease-out", fill: "none" })
+  const anim = el.animate(keyframes(dir, opts.variant, opts.color), { duration: opts.windowMs, easing: "ease-out", fill: "none" })
   anim.currentTime = elapsed
   anim.onfinish = () => {
     if (animations.get(el) === anim) animations.delete(el)
@@ -144,7 +146,7 @@ export function playFlash(el: HTMLElement, dir: Direction, opts: { windowMs: num
 const NEVER: FlashRecord = { value: undefined, at: -Infinity, dir: "flat" }
 
 export function useFlash<E extends HTMLElement>(ref: RefObject<E | null>, value: unknown, opts: FlashOptions = {}): void {
-  const { windowMs = 900, variant = "fill", compare = compareValues, flashOnEqual = false, memory, cellKey, disabled = false, revision } = opts
+  const { windowMs = 900, variant = "fill", color, compare = compareValues, flashOnEqual = false, memory, cellKey, disabled = false, revision } = opts
   const now = opts.now ?? (() => performance.now())
   const local = useRef<FlashRecord | undefined>(undefined)
   const key = memory ? cellKey : undefined
@@ -170,14 +172,14 @@ export function useFlash<E extends HTMLElement>(ref: RefObject<E | null>, value:
     if (changed || flashOnEqual) {
       const dir = changed ? directionOf(prev.value, value, compare) : "flat"
       write({ value, at: t, dir })
-      playFlash(el, dir, { windowMs, variant })
+      playFlash(el, dir, { windowMs, variant, color })
       return
     }
     // Same value on a fresh mount (a virtualized row scrolled back): resume a flash still in its window.
     const elapsed = t - prev.at
-    if (elapsed < windowMs) playFlash(el, prev.dir, { windowMs, variant, elapsed })
+    if (elapsed < windowMs) playFlash(el, prev.dir, { windowMs, variant, color, elapsed })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, revision, ref, disabled, windowMs, variant, flashOnEqual, compare, memory, key])
+  }, [value, revision, ref, disabled, windowMs, variant, color, flashOnEqual, compare, memory, key])
 
   useLayoutEffect(() => {
     const el = ref.current
