@@ -61,6 +61,23 @@ describe("the themes", () => {
     expect(themes.length).toBeGreaterThan(0)
   })
 
+  it("classic is the terminal with green and red, and differs from it in nothing else", () => {
+    const terminal = themes.find((t) => t.name === "tradecn-terminal")
+    const classic = themes.find((t) => t.name === "tradecn-terminal-classic")
+    expect(terminal && classic).toBeTruthy()
+    expect(classic!.cssVars?.theme).toEqual(terminal!.cssVars?.theme)
+    for (const mode of ["light", "dark"] as const) {
+      const a = terminal!.cssVars![mode]!
+      const b = classic!.cssVars![mode]!
+      const differing = Object.keys({ ...a, ...b }).filter((key) => a[key] !== b[key])
+      expect(differing.sort(), mode).toEqual(["down", "down-soft", "up", "up-soft"])
+    }
+    // Green and red, by hue: oklch puts green near 145 and red near 25.
+    expect(parseOklch(classic!.cssVars!.dark!.up!)!.h).toBeGreaterThan(120)
+    expect(parseOklch(classic!.cssVars!.dark!.up!)!.h).toBeLessThan(170)
+    expect(parseOklch(classic!.cssVars!.dark!.down!)!.h).toBeLessThan(40)
+  })
+
   for (const theme of themes) {
     for (const mode of ["light", "dark"] as const) {
       const vars = theme.cssVars?.[mode] ?? {}
