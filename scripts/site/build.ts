@@ -1,11 +1,12 @@
 #!/usr/bin/env bun
-// Render tradecn.dev: the landing page, one page per docs/*.md, and one embedded preview per item.
-//   bun scripts/site/build.ts [--registry registry.json] [--version version.txt] [--docs docs] [--theme registry.json]
-//                             [--demos playground/src/demos] [--embed playground/dist/embed] [--out site/dist]
-// The pages say what a release ships, so the release job points --registry, --version, --docs, --demos, and
-// --embed at the tag's checkout while the templates in site/, this script, and the palette come from main.
-// The palette is main's because a tag from before the theme existed has none to give. A tag from before
-// the previews existed has no embed build, and its pages go out without them.
+// Render tradecn.dev: the opening page, the site's own docs pages (site/docs/*.md), one page per docs/*.md,
+// and one embedded preview per item.
+//   bun scripts/site/build.ts [--registry registry.json] [--version version.txt] [--docs docs] [--changelog CHANGELOG.md]
+//                             [--theme registry.json] [--demos playground/src/demos] [--embed playground/dist/embed] [--out site/dist]
+// The pages say what a release ships, so the release job points --registry, --version, --docs, --changelog, --demos,
+// and --embed at the tag's checkout while the templates in site/, the site's own pages, this script, and the palette
+// come from main. The palette is main's because a tag from before the theme existed has none to give. A tag from
+// before the previews existed has no embed build, and its pages go out without them.
 import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { parseArgs } from "node:util"
@@ -26,6 +27,8 @@ const PALETTE = [
   "muted-foreground",
   "primary",
   "primary-foreground",
+  "ring",
+  "destructive",
   "up",
   "down",
   "radius",
@@ -51,12 +54,40 @@ export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => ENTITIES[c] ?? c)
 }
 
-/** Every value the landing templates may use. Items and version come from `registry`, the palette from `themeSource`. */
+/** An item's kind as the pages print it: `ui`, `hook`, `lib`, `block`, `theme`. */
+export const kindOf = (item: RegistryItem) => item.type.replace(/^registry:/, "")
+
+/** The item's own page when the tag ships a doc for it, the file on GitHub otherwise. */
+export const docHref = (item: RegistryItem, tag: string, docSlugs: ReadonlySet<string>) =>
+  docSlugs.has(item.name) ? `/docs/${item.name}/` : `${REPO_URL}/blob/${tag}/docs/${item.name}.md`
+
+const MARK = `<svg viewBox="0 0 256 256" fill="none" aria-hidden="true"><path d="M104 108L24 188M233 68L153 148M104.5 108.5L152.5 148" stroke="currentColor" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+
+/** The sections the header names; a page says which one it is in. */
+export type Section = "docs" | "components" | "changelog"
+
+/** The header on every page: the mark, the three sections, and the links out. `current` marks the section a page is in, `page` that it is the section's own page. */
+export function siteHeader(tag: string, current: Section | null = null, page = false): string {
+  const link = (section: Section, href: string, text: string) =>
+    `<a href="${href}"${section === current ? ` aria-current="${page ? "page" : "true"}"` : ""}>${text}</a>`
+  return [
+    `<header class="site-header">`,
+    `<div class="wrap">`,
+    `<a class="name" href="/">${MARK}<span>tradecn<span class="slash">/</span>ui</span></a>`,
+    `<nav aria-label="Sections">${link("docs", "/docs/", "Docs")}${link("components", "/docs/components/", "Components")}${link("changelog", "/docs/changelog/", "Changelog")}</nav>`,
+    `<nav class="side" aria-label="Links"><a href="${REPO_URL}">GitHub</a><a href="/r/registry.json">registry.json</a><span class="tag">${escapeHtml(tag)}</span></nav>`,
+    `</div>`,
+    `</header>`,
+  ].join("\n")
+}
+
+/** Every value the landing templates may use. Items and version come from `registry`, the palette from `themeSource`, the showcase from `previews`. */
 export function templateValues(
   registry: Registry,
   version: string,
   themeSource: Registry = registry,
   docSlugs: ReadonlySet<string> = new Set(),
+  previews: Previews = NO_PREVIEWS,
 ): Record<string, string> {
   const tag = `v${version}`
   const theme = themeSource.items.find((item) => item.name === THEME_ITEM)
@@ -68,20 +99,13 @@ export function templateValues(
     return `  --${token}: ${value};`
   }).join("\n")
   const font = theme.cssVars?.theme?.["font-sans"] ?? "ui-monospace, monospace"
-  const items = registry.items
-    .map((item) => {
-      const kind = item.type.replace(/^registry:/, "")
-      // The item's own page when the tag ships a doc for it, the file on GitHub otherwise.
-      const docs = docSlugs.has(item.name) ? `/docs/${item.name}/` : `${REPO_URL}/blob/${tag}/docs/${item.name}.md`
-      return `      <tr><td><a href="${docs}"><code>${escapeHtml(item.name)}</code></a></td><td class="kind">${escapeHtml(kind)}</td><td>${escapeHtml(item.description ?? "")}</td></tr>`
-    })
-    .join("\n")
   return {
     version,
     tag,
     palette,
     font,
-    items,
+    header: siteHeader(tag),
+    showcase: showcase(registry, tag, docSlugs, previews),
     itemCount: String(registry.items.length),
     siteUrl: SITE_URL,
     repoUrl: REPO_URL,
@@ -122,6 +146,8 @@ const icon = (paths: string, cls: string) =>
   `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`
 const COPY_BUTTON = `<button type="button" class="copy" aria-label="Copy">${icon('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/>', "copy-icon")}${icon('<path d="M5 12.5l4.5 4.5L19 7"/>', "check-icon")}</button>`
 const PROMPT_ICON = icon('<path d="M4 7l5 5-5 5M11 17h9"/>', "prompt")
+const LEFT_ICON = icon('<path d="M15 6l-6 6 6 6"/>', "left-icon")
+const RIGHT_ICON = icon('<path d="M9 6l6 6-6 6"/>', "right-icon")
 
 /**
  * Every code block on a page gets a copy button, and a block with a line that starts with `npx` or `npm install`
@@ -156,17 +182,27 @@ export const PAGES = ["index.html", "404.html"] as const
 export const FAVICON = "favicon.svg"
 /** The pages' script, a file so the site's Content-Security-Policy keeps script-src to 'self'. */
 export const SITE_SCRIPT = "site.js"
+/** The pages' one stylesheet; each page adds only its palette inline. */
+export const SITE_STYLES = "site.css"
 /** The headers every response carries; the stack and the smoke both read this file. */
 export const HEADERS_FILE = "headers.json"
 export const DOCS_TEMPLATE = "docs.html"
 export const PREVIEW_TEMPLATE = "preview.html"
+/** The site's own docs pages, site/docs/<slug>.md, in the order the nav and the pager walk them. `index` is /docs/ itself. */
+export const SITE_DOCS = "docs"
+export const START_PAGES = ["index", "installation", "components", "theming", "changelog"] as const
 /** Where the embedded previews live on the site: /preview/<item>/ and the bundle under /preview/assets/. */
 export const PREVIEW_PATH = "preview"
 /** dockview opens this on the site's origin for a popped-out workspace panel; the playground's copy is published at the root. */
 export const POPOUT = "popout.html"
 
 export type RenderedDoc = { title: string; description: string; html: string }
-export type Doc = RenderedDoc & { slug: string; source: string; item?: RegistryItem }
+/**
+ * A docs page. `path` is its URL, `label` what the nav and the pager call it (an item's name, another page's
+ * title), `source` the markdown file's name, and `file` the repo path the foot names, when the page is a file
+ * of the tag's and not the site's own.
+ */
+export type Doc = RenderedDoc & { slug: string; path: string; label: string; source: string; file?: string; item?: RegistryItem }
 
 const slugify = (text: string) =>
   text
@@ -185,13 +221,17 @@ export function firstParagraph(markdown: string): string {
       pastTitle = true
       continue
     }
-    if (!pastTitle || !line.trim() || /^(#|-|\d+\.|>|\|)/.test(line)) continue
+    if (!pastTitle || !line.trim() || /^(#|-|\d+\.|>|\||<)/.test(line)) continue
     return line.replace(/`/g, "").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").trim().slice(0, 200)
   }
   return ""
 }
 
-/** Markdown to HTML with the first `#` as the title, an anchor on every heading, and a link to `x.md` pointing at that page. */
+/**
+ * Markdown to HTML with the first `#` as the title, an anchor on every heading, and a link to `x.md` pointing at
+ * that page. A heading that is itself a link (the changelog's versions) keeps its own link and gets no anchor,
+ * since a link inside a link is not HTML.
+ */
 export function renderMarkdown(markdown: string): RenderedDoc {
   const ids = new Map<string, number>()
   let title = ""
@@ -205,13 +245,15 @@ export function renderMarkdown(markdown: string): RenderedDoc {
         return `<a href="${escapeHtml(href)}"${title}>${this.parser.parseInline(token.tokens)}</a>`
       },
       heading(token) {
-        const plain = token.text.replace(/`/g, "")
+        const plain = token.text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/`/g, "")
         if (token.depth === 1 && !title) title = plain
         let id = slugify(plain)
         const seen = ids.get(id) ?? 0
         ids.set(id, seen + 1)
         if (seen) id = `${id}-${seen}`
-        return `<h${token.depth} id="${id}"><a href="#${id}">${this.parser.parseInline(token.tokens)}</a></h${token.depth}>\n`
+        const inline = this.parser.parseInline(token.tokens)
+        const linked = token.tokens.some((t) => t.type === "link")
+        return `<h${token.depth} id="${id}">${linked ? inline : `<a href="#${id}">${inline}</a>`}</h${token.depth}>\n`
       },
     },
   })
@@ -219,7 +261,7 @@ export function renderMarkdown(markdown: string): RenderedDoc {
   return { title, description: firstParagraph(markdown), html }
 }
 
-/** Every docs/*.md, item docs first in registry order, the rest by name. */
+/** Every docs/*.md of the tag: item docs first in registry order, the rest by name. */
 export async function readDocs(dir: string, registry: Registry): Promise<Doc[]> {
   const names = (await readdir(dir)).filter((name) => name.endsWith(".md")).sort()
   const docs = await Promise.all(
@@ -227,11 +269,130 @@ export async function readDocs(dir: string, registry: Registry): Promise<Doc[]> 
       const slug = source.slice(0, -".md".length)
       const rendered = renderMarkdown(await readFile(join(dir, source), "utf8"))
       if (!rendered.title) throw new Error(`docs/${source} has no # title`)
-      return { ...rendered, slug, source, item: registry.items.find((item) => item.name === slug) }
+      const item = registry.items.find((entry) => entry.name === slug)
+      return { ...rendered, slug, path: `/docs/${slug}/`, label: item ? slug : rendered.title, source, file: `docs/${source}`, item }
     }),
   )
   const order = new Map(registry.items.map((item, index) => [item.name, index]))
   return docs.sort((a, b) => (order.get(a.slug) ?? Infinity) - (order.get(b.slug) ?? Infinity) || a.slug.localeCompare(b.slug))
+}
+
+// The site's own pages: site/docs/<slug>.md on main, with {{placeholders}} the builder fills from the tag's
+// registry and changelog, so an Introduction or an Installation page is edited on main and republished by a
+// dispatch, while what it says about the release comes from the release.
+
+/** The body of the tag's CHANGELOG.md, from its first release heading on, or a line saying the tag has none. */
+export async function readChangelog(path: string): Promise<string> {
+  let text: string
+  try {
+    text = await readFile(path, "utf8")
+  } catch {
+    return "There is no changelog at this tag."
+  }
+  const first = text.search(/^## /m)
+  // release-please seeds the file with a bare "## Changelog" heading that stays at the bottom for good.
+  return first < 0 ? "There is no changelog at this tag." : text.slice(first).replace(/\n## Changelog\s*$/, "").trim()
+}
+
+/** `@tradecn/a @tradecn/b ...`: every item, for one command. */
+export const everyItem = (registry: Registry) => registry.items.map((item) => `@tradecn/${item.name}`).join(" ")
+
+/** An npm dependency as the registry writes it, `name@^x.y.z`, without the range: the Manual tab installs by name, as shadcn's does. */
+const packageName = (dependency: string) => dependency.replace(/@[\^~]?\d[^@]*$/, "")
+
+/** The packages the items pull in, each with the items that need it, as a table. */
+export function dependenciesTable(registry: Registry, tag: string, docSlugs: ReadonlySet<string>): string {
+  const packages = new Map<string, RegistryItem[]>()
+  for (const item of registry.items) {
+    for (const dependency of item.dependencies ?? []) {
+      const name = packageName(dependency)
+      packages.set(name, [...(packages.get(name) ?? []), item])
+    }
+  }
+  const rows = [...packages].map(
+    ([name, items]) =>
+      `<tr><td><code>${escapeHtml(name)}</code></td><td>${items.map((item) => `<a href="${docHref(item, tag, docSlugs)}"><code>${escapeHtml(item.name)}</code></a>`).join(", ")}</td></tr>`,
+  )
+  return `<table class="dependencies">\n<thead><tr><th>Package</th><th>Needed by</th></tr></thead>\n<tbody>\n${rows.join("\n")}\n</tbody>\n</table>`
+}
+
+/** A token's value as a swatch can paint it: a shadcn variable through the page's own palette, anything else as written. */
+const swatch = (value: string) => `<span class="swatch" style="background: ${escapeHtml(value.replace(/^var\(--color-/, "var(--"))}"></span>`
+
+/** Every token the items add, in the order the registry introduces them: its light and dark values, and the items that add it. Themes set everything, so they are not in it. */
+export function tokensTable(registry: Registry, tag: string, docSlugs: ReadonlySet<string>): string {
+  const tokens = new Map<string, { light: string; dark: string; items: RegistryItem[] }>()
+  for (const item of registry.items) {
+    if (item.type === "registry:theme") continue
+    for (const [token, light] of Object.entries(item.cssVars?.light ?? {})) {
+      const entry = tokens.get(token) ?? { light, dark: item.cssVars?.dark?.[token] ?? light, items: [] }
+      entry.items.push(item)
+      tokens.set(token, entry)
+    }
+  }
+  const rows = [...tokens].map(
+    ([token, { light, dark, items }]) =>
+      `<tr><td><code>--${escapeHtml(token)}</code></td><td>${swatch(light)}<code>${escapeHtml(light)}</code></td><td>${swatch(dark)}<code>${escapeHtml(dark)}</code></td><td>${items.map((item) => `<a href="${docHref(item, tag, docSlugs)}"><code>${escapeHtml(item.name)}</code></a>`).join(", ")}</td></tr>`,
+  )
+  return `<table class="tokens">\n<thead><tr><th>Token</th><th>Light</th><th>Dark</th><th>Added by</th></tr></thead>\n<tbody>\n${rows.join("\n")}\n</tbody>\n</table>`
+}
+
+/** The theme items, each linked, with its one line. */
+export function themesList(registry: Registry, tag: string, docSlugs: ReadonlySet<string>): string {
+  const themes = registry.items.filter((item) => item.type === "registry:theme")
+  if (!themes.length) return "<p>This tag ships no theme.</p>"
+  return `<ul>\n${themes.map((item) => `<li><a href="${docHref(item, tag, docSlugs)}"><code>${escapeHtml(item.name)}</code></a> ${escapeHtml(item.description ?? "")}</li>`).join("\n")}\n</ul>`
+}
+
+/** One card per item: its name, its kind, and its one line, linking its page. The Components index, and the opening page when the tag has no previews. */
+export function itemCards(registry: Registry, tag: string, docSlugs: ReadonlySet<string>): string {
+  const cards = registry.items.map(
+    (item) =>
+      `<a class="card" href="${docHref(item, tag, docSlugs)}"><span class="card-title"><code>${escapeHtml(item.name)}</code><span class="kind">${escapeHtml(kindOf(item))}</span></span><span class="card-text">${escapeHtml(item.description ?? "")}</span></a>`,
+  )
+  return `<div class="cards">\n${cards.join("\n")}\n</div>`
+}
+
+/**
+ * The opening page below the fold: every item that has a demo, running, in the order the registry lists them,
+ * each in a card that names it and links its page. The iframe is sized by the height its page reports, like the
+ * preview on a docs page. A tag with no embed build gets the cards without the frames.
+ */
+export function showcase(registry: Registry, tag: string, docSlugs: ReadonlySet<string>, previews: Previews): string {
+  if (!previews.embed) return itemCards(registry, tag, docSlugs)
+  const cards = registry.items
+    .filter((item) => previews.demos.has(item.name))
+    .map((item) => {
+      const name = escapeHtml(item.name)
+      return [
+        `<article class="card" data-preview="${name}">`,
+        `<div class="card-bar"><a href="${docHref(item, tag, docSlugs)}"><code>${name}</code></a><span class="kind">${escapeHtml(kindOf(item))}</span><a class="open" href="/${PREVIEW_PATH}/${name}/" target="_blank" rel="noopener">Open in a new tab</a></div>`,
+        `<iframe src="/${PREVIEW_PATH}/${name}/" title="${name}, live" data-preview="${name}"></iframe>`,
+        `</article>`,
+      ].join("\n")
+    })
+  return `<section class="showcase" aria-label="Every item, live">\n${cards.join("\n")}\n</section>`
+}
+
+/**
+ * The site's own pages, filled and rendered. Each is a Doc like the tag's, at /docs/<slug>/ (the index at /docs/),
+ * and the changelog's foot names the tag's CHANGELOG.md.
+ */
+export async function readSitePages(dir: string, values: Record<string, string>): Promise<Doc[]> {
+  return Promise.all(
+    START_PAGES.map(async (slug): Promise<Doc> => {
+      const source = `${slug}.md`
+      const rendered = renderMarkdown(render(await readFile(join(dir, source), "utf8"), values))
+      if (!rendered.title) throw new Error(`site/docs/${source} has no # title`)
+      const path = slug === "index" ? "/docs/" : `/docs/${slug}/`
+      return { ...rendered, slug, path, label: rendered.title, source, file: slug === "changelog" ? "CHANGELOG.md" : undefined }
+    }),
+  )
+}
+
+/** The pages in the order the nav and the pager walk them: the site's own, the tag's other docs (the contract), then the items. */
+export function siteDocs(site: Doc[], tagDocs: Doc[]): Doc[] {
+  return [...site, ...tagDocs.filter((doc) => !doc.item), ...tagDocs.filter((doc) => doc.item)]
 }
 
 // The previews. A demo is playground/src/demos/<item>.tsx; the embed build is that app's dist/embed,
@@ -240,6 +401,8 @@ export async function readDocs(dir: string, registry: Registry): Promise<Doc[]> 
 export type Demo = { name: string; source: string; code: string }
 /** The embed build: the entry's script and stylesheets as site paths, and the directory to copy. */
 export type Embed = { dir: string; script: string; styles: string[] }
+export type Previews = { demos: Map<string, Demo>; embed: Embed | null }
+const NO_PREVIEWS: Previews = { demos: new Map(), embed: null }
 
 /**
  * A demo imports the registry source live, `@/registry/tradecn/ui/x`; a consumer has the same file at
@@ -320,7 +483,7 @@ export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
     `<a class="preview-open" href="/${PREVIEW_PATH}/${escapeHtml(name)}/" target="_blank" rel="noopener">Open in a new tab</a>`,
     `</div>`,
     `<div class="preview-live" id="${id}-live" role="tabpanel" aria-labelledby="${id}-tab-live">`,
-    `<iframe src="/${PREVIEW_PATH}/${escapeHtml(name)}/" title="${escapeHtml(name)}, live" loading="lazy"></iframe>`,
+    `<iframe src="/${PREVIEW_PATH}/${escapeHtml(name)}/" title="${escapeHtml(name)}, live" loading="lazy" data-preview="${escapeHtml(name)}"></iframe>`,
     `</div>`,
     `<div class="preview-code" id="${id}-code" role="tabpanel" aria-labelledby="${id}-tab-code" hidden>`,
     `<p class="preview-source">${codeSource}, at <a href="${REPO_URL}/blob/${tag}/playground/src/demos/${escapeHtml(name)}.tsx">${tag}</a>.</p>`,
@@ -338,8 +501,8 @@ export function withPreview(html: string, block: string): string {
   return `${html.slice(0, at)}${block}\n${html.slice(at)}`
 }
 
-// The Installation section. Command is what the landing page says: `shadcn add` with the tag pinned. Manual is
-// what that command does, step by step, from registry.json and the files it names.
+// The Installation section. Command is what the Installation page says: `shadcn add` with the tag pinned. Manual
+// is what that command does, step by step, from registry.json and the files it names.
 
 /** Every file any item installs, in the form `shadcn add` writes it (a consumer's imports), by its registry path. */
 export type Sources = Map<string, string>
@@ -372,9 +535,6 @@ export function registryCss(css: Record<string, unknown>, depth = 0): string {
     )
     .join("\n")
 }
-
-/** An npm dependency as the registry writes it, `name@^x.y.z`, without the range: the Manual tab installs by name, as shadcn's does. */
-const packageName = (dependency: string) => dependency.replace(/@[\^~]?\d[^@]*$/, "")
 
 /**
  * The Installation section of an item's page, in shadcn's shape. Command is `shadcn add` with the tag pinned, under
@@ -431,84 +591,103 @@ export function builtOn(item: RegistryItem): string {
   return `<p class="built-on">Built on shadcn's ${listOf(links)}.</p>`
 }
 
-/** Previous and next, in the nav's order: items in registry order, then the rest. */
+/** Previous and next at the foot, named, in the nav's order. */
 export function pager(docs: Doc[], index: number): string {
-  const label = (doc: Doc) => escapeHtml(doc.item ? doc.slug : doc.title)
   const prev = docs[index - 1]
   const next = docs[index + 1]
   return [
     `<nav class="pager" aria-label="Previous and next">`,
-    prev ? `<a rel="prev" href="/docs/${prev.slug}/">← ${label(prev)}</a>` : `<span></span>`,
-    next ? `<a rel="next" href="/docs/${next.slug}/">${label(next)} →</a>` : `<span></span>`,
+    prev ? `<a rel="prev" href="${prev.path}">← ${escapeHtml(prev.label)}</a>` : `<span></span>`,
+    next ? `<a rel="next" href="${next.path}">${escapeHtml(next.label)} →</a>` : `<span></span>`,
     `</nav>`,
   ].join("\n")
 }
 
-export function docsNav(docs: Doc[], current: string | null): string {
-  const link = (doc: Doc) =>
-    `<li><a href="/docs/${doc.slug}/"${doc.slug === current ? ' aria-current="page"' : ""}>${escapeHtml(doc.item ? doc.slug : doc.title)}</a></li>`
-  const items = docs.filter((doc) => doc.item)
-  const rest = docs.filter((doc) => !doc.item)
-  const sections = [
-    `<h2><a href="/docs/"${current === null ? ' aria-current="page"' : ""}>Docs</a></h2>`,
-    `<h2>Items</h2>\n<ul>\n${items.map(link).join("\n")}\n</ul>`,
-  ]
-  if (rest.length) sections.push(`<h2>Also</h2>\n<ul>\n${rest.map(link).join("\n")}\n</ul>`)
-  return sections.join("\n")
+/** Previous and next beside the title, as arrows; the foot's pager says where they go. */
+export function arrows(docs: Doc[], index: number): string {
+  const prev = docs[index - 1]
+  const next = docs[index + 1]
+  return [
+    `<nav class="arrows" aria-label="Previous and next">`,
+    prev ? `<a rel="prev" href="${prev.path}" aria-label="Previous: ${escapeHtml(prev.label)}">${LEFT_ICON}</a>` : `<span aria-hidden="true">${LEFT_ICON}</span>`,
+    next ? `<a rel="next" href="${next.path}" aria-label="Next: ${escapeHtml(next.label)}">${RIGHT_ICON}</a>` : `<span aria-hidden="true">${RIGHT_ICON}</span>`,
+    `</nav>`,
+  ].join("\n")
 }
 
-export type Previews = { demos: Map<string, Demo>; embed: Embed | null }
-const NO_PREVIEWS: Previews = { demos: new Map(), embed: null }
+/** The page's h2 and h3 headings as a nested list of anchors, or nothing when it has fewer than two. */
+export function toc(html: string): string {
+  const headings = [...html.matchAll(/<h([23]) id="([^"]+)">([\s\S]*?)<\/h\1>/g)].map(([, level, id, inner]) => ({
+    level: Number(level),
+    id: id ?? "",
+    // The heading's own anchor, and any link in it, would nest inside the entry's link.
+    text: (inner ?? "").replace(/<\/?a\b[^>]*>/g, ""),
+  }))
+  if (headings.length < 2) return ""
+  // An h3 nests under the h2 before it; the list closes whatever is open when the level comes back up.
+  let list = ""
+  let depth = 2
+  for (const heading of headings) {
+    if (heading.level > depth) list += "\n<ul>\n"
+    else if (heading.level < depth) list += "</li>\n</ul>\n</li>\n"
+    else if (list) list += "</li>\n"
+    depth = heading.level
+    list += `<li><a href="#${heading.id}">${heading.text}</a>`
+  }
+  list += depth === 3 ? "</li>\n</ul>\n</li>" : "</li>"
+  return `<h2>On this page</h2>\n<ul>\n${list}\n</ul>`
+}
+
+/** The sidebar: the site's own pages and the contract under Get Started, then every item under Components. */
+export function docsNav(docs: Doc[], current: string | null): string {
+  const link = (doc: Doc) => `<li><a href="${doc.path}"${doc.slug === current ? ' aria-current="page"' : ""}>${escapeHtml(doc.label)}</a></li>`
+  const start = docs.filter((doc) => !doc.item)
+  const items = docs.filter((doc) => doc.item)
+  const components = docs.find((doc) => doc.slug === "components")
+  return [
+    `<h2>Get Started</h2>\n<ul>\n${start.map(link).join("\n")}\n</ul>`,
+    `<h2>${components ? `<a href="${components.path}">Components</a>` : "Components"}</h2>\n<ul>\n${items.map(link).join("\n")}\n</ul>`,
+  ].join("\n")
+}
+
+/** Which header section a page is in. */
+export function sectionOf(doc: Doc): Section {
+  if (doc.item || doc.slug === "components") return "components"
+  if (doc.slug === "changelog") return "changelog"
+  return "docs"
+}
 
 /**
- * The rendered docs pages and their index, as paths under the output directory. An item's page is the doc in
- * shadcn's shape: title, one sentence, the preview, Installation, then the doc's own Usage and API Reference,
- * the shadcn components it is built on, and the pager.
+ * The rendered docs pages, as paths under the output directory. An item's page is the doc in shadcn's shape:
+ * title, one sentence, the preview, Installation, then the doc's own Usage and API Reference, the shadcn
+ * components it is built on, and the pager. Every page gets the arrows beside its title and its own headings
+ * down the right.
  */
 export function docPages(docs: Doc[], values: Record<string, string>, template: string, previews: Previews = NO_PREVIEWS, sources: Sources = new Map()): Array<{ path: string; html: string }> {
   const { tag = "", repoUrl } = values
-  const pages = docs.map((doc, index) => {
+  return docs.map((doc, index) => {
     const demo = doc.item && previews.embed ? previews.demos.get(doc.slug) : undefined
-    const foot = `<p class="foot">This page is <code>docs/${doc.source}</code> at <a href="${repoUrl}/blob/${tag}/docs/${doc.source}">${tag}</a>.</p>`
+    const foot = doc.file ? `<p class="foot">This page is <code>${escapeHtml(doc.file)}</code> at <a href="${repoUrl}/blob/${tag}/${escapeHtml(doc.file)}">${tag}</a>.</p>` : ""
     if (doc.item && doc.html.includes('id="installation"')) throw new Error(`docs/${doc.source} has its own Installation heading, and the builder adds one`)
     const lead = [demo ? previewBlock(doc, demo, tag) : "", doc.item ? installationSection(doc.item, tag, sources) : ""].filter(Boolean).join("\n")
-    const content = [lead ? withPreview(doc.html, lead) : doc.html, doc.item ? builtOn(doc.item) : "", pager(docs, index)].filter(Boolean).join("\n")
+    const body = [lead ? withPreview(doc.html, lead) : doc.html, doc.item ? builtOn(doc.item) : ""].filter(Boolean).join("\n")
+    const content = [arrows(docs, index), body, pager(docs, index)].join("\n")
+    const section = sectionOf(doc)
     return {
-      path: `docs/${doc.slug}/index.html`,
+      path: `${doc.path.slice(1)}index.html`,
       html: renderPage(template, {
         ...values,
         title: escapeHtml(doc.title),
         description: escapeHtml(doc.description),
-        path: `/docs/${doc.slug}/`,
+        path: doc.path,
+        header: siteHeader(tag, section, !doc.item && (section !== "docs" || doc.slug === "index")),
         nav: docsNav(docs, doc.slug),
+        toc: toc(body),
         content,
         foot,
       }),
     }
   })
-  const entry = (doc: Doc) =>
-    `<li><a href="/docs/${doc.slug}/"><code>${escapeHtml(doc.item ? doc.slug : doc.title)}</code></a> ${escapeHtml(doc.item?.description ?? doc.description)}</li>`
-  const items = docs.filter((doc) => doc.item)
-  const rest = docs.filter((doc) => !doc.item)
-  const index = [
-    `<h1 id="docs">Docs</h1>`,
-    `<p>One page per item, from the <code>docs/</code> folder at ${tag}.</p>`,
-    `<ul>\n${items.map(entry).join("\n")}\n</ul>`,
-    rest.length ? `<h2 id="also">Also</h2>\n<ul>\n${rest.map(entry).join("\n")}\n</ul>` : "",
-  ].join("\n")
-  pages.push({
-    path: "docs/index.html",
-    html: renderPage(template, {
-      ...values,
-      title: "Docs",
-      description: `Docs for every tradecn/ui item at ${tag}.`,
-      path: "/docs/",
-      nav: docsNav(docs, null),
-      content: index,
-      foot: "",
-    }),
-  })
-  return pages
 }
 
 /**
@@ -533,6 +712,20 @@ export function previewPages(registry: Registry, themeSource: Registry, previews
     })
 }
 
+/** The values the site's own pages fill their placeholders from: the template values plus what the tag's registry and changelog say. */
+export function sitePageValues(registry: Registry, values: Record<string, string>, docSlugs: ReadonlySet<string>, changelog: string): Record<string, string> {
+  const { tag = "" } = values
+  return {
+    ...values,
+    dependencies: dependenciesTable(registry, tag, docSlugs),
+    tokens: tokensTable(registry, tag, docSlugs),
+    themes: themesList(registry, tag, docSlugs),
+    cards: itemCards(registry, tag, docSlugs),
+    everyItem: everyItem(registry),
+    changelog,
+  }
+}
+
 async function main() {
   const root = resolve(import.meta.dirname, "../..")
   const { values: args } = parseArgs({
@@ -540,6 +733,7 @@ async function main() {
       registry: { type: "string", default: "registry.json" },
       version: { type: "string", default: "version.txt" },
       docs: { type: "string", default: "docs" },
+      changelog: { type: "string", default: "CHANGELOG.md" },
       theme: { type: "string", default: join(root, "registry.json") },
       demos: { type: "string", default: "playground/src/demos" },
       embed: { type: "string", default: "playground/dist/embed" },
@@ -550,9 +744,12 @@ async function main() {
   const themeSource = JSON.parse(await readFile(resolve(args.theme), "utf8")) as Registry
   const version = (await readFile(resolve(args.version), "utf8")).trim()
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`${args.version} holds "${version}", which is not a version`)
-  const docs = await readDocs(resolve(args.docs), registry)
-  const values = templateValues(registry, version, themeSource, new Set(docs.map((doc) => doc.slug)))
+  const tagDocs = await readDocs(resolve(args.docs), registry)
+  const docSlugs = new Set(tagDocs.map((doc) => doc.slug))
   const previews: Previews = { demos: await readDemos(resolve(args.demos)), embed: await readEmbed(resolve(args.embed)) }
+  const values = templateValues(registry, version, themeSource, docSlugs, previews)
+  const site = await readSitePages(join(root, "site", SITE_DOCS), sitePageValues(registry, values, docSlugs, await readChangelog(resolve(args.changelog))))
+  const docs = siteDocs(site, tagDocs)
   // The files the Manual tab shows live beside the registry.json they are listed in: the tag's checkout in the release job.
   const sources = await readSources(registry, dirname(resolve(args.registry)))
   const out = resolve(args.out)
@@ -564,6 +761,7 @@ async function main() {
   // The amber mark: readable on a dark tab strip, and the same file the README shows in dark mode.
   await writeFile(join(out, FAVICON), await readFile(join(root, "assets", "logo-dark.svg")))
   await cp(join(root, "site", SITE_SCRIPT), join(out, SITE_SCRIPT))
+  await cp(join(root, "site", SITE_STYLES), join(out, SITE_STYLES))
   const docsTemplate = await readFile(join(root, "site", DOCS_TEMPLATE), "utf8")
   for (const page of docPages(docs, values, docsTemplate, previews, sources)) {
     await mkdir(join(out, dirname(page.path)), { recursive: true })

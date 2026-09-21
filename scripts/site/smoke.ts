@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 // Open the built site in a browser and check every preview: the docs page frames it, the embed page
-// mounts it, the iframe takes the height it reports, and nothing errors on the way. Then the landing
-// page: the install blocks switch package manager together, the choice survives to the next page,
-// and the copy buttons copy what is showing.
+// mounts it, the iframe takes the height it reports, and nothing errors on the way. Then the opening
+// page: the two ways in, and every item running in the showcase at the height it reported. Then the
+// Installation page: the install blocks switch package manager together, the choice survives to the
+// next page, and the copy buttons copy what is showing. Then the Components and Changelog pages answer.
 //   bun scripts/site/smoke.ts [--dist site/dist] [--base https://tradecn.dev] [--port 4174] [--headers site/headers.json]
 // Without --base it serves --dist itself, with the index.html rewrite the CloudFront function does and
 // the security headers the edge sends (--headers names another file, to prove a policy breaks the pages).
@@ -75,6 +76,8 @@ function watch(page: Page, label: string) {
 /** What the last copy button put on the clipboard. */
 const clipboard = (page: Page) => page.evaluate(() => navigator.clipboard.readText())
 const firstLine = (error: unknown) => (error instanceof Error ? error.message.split("\n")[0] : String(error))
+/** The height a preview frame has taken from its page's message, in px. */
+const frameHeight = (page: Page, item: string) => page.evaluate((name) => parseFloat((document.querySelector(`iframe[data-preview='${name}']`) as HTMLIFrameElement | null)?.style.height ?? "0"), item)
 
 for (const item of items) {
   const page = await context.newPage()
@@ -95,6 +98,9 @@ for (const item of items) {
     // A demo is taller than the root's padding alone; the height has to be the demo's, not the empty page's.
     await page.waitForFunction((name) => parseFloat((document.querySelector(`.preview[data-preview='${name}'] iframe`) as HTMLIFrameElement | null)?.style.height ?? "0") > 40, item, { timeout: 15_000 })
     const height = await frame.evaluate((el) => parseFloat((el as HTMLIFrameElement).style.height))
+    // The page's own headings are down the right, Installation first, and the arrows sit beside the title.
+    if (!(await page.locator(".toc a[href='#installation']").count())) failures.push(`${item}: the page lists no Installation under On this page`)
+    if (!(await page.locator(".arrows a[rel='prev'], .arrows a[rel='next']").count())) failures.push(`${item}: no arrows beside the title`)
     // The Code tab shows something, and swapping tabs works without a framework.
     await page.getByRole("tab", { name: "Code" }).click()
     const previewCode = page.locator(".preview-code pre code")
@@ -124,35 +130,88 @@ for (const item of items) {
   }
 }
 
-// The landing page: both install forms under package-manager tabs, a choice every block on the page
+// The opening page: the two ways in, and every item running in the showcase at the height it reported.
+{
+  const page = await context.newPage()
+  watch(page, "opening")
+  try {
+    await page.goto(`${base}/`, { waitUntil: "load" })
+    for (const [text, href] of [
+      ["Get Started", "/docs/installation/"],
+      ["View Components", "/docs/components/"],
+    ]) {
+      if (!(await page.locator(`.hero a.button[href='${href}']`, { hasText: text }).count())) failures.push(`opening: no "${text}" button to ${href}`)
+    }
+    const frames = page.locator(".showcase iframe[data-preview]")
+    if ((await frames.count()) !== items.length) failures.push(`opening: ${await frames.count()} items in the showcase, not ${items.length}`)
+    // Every frame takes its demo's height, including the ones far below the fold; a demo is taller than 40px.
+    await page.waitForFunction(() => [...document.querySelectorAll(".showcase iframe[data-preview]")].every((el) => parseFloat((el as HTMLIFrameElement).style.height || "0") > 40), undefined, { timeout: 30_000 })
+    for (const item of items) {
+      const card = page.locator(`.showcase .card[data-preview='${item}']`)
+      if (!(await card.locator(`a[href='/docs/${item}/']`).count())) failures.push(`opening: the ${item} card does not link its page`)
+    }
+    const heights = await Promise.all(items.map((item) => frameHeight(page, item)))
+    console.log(`ok  opening page: ${items.length} items running, ${Math.round(Math.min(...heights))}px to ${Math.round(Math.max(...heights))}px`)
+  } catch (error) {
+    failures.push(`opening: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
+// The Installation page: both install forms under package-manager tabs, a choice every block on the page
 // follows and the next page remembers, and copy buttons that copy what is showing.
 {
   const page = await context.newPage()
-  watch(page, "landing")
+  watch(page, "installation")
   try {
-    await page.goto(`${base}/`, { waitUntil: "load" })
+    await page.goto(`${base}/docs/installation/`, { waitUntil: "load" })
     const commands = page.locator(".command")
-    if ((await commands.count()) !== 2) failures.push(`landing: ${await commands.count()} install blocks, not the GitHub form and the namespace form`)
+    if ((await commands.count()) < 2) failures.push(`installation: ${await commands.count()} install blocks, not the GitHub form and the namespace form`)
     const showing = () => commands.locator("pre:visible code").allInnerTexts()
-    for (const text of await showing()) if (!text.startsWith("npx shadcn@latest add ")) failures.push(`landing: shows "${text}" before any choice; npm is the default`)
+    for (const text of await showing()) if (!text.startsWith("npx shadcn@latest add ")) failures.push(`installation: shows "${text}" before any choice; npm is the default`)
     await page.getByRole("tab", { name: "pnpm" }).first().click()
-    for (const text of await showing()) if (!text.startsWith("pnpm dlx shadcn@latest add ")) failures.push(`landing: shows "${text}" after picking pnpm`)
+    for (const text of await showing()) if (!text.startsWith("pnpm dlx shadcn@latest add ")) failures.push(`installation: shows "${text}" after picking pnpm`)
     const selected = await page.locator(".managers [role='tab'][aria-selected='true']").allInnerTexts()
-    if (selected.join(",") !== "pnpm,pnpm") failures.push(`landing: the tabs read "${selected.join(",")}" after picking pnpm on one block`)
+    if (selected.some((tab) => tab !== "pnpm")) failures.push(`installation: the tabs read "${selected.join(",")}" after picking pnpm on one block`)
     await commands.first().locator(".copy").click()
     const command = await clipboard(page)
-    if (!command.startsWith("pnpm dlx shadcn@latest add tradecn/ui/data-grid#v") || command.endsWith("\n")) failures.push(`landing: the copy button copied "${command}"`)
+    if (!command.startsWith("pnpm dlx shadcn@latest add tradecn/ui/data-grid#v") || command.endsWith("\n")) failures.push(`installation: the copy button copied "${command}"`)
     await page.locator(".code:not(.command) .copy").first().click()
-    if (!(await clipboard(page)).includes('"@tradecn": "')) failures.push("landing: the components.json block did not copy")
+    if (!(await clipboard(page)).includes('"@tradecn": "')) failures.push("installation: the components.json block did not copy")
     // The choice holds on the next page.
     await page.goto(`${base}/docs/${items[0]}/`, { waitUntil: "load" })
     const kept = await page.locator("#installation-command .command pre:visible code").innerText()
-    if (!kept.startsWith("pnpm dlx ")) failures.push(`${items[0]}: shows "${kept}" after pnpm was picked on the landing page`)
+    if (!kept.startsWith("pnpm dlx ")) failures.push(`${items[0]}: shows "${kept}" after pnpm was picked on the Installation page`)
     const tab = await page.locator("#installation-command .command [role='tab'][aria-selected='true']").innerText()
-    if (tab !== "pnpm") failures.push(`${items[0]}: the ${tab} tab is selected after pnpm was picked on the landing page`)
-    console.log("ok  landing page: the install blocks, their copy buttons, and the package manager choice")
+    if (tab !== "pnpm") failures.push(`${items[0]}: the ${tab} tab is selected after pnpm was picked on the Installation page`)
+    console.log("ok  installation page: the install blocks, their copy buttons, and the package manager choice")
   } catch (error) {
-    failures.push(`landing: ${firstLine(error)}`)
+    failures.push(`installation: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
+// The Components and Changelog pages answer, and the index links every item's page.
+{
+  const page = await context.newPage()
+  watch(page, "docs")
+  try {
+    await page.goto(`${base}/docs/components/`, { waitUntil: "load" })
+    for (const item of items) {
+      if (!(await page.locator(`.cards a.card[href='/docs/${item}/']`).count())) failures.push(`components: no card for ${item}`)
+    }
+    const changelog = await page.goto(`${base}/docs/changelog/`, { waitUntil: "load" })
+    if (!changelog?.ok()) failures.push(`changelog: /docs/changelog/ answered ${changelog?.status()}`)
+    if (!(await page.locator("article h1", { hasText: "Changelog" }).count())) failures.push("changelog: no Changelog title")
+    if (!(await page.locator("article h2").count())) failures.push("changelog: no release on the page")
+    const intro = await page.goto(`${base}/docs/`, { waitUntil: "load" })
+    if (!intro?.ok()) failures.push(`docs: /docs/ answered ${intro?.status()}`)
+    if (!(await page.locator(".sidebar a[href='/docs/'][aria-current='page']").count())) failures.push("docs: /docs/ is not the Introduction in the sidebar")
+    console.log("ok  components, changelog, and introduction pages")
+  } catch (error) {
+    failures.push(`docs: ${firstLine(error)}`)
   } finally {
     await page.close()
   }
@@ -165,4 +224,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ${failure}`)
   process.exit(1)
 }
-console.log(`\n${items.length} previews and the landing page checked at ${base}`)
+console.log(`\n${items.length} previews, the opening page, and the docs pages checked at ${base}`)

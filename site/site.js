@@ -45,7 +45,8 @@ document.documentElement.dataset.pm = storedManager()
 
 addEventListener("message", (event) => {
   if (event.origin !== location.origin || !event.data || event.data.type !== "tradecn-preview") return
-  for (const frame of document.querySelectorAll(".preview iframe")) {
+  // Every preview frame: a docs page's card and the opening page's showcase alike.
+  for (const frame of document.querySelectorAll("iframe[data-preview]")) {
     if (frame.contentWindow === event.source) frame.style.height = Math.ceil(event.data.height) + "px"
   }
 })
@@ -114,7 +115,7 @@ addEventListener("DOMContentLoaded", () => {
   for (const button of document.querySelectorAll(".copy")) copyButton(button)
   // Belt and braces: a preview that is already up answers this with its height. One that is not up
   // yet ignores it and reports on its own when it mounts, which the listener above is waiting for.
-  for (const frame of document.querySelectorAll(".preview iframe")) {
+  for (const frame of document.querySelectorAll("iframe[data-preview]")) {
     const ask = () => frame.contentWindow?.postMessage({ type: "tradecn-preview-ask" }, location.origin)
     ask()
     frame.addEventListener("load", ask)

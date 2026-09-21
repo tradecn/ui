@@ -13,99 +13,24 @@
 {{palette}}
   --font: {{font}};
 }
-* { box-sizing: border-box; }
-html { background: var(--background); color: var(--foreground); font: 15px/1.55 var(--font); -webkit-text-size-adjust: 100%; }
-body { margin: 0 auto; padding: 0 16px 4rem; max-width: 72rem; }
-a { color: var(--primary); text-decoration: none; }
-a:hover, a:focus-visible { text-decoration: underline; }
-code { font-family: var(--font); }
-header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1.5rem; padding: 1.75rem 0 1rem; border-bottom: 1px solid var(--border); }
-h1 { display: flex; align-items: center; gap: .6rem; margin: 0; font-size: 1.25rem; font-weight: 600; }
-h1 svg { width: 1.5rem; height: 1.5rem; color: var(--primary); flex: none; }
-h1 .slash { color: var(--primary); }
-h1 .tag { margin-left: .75rem; color: var(--muted-foreground); font-weight: 400; font-size: .95rem; }
-nav { display: flex; flex-wrap: wrap; gap: 1.25rem; }
-nav a { color: var(--muted-foreground); }
-.lede { max-width: 62ch; margin: 1.75rem 0 0; font-size: 1.1rem; }
-.note { color: var(--muted-foreground); }
-h2 { margin: 2.5rem 0 .75rem; font-size: .8rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
-.install { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
-.install p { margin: 0 0 .5rem; }
-pre { margin: 0; padding: .9rem 2.75rem .9rem 1rem; overflow: auto; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
-/* A code block: the pre, a copy button over its top-right corner, and for a command the package-manager tabs above it. */
-.code { position: relative; margin: 0 0 .75rem; }
-.copy { position: absolute; top: .45rem; right: .45rem; display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; padding: 0; color: var(--muted-foreground); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
-.copy:hover, .copy:focus-visible, .copy[data-copied] { color: var(--foreground); }
-.copy:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.copy svg { width: 1rem; height: 1rem; }
-.copy .check-icon, .copy[data-copied] .copy-icon { display: none; }
-.copy[data-copied] .check-icon { display: block; }
-.command { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
-.command pre { border: 0; border-radius: 0; background: none; }
-.command .copy { top: .35rem; }
-.managers { display: flex; align-items: center; gap: .15rem; padding: .35rem 2.75rem .35rem .5rem; border-bottom: 1px solid var(--border); color: var(--muted-foreground); }
-.managers .prompt { width: 1rem; height: 1rem; margin: 0 .4rem 0 .2rem; flex: none; }
-.managers [role="tab"] { font: inherit; font-size: .85rem; color: var(--muted-foreground); background: none; border: 1px solid transparent; padding: .15rem .5rem; border-radius: var(--radius); cursor: pointer; }
-.managers [role="tab"][aria-selected="true"] { color: var(--foreground); background: var(--background); border-color: var(--border); }
-.managers [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-/* One command shows: the page's data-pm, which site.js sets from the reader's last choice before the body parses. npm until then. */
-.command pre[data-pm] { display: none; }
-html:not([data-pm]) .command pre[data-pm="npm"], html[data-pm="npm"] .command pre[data-pm="npm"], html[data-pm="pnpm"] .command pre[data-pm="pnpm"], html[data-pm="yarn"] .command pre[data-pm="yarn"], html[data-pm="bun"] .command pre[data-pm="bun"] { display: block; }
-/* Without the script the tabs and the buttons would do nothing, so they are not there. */
-html:not(.js) .copy, html:not(.js) .managers { display: none; }
-table { width: 100%; border-collapse: collapse; }
-th, td { padding: .65rem .9rem .65rem 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
-th { font-weight: 500; color: var(--muted-foreground); }
-td.kind { white-space: nowrap; color: var(--muted-foreground); }
-.up { color: var(--up); }
-.down { color: var(--down); }
-footer { margin-top: 3rem; font-size: .9rem; color: var(--muted-foreground); }
 </style>
-<!-- Blocking, in the head, so the page knows the reader's package manager before the first install block is parsed. -->
+<link rel="stylesheet" href="/site.css">
+<!-- Blocking, in the head, so the page is listening for a preview's height before the first iframe exists. -->
 <script src="/site.js"></script>
 </head>
 <body>
-<header>
-  <h1><svg viewBox="0 0 256 256" fill="none" aria-hidden="true"><path d="M104 108L24 188M233 68L153 148M104.5 108.5L152.5 148" stroke="currentColor" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/></svg><span>tradecn<span class="slash">/</span>ui</span><span class="tag">{{tag}}</span></h1>
-  <nav>
-    <a href="/docs/">Docs</a>
-    <a href="{{repoUrl}}">GitHub</a>
-    <a href="{{repoUrl}}/blob/{{tag}}/CHANGELOG.md">Changelog</a>
-    <a href="/r/registry.json">registry.json</a>
-  </nav>
-</header>
-<main>
-  <p class="lede">Trading-terminal components you install with <code>shadcn add</code>. The source lands in your repo and it's yours.</p>
-
-  <h2 id="install">Install</h2>
-  <div class="install">
-    <div>
-      <p>GitHub form</p>
-      <pre><code>npx shadcn@latest add tradecn/ui/data-grid#{{tag}}</code></pre>
-      <p class="note">Pin the tag. The tag is the version. There is no npm package.</p>
-    </div>
-    <div>
-      <p>Namespace form, in <code>components.json</code></p>
-      <pre><code>{
-  "registries": {
-    "@tradecn": "{{siteUrl}}/r/{name}.json"
-  }
-}</code></pre>
-      <pre><code>npx shadcn@latest add @tradecn/data-grid</code></pre>
-      <p class="note"><code>/r/{name}.json</code> is the latest release. <code>/r/{{tag}}/{name}.json</code> is this one, for good.</p>
-    </div>
-  </div>
-
-  <h2>Items</h2>
-  <table>
-    <thead><tr><th>Item</th><th>Type</th><th>What it does</th></tr></thead>
-    <tbody>
-{{items}}
-    </tbody>
-  </table>
+{{header}}
+<main class="wrap">
+  <section class="hero">
+    <a class="badge" href="/docs/changelog/">What's new in {{tag}} →</a>
+    <h1>Trading-terminal components you install with <code>shadcn add</code></h1>
+    <p class="lede">The source lands in your repo and it's yours. A grid that takes a feed, cells that flash the direction of a tick, prices in 32nds, a strip that says how old your data is.</p>
+    <p class="cta"><a class="button primary" href="/docs/installation/">Get Started</a> <a class="button" href="/docs/components/">View Components</a></p>
+  </section>
+{{showcase}}
 </main>
-<footer>
-  <p>MIT. Source and docs at <a href="{{repoUrl}}">github.com/tradecn/ui</a>. Prices go <span class="up">up</span> and <span class="down">down</span> in the colors the theme uses.</p>
+<footer class="site-foot">
+  <div class="wrap"><p>MIT. Source and docs at <a href="{{repoUrl}}">github.com/tradecn/ui</a>. Prices go <span class="up">up</span> and <span class="down">down</span> in the colors the theme uses.</p></div>
 </footer>
 </body>
 </html>
