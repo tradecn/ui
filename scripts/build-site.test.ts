@@ -50,8 +50,17 @@ describe("the landing page", () => {
     expect(() => render("{{nope}}", values)).toThrow(/nope/)
   })
 
-  it("refuses a registry without the theme it takes its palette from", () => {
-    const bare: Registry = { name: "t", items: registry.items.filter((item) => item.name !== THEME_ITEM) }
-    expect(() => templateValues(bare, version)).toThrow(THEME_ITEM)
+  it("renders a tag from before the theme existed with main's palette", () => {
+    // v0.1.0 shipped five items and no theme. The release job builds its page from that
+    // registry.json with the palette from main's.
+    const early: Registry = {
+      name: "t",
+      items: registry.items.filter((item) => ["format", "row-store", "flash-cell", "data-grid", "feed-health"].includes(item.name)),
+    }
+    const values = templateValues(early, "0.1.0", registry)
+    expect(values.items).toContain("<code>format</code>")
+    expect(values.items).not.toContain(`<code>${THEME_ITEM}</code>`)
+    expect(values.palette).toContain("--primary:")
+    expect(() => templateValues(early, "0.1.0")).toThrow(THEME_ITEM)
   })
 })
