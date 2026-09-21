@@ -174,8 +174,11 @@ describe("the preview card", () => {
     const withEmbed = new Map(docPages(docs, values, template(DOCS_TEMPLATE), { demos, embed: await readEmbed(fakeEmbed()) }).map((page) => [page.path, page.html]))
     for (const doc of docs) {
       const html = withEmbed.get(`docs/${doc.slug}/index.html`) ?? ""
-      if (doc.item) expect(html).toContain(`<iframe src="/preview/${doc.slug}/"`)
-      else expect(html).not.toContain("<iframe")
+      if (doc.item) {
+        expect(html).toContain(`<iframe src="/preview/${doc.slug}/"`)
+        // The Code tab's source is a code block like any other: wrapped, with its copy button.
+        expect(html).toMatch(/id="preview-code"[\s\S]*?<div class="code"><pre><code class="language-(tsx|css)">[\s\S]*?<\/pre><button type="button" class="copy"/)
+      } else expect(html).not.toContain("<iframe")
       expect(html).not.toMatch(/\{\{\w+\}\}/)
     }
     expect(withEmbed.get("docs/index.html")).not.toContain("<iframe")
@@ -183,13 +186,16 @@ describe("the preview card", () => {
     for (const page of without) expect(page.html).not.toContain("<iframe")
   })
 
-  it("has the tab and height plumbing in the docs script, and the layout in the template", () => {
+  it("has the tab and height plumbing in the site script, and the layout in the template", () => {
     const docs = template(DOCS_TEMPLATE)
-    expect(docs).toContain('<script src="/docs.js"></script>')
+    expect(docs).toContain('<script src="/site.js"></script>')
     expect(docs).toContain("article > :not(.preview) { max-width: 72ch; }")
-    const script = readFileSync(resolve(root, "site", "docs.js"), "utf8")
+    const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
     expect(script).toContain('event.data.type !== "tradecn-preview"')
     expect(script).toContain("event.origin !== location.origin")
+    // The package-manager choice is on <html> before the body parses, and the copy button uses the clipboard API.
+    expect(script).toContain("document.documentElement.dataset.pm = storedManager()")
+    expect(script).toContain("navigator.clipboard.writeText(code.textContent.trimEnd())")
     // The handshake: the page asks once it is listening, and the embed answers, so the order they load in does not matter.
     expect(script).toContain('postMessage({ type: "tradecn-preview-ask" }, location.origin)')
     const embed = readFileSync(resolve(root, "playground/src/embed.tsx"), "utf8")

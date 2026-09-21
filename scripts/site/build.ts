@@ -92,10 +92,61 @@ export function render(template: string, values: Record<string, string>): string
   })
 }
 
+/** The runners the install blocks offer, in the order shadcn's own site lists them. `npx` is the form every doc writes. */
+export const PACKAGE_MANAGERS = [
+  { name: "pnpm", run: "pnpm dlx" },
+  { name: "npm", run: "npx" },
+  { name: "yarn", run: "yarn dlx" },
+  { name: "bun", run: "bunx --bun" },
+] as const
+export type PackageManager = (typeof PACKAGE_MANAGERS)[number]["name"]
+/** What a page shows before the reader picks a manager, and all it shows without a script. */
+export const DEFAULT_MANAGER: PackageManager = "npm"
+
+/** The same block under another runner: only the lines that start with `npx` change, so a comment or a second command rides along. */
+export function commandFor(code: string, run: string): string {
+  return code.replace(/^npx /gm, `${run} `)
+}
+
+// The icons are inline so a page loads no image, and drawn here so they carry no licence of their own.
+const icon = (paths: string, cls: string) =>
+  `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`
+const COPY_BUTTON = `<button type="button" class="copy" aria-label="Copy">${icon('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/>', "copy-icon")}${icon('<path d="M5 12.5l4.5 4.5L19 7"/>', "check-icon")}</button>`
+const PROMPT_ICON = icon('<path d="M4 7l5 5-5 5M11 17h9"/>', "prompt")
+
+/**
+ * Every code block on a page gets a copy button, and a block with a line that starts with `npx` becomes an
+ * install block: the same command under pnpm, npm, yarn, and bun, one of them showing. Which one is the page's
+ * `data-pm`, which site.js sets from the reader's last choice before the body parses, and the tabs follow it.
+ * The last pass over a page, on its HTML, because the blocks come from three places: the templates, marked,
+ * and the preview card.
+ */
+export function codeBlocks(html: string): string {
+  let blocks = 0
+  return html.replace(/<pre><code( class="language-[\w-]+")?>([\s\S]*?)<\/code><\/pre>/g, (block: string, attributes: string | undefined, code: string) => {
+    if (!/^npx /m.test(code)) return `<div class="code">${block}${COPY_BUTTON}</div>`
+    const id = `pm-${++blocks}`
+    const tabs = PACKAGE_MANAGERS.map(
+      ({ name }) =>
+        `<button type="button" role="tab" id="${id}-${name}" aria-controls="${id}-${name}-code" aria-selected="${name === DEFAULT_MANAGER}" data-pm="${name}">${name}</button>`,
+    ).join("")
+    const panels = PACKAGE_MANAGERS.map(
+      ({ name, run }) =>
+        `<pre id="${id}-${name}-code" role="tabpanel" aria-labelledby="${id}-${name}" data-pm="${name}"><code${attributes ?? ""}>${commandFor(code, run)}</code></pre>`,
+    ).join("\n")
+    return `<div class="code command">\n<div class="managers" role="tablist" aria-label="Package manager">${PROMPT_ICON}${tabs}</div>\n${panels}\n${COPY_BUTTON}\n</div>`
+  })
+}
+
+/** A page: the template filled, then every code block given its copy button and, for a command, its package-manager tabs. */
+export function renderPage(template: string, values: Record<string, string>): string {
+  return codeBlocks(render(template, values))
+}
+
 export const PAGES = ["index.html", "404.html"] as const
 export const FAVICON = "favicon.svg"
-/** The docs pages' script, a file so the site's Content-Security-Policy keeps script-src to 'self'. */
-export const DOCS_SCRIPT = "docs.js"
+/** The pages' script, a file so the site's Content-Security-Policy keeps script-src to 'self'. */
+export const SITE_SCRIPT = "site.js"
 /** The headers every response carries; the stack and the smoke both read this file. */
 export const HEADERS_FILE = "headers.json"
 export const DOCS_TEMPLATE = "docs.html"
@@ -270,6 +321,26 @@ export function withPreview(html: string, block: string): string {
   return `${html.slice(0, at)}${block}\n${html.slice(at)}`
 }
 
+/** The Install section of an item's page: the pinned GitHub form, then the namespace form the landing page sets up. */
+export function installSection(name: string, tag: string): string {
+  const item = escapeHtml(name)
+  return [
+    `<h2 id="install"><a href="#install">Install</a></h2>`,
+    `<pre><code class="language-bash">npx shadcn@latest add tradecn/ui/${item}#${escapeHtml(tag)}</code></pre>`,
+    `<p>Pin the tag. The tag is the version. Or the namespace form, once <code>@tradecn</code> is <a href="/#install">in your <code>components.json</code></a>:</p>`,
+    `<pre><code class="language-bash">npx shadcn@latest add @tradecn/${item}</code></pre>`,
+  ].join("\n")
+}
+
+/**
+ * The Install section goes before the doc's first section heading: after the intro and its usage block, before
+ * the reference, so the usage does not read as part of the install. A doc with no sections gets it last.
+ */
+export function withInstall(html: string, section: string): string {
+  const at = html.indexOf("<h2")
+  return at < 0 ? `${html}${section}\n` : `${html.slice(0, at)}${section}\n${html.slice(at)}`
+}
+
 export function docsNav(docs: Doc[], current: string | null): string {
   const link = (doc: Doc) =>
     `<li><a href="/docs/${doc.slug}/"${doc.slug === current ? ' aria-current="page"' : ""}>${escapeHtml(doc.item ? doc.slug : doc.title)}</a></li>`
@@ -291,19 +362,21 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
   const { tag = "", repoUrl } = values
   const pages = docs.map((doc) => {
     const demo = doc.item && previews.embed ? previews.demos.get(doc.slug) : undefined
-    const install = doc.item
-      ? ` Install: <code>npx shadcn@latest add @tradecn/${doc.slug}</code> or <code>npx shadcn@latest add tradecn/ui/${doc.slug}#${tag}</code>.`
-      : ""
-    const foot = `<p class="foot">This page is <code>docs/${doc.source}</code> at <a href="${repoUrl}/blob/${tag}/docs/${doc.source}">${tag}</a>.${install}</p>`
+    const foot = `<p class="foot">This page is <code>docs/${doc.source}</code> at <a href="${repoUrl}/blob/${tag}/docs/${doc.source}">${tag}</a>.</p>`
+    let content = demo ? withPreview(doc.html, previewBlock(doc, demo, tag)) : doc.html
+    if (doc.item) {
+      if (doc.html.includes('id="install"')) throw new Error(`docs/${doc.source} has its own Install heading, and the builder adds one`)
+      content = withInstall(content, installSection(doc.slug, tag))
+    }
     return {
       path: `docs/${doc.slug}/index.html`,
-      html: render(template, {
+      html: renderPage(template, {
         ...values,
         title: escapeHtml(doc.title),
         description: escapeHtml(doc.description),
         path: `/docs/${doc.slug}/`,
         nav: docsNav(docs, doc.slug),
-        content: demo ? withPreview(doc.html, previewBlock(doc, demo, tag)) : doc.html,
+        content,
         foot,
       }),
     }
@@ -320,7 +393,7 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
   ].join("\n")
   pages.push({
     path: "docs/index.html",
-    html: render(template, {
+    html: renderPage(template, {
       ...values,
       title: "Docs",
       description: `Docs for every tradecn/ui item at ${tag}.`,
@@ -379,11 +452,11 @@ async function main() {
   await mkdir(out, { recursive: true })
   for (const page of PAGES) {
     const template = await readFile(join(root, "site", page), "utf8")
-    await writeFile(join(out, page), render(template, values))
+    await writeFile(join(out, page), renderPage(template, values))
   }
   // The amber mark: readable on a dark tab strip, and the same file the README shows in dark mode.
   await writeFile(join(out, FAVICON), await readFile(join(root, "assets", "logo-dark.svg")))
-  await cp(join(root, "site", DOCS_SCRIPT), join(out, DOCS_SCRIPT))
+  await cp(join(root, "site", SITE_SCRIPT), join(out, SITE_SCRIPT))
   const docsTemplate = await readFile(join(root, "site", DOCS_TEMPLATE), "utf8")
   for (const page of docPages(docs, values, docsTemplate, previews)) {
     await mkdir(join(out, dirname(page.path)), { recursive: true })

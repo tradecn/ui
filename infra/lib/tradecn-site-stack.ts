@@ -84,7 +84,7 @@ export class TradecnSiteStack extends Stack {
       responseHeadersPolicyName: "tradecn-dev-site",
       comment: "Security headers for the tradecn.dev pages and previews",
       securityHeadersBehavior: {
-        // From site/headers.json: scripts and frames are 'self' (the docs page's /docs.js, the
+        // From site/headers.json: scripts and frames are 'self' (the pages' /site.js, the
         // /preview/ bundle, the preview iframes); styles allow inline for the pages' palette blocks.
         contentSecurityPolicy: { contentSecurityPolicy: SITE_HEADERS["content-security-policy"], override: true },
         contentTypeOptions: { override: true },
