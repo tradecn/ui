@@ -27,6 +27,8 @@ const CATEGORIES = new Set(["grid", "feed", "format", "palette", "hotkeys", "lay
 const FORBIDDEN_PACKAGES = [/^radix-ui$/, /^@radix-ui\//, /^@base-ui\//, /^@base-ui-components\//, /^cmdk$/, /^react-resizable-panels$/]
 const PEERS = new Set(["react", "react-dom"])
 const CSS_KEYS = [/^@keyframes tradecn-[\w-]+$/, /^@layer components$/]
+// The classes a `@layer components` restyle may start from: dockview's.
+const CSS_RESTYLE_SELECTORS = [/^\.dockview-theme-tradecn\b/, /^\.dv-[\w-]+/]
 const FORBIDDEN_JSX_ATTRS = new Set(["asChild", "render", "nativeButton"])
 const SOURCE_DIRS = ["ui", "hooks", "lib"]
 
@@ -202,8 +204,16 @@ for (const item of registry.items) {
     }
   }
 
-  // css: keyframes and third-party restyles only
-  for (const key of Object.keys(item.css ?? {})) if (!CSS_KEYS.some((re) => re.test(key))) fail(id, `css key "${key}" is not allowed (only @keyframes tradecn-* and @layer components)`)
+  // css: keyframes and third-party restyles only. A restyle names a class of the third-party package,
+  // never an element, a shadcn class, or a tradecn slot: those are styled from the source files.
+  for (const [key, value] of Object.entries(item.css ?? {})) {
+    if (!CSS_KEYS.some((re) => re.test(key))) fail(id, `css key "${key}" is not allowed (only @keyframes tradecn-* and @layer components)`)
+    if (key === "@layer components") {
+      for (const selector of Object.keys((value ?? {}) as Record<string, unknown>)) {
+        if (!CSS_RESTYLE_SELECTORS.some((re) => re.test(selector))) fail(id, `css @layer components selector "${selector}" does not name a class of an allowed third-party package (${CSS_RESTYLE_SELECTORS.map(String).join(", ")})`)
+      }
+    }
+  }
 
   // docs when the item touches the consumer's stylesheet or adds a package
   const needsDocs = Boolean(item.css) || Boolean(item.cssVars) || [...depNames.keys()].some((d) => d !== "cn")
