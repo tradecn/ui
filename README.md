@@ -18,7 +18,7 @@ Or point a namespace at [tradecn.dev](https://tradecn.dev) in `components.json`:
 npx shadcn@latest add @tradecn/data-grid
 ```
 
-That URL is the latest release. Put the tag in it to pin: `https://tradecn.dev/r/v0.1.2/{name}.json`. Same files either way.
+That URL is the latest release. Put the tag in it to pin: `https://tradecn.dev/r/v0.1.3/{name}.json`. Same files either way.
 
 You already have shadcn's menus and tooltips. This adds what a trading screen needs on top of them: a grid that takes a feed, cells that flash the direction of a tick, prices in 32nds, a strip that says how old your data is.
 
