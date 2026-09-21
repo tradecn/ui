@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3](https://github.com/tradecn/ui/compare/v0.1.2...v0.1.3) (2026-09-21)
+
+
+### Features
+
+* **ticket:** an order ticket as the registry's first block, typing 99-16+ and stepping by the tick, with buttons the server allowed and a status it said ([#19](https://github.com/tradecn/ui/issues/19)) ([4e1f136](https://github.com/tradecn/ui/commit/4e1f1362fcb0ee51275a370b046bcb7c4eb2c3b2))
+* **workspace:** panels that dock, tab, float, and pop out, on dockview, each one a hotkey scope, with a layout that carries its own persistence boundaries ([#16](https://github.com/tradecn/ui/issues/16)) ([e61d954](https://github.com/tradecn/ui/commit/e61d954242c53cf3f5637f510cce16720f669297))
+
 ## [0.1.2](https://github.com/tradecn/ui/compare/v0.1.1...v0.1.2) (2026-09-21)
 
 
