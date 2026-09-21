@@ -115,3 +115,33 @@ test("a panel retypes its symbol, carries it through a link group, and keeps its
   await expect(panel.getByRole("button", { name: "Link group 2, change" })).toBeVisible()
   expect(errors).toEqual([])
 })
+
+// The scene gives the sparkline no size, so everything drawn here came through the shared
+// ResizeObserver, which a test environment with no layout cannot exercise.
+test("a sparkline measures its box, draws in its direction's color, and walks its readings", async ({ page }) => {
+  await page.goto("/")
+  const chart = page.locator("[data-slot='tradecn-sparkline']")
+  await expect(chart.locator("svg")).toHaveAttribute("viewBox", "0 0 240 40")
+  const line = chart.locator("path").last()
+  // One subpath before the gap and one after it.
+  expect((await line.getAttribute("d"))?.match(/M/g)).toHaveLength(2)
+  await expect(chart).toHaveAttribute("data-direction", "up")
+  const colors = await page.evaluate(() => {
+    const path = document.querySelector("[data-slot='tradecn-sparkline'] path:last-of-type")!
+    const probe = document.createElement("i")
+    probe.style.color = "var(--up)"
+    document.body.append(probe)
+    const out = { stroke: getComputedStyle(path).stroke, up: getComputedStyle(probe).color }
+    probe.remove()
+    return out
+  })
+  expect(colors.stroke, "stroke-up resolves to the --up token").toBe(colors.up)
+  await chart.focus()
+  await expect(chart).toHaveAttribute("aria-valuetext", "t5 103")
+  await page.keyboard.press("ArrowLeft")
+  await page.keyboard.press("ArrowLeft")
+  await page.keyboard.press("ArrowLeft")
+  // Three steps back from t5 is t1: the gap at t2 is stepped over.
+  await expect(chart).toHaveAttribute("aria-valuetext", "t1 101")
+  await expect(chart.locator("[data-sparkline-readout]")).toHaveText("t1 101")
+})

@@ -6,6 +6,7 @@ import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
 import { PanelScene } from "./panel"
 import { RowStoreScene } from "./row-store"
+import { SparklineScene } from "./sparkline"
 import { UseHotkeysScene } from "./use-hotkeys"
 
 export interface SmokeScene {
@@ -23,5 +24,6 @@ export const scenes: SmokeScene[] = [
   { name: "use-hotkeys", Scene: UseHotkeysScene },
   { name: "command-palette", Scene: CommandPaletteScene },
   { name: "panel", Scene: PanelScene },
+  { name: "sparkline", Scene: SparklineScene },
 ]
 export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4"]

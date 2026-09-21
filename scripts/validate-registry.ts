@@ -103,6 +103,18 @@ for (const item of registry.items) {
   }
   if (primary && path.basename(primary).replace(/\.tsx?$/, "") !== id) fail(id, `primary file ${primary} must be named ${id}`)
 
+  // No two files in one item share a basename. When the CLI rewrites an import it gathers every file
+  // in the item whose name matches, sorts .tsx ahead of .ts, and only then prefers the path that was
+  // asked for. So `lib/x.ts` beside `ui/x.tsx` installs a component that imports itself.
+  const byBasename = new Map<string, string[]>()
+  for (const f of files) {
+    const base = path.basename(f.path).replace(/\.[^.]+$/, "")
+    byBasename.set(base, [...(byBasename.get(base) ?? []), f.path])
+  }
+  for (const [base, paths] of byBasename) {
+    if (paths.length > 1) fail(id, `files ${paths.join(" and ")} share the basename "${base}"; the CLI resolves an item's own imports by basename and would point one at the other. Rename one`)
+  }
+
   // source rules
   let exportsOfPrimary = new Set<string>()
   let usesCn = false
