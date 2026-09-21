@@ -31,7 +31,28 @@ nav a { color: var(--muted-foreground); }
 h2 { margin: 2.5rem 0 .75rem; font-size: .8rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
 .install { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
 .install p { margin: 0 0 .5rem; }
-pre { margin: 0 0 .75rem; padding: .9rem 1rem; overflow-x: auto; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+pre { margin: 0; padding: .9rem 2.75rem .9rem 1rem; overflow: auto; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+/* A code block: the pre, a copy button over its top-right corner, and for a command the package-manager tabs above it. */
+.code { position: relative; margin: 0 0 .75rem; }
+.copy { position: absolute; top: .45rem; right: .45rem; display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; padding: 0; color: var(--muted-foreground); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+.copy:hover, .copy:focus-visible, .copy[data-copied] { color: var(--foreground); }
+.copy:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.copy svg { width: 1rem; height: 1rem; }
+.copy .check-icon, .copy[data-copied] .copy-icon { display: none; }
+.copy[data-copied] .check-icon { display: block; }
+.command { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+.command pre { border: 0; border-radius: 0; background: none; }
+.command .copy { top: .35rem; }
+.managers { display: flex; align-items: center; gap: .15rem; padding: .35rem 2.75rem .35rem .5rem; border-bottom: 1px solid var(--border); color: var(--muted-foreground); }
+.managers .prompt { width: 1rem; height: 1rem; margin: 0 .4rem 0 .2rem; flex: none; }
+.managers [role="tab"] { font: inherit; font-size: .85rem; color: var(--muted-foreground); background: none; border: 1px solid transparent; padding: .15rem .5rem; border-radius: var(--radius); cursor: pointer; }
+.managers [role="tab"][aria-selected="true"] { color: var(--foreground); background: var(--background); border-color: var(--border); }
+.managers [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+/* One command shows: the page's data-pm, which site.js sets from the reader's last choice before the body parses. npm until then. */
+.command pre[data-pm] { display: none; }
+html:not([data-pm]) .command pre[data-pm="npm"], html[data-pm="npm"] .command pre[data-pm="npm"], html[data-pm="pnpm"] .command pre[data-pm="pnpm"], html[data-pm="yarn"] .command pre[data-pm="yarn"], html[data-pm="bun"] .command pre[data-pm="bun"] { display: block; }
+/* Without the script the tabs and the buttons would do nothing, so they are not there. */
+html:not(.js) .copy, html:not(.js) .managers { display: none; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: .65rem .9rem .65rem 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
 th { font-weight: 500; color: var(--muted-foreground); }
@@ -40,6 +61,8 @@ td.kind { white-space: nowrap; color: var(--muted-foreground); }
 .down { color: var(--down); }
 footer { margin-top: 3rem; font-size: .9rem; color: var(--muted-foreground); }
 </style>
+<!-- Blocking, in the head, so the page knows the reader's package manager before the first install block is parsed. -->
+<script src="/site.js"></script>
 </head>
 <body>
 <header>
@@ -54,7 +77,7 @@ footer { margin-top: 3rem; font-size: .9rem; color: var(--muted-foreground); }
 <main>
   <p class="lede">Trading-terminal components you install with <code>shadcn add</code>. The source lands in your repo and it's yours.</p>
 
-  <h2>Install</h2>
+  <h2 id="install">Install</h2>
   <div class="install">
     <div>
       <p>GitHub form</p>

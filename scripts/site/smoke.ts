@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 // Open the built site in a browser and check every preview: the docs page frames it, the embed page
-// mounts it, the iframe takes the height it reports, and nothing errors on the way.
+// mounts it, the iframe takes the height it reports, and nothing errors on the way. Then the landing
+// page: the install blocks switch package manager together, the choice survives to the next page,
+// and the copy buttons copy what is showing.
 //   bun scripts/site/smoke.ts [--dist site/dist] [--base https://tradecn.dev] [--port 4174] [--headers site/headers.json]
 // Without --base it serves --dist itself, with the index.html rewrite the CloudFront function does and
 // the security headers the edge sends (--headers names another file, to prove a policy breaks the pages).
@@ -8,7 +10,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { chromium, type Page } from "@playwright/test"
-import { DOCS_SCRIPT, HEADERS_FILE, PREVIEW_PATH } from "./build"
+import { HEADERS_FILE, PREVIEW_PATH, SITE_SCRIPT } from "./build"
 
 const { values: args } = parseArgs({
   options: {
@@ -34,9 +36,9 @@ function serve() {
       else if (pathname.lastIndexOf(".") <= pathname.lastIndexOf("/")) pathname += "/index.html"
       const file = Bun.file(path.join(dist, pathname))
       if (!(await file.exists())) return new Response("not found", { status: 404, headers })
-      // The docs script is a no-store round trip on the edge while the preview bundle is cached, so on
+      // The site script is a no-store round trip on the edge while the preview bundle is cached, so on
       // the live site a preview can mount before the page is listening. Make it lose that race here, every run.
-      if (pathname === `/${DOCS_SCRIPT}`) await Bun.sleep(300)
+      if (pathname === `/${SITE_SCRIPT}`) await Bun.sleep(300)
       return new Response(file, { headers })
     },
   })
@@ -60,7 +62,8 @@ if (!items.length) {
 
 const failures: string[] = []
 const browser = await chromium.launch()
-const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+// The copy buttons write the clipboard; the check reads it back.
+const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, permissions: ["clipboard-read", "clipboard-write"] })
 
 function watch(page: Page, label: string) {
   page.on("pageerror", (error) => failures.push(`${label}: page error: ${error.message}`))
@@ -68,6 +71,10 @@ function watch(page: Page, label: string) {
     if (message.type() === "error") failures.push(`${label}: console error: ${message.text()}`)
   })
 }
+
+/** What the last copy button put on the clipboard. */
+const clipboard = (page: Page) => page.evaluate(() => navigator.clipboard.readText())
+const firstLine = (error: unknown) => (error instanceof Error ? error.message.split("\n")[0] : String(error))
 
 for (const item of items) {
   const page = await context.newPage()
@@ -93,9 +100,50 @@ for (const item of items) {
     if (!(await page.locator("#preview-code pre code").isVisible())) failures.push(`${item}: the Code tab shows no code`)
     const code = await page.locator("#preview-code pre code").innerText()
     if (code.includes("@/registry/")) failures.push(`${item}: the Code tab shows a playground import, not the consumer's`)
+    // Its copy button puts that source on the clipboard, without the trailing newline.
+    const source = await page.locator("#preview-code pre code").evaluate((el) => el.textContent ?? "")
+    await page.locator("#preview-code .copy").click()
+    if ((await clipboard(page)) !== source.trimEnd()) failures.push(`${item}: the Code tab's copy button copied something else`)
+    // The Install section shows the pinned command under the page's package manager: npm until a reader picks one.
+    const install = await page.locator("#install + .command pre:visible code").innerText()
+    if (!install.startsWith(`npx shadcn@latest add tradecn/ui/${item}#v`)) failures.push(`${item}: the Install section shows "${install}"`)
     console.log(`ok  ${item.padEnd(26)} ${Math.round(height)}px`)
   } catch (error) {
-    failures.push(`${item}: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`)
+    failures.push(`${item}: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
+// The landing page: both install forms under package-manager tabs, a choice every block on the page
+// follows and the next page remembers, and copy buttons that copy what is showing.
+{
+  const page = await context.newPage()
+  watch(page, "landing")
+  try {
+    await page.goto(`${base}/`, { waitUntil: "load" })
+    const commands = page.locator(".command")
+    if ((await commands.count()) !== 2) failures.push(`landing: ${await commands.count()} install blocks, not the GitHub form and the namespace form`)
+    const showing = () => commands.locator("pre:visible code").allInnerTexts()
+    for (const text of await showing()) if (!text.startsWith("npx shadcn@latest add ")) failures.push(`landing: shows "${text}" before any choice; npm is the default`)
+    await page.getByRole("tab", { name: "pnpm" }).first().click()
+    for (const text of await showing()) if (!text.startsWith("pnpm dlx shadcn@latest add ")) failures.push(`landing: shows "${text}" after picking pnpm`)
+    const selected = await page.locator(".managers [role='tab'][aria-selected='true']").allInnerTexts()
+    if (selected.join(",") !== "pnpm,pnpm") failures.push(`landing: the tabs read "${selected.join(",")}" after picking pnpm on one block`)
+    await commands.first().locator(".copy").click()
+    const command = await clipboard(page)
+    if (!command.startsWith("pnpm dlx shadcn@latest add tradecn/ui/data-grid#v") || command.endsWith("\n")) failures.push(`landing: the copy button copied "${command}"`)
+    await page.locator(".code:not(.command) .copy").first().click()
+    if (!(await clipboard(page)).includes('"@tradecn": "')) failures.push("landing: the components.json block did not copy")
+    // The choice holds on the next page.
+    await page.goto(`${base}/docs/${items[0]}/`, { waitUntil: "load" })
+    const kept = await page.locator("#install + .command pre:visible code").innerText()
+    if (!kept.startsWith("pnpm dlx ")) failures.push(`${items[0]}: shows "${kept}" after pnpm was picked on the landing page`)
+    const tab = await page.locator("#install + .command [role='tab'][aria-selected='true']").innerText()
+    if (tab !== "pnpm") failures.push(`${items[0]}: the ${tab} tab is selected after pnpm was picked on the landing page`)
+    console.log("ok  landing page: the install blocks, their copy buttons, and the package manager choice")
+  } catch (error) {
+    failures.push(`landing: ${firstLine(error)}`)
   } finally {
     await page.close()
   }
@@ -108,4 +156,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ${failure}`)
   process.exit(1)
 }
-console.log(`\n${items.length} previews checked at ${base}`)
+console.log(`\n${items.length} previews and the landing page checked at ${base}`)

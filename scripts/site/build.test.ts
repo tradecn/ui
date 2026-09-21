@@ -2,19 +2,24 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 import {
+  codeBlocks,
+  commandFor,
   DOCS_TEMPLATE,
   docPages,
   escapeHtml,
   FAVICON,
   firstParagraph,
+  installSection,
   PAGES,
   readDocs,
   render,
   renderMarkdown,
+  renderPage,
   templateValues,
   THEME_ITEM,
+  withInstall,
 } from "./build"
-import type { Registry } from "./build"
+import type { Doc, Registry } from "./build"
 
 const root = resolve(import.meta.dirname, "../..")
 const registry = JSON.parse(readFileSync(resolve(root, "registry.json"), "utf8")) as Registry
@@ -23,10 +28,10 @@ const template = (page: string) => readFileSync(resolve(root, "site", page), "ut
 
 describe("the landing page", () => {
   const values = templateValues(registry, version)
-  const page = render(template("index.html"), values)
+  const page = renderPage(template("index.html"), values)
 
   it("renders every template without a placeholder left", () => {
-    for (const name of PAGES) expect(render(template(name), values)).not.toMatch(/\{\{\w+\}\}/)
+    for (const name of PAGES) expect(renderPage(template(name), values)).not.toMatch(/\{\{\w+\}\}/)
   })
 
   it("links the favicon the builder copies from the amber logo", () => {
@@ -44,15 +49,22 @@ describe("the landing page", () => {
   })
 
   it("links the item's own page when the tag ships a doc for it", () => {
-    const withDocs = render(template("index.html"), templateValues(registry, version, registry, new Set(["format"])))
+    const withDocs = renderPage(template("index.html"), templateValues(registry, version, registry, new Set(["format"])))
     expect(withDocs).toContain(`<a href="/docs/format/"><code>format</code></a>`)
     expect(withDocs).toContain(`https://github.com/tradecn/ui/blob/v${version}/docs/row-store.md`)
   })
 
-  it("shows both install forms and keeps the CLI's {name} placeholder intact", () => {
-    expect(page).toContain(`npx shadcn@latest add tradecn/ui/data-grid#v${version}`)
+  it("shows both install forms under pnpm, npm, yarn, and bun, and keeps the CLI's {name} placeholder intact", () => {
+    for (const run of ["npx", "pnpm dlx", "yarn dlx", "bunx --bun"]) {
+      expect(page).toContain(`${run} shadcn@latest add tradecn/ui/data-grid#v${version}`)
+      expect(page).toContain(`${run} shadcn@latest add @tradecn/data-grid`)
+    }
     expect(page).toContain(`"@tradecn": "https://tradecn.dev/r/{name}.json"`)
     expect(page).toContain(`/r/v${version}/{name}.json`)
+    expect(page.match(/<div class="code command">/g)).toHaveLength(2)
+    // The two commands and the components.json block each have a button; the JSON gets no tabs.
+    expect(page.match(/class="copy"/g)).toHaveLength(3)
+    expect(page).toContain('<h2 id="install">Install</h2>')
   })
 
   it("takes its palette from the terminal theme", () => {
@@ -87,6 +99,44 @@ describe("the landing page", () => {
     expect(values.items).not.toContain(`<code>${THEME_ITEM}</code>`)
     expect(values.palette).toContain("--primary:")
     expect(() => templateValues(early, "0.1.0")).toThrow(THEME_ITEM)
+  })
+})
+
+describe("code blocks", () => {
+  it("give every block a copy button and leave the block itself alone", () => {
+    const html = codeBlocks('<p>x</p>\n<pre><code class="language-tsx">a &lt; b\n</code></pre>\n')
+    expect(html).toContain('<p>x</p>\n<div class="code"><pre><code class="language-tsx">a &lt; b\n</code></pre><button type="button" class="copy" aria-label="Copy">')
+    expect(html).not.toContain("managers")
+    // Only a line that starts with npx is a command.
+    expect(codeBlocks("<pre><code>run npx foo</code></pre>")).not.toContain("managers")
+  })
+
+  it("offer a command under pnpm, npm, yarn, and bun, changing only the lines that start with npx", () => {
+    const html = codeBlocks('<pre><code class="language-bash">npx shadcn@latest add tradecn/ui/panel --diff   # look first\nnpx shadcn@latest add tradecn/ui/panel\n</code></pre>')
+    expect(html).toContain('<div class="managers" role="tablist" aria-label="Package manager">')
+    expect(html).toContain('<button type="button" role="tab" id="pm-1-npm" aria-controls="pm-1-npm-code" aria-selected="true" data-pm="npm">npm</button>')
+    expect(html).toContain('<button type="button" role="tab" id="pm-1-bun" aria-controls="pm-1-bun-code" aria-selected="false" data-pm="bun">bun</button>')
+    expect(html).toContain(
+      '<pre id="pm-1-pnpm-code" role="tabpanel" aria-labelledby="pm-1-pnpm" data-pm="pnpm"><code class="language-bash">pnpm dlx shadcn@latest add tradecn/ui/panel --diff   # look first\npnpm dlx shadcn@latest add tradecn/ui/panel\n</code></pre>',
+    )
+    expect(html).toContain('data-pm="npm"><code class="language-bash">npx shadcn@latest add tradecn/ui/panel --diff')
+    expect(html).toContain("yarn dlx shadcn@latest add tradecn/ui/panel --diff")
+    expect(html).toContain("bunx --bun shadcn@latest add tradecn/ui/panel --diff")
+    expect(["pnpm", "npm", "yarn", "bun"].map((name) => html.indexOf(`id="pm-1-${name}"`))).toEqual([...html.matchAll(/id="pm-1-\w+"/g)].map((match) => match.index))
+    expect(html.match(/class="copy"/g)).toHaveLength(1)
+  })
+
+  it("number the blocks so tabs and panels pair up across a page", () => {
+    const html = codeBlocks("<pre><code>npx a</code></pre>\n<pre><code>npx b</code></pre>")
+    expect(html).toContain('id="pm-1-npm"')
+    expect(html).toContain('id="pm-2-npm-code"')
+    const ids = [...html.matchAll(/ id="([^"]+)"/g)].map((match) => match[1])
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it("write the runner shadcn's site shows for each manager", () => {
+    expect(commandFor("npx shadcn@latest add x\n", "bunx --bun")).toBe("bunx --bun shadcn@latest add x\n")
+    expect(commandFor("echo npx\nnpx x", "pnpm dlx")).toBe("echo npx\npnpm dlx x")
   })
 })
 
@@ -137,17 +187,54 @@ describe("the docs pages", async () => {
     for (const doc of docs) expect(format).toContain(`href="/docs/${doc.slug}/"`)
   })
 
-  it("offers both install forms on an item page and none on the contract", () => {
-    expect(byPath.get("docs/panel/index.html")).toContain(`npx shadcn@latest add @tradecn/panel`)
-    expect(byPath.get("docs/panel/index.html")).toContain(`tradecn/ui/panel#v${version}`)
-    expect(byPath.get("docs/contract/index.html")).not.toContain("npx shadcn@latest add")
-    expect(byPath.get("docs/contract/index.html")).toContain(`docs/contract.md`)
+  it("puts an Install section with both forms on an item page, after the intro and before its first section", () => {
+    const panel = byPath.get("docs/panel/index.html") ?? ""
+    const install = panel.indexOf('<h2 id="install"><a href="#install">Install</a></h2>')
+    expect(install).toBeGreaterThan(0)
+    for (const run of ["npx", "pnpm dlx", "yarn dlx", "bunx --bun"]) {
+      expect(panel).toContain(`${run} shadcn@latest add tradecn/ui/panel#v${version}`)
+      expect(panel).toContain(`${run} shadcn@latest add @tradecn/panel`)
+    }
+    // The intro's usage block comes first; the doc's own sections follow.
+    expect(panel.indexOf('class="language-tsx"')).toBeLessThan(install)
+    expect(install).toBeLessThan(panel.indexOf('<h2 id="a-panel-is-a-hotkey-scope">'))
+    expect(panel).toContain('<a href="/#install">')
+    expect(panel).not.toContain("Install: <code>")
+  })
+
+  it("ends a page with no sections with the Install section, and puts none on the contract", () => {
+    const flash = byPath.get("docs/flash-cell/index.html") ?? ""
+    const install = flash.indexOf('<h2 id="install">')
+    expect(install).toBeGreaterThan(flash.lastIndexOf('class="language-tsx"'))
+    expect(install).toBeLessThan(flash.indexOf('class="foot"'))
+    const contract = byPath.get("docs/contract/index.html") ?? ""
+    expect(contract).not.toContain("shadcn@latest add")
+    expect(contract).not.toContain('id="install"')
+    expect(contract).toContain("docs/contract.md")
+  })
+
+  it("lands before the first section heading, or last, and refuses a doc with its own Install heading", () => {
+    expect(withInstall('<h1>t</h1>\n<p>a</p>\n<pre><code>u</code></pre>\n<h2 id="x">x</h2>\n<p>b</p>\n', "<h2>I</h2>")).toBe(
+      '<h1>t</h1>\n<p>a</p>\n<pre><code>u</code></pre>\n<h2>I</h2>\n<h2 id="x">x</h2>\n<p>b</p>\n',
+    )
+    expect(withInstall("<h1>t</h1>\n<p>a</p>\n", "<h2>I</h2>")).toBe("<h1>t</h1>\n<p>a</p>\n<h2>I</h2>\n")
+    expect(installSection("panel", "v1.2.3")).toContain("npx shadcn@latest add tradecn/ui/panel#v1.2.3")
+    const doc: Doc = { ...docs[0]!, html: '<h1 id="x">x</h1>\n<h2 id="install"><a href="#install">Install</a></h2>\n' }
+    expect(() => docPages([doc], values, template(DOCS_TEMPLATE))).toThrow(/Install heading/)
+  })
+
+  it("gives every code block on every page a copy button", () => {
+    for (const page of pages) {
+      // A plain <pre> is wrapped; an install block's four panels carry data-pm and share one button.
+      expect(page.html).not.toMatch(/(?<!<div class="code">)<pre>/)
+      expect(page.html.match(/<pre id="pm-/g)?.length ?? 0).toBe((page.html.match(/<div class="code command">/g)?.length ?? 0) * 4)
+    }
   })
 
   it("lists every page on the index and links the landing page to each item's page", () => {
     const index = byPath.get("docs/index.html") ?? ""
     for (const doc of docs) expect(index).toContain(`href="/docs/${doc.slug}/"`)
-    const landing = render(template("index.html"), values)
+    const landing = renderPage(template("index.html"), values)
     for (const doc of docs.filter((d) => d.item)) expect(landing).toContain(`<a href="/docs/${doc.slug}/"><code>${doc.slug}</code></a>`)
   })
 })

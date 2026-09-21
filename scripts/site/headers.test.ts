@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
-import { DOCS_SCRIPT, DOCS_TEMPLATE, HEADERS_FILE } from "./build"
+import { DOCS_TEMPLATE, HEADERS_FILE, SITE_SCRIPT } from "./build"
 
 const root = resolve(import.meta.dirname, "../..")
 const headers = JSON.parse(readFileSync(resolve(root, "site", HEADERS_FILE), "utf8")) as Record<string, string>
@@ -26,20 +26,23 @@ describe("the site's security headers", () => {
     expect(headers["x-frame-options"]).toBe("SAMEORIGIN")
   })
 
-  it("keep every script in a file: no inline script in the docs template, and the file the builder copies", () => {
-    const docs = readFileSync(resolve(root, "site", DOCS_TEMPLATE), "utf8")
+  it("keep every script in a file: no inline script in the templates, and the file the builder copies", () => {
     // In the head and blocking: the listener must exist before any preview iframe is parsed, or a
     // preview that mounts first posts its height to nobody. That is what happened on the live site.
-    const tag = `<script src="/${DOCS_SCRIPT}"></script>`
-    expect(docs).toContain(tag)
-    expect(docs.indexOf(tag)).toBeLessThan(docs.indexOf("</head>"))
-    expect(docs).not.toMatch(/<script[^>]*\b(defer|async)\b/)
-    expect(docs).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/)
-    const script = readFileSync(resolve(root, "site", DOCS_SCRIPT), "utf8")
+    // The landing page loads the same file, for its install blocks and copy buttons.
+    const tag = `<script src="/${SITE_SCRIPT}"></script>`
+    for (const name of ["index.html", DOCS_TEMPLATE]) {
+      const html = readFileSync(resolve(root, "site", name), "utf8")
+      expect(html).toContain(tag)
+      expect(html.indexOf(tag)).toBeLessThan(html.indexOf("</head>"))
+      expect(html).not.toMatch(/<script[^>]*\b(defer|async)\b/)
+      expect(html).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/)
+    }
+    const script = readFileSync(resolve(root, "site", SITE_SCRIPT), "utf8")
     expect(script).toContain('event.data.type !== "tradecn-preview"')
     expect(script).toContain("event.origin !== location.origin")
     const build = readFileSync(resolve(root, "scripts/site/build.ts"), "utf8")
-    expect(build).toContain('cp(join(root, "site", DOCS_SCRIPT), join(out, DOCS_SCRIPT))')
+    expect(build).toContain('cp(join(root, "site", SITE_SCRIPT), join(out, SITE_SCRIPT))')
   })
 
   it("are the ones the stack deploys and the smoke serves", () => {
