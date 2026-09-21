@@ -1,4 +1,5 @@
 import type { ComponentType } from "react"
+import { CommandPaletteScene } from "./command-palette"
 import { DataGridScene } from "./data-grid"
 import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
@@ -19,4 +20,5 @@ export const items: Record<string, ItemScene> = {
   "feed-health": { title: "feed-health", Scene: FeedHealthScene },
   "row-store": { title: "row-store", Scene: RowStoreScene },
   "use-hotkeys": { title: "use-hotkeys", Scene: UseHotkeysScene },
+  "command-palette": { title: "command-palette", Scene: CommandPaletteScene },
 }

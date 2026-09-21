@@ -18,6 +18,7 @@ You already have shadcn's menus and tooltips. This adds what a trading screen ne
 | [`data-grid`](docs/data-grid.md) | Virtualized grid on the row store. A delta to one row re-renders one row. |
 | [`feed-health`](docs/feed-health.md) | Per-feed state, data age, staleness tier. Drop counts for lanes that drop, gaps for lanes that don't. |
 | [`use-hotkeys`](docs/use-hotkeys.md) | Declare a binding once: the same list runs the keys and shows them. A panel's keys beat global ones. `x` won't cancel an order while you're typing, or under a dialog. |
+| [`command-palette`](docs/command-palette.md) | Your shadcn `command`, fed by an action registry and your symbol search. Shift+Enter runs a row's second action. Also a go-bar that reads `AAPL GP`. |
 
 ## It rides shadcn
 
