@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}} · tradecn/ui</title>
+<meta name="description" content="{{description}}">
+<meta name="color-scheme" content="dark">
+<link rel="canonical" href="{{siteUrl}}{{path}}">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root {
+{{palette}}
+  --font: {{font}};
+}
+* { box-sizing: border-box; }
+html { background: var(--background); color: var(--foreground); font: 15px/1.55 var(--font); -webkit-text-size-adjust: 100%; }
+body { margin: 0 auto; padding: 0 16px 4rem; max-width: 72rem; }
+a { color: var(--primary); text-decoration: none; }
+a:hover, a:focus-visible { text-decoration: underline; }
+code { font-family: var(--font); }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1.5rem; padding: 1.75rem 0 1rem; border-bottom: 1px solid var(--border); }
+header .name { display: flex; align-items: center; gap: .6rem; margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--foreground); }
+header .name svg { width: 1.5rem; height: 1.5rem; color: var(--primary); flex: none; }
+header .name .slash { color: var(--primary); }
+header .name .tag { margin-left: .75rem; color: var(--muted-foreground); font-weight: 400; font-size: .95rem; }
+header nav { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+header nav a { color: var(--muted-foreground); }
+.page { display: grid; grid-template-columns: 14rem minmax(0, 1fr); gap: 2.5rem; padding-top: 1.5rem; }
+aside { position: sticky; top: 1rem; align-self: start; }
+aside h2 { margin: .5rem 0 .5rem; font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
+aside ul { list-style: none; margin: 0 0 1.25rem; padding: 0; }
+aside li { padding: .15rem 0; }
+aside a { color: var(--muted-foreground); }
+aside a[aria-current="page"] { color: var(--primary); }
+article { max-width: 72ch; min-width: 0; }
+article h1 { margin: .5rem 0 1rem; font-size: 1.5rem; font-weight: 600; }
+article h2 { margin: 2.25rem 0 .75rem; font-size: 1.1rem; font-weight: 600; }
+article h3 { margin: 1.75rem 0 .5rem; font-size: 1rem; font-weight: 600; }
+article h1 a, article h2 a, article h3 a { color: inherit; }
+article p, article li { line-height: 1.65; }
+article ul, article ol { padding-left: 1.4rem; }
+article li { margin: .35rem 0; }
+article li::marker { color: var(--muted-foreground); }
+article code { padding: .1em .35em; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); font-size: .95em; }
+article pre { margin: 1rem 0; padding: .9rem 1rem; overflow-x: auto; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); line-height: 1.5; }
+article pre code { padding: 0; background: none; border: 0; font-size: 1em; }
+article blockquote { margin: 1rem 0; padding: 0 1rem; border-left: 2px solid var(--primary); color: var(--muted-foreground); }
+article table { border-collapse: collapse; width: 100%; }
+article th, article td { padding: .5rem .75rem .5rem 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+article th { color: var(--muted-foreground); font-weight: 500; }
+article hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+.foot { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: .9rem; color: var(--muted-foreground); }
+@media (max-width: 48rem) {
+  .page { grid-template-columns: 1fr; gap: 1.5rem; }
+  aside { position: static; }
+  aside ul { display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="name" href="/"><svg viewBox="0 0 256 256" fill="none" aria-hidden="true"><path d="M104 108L24 188M233 68L153 148M104.5 108.5L152.5 148" stroke="currentColor" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/></svg><span>tradecn<span class="slash">/</span>ui</span><span class="tag">{{tag}}</span></a>
+  <nav>
+    <a href="/docs/">Docs</a>
+    <a href="{{repoUrl}}">GitHub</a>
+    <a href="{{repoUrl}}/blob/{{tag}}/CHANGELOG.md">Changelog</a>
+    <a href="/r/registry.json">registry.json</a>
+  </nav>
+</header>
+<div class="page">
+  <aside>
+{{nav}}
+  </aside>
+  <article>
+{{content}}
+{{foot}}
+  </article>
+</div>
+</body>
+</html>
