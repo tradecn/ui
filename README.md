@@ -17,6 +17,7 @@ You already have shadcn's menus and tooltips. This adds what a trading screen ne
 | [`flash-cell`](docs/flash-cell.md) | Flashes up, down, or flat on change. Zero is flat, not up. |
 | [`data-grid`](docs/data-grid.md) | Virtualized grid on the row store. A delta to one row re-renders one row. |
 | [`feed-health`](docs/feed-health.md) | Per-feed state, data age, staleness tier. Drop counts for lanes that drop, gaps for lanes that don't. |
+| [`use-hotkeys`](docs/use-hotkeys.md) | Declare a binding once: the same list runs the keys and shows them. A panel's keys beat global ones. `x` won't cancel an order while you're typing, or under a dialog. |
 
 ## It rides shadcn
 
