@@ -94,6 +94,10 @@ export function render(template: string, values: Record<string, string>): string
 
 export const PAGES = ["index.html", "404.html"] as const
 export const FAVICON = "favicon.svg"
+/** The docs pages' script, a file so the site's Content-Security-Policy keeps script-src to 'self'. */
+export const DOCS_SCRIPT = "docs.js"
+/** The headers every response carries; the stack and the smoke both read this file. */
+export const HEADERS_FILE = "headers.json"
 export const DOCS_TEMPLATE = "docs.html"
 export const PREVIEW_TEMPLATE = "preview.html"
 /** Where the embedded previews live on the site: /preview/<item>/ and the bundle under /preview/assets/. */
@@ -379,6 +383,7 @@ async function main() {
   }
   // The amber mark: readable on a dark tab strip, and the same file the README shows in dark mode.
   await writeFile(join(out, FAVICON), await readFile(join(root, "assets", "logo-dark.svg")))
+  await cp(join(root, "site", DOCS_SCRIPT), join(out, DOCS_SCRIPT))
   const docsTemplate = await readFile(join(root, "site", DOCS_TEMPLATE), "utf8")
   for (const page of docPages(docs, values, docsTemplate, previews)) {
     await mkdir(join(out, dirname(page.path)), { recursive: true })

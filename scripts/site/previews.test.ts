@@ -183,10 +183,12 @@ describe("the preview card", () => {
     for (const page of without) expect(page.html).not.toContain("<iframe")
   })
 
-  it("has the tab and height plumbing in the docs template", () => {
+  it("has the tab and height plumbing in the docs script, and the layout in the template", () => {
     const docs = template(DOCS_TEMPLATE)
-    expect(docs).toContain('event.data.type !== "tradecn-preview"')
-    expect(docs).toContain("event.origin !== location.origin")
+    expect(docs).toContain('<script src="/docs.js" defer></script>')
     expect(docs).toContain("article > :not(.preview) { max-width: 72ch; }")
+    const script = readFileSync(resolve(root, "site", "docs.js"), "utf8")
+    expect(script).toContain('event.data.type !== "tradecn-preview"')
+    expect(script).toContain("event.origin !== location.origin")
   })
 })
