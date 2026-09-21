@@ -79,3 +79,39 @@ test("the command palette opens, runs both actions, and finds a symbol", async (
   await expect(last).toHaveAttribute("data-palette-last", "blotter")
   expect(errors).toEqual([])
 })
+
+// The symbol tag is the consumer's own input, so it is where the bases can differ. Type the instant
+// the field appears, with no wait for focus. Then the two things the panel promises: the link
+// carries the symbol, and focus comes back inside the panel so its keys still work.
+test("a panel retypes its symbol, carries it through a link group, and keeps its keys", async ({ page }) => {
+  const errors: string[] = []
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
+  page.on("pageerror", (e) => errors.push(e.message))
+  await page.goto("/")
+  const panel = page.locator("[data-slot='tradecn-panel']")
+  const follower = page.locator("[data-panel-follower]")
+  await expect(panel).toHaveAttribute("data-hotkey-scope", "panel:smoke-panel")
+  await expect(follower).toHaveAttribute("data-panel-follower", "ZN")
+  // The panel's own token, as a utility: the dot for group 1 paints `bg-link-1`.
+  const dot = await panel.getByRole("button", { name: "Link group 1, change" }).evaluate((el) => getComputedStyle(el).backgroundColor)
+  expect(dot, "bg-link-1 resolves to a color").not.toBe("rgba(0, 0, 0, 0)")
+  await panel.getByRole("button", { name: "Symbol ZN, change" }).click()
+  await page.keyboard.type("es")
+  await page.keyboard.press("Enter")
+  await expect(follower).toHaveAttribute("data-panel-follower", "ES")
+  const tag = panel.getByRole("button", { name: "Symbol ES, change" })
+  await expect(tag).toBeFocused()
+  await page.keyboard.press("k")
+  await expect(panel).toHaveAttribute("data-panel-keys", "1")
+  // Escape puts it back, and the letters typed into the field never reached the panel's key.
+  await tag.click()
+  await page.keyboard.type("kk")
+  await page.keyboard.press("Escape")
+  await expect(panel.getByRole("button", { name: "Symbol ES, change" })).toBeFocused()
+  await expect(follower).toHaveAttribute("data-panel-follower", "ES")
+  await expect(panel).toHaveAttribute("data-panel-keys", "1")
+  // Leaving the group: the follower keeps what it has, the panel moves on alone.
+  await panel.getByRole("button", { name: "Link group 1, change" }).click()
+  await expect(panel.getByRole("button", { name: "Link group 2, change" })).toBeVisible()
+  expect(errors).toEqual([])
+})

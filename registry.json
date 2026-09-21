@@ -325,6 +325,107 @@
           }
         ]
       }
+    },
+    {
+      "name": "panel",
+      "type": "registry:ui",
+      "title": "Panel",
+      "description": "The frame around a book, a chart, or a blotter. A panel is a hotkey scope, so its keys and its palette actions come with it. A header that is a drag handle, a symbol tag you click to retype, link groups that carry a symbol between panels and between windows, and a popout that moves the panel to its own window without remounting it.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [
+        "input"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/panel.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-link-group.tsx",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-popout.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-hotkeys.tsx",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/link-group.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/hotkeys.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "layout",
+        "chrome"
+      ],
+      "docs": "Adds the panel-active, panel-drag-target, panel-error, panel-sync, and link-1 to link-4 tokens. Composes your input. Link groups need a LinkGroupProvider above the panels; it opens a BroadcastChannel so other windows follow, and transport={null} keeps links in one window. Installs the hotkey registry alongside; a Panel works without a HotkeysProvider and its keys start working inside one.",
+      "meta": {
+        "components": [
+          {
+            "title": "Panel",
+            "description": "The frame, and the hotkey scope panel:<kind>."
+          },
+          {
+            "title": "PanelHeader",
+            "description": "The strip along the top, and the drag handle."
+          },
+          {
+            "title": "PanelTitle",
+            "description": "Names the panel, to the eye and to a screen reader."
+          },
+          {
+            "title": "PanelActions",
+            "description": "Your buttons at the far end of the header."
+          },
+          {
+            "title": "PanelContent",
+            "description": "The scrolling body."
+          },
+          {
+            "title": "SymbolTag",
+            "description": "The panel's symbol: click to retype, Enter commits, Escape and clicking away cancel."
+          },
+          {
+            "title": "LinkGroupDot",
+            "description": "The panel's link group as a color and a number; click to move to the next."
+          },
+          {
+            "title": "PanelPopout",
+            "description": "Renders its children in the page or in the popout window, without remounting them."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "link-1": "oklch(0.62 0.2 25)",
+          "link-2": "oklch(0.62 0.15 250)",
+          "link-3": "oklch(0.65 0.15 150)",
+          "link-4": "oklch(0.8 0.16 90)",
+          "panel-active": "var(--color-primary)",
+          "panel-drag-target": "var(--color-ring)",
+          "panel-error": "var(--color-destructive)",
+          "panel-sync": "oklch(0.7 0.12 220)"
+        },
+        "dark": {
+          "link-1": "oklch(0.7 0.19 25)",
+          "link-2": "oklch(0.7 0.14 250)",
+          "link-3": "oklch(0.74 0.14 150)",
+          "link-4": "oklch(0.85 0.15 90)",
+          "panel-active": "var(--color-primary)",
+          "panel-drag-target": "var(--color-ring)",
+          "panel-error": "var(--color-destructive)",
+          "panel-sync": "oklch(0.78 0.12 220)"
+        }
+      }
     }
   ]
 }
