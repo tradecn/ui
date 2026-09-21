@@ -31,7 +31,8 @@
     ".": {
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
-        "version.txt"
+        "version.txt",
+        "README.md"
       ],
       "initial-version": "0.1.0"
     }
