@@ -21,6 +21,9 @@ const registry = readRegistry()
 const problems: string[] = []
 
 for (const item of registry.items) {
+  // A theme's cssVars are written by hand and are the whole item. It has no files, so deriving them
+  // from "the tokens its files use" comes to nothing, and writing that back would delete the theme.
+  if (item.type === "registry:theme") continue
   const used = new Set<string>()
   for (const { source } of readItemSources(item)) for (const t of tokensUsedIn(source, names)) used.add(t)
   const want = cssVarsFor(used, tokens)

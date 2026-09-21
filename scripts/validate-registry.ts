@@ -183,6 +183,25 @@ for (const item of registry.items) {
   const expected = item.type === "registry:theme" ? item.cssVars : cssVarsFor(used, tokens)
   if (JSON.stringify(expected ?? null) !== JSON.stringify(item.cssVars ?? null)) fail(id, "cssVars are out of date; run `just tokens`")
 
+  // A theme is its cssVars and nothing else, so an empty one is an item that installs nothing. It is
+  // the explicit reset, which means it sets every tradecn token in both modes: a token added later
+  // and left out of a theme would keep the value tuned for whatever background the theme replaced.
+  if (item.type === "registry:theme") {
+    if (files.length) fail(id, "a theme has no files")
+    for (const scope of ["light", "dark"] as const) {
+      const vars = item.cssVars?.[scope]
+      if (!vars || !Object.keys(vars).length) {
+        fail(id, `a theme needs cssVars.${scope}`)
+        continue
+      }
+      for (const t of tokenNames) if (!(t in vars)) fail(id, `cssVars.${scope} does not set the "${t}" token; a theme sets every tradecn token`)
+      for (const [k, v] of Object.entries(vars)) {
+        if (k === "radius") continue
+        if (!/^oklch\(/.test(v) && !/^var\(--color-[\w-]+\)$/.test(v)) fail(id, `cssVars.${scope}.${k} must be oklch(...) or var(--color-<shadcn token>), got "${v}"`)
+      }
+    }
+  }
+
   // css: keyframes and third-party restyles only
   for (const key of Object.keys(item.css ?? {})) if (!CSS_KEYS.some((re) => re.test(key))) fail(id, `css key "${key}" is not allowed (only @keyframes tradecn-* and @layer components)`)
 

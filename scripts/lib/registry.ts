@@ -2,7 +2,8 @@
 import { readFileSync, existsSync } from "node:fs"
 import path from "node:path"
 
-export const ROOT = path.resolve(import.meta.dir, "../..")
+// `dirname`, not Bun's `dir`: the tests import this under Node, and Bun has both.
+export const ROOT = path.resolve(import.meta.dirname, "../..")
 export const REGISTRY_JSON = path.join(ROOT, "registry.json")
 export const TOKENS_JSON = path.join(ROOT, "registry/tradecn/tokens.json")
 export const DEPS_ALLOW_JSON = path.join(ROOT, "registry/tradecn/deps.allow.json")

@@ -8,6 +8,7 @@ import { FormatScene } from "./format"
 import { PanelScene } from "./panel"
 import { RowStoreScene } from "./row-store"
 import { SparklineScene } from "./sparkline"
+import { TradecnTerminalScene } from "./tradecn-terminal"
 import { UseHotkeysScene } from "./use-hotkeys"
 import { WatchlistScene } from "./watchlist"
 
@@ -29,4 +30,5 @@ export const items: Record<string, ItemScene> = {
   sparkline: { title: "sparkline", Scene: SparklineScene },
   watchlist: { title: "watchlist", Scene: WatchlistScene },
   blotter: { title: "blotter", Scene: BlotterScene },
+  "tradecn-terminal": { title: "tradecn-terminal", Scene: TradecnTerminalScene },
 }
