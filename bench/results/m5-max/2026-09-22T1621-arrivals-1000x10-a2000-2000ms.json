@@ -1,0 +1,38 @@
+{
+  "machine": "m5-max",
+  "date": "2026-09-22",
+  "done": true,
+  "params": {
+    "scenario": "arrivals",
+    "rows": 1000,
+    "visible": 60,
+    "cols": 10,
+    "updates": 2000,
+    "seconds": 10,
+    "preset": "rfq",
+    "hold": 0,
+    "warmupMs": 1000,
+    "arrivals": 2000,
+    "burstMs": 2000
+  },
+  "frames": 601,
+  "p50": 16.699999999999818,
+  "p99": 16.800000000000182,
+  "max": 16.80000000000109,
+  "mean": 16.666056572379368,
+  "droppedFrames": 0,
+  "droppedThresholdMs": 25.049999999999727,
+  "droppedAt": [],
+  "longTasks": 0,
+  "cellsPaintedPerFrame": 3.327787021630616,
+  "scriptP50": 0.10000000894069672,
+  "scriptP99": 4.100000008940697,
+  "scriptMax": 7.5999999940395355,
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+  "invariants": {
+    "focusedHeld": true,
+    "activeHeld": true,
+    "firstVisibleHeld": true,
+    "arrived": 2000
+  }
+}

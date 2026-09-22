@@ -5,6 +5,7 @@ import { useActiveInquiry } from "@/registry/tradecn/hooks/use-active-inquiry"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createInstrumentFormatter, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
+import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
 import { RfqStack, bySize, byTimeLeft, stackOrder, useRfqStackView, type RfqStackRow } from "@/registry/tradecn/ui/rfq-stack"
 
 // A pretend venue: inquiries arrive, most of them answered by a pretend auto-quoter, and each one
@@ -67,14 +68,19 @@ export function RfqStackScene() {
   const active = useActiveInquiry(view, { isEnded: (row) => ENDED.has(row.status) })
   const [rate, setRate] = useState(1)
   const [log, setLog] = useState("")
-  const burst = useRef(0)
+  const burst = useRef({ left: 0, perTick: 0 })
+  const startBurst = (n: number) => {
+    burst.current = { left: burst.current.left + n, perTick: Math.ceil((burst.current.left + n) / 8) }
+  }
 
-  // Arrivals at `rate` per second, a burst of forty on request, and the venue ending inquiries as they expire.
+  // Arrivals at `rate` per second, a burst spread over two seconds on request, and the venue ending inquiries as they expire.
   useEffect(() => {
     const t = setInterval(() => {
       const now = Date.now()
-      const n = burst.current > 0 ? Math.min(burst.current, 8) : Math.random() < rate / 4 ? 1 : 0
-      burst.current = Math.max(0, burst.current - n)
+      const steady = Math.floor(rate / 4) + (Math.random() < (rate % 4) / 4 ? 1 : 0)
+      const bursting = burst.current.left > 0 ? Math.min(burst.current.left, burst.current.perTick) : 0
+      burst.current.left = Math.max(0, burst.current.left - bursting)
+      const n = steady + bursting
       const upsert = Array.from({ length: n }, () => arrive(now))
       const patch = store
         .getIds()
@@ -124,17 +130,23 @@ export function RfqStackScene() {
           Inquiries arrive; about nine in ten are answered by the pretend auto-quoter and hidden under the threshold when small. The stack is sorted by size then time left and holds still for a second after any key or click. The one in the ticket stays there until you act or the venue ends it; arrivals never move it, the focus, or the viewport. Enter or a
           double click puts a row in the ticket.
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => (burst.current += 40)}>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button size="sm" variant="outline" onClick={() => startBurst(40)}>
             Burst of 40
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setRate((r) => (r >= 8 ? 1 : r * 2))}>
-            Rate ×{rate}
+          <Button size="sm" variant="outline" onClick={() => startBurst(2000)} data-rfq-burst>
+            Burst 2,000 over 2 s
           </Button>
-          <span className="text-muted-foreground" data-rfq-log>
-            {log || " "}
-          </span>
+          <label className="flex items-center gap-2 text-muted-foreground">
+            arrivals/s
+            <input type="range" min={0} max={50} value={rate} aria-label="arrivals per second" onChange={(e) => setRate(Number(e.target.value))} />
+            <span className="w-6 text-right lining-nums tabular-nums">{rate}</span>
+          </label>
+          <PerfMonitor compact lanes={[{ label: "Inquiries", store }]} className="ml-auto" />
         </div>
+        <span className="text-muted-foreground" data-rfq-log>
+          {log || " "}
+        </span>
         <div className="grid min-h-0 flex-1 grid-cols-[1fr_26rem] gap-4">
           <RfqStack store={store} view={view} activeId={active.activeId} onActivate={active.setActive} threshold={threshold} onThresholdChange={setThreshold} price={(v) => ust.price(v)} />
           <div>{inquiry ? <RfqTicket key={inquiry.id} inquiry={inquiry} actions={actions} autoFocus /> : <p className="text-muted-foreground">No open inquiry.</p>}</div>
