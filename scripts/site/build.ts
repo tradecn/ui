@@ -57,6 +57,32 @@ export function escapeHtml(text: string): string {
 /** An item's kind as the pages print it: `ui`, `hook`, `lib`, `block`, `theme`. */
 export const kindOf = (item: RegistryItem) => item.type.replace(/^registry:/, "")
 
+/** The sidebar's groups, in the order the sidebar, the pager, and the search list them. */
+export const GROUPS = ["Get Started", "Components", "Hooks", "Utilities", "Themes"] as const
+export type Group = (typeof GROUPS)[number]
+
+/**
+ * Which group a page is in. The site's own pages and the contract open the docs; every item sits with its
+ * kind, so a hook, a utility, and a theme are never listed as components. A block is a component the reader
+ * installs to `components/` rather than `components/ui/`, so it stays with them.
+ */
+export function groupOf(item?: RegistryItem): Group {
+  if (!item) return "Get Started"
+  switch (item.type) {
+    case "registry:hook":
+      return "Hooks"
+    case "registry:lib":
+      return "Utilities"
+    case "registry:theme":
+      return "Themes"
+    default:
+      return "Components"
+  }
+}
+
+/** The items the Components page indexes: the `ui` items and the blocks, in registry order. */
+export const componentItems = (registry: Registry) => registry.items.filter((item) => groupOf(item) === "Components")
+
 /** The item's own page when the tag ships a doc for it, the file on GitHub otherwise. */
 export const docHref = (item: RegistryItem, tag: string, docSlugs: ReadonlySet<string>) =>
   docSlugs.has(item.name) ? `/docs/${item.name}/` : `${REPO_URL}/blob/${tag}/docs/${item.name}.md`
@@ -380,9 +406,9 @@ export function themesList(registry: Registry, tag: string, docSlugs: ReadonlySe
   return `<ul>\n${themes.map((item) => `<li><a href="${docHref(item, tag, docSlugs)}"><code>${escapeHtml(item.name)}</code></a> ${escapeHtml(item.description ?? "")}</li>`).join("\n")}\n</ul>`
 }
 
-/** One card per item: its name, its kind, and its one line, linking its page. The Components index, and the opening page when the tag has no previews. */
-export function itemCards(registry: Registry, tag: string, docSlugs: ReadonlySet<string>): string {
-  const cards = registry.items.map(
+/** One card per item: its name, its kind, and its one line, linking its page. The Components index (the components only), and the opening page when the tag has no previews (every item). */
+export function itemCards(items: RegistryItem[], tag: string, docSlugs: ReadonlySet<string>): string {
+  const cards = items.map(
     (item) =>
       `<a class="card" href="${docHref(item, tag, docSlugs)}"><span class="card-title"><code>${escapeHtml(item.name)}</code><span class="kind">${escapeHtml(kindOf(item))}</span></span><span class="card-text">${escapeHtml(item.description ?? "")}</span></a>`,
   )
@@ -395,7 +421,7 @@ export function itemCards(registry: Registry, tag: string, docSlugs: ReadonlySet
  * preview on a docs page. A tag with no embed build gets the cards without the frames.
  */
 export function showcase(registry: Registry, tag: string, docSlugs: ReadonlySet<string>, previews: Previews): string {
-  if (!previews.embed) return itemCards(registry, tag, docSlugs)
+  if (!previews.embed) return itemCards(registry.items, tag, docSlugs)
   const cards = registry.items
     .filter((item) => previews.demos.has(item.name))
     .map((item) => {
@@ -426,9 +452,12 @@ export async function readSitePages(dir: string, values: Record<string, string>)
   )
 }
 
-/** The pages in the order the nav and the pager walk them: the site's own, the tag's other docs (the contract), then the items. */
+/**
+ * The pages in the order the nav and the pager walk them: the site's own, the tag's other docs (the contract),
+ * then the items group by group (components, hooks, utilities, themes), each group in registry order.
+ */
 export function siteDocs(site: Doc[], tagDocs: Doc[]): Doc[] {
-  return [...site, ...tagDocs.filter((doc) => !doc.item), ...tagDocs.filter((doc) => doc.item)]
+  return [...site, ...tagDocs.filter((doc) => !doc.item), ...GROUPS.flatMap((group) => tagDocs.filter((doc) => doc.item && groupOf(doc.item) === group))]
 }
 
 // The previews. A demo is playground/src/demos/<item>.tsx; the embed build is that app's dist/embed,
@@ -671,7 +700,7 @@ export function textOf(html: string): string {
 
 export type SearchSection = { id: string; heading: string; parent?: string; text: string }
 /** A page in the search index: where it is, what it is called, which sidebar group it is in, its opening text, and every h2 and h3 with the text under it. */
-export type SearchPage = { path: string; title: string; group: "Get Started" | "Components"; text: string; sections: SearchSection[] }
+export type SearchPage = { path: string; title: string; group: Group; text: string; sections: SearchSection[] }
 
 /**
  * The search index, from the docs in nav order. It reads each doc's own HTML, so the generated parts of an item's
@@ -690,7 +719,7 @@ export function searchIndex(docs: Doc[]): SearchPage[] {
       const text = textOf(doc.html.slice(match.index + whole.length, headings[index + 1]?.index ?? doc.html.length))
       return level === "3" && parent ? { id, heading, parent, text } : { id, heading, text }
     })
-    return { path: doc.path, title: doc.title, group: doc.item ? "Components" : "Get Started", text: textOf(intro), sections }
+    return { path: doc.path, title: doc.title, group: groupOf(doc.item), text: textOf(intro), sections }
   })
 }
 
@@ -717,16 +746,22 @@ export function toc(html: string): string {
   return `<h2>On this page</h2>\n<ul>\n${list}\n</ul>`
 }
 
-/** The sidebar: the site's own pages and the contract under Get Started, then every item under Components. */
+/**
+ * The sidebar: the site's own pages and the contract under Get Started, then the items under their own
+ * kinds: Components, Hooks, Utilities, Themes, each only when the tag has one. The Components heading links
+ * the Components index and the Themes heading the list on the Theming page; the other two are just headings.
+ */
 export function docsNav(docs: Doc[], current: string | null): string {
   const link = (doc: Doc) => `<li><a href="${doc.path}"${doc.slug === current ? ' aria-current="page"' : ""}>${escapeHtml(doc.label)}</a></li>`
-  const start = docs.filter((doc) => !doc.item)
-  const items = docs.filter((doc) => doc.item)
   const components = docs.find((doc) => doc.slug === "components")
-  return [
-    `<h2>Get Started</h2>\n<ul>\n${start.map(link).join("\n")}\n</ul>`,
-    `<h2>${components ? `<a href="${components.path}">Components</a>` : "Components"}</h2>\n<ul>\n${items.map(link).join("\n")}\n</ul>`,
-  ].join("\n")
+  const theming = docs.find((doc) => doc.slug === "theming")
+  const hrefs: Partial<Record<Group, string | undefined>> = { Components: components?.path, Themes: theming && `${theming.path}#themes` }
+  return GROUPS.flatMap((group) => {
+    const pages = docs.filter((doc) => groupOf(doc.item) === group)
+    if (!pages.length) return []
+    const href = hrefs[group]
+    return [`<h2>${href ? `<a href="${href}">${group}</a>` : group}</h2>\n<ul>\n${pages.map(link).join("\n")}\n</ul>`]
+  }).join("\n")
 }
 
 /** Which header section a page is in. */
@@ -799,7 +834,7 @@ export function sitePageValues(registry: Registry, values: Record<string, string
     dependencies: dependenciesTable(registry, tag, docSlugs),
     tokens: tokensTable(registry, tag, docSlugs),
     themes: themesList(registry, tag, docSlugs),
-    cards: itemCards(registry, tag, docSlugs),
+    cards: itemCards(componentItems(registry), tag, docSlugs),
     everyItem: everyItem(registry),
     changelog,
   }

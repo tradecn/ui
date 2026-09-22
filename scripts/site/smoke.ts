@@ -3,7 +3,8 @@
 // mounts it, the iframe takes the height it reports, and nothing errors on the way. Then the opening
 // page: the two ways in, and every item running in the showcase at the height it reported. Then the
 // Installation page: the install blocks switch package manager together, the choice survives to the
-// next page, and the copy buttons copy what is showing. Then the Components and Changelog pages answer.
+// next page, and the copy buttons copy what is showing. Then the Components and Changelog pages answer,
+// the Components index holds the components alone, and the sidebar groups the pages by kind.
 // Then the search: the button and mod+k open it, it lists every page, ranks a heading first, goes there
 // on Enter, and a key pressed inside a preview never opens it, nor its key a demo's palette.
 //   bun scripts/site/smoke.ts [--dist site/dist] [--base https://tradecn.dev] [--port 4174] [--headers site/headers.json]
@@ -196,14 +197,28 @@ for (const item of items) {
   }
 }
 
-// The Components and Changelog pages answer, and the index links every item's page.
+// The Components and Changelog pages answer; the Components index links every component's page and no hook,
+// utility, or theme; the sidebar groups the pages by kind the way the search index says.
 {
   const page = await context.newPage()
   watch(page, "docs")
   try {
+    const index = await page.request.get(`${base}/${SEARCH_INDEX}`)
+    const groupOf = new Map(((await index.json()) as SearchPage[]).map((entry) => [entry.path, entry.group]))
+    const groups = [...new Set(groupOf.values())]
+    if (!groups.includes("Components") || groups.length < 3) failures.push(`docs: the index groups the pages as ${groups.join(", ")}`)
     await page.goto(`${base}/docs/components/`, { waitUntil: "load" })
     for (const item of items) {
-      if (!(await page.locator(`.cards a.card[href='/docs/${item}/']`).count())) failures.push(`components: no card for ${item}`)
+      const card = await page.locator(`.cards a.card[href='/docs/${item}/']`).count()
+      const group = groupOf.get(`/docs/${item}/`)
+      if (group === "Components" && !card) failures.push(`components: no card for ${item}`)
+      if (group !== "Components" && card) failures.push(`components: a card for ${item}, which is in ${group}`)
+    }
+    const headings = await page.locator(".sidebar h2").evaluateAll((els) => els.map((el) => el.textContent ?? ""))
+    if (headings.join(",") !== groups.join(",")) failures.push(`docs: the sidebar is grouped as ${headings.join(", ")}, the index as ${groups.join(", ")}`)
+    for (const item of items) {
+      const heading = await page.locator(`.sidebar ul:has(a[href='/docs/${item}/'])`).locator("xpath=preceding-sibling::h2[1]").textContent()
+      if (heading !== groupOf.get(`/docs/${item}/`)) failures.push(`docs: ${item} is listed under ${heading}, the index says ${groupOf.get(`/docs/${item}/`)}`)
     }
     const changelog = await page.goto(`${base}/docs/changelog/`, { waitUntil: "load" })
     if (!changelog?.ok()) failures.push(`changelog: /docs/changelog/ answered ${changelog?.status()}`)
@@ -212,7 +227,7 @@ for (const item of items) {
     const intro = await page.goto(`${base}/docs/`, { waitUntil: "load" })
     if (!intro?.ok()) failures.push(`docs: /docs/ answered ${intro?.status()}`)
     if (!(await page.locator(".sidebar a[href='/docs/'][aria-current='page']").count())) failures.push("docs: /docs/ is not the Introduction in the sidebar")
-    console.log("ok  components, changelog, and introduction pages")
+    console.log(`ok  components, changelog, and introduction pages; the sidebar groups ${groups.join(", ")}`)
   } catch (error) {
     failures.push(`docs: ${firstLine(error)}`)
   } finally {
@@ -251,7 +266,9 @@ for (const item of items) {
     const listed = await options.evaluateAll((els) => els.map((el) => (el as HTMLAnchorElement).getAttribute("href")))
     if (listed.join(",") !== pages.map((entry) => entry.path).join(",")) failures.push(`search: an empty query lists ${listed.slice(0, 3).join(", ")}…, not the pages in nav order`)
     const groups = await dialog.locator(".search-page").evaluateAll((els) => els.map((el) => el.textContent ?? ""))
-    if (groups.join(",") !== "Get Started,Components") failures.push(`search: an empty query is grouped as ${groups.join(", ")}, not Get Started and Components`)
+    const expected = [...new Set(pages.map((entry) => entry.group))]
+    if (groups.join(",") !== expected.join(",")) failures.push(`search: an empty query is grouped as ${groups.join(", ")}, not ${expected.join(", ")}`)
+    if (!expected.includes("Hooks") || !expected.includes("Utilities")) failures.push(`search: the index has no Hooks or Utilities group (${expected.join(", ")})`)
     // A query groups its hits by page, the page named over them.
     await page.keyboard.type("flash")
     await page.waitForFunction(() => document.querySelector("dialog.search .search-page")?.textContent?.startsWith("flash-cell"), undefined, { timeout: 5_000 })
