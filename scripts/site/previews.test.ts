@@ -7,6 +7,7 @@ import {
   DOCS_TEMPLATE,
   docPages,
   fullPalette,
+  LIGHT_PALETTE,
   PREVIEW_TEMPLATE,
   previewBlock,
   previewPages,
@@ -110,14 +111,16 @@ describe("a theme on the site", () => {
     expect(css).toContain(`.dark {\n  --accent: ${theme.cssVars?.dark?.accent};`)
   })
 
-  it("gives the embed page every variable the theme sets, font included", () => {
-    const palette = fullPalette(theme)
-    for (const [token, value] of Object.entries(theme.cssVars?.light ?? {})) expect(palette).toContain(`  --${token}: ${value};`)
-    expect(palette).toContain(`  --font-sans: ${theme.cssVars?.theme?.["font-sans"]};`)
-    expect(() => fullPalette({ name: "bare", type: "registry:theme" })).toThrow(/bare/)
+  it("gives the embed page every variable the theme sets in a mode, font included", () => {
+    for (const mode of ["light", "dark"] as const) {
+      const palette = fullPalette(theme, mode)
+      for (const [token, value] of Object.entries(theme.cssVars?.[mode] ?? {})) expect(palette).toContain(`  --${token}: ${value};`)
+      expect(palette).toContain(`  --font-sans: ${theme.cssVars?.theme?.["font-sans"]};`)
+    }
+    expect(() => fullPalette({ name: "bare", type: "registry:theme" }, "dark")).toThrow(/bare/)
   })
 
-  it("wears its own palette on its own preview page and the site's everywhere else", async () => {
+  it("wears its own palette on its own preview page in both modes; every other page wears the terminal theme in dark and the site's light palette in light", async () => {
     const docs = await readDocs(resolve(root, "docs"), registry)
     const values = templateValues(registry, version, registry, new Set(docs.map((doc) => doc.slug)))
     const previews: Previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()) }
@@ -125,15 +128,30 @@ describe("a theme on the site", () => {
     expect(pages.size).toBe(registry.items.length)
     const classicPage = pages.get("preview/tradecn-terminal-classic/index.html") ?? ""
     const formatPage = pages.get("preview/format/index.html") ?? ""
-    expect(classicPage).toContain(`--down: ${classic.cssVars?.light?.down};`)
-    expect(formatPage).toContain(`--down: ${theme.cssVars?.light?.down};`)
-    expect(classic.cssVars?.light?.down).not.toBe(theme.cssVars?.light?.down)
+    // A theme's page: the theme's dark side under .dark and its light side under .light, every variable of each.
+    expect(classicPage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${classic.cssVars?.dark?.accent};`)
+    expect(classicPage).toContain(`:root.light {\n  color-scheme: light;\n  --accent: ${classic.cssVars?.light?.accent};`)
+    expect(classicPage).toContain(`--down: ${classic.cssVars?.dark?.down};`)
+    expect(classicPage.match(/--popover:/g)).toHaveLength(2)
+    // Any other page: the terminal theme's dark side, and in light the site's dozen alone, so the bundle's light palette shows through the rest.
+    expect(formatPage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${theme.cssVars?.dark?.accent};`)
+    expect(formatPage).toContain(`--down: ${theme.cssVars?.dark?.down};`)
+    expect(formatPage).toContain(`:root.light {\n  color-scheme: light;\n  --background: ${LIGHT_PALETTE.background};`)
+    expect(formatPage).toContain(`--down: ${LIGHT_PALETTE.down};`)
+    expect(formatPage).toContain(`--radius: 0rem;\n  --font-sans: ${theme.cssVars?.theme?.["font-sans"]};\n}`)
+    expect(formatPage.match(/--popover:/g)).toHaveLength(1)
+    expect(classic.cssVars?.dark?.down).not.toBe(theme.cssVars?.dark?.down)
     for (const html of pages.values()) {
       expect(html).not.toMatch(/\{\{\w+\}\}/)
       expect(html).toContain('<link rel="stylesheet" href="/preview/assets/embed-def.css">')
       expect(html).toContain('<script type="module" src="/preview/assets/embed-abc.js"></script>')
       expect(html).toContain('<meta name="robots" content="noindex">')
-      // The palette comes after the bundle's stylesheet, so it wins the cascade.
+      expect(html).toContain('<meta name="color-scheme" content="light dark">')
+      // The mode script puts the class on <html>, before the bundle; the template hard-codes none.
+      expect(html).not.toMatch(/<html[^>]*\bclass=/)
+      expect(html).toContain('<script src="/theme.js"></script>')
+      expect(html.indexOf("/theme.js")).toBeLessThan(html.indexOf("embed-def.css"))
+      // The palettes come after the bundle's stylesheet, so they win the cascade.
       expect(html.indexOf("embed-def.css")).toBeLessThan(html.indexOf("--background:"))
     }
     expect(formatPage).toContain('<div id="root" data-item="format"')

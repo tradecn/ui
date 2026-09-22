@@ -1,18 +1,27 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{item}} · tradecn/ui preview</title>
 <meta name="robots" content="noindex">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="light dark">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<!-- Blocking, before the bundle: the mode class is on <html> before the demo mounts, from the same choice the page around this made. -->
+<script src="/theme.js"></script>
 {{styles}}
 <style>
 /* After the bundle's stylesheet on purpose: these beat its palette and its @theme fonts, the way a theme
-   item's variables beat the defaults in a consumer's stylesheet. */
-:root {
-{{palette}}
+   item's variables beat the defaults in a consumer's stylesheet. Dark is the terminal theme over the
+   bundle's dark palette; light is the site's own palette over the bundle's light one, or a theme's own
+   light palette on that theme's page. theme.js puts one class or the other on <html>. */
+:root.dark {
+  color-scheme: dark;
+{{darkPalette}}
+}
+:root.light {
+  color-scheme: light;
+{{lightPalette}}
 }
 body { margin: 0; }
 </style>

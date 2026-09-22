@@ -7,6 +7,8 @@
 // and --embed at the tag's checkout while the templates in site/, the site's own pages, this script, and the palette
 // come from main. The palette is main's because a tag from before the theme existed has none to give. A tag from
 // before the previews existed has no embed build, and its pages go out without them.
+// The pages have a light and a dark mode. Dark is the terminal theme; light is the site's own palette below, because
+// both themes are black in either mode. site/theme.js puts the mode on <html>, from the reader's choice or the system.
 import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { parseArgs } from "node:util"
@@ -33,6 +35,30 @@ const PALETTE = [
   "down",
   "radius",
 ] as const
+export type PaletteToken = (typeof PALETTE)[number]
+
+/**
+ * The pages' light mode. The terminal themes are black in light and dark alike, on purpose, so the site's light
+ * side is its own: shadcn's neutral light warmed toward the terminal's amber, which is deepened until it reads
+ * as text on white (5.2:1) and on the card gray (4.8:1). `up` and `down` are the light values the items add, so
+ * the soft shades installed beside them match in a preview. Square corners and the monospace stack stay.
+ */
+export const LIGHT_PALETTE: Record<PaletteToken, string> = {
+  background: "oklch(1 0 0)",
+  foreground: "oklch(0.2 0.01 85)",
+  card: "oklch(0.97 0.004 85)",
+  "card-foreground": "oklch(0.2 0.01 85)",
+  border: "oklch(0.88 0.006 85)",
+  muted: "oklch(0.95 0.004 85)",
+  "muted-foreground": "oklch(0.5 0.012 85)",
+  primary: "oklch(0.54 0.12 65)",
+  "primary-foreground": "oklch(0.99 0.01 85)",
+  ring: "oklch(0.6 0.12 65)",
+  destructive: "oklch(0.577 0.245 27.325)",
+  up: "oklch(0.58 0.14 165)",
+  down: "oklch(0.58 0.19 45)",
+  radius: "0rem",
+}
 
 export type RegistryFile = { path: string; type: string; target?: string }
 export type RegistryItem = {
@@ -100,6 +126,16 @@ const SEARCH_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
  */
 export const SEARCH_BUTTON = `<button type="button" class="search-button" aria-label="Search the docs" aria-keyshortcuts="Meta+K Control+K">${SEARCH_ICON}<span>Search the docs</span><kbd>⌘K</kbd></button>`
 
+/** A circle, half filled: the one mark for both modes, as shadcn's site draws it. */
+const MODE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor" stroke="none"/></svg>`
+
+/**
+ * The mode button at the end of the header: one press switches light and dark, and theme.js writes what the
+ * next press would do into the label. Without a script it switches nothing, so the stylesheet hides it, and
+ * the page follows the system through its palette alone.
+ */
+export const MODE_BUTTON = `<button type="button" class="mode-toggle" aria-label="Toggle theme">${MODE_ICON}</button>`
+
 /**
  * The search dialog, on the opening page and every docs page, closed until the button or mod+k opens it.
  * A native dialog: the browser gives it the top layer, the backdrop, Escape, and focus back to the button.
@@ -114,7 +150,7 @@ export function searchDialog(): string {
   ].join("\n")
 }
 
-/** The header on every page: the mark, the three sections, the search, and the links out. `current` marks the section a page is in, `page` that it is the section's own page. */
+/** The header on every page: the mark, the three sections, the search, the links out, and the mode button. `current` marks the section a page is in, `page` that it is the section's own page. */
 export function siteHeader(tag: string, current: Section | null = null, page = false): string {
   const link = (section: Section, href: string, text: string) =>
     `<a href="${href}"${section === current ? ` aria-current="${page ? "page" : "true"}"` : ""}>${text}</a>`
@@ -123,10 +159,29 @@ export function siteHeader(tag: string, current: Section | null = null, page = f
     `<div class="wrap">`,
     `<a class="name" href="/">${MARK}<span>tradecn<span class="slash">/</span>ui</span></a>`,
     `<nav aria-label="Sections">${link("docs", "/docs/", "Docs")}${link("components", "/docs/components/", "Components")}${link("changelog", "/docs/changelog/", "Changelog")}</nav>`,
-    `<nav class="side" aria-label="Links">${SEARCH_BUTTON}<a href="${REPO_URL}">GitHub</a><a href="/r/registry.json">registry.json</a><span class="tag">${escapeHtml(tag)}</span></nav>`,
+    `<nav class="side" aria-label="Links">${SEARCH_BUTTON}<a href="${REPO_URL}">GitHub</a><a href="/r/registry.json">registry.json</a><span class="tag">${escapeHtml(tag)}</span>${MODE_BUTTON}</nav>`,
     `</div>`,
     `</header>`,
   ].join("\n")
+}
+
+/**
+ * The pages' palette, both modes in one block: each token is a `light-dark()` pair of the site's light value and
+ * the terminal theme's, or one value when they agree. `color-scheme` picks the side: `light dark` here follows
+ * the system, and the stylesheet forces one under the class theme.js puts on <html>. So the 404 page, which has
+ * no script, still has both modes, from this alone.
+ */
+export function pagePalette(theme: RegistryItem): string {
+  const light = theme.cssVars?.light
+  if (!light) throw new Error(`${theme.name} has no cssVars.light and the page takes its palette from it`)
+  // The theme's dark side, with its light side under it for a token dark leaves alone (the radius).
+  const dark = { ...light, ...theme.cssVars?.dark }
+  const lines = PALETTE.map((token) => {
+    const value = dark[token]
+    if (!value) throw new Error(`${theme.name} sets no ${token} token`)
+    return `  --${token}: ${value === LIGHT_PALETTE[token] ? value : `light-dark(${LIGHT_PALETTE[token]}, ${value})`};`
+  })
+  return ["  color-scheme: light dark;", ...lines].join("\n")
 }
 
 /** Every value the landing templates may use. Items and version come from `registry`, the palette from `themeSource`, the showcase from `previews`. */
@@ -139,13 +194,8 @@ export function templateValues(
 ): Record<string, string> {
   const tag = `v${version}`
   const theme = themeSource.items.find((item) => item.name === THEME_ITEM)
-  const light = theme?.cssVars?.light
-  if (!theme || !light) throw new Error(`${THEME_ITEM} has no cssVars.light and the page takes its palette from it`)
-  const palette = PALETTE.map((token) => {
-    const value = light[token]
-    if (!value) throw new Error(`${THEME_ITEM} sets no ${token} token`)
-    return `  --${token}: ${value};`
-  }).join("\n")
+  if (!theme) throw new Error(`${THEME_ITEM} is not in the theme source and the page takes its palette from it`)
+  const palette = pagePalette(theme)
   const font = theme.cssVars?.theme?.["font-sans"] ?? "ui-monospace, monospace"
   return {
     version,
@@ -240,6 +290,8 @@ export const PAGES = ["index.html", "404.html"] as const
 export const FAVICON = "favicon.svg"
 /** The pages' script, a file so the site's Content-Security-Policy keeps script-src to 'self'. */
 export const SITE_SCRIPT = "site.js"
+/** The mode script, on every page and every preview: light or dark onto <html>, before anything paints. */
+export const MODE_SCRIPT = "theme.js"
 /** The pages' one stylesheet; each page adds only its palette inline. */
 export const SITE_STYLES = "site.css"
 /** The search index: every page's title, headings, and text, which site.js fetches the first time the search opens. */
@@ -521,13 +573,25 @@ export function themeCss(item: RegistryItem): string {
     .join("\n\n")
 }
 
-/** Every variable a theme sets, for the embed page's `:root`: the whole palette, not the landing page's dozen. */
-export function fullPalette(theme: RegistryItem): string {
-  const light = theme.cssVars?.light ?? {}
+/** Every variable a theme sets in one mode, for the embed page's `:root.<mode>`: the whole palette, not the pages' dozen. */
+export function fullPalette(theme: RegistryItem, mode: "light" | "dark"): string {
+  const vars = theme.cssVars?.[mode] ?? {}
   const font = theme.cssVars?.theme?.["font-sans"]
-  const lines = Object.entries(light).map(([token, value]) => `  --${token}: ${value};`)
+  const lines = Object.entries(vars).map(([token, value]) => `  --${token}: ${value};`)
   if (font) lines.push(`  --font-sans: ${font};`)
-  if (!lines.length) throw new Error(`${theme.name} sets no variables`)
+  if (!lines.length) throw new Error(`${theme.name} sets no ${mode} variables`)
+  return lines.join("\n")
+}
+
+/**
+ * The embed page's light side for an item that is not a theme: the site's light palette over the bundle's own
+ * light one, in the theme's font, so a demo looks like the light page that frames it. The bundle keeps every
+ * token this does not name (accent, popover, the sidebar) and the light values the items themselves add.
+ */
+export function siteLightPalette(theme: RegistryItem): string {
+  const lines = PALETTE.map((token) => `  --${token}: ${LIGHT_PALETTE[token]};`)
+  const font = theme.cssVars?.theme?.["font-sans"]
+  if (font) lines.push(`  --font-sans: ${font};`)
   return lines.join("\n")
 }
 
@@ -805,8 +869,9 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
 }
 
 /**
- * One page per demo at /preview/<item>/, around the embed bundle. A theme's page wears that theme; every
- * other page wears the site's, from `themeSource`, so a demo looks like the docs page that frames it.
+ * One page per demo at /preview/<item>/, around the embed bundle, with a palette for each mode. A theme's page
+ * wears that theme in both; every other page wears the site's, from `themeSource`, in dark and the site's own
+ * light palette in light, so a demo looks like the docs page that frames it.
  */
 export function previewPages(registry: Registry, themeSource: Registry, previews: Previews, values: Record<string, string>, template: string): Array<{ path: string; html: string }> {
   const { embed } = previews
@@ -818,10 +883,17 @@ export function previewPages(registry: Registry, themeSource: Registry, previews
     .filter((demo) => registry.items.some((item) => item.name === demo.name))
     .map((demo) => {
       const item = registry.items.find((entry) => entry.name === demo.name)!
-      const theme = item.type === "registry:theme" ? item : site
+      const theme = item.type === "registry:theme" ? item : null
       return {
         path: `${PREVIEW_PATH}/${demo.name}/index.html`,
-        html: render(template, { ...values, item: escapeHtml(demo.name), palette: fullPalette(theme), styles, script: embed.script }),
+        html: render(template, {
+          ...values,
+          item: escapeHtml(demo.name),
+          darkPalette: fullPalette(theme ?? site, "dark"),
+          lightPalette: theme ? fullPalette(theme, "light") : siteLightPalette(site),
+          styles,
+          script: embed.script,
+        }),
       }
     })
 }
@@ -875,6 +947,7 @@ async function main() {
   // The amber mark: readable on a dark tab strip, and the same file the README shows in dark mode.
   await writeFile(join(out, FAVICON), await readFile(join(root, "assets", "logo-dark.svg")))
   await cp(join(root, "site", SITE_SCRIPT), join(out, SITE_SCRIPT))
+  await cp(join(root, "site", MODE_SCRIPT), join(out, MODE_SCRIPT))
   await cp(join(root, "site", SITE_STYLES), join(out, SITE_STYLES))
   const docsTemplate = await readFile(join(root, "site", DOCS_TEMPLATE), "utf8")
   for (const page of docPages(docs, values, docsTemplate, previews, sources)) {
