@@ -101,6 +101,8 @@ Persistence is yours. `group`, `defaultGroup`, and `onGroupChange` control the g
 
 The provider opens a `BroadcastChannel` named `tradecn-link`, so every same-origin window or tab with a provider follows. `channel="rates"` renames it, `transport={null}` keeps links inside one window, and `transport` takes anything with `post(message)` and `subscribe(cb)`, which is how a desktop shell uses its own events instead. The channel opens when the provider mounts and closes when it unmounts.
 
+For a shell whose windows are separate JavaScript contexts and cannot share a channel (a desktop app that gives each window its own webview), `createCallbackTransport({ send, receive })` makes a transport from the shell's own two functions: `send` puts a message on the shell's event bus, and `receive` hands what arrives to the transport and returns the way to stop listening. It is called for the first subscriber and stopped with the last, and what arrives is checked before it reaches a store. Each window then runs its own `LinkGroupProvider` with that transport, and the shell forwards between them.
+
 A store that connects asks the others what they hold, so a window opened late shows the group's symbol instead of nothing. When two windows write at once the higher version wins, and on a tie the higher window id, so both settle on the same symbol. Messages are validated on the way in. `createLinkGroupStore()` is the store without React, and `store` on the provider takes one you made.
 
 One narrow race is not closed: a window that reloads and writes within a few milliseconds, before the others have answered its hello, can have that first write replaced by what they held.

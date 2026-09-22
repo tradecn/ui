@@ -166,6 +166,46 @@ export function createLinkGroupStore(options: LinkGroupStoreOptions = {}): LinkG
   }
 }
 
+export interface CallbackTransportOptions {
+  /** Send a message to the other windows: a desktop shell's event, a socket, a worker's port. */
+  send: (message: LinkMessage) => void
+  /**
+   * Deliver what the other windows send to `deliver`, and return the way to stop. Called once, for the
+   * first subscriber; its return is called when the last subscriber leaves. What arrives is checked
+   * before it reaches a store, so hand over whatever the channel carries.
+   */
+  receive: (deliver: (message: unknown) => void) => () => void
+}
+
+/**
+ * A transport over two functions, for a shell whose windows are separate JavaScript contexts and
+ * cannot share a `BroadcastChannel`: each window runs its own provider, and the shell's own events
+ * carry the links between them.
+ */
+export function createCallbackTransport({ send, receive }: CallbackTransportOptions): LinkTransport {
+  const listeners = new Set<(message: LinkMessage) => void>()
+  let stop: (() => void) | null = null
+  return {
+    post(message) {
+      send(message)
+    },
+    subscribe(cb) {
+      listeners.add(cb)
+      if (!stop) {
+        stop = receive((message) => {
+          if (isLinkMessage(message)) for (const l of [...listeners]) l(message)
+        })
+      }
+      return () => {
+        listeners.delete(cb)
+        if (listeners.size || !stop) return
+        stop()
+        stop = null
+      }
+    },
+  }
+}
+
 /** Every same-origin window and tab that opens this channel name shares links. The channel opens with the first subscriber and closes with the last. */
 export function createBroadcastChannelTransport(name = "tradecn-link"): LinkTransport {
   const listeners = new Set<(message: LinkMessage) => void>()
