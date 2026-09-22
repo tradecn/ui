@@ -2,7 +2,7 @@
 // Open the built site in a browser and check every preview: the docs page frames it, the embed page
 // mounts it, every number in it is set in lining tabular figures (contract rule 14), the iframe takes the
 // height it reports, and nothing errors on the way. Then the opening
-// page: the two ways in, and every item running in the showcase at the height it reported. Then the
+// page: the two ways in, the header's GitHub mark linking the repository, and every item running in the showcase at the height it reported. Then the
 // Installation page: the install blocks switch package manager together, the choice survives to the
 // next page, and the copy buttons copy what is showing. Then the Components and Changelog pages answer,
 // the Components index holds the components alone, and the sidebar groups the pages by kind.
@@ -187,7 +187,7 @@ for (const item of items) {
   }
 }
 
-// The opening page: the two ways in, and every item running in the showcase at the height it reported.
+// The opening page: the two ways in, the header's GitHub mark, and every item running in the showcase at the height it reported.
 {
   const page = await context.newPage()
   watch(page, "opening")
@@ -198,6 +198,18 @@ for (const item of items) {
       ["View Components", "/docs/components/"],
     ]) {
       if (!(await page.locator(`.hero a.button[href='${href}']`, { hasText: text }).count())) failures.push(`opening: no "${text}" button to ${href}`)
+    }
+    // The header links the repository through GitHub's mark alone: a link named GitHub with no visible text, big enough to press.
+    const github = page.locator(".site-header nav a.github")
+    if ((await github.count()) !== 1) failures.push(`opening: ${await github.count()} GitHub links in the header, not one`)
+    else {
+      if ((await github.getAttribute("href")) !== "https://github.com/tradecn/ui") failures.push(`opening: the GitHub mark links ${await github.getAttribute("href")}`)
+      if (!(await page.getByRole("link", { name: "GitHub", exact: true }).count())) failures.push("opening: the GitHub mark has no accessible name")
+      if ((await github.innerText()).trim() !== "") failures.push(`opening: the GitHub link shows text "${await github.innerText()}"`)
+      const box = await github.boundingBox()
+      if (!box || box.width < 24 || box.height < 24) failures.push(`opening: the GitHub mark is ${box ? `${Math.round(box.width)}x${Math.round(box.height)}` : "not"} visible`)
+      const mark = await github.locator("svg").boundingBox()
+      if (!mark || mark.width < 14) failures.push("opening: the GitHub mark's svg has no size")
     }
     const frames = page.locator(".showcase iframe[data-preview]")
     if ((await frames.count()) !== itemPreviews.length) failures.push(`opening: ${await frames.count()} items in the showcase, not ${itemPreviews.length}`)
