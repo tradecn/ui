@@ -8,6 +8,7 @@ import {
   consumerPath,
   DOCS_TEMPLATE,
   docPages,
+  componentItems,
   docsNav,
   escapeHtml,
   groupOf,
@@ -50,6 +51,7 @@ import {
   THEME_ITEM,
   themePalettes,
   themePicker,
+  titleOf,
   THEMES_META,
   themesMeta,
   toc,
@@ -421,12 +423,13 @@ describe("the search index", () => {
         description: "One line.",
         html: '<h1 id="introduction"><a href="#introduction">Introduction</a></h1>\n<p>One <code>line</code>.</p>\n<p>Two.</p>\n<h2 id="it-rides-shadcn"><a href="#it-rides-shadcn">It rides shadcn</a></h2>\n<p>Never copies.</p>\n<h2 id="0-1-5"><a href="https://example.com">0.1.5</a> (date)</h2>\n<h3 id="features"><a href="#features">Features</a></h3>\n<ul>\n<li>a thing</li>\n</ul>\n<h3 id="fixes"><a href="#fixes">Fixes</a></h3>\n<p>x &lt; y</p>\n',
       },
-      { slug: "format", path: "/docs/format/", label: "format", source: "format.md", title: "format", description: "", html: '<h1 id="format"><a href="#format">format</a></h1>\n<p>Prices in 32nds.</p>\n<pre><code class="language-tsx">formatPrice(99.5)</code></pre>\n', item: registry.items[0] },
+      { slug: "format", path: "/docs/format/", label: "Format", source: "format.md", title: "format", description: "", html: '<h1 id="format"><a href="#format">format</a></h1>\n<p>Prices in 32nds.</p>\n<pre><code class="language-tsx">formatPrice(99.5)</code></pre>\n', item: registry.items[0] },
     ]
     expect(searchIndex(docs)).toEqual([
       {
         path: "/docs/",
         title: "Introduction",
+        label: "Introduction",
         group: "Get Started",
         text: "One line. Two.",
         sections: [
@@ -436,7 +439,7 @@ describe("the search index", () => {
           { id: "fixes", heading: "Fixes", parent: "0.1.5 (date)", text: "x < y" },
         ],
       },
-      { path: "/docs/format/", title: "format", group: "Utilities", text: "Prices in 32nds. formatPrice(99.5)", sections: [] },
+      { path: "/docs/format/", title: "format", label: "Format", group: "Utilities", text: "Prices in 32nds. formatPrice(99.5)", sections: [] },
     ])
   })
 
@@ -517,13 +520,23 @@ describe("the docs pages", async () => {
     expect(byPath.has("docs/data-grid/index.html")).toBe(true)
   })
 
-  it("walks the site's pages, then the contract, then the items kind by kind, each kind in registry order", () => {
+  it("walks the site's pages, then the contract, then the items kind by kind, each kind alphabetical by title", () => {
     const itemSlugs = registry.items.map((item) => item.name).filter((name) => docSlugs.has(name))
     expect(tagDocs.filter((doc) => doc.item).map((doc) => doc.slug)).toEqual(itemSlugs)
-    const byGroup = GROUPS.flatMap((group) => registry.items.filter((item) => docSlugs.has(item.name) && groupOf(item) === group).map((item) => item.name))
+    const byGroup = GROUPS.flatMap((group) =>
+      registry.items
+        .filter((item) => docSlugs.has(item.name) && groupOf(item) === group)
+        .sort((a, b) => titleOf(a).localeCompare(titleOf(b), "en"))
+        .map((item) => item.name),
+    )
     expect(docs.map((doc) => doc.slug)).toEqual([...START_PAGES, "color", "contract", "typography", ...byGroup])
-    // The registry lists the utilities first; the pages put the components first and never mix the kinds.
+    // The registry lists the utilities first and the rest as they shipped; the pages put the components first, never mix the kinds, and sort each kind by the name the sidebar shows.
     expect(byGroup).not.toEqual(itemSlugs)
+    expect(docs.filter((doc) => groupOf(doc.item) === "Components").map((doc) => doc.label).slice(0, 4)).toEqual(["Alerts", "Audit Trail", "Blotter", "Column Chooser"])
+    // By title, not by slug: RFQ Stack sits before Rules Editor, and a hook is its exported name, useHotkeys.
+    expect(docs.filter((doc) => doc.slug.startsWith("r")).map((doc) => doc.label)).toEqual(["RFQ Stack", "RFQ Ticket", "Rules Editor", "Row Store"])
+    expect(docs.find((doc) => doc.slug === "use-hotkeys")?.label).toBe("useHotkeys")
+    expect(docs.filter((doc) => groupOf(doc.item) === "Utilities").map((doc) => doc.slug)).toEqual(["alert-store", "format", "grid-rules", "limits", "preferences", "row-store", "session-calendar"])
     expect(docs.filter((doc) => doc.item).map((doc) => groupOf(doc.item))).toEqual([
       ...Array(25).fill("Components"),
       "Hooks",
@@ -546,12 +559,12 @@ describe("the docs pages", async () => {
     const nav = docsNav(docs, "format")
     expect(nav).toContain('<h2>Get Started</h2>\n<ul>\n<li><a href="/docs/">Introduction</a></li>\n<li><a href="/docs/installation/">Installation</a></li>')
     expect(nav).toContain('<li><a href="/docs/changelog/">Changelog</a></li>\n<li><a href="/docs/color/">Color</a></li>\n<li><a href="/docs/contract/">The item contract</a></li>\n<li><a href="/docs/typography/">Typography</a></li>\n</ul>')
-    // A utility is not a component: format sits under Utilities, use-hotkeys under Hooks, the themes under Themes, and only the ui items and the block under Components.
-    expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/flash-cell/">flash-cell</a></li>')
-    expect(nav).toContain('<li><a href="/docs/workspace/">workspace</a></li>\n<li><a href="/docs/ticket/">ticket</a></li>\n<li><a href="/docs/countdown/">countdown</a></li>\n<li><a href="/docs/quote-field/">quote-field</a></li>\n<li><a href="/docs/rfq-ticket/">rfq-ticket</a></li>\n<li><a href="/docs/rfq-stack/">rfq-stack</a></li>\n<li><a href="/docs/perf-monitor/">perf-monitor</a></li>\n<li><a href="/docs/hotkey-editor/">hotkey-editor</a></li>\n<li><a href="/docs/column-chooser/">column-chooser</a></li>\n<li><a href="/docs/rules-editor/">rules-editor</a></li>\n<li><a href="/docs/alerts/">alerts</a></li>\n<li><a href="/docs/status-bar/">status-bar</a></li>\n<li><a href="/docs/parameter-grid/">parameter-grid</a></li>\n<li><a href="/docs/positions/">positions</a></li>\n<li><a href="/docs/audit-trail/">audit-trail</a></li>\n<li><a href="/docs/layout-manager/">layout-manager</a></li>\n<li><a href="/docs/instrument-search/">instrument-search</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">use-hotkeys</a></li>\n</ul>')
-    expect(nav).toContain('<h2>Utilities</h2>\n<ul>\n<li><a href="/docs/format/" aria-current="page">format</a></li>\n<li><a href="/docs/row-store/">row-store</a></li>\n<li><a href="/docs/grid-rules/">grid-rules</a></li>\n<li><a href="/docs/preferences/">preferences</a></li>\n<li><a href="/docs/alert-store/">alert-store</a></li>\n<li><a href="/docs/session-calendar/">session-calendar</a></li>\n<li><a href="/docs/limits/">limits</a></li>\n</ul>')
-    // Amber is the default theme, so it leads the group; the registry order is the sidebar's.
-    expect(nav).toContain('<h2><a href="/docs/theming/#themes">Themes</a></h2>\n<ul>\n<li><a href="/docs/tradecn-amber/">tradecn-amber</a></li>\n<li><a href="/docs/tradecn-slate/">tradecn-slate</a></li>\n<li><a href="/docs/tradecn-slate-east/">tradecn-slate-east</a></li>\n</ul>')
+    // A utility is not a component: format sits under Utilities, use-hotkeys under Hooks, the themes under Themes, and only the ui items and the blocks under Components.
+    // Each kind is alphabetical by the item's registry title and printed as that title: Data Grid, not data-grid; RFQ Stack before Rules Editor; a hook by its exported name, useHotkeys.
+    expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/alerts/">Alerts</a></li>\n<li><a href="/docs/audit-trail/">Audit Trail</a></li>\n<li><a href="/docs/blotter/">Blotter</a></li>\n<li><a href="/docs/column-chooser/">Column Chooser</a></li>\n<li><a href="/docs/command-palette/">Command Palette</a></li>\n<li><a href="/docs/countdown/">Countdown</a></li>\n<li><a href="/docs/data-grid/">Data Grid</a></li>\n<li><a href="/docs/feed-health/">Feed Health</a></li>\n<li><a href="/docs/flash-cell/">Flash Cell</a></li>\n<li><a href="/docs/hotkey-editor/">Hotkey Editor</a></li>\n<li><a href="/docs/instrument-search/">Instrument Search</a></li>\n<li><a href="/docs/layout-manager/">Layout Manager</a></li>\n<li><a href="/docs/panel/">Panel</a></li>\n<li><a href="/docs/parameter-grid/">Parameter Grid</a></li>\n<li><a href="/docs/perf-monitor/">Perf Monitor</a></li>\n<li><a href="/docs/positions/">Positions</a></li>\n<li><a href="/docs/quote-field/">Quote Field</a></li>\n<li><a href="/docs/rfq-stack/">RFQ Stack</a></li>\n<li><a href="/docs/rfq-ticket/">RFQ Ticket</a></li>\n<li><a href="/docs/rules-editor/">Rules Editor</a></li>\n<li><a href="/docs/sparkline/">Sparkline</a></li>\n<li><a href="/docs/status-bar/">Status Bar</a></li>\n<li><a href="/docs/ticket/">Ticket</a></li>\n<li><a href="/docs/watchlist/">Watchlist</a></li>\n<li><a href="/docs/workspace/">Workspace</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">useHotkeys</a></li>\n</ul>')
+    expect(nav).toContain('<h2>Utilities</h2>\n<ul>\n<li><a href="/docs/alert-store/">Alert Store</a></li>\n<li><a href="/docs/format/" aria-current="page">Format</a></li>\n<li><a href="/docs/grid-rules/">Grid Rules</a></li>\n<li><a href="/docs/limits/">Limits</a></li>\n<li><a href="/docs/preferences/">Preferences</a></li>\n<li><a href="/docs/row-store/">Row Store</a></li>\n<li><a href="/docs/session-calendar/">Session Calendar</a></li>\n</ul>')
+    // Amber is the default theme and first by name too; a theme is listed by its title, without the tradecn- prefix.
+    expect(nav).toContain('<h2><a href="/docs/theming/#themes">Themes</a></h2>\n<ul>\n<li><a href="/docs/tradecn-amber/">Amber</a></li>\n<li><a href="/docs/tradecn-slate/">Slate</a></li>\n<li><a href="/docs/tradecn-slate-east/">Slate East</a></li>\n</ul>')
     expect(nav).not.toContain("terminal")
     expect(nav.match(/<h2>/g)).toHaveLength(5)
     // A tag without a kind shows no heading for it.
@@ -574,8 +587,8 @@ describe("the docs pages", async () => {
   it("gives every page its headings down the right and the arrows beside its title", () => {
     const grid = at("docs/data-grid/index.html")
     expect(grid).toContain('<aside class="toc" aria-label="On this page">\n<h2>On this page</h2>\n<ul>\n<li><a href="#installation">Installation</a></li>\n<li><a href="#usage">Usage</a></li>\n<li><a href="#api-reference">API Reference</a>\n<ul>')
-    expect(grid).toContain('<nav class="arrows" aria-label="Previous and next">\n<a rel="prev" href="/docs/flash-cell/" aria-label="Previous: flash-cell">')
-    expect(grid).toContain('<a rel="next" href="/docs/feed-health/" aria-label="Next: feed-health">')
+    expect(grid).toContain('<nav class="arrows" aria-label="Previous and next">\n<a rel="prev" href="/docs/countdown/" aria-label="Previous: Countdown">')
+    expect(grid).toContain('<a rel="next" href="/docs/feed-health/" aria-label="Next: Feed Health">')
     expect(grid.indexOf('<nav class="arrows"')).toBeLessThan(grid.indexOf("<h1 "))
     const intro = at("docs/index.html")
     expect(intro).toContain('<nav class="arrows" aria-label="Previous and next">\n<span aria-hidden="true">')
@@ -623,6 +636,10 @@ describe("the docs pages", async () => {
       else expect(components, item.name).not.toContain(card)
     }
     expect(components.match(/<a class="card"/g)).toHaveLength(25)
+    // The cards are alphabetical by title, as the sidebar is: alerts, audit-trail, blotter lead, not flash-cell.
+    const order = [...components.matchAll(/<a class="card" href="\/docs\/([^/]+)\/"/g)].map((match) => match[1])
+    expect(order.slice(0, 3)).toEqual(["alerts", "audit-trail", "blotter"])
+    expect(order).toEqual(componentItems(registry).map((item) => item.name))
     expect(components).toContain('<span class="kind">block</span>')
     expect(components).not.toContain('<span class="kind">lib</span>')
     expect(components).not.toContain("<iframe")
@@ -752,11 +769,12 @@ describe("the docs pages", async () => {
     expect(at("docs/format/index.html")).not.toContain('<p class="built-on">')
     expect(at("docs/index.html")).toContain(`<nav class="pager" aria-label="Previous and next">\n<span></span>\n<a rel="next" href="/docs/installation/">Installation →</a>`)
     const last = docs.at(-1)!
-    expect(at(`docs/${last.slug}/index.html`)).toContain(`<a rel="prev" href="${docs.at(-2)!.path}">← ${docs.at(-2)!.slug}</a>\n<span></span>`)
+    expect(at(`docs/${last.slug}/index.html`)).toContain(`<a rel="prev" href="${docs.at(-2)!.path}">← ${docs.at(-2)!.label}</a>\n<span></span>`)
     expect(at("docs/color/index.html")).toContain(`<a rel="prev" href="/docs/changelog/">← Changelog</a>`)
     expect(at("docs/contract/index.html")).toContain(`<a rel="prev" href="/docs/color/">← Color</a>`)
     expect(at("docs/contract/index.html")).toContain(`<a rel="next" href="/docs/typography/">Typography →</a>`)
-    expect(at("docs/typography/index.html")).toContain(`<a rel="next" href="/docs/${items[0]!.slug}/">${items[0]!.slug} →</a>`)
+    expect(at("docs/typography/index.html")).toContain(`<a rel="next" href="/docs/${items[0]!.slug}/">${items[0]!.label} →</a>`)
+    expect(at("docs/typography/index.html")).toContain(`<a rel="next" href="/docs/alerts/">Alerts →</a>`)
   })
 
   it("refuses a doc with its own Installation heading, an item whose files the checkout lacks, and a site page with a placeholder the builder does not set", async () => {

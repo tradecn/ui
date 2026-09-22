@@ -103,8 +103,20 @@ export function groupOf(item?: RegistryItem): Group {
   }
 }
 
-/** The items the Components page indexes: the `ui` items and the blocks, in registry order. */
-export const componentItems = (registry: Registry) => registry.items.filter((item) => groupOf(item) === "Components")
+/** `use-hotkeys` as `useHotkeys`: the name a hook is exported under. */
+const camelCase = (name: string) => name.replace(/-(\w)/g, (_, letter: string) => letter.toUpperCase())
+
+/**
+ * An item's name as the sidebar, the pager, and the search print it: its registry title (`Data Grid`), a hook by
+ * the name it is exported under (`useHotkeys`), or its name for an item without a title.
+ */
+export const titleOf = (item: RegistryItem) => (item.type === "registry:hook" ? camelCase(item.name) : item.title ?? item.name)
+
+/** Alphabetical by title, the order a group of items is listed in. */
+const byTitle = (a: RegistryItem, b: RegistryItem) => titleOf(a).localeCompare(titleOf(b), "en")
+
+/** The items the Components page indexes: the `ui` items and the blocks, alphabetical by title. */
+export const componentItems = (registry: Registry) => registry.items.filter((item) => groupOf(item) === "Components").sort(byTitle)
 
 /** The item's own page when the tag ships a doc for it, the file on GitHub otherwise. */
 export const docHref = (item: RegistryItem, tag: string, docSlugs: ReadonlySet<string>) =>
@@ -373,9 +385,9 @@ export const POPOUT = "popout.html"
 
 export type RenderedDoc = { title: string; description: string; html: string }
 /**
- * A docs page. `path` is its URL, `label` what the nav and the pager call it (an item's name, another page's
- * title), `source` the markdown file's name, and `file` the repo path the foot names, when the page is a file
- * of the tag's and not the site's own.
+ * A docs page. `path` is its URL, `label` what the nav, the pager, and the search call it (an item's registry
+ * title, another page's own), `source` the markdown file's name, and `file` the repo path the foot names, when
+ * the page is a file of the tag's and not the site's own.
  */
 export type Doc = RenderedDoc & { slug: string; path: string; label: string; source: string; file?: string; item?: RegistryItem }
 
@@ -445,7 +457,7 @@ export async function readDocs(dir: string, registry: Registry): Promise<Doc[]> 
       const rendered = renderMarkdown(await readFile(join(dir, source), "utf8"))
       if (!rendered.title) throw new Error(`docs/${source} has no # title`)
       const item = registry.items.find((entry) => entry.name === slug)
-      return { ...rendered, slug, path: `/docs/${slug}/`, label: item ? slug : rendered.title, source, file: `docs/${source}`, item }
+      return { ...rendered, slug, path: `/docs/${slug}/`, label: item ? titleOf(item) : rendered.title, source, file: `docs/${source}`, item }
     }),
   )
   const order = new Map(registry.items.map((item, index) => [item.name, index]))
@@ -568,12 +580,16 @@ export async function readSitePages(dir: string, values: Record<string, string>)
   )
 }
 
+/** Alphabetical by the name the sidebar shows, so `RFQ Stack` sits before `Rules Editor` and a hook sorts as `useHotkeys`. */
+const byLabel = (a: Doc, b: Doc) => a.label.localeCompare(b.label, "en")
+
 /**
  * The pages in the order the nav and the pager walk them: the site's own, the tag's other docs (the contract),
- * then the items group by group (components, hooks, utilities, themes), each group in registry order.
+ * then the items group by group (components, hooks, utilities, themes), each group alphabetical by title. Get
+ * Started keeps its own order, since it is read front to back.
  */
 export function siteDocs(site: Doc[], tagDocs: Doc[]): Doc[] {
-  return [...site, ...tagDocs.filter((doc) => !doc.item), ...GROUPS.flatMap((group) => tagDocs.filter((doc) => doc.item && groupOf(doc.item) === group))]
+  return [...site, ...tagDocs.filter((doc) => !doc.item), ...GROUPS.flatMap((group) => tagDocs.filter((doc) => doc.item && groupOf(doc.item) === group).sort(byLabel))]
 }
 
 // The previews. A demo is playground/src/demos/<item>.tsx; the embed build is that app's dist/embed,
@@ -826,8 +842,8 @@ export function textOf(html: string): string {
 }
 
 export type SearchSection = { id: string; heading: string; parent?: string; text: string }
-/** A page in the search index: where it is, what it is called, which sidebar group it is in, its opening text, and every h2 and h3 with the text under it. */
-export type SearchPage = { path: string; title: string; group: Group; text: string; sections: SearchSection[] }
+/** A page in the search index: where it is, its title, the name the sidebar shows, which sidebar group it is in, its opening text, and every h2 and h3 with the text under it. */
+export type SearchPage = { path: string; title: string; label: string; group: Group; text: string; sections: SearchSection[] }
 
 /**
  * The search index, from the docs in nav order. It reads each doc's own HTML, so the generated parts of an item's
@@ -846,7 +862,7 @@ export function searchIndex(docs: Doc[]): SearchPage[] {
       const text = textOf(doc.html.slice(match.index + whole.length, headings[index + 1]?.index ?? doc.html.length))
       return level === "3" && parent ? { id, heading, parent, text } : { id, heading, text }
     })
-    return { path: doc.path, title: doc.title, group: groupOf(doc.item), text: textOf(intro), sections }
+    return { path: doc.path, title: doc.title, label: doc.label, group: groupOf(doc.item), text: textOf(intro), sections }
   })
 }
 
@@ -874,9 +890,10 @@ export function toc(html: string): string {
 }
 
 /**
- * The sidebar: the site's own pages and the contract under Get Started, then the items under their own
- * kinds: Components, Hooks, Utilities, Themes, each only when the tag has one. The Components heading links
- * the Components index and the Themes heading the list on the Theming page; the other two are just headings.
+ * The sidebar: the site's own pages and the contract under Get Started, in reading order, then the items by
+ * title under their own kinds: Components, Hooks, Utilities, Themes, each only when the tag has one. The
+ * Components heading links the Components index and the Themes heading the list on the Theming page; the other
+ * two are just headings.
  */
 export function docsNav(docs: Doc[], current: string | null): string {
   const link = (doc: Doc) => `<li><a href="${doc.path}"${doc.slug === current ? ' aria-current="page"' : ""}>${escapeHtml(doc.label)}</a></li>`
