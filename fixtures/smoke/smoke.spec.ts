@@ -479,6 +479,31 @@ test("an rfq ticket shows the inquiry, quotes against the market, sends from a k
   expect(errors).toEqual([])
 })
 
+// Three inquiries sorted by size with the biggest in the ticket; the venue ends it and the next takes
+// its place; Enter picks one; the threshold hides the small auto-quoted one and leaves the others.
+test("an rfq stack marks the active inquiry, moves on when the venue ends it, picks on Enter, and hides small auto quotes under the threshold", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='rfq-stack']")
+  const stack = scene.locator("[data-slot='tradecn-rfq-stack']")
+  const state = scene.locator("[data-rfq-active]")
+  await expect(stack.locator("[data-row-id]")).toHaveCount(3)
+  await expect(state).toHaveAttribute("data-rfq-active", "q2")
+  await expect(stack.locator("[data-row-id='q2']")).toHaveAttribute("data-state", "active")
+  await expect(stack.locator("[data-row-id='q1'] [role='timer']")).toHaveAttribute("data-tier", "plenty")
+  await scene.getByRole("button", { name: "venue ends q2" }).click()
+  await expect(state).toHaveAttribute("data-rfq-active", "q1")
+  await expect(stack.locator("[data-row-id='q1']")).toHaveAttribute("data-state", "active")
+  await expect(stack.locator("[data-row-id='q2']")).not.toHaveAttribute("data-state", "active")
+  // Enter on the focused row asks for it.
+  await stack.locator("[data-row-id='q3'] [role='gridcell']").first().click()
+  await page.keyboard.press("Enter")
+  await expect(state).toHaveAttribute("data-rfq-active", "q3")
+  // The threshold hides the auto-quoted 2mm inquiry and leaves the ones a person answers.
+  await stack.getByLabel("Hide auto under").fill("5")
+  await expect(stack.locator("[data-row-id]")).toHaveCount(2)
+  await expect(stack.locator("[data-row-id='q3']")).toHaveCount(0)
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.

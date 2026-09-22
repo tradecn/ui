@@ -1097,6 +1097,131 @@
       }
     },
     {
+      "name": "rfq-stack",
+      "type": "registry:ui",
+      "title": "RFQ Stack",
+      "description": "The stack of open inquiries: the data grid in its RFQ preset with an inquiry's columns, a compact countdown in every row on one shared clock, a threshold that hides the small auto-quoted ones, and a mark on the one in the ticket. The order is the desk's, held still under a hand; an arrival never moves the viewport, the focus, the mark, or the order. With it, useActiveInquiry: the one rule a stack and a ticket agree on, that the active inquiry stays until the trader acts or the server ends it, and an arrival never changes it.",
+      "dependencies": [
+        "cn@^0.3.0",
+        "@tanstack/react-virtual@^3.14.13"
+      ],
+      "registryDependencies": [
+        "checkbox",
+        "context-menu",
+        "dropdown-menu",
+        "input"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/rfq-stack.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/ui/data-grid.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/ui/countdown.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-active-inquiry.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-clock.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/clock.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "rfq",
+        "grid"
+      ],
+      "docs": "Installs the data grid, the countdown, the row store, format, and useActiveInquiry alongside, adds @tanstack/react-virtual and the up, down, flat, and expiring tokens, and composes your input plus the checkbox, context-menu, and dropdown-menu the grid uses. The order and the threshold are yours. The hook decides nothing about an inquiry being over: it reads the server's word through isEnded.",
+      "meta": {
+        "components": [
+          {
+            "title": "RfqStack",
+            "description": "The grid, the threshold field, and the active mark."
+          },
+          {
+            "title": "useRfqStackView",
+            "description": "The desk's order with the threshold folded in, for the stack and useActiveInquiry to share."
+          },
+          {
+            "title": "rfqStackColumns",
+            "description": "The default columns, as a list to spread into your own."
+          },
+          {
+            "title": "rfqThresholdFilter",
+            "description": "Hides an auto-quoted inquiry under a size; one a person answers always shows."
+          },
+          {
+            "title": "stackOrder",
+            "description": "One comparator from several: the first that tells two apart decides."
+          },
+          {
+            "title": "bySize",
+            "description": "Largest first."
+          },
+          {
+            "title": "byTimeLeft",
+            "description": "Soonest to end first."
+          },
+          {
+            "title": "byArrival",
+            "description": "Newest first."
+          },
+          {
+            "title": "formatStackSize",
+            "description": "The size as the desk says it: millions, or contracts."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.58 0.19 45)",
+          "down-soft": "oklch(0.58 0.19 45 / 18%)",
+          "expiring": "oklch(0.6 0.2 350)",
+          "expiring-soft": "oklch(0.6 0.2 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "up": "oklch(0.58 0.14 165)",
+          "up-soft": "oklch(0.58 0.14 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.74 0.18 45)",
+          "down-soft": "oklch(0.74 0.18 45 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      }
+    },
+    {
       "name": "tradecn-terminal",
       "type": "registry:theme",
       "title": "Terminal",
