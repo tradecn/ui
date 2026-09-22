@@ -566,14 +566,14 @@ for (const item of items) {
     await page.emulateMedia({ colorScheme: "light" })
     await page.goto(`${base}/`, { waitUntil: "load" })
     if (!(await select.isVisible())) failures.push("theme: no theme menu in the header")
-    // The menu sits left of the mode button and offers the themes the page declares, the site's own first: the themes with pages, whatever order the registry lists them in.
+    // The menu sits left of the mode button and offers the themes the page declares, the site's own first. Those are
+    // main's themes, while the pages are the tag's, so an older tag may have theme pages the menu lacks; each still wears its own.
     const [menuBox, buttonBox] = [await select.boundingBox(), await button.boundingBox()]
     if (!menuBox || !buttonBox || menuBox.x + menuBox.width > buttonBox.x || Math.abs(menuBox.y + menuBox.height / 2 - (buttonBox.y + buttonBox.height / 2)) > 4) failures.push(`theme: the menu (${JSON.stringify(menuBox)}) is not left of the mode button (${JSON.stringify(buttonBox)}) on its line`)
     const themes = await select.locator("option").evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value))
     const declared = await page.evaluate(() => (document.querySelector('meta[name="tradecn-themes"]') as HTMLMetaElement | null)?.content.split(" ") ?? [])
     if (themes.join(" ") !== declared.join(" ")) failures.push(`theme: the menu offers ${themes.join(", ")}, the page declares ${declared.join(", ")}`)
     if (themes[0] !== THEME_ITEM) failures.push(`theme: the menu offers ${themes[0]} first, not ${THEME_ITEM}`)
-    if ([...themes].sort().join() !== [...themePages].sort().join()) failures.push(`theme: the menu offers ${themes.join(", ")}, the site's theme pages are ${[...themePages].join(", ")}`)
     if ((await select.inputValue()) !== THEME_ITEM) failures.push(`theme: the menu shows ${await select.inputValue()} with no choice made`)
     if ((await themeOf(page)) !== THEME_ITEM) failures.push(`theme: the page wears ${await themeOf(page)} with no choice made`)
     if ((await stored(page)) !== null) failures.push(`theme: a choice (${await stored(page)}) is stored before any was made`)
