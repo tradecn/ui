@@ -1,0 +1,16 @@
+{
+  "$comment": "Written 2026-09-22 before the first arrivals run on this machine, never edited to pass. A burst of new rows is a different load from updates to old ones: rows mount, countdown cells mount for the visible ones, the viewport pins, and the focused row, the active inquiry, and the first visible row must not move. The gate is script time per frame at p99, no dropped frames, no long tasks, and the three ids held for the whole run. If it misses, this file stays as the record and a later file with its own date takes over.",
+  "machine": "Apple M5 Max, 128 GB, macOS 27.0, Playwright Chromium headless",
+  "writtenOn": "2026-09-22",
+  "scenario": "arrivals",
+  "rows": 1000,
+  "visible": 60,
+  "columns": 10,
+  "arrivals": 2000,
+  "burstMs": 2000,
+  "seconds": 10,
+  "scriptP99Ms": 8,
+  "droppedFramesAllowed": 0,
+  "longTasksAllowed": 0,
+  "invariantsHeld": true
+}
