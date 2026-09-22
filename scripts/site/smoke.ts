@@ -353,8 +353,14 @@ for (const item of items) {
     await page.keyboard.type("32nds")
     await page.waitForFunction(() => document.querySelector("dialog.search [role='option'][href='/docs/format/#prices']"), undefined, { timeout: 5_000 })
     if (!(await dialog.locator("mark", { hasText: "32nds" }).count())) failures.push("search: the matched word is not marked in the results")
-    // An item's page answers to the name `shadcn add` takes, to its own heading, and to the name the sidebar shows, and comes first for each.
-    for (const query of ["data-grid", "datagrid", "data grid"]) {
+    // An item's page answers to every name the index carries for it, and comes first for each: the name `shadcn add`
+    // takes (`data-grid`), its own heading (`DataGrid` on main; `data-grid` at a tag whose doc was still headed by the
+    // slug), and the name the sidebar shows (`Data Grid`). Read from the index, not assumed: the live pages are the
+    // tag's docs, and a dispatch of a tag from before a heading changed has to pass its own check.
+    const grid = pages.find((entry) => entry.path === "/docs/data-grid/")
+    if (!grid) failures.push("search: the index has no page for data-grid")
+    const gridNames = new Set([grid?.name, grid?.title, grid?.label].filter((name): name is string => Boolean(name)).map((name) => name.toLowerCase()))
+    for (const query of gridNames) {
       await page.fill("dialog.search input", query)
       await page.waitForFunction(() => document.querySelector("dialog.search .search-page")?.textContent?.startsWith("Data Grid"), undefined, { timeout: 5_000 }).catch(() => failures.push(`search: "${query}" does not put Data Grid first`))
     }
