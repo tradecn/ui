@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
-import { DOCS_TEMPLATE, FONTS_PATH, FONTS_STYLES, HEADERS_FILE, MODE_SCRIPT, PREVIEW_TEMPLATE, SITE_SCRIPT, SITE_STYLES } from "./build"
+import { DOCS_TEMPLATE, FONTS_PATH, FONTS_STYLES, HEADERS_FILE, MODE_SCRIPT, PREVIEW_TEMPLATE, SITE_SCRIPT, SITE_STYLES, THEMES_META } from "./build"
 
 const root = resolve(import.meta.dirname, "../..")
 const headers = JSON.parse(readFileSync(resolve(root, "site", HEADERS_FILE), "utf8")) as Record<string, string>
@@ -51,6 +51,13 @@ describe("the site's security headers", () => {
     expect(preview).toContain(mode)
     expect(preview.indexOf(mode)).toBeLessThan(preview.indexOf("</head>"))
     expect(preview).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/)
+    // The themes the script may put on <html> are declared in a meta before it, on the pages and the previews alike; the 404 page, with no script, declares none.
+    for (const name of ["index.html", DOCS_TEMPLATE, PREVIEW_TEMPLATE]) {
+      const html = readFileSync(resolve(root, "site", name), "utf8")
+      expect(html, name).toContain("{{themesMeta}}")
+      expect(html.indexOf("{{themesMeta}}"), name).toBeLessThan(html.indexOf(mode))
+    }
+    expect(readFileSync(resolve(root, "site", "404.html"), "utf8")).not.toContain("{{themesMeta}}")
     const script = readFileSync(resolve(root, "site", SITE_SCRIPT), "utf8")
     expect(script).toContain('event.data.type !== "tradecn-preview"')
     expect(script).toContain("event.origin !== location.origin")
@@ -60,6 +67,13 @@ describe("the site's security headers", () => {
     expect(modeScript).toContain('matchMedia("(prefers-color-scheme: dark)")')
     expect(modeScript).toContain("root.classList.toggle(other, other === mode)")
     expect(modeScript).toContain('addEventListener("storage"')
+    // The theme: its own key, the list from the meta (a stored theme the page does not know is no choice), data-theme on <html>, and the menu kept in step.
+    expect(modeScript).toContain('const THEME_KEY = "tradecn-palette"')
+    expect(modeScript).toContain(`document.querySelector('meta[name="${THEMES_META}"]')`)
+    expect(modeScript).toContain("THEMES.includes(stored) ? stored : null")
+    expect(modeScript).toContain("root.dataset.theme = theme")
+    expect(modeScript).toContain('querySelectorAll(".theme-select")')
+    expect(modeScript).toContain("event.key !== MODE_KEY && event.key !== THEME_KEY")
     const build = readFileSync(resolve(root, "scripts/site/build.ts"), "utf8")
     expect(build).toContain('cp(join(root, "site", SITE_SCRIPT), join(out, SITE_SCRIPT))')
     expect(build).toContain('cp(join(root, "site", MODE_SCRIPT), join(out, MODE_SCRIPT))')

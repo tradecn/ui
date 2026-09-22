@@ -10,6 +10,7 @@ import {
   PREVIEW_TEMPLATE,
   previewBlock,
   previewPages,
+  previewThemePalettes,
   readDemos,
   readDocs,
   readEmbed,
@@ -19,9 +20,12 @@ import {
   SITE_STYLES,
   siteDocs,
   sitePageValues,
+  siteThemes,
   templateValues,
   THEME_ITEM,
   themeCss,
+  THEMES_META,
+  themesMeta,
   withPreview,
 } from "./build"
 import type { Doc, Previews, Registry } from "./build"
@@ -128,7 +132,7 @@ describe("a theme on the site", () => {
     expect(() => fullPalette({ name: "bare", type: "registry:theme" }, "dark")).toThrow(/bare/)
   })
 
-  it("wears its own palette on its own preview page in both modes; every other page wears the site theme's dark side in dark and its light dozen in light", async () => {
+  it("wears its own palette on its own preview page in both modes; every other page wears the site theme's two sides and carries every other theme's, keyed on the choice", async () => {
     const docs = await readDocs(resolve(root, "docs"), registry)
     const values = templateValues(registry, version, registry, new Set(docs.map((doc) => doc.slug)))
     const previews: Previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()) }
@@ -148,20 +152,35 @@ describe("a theme on the site", () => {
     expect(slatePage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${slate.cssVars?.dark?.accent};`)
     expect(slatePage).toContain(`:root.light {\n  color-scheme: light;\n  --accent: ${slate.cssVars?.light?.accent};`)
     expect(slatePage).toContain(`--down: ${slate.cssVars?.dark?.down};`)
+    // A theme's page wears its own theme whatever the header's menu says: it carries no other theme's palette.
     expect(slatePage.match(/--popover:/g)).toHaveLength(2)
-    // Any other page: the site theme's dark side, and in light its dozen alone, so the bundle's light palette shows through the rest.
+    expect(slatePage).not.toContain("[data-theme=")
+    // Any other page: the site theme's whole dark side and whole light side, what the theme installs, over the bundle's.
     expect(formatPage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${theme.cssVars?.dark?.accent};`)
     expect(formatPage).toContain(`--down: ${theme.cssVars?.dark?.down};`)
-    expect(formatPage).toContain(`:root.light {\n  color-scheme: light;\n  --background: ${theme.cssVars?.light?.background};`)
+    expect(formatPage).toContain(`:root.light {\n  color-scheme: light;\n  --accent: ${theme.cssVars?.light?.accent};`)
+    expect(formatPage).toContain(`--background: ${theme.cssVars?.light?.background};`)
     expect(formatPage).toContain(`--down: ${theme.cssVars?.light?.down};`)
     expect(formatPage).toContain(`--radius: ${theme.cssVars?.light?.radius};`)
-    // The theme's typography tokens ride into the light side, so a light preview sets its numbers the way a dark one does, and no theme sets a font-sans of its own.
+    // The theme's typography tokens ride into both sides, so a light preview sets its numbers the way a dark one does, and no theme sets a font-sans of its own.
     expect(formatPage).toMatch(/:root\.light \{[^}]* {2}--tradecn-font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;/)
     expect(formatPage).toMatch(/:root\.light \{[^}]* {2}--tradecn-numeric-variant: lining-nums tabular-nums;/)
     expect(formatPage).not.toContain("--font-sans:")
-    expect(formatPage).not.toMatch(/:root\.light \{[^}]*--tradecn-color-body-fg/)
-    expect(formatPage).not.toMatch(/:root\.light \{[^}]*--accent:/)
-    expect(formatPage.match(/--popover:/g)).toHaveLength(1)
+    expect(formatPage).toMatch(/:root\.light \{[^}]*--tradecn-color-body-fg/)
+    // Then every other theme's two sides, keyed on the data-theme theme.js writes beside the mode class, each the whole palette.
+    const themes = siteThemes(registry)
+    const others = previewThemePalettes(themes)
+    expect(formatPage).toContain(others)
+    expect(formatPage.indexOf(others)).toBeGreaterThan(formatPage.indexOf(":root.light {"))
+    expect(themes.slice(1).map((item) => item.name)).toEqual(["tradecn-slate", "tradecn-slate-east"])
+    expect(others).toContain(`:root.dark[data-theme="tradecn-slate"] {\n  --accent: ${slate.cssVars?.dark?.accent};`)
+    expect(others).toContain(`:root.light[data-theme="tradecn-slate"] {\n  --accent: ${slate.cssVars?.light?.accent};`)
+    expect(others).toContain(`:root.light[data-theme="tradecn-slate-east"] {\n`)
+    expect(others).not.toContain(`data-theme="${THEME_ITEM}"`)
+    // The default's two blocks and two per other theme, and the mode classes alone set color-scheme.
+    expect(formatPage.match(/--popover:/g)).toHaveLength(2 + 2 * (themes.length - 1))
+    expect(formatPage.match(/color-scheme: (light|dark);/g)).toHaveLength(2)
+    expect(previewThemePalettes([theme])).toBe("")
     expect(slate.cssVars?.dark?.down).not.toBe(theme.cssVars?.dark?.down)
     for (const html of pages.values()) {
       expect(html).not.toMatch(/\{\{\w+\}\}/)
@@ -173,6 +192,9 @@ describe("a theme on the site", () => {
       expect(html).not.toMatch(/<html[^>]*\bclass=/)
       expect(html).toContain('<script src="/theme.js"></script>')
       expect(html.indexOf("/theme.js")).toBeLessThan(html.indexOf("embed-def.css"))
+      // The themes the script may put on <html>, declared before it runs.
+      expect(html).toContain(themesMeta(themes))
+      expect(html.indexOf(THEMES_META)).toBeLessThan(html.indexOf("/theme.js"))
       // The palettes come after the bundle's stylesheet, so they win the cascade.
       expect(html.indexOf("embed-def.css")).toBeLessThan(html.indexOf("--background:"))
     }

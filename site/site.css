@@ -36,6 +36,20 @@ code, kbd { font-family: var(--font-mono); }
 /* Without the script the button would switch nothing, so it is not there; the palette still follows the system. */
 html:not(.js) .mode-toggle { display: none; }
 
+/* The theme: a menu of the registry's themes beside the mode button. theme.js puts the choice on <html> as data-theme;
+   each page's palette carries a block per other theme keyed on it, and the previews carry every theme's two sides. The
+   site's own theme is the :root palette itself, so a page with no script wears it. A native select, drawn as text and
+   a chevron; the list it opens is the browser's own. */
+.theme-pick { position: relative; display: inline-flex; align-items: center; margin: -.3rem 0; color: var(--muted-foreground); }
+.theme-pick:hover, .theme-pick:focus-within { color: var(--foreground); }
+/* field-sizing fits the control to the theme showing rather than the longest name on the list, where the browser knows it; elsewhere the chevron sits a little further out. */
+.theme-select { appearance: none; -webkit-appearance: none; field-sizing: content; margin: 0; padding: .3rem 1.35rem .3rem .5rem; font: inherit; font-size: .9rem; color: inherit; background: none; border: 0; border-radius: var(--radius); cursor: pointer; }
+.theme-select:hover, .theme-select:focus-visible { background: var(--card); }
+.theme-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.theme-pick svg { position: absolute; right: .4rem; width: .8rem; height: .8rem; pointer-events: none; }
+/* Without the script the menu would change nothing, so it is not there; the page wears the site's own theme. */
+html:not(.js) .theme-pick { display: none; }
+
 /* The search: a button in the header, and a dialog over every page's headings and text that it and mod+k open. */
 .search-button { display: inline-flex; align-items: center; gap: .5rem; margin: -.3rem 0; padding: .3rem .6rem; font: inherit; font-size: .85rem; color: var(--muted-foreground); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
 .search-button:hover, .search-button:focus-visible { color: var(--foreground); border-color: var(--primary); }

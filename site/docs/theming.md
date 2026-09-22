@@ -20,4 +20,4 @@ The fonts are tokens too: `--tradecn-font-sans`, `--tradecn-font-mono`, `--trade
 
 ## Light and dark
 
-The button at the end of the header switches this site between light and dark, and every preview with it; until you press it, the site follows your system. Both sides are `tradecn-amber`, warm paper by day and near-black by night, set in Inter with JetBrains Mono for code, the two faces the typography tokens name. A theme's own preview wears that theme in both.
+The button at the end of the header switches this site between light and dark, and every preview with it; until you press it, the site follows your system. Both sides are `tradecn-amber`, warm paper by day and near-black by night, set in Inter with JetBrains Mono for code, the two faces the typography tokens name. The menu beside the button tries another theme on the site and every preview, both sides, until you pick amber again. A theme's own preview wears that theme in both modes whatever the menu says.
