@@ -113,12 +113,20 @@ footer.site-foot p { margin: 0; }
 /* The docs: the sections down the left, the page, and its headings down the right. */
 .page { display: grid; grid-template-columns: 14rem minmax(0, 1fr) 13rem; gap: 3rem; padding-top: 1.5rem; max-width: 90rem; }
 .sidebar, .toc { position: sticky; top: 4.5rem; align-self: start; max-height: calc(100vh - 4.5rem); overflow-y: auto; font-size: .9rem; }
-.sidebar h2, .toc h2 { margin: .5rem 0 .5rem; font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
+/* The sections. A group is a muted heading in sentence case and its pages are the foreground, so the two read apart at
+   a glance; the current page sits on a filled block and a hover shows the same, shadcn's shape. The headings down the
+   right wear the same heading; their links stay muted, as shadcn's do. */
+.sidebar h2, .toc h2 { margin: .5rem 0 .35rem; font-size: .8rem; font-weight: 500; color: var(--muted-foreground); }
+.sidebar h2 { padding: 0 .5rem; }
 .sidebar h2 a { color: inherit; }
 .sidebar ul, .toc ul { list-style: none; margin: 0 0 1.25rem; padding: 0; }
-.sidebar li, .toc li { padding: .15rem 0; }
-.sidebar a, .toc a { color: var(--muted-foreground); }
-.sidebar a[aria-current="page"] { color: var(--primary); }
+.sidebar li + li { margin-top: .1rem; }
+.sidebar li a { display: inline-block; padding: .25rem .5rem; color: var(--foreground); border-radius: var(--radius); }
+.sidebar li a:hover, .sidebar li a:focus-visible { background: var(--muted); text-decoration: none; }
+.sidebar li a:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.sidebar li a[aria-current="page"] { background: var(--muted); }
+.toc li { padding: .15rem 0; }
+.toc a { color: var(--muted-foreground); }
 .toc ul ul { margin: 0; padding-left: .9rem; }
 .toc code { font-size: .95em; }
 article { min-width: 0; padding-bottom: 4rem; }
@@ -216,7 +224,8 @@ html:not(.js) .tabs [role="tabpanel"][hidden] { display: block; }
 @media (max-width: 48rem) {
   .page { grid-template-columns: 1fr; gap: 1.5rem; }
   .sidebar { position: static; max-height: none; }
-  .sidebar ul { display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
+  .sidebar ul { display: flex; flex-wrap: wrap; gap: .1rem .25rem; }
+  .sidebar li + li { margin-top: 0; }
   .hero { padding-top: 2.5rem; }
   .cta { flex-wrap: wrap; }
   /* On a phone the search is its icon, and the dialog takes the screen. */
