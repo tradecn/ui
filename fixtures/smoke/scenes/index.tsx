@@ -15,6 +15,7 @@ import { LimitsScene } from "./limits"
 import { PanelScene } from "./panel"
 import { ParameterGridScene } from "./parameter-grid"
 import { PerfMonitorScene } from "./perf-monitor"
+import { PositionsScene } from "./positions"
 import { PreferencesScene } from "./preferences"
 import { QuoteFieldScene } from "./quote-field"
 import { RfqStackScene } from "./rfq-stack"
@@ -60,6 +61,7 @@ export const scenes: SmokeScene[] = [
   { name: "alerts", Scene: AlertsScene },
   { name: "status-bar", Scene: StatusBarScene },
   { name: "parameter-grid", Scene: ParameterGridScene },
+  { name: "positions", Scene: PositionsScene },
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
   { name: "alert-store", Scene: AlertStoreScene },

@@ -15,6 +15,7 @@ import { LimitsScene } from "./limits"
 import { PanelScene } from "./panel"
 import { ParameterGridScene } from "./parameter-grid"
 import { PerfMonitorScene } from "./perf-monitor"
+import { PositionsScene } from "./positions"
 import { PreferencesScene } from "./preferences"
 import { QuoteFieldScene } from "./quote-field"
 import { RfqStackScene } from "./rfq-stack"
@@ -63,6 +64,7 @@ export const items: Record<string, ItemScene> = {
   alerts: { title: "alerts", Scene: AlertsScene },
   "status-bar": { title: "status-bar", Scene: StatusBarScene },
   "parameter-grid": { title: "parameter-grid", Scene: ParameterGridScene },
+  positions: { title: "positions", Scene: PositionsScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   preferences: { title: "preferences", Scene: PreferencesScene },
   "alert-store": { title: "alert-store", Scene: AlertStoreScene },
