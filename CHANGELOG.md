@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/tradecn/ui/compare/v0.3.0...v1.0.0) (2026-09-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **registry:** `tradecn-terminal` and `tradecn-terminal-classic` are removed. A consumer that installed either keeps it as values in its own stylesheet and nothing breaks; to move on, `npx shadcn@latest add tradecn/ui/tradecn-amber#v1.0.0 --diff` (its successor) or `tradecn-slate`. The items' default light marks (`--up`, `--down`, `--stale`, `--expiring`, `--panel-sync`, `--link-1` to `--link-4`) are now `tradecn-slate`'s light side and the dark `--down` is its dark vermilion; items never overwrite a variable you already have, so delete the old lines and run the item again to take them. Nothing tradecn draws is under 12 px, so the `option-chain` preset's `fontClass` is `text-xs`. tradecn.dev wears `tradecn-amber` in both modes.
+
+### Features
+
+* **registry:** 1.0.0, everything comports with the research or goes ([#53](https://github.com/tradecn/ui/issues/53)) ([9bfdf64](https://github.com/tradecn/ui/commit/9bfdf64c3acd52a4e66ca623dcc2e2df672571cb))
+
 ## [0.3.0](https://github.com/tradecn/ui/compare/v0.2.0...v0.3.0) (2026-09-22)
 
 
