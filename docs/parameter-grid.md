@@ -1,6 +1,6 @@
 # ParameterGrid
 
-A parameter table on the data grid: one row per instrument, tier, or pair, the values typed in place and held pending until the server's row comes back with them, an enable box that asks the server and never flips itself, and when each row last changed.
+Edit parameters by instrument, tier, or pair, with pending values, server-controlled enable checkboxes, and the time each row last changed.
 
 ## Usage
 
@@ -29,39 +29,126 @@ const store = createRowStore<Sheet>({ getRowId: (r) => r.id })
 
 ## API Reference
 
-It is the data grid in its `parameters` preset (24 px rows, single select, a ring flash on a change, no reorder hold) with the columns a parameter table has: the row's name frozen on the left, the enable box, one column per parameter, and when the server last changed the row. Every `DataGrid` prop passes through except `preset`; sorting, column state, and the keyboard are [`data-grid`](data-grid.md)'s. If you already installed `data-grid`, `watchlist`, `blotter`, or `rfq-stack`, the shared files are byte-identical and nothing of yours changes.
+Uses the data grid's `parameters` preset: 24 px rows, single selection, ring flashes for numeric changes, and no reorder hold. The default columns are the name frozen on the left, the enable checkbox, one column per parameter, and the updated time. All are sortable.
+
+### Props
+
+`ParameterGridProps<T>` requires `T extends ParameterRow`. It inherits [`DataGridProps<T>`](data-grid.md) except `preset`, `columns`, `label`, and `onEdit`; the latter three have the definitions below. Other inherited props, including sorting, column state, and preset overrides such as `rowHeight`, pass to the grid.
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `store` | `RowStore<T>` | Required | Rows and batch metadata. |
+| `parameters` | `readonly ParameterDef<T>[]` | Required | Parameter columns in display order. |
+| `onEdit` | `(change: EditChange<T>) => void \| Promise<unknown>` | Required | Send a value or enable request to the server. |
+| `columns` | `ColumnDef<T>[]` | `parameterColumns(options)` | Replace the generated column list. |
+| `label` | `string` | `"Parameters"` | Accessible name for the grid. |
+| `labels` | `Partial<ParameterGridLabels>` | `DEFAULT_PARAMETER_GRID_LABELS` | Override the labels listed below. |
+| `time` | `(ms: number) => string` | Local 24-hour `HH:MM:SS` | Format updated and as-of times. |
+| `changedSince` | `number \| null` | `null` | Mark rows updated at or after this epoch time in milliseconds. |
+| `toggleAction` | `string` | `"toggle"` | Permission id for the enable checkbox. |
+| `editAction` | `string` | `"edit"` | Permission id for parameter edits. |
+| `asOf` | `boolean` | `true` | Show the as-of line above the grid. |
+| `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Decorate rows; a supplied `aria-description` takes precedence over the changed label. |
+| `className` | `string` | None | Additional classes on the outer wrapper. |
+
+`parameterColumns(options)` returns `ColumnDef<T>[]` to add, drop, or reorder in your own list. Its `ParameterColumnOptions<T>` accepts `parameters`, `labels`, `time`, `changedSince`, `toggleAction`, and `editAction` with the defaults above. A supplied `columns` list replaces the generated columns and their formatting, permissions, and controls.
+
+The install shares byte-identical grid, store, and format files with `data-grid`, `watchlist`, `blotter`, and `rfq-stack`.
+
+### Rows
+
+Extend `ParameterRow` with the fields your accessors read:
+
+| Field | Type | Required | Purpose |
+|---|---|---|---|
+| `id` | `string` | Yes | Row identity; use it in the store's `getRowId`. |
+| `name` | `string` | Yes | Frozen name column and checkbox label. |
+| `enabled` | `boolean` | No | Checkbox is checked only when this is `true`. |
+| `allowedActions` | `readonly string[]` | No | Allowed action ids; an absent or empty list permits nothing. |
+| `updatedAt` | `number \| null` | No | Last change in milliseconds since the epoch. |
+| `updatedBy` | `string \| null` | No | Name shown beside a present updated time. |
 
 ### The sheet is the server's
 
-Rows are whatever is in the store you pass, and a value on the screen is what the server holds. An edit is a command: the grid hands it to `onEdit` as `{ rowId, key, value, previous, row }` and shows what was typed as pending, muted in the cell, until a later batch brings the row's value to it or the promise you return resolves. A rejected promise keeps the previous value and prints the message in the cell, so a trader sees what the server said where they typed. Nothing here writes to the store, and a pending cell is a question the server has not answered, not a fact.
+The grid reads your store and never writes it. A valid commit calls `onEdit` with `{ rowId, key, value, previous, row }`, where `previous` is the current accessor value and `row` is the current store row. Committing that same value sends nothing.
+
+A parameter cell shows the committed text muted and italic while pending. Pending clears when the store's accessor value matches the committed value (`Object.is`), or when the returned promise resolves. Resolution displays the current store value, which may still be the old value. Returning nothing leaves the cell pending until the store matches.
+
+A thrown error or rejection of a still-pending promise displays the current store value with the error message in the cell and its `aria-description`. Reopening clears the error. A pending parameter cell can also reopen, starting from its committed text.
 
 ### Parameters
 
-A `ParameterDef` is `{ key, header, accessor, format?, parse?, validate?, step?, min?, max?, decimals?, numeric?, font?, readOnly? }`. A parameter is numeric unless you say otherwise: right-aligned, set in tabular figures, printed to `decimals` places (two by default), read with thousands separators allowed and a blank as null. `min` and `max` are checked before a commit and said in the column's own format; `validate` runs after them for a rule of your own. `step` as a number is what the arrows move by in the editor, ten times that with Shift; as a function it is the grid's own `step`. `readOnly` shows a value and never opens it. `parameterEdit(def, editAction)` is the grid's `edit` built from one definition, and `parameterColumns(options)` the whole column list, to spread into your own.
+Each `ParameterDef<T>` defines one column:
+
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `key` | `string` | Required | Column key, sent in `onEdit`. |
+| `header` | `string` | Required | Column heading and editor's accessible name. |
+| `accessor` | `(row: T) => unknown` | Required | Read the value for display, sorting, and acknowledgement. |
+| `width` | `number` | `96` | Column width in pixels. |
+| `format` | `(value: unknown, row: T) => string` | Default formatter | Text for the cell, editor, pending value, and range errors. |
+| `parse` | `(text: string, row: T) => unknown` | Numeric parser | Return a value or `editProblem("…")`. |
+| `validate` | `(value: unknown, row: T) => EditProblem \| null \| undefined` | None | Return a problem to refuse a value after range checks. |
+| `step` | `number \| ((value: unknown, dir: 1 \| -1, big: boolean, row: T) => unknown)` | None | Change the editor value with Up or Down. |
+| `min` / `max` | `number` | No bounds | Inclusive limits for numeric values. |
+| `decimals` | `number` | `2` | Decimal places in the default formatter. |
+| `numeric` | `boolean` | `true` | Right alignment, numeric font, decimal input mode, and directional flashes. |
+| `font` | `"numeric" \| "mono"` | `"numeric"` | Font family for numeric cells; both use tabular figures. |
+| `readOnly` | `boolean` | `false` | Omit editing for this parameter on every row. |
+
+The default formatter prints finite numbers to `decimals` places, null, undefined, or nonfinite numbers as `–`, and other values as text. The default parser trims whitespace, removes commas, accepts the typographic minus `−`, and reads a finite number; blank input becomes null. `numeric: false` changes presentation but keeps this parser. For text, supply a parser such as `parse: (text) => text.trim()`.
+
+`min` and `max` apply only to numeric values and use the column's formatter in error messages. `validate` runs after those checks. A numeric `step` moves by that amount, ten times with Shift, starting from zero for a nonnumeric value. A function receives direction `1` or `-1` and `big: true` with Shift; it returns the next value. Stepping does not clamp to bounds; validation runs when committing. Without `step`, Up and Down leave the editor value unchanged.
+
+`parameterEdit(def, editAction, labels?)` builds a `CellEdit<T>` for a custom column. `editAction` is required; `labels` defaults to `DEFAULT_PARAMETER_GRID_LABELS` and accepts a complete `ParameterGridLabels` object.
 
 ### Editing
 
-Enter, F2, a double click, or typing on a cell opens it, with the text selected or with the character typed. Enter commits, Escape reverts, Tab and Shift+Tab commit and open the next or previous editable cell in the row, bare Up and Down step. A modifier-held arrow is left alone, so a `mod+up` bound above the grid reaches its registry from inside a cell. A value that does not read, or fails `min`, `max`, or `validate`, keeps the editor open with the sentence on it and sends nothing. The keys are the grid's; [`data-grid`](data-grid.md) has the whole list.
+Enter, F2, a double click, or typing a non-space character opens an editable parameter cell. Opening selects its text unless you typed a character. Enter commits; Escape discards; Tab and Shift+Tab commit and open the next or previous editable text cell in the row, skipping the checkbox. At either end, focus returns to the grid.
+
+A parse or validation failure on commit keeps the editor open with an accessible error and sends nothing. Leaving the editor commits valid input and discards invalid input. Only one text editor opens at a time.
+
+Up and Down step when configured. Ctrl, Cmd, or Alt with those arrows passes through to listeners above the grid. See the [data-grid keyboard reference](data-grid.md) for navigation and column controls.
 
 ### The enable box
 
-`enabled` is the server's word on whether a row is in force, drawn as your checkbox, and the box never flips itself. A press asks through `onEdit` with `key: "enabled"` and the box is disabled until the row comes back, or the promise resolves; from the keyboard, Space or Enter on the cell asks the same. The name of the box says what a press does, `Enable ZN` or `Disable ZN`.
+The checkbox stays checked according to the store's `enabled` value. Pressing it calls `onEdit` with `key: "enabled"` and the opposite boolean. It is disabled while pending; the acknowledgement and error rules above apply. The grid's Space, Enter, and F2 keys on that cell can send the same request, including while pending.
+
+The checkbox uses your installed checkbox component and stays outside the tab order. Its accessible name describes the request, such as `Enable ZN` or `Disable ZN`.
 
 ### What the server allows
 
-A row's `allowedActions` names what may be done to it, by id, the way [`blotter`](blotter.md) and the tickets read theirs: the toggle action (`toggle` by default, `toggleAction` to rename) lets the box ask, the edit action (`edit`, `editAction`) lets a value be typed. A row with no list allows nothing: its box is disabled and its cells are read-only, and say so with `aria-readonly`. A read-only parameter is read-only on every row.
+A row's `allowedActions` must include `toggleAction` to enable the checkbox and `editAction` to permit parameter edits, as in [`blotter`](blotter.md) and the tickets. `allowsAction(row, action)` checks membership and returns false for a missing list.
+
+Cells blocked by permissions carry `aria-readonly="true"` when they have an edit definition. A parameter with `readOnly: true` has no edit definition and cannot open an editor, regardless of row permissions.
 
 ### Changed since
 
-Pass `changedSince`, a moment, and every row whose `updatedAt` is at or after it wears a dot beside its name and says `Changed` to a screen reader. The updated column prints when the server last changed the row and who did, from `updatedAt` and `updatedBy`, and flashes when it moves. The line above the grid prints the store's `producedAt`, the moment the server's newest message was made, so a sheet that has stopped updating says so; `asOf={false}` hides it.
+Rows with a present `updatedAt` at or after `changedSince` show a dot beside their name and receive the `Changed` accessible description, unless `getRowProps` supplies one. A null or omitted `changedSince` disables the mark.
+
+The updated column shows `updatedAt` and a nonempty `updatedBy`, with a fill flash when the timestamp changes. A missing timestamp displays `–`.
+
+The as-of line shows the store's latest supplied `producedAt`, falling back to `lastBatchAt` when none has been supplied. Before either exists, it shows `–`. Both timestamps are milliseconds since the epoch and use the `time` formatter. Set `asOf={false}` to hide the line.
 
 ### Labels
 
-Every word is in `labels`, a partial of `DEFAULT_PARAMETER_GRID_LABELS`: the name and enable headers, the box's two names, the updated header, the changed word, the as-of line, and the three sentences the default parse and range check say.
+`labels` merges partial overrides into `DEFAULT_PARAMETER_GRID_LABELS`:
+
+| Label | Default | Substitutions |
+|---|---|---|
+| `name` / `enabled` / `updated` | `Name` / `On` / `Updated` | None |
+| `enable` / `disable` | `Enable {name}` / `Disable {name}` | Row name |
+| `changed` | `Changed` | None |
+| `asOf` | `As of {time}` | Formatted batch time |
+| `notANumber` | `Not a number.` | None |
+| `belowMin` | `{n} is below the minimum of {min}.` | Formatted value and minimum |
+| `aboveMax` | `{n} is above the maximum of {max}.` | Formatted value and maximum |
+
+Parameter headers, custom validation messages, and server errors come from your definitions and callbacks.
 
 ### What it does not do
 
-It does not decide a value, flip a row, keep the sheet, or paste a range of cells; one cell is edited at a time. Grouping rows into books is one grid per book.
+Your application owns values, persistence, and server requests. Multi-cell paste and row grouping are not supported; use one grid per book.
 
 ### Tokens
 
