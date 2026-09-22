@@ -1693,6 +1693,158 @@
       }
     },
     {
+      "name": "rules-editor",
+      "type": "registry:ui",
+      "title": "Rules Editor",
+      "description": "The editor over one grid's rules: highlights, filters, and the sort stack as lists to add to, edit, reorder, and remove, each rule built from a column picker, an op picker narrowed by the column's kind, a value typed in the column's own format, and for a highlight a tone shown in its token. A live count beside each rule says how many rows it matches right now. The column chooser sits in a fourth tab. It produces the rules objects and stores nothing.",
+      "categories": [
+        "grid"
+      ],
+      "dependencies": [
+        "cn@^0.3.0",
+        "@tanstack/react-virtual@^3.14.13"
+      ],
+      "registryDependencies": [
+        "badge",
+        "button",
+        "checkbox",
+        "context-menu",
+        "dialog",
+        "dropdown-menu",
+        "input",
+        "native-select"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/rules-editor.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/ui/column-chooser.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/ui/data-grid.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/grid-rules.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "meta": {
+        "components": [
+          {
+            "title": "RulesEditor",
+            "description": "The four tabs: highlights, filters, sort, and the column chooser."
+          },
+          {
+            "title": "DEFAULT_RULES_EDITOR_LABELS",
+            "description": "Every word on it, to replace in part."
+          },
+          {
+            "title": "valueShape",
+            "description": "What an op wants typed: one value, two, many, or nothing."
+          },
+          {
+            "title": "withOp",
+            "description": "A condition under a new op, the typed value kept when the shape is the same."
+          },
+          {
+            "title": "withColumn",
+            "description": "A condition on a new column, its op if the column offers it."
+          },
+          {
+            "title": "parseValues",
+            "description": "A comma-separated field as a list of values."
+          },
+          {
+            "title": "valuesText",
+            "description": "A list of values as the field's text."
+          },
+          {
+            "title": "moveItem",
+            "description": "A list with one item moved to another's index."
+          },
+          {
+            "title": "newHighlight",
+            "description": "A new highlight on the first column, its first op, in up."
+          },
+          {
+            "title": "newFilter",
+            "description": "A new filter on the first column, its first op."
+          },
+          {
+            "title": "newSort",
+            "description": "A new sort key on the first column not yet in the stack."
+          },
+          {
+            "title": "newRuleId",
+            "description": "An id for a new highlight, unique on this page."
+          }
+        ]
+      },
+      "docs": "Installs the column chooser and the data grid alongside and composes your button, input, and native-select, plus the badge, checkbox, dialog, context-menu, and dropdown-menu they use. Adds @tanstack/react-virtual and the grid's tokens. Hand the rules it produces to the grid's rules prop.",
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.46 0.19 40)",
+          "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "expiring": "oklch(0.53 0.2 350)",
+          "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "stale": "oklch(0.52 0.13 75)",
+          "stale-soft": "oklch(0.52 0.13 75 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.52 0.13 165)",
+          "up-soft": "oklch(0.52 0.13 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.66 0.19 40)",
+          "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "stale": "oklch(0.8 0.15 80)",
+          "stale-soft": "oklch(0.8 0.15 80 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
       "name": "grid-rules",
       "type": "registry:lib",
       "title": "Grid Rules",

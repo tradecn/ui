@@ -15,6 +15,7 @@ import { QuoteFieldScene } from "./quote-field"
 import { RfqStackScene } from "./rfq-stack"
 import { RfqTicketScene } from "./rfq-ticket"
 import { RowStoreScene } from "./row-store"
+import { RulesEditorScene } from "./rules-editor"
 import { SparklineScene } from "./sparkline"
 import { TicketScene } from "./ticket"
 import { TradecnSlateScene } from "./tradecn-slate"
@@ -51,6 +52,7 @@ export const items: Record<string, ItemScene> = {
   "perf-monitor": { title: "perf-monitor", Scene: PerfMonitorScene },
   "hotkey-editor": { title: "hotkey-editor", Scene: HotkeyEditorScene },
   "column-chooser": { title: "column-chooser", Scene: ColumnChooserScene },
+  "rules-editor": { title: "rules-editor", Scene: RulesEditorScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   "tradecn-slate": { title: "tradecn-slate", Scene: TradecnSlateScene },
   "tradecn-slate-east": { title: "tradecn-slate-east", Scene: TradecnSlateEastScene },
