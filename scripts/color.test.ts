@@ -17,6 +17,7 @@ const CHANNELS: Array<{ file: string; channel: string; proof: RegExp }> = [
   { file: "ui/data-grid.tsx", channel: "data-direction on a flashing cell; the cell's text is the signed value", proof: /data-\[direction=/ },
   { file: "lib/grid-rules.ts", channel: "an applied rule names itself in data-rule and data-tone on the element and puts its words in the accessible description", proof: /"aria-description": rule\.label\?\.trim\(\) \|\| describeRule/ },
   { file: "ui/alerts.tsx", channel: "the severity word is always printed beside the bar, in the badge and in the grid's column; the tone colors a word that is there", proof: /data-alert-severity/ },
+  { file: "ui/status-bar.tsx", channel: "the environment badge is the word itself, PRODUCTION or UAT, and the tone colors that word", proof: /data-status-environment=\{environment\.label\}/ },
   { file: "ui/sparkline.tsx", channel: "data-direction on the root and the direction in the words a screen reader hears", proof: /data-direction=\{tone\}/ },
   { file: "ui/blotter.tsx", channel: "the side column's text is the word Buy or Sell", proof: /row\.side/ },
   { file: "ui/feed-health.tsx", channel: "the dot is aria-hidden; the tier badge and the label carry the state in words", proof: /aria-hidden/ },
