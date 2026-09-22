@@ -401,13 +401,25 @@ test("a ticket types a price in 32nds, steps it, sends from a key, and shows onl
   await scene.getByRole("button", { name: "acknowledge" }).click()
   await expect(ticket.locator("[data-ticket-status]")).toHaveText("Acknowledged")
   await expect(ticket.locator("[data-direction='flat']")).toHaveCount(1)
+  // The desk's lines: 20 is past the ask-again line, so the key asks once and the second press sends; 60 is past the block, so the button goes and the field says why.
+  await quantity.fill("20")
+  await page.keyboard.press("ControlOrMeta+Enter")
+  await expect(ticket.getByRole("button", { name: "Send anyway?" })).toBeVisible()
+  await expect.poll(async () => JSON.parse((await state.getAttribute("data-ticket-sent")) ?? "[]").length).toBe(1)
+  await page.keyboard.press("ControlOrMeta+Enter")
+  await expect.poll(async () => JSON.parse((await state.getAttribute("data-ticket-sent")) ?? "[]").length).toBe(2)
+  await quantity.fill("60")
+  await expect(ticket.getByText("60 is above the size limit of 50.")).toBeVisible()
+  await expect(ticket.getByRole("button", { name: /^Send/ })).toBeDisabled()
+  await quantity.fill("5")
+  await expect(ticket.getByRole("button", { name: /^Send/ })).toBeEnabled()
   // The server allows nothing: no buttons, a line that says so, and the key does nothing.
   await scene.getByRole("button", { name: "close market" }).click()
   await expect(ticket.getByRole("button", { name: /^Send/ })).toHaveCount(0)
   await expect(ticket.getByText("Nothing can be done with this ticket right now.")).toBeVisible()
   await quantity.click()
   await page.keyboard.press("ControlOrMeta+Enter")
-  await expect.poll(async () => JSON.parse((await state.getAttribute("data-ticket-sent")) ?? "[]").length).toBe(1)
+  await expect.poll(async () => JSON.parse((await state.getAttribute("data-ticket-sent")) ?? "[]").length).toBe(2)
   expect(errors).toEqual([])
 })
 
@@ -499,8 +511,13 @@ test("an rfq ticket shows the inquiry, quotes against the market, sends from a k
   await ticket.getByRole("button", { name: /^Quote/ }).click()
   await expect(ticket.getByText("An offer is needed.")).toBeVisible()
   await expect(state).toHaveAttribute("data-rfq-sent", "[]")
-  await offer.click()
-  await page.keyboard.type("99-16+")
+  // Seven ticks over the offer is past the desk's four-tick line, a confirm here: the key asks once, a new level withdraws the question.
+  await offer.fill("99-20")
+  await page.keyboard.press("ControlOrMeta+Enter")
+  await expect(ticket.getByRole("button", { name: "Quote anyway?" })).toBeVisible()
+  await expect(state).toHaveAttribute("data-rfq-sent", "[]")
+  await offer.fill("99-16+")
+  await expect(ticket.getByRole("button", { name: "Quote anyway?" })).toHaveCount(0)
   await page.keyboard.press("ControlOrMeta+Enter")
   await expect.poll(async () => JSON.parse((await state.getAttribute("data-rfq-sent")) ?? "[]")).toEqual([{ inquiryId: "Q-7", bid: null, ask: 99.515625 }])
   // The venue takes it: its word for the status, the quoted level, one ring on the box.
@@ -807,6 +824,13 @@ test("a status bar names the environment in a word and a tone, ticks its clock, 
 test("a session calendar reads a trading day, a weekend, a holiday, an early close, and daylight saving in the venue's zone", async ({ page }) => {
   await page.goto("/")
   await expect(page.locator("section[data-scene='session-calendar'] [data-slot='tradecn-session-calendar']")).toHaveText("open post closed holiday post open")
+})
+
+// One check through the installed lib: a size past the ask-again line and a level too far from the market, each
+// named with its level, field, and rule.
+test("a limits check says what is over a line, at which level, and by which rule", async ({ page }) => {
+  await page.goto("/")
+  await expect(page.locator("section[data-scene='limits'] [data-slot='tradecn-limits']")).toHaveText("confirm:quantity:maxQuantity block:price:maxDistance")
 })
 
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix

@@ -7,6 +7,7 @@ import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
+import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
 
@@ -128,6 +129,8 @@ export interface RfqTicketLabels {
   crossed: string
   nothingAllowed: string
   for: string
+  /** The primary action's words while a limit asks again; `{action}` is its label. */
+  anyway: string
 }
 
 export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
@@ -149,6 +152,7 @@ export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
   crossed: "The bid is above the offer.",
   nothingAllowed: "Nothing can be done with this inquiry right now.",
   for: "for",
+  anyway: "{action} anyway?",
 }
 
 /** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket when you have not. */
@@ -251,25 +255,29 @@ export interface RfqTicketProps {
   disabled?: boolean
   /** Declare `RFQ_TICKET_BINDINGS` in the hotkey registry when they are not. Default true. */
   hotkeys?: boolean
+  /** The desk's lines, from `limits`: a block shows under its field and holds the actions that send a quote; a confirm makes the action ask again. Each level is checked against the inquiry's market. */
+  limits?: Limits
   labels?: Partial<RfqTicketLabels>
   className?: string
 }
 
 const TONE_CLASS = { up: "text-up", down: "text-down", flat: "text-muted-foreground" } as const
 
-export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, acknowledged, autoFocus = false, disabled = false, hotkeys: declareHotkeys = true, labels: labelsProp, className }: RfqTicketProps) {
+export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, acknowledged, autoFocus = false, disabled = false, hotkeys: declareHotkeys = true, limits, labels: labelsProp, className }: RfqTicketProps) {
   const labels = { ...DEFAULT_RFQ_TICKET_LABELS, ...labelsProp }
   const id = useId()
   const { convention } = inquiry.instrument
   const sides = quotedSides(inquiry.side)
   const [draft, setDraft] = useState<RfqQuoteDraft>(() => ({ inquiryId: inquiry.id, bid: level(defaultDraft?.bid), ask: level(defaultDraft?.ask) }))
   const [problems, setProblems] = useState<RfqQuoteProblems>({})
+  // The action a limit asked again about; the next click on it sends. Any change to a level withdraws the question.
+  const [confirming, setConfirming] = useState<string | null>(null)
 
   const box = useRef<HTMLDivElement>(null)
   const inputs = { bid: useRef<HTMLInputElement>(null), ask: useRef<HTMLInputElement>(null) }
-  const latest = useRef({ onDraftChange, actions, inquiry, draft, labels, disabled })
+  const latest = useRef({ onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming })
   useEffect(() => {
-    latest.current = { onDraftChange, actions, inquiry, draft, labels, disabled }
+    latest.current = { onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming }
   })
 
   // The draft is told after it changed, never on the first render.
@@ -296,7 +304,17 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   function setLevel(side: QuoteSide, value: number | null) {
     setDraft((d) => (d[side] === value ? d : { ...d, [side]: value }))
     setProblems((p) => (p[side] ? { ...p, [side]: undefined } : p))
+    setConfirming(null)
   }
+
+  // The limits, live: a block shows under its field and holds the actions that send a quote; a confirm waits for the click.
+  const quotedDraft = { bid: sides.includes("bid") ? draft.bid : null, ask: sides.includes("ask") ? draft.ask : null }
+  const limitProblems = limits ? checkLimits(quotedDraft, limits, { market: inquiry.market, convention }) : []
+  const blockedBy = problemsByField(blocks(limitProblems))
+  const blocked = Object.keys(blockedBy).length > 0
+  const shownProblems = { bid: problems.bid ?? blockedBy.bid, ask: problems.ask ?? blockedBy.ask }
+  const otherBlocks = blocks(limitProblems).filter((p) => p.field !== "bid" && p.field !== "ask")
+  const asking = confirming !== null ? confirms(limitProblems) : []
 
   /** Where a step starts when a field is blank: the market's same side, the suggested level, the market's mid, then its other side. */
   function stepFrom(side: QuoteSide): number | null {
@@ -336,13 +354,22 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   function run(action: RfqAction) {
     // Checked as the click lands, against the props as they are now: an action can stop being allowed.
-    const { draft: current, inquiry: now, labels: words, disabled: off } = latest.current
+    const { draft: current, inquiry: now, labels: words, disabled: off, limits: lines, confirming: asked } = latest.current
     if (off || !now.allowedActions?.includes(action.id)) return
     if (action.needsQuote !== false) {
       const found = checkQuote(current, now, words)
-      setProblems(found)
-      if (found.bid || found.ask) return
+      // The limits, as the click lands: a block stops here and shows under its field; a confirm asks once, and the next click on the same action sends.
+      const quoted = quotedSides(now.side)
+      const over = lines ? checkLimits({ bid: quoted.includes("bid") ? current.bid : null, ask: quoted.includes("ask") ? current.ask : null }, lines, { market: now.market, convention: now.instrument.convention }) : []
+      const stopped = problemsByField(blocks(over))
+      setProblems({ bid: found.bid ?? stopped.bid, ask: found.ask ?? stopped.ask })
+      if (found.bid || found.ask || Object.keys(stopped).length) return
+      if (confirms(over).length && asked !== action.id) {
+        setConfirming(action.id)
+        return
+      }
     }
+    setConfirming(null)
     action.run(current, now)
   }
 
@@ -487,7 +514,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             const distance = quoteDistance(draft[side], level(market?.[side]), convention)
             return (
               <div key={side} className="flex flex-col gap-0.5">
-                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} disabled={!quoting} error={problems[side]} inputRef={inputs[side]} />
+                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} disabled={!quoting} error={shownProblems[side]} inputRef={inputs[side]} />
                 <span className="h-4 text-right text-muted-foreground lining-nums tabular-nums" data-rfq-distance={side} data-numeric="" aria-live="off">
                   {distance ? `${distance.text} ${labels.vsMarket}` : " "}
                 </span>
@@ -508,8 +535,18 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
               <p className="text-muted-foreground">{labels.nothingAllowed}</p>
             ) : (
               allowed.map((action) => (
-                <Button key={action.id} type="button" variant={action.destructive ? "destructive" : action === primary ? "default" : "outline"} size="sm" className="h-7 gap-2" disabled={disabled} data-action={action.id} onClick={() => run(action)}>
-                  {typeof action.label === "function" ? action.label(draft) : action.label}
+                <Button
+                  key={action.id}
+                  type="button"
+                  variant={action.destructive ? "destructive" : action === primary ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 gap-2"
+                  disabled={disabled || (blocked && action.needsQuote !== false)}
+                  data-action={action.id}
+                  data-confirming={confirming === action.id || undefined}
+                  onClick={() => run(action)}
+                >
+                  {confirming === action.id ? labels.anyway.replace("{action}", typeof action.label === "function" ? action.label(draft) : action.label) : typeof action.label === "function" ? action.label(draft) : action.label}
                   {action === primary && sendKeys && (
                     <KbdGroup aria-hidden>
                       {formatKeys(sendKeys)[0]?.map((cap) => (
@@ -522,6 +559,12 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             )}
           </span>
         </div>
+
+        {(otherBlocks.length > 0 || asking.length > 0) && (
+          <p className={asking.length ? "text-stale" : "text-destructive"} data-rfq-limits={asking.length ? "confirm" : "block"}>
+            {[...otherBlocks, ...asking].map((p) => p.message).join(" ")}
+          </p>
+        )}
 
         {inquiry.message && (
           <p className="border-t border-border pt-1.5 text-muted-foreground" data-rfq-message>

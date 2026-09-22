@@ -316,3 +316,79 @@ describe("describeDraft, checkDraft, parseQuantity", () => {
   })
 })
 
+
+describe("limits", () => {
+  const LIMITS = { maxQuantity: { confirm: 10, block: 50 }, maxDistance: { ticks: 4 } }
+  const REFERENCE = { bid: 99.5, ask: 99.515625 }
+
+  it("asks again past a confirm line, sends on the second click, and withdraws the question when the draft changes", () => {
+    const { run } = mount({ limits: LIMITS, reference: REFERENCE })
+    type(quantity(), "20")
+    type(price(), "99-17")
+    const send = screen.getByRole("button", { name: /^Send/ })
+    fireEvent.click(send)
+    expect(run).not.toHaveBeenCalled()
+    expect(send).toHaveTextContent("Send anyway?")
+    expect(send).toHaveAttribute("data-confirming", "true")
+    expect(document.querySelector("[data-ticket-limits='confirm']")).toHaveTextContent("20 is above 10. Send it anyway?")
+    // A change to the draft takes the question back; the next click asks again before it sends.
+    type(quantity(), "21")
+    expect(send).not.toHaveAttribute("data-confirming")
+    expect(document.querySelector("[data-ticket-limits]")).toBeNull()
+    fireEvent.click(send)
+    expect(run).not.toHaveBeenCalled()
+    fireEvent.click(send)
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(run.mock.calls[0]![0]).toMatchObject({ quantity: 21, price: 99.53125 })
+    expect(send).not.toHaveAttribute("data-confirming")
+    expect(send).toHaveTextContent("Send")
+  })
+
+  it("blocks under the field and holds the actions that send the draft, live and as the click lands, while an unchecked action still runs", () => {
+    const send = vi.fn()
+    const cancel = vi.fn()
+    const { rerender } = mount({
+      limits: LIMITS,
+      reference: REFERENCE,
+      actions: [
+        { id: "send", label: "Send", run: send, primary: true },
+        { id: "cancel", label: "Cancel", run: cancel, checked: false },
+      ],
+      allowedActions: ["send", "cancel"],
+    })
+    type(quantity(), "60")
+    type(price(), "99-17")
+    expect(screen.getByText("60 is above the size limit of 50.")).toBeInTheDocument()
+    expect(quantity()).toHaveAttribute("aria-invalid", "true")
+    const sendButton = screen.getByRole("button", { name: /^Send/ })
+    const cancelButton = screen.getByRole("button", { name: "Cancel" })
+    expect(sendButton).toBeDisabled()
+    expect(cancelButton).not.toBeDisabled()
+    fireEvent.click(cancelButton)
+    expect(cancel).toHaveBeenCalledTimes(1)
+    type(quantity(), "5")
+    expect(sendButton).not.toBeDisabled()
+    expect(quantity()).not.toHaveAttribute("aria-invalid", "true")
+    // A buyer's price seven ticks over the offer is past the four-tick line: said under the price, and the send holds.
+    type(price(), "99-20")
+    expect(screen.getByText("The price is 7 ticks from the market; the limit is 4 ticks.")).toBeInTheDocument()
+    expect(sendButton).toBeDisabled()
+    type(price(), "99-17")
+    expect(sendButton).not.toBeDisabled()
+    // A side the book does not take has no field of its own; it is said on the limits line.
+    rerender({ limits: { ...LIMITS, sides: ["sell"] } })
+    expect(document.querySelector("[data-ticket-limits='block']")).toHaveTextContent("The book does not take a buy.")
+    expect(sendButton).toBeDisabled()
+    fireEvent.click(sendButton)
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it("does nothing different without limits", () => {
+    const { run } = mount({ reference: REFERENCE })
+    type(quantity(), "60")
+    type(price(), "99-20")
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }))
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(document.querySelector("[data-ticket-limits]")).toBeNull()
+  })
+})

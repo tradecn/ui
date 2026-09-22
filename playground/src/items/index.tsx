@@ -11,6 +11,7 @@ import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
 import { GridRulesScene } from "./grid-rules"
 import { HotkeyEditorScene } from "./hotkey-editor"
+import { LimitsScene } from "./limits"
 import { PanelScene } from "./panel"
 import { PerfMonitorScene } from "./perf-monitor"
 import { PreferencesScene } from "./preferences"
@@ -64,6 +65,7 @@ export const items: Record<string, ItemScene> = {
   preferences: { title: "preferences", Scene: PreferencesScene },
   "alert-store": { title: "alert-store", Scene: AlertStoreScene },
   "session-calendar": { title: "session-calendar", Scene: SessionCalendarScene },
+  limits: { title: "limits", Scene: LimitsScene },
   "tradecn-slate": { title: "tradecn-slate", Scene: TradecnSlateScene },
   "tradecn-slate-east": { title: "tradecn-slate-east", Scene: TradecnSlateEastScene },
   "tradecn-amber": { title: "tradecn-amber", Scene: TradecnAmberScene },
