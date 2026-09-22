@@ -11,6 +11,7 @@ import { GridRulesScene } from "./grid-rules"
 import { HotkeyEditorScene } from "./hotkey-editor"
 import { PanelScene } from "./panel"
 import { PerfMonitorScene } from "./perf-monitor"
+import { PreferencesScene } from "./preferences"
 import { QuoteFieldScene } from "./quote-field"
 import { RfqStackScene } from "./rfq-stack"
 import { RfqTicketScene } from "./rfq-ticket"
@@ -51,5 +52,6 @@ export const scenes: SmokeScene[] = [
   { name: "column-chooser", Scene: ColumnChooserScene },
   { name: "rules-editor", Scene: RulesEditorScene },
   { name: "grid-rules", Scene: GridRulesScene },
+  { name: "preferences", Scene: PreferencesScene },
 ]
 export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "expiring", "expiring-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4"]
