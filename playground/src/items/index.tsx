@@ -8,6 +8,7 @@ import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
 import { PanelScene } from "./panel"
 import { QuoteFieldScene } from "./quote-field"
+import { RfqStackScene } from "./rfq-stack"
 import { RfqTicketScene } from "./rfq-ticket"
 import { RowStoreScene } from "./row-store"
 import { SparklineScene } from "./sparkline"
@@ -41,6 +42,7 @@ export const items: Record<string, ItemScene> = {
   countdown: { title: "countdown", Scene: CountdownScene },
   "quote-field": { title: "quote-field", Scene: QuoteFieldScene },
   "rfq-ticket": { title: "rfq-ticket", Scene: RfqTicketScene },
+  "rfq-stack": { title: "rfq-stack", Scene: RfqStackScene },
   "tradecn-terminal": { title: "tradecn-terminal", Scene: TradecnTerminalScene },
   "tradecn-terminal-classic": { title: "tradecn-terminal-classic", Scene: TradecnTerminalClassicScene },
 }
