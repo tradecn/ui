@@ -188,13 +188,21 @@
         {
           "path": "registry/tradecn/ui/feed-health.tsx",
           "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-clock.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/clock.ts",
+          "type": "registry:lib"
         }
       ],
       "categories": [
         "feed",
         "chrome"
       ],
-      "docs": "Adds the stale and up tokens. The default thresholds (2 s aging, 10 s stale) are placeholders: agree real ones with the people who trade on the data and pass them in.",
+      "docs": "Adds the stale and up tokens and installs the shared one-second clock alongside. The default thresholds (2 s aging, 10 s stale) are placeholders: agree real ones with the people who trade on the data and pass them in.",
       "meta": {
         "components": [
           {
@@ -877,6 +885,65 @@
       }
     },
     {
+      "name": "countdown",
+      "type": "registry:ui",
+      "title": "Countdown",
+      "description": "Time left to a moment: digits that tick once a second on one shared clock, and a bar that shrinks to nothing on one animation the compositor runs, turning in the last seconds and stopping at zero. It rounds up, so it never says zero while time is left, and it decides nothing: the server's word says whether the thing it timed is over.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/countdown.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-clock.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/clock.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "rfq",
+        "ticket"
+      ],
+      "docs": "Adds the expiring and expiring-soft tokens and installs the shared one-second clock alongside, the same file feed-health ticks on. The ten-second soon threshold is a placeholder: agree the real one with the people who work the screen and pass it in.",
+      "meta": {
+        "components": [
+          {
+            "title": "Countdown",
+            "description": "The digits and the bar."
+          },
+          {
+            "title": "countdownTier",
+            "description": "Pure tiering: plenty, soon, expired."
+          },
+          {
+            "title": "formatRemaining",
+            "description": "Time left as digits, rounded up."
+          },
+          {
+            "title": "PROVISIONAL_COUNTDOWN_THRESHOLDS",
+            "description": "The placeholder soon threshold, named so nobody mistakes it for a decision."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "expiring": "oklch(0.6 0.2 350)",
+          "expiring-soft": "oklch(0.6 0.2 350 / 18%)"
+        },
+        "dark": {
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)"
+        }
+      }
+    },
+    {
       "name": "tradecn-terminal",
       "type": "registry:theme",
       "title": "Terminal",
@@ -939,7 +1006,9 @@
           "stale": "oklch(0.8 0.15 80)",
           "stale-soft": "oklch(0.8 0.15 80 / 16%)",
           "up": "oklch(0.74 0.15 165)",
-          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+          "up-soft": "oklch(0.74 0.15 165 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)"
         },
         "dark": {
           "accent": "oklch(0.26 0.03 70)",
@@ -988,7 +1057,9 @@
           "stale": "oklch(0.8 0.15 80)",
           "stale-soft": "oklch(0.8 0.15 80 / 16%)",
           "up": "oklch(0.74 0.15 165)",
-          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+          "up-soft": "oklch(0.74 0.15 165 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)"
         }
       }
     },
@@ -1055,7 +1126,9 @@
           "stale": "oklch(0.8 0.15 80)",
           "stale-soft": "oklch(0.8 0.15 80 / 16%)",
           "up": "oklch(0.76 0.2 145)",
-          "up-soft": "oklch(0.76 0.2 145 / 18%)"
+          "up-soft": "oklch(0.76 0.2 145 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)"
         },
         "dark": {
           "accent": "oklch(0.26 0.03 70)",
@@ -1104,7 +1177,9 @@
           "stale": "oklch(0.8 0.15 80)",
           "stale-soft": "oklch(0.8 0.15 80 / 16%)",
           "up": "oklch(0.76 0.2 145)",
-          "up-soft": "oklch(0.76 0.2 145 / 18%)"
+          "up-soft": "oklch(0.76 0.2 145 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)"
         }
       }
     }

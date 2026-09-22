@@ -53,7 +53,7 @@ const TEXT: [string, string][] = [
   ["sidebar-accent-foreground", "sidebar-accent"],
 ]
 // Things read by their color, as text or as a mark: a price, a link dot, a focus ring. They are used as text too, so 4.5 to 1.
-const MARKS = ["primary", "up", "down", "stale", "link-1", "link-2", "link-3", "link-4", "panel-sync", "destructive", "ring"]
+const MARKS = ["primary", "up", "down", "stale", "link-1", "link-2", "link-3", "link-4", "panel-sync", "expiring", "destructive", "ring"]
 const SURFACES = ["background", "card"]
 
 describe("the themes", () => {
@@ -98,7 +98,7 @@ describe("the themes", () => {
       })
 
       it(`${theme.name} ${mode}: a soft tint stays a tint, and the value on it still reads`, () => {
-        for (const soft of ["up-soft", "down-soft", "flat-soft", "stale-soft"]) {
+        for (const soft of ["up-soft", "down-soft", "flat-soft", "stale-soft", "expiring-soft"]) {
           const tint = resolve(soft)
           // Over black the tint has to stay dark enough that the foreground still clears 4.5 on it.
           const over = luminance(tint, resolve("background"))

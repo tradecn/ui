@@ -371,6 +371,35 @@ test("a ticket types a price in 32nds, steps it, sends from a key, and shows onl
   expect(errors).toEqual([])
 })
 
+// Four timers: one with time to spare, one in its last seconds that runs out during the test, one that
+// was over before the page drew it, and one with the digits alone.
+test("a countdown says how long is left, turns in the last seconds, and stops at zero", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='countdown']")
+  await expect(scene.getByRole("timer")).toHaveCount(4)
+  const long = scene.getByRole("timer", { name: "Long" })
+  const soon = scene.getByRole("timer", { name: "Soon" })
+  const over = scene.getByRole("timer", { name: "Over" })
+  await expect(long).toHaveAttribute("data-tier", "plenty")
+  await expect(long.locator("[data-countdown-digits]")).toHaveText(/^1:[2-3]\d$/)
+  await expect(soon).toHaveAttribute("data-tier", "soon")
+  await expect(over).toHaveAttribute("data-tier", "expired")
+  await expect(over.locator("[data-countdown-digits]")).toHaveText("0:00")
+  // The compact one has digits and no bar.
+  const compact = scene.getByRole("timer", { name: "Compact" })
+  await expect(compact.locator("span[aria-hidden]")).toHaveCount(0)
+  await expect(long.locator("span[aria-hidden] > span")).toHaveCount(1)
+  // The last seconds paint with the expiring token, through the consumer's utility CSS.
+  const color = await soon.evaluate((el) => getComputedStyle(el).color)
+  const plain = await long.evaluate((el) => getComputedStyle(el).color)
+  expect(color).not.toBe(plain)
+  // Then it runs out, and stays at zero.
+  await expect(soon).toHaveAttribute("data-tier", "expired", { timeout: 8000 })
+  await expect(soon.locator("[data-countdown-digits]")).toHaveText("0:00")
+  await page.waitForTimeout(1100)
+  await expect(soon.locator("[data-countdown-digits]")).toHaveText("0:00")
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.
