@@ -2328,6 +2328,127 @@
       }
     },
     {
+      "name": "audit-trail",
+      "type": "registry:ui",
+      "title": "Audit Trail",
+      "description": "The life of one order or inquiry as events on a tape: when, the server's word for what happened, who, a line of the server's, and how many fields changed, following its tail as events land. Beside it a pane that lists one selected event's changes as field, before, and after, or the difference between two selected events, every field whose value at the later one differs from its value at the earlier one. Export the events shown as CSV. The words and the values are the server's; nothing here decides what an event means.",
+      "dependencies": [
+        "cn@^0.3.0",
+        "@tanstack/react-virtual@^3.14.13"
+      ],
+      "registryDependencies": [
+        "button",
+        "checkbox",
+        "context-menu",
+        "dropdown-menu"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/audit-trail.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/ui/data-grid.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/grid-rules.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "grid",
+        "blotter"
+      ],
+      "docs": "Installs the data grid, the row store, and format alongside, adds @tanstack/react-virtual and the up, down, flat, stale, and expiring tokens the grid carries, and composes your button plus the checkbox, context-menu, and dropdown-menu the grid uses. Pass value(field, value, event) for the desk's notation and onExport for the CSV.",
+      "meta": {
+        "components": [
+          {
+            "title": "AuditTrail",
+            "description": "The tape of events with the changes pane beside it and the export button."
+          },
+          {
+            "title": "auditTrailColumns",
+            "description": "Time, event, by, message, changes, as a list to spread."
+          },
+          {
+            "title": "foldChanges",
+            "description": "Every field's value after the events up to one: the state at that moment."
+          },
+          {
+            "title": "diffEvents",
+            "description": "The fields whose value differs between two events, with both values."
+          },
+          {
+            "title": "formatAuditValue",
+            "description": "A value as the pane prints it: text, or the null token for nothing."
+          },
+          {
+            "title": "DEFAULT_AUDIT_TRAIL_LABELS",
+            "description": "Every word on it, to replace in part."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.46 0.19 40)",
+          "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "expiring": "oklch(0.53 0.2 350)",
+          "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "stale": "oklch(0.52 0.13 75)",
+          "stale-soft": "oklch(0.52 0.13 75 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.52 0.13 165)",
+          "up-soft": "oklch(0.52 0.13 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.66 0.19 40)",
+          "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "stale": "oklch(0.8 0.15 80)",
+          "stale-soft": "oklch(0.8 0.15 80 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
       "name": "grid-rules",
       "type": "registry:lib",
       "title": "Grid Rules",
