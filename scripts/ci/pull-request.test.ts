@@ -14,7 +14,7 @@ describe("what a title does to the version", () => {
     ["chore(repo): the license holder", "patch"],
     ["revert(ticket): the tick stepping", "patch"],
     ["chore(main): release 0.2.0", "patch"],
-    ["docs(ticket): the keys table", "none"],
+    ["docs(ticket): the keys table", "patch"],
     ["ci(site): deploy the docs pages", "none"],
     ["test(data-grid): the resize path", "none"],
     ["style(registry): formatting", "none"],
@@ -22,6 +22,7 @@ describe("what a title does to the version", () => {
     ["feat(ticket)!: side becomes direction", "major"],
     ["fix(data-grid)!: rows are keyed by id", "major"],
     ["chore(registry)!: drop the classic theme", "major"],
+    ["docs(contract)!: the tag is the version", "major"],
   ] as const)("%s → %s", (title, bump) => {
     expect(bumpFor(title)).toBe(bump)
   })
@@ -66,7 +67,7 @@ describe("the title", () => {
   })
 
   it("refuses ! on a type that ships nothing", () => {
-    expect(check("docs(ticket)!: the keys table", breaking)).toEqual([expect.stringContaining('"docs!" would cut a major')])
+    expect(check("test(data-grid)!: the resize path", breaking)).toEqual([expect.stringContaining('"test!" would cut a major')])
     expect(check("ci(site)!: deploy", breaking)).toEqual([expect.stringContaining('"ci!" would cut a major')])
   })
 })
