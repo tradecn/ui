@@ -22,7 +22,7 @@ export function FlashCellScene() {
     return () => clearInterval(t)
   }, [])
   return (
-    <main className="mx-auto max-w-2xl p-6 font-mono text-xs tabular-nums">
+    <main className="mx-auto max-w-2xl p-6 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
       <h1 className="mb-2 text-sm font-semibold">flash-cell</h1>
       <p className="mb-4 text-muted-foreground">Fill on the left, ring on the right. Zero change flashes flat. Shared memory keyed by cell.</p>
       <div className="grid grid-cols-2 gap-6">

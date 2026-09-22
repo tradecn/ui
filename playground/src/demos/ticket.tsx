@@ -35,7 +35,7 @@ export default function TicketDemo() {
   const [draft, setDraft] = useState<TicketDraft | null>(null)
   return (
     <HotkeysProvider bindings={[]}>
-      <div className="flex flex-wrap gap-4 font-mono text-xs">
+      <div className="flex flex-wrap gap-4 font-(family-name:--tradecn-font-mono) text-xs">
         <div className="flex w-80 flex-col gap-2">
           <Ticket
             instrument={ZN}

@@ -17,7 +17,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { chromium, type Page } from "@playwright/test"
-import { HEADERS_FILE, PREVIEW_PATH, SEARCH_INDEX, SITE_SCRIPT } from "./build"
+import { FONT_PACKAGES, HEADERS_FILE, PREVIEW_PATH, SEARCH_INDEX, SITE_SCRIPT, THEME_ITEM } from "./build"
 import type { SearchPage } from "./build"
 
 const { values: args } = parseArgs({
@@ -390,7 +390,7 @@ for (const item of items) {
 // Light and dark. With no choice made a page follows the system, and so do the previews on it and the 404 page,
 // which has no script. The header's button makes a choice: the page and every preview on it switch at once and
 // wear one background, the next page opens in it, another tab hears it, the system no longer decides, and a
-// second press goes back. A theme's own preview wears that theme, which is black in either mode.
+// second press goes back. A theme's own preview wears that theme's own sides; the site theme's preview wears what the page does.
 {
   const page = await context.newPage()
   watch(page, "mode")
@@ -437,10 +437,11 @@ for (const item of items) {
     // Every preview is up and follows the system too.
     await page.waitForFunction(() => [...document.querySelectorAll(".showcase iframe[data-preview]")].every((el) => parseFloat((el as HTMLIFrameElement).style.height || "0") > 40), undefined, { timeout: 30_000 })
     await framesIn(page, "light")
-    // A theme's preview wears that theme's own light side (black for the terminal pair, an off-white for the two-sided themes); every other preview wears the page's.
+    // A theme's preview wears that theme's own light side, which differs from the page's unless the theme is the site's; every other preview wears the page's.
     for (const frame of await frames(page)) {
       if (!themes.has(frame.item) && frame.background !== light) failures.push(`mode: in light the ${frame.item} preview's background is ${frame.background}, the page's ${light}`)
-      if (themes.has(frame.item) && (frame.background !== frame.own || frame.background === light)) failures.push(`mode: in light the ${frame.item} preview's background is ${frame.background}; a theme's preview wears the theme's own light side (${frame.own}), not the page's`)
+      if (themes.has(frame.item) && frame.background !== frame.own) failures.push(`mode: in light the ${frame.item} preview's background is ${frame.background}, not the theme's own light side (${frame.own})`)
+      if (themes.has(frame.item) && frame.item !== THEME_ITEM && frame.background === light) failures.push(`mode: in light the ${frame.item} preview wears the page's background (${light}), not its own`)
     }
     // The button chooses dark: the page, the store, the label, and every preview at once, through the storage event.
     await button.click()
@@ -493,6 +494,33 @@ for (const item of items) {
     console.log(`ok  mode: the system, the button, ${itemPreviews.length} previews following, the next page, another tab, and the 404 page`)
   } catch (error) {
     failures.push(`mode: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
+// The type: the pages are set in the theme's sans and their code in its mono, the two faces the typography tokens
+// name, self-hosted under /fonts/ and loaded under the policy (a blocked font logs a console error, which the
+// watcher above turns into a failure). Read after the fonts settle, from the faces the document loaded.
+{
+  const page = await context.newPage()
+  watch(page, "fonts")
+  try {
+    await page.goto(`${base}/docs/installation/`, { waitUntil: "load" })
+    const type = await page.evaluate(async () => {
+      await document.fonts.ready
+      const family = (el: Element | null) => (el ? getComputedStyle(el).fontFamily.replace(/["']/g, "") : "")
+      const loaded = [...document.fonts].filter((face) => face.status === "loaded").map((face) => `${face.family.replace(/["']/g, "")} ${face.weight}`)
+      return { html: family(document.documentElement), code: family(document.querySelector("article code")), heading: family(document.querySelector("article h1")), loaded }
+    })
+    const [sans, mono] = FONT_PACKAGES.map((entry) => entry.family)
+    if (!type.html.startsWith(`${sans},`)) failures.push(`fonts: the page is set in "${type.html}", not ${sans} first`)
+    if (!type.heading.startsWith(`${sans},`)) failures.push(`fonts: a heading is set in "${type.heading}", not ${sans} first`)
+    if (!type.code.startsWith(`${mono},`)) failures.push(`fonts: code is set in "${type.code}", not ${mono} first`)
+    for (const face of [`${sans} 400`, `${sans} 600`, `${mono} 400`]) if (!type.loaded.includes(face)) failures.push(`fonts: ${face} did not load; loaded: ${type.loaded.join(", ") || "none"}`)
+    console.log(`ok  fonts: ${sans} and ${mono} load under the policy and set the page`)
+  } catch (error) {
+    failures.push(`fonts: ${firstLine(error)}`)
   } finally {
     await page.close()
   }

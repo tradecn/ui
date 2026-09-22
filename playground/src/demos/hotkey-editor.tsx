@@ -19,11 +19,11 @@ export default function HotkeyEditorDemo() {
   useEffect(() => registry.onChange(setOverrides), [registry])
   return (
     <HotkeysProvider registry={registry} bindings={BINDINGS}>
-      <div className="grid gap-4 font-mono text-xs sm:grid-cols-[1fr_12rem]">
+      <div className="grid gap-4 font-(family-name:--tradecn-font-mono) text-xs sm:grid-cols-[1fr_12rem]">
         <HotkeyEditor onExport={setOverrides} />
         <div className="space-y-1">
           <p className="text-muted-foreground">what the app persists</p>
-          <pre className="rounded-md border border-border bg-card p-2 text-[11px]">{JSON.stringify(overrides, null, 2)}</pre>
+          <pre className="rounded-md border border-border bg-card p-2 text-xs">{JSON.stringify(overrides, null, 2)}</pre>
         </div>
       </div>
     </HotkeysProvider>

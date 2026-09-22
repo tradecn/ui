@@ -7,17 +7,19 @@
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/fonts.css">
 <style>
 /* No script here, so this page follows the system's mode, not the reader's choice; the palette says both. */
 :root {
 {{palette}}
-  --font: {{font}};
+  --font-sans: {{fontSans}};
+  --font-mono: {{fontMono}};
 }
-html { background: var(--background); color: var(--foreground); font: 15px/1.55 var(--font); }
+html { background: var(--background); color: var(--foreground); font: 15px/1.55 var(--font-sans); }
 body { margin: 0 auto; padding: 4rem 16px; max-width: 40rem; }
 a { color: var(--primary); text-decoration: none; }
 a:hover, a:focus-visible { text-decoration: underline; }
-code { font-family: var(--font); }
+code { font-family: var(--font-mono); }
 h1 { font-size: 1.25rem; font-weight: 600; }
 p { color: var(--muted-foreground); }
 </style>

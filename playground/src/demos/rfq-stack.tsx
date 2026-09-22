@@ -63,7 +63,7 @@ export default function RfqStackDemo() {
     return () => clearInterval(t)
   }, [store])
   return (
-    <div className="space-y-2 font-mono text-xs">
+    <div className="space-y-2 font-(family-name:--tradecn-font-mono) text-xs">
       <div className="h-80">
         <RfqStack store={store} view={view} activeId={active.activeId} onActivate={active.setActive} threshold={threshold} onThresholdChange={setThreshold} price={(v) => ust.price(v)} />
       </div>

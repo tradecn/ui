@@ -57,7 +57,7 @@ export default function RowStoreDemo() {
   const ids = useRowIds(view)
   const meta = useStoreMeta(store)
   return (
-    <div className="font-mono text-xs tabular-nums" onPointerDown={() => view.touch()}>
+    <div className="font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums" onPointerDown={() => view.touch()}>
       <p className="mb-2 text-muted-foreground">Sorted by change, 40 patches a frame. Batch {meta.version}. Press anywhere and the order holds.</p>
       <table className="w-full">
         <tbody>

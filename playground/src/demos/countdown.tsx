@@ -23,7 +23,7 @@ export default function CountdownDemo() {
   const [over] = useState(() => Date.now() - 1000)
   const [log, setLog] = useState("")
   return (
-    <div className="space-y-4 font-mono text-xs">
+    <div className="space-y-4 font-(family-name:--tradecn-font-mono) text-xs">
       <div className="flex flex-wrap items-end gap-6">
         <Countdown expiresAt={inquiry.end} startsAt={inquiry.start} label="Inquiry" className="text-xl" onExpire={() => setLog("The digits reached zero. Whether the inquiry is over is the server's to say.")} />
         <Countdown expiresAt={over} startsAt={over - 30_000} label="An earlier inquiry" className="text-xl" />

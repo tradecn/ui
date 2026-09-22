@@ -460,7 +460,7 @@ function PaletteBody({ actions, symbols, onSymbolSelect, symbolSecondary, goBarG
               <span className="truncate">{row.title}</span>
               {row.subtitle && <span className="truncate text-muted-foreground">{row.subtitle}</span>}
               {row.badge && (
-                <Badge variant="outline" className="h-4 px-1 text-[10px] uppercase">
+                <Badge variant="outline" className="h-4 px-1 text-xs uppercase">
                   {row.badge}
                 </Badge>
               )}

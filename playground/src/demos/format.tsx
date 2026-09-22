@@ -27,7 +27,7 @@ const rows: [string, string][] = [
 
 export default function FormatDemo() {
   return (
-    <table className="w-full font-mono text-xs tabular-nums">
+    <table className="w-full font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
       <tbody>
         {rows.map(([label, value]) => (
           <tr key={label} className="border-b border-border">

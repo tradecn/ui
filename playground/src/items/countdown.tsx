@@ -24,7 +24,7 @@ export function CountdownScene() {
   const [over] = useState(() => Date.now() - 1000)
   const [log, setLog] = useState("")
   return (
-    <main className="mx-auto max-w-2xl space-y-4 p-6 font-mono text-xs">
+    <main className="mx-auto max-w-2xl space-y-4 p-6 font-(family-name:--tradecn-font-mono) text-xs">
       <h1 className="text-sm font-semibold">countdown</h1>
       <p className="text-muted-foreground">
         Digits once a second on one shared clock, a bar the compositor shrinks for exactly the time left. The last ten seconds turn <span className="text-expiring">expiring</span>; zero stays at zero. The third one was over before the page drew it. Nothing here decides anything: the pretend server would say

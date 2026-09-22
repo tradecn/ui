@@ -85,7 +85,7 @@ export default function PanelDemo() {
   return (
     <HotkeysProvider bindings={BINDINGS}>
       <LinkGroupProvider>
-        <div className="space-y-3 font-mono text-xs">
+        <div className="space-y-3 font-(family-name:--tradecn-font-mono) text-xs">
           <p className="text-muted-foreground">Book A and Book B are in link group 1: retype one symbol and the other follows. Click a book, then j and x act on that book only. Pop one out and its state, keys, and link come along.</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Book id="Book A" group={1} symbol="ZN" />

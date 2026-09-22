@@ -88,7 +88,7 @@ export const DATA_GRID_PRESETS: Record<DataGridPreset, DataGridPresetConfig> = {
   blotter: { rowHeight: 24, fontClass: "text-xs", reorderHoldMs: 750, flash: "fill", selectionMode: "multi", rowEnter: { highlight: true, pinViewport: true }, announceRowCount: "debounced" },
   watchlist: { rowHeight: 22, fontClass: "text-xs", reorderHoldMs: 0, flash: "fill", selectionMode: "single", rowEnter: { highlight: false, pinViewport: false }, announceRowCount: "off" },
   rfq: { rowHeight: 26, fontClass: "text-xs", reorderHoldMs: 1000, flash: "ring", selectionMode: "single", rowEnter: { highlight: true, pinViewport: true }, announceRowCount: "debounced" },
-  "option-chain": { rowHeight: 20, fontClass: "text-[11px]", reorderHoldMs: 0, flash: "ring", selectionMode: "none", rowEnter: { highlight: false, pinViewport: false }, announceRowCount: "off" },
+  "option-chain": { rowHeight: 20, fontClass: "text-xs", reorderHoldMs: 0, flash: "ring", selectionMode: "none", rowEnter: { highlight: false, pinViewport: false }, announceRowCount: "off" },
 }
 
 export const EMPTY_COLUMN_STATE: ColumnState = { order: [], widths: {}, hidden: [] }

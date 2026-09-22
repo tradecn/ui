@@ -36,7 +36,7 @@ export function SparklineScene() {
   }, [])
   const lead = rows[2]!
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6 font-mono text-xs tabular-nums">
+    <main className="mx-auto max-w-3xl space-y-6 p-6 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
       <h1 className="text-sm font-semibold">sparkline</h1>
       <p className="text-muted-foreground">Fixed size in the table, so nothing is observed. The big one fills its box and takes a crosshair: Tab to it, then the arrow keys, Home, End, Escape. The dashed line is the open it is compared against. A reading in twelve is dropped to show the gaps.</p>
       <table className="w-full">

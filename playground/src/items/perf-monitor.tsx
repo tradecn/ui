@@ -57,13 +57,13 @@ export function PerfMonitorScene() {
     return () => cancelAnimationFrame(raf)
   }, [store, patches])
   return (
-    <main className="mx-auto flex h-screen max-w-5xl flex-col gap-3 p-6 font-mono text-xs">
+    <main className="mx-auto flex h-screen max-w-5xl flex-col gap-3 p-6 font-(family-name:--tradecn-font-mono) text-xs">
       <h1 className="text-sm font-semibold">perf-monitor</h1>
       <p className="text-muted-foreground">A thousand rows, twelve columns, one batch of patches per animation frame. Turn the patches up until the p99 crosses the dashed budget line and the dropped count moves. The monitor reads the frames and the lane; it decides nothing.</p>
       <label className="flex items-center gap-2">
         <span className="text-muted-foreground">patches per frame</span>
         <input type="range" min={0} max={4000} step={100} value={patches} onChange={(event) => setPatches(Number(event.target.value))} className="w-64" />
-        <span className="tabular-nums">{patches}</span>
+        <span className="lining-nums tabular-nums">{patches}</span>
       </label>
       <PerfMonitor lanes={[{ label: "Quotes", store }]} readouts={[{ label: "patches/frame", value: String(patches) }]} />
       <div className="min-h-0 flex-1">

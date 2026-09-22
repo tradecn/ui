@@ -62,7 +62,7 @@ function Demo() {
   useHotkey("app.search", () => log("search"))
   useHotkey("go.blotter", () => log("go: blotter"))
   return (
-    <div className="space-y-3 font-mono text-xs">
+    <div className="space-y-3 font-(family-name:--tradecn-font-mono) text-xs">
       <p className="text-muted-foreground">Click a book, then j and x act on that book only. In the field, single keys are yours and the search key still runs.</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Book name="Book A" log={log} />

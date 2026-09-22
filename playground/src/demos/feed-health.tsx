@@ -31,7 +31,7 @@ export default function FeedHealthDemo() {
     return () => clearInterval(t)
   }, [paused, gap, down])
   return (
-    <div className="space-y-4 font-mono text-xs">
+    <div className="space-y-4 font-(family-name:--tradecn-font-mono) text-xs">
       <FeedHealth feeds={feeds} />
       <FeedHealth feeds={feeds} compact />
       <div className="flex flex-wrap gap-2">

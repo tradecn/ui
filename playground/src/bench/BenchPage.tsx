@@ -195,7 +195,7 @@ export function BenchPage() {
   }, [store, params])
 
   return (
-    <main className="flex h-screen flex-col gap-2 p-3 font-mono text-xs">
+    <main className="flex h-screen flex-col gap-2 p-3 font-(family-name:--tradecn-font-mono) text-xs">
       <div className="flex items-center gap-4">
         <h1 className="text-sm font-semibold">bench</h1>
         <span className="text-muted-foreground">

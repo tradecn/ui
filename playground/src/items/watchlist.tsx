@@ -49,7 +49,7 @@ export function WatchlistScene() {
   }, [store])
   const columns = useMemo(() => [...watchlistColumns<Row>({ price }), { key: "trend", header: "Trend", width: 112, flash: false as const, accessor: (r: Row) => r.closes, cell: ({ row }: { row: Row }) => <Sparkline values={row.closes} baseline={row.close} label={`${row.symbol} today`} width={96} height={16} /> }], [])
   return (
-    <main className="mx-auto max-w-3xl space-y-3 p-6 font-mono text-xs">
+    <main className="mx-auto max-w-3xl space-y-3 p-6 font-(family-name:--tradecn-font-mono) text-xs">
       <h1 className="text-sm font-semibold">watchlist</h1>
       <p className="text-muted-foreground">Add one of {Object.keys(UNIVERSE).join(", ")}. Add one that is already there and it goes to that row instead. Anything else is refused. Delete removes the row in hand, so does the × on hover and the right-click menu. Treasuries print in 32nds and the rest in decimals, through one `price` function. The trend column is a sparkline spread into the default columns.</p>
       <div className="h-72">

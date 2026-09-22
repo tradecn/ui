@@ -7,8 +7,8 @@
 // and --embed at the tag's checkout while the templates in site/, the site's own pages, this script, and the palette
 // come from main. The palette is main's because a tag from before the theme existed has none to give. A tag from
 // before the previews existed has no embed build, and its pages go out without them.
-// The pages have a light and a dark mode. Dark is the terminal theme; light is the site's own palette below, because
-// both themes are black in either mode. site/theme.js puts the mode on <html>, from the reader's choice or the system.
+// The pages have a light and a dark mode, both sides of the amber theme: warm paper by day, near-black by night, set
+// in the two faces its typography tokens name. site/theme.js puts the mode on <html>, from the reader's choice or the system.
 import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { parseArgs } from "node:util"
@@ -18,8 +18,8 @@ import { TYPOGRAPHY_TOKEN, isColorValue } from "../lib/registry"
 export const SITE_URL = "https://tradecn.dev"
 export const REPO_URL = "https://github.com/tradecn/ui"
 
-/** The pages take their colors from this theme, so they look like the product without a palette of their own. */
-export const THEME_ITEM = "tradecn-terminal"
+/** The pages take their colors, both sides, and their type from this theme, so they look like the product without a palette of their own. */
+export const THEME_ITEM = "tradecn-amber"
 const PALETTE = [
   "background",
   "foreground",
@@ -39,27 +39,22 @@ const PALETTE = [
 export type PaletteToken = (typeof PALETTE)[number]
 
 /**
- * The pages' light mode. The terminal themes are black in light and dark alike, on purpose, so the site's light
- * side is its own: shadcn's neutral light warmed toward the terminal's amber, which is deepened until it reads
- * as text on white (5.2:1) and on the card gray (4.8:1). `up` and `down` are the light values the items add, so
- * the soft shades installed beside them match in a preview. Square corners and the monospace stack stay.
+ * The pages' two faces are the ones the theme's typography tokens name, Inter and JetBrains Mono, self-hosted the
+ * way the previews' bundle self-hosts them: `site/fonts.css` declares them under /fonts/, and the builder copies the
+ * files there from Fontsource's static packages (the ones the playground installs). Latin and Latin Extended, in the
+ * three weights the stylesheet uses. The site's policy allows fonts from 'self' alone, so a third-party stylesheet
+ * would be blocked; these are not.
  */
-export const LIGHT_PALETTE: Record<PaletteToken, string> = {
-  background: "oklch(1 0 0)",
-  foreground: "oklch(0.2 0.01 85)",
-  card: "oklch(0.97 0.004 85)",
-  "card-foreground": "oklch(0.2 0.01 85)",
-  border: "oklch(0.88 0.006 85)",
-  muted: "oklch(0.95 0.004 85)",
-  "muted-foreground": "oklch(0.5 0.012 85)",
-  primary: "oklch(0.54 0.12 65)",
-  "primary-foreground": "oklch(0.99 0.01 85)",
-  ring: "oklch(0.6 0.12 65)",
-  destructive: "oklch(0.577 0.245 27.325)",
-  up: "oklch(0.58 0.14 165)",
-  down: "oklch(0.58 0.19 45)",
-  radius: "0rem",
-}
+export const FONTS_STYLES = "fonts.css"
+export const FONTS_PATH = "fonts"
+export const FONT_WEIGHTS = [400, 500, 600] as const
+export const FONT_SUBSETS = ["latin-ext", "latin"] as const
+export const FONT_PACKAGES = [
+  { family: "Inter", package: "inter" },
+  { family: "JetBrains Mono", package: "jetbrains-mono" },
+] as const
+/** Every font file the pages serve: its Fontsource package and its name, the same under `files/` there and `/fonts/` here. */
+export const fontFiles = () => FONT_PACKAGES.flatMap(({ package: pkg }) => FONT_SUBSETS.flatMap((subset) => FONT_WEIGHTS.map((weight) => ({ package: pkg, file: `${pkg}-${subset}-${weight}-normal.woff2` }))))
 
 export type RegistryFile = { path: string; type: string; target?: string }
 export type RegistryItem = {
@@ -167,22 +162,31 @@ export function siteHeader(tag: string, current: Section | null = null, page = f
 }
 
 /**
- * The pages' palette, both modes in one block: each token is a `light-dark()` pair of the site's light value and
- * the terminal theme's, or one value when they agree. `color-scheme` picks the side: `light dark` here follows
- * the system, and the stylesheet forces one under the class theme.js puts on <html>. So the 404 page, which has
- * no script, still has both modes, from this alone.
+ * The pages' palette, both modes in one block: each token is a `light-dark()` pair of the theme's light and dark
+ * values, or one value when they agree (the radius lives in `:root` alone). `color-scheme` picks the side: `light dark`
+ * here follows the system, and the stylesheet forces one under the class theme.js puts on <html>. So the 404 page,
+ * which has no script, still has both modes, from this alone.
  */
 export function pagePalette(theme: RegistryItem): string {
   const light = theme.cssVars?.light
-  if (!light) throw new Error(`${theme.name} has no cssVars.light and the page takes its palette from it`)
-  // The theme's dark side, with its light side under it for a token dark leaves alone (the radius).
-  const dark = { ...light, ...theme.cssVars?.dark }
+  const dark = theme.cssVars?.dark
+  if (!light || !dark) throw new Error(`${theme.name} has no cssVars.light and cssVars.dark, and the page takes its palette from both`)
   const lines = PALETTE.map((token) => {
-    const value = dark[token]
-    if (!value) throw new Error(`${theme.name} sets no ${token} token`)
-    return `  --${token}: ${value === LIGHT_PALETTE[token] ? value : `light-dark(${LIGHT_PALETTE[token]}, ${value})`};`
+    const day = light[token]
+    const night = dark[token] ?? day
+    if (!day || !night) throw new Error(`${theme.name} sets no ${token} token`)
+    return `  --${token}: ${day === night ? day : `light-dark(${day}, ${night})`};`
   })
   return ["  color-scheme: light dark;", ...lines].join("\n")
+}
+
+/** The pages' two faces: the theme's sans for prose and its mono for code, the same tokens every item reads. */
+export function pageFonts(theme: RegistryItem): { fontSans: string; fontMono: string } {
+  const light = theme.cssVars?.light ?? {}
+  const fontSans = light["tradecn-font-sans"]
+  const fontMono = light["tradecn-font-mono"]
+  if (!fontSans || !fontMono) throw new Error(`${theme.name} sets no --tradecn-font-sans or --tradecn-font-mono, and the pages take their type from them`)
+  return { fontSans, fontMono }
 }
 
 /** Every value the landing templates may use. Items and version come from `registry`, the palette from `themeSource`, the showcase from `previews`. */
@@ -197,12 +201,13 @@ export function templateValues(
   const theme = themeSource.items.find((item) => item.name === THEME_ITEM)
   if (!theme) throw new Error(`${THEME_ITEM} is not in the theme source and the page takes its palette from it`)
   const palette = pagePalette(theme)
-  const font = theme.cssVars?.theme?.["font-sans"] ?? "ui-monospace, monospace"
+  const { fontSans, fontMono } = pageFonts(theme)
   return {
     version,
     tag,
     palette,
-    font,
+    fontSans,
+    fontMono,
     header: siteHeader(tag),
     search: searchDialog(),
     showcase: showcase(registry, tag, docSlugs, previews),
@@ -444,7 +449,8 @@ export function tokensTable(registry: Registry, tag: string, docSlugs: ReadonlyS
     }
   }
   // Light over dark in one cell, so the table is three columns and fits a laptop without scrolling; one line when they agree.
-  const value = (text: string) => `${swatch(text)}<code>${escapeHtml(text)}</code>`
+  // A color stays on one line beside its swatch; a font stack is long and wraps at its commas, so the table keeps its width and the last column its room.
+  const value = (text: string) => `${swatch(text)}<code${isColorValue(text) ? "" : ' class="stack"'}>${escapeHtml(text)}</code>`
   const rows = [...tokens].map(
     ([token, { light, dark, items }]) =>
       `<tr><td><code>--${escapeHtml(token)}</code></td><td class="value">${light === dark ? value(light) : `${value(light)}<br>${value(dark)}`}</td><td>${items.map((item) => `<a href="${docHref(item, tag, docSlugs)}"><code>${escapeHtml(item.name)}</code></a>`).join(", ")}</td></tr>`,
@@ -585,14 +591,19 @@ export function fullPalette(theme: RegistryItem, mode: "light" | "dark"): string
 }
 
 /**
- * The embed page's light side for an item that is not a theme: the site's light palette over the bundle's own
- * light one, in the theme's font, so a demo looks like the light page that frames it. The bundle keeps every
- * token this does not name (accent, popover, the sidebar) and the light values the items themselves add.
+ * The embed page's light side for an item that is not a theme: the site theme's light dozen over the bundle's own
+ * light palette, with the theme's typography tokens, so a demo looks like the light page that frames it. The bundle
+ * keeps every token this does not name (accent, popover, the sidebar).
  */
 export function siteLightPalette(theme: RegistryItem): string {
-  const lines = PALETTE.map((token) => `  --${token}: ${LIGHT_PALETTE[token]};`)
+  const light = theme.cssVars?.light ?? {}
+  const lines = PALETTE.map((token) => {
+    const value = light[token]
+    if (!value) throw new Error(`${theme.name} sets no ${token} token`)
+    return `  --${token}: ${value};`
+  })
   // The theme's typography is the same in both modes, so a light preview sets its numbers the way a dark one does.
-  for (const [token, value] of Object.entries(theme.cssVars?.light ?? {})) if (TYPOGRAPHY_TOKEN.test(token)) lines.push(`  --${token}: ${value};`)
+  for (const [token, value] of Object.entries(light)) if (TYPOGRAPHY_TOKEN.test(token)) lines.push(`  --${token}: ${value};`)
   const font = theme.cssVars?.theme?.["font-sans"]
   if (font) lines.push(`  --font-sans: ${font};`)
   return lines.join("\n")
@@ -873,8 +884,8 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
 
 /**
  * One page per demo at /preview/<item>/, around the embed bundle, with a palette for each mode. A theme's page
- * wears that theme in both; every other page wears the site's, from `themeSource`, in dark and the site's own
- * light palette in light, so a demo looks like the docs page that frames it.
+ * wears that theme in both; every other page wears the site's theme, from `themeSource`, its whole dark side in
+ * dark and its light dozen in light, so a demo looks like the docs page that frames it.
  */
 export function previewPages(registry: Registry, themeSource: Registry, previews: Previews, values: Record<string, string>, template: string, docSlugs: ReadonlySet<string> = new Set()): Array<{ path: string; html: string }> {
   const { embed } = previews
@@ -953,6 +964,15 @@ async function main() {
   await cp(join(root, "site", SITE_SCRIPT), join(out, SITE_SCRIPT))
   await cp(join(root, "site", MODE_SCRIPT), join(out, MODE_SCRIPT))
   await cp(join(root, "site", SITE_STYLES), join(out, SITE_STYLES))
+  // The two faces, from the Fontsource packages the playground installs (hoisted to the root by the workspace).
+  await cp(join(root, "site", FONTS_STYLES), join(out, FONTS_STYLES))
+  await mkdir(join(out, FONTS_PATH), { recursive: true })
+  for (const { package: pkg, file } of fontFiles()) {
+    const source = join(root, "node_modules/@fontsource", pkg, "files", file)
+    await cp(source, join(out, FONTS_PATH, file)).catch(() => {
+      throw new Error(`${source} is missing, and ${FONTS_STYLES} serves it at /${FONTS_PATH}/${file}; run bun install`)
+    })
+  }
   const docsTemplate = await readFile(join(root, "site", DOCS_TEMPLATE), "utf8")
   for (const page of docPages(docs, values, docsTemplate, previews, sources)) {
     await mkdir(join(out, dirname(page.path)), { recursive: true })

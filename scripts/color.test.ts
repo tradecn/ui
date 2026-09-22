@@ -46,21 +46,21 @@ describe("contract rule 15: direction never rides on hue alone", () => {
     }
   })
 
-  it("keeps a two-sided theme's direction pair apart in gray as well as hue, so it survives a grayscale print", () => {
+  it("keeps every theme's direction pair apart in gray as well as hue, so it survives a grayscale print", () => {
     const themes = readRegistry().items.filter((item) => item.type === "registry:theme")
-    expect(themes.length).toBeGreaterThanOrEqual(5)
+    expect(themes.length).toBeGreaterThanOrEqual(3)
     for (const theme of themes) {
       for (const mode of ["light", "dark"] as const) {
         const vars = theme.cssVars?.[mode] ?? {}
         const up = parseOklch(vars.up!)!
         const down = parseOklch(vars.down!)!
         expect(Math.abs(up.h - down.h), `${theme.name} ${mode}: up and down differ in hue`).toBeGreaterThan(60)
-        // The same ratio a grayscale print or a luminance-only view sees. The terminal pair sits at 1.16 and leans on
-        // the sign and the words, as its docs say; the themes with a light side were drawn with the gap.
+        // The same ratio a grayscale print or a luminance-only view sees. A pair at equal lightness was the reason the
+        // terminal themes went; scripts/themes.test.ts holds the items' own default pair to the same gap.
         const a = luminance(up)
         const b = luminance(down)
         const gray = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
-        if (!theme.name.startsWith("tradecn-terminal")) expect(gray, `${theme.name} ${mode}: up against down in gray`).toBeGreaterThanOrEqual(1.3)
+        expect(gray, `${theme.name} ${mode}: up against down in gray`).toBeGreaterThanOrEqual(1.3)
       }
     }
   })

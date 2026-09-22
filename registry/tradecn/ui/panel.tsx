@@ -244,7 +244,7 @@ export function LinkGroupDot({ group, onGroupChange, className, onClick, ...prop
       title={name}
       data-link-group={group ?? "none"}
       className={cn(
-        "inline-flex size-4 shrink-0 items-center justify-center rounded-sm text-[10px] leading-none font-semibold text-black/85 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        "inline-flex size-4 shrink-0 items-center justify-center rounded-sm text-xs leading-none font-semibold text-black/85 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         group === null ? "border border-dashed border-muted-foreground/60" : LINK_CLASS[group],
         className,
       )}

@@ -1,10 +1,12 @@
-/* tradecn.dev, every page. The palette is on :root in each page's own <style>, from the terminal theme. */
+/* tradecn.dev, every page. The palette and the two font stacks are on :root in each page's own <style>, both sides
+   of the amber theme; the faces themselves are declared in fonts.css and served under /fonts/. Prose is the sans,
+   code and the tag are the mono, the way the typography tokens divide them. */
 * { box-sizing: border-box; }
-html { background: var(--background); color: var(--foreground); font: 15px/1.55 var(--font); -webkit-text-size-adjust: 100%; scroll-padding-top: 4.5rem; }
+html { background: var(--background); color: var(--foreground); font: 15px/1.55 var(--font-sans); -webkit-text-size-adjust: 100%; scroll-padding-top: 4.5rem; }
 body { margin: 0; }
 a { color: var(--primary); text-decoration: none; }
 a:hover, a:focus-visible { text-decoration: underline; }
-code { font-family: var(--font); }
+code, kbd { font-family: var(--font-mono); }
 .wrap { margin: 0 auto; padding: 0 16px; max-width: 80rem; }
 
 /* The header: the mark, the sections, and the links out. Sticky, so the docs never lose their way back. */
@@ -18,7 +20,7 @@ code { font-family: var(--font); }
 .site-header nav a { color: var(--muted-foreground); }
 .site-header nav a[aria-current] { color: var(--foreground); }
 .site-header .side { margin-left: auto; align-items: center; }
-.site-header .tag { color: var(--muted-foreground); }
+.site-header .tag { color: var(--muted-foreground); font-family: var(--font-mono); font-size: .9rem; }
 
 /* The mode. theme.js puts light or dark on <html>, from the reader's choice or the system; color-scheme then picks
    the side of every light-dark() pair in the page's palette, and the browser's own controls and scrollbars follow. */
@@ -139,9 +141,10 @@ article hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 .table { margin: 1rem 0; overflow-x: auto; }
 .table table { margin: 0; }
 .table code { font-size: .9em; }
-/* The tokens table on the Theming page: each value beside a swatch of it, on one line; the items that add it wrap. */
-.tokens td:first-child, .tokens td.value { white-space: nowrap; }
+/* The tokens table on the Theming page: a color beside a swatch of it, on one line; a font stack wraps at its commas, or the value column would take the width and leave the items that add it one to a line. */
+.tokens td:first-child { white-space: nowrap; }
 .tokens td code, .dependencies td code { white-space: nowrap; }
+.tokens td code.stack { white-space: normal; }
 .swatch { display: inline-block; width: .9em; height: .9em; margin-right: .4em; vertical-align: -.1em; border: 1px solid var(--border); border-radius: 2px; }
 
 /* A code block: the pre, a copy button over its top-right corner, and for a command the package-manager tabs above it. */

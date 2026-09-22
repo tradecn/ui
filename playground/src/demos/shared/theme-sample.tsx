@@ -61,7 +61,7 @@ function Book() {
 
 export function ThemeSample() {
   return (
-    <div data-theme-sample className="space-y-3 font-mono text-xs">
+    <div data-theme-sample className="space-y-3 font-(family-name:--tradecn-font-mono) text-xs">
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm">Primary</Button>
         <Button size="sm" variant="secondary">

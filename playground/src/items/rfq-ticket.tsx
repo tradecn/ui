@@ -75,7 +75,7 @@ export function RfqTicketScene() {
   ]
   return (
     <HotkeysProvider bindings={[]}>
-      <main className="mx-auto max-w-3xl space-y-4 p-6 font-mono text-xs">
+      <main className="mx-auto max-w-3xl space-y-4 p-6 font-(family-name:--tradecn-font-mono) text-xs">
         <h1 className="text-sm font-semibold">rfq-ticket</h1>
         <p className="text-muted-foreground">
           A client asks for a price. Type an offer in 32nds or take the auto level, <kbd>⌘↩</kbd> sends, <kbd>⌘↑</kbd> and <kbd>⌘↓</kbd> step, <kbd>⌘⇧A</kbd> takes the suggested level. The pretend venue answers after 700 ms with a ring and a status word, then a few seconds later says how it ended. Nothing here decides a status: the ticket prints

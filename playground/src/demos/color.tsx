@@ -67,7 +67,7 @@ export default function ColorDemo() {
           <h3 className="font-medium">{theme.name}</h3>
           <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${SIMULATIONS.length}, minmax(0, 1fr))` }}>
             {SIMULATIONS.map((s) => (
-              <span key={s.id} className="text-[10px] text-muted-foreground uppercase">
+              <span key={s.id} className="text-xs text-muted-foreground uppercase">
                 {s.label}
               </span>
             ))}

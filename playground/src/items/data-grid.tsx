@@ -90,7 +90,7 @@ export function DataGridScene() {
   const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: {}, hidden: [] })
   const [selection, setSelection] = useState<ReadonlySet<string>>(new Set())
   return (
-    <main className="flex h-screen flex-col gap-3 p-4 font-mono text-xs">
+    <main className="flex h-screen flex-col gap-3 p-4 font-(family-name:--tradecn-font-mono) text-xs">
       <div className="flex items-center gap-3">
         <h1 className="text-sm font-semibold">data-grid</h1>
         <span className="text-muted-foreground">

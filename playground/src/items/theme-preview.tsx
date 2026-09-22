@@ -14,7 +14,7 @@ interface ThemeItem {
   type: string
   title: string
   description: string
-  cssVars?: { theme?: Record<string, string>; light?: Record<string, string>; dark?: Record<string, string> }
+  cssVars?: { light?: Record<string, string>; dark?: Record<string, string> }
 }
 
 const themes = (JSON.parse(registryText) as { items: ThemeItem[] }).items.filter((item) => item.type === "registry:theme")
@@ -23,7 +23,7 @@ const themes = (JSON.parse(registryText) as { items: ThemeItem[] }).items.filter
 // look survives next to it. The utilities read var(--background) and friends, so this is enough.
 function scoped(theme: ThemeItem): CSSProperties {
   const vars = Object.fromEntries(Object.entries(theme.cssVars?.dark ?? {}).map(([k, v]) => [`--${k}`, v]))
-  return { ...vars, "--radius": theme.cssVars?.light?.radius ?? "0rem", fontFamily: theme.cssVars?.theme?.["font-sans"] } as CSSProperties
+  return { ...vars, "--radius": theme.cssVars?.light?.radius ?? "0rem" } as CSSProperties
 }
 
 const SEED: WatchlistRow[] = [
@@ -77,9 +77,9 @@ function Book() {
 
 export function ThemePreview({ name }: { name: string }) {
   const theme = themes.find((t) => t.name === name)
-  if (!theme) return <main className="p-6 font-mono text-xs">No theme named {name} in registry.json.</main>
+  if (!theme) return <main className="p-6 font-(family-name:--tradecn-font-mono) text-xs">No theme named {name} in registry.json.</main>
   return (
-    <main className="mx-auto max-w-3xl space-y-3 p-6 font-mono text-xs">
+    <main className="mx-auto max-w-3xl space-y-3 p-6 font-(family-name:--tradecn-font-mono) text-xs">
       <h1 className="text-sm font-semibold">{theme.name}</h1>
       <p className="text-muted-foreground">{theme.description}</p>
       <p className="text-muted-foreground">Installing it rewrites your stylesheet. Here its variables are set on one box, so the rest of the playground keeps its own look. Every component inside is the same one the other pages show.</p>

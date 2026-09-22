@@ -130,7 +130,7 @@ function Scene() {
   useHotkey("go.blotter", () => log("go: blotter"))
   useHotkey("go.watchlist", () => log("go: watchlist"))
   return (
-    <main className="mx-auto max-w-3xl space-y-4 p-6 font-mono text-xs">
+    <main className="mx-auto max-w-3xl space-y-4 p-6 font-(family-name:--tradecn-font-mono) text-xs">
       <h1 className="text-sm font-semibold">use-hotkeys</h1>
       <p className="text-muted-foreground">Click a book, then j and x act on that book only. Type in the field: single keys are yours, the search key still runs. Remaps persist in localStorage.</p>
       <div className="grid grid-cols-2 gap-3">

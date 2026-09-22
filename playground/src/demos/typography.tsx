@@ -21,7 +21,7 @@ const SIZES = [12, 13, 14]
 function Column({ label, variant, mono }: { label: string; variant: string; mono?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] text-muted-foreground uppercase">{label}</span>
+      <span className="text-xs text-muted-foreground uppercase">{label}</span>
       {(mono ? FRACTIONS : PRICES).map((price) => (
         <span key={price} className={`text-right ${mono ? MONO_NUMERIC_CLASS : NUMERIC_CLASS}`} style={{ fontVariantNumeric: variant }}>
           {mono ? formatPrice(price, FRACTION) : formatPrice(price, { kind: "decimal", decimals: 2 })}
@@ -35,7 +35,7 @@ function Column({ label, variant, mono }: { label: string; variant: string; mono
 function Specimen({ family, label }: { family: string; label: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] text-muted-foreground uppercase">{label}</span>
+      <span className="text-xs text-muted-foreground uppercase">{label}</span>
       {SIZES.map((size) => (
         <span key={size} className="lining-nums tabular-nums" style={{ fontFamily: family, fontSize: size }}>
           {SPECIMEN} <span className="text-muted-foreground">{size}px</span>
@@ -65,7 +65,7 @@ export default function TypographyDemo() {
         <Column label="decimals, the numeric family" variant={variant} />
         <Column label="32nds, the mono" variant={variant} mono />
         <div className="text-xs text-muted-foreground">
-          <p>Every component sets its numbers in lining, tabular figures. Turn them off and the decimal points wander with the width of a 1 against an 8. The numeric family is the sans by default; the terminal theme this page wears points it at the mono.</p>
+          <p>Every component sets its numbers in lining, tabular figures. Turn them off and the decimal points wander with the width of a 1 against an 8. The numeric family is the sans by default; point --tradecn-font-numeric at the mono to set a themed grid in one family.</p>
         </div>
       </div>
       <div className="grid grid-cols-3 gap-4" data-specimens>

@@ -144,7 +144,7 @@ export function WorkspaceScene() {
     <HotkeysProvider bindings={BINDINGS}>
       <LinkGroupProvider>
         <Keys api={api} />
-        <main className="flex h-screen flex-col gap-2 p-4 font-mono text-xs">
+        <main className="flex h-screen flex-col gap-2 p-4 font-(family-name:--tradecn-font-mono) text-xs">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-sm font-semibold">workspace</h1>
             <span className="text-muted-foreground">

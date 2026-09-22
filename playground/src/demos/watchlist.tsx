@@ -51,7 +51,7 @@ export default function WatchlistDemo() {
   // Memoized: the grid keeps its rows only while the columns keep their identity.
   const columns = useMemo(() => [...watchlistColumns<Row>({ price }), { key: "trend", header: "Trend", width: 112, flash: false as const, accessor: (r: Row) => r.closes, cell: ({ row }: { row: Row }) => <Sparkline values={row.closes} baseline={row.close} label={`${row.symbol} today`} width={96} height={16} /> }], [])
   return (
-    <div className="space-y-2 font-mono text-xs">
+    <div className="space-y-2 font-(family-name:--tradecn-font-mono) text-xs">
       <div className="h-64">
         <Watchlist store={store} columns={columns} validate={(symbol) => symbol in UNIVERSE} onAdd={(symbol) => store.applyDeltas({ upsert: [seed(symbol)] })} onRemove={(symbols) => store.applyDeltas({ remove: symbols })} onRowActivate={(row) => setLog(`load ${row.symbol}`)} />
       </div>

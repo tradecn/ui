@@ -77,7 +77,7 @@ function Demo() {
   const shared = { actions, symbols, goBarGrammar: grammar, onSymbolSelect: (s: SymbolResult) => log(`load: ${s.symbol}`) }
 
   return (
-    <div className="min-h-[26rem] space-y-3 font-mono text-xs">
+    <div className="min-h-[26rem] space-y-3 font-(family-name:--tradecn-font-mono) text-xs">
       <p className="text-muted-foreground">
         The go-bar and the dialog share one registry, one symbol adapter, and one list of recents. Try <code>aapl gp</code>, <code>tick</code>, or a symbol. The dialog opens on mod+k; the go-bar focuses on <code>/</code>.
       </p>

@@ -35,7 +35,7 @@ export function HotkeyEditorScene() {
   const [imported, setImported] = useState(0)
   return (
     <HotkeysProvider registry={registry} bindings={BINDINGS}>
-      <main className="mx-auto max-w-4xl space-y-4 p-6 font-mono text-xs">
+      <main className="mx-auto max-w-4xl space-y-4 p-6 font-(family-name:--tradecn-font-mono) text-xs">
         <h1 className="text-sm font-semibold">hotkey-editor</h1>
         <p className="text-muted-foreground">
           Every binding the registry holds, grouped, with its keys in force. Change one by pressing the new shortcut, type a chord as text, or reset it. Conflicts are said under the rows they touch. What the app would save is on the right, straight from the registry's <code>onChange</code>. Press a shortcut anywhere on the page and it
@@ -51,7 +51,7 @@ export function HotkeyEditorScene() {
           />
           <div className="space-y-2">
             <p className="text-muted-foreground">what the app persists</p>
-            <pre className="rounded-md border border-border bg-card p-2 text-[11px]" data-hotkey-overrides>
+            <pre className="rounded-md border border-border bg-card p-2 text-xs" data-hotkey-overrides>
               {JSON.stringify(overrides, null, 2)}
             </pre>
             <p className="text-muted-foreground">fired</p>

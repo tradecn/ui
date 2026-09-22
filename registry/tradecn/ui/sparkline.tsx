@@ -145,7 +145,7 @@ export function Sparkline({ values, label, direction = "auto", baseline, width, 
         </svg>
       )}
       {live && at && w !== undefined && (
-        <span data-sparkline-readout="" data-numeric="" className={cn("pointer-events-none absolute -top-4 rounded-sm bg-popover px-1 text-[10px] leading-4 whitespace-nowrap text-popover-foreground lining-nums tabular-nums shadow-sm", at.x > w / 2 ? "right-0" : "left-0")}>
+        <span data-sparkline-readout="" data-numeric="" className={cn("pointer-events-none absolute -top-4 rounded-sm bg-popover px-1 text-xs leading-4 whitespace-nowrap text-popover-foreground lining-nums tabular-nums shadow-sm", at.x > w / 2 ? "right-0" : "left-0")}>
           {describe(at.index, at.value)}
         </span>
       )}
