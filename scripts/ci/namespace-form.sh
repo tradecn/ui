@@ -33,12 +33,16 @@ config.registries = { ...(config.registries ?? {}), "@tradecn": process.env.NAME
 await Bun.write(path, JSON.stringify(config, null, 2) + "\n")
 ' "$work/probe/components.json"
 
-catalog="$(curl -fsS "$base/r/$tag/registry.json")"
+# The catalog travels as a file, never as an environment string: Linux caps one environment string or
+# argument at 128 KB (MAX_ARG_STRLEN), and the catalog crossed it at v1.2.0 (145 KB), where `bun -e`
+# failed with "Argument list too long". macOS has no per-string cap, so a local run never sees it.
+catalog="$work/registry.json"
+curl -fsS "$base/r/$tag/registry.json" -o "$catalog"
 # No mapfile: macOS still ships bash 3.2.
 addresses=()
 while IFS= read -r n; do
   [ -n "$n" ] && addresses+=("@tradecn/$n")
-done < <(CATALOG="$catalog" bun -e 'for (const i of JSON.parse(process.env.CATALOG).items) console.log(i.name)')
+done < <(bun -e 'for (const i of require(process.argv[1]).items) console.log(i.name)' "$catalog")
 if [ "${#addresses[@]}" -eq 0 ]; then echo "the catalog at $base/r/$tag/registry.json lists no items" >&2; exit 1; fi
 retry bunx "$shadcn" add -y -o -c "$work/probe" "${addresses[@]}"
 cd "$work/probe" && bunx tsc -p tsconfig.app.json --noEmit
