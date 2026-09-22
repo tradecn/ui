@@ -637,22 +637,23 @@ export function themesList(registry: Registry, tag: string, docSlugs: ReadonlySe
   return `<ul>\n${themes.map((item) => `<li><a href="${docHref(item, tag, docSlugs)}"><code>${escapeHtml(item.name)}</code></a> ${escapeHtml(item.description ?? "")}</li>`).join("\n")}\n</ul>`
 }
 
-/** One card per item: its name, its kind, and its one line, linking its page. The Components index (the components only), and the opening page when the tag has no previews (every item). */
-export function itemCards(items: RegistryItem[], tag: string, docSlugs: ReadonlySet<string>): string {
-  const cards = items.map(
-    (item) =>
-      `<a class="card" href="${docHref(item, tag, docSlugs)}"><span class="card-title"><code>${escapeHtml(item.name)}</code><span class="kind">${escapeHtml(kindOf(item))}</span></span><span class="card-text">${escapeHtml(item.description ?? "")}</span></a>`,
-  )
-  return `<div class="cards">\n${cards.join("\n")}\n</div>`
+/**
+ * Every item by the title the sidebar lists it under, linking its page, in the order given: a plain list the
+ * stylesheet lays out in columns, shadcn's Components page. The Components index (the components only, by title),
+ * and the opening page when the tag has no previews (every item).
+ */
+export function itemList(items: RegistryItem[], tag: string, docSlugs: ReadonlySet<string>): string {
+  const links = items.map((item) => `<li><a href="${docHref(item, tag, docSlugs)}">${escapeHtml(titleOf(item))}</a></li>`)
+  return `<ul class="item-list">\n${links.join("\n")}\n</ul>`
 }
 
 /**
  * The opening page below the fold: every item that has a demo, running, in the order the registry lists them,
  * each in a card that names it and links its page. The iframe is sized by the height its page reports, like the
- * preview on a docs page. A tag with no embed build gets the cards without the frames.
+ * preview on a docs page. A tag with no embed build gets the names without the frames.
  */
 export function showcase(registry: Registry, tag: string, docSlugs: ReadonlySet<string>, previews: Previews): string {
-  if (!previews.embed) return itemCards(registry.items, tag, docSlugs)
+  if (!previews.embed) return itemList(registry.items, tag, docSlugs)
   const cards = registry.items
     .filter((item) => previews.demos.has(item.name))
     .map((item) => {
@@ -1097,7 +1098,7 @@ export function sitePageValues(registry: Registry, values: Record<string, string
     dependencies: dependenciesTable(registry, tag, docSlugs),
     tokens: tokensTable(registry, tag, docSlugs),
     themes: themesList(registry, tag, docSlugs),
-    cards: itemCards(componentItems(registry), tag, docSlugs),
+    components: itemList(componentItems(registry), tag, docSlugs),
     everyItem: everyItem(registry),
     changelog,
   }

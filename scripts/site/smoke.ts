@@ -270,16 +270,26 @@ for (const item of items) {
   watch(page, "docs")
   try {
     const index = await page.request.get(`${base}/${SEARCH_INDEX}`)
-    const groupOf = new Map(((await index.json()) as SearchPage[]).map((entry) => [entry.path, entry.group]))
+    const entries = (await index.json()) as SearchPage[]
+    const groupOf = new Map(entries.map((entry) => [entry.path, entry.group]))
+    const labelOf = new Map(entries.map((entry) => [entry.path, entry.label]))
     const groups = [...new Set(groupOf.values())]
     if (!groups.includes("Components") || groups.length < 3) failures.push(`docs: the index groups the pages as ${groups.join(", ")}`)
     await page.goto(`${base}/docs/components/`, { waitUntil: "load" })
     for (const item of items) {
-      const card = await page.locator(`.cards a.card[href='/docs/${item}/']`).count()
+      const link = page.locator(`.item-list a[href='/docs/${item}/']`)
+      const count = await link.count()
       const group = groupOf.get(`/docs/${item}/`)
-      if (group === "Components" && !card) failures.push(`components: no card for ${item}`)
-      if (group !== "Components" && card) failures.push(`components: a card for ${item}, which is in ${group}`)
+      if (group === "Components" && !count) failures.push(`components: no link for ${item}`)
+      if (group !== "Components" && count) failures.push(`components: a link for ${item}, which is in ${group}`)
+      // The list names a page as the sidebar does, by its title, never by its slug.
+      if (count) {
+        const text = await link.textContent()
+        if (text !== labelOf.get(`/docs/${item}/`)) failures.push(`components: ${item} is listed as ${text}, its page is ${labelOf.get(`/docs/${item}/`)}`)
+      }
     }
+    // Names alone: no kind, no description, no code in the list.
+    if (await page.locator(".item-list code, .item-list .kind, .item-list p").count()) failures.push("components: the list carries more than the names")
     const headings = await page.locator(".sidebar h2").evaluateAll((els) => els.map((el) => el.textContent ?? ""))
     if (headings.join(",") !== groups.join(",")) failures.push(`docs: the sidebar is grouped as ${headings.join(", ")}, the index as ${groups.join(", ")}`)
     for (const item of items) {
