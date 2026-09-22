@@ -2,6 +2,7 @@ import { cn } from "cn"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Input } from "@/components/ui/input"
 import { NULL_TOKEN, formatNotional, formatPrice, formatQuantity } from "@/registry/tradecn/lib/format"
+import { compileComparator, compileFilter, type GridRules, type RuleColumn } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 import { Countdown, type CountdownThresholds } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, type ColumnDef, type DataGridProps } from "@/registry/tradecn/ui/data-grid"
@@ -131,19 +132,36 @@ export interface RfqStackViewOptions<T extends RfqStackRow> {
   filter?: (row: T) => boolean
   /** Default 1000, the rfq preset's. */
   reorderHoldMs?: number
+  /**
+   * Rules as data, the same object the stack is given: `rules.filter` is folded in with the threshold
+   * and `rules.sort` breaks the comparator's ties, or is the order when there is no comparator. The
+   * grid ignores both on a view of yours, which is why they are read here.
+   */
+  rules?: GridRules
+  /** The columns the rules name, when they are not `rfqStackColumns()`. */
+  columns?: readonly RuleColumn<T>[]
 }
 
+let defaultRuleColumns: ColumnDef<RfqStackRow>[] | null = null
+
 /**
- * A view of the store in the desk's order with the threshold and your filter applied, for the stack
- * and `useActiveInquiry` to share, so the ticket's next inquiry is one that is on the screen. Remade
- * when an option changes, and the one before is disposed.
+ * A view of the store in the desk's order with the threshold, your filter, and the rules applied,
+ * for the stack and `useActiveInquiry` to share, so the ticket's next inquiry is one that is on the
+ * screen. Remade when an option changes, and the one before is disposed.
  */
 export function useRfqStackView<T extends RfqStackRow>(store: RowStore<T>, options: RfqStackViewOptions<T> = {}): RowView<T> {
-  const { comparator, threshold = null, filter, reorderHoldMs = 1000 } = options
+  const { comparator, threshold = null, filter, reorderHoldMs = 1000, rules, columns } = options
+  const ruleFilter = rules?.filter
+  const ruleSort = rules?.sort
   const view = useMemo(() => {
+    const ruleColumns = (columns ?? (defaultRuleColumns ??= rfqStackColumns())) as readonly RuleColumn<T>[]
     const byThreshold = rfqThresholdFilter<T>(threshold)
-    return store.createView({ comparator, filter: filter ? (row) => byThreshold(row) && filter(row) : byThreshold, reorderHoldMs })
-  }, [store, comparator, threshold, filter, reorderHoldMs])
+    const byRules = ruleFilter?.length ? compileFilter(ruleFilter, ruleColumns) : null
+    const bySort = ruleSort?.length ? compileComparator(ruleSort, ruleColumns) : undefined
+    const passes = (row: T) => byThreshold(row) && (byRules ? byRules(row) : true) && (filter ? filter(row) : true)
+    const order = comparator && bySort ? stackOrder(comparator, bySort) : (comparator ?? bySort)
+    return store.createView({ comparator: order, filter: passes, reorderHoldMs })
+  }, [store, comparator, threshold, filter, reorderHoldMs, ruleFilter, ruleSort, columns])
   useEffect(() => () => view.dispose(), [view])
   return view
 }

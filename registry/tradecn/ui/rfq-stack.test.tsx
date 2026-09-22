@@ -1,6 +1,7 @@
 import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useActiveInquiry } from "@/registry/tradecn/hooks/use-active-inquiry"
+import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 import { RfqStack, byArrival, bySize, byTimeLeft, formatStackSize, rfqStackColumns, rfqThresholdFilter, stackOrder, useRfqStackView, type RfqStackProps, type RfqStackRow } from "@/registry/tradecn/ui/rfq-stack"
 
@@ -207,5 +208,32 @@ describe("useActiveInquiry", () => {
     expect(result.current.activeId).toBe("q1")
     act(() => store.applyDeltas({ remove: ["q1"] }))
     expect(result.current.activeId).toBe("q2")
+  })
+})
+
+describe("useRfqStackView with rules", () => {
+  it("folds the rules' filter in with the threshold and lets their sort break the comparator's ties", () => {
+    const store = seeded()
+    const rules: GridRules = {
+      filter: [{ column: "status", op: "eq", value: "open" }],
+      sort: [{ key: "time", dir: "desc" }],
+    }
+    // Every open inquiry, by side, then the rules' order, newest first.
+    const bySide = (a: RfqStackRow, b: RfqStackRow) => a.side.localeCompare(b.side)
+    const { result, rerender } = renderHook(({ threshold }: { threshold: number | null }) => useRfqStackView(store, { comparator: bySide, threshold, rules }), { initialProps: { threshold: null as number | null } })
+    expect(result.current.getIds()).toEqual(["q1", "q2", "q4"])
+    // Without a comparator the rules' sort is the order.
+    const { result: ruled } = renderHook(() => useRfqStackView(store, { rules }))
+    expect(ruled.current.getIds()).toEqual(["q4", "q2", "q1"])
+    // The threshold still applies with the rules: the auto-quoted q3 was already out for its status; a person's stays.
+    rerender({ threshold: 10_000_000 })
+    expect(result.current.getIds()).toEqual(["q1", "q2", "q4"])
+    // The stack, handed the same view and rules, shows exactly it and still colors by the rules.
+    const colored: GridRules = { ...rules, columns: [{ id: "big", column: "size", when: { op: "gte", value: "20,000,000" }, tone: "primary", target: "row", label: "Large" }] }
+    render(<Harness store={store} view={result.current} rules={colored} />)
+    expect([...rows()].map((el) => el.getAttribute("data-row-id"))).toEqual(["q1", "q2", "q4"])
+    expect(rowOf("q2")).toHaveAttribute("data-rule", "big")
+    expect(rowOf("q2")).toHaveAttribute("aria-description", "Large")
+    expect(rowOf("q1")).not.toHaveAttribute("data-rule")
   })
 })

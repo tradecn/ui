@@ -595,6 +595,40 @@ test("a hotkey editor changes a shortcut by pressing it, by typing it, and reset
   await expect(saved).toHaveAttribute("data-hotkey-saved", "{}")
 })
 
+// Rules as data through the installed lib: the tone classes live in lib/grid-rules.ts, so this is where
+// it shows whether the consumer's Tailwind found them there. A price rule typed in 32nds colors its cell
+// with the up token and a tint, a row rule marks the row, the filter drops the small inquiry, the sort
+// runs largest first, and every decorated element says its rule in words.
+test("a grid under rules colors by the token, filters, orders, and says each rule in words", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='grid-rules']")
+  const grid = scene.getByRole("grid", { name: "Ruled" })
+  await expect(grid).toHaveAttribute("aria-rowcount", "4")
+  await expect(scene.locator("[data-row-id='small']")).toHaveCount(0)
+  await expect(scene.locator("[data-row-id]")).toHaveText([/big/, /rich/, /plain/])
+  const cell = scene.locator("[data-row-id='rich'] [data-col='px']")
+  await expect(cell).toHaveAttribute("data-rule", "rich")
+  await expect(cell).toHaveAttribute("data-tone", "up")
+  await expect(cell).toHaveAttribute("aria-description", "Rich to the market")
+  await expect(scene.locator("[data-row-id='plain'] [data-col='px']")).not.toHaveAttribute("data-rule", /./)
+  const painted = await page.evaluate(() => {
+    const cell = document.querySelector("section[data-scene='grid-rules'] [data-row-id='rich'] [data-col='px']")!
+    const probe = document.createElement("i")
+    probe.style.color = "var(--up)"
+    document.body.append(probe)
+    const out = { color: getComputedStyle(cell).color, up: getComputedStyle(probe).color, image: getComputedStyle(cell).backgroundImage }
+    probe.remove()
+    return out
+  })
+  expect(painted.color, "text-up from the installed lib resolves to the --up token").toBe(painted.up)
+  expect(painted.image, "the tint is painted as a background image").toContain("linear-gradient")
+  const big = scene.locator("[data-row-id='big']")
+  await expect(big).toHaveAttribute("data-rule", "large")
+  await expect(big).toHaveAttribute("data-tone", "primary")
+  await expect(big).toHaveAttribute("aria-description", "Large")
+  await expect(scene.locator("[data-row-id='big'] [data-col='size']")).not.toHaveAttribute("data-rule", /./)
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.

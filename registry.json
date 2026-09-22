@@ -149,6 +149,10 @@
         {
           "path": "registry/tradecn/lib/format.ts",
           "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/grid-rules.ts",
+          "type": "registry:lib"
         }
       ],
       "categories": [
@@ -177,8 +181,12 @@
         "light": {
           "down": "oklch(0.46 0.19 40)",
           "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "expiring": "oklch(0.53 0.2 350)",
+          "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "stale": "oklch(0.52 0.13 75)",
+          "stale-soft": "oklch(0.52 0.13 75 / 16%)",
           "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
           "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
           "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -190,8 +198,12 @@
         "dark": {
           "down": "oklch(0.66 0.19 40)",
           "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "stale": "oklch(0.8 0.15 80)",
+          "stale-soft": "oklch(0.8 0.15 80 / 16%)",
           "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
           "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
           "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -580,6 +592,10 @@
         {
           "path": "registry/tradecn/lib/format.ts",
           "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/grid-rules.ts",
+          "type": "registry:lib"
         }
       ],
       "categories": [
@@ -603,8 +619,12 @@
         "light": {
           "down": "oklch(0.46 0.19 40)",
           "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "expiring": "oklch(0.53 0.2 350)",
+          "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "stale": "oklch(0.52 0.13 75)",
+          "stale-soft": "oklch(0.52 0.13 75 / 16%)",
           "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
           "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
           "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -616,8 +636,12 @@
         "dark": {
           "down": "oklch(0.66 0.19 40)",
           "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "stale": "oklch(0.8 0.15 80)",
+          "stale-soft": "oklch(0.8 0.15 80 / 16%)",
           "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
           "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
           "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -673,6 +697,10 @@
         {
           "path": "registry/tradecn/lib/format.ts",
           "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/grid-rules.ts",
+          "type": "registry:lib"
         }
       ],
       "categories": [
@@ -700,8 +728,12 @@
         "light": {
           "down": "oklch(0.46 0.19 40)",
           "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "expiring": "oklch(0.53 0.2 350)",
+          "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "stale": "oklch(0.52 0.13 75)",
+          "stale-soft": "oklch(0.52 0.13 75 / 16%)",
           "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
           "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
           "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -713,8 +745,12 @@
         "dark": {
           "down": "oklch(0.66 0.19 40)",
           "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "stale": "oklch(0.8 0.15 80)",
+          "stale-soft": "oklch(0.8 0.15 80 / 16%)",
           "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
           "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
           "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -1297,6 +1333,10 @@
         {
           "path": "registry/tradecn/lib/row-store.ts",
           "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/grid-rules.ts",
+          "type": "registry:lib"
         }
       ],
       "categories": [
@@ -1352,6 +1392,8 @@
           "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "stale": "oklch(0.52 0.13 75)",
+          "stale-soft": "oklch(0.52 0.13 75 / 16%)",
           "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
           "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
           "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -1367,6 +1409,8 @@
           "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "stale": "oklch(0.8 0.15 80)",
+          "stale-soft": "oklch(0.8 0.15 80 / 16%)",
           "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
           "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
           "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -1510,6 +1554,49 @@
         ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
           "--tradecn-font-sans": "var(--tradecn-font-accessible)",
           "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
+      "name": "grid-rules",
+      "type": "registry:lib",
+      "title": "Grid Rules",
+      "description": "Rules as data for a grid: color a cell or a row when a value crosses a line, show only the rows that pass, order by a stack of columns, all as plain objects a desk writes without a build. A value is typed in the column's own format, a tone is a token name, and an applied rule says itself in words beside the color.",
+      "categories": [
+        "grid"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/lib/grid-rules.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "docs": "Pure functions, no dependencies. Hand a GridRules object to the data grid's rules prop, or compile it yourself with compileFilter, compileComparator, and applyRules. Adds the up, down, flat, stale, and expiring tokens with their soft variants, which the tones draw from.",
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.46 0.19 40)",
+          "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "expiring": "oklch(0.53 0.2 350)",
+          "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "stale": "oklch(0.52 0.13 75)",
+          "stale-soft": "oklch(0.52 0.13 75 / 16%)",
+          "up": "oklch(0.52 0.13 165)",
+          "up-soft": "oklch(0.52 0.13 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.66 0.19 40)",
+          "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "stale": "oklch(0.8 0.15 80)",
+          "stale-soft": "oklch(0.8 0.15 80 / 16%)",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
         }
       }
     },
