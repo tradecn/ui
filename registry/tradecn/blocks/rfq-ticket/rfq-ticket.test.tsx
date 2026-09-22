@@ -271,3 +271,57 @@ describe("RfqTicket keys", () => {
     expect(screen.getByRole("button", { name: "Quote" }).querySelectorAll("kbd")).toHaveLength(0)
   })
 })
+
+describe("limits", () => {
+  it("asks again when a level is past a confirm line, sends on the second click, and withdraws the question when the level changes", () => {
+    const { quote } = mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } } })
+    // Seven 64ths over the offer of 99-16+.
+    type(field("Offer"), "99-20")
+    const button = screen.getByRole("button", { name: /^Quote/ })
+    fireEvent.click(button)
+    expect(quote).not.toHaveBeenCalled()
+    expect(button).toHaveTextContent("Quote anyway?")
+    expect(document.querySelector("[data-rfq-limits='confirm']")).toHaveTextContent("The ask is 7 ticks from the market, past 4 ticks. Send it anyway?")
+    type(field("Offer"), "99-19")
+    expect(button).toHaveTextContent("Quote")
+    expect(document.querySelector("[data-rfq-limits]")).toBeNull()
+    fireEvent.click(button)
+    fireEvent.click(button)
+    expect(quote).toHaveBeenCalledTimes(1)
+    expect(lastDraft(quote)).toMatchObject({ ask: 99.59375 })
+  })
+
+  it("blocks under the field and holds the actions that send a quote, while a pass still runs", () => {
+    const { quote, pass } = mount({ limits: { maxDistance: { ticks: 4 } } })
+    type(field("Offer"), "99-20")
+    expect(screen.getByText("The ask is 7 ticks from the market; the limit is 4 ticks.")).toBeInTheDocument()
+    const button = screen.getByRole("button", { name: /^Quote/ })
+    expect(button).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Pass" })).not.toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "Pass" }))
+    expect(pass).toHaveBeenCalledTimes(1)
+    fireEvent.click(button)
+    expect(quote).not.toHaveBeenCalled()
+    type(field("Offer"), "99-17")
+    expect(button).not.toBeDisabled()
+    fireEvent.click(button)
+    expect(quote).toHaveBeenCalledTimes(1)
+  })
+
+  it("refuses a side the book does not take: a client who buys wants an offer, and an offer is a sell", () => {
+    const { quote } = mount({ limits: { sides: ["buy"] } })
+    type(field("Offer"), "99-17")
+    expect(screen.getByText("The book does not take a sell.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^Quote/ })).toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).not.toHaveBeenCalled()
+  })
+
+  it("does nothing different without limits", () => {
+    const { quote } = mount()
+    type(field("Offer"), "99-20")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).toHaveBeenCalledTimes(1)
+    expect(document.querySelector("[data-rfq-limits]")).toBeNull()
+  })
+})

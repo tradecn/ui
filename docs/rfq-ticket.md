@@ -47,6 +47,10 @@ A ticket is one inquiry. Mount it with `key={inquiry.id}`, and a new inquiry nev
 
 Four `editing` bindings, declared by the ticket when you have not: `rfq.send` on `mod+enter` runs the primary action (the one marked `primary`, else the first allowed action that needs a quote, else the first allowed), `rfq.tick-up` and `rfq.tick-down` on `mod+up` and `mod+down` step the field the keyboard is in, or the first one, and `rfq.suggested` on `mod+shift+a` takes the suggested levels. Several tickets share one declaration and the last one to leave takes it back; handlers are bound to each ticket's own box, so two tickets side by side each answer for themselves, and a dialog is a wall the keys stay inside. Spread `RFQ_TICKET_BINDINGS` into your own list to change the keys or the wording. Plain Enter sends nothing; there is no `<form>`.
 
+### Limits
+
+`limits` is a [`limits`](limits.md) table, the desk's lines as data. Each level is measured against the inquiry's market on its own side, a bid against the bid and an offer against the offer, in ticks for an instrument quoted on price and basis points for the rest; `sides` names what the book may take, and for a quote a bid is a buy and an offer a sell. A block shows under its field as the ticket's own problems do and holds every action that needs a quote; a pass still runs. A confirm turns the primary action into a two-step: the button says `Quote anyway?`, the reason is said under the actions, and the next click on the same action sends; a new level withdraws the question. Both run live and again as the click lands.
+
 ### Labels
 
 Every word on the ticket is in `labels`, a partial of `DEFAULT_RFQ_TICKET_LABELS`: the side words, `Bid` and `Offer`, `Market`, `Quoted`, `Auto`, the check's sentences, and the line for an inquiry that allows nothing. The group is named `Inquiry Q-1` for a screen reader, and so is its timer.

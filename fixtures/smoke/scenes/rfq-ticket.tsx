@@ -27,6 +27,7 @@ export function RfqTicketScene() {
       <div className="flex w-[26rem] flex-col gap-2" data-rfq-sent={JSON.stringify(sent)}>
         <RfqTicket
           inquiry={inquiry}
+          limits={{ maxDistance: { ticks: 4, level: "confirm" } }}
           actions={[
             { id: "quote", label: "Quote", primary: true, run: (draft) => setSent((s) => [...s, draft]) },
             { id: "pass", label: "Pass", needsQuote: false, destructive: true, run: () => setInquiry((q) => ({ ...q, status: "Passed", allowedActions: [] })) },

@@ -54,6 +54,10 @@ Plain Enter does nothing. There is no `<form>` here on purpose: an implicit subm
 
 `orderTypes` and `timeInForces` are lists of `{ id, label, priced? }`, defaulting to limit and market, and day, GTC, and IOC. A type with `priced: false` disables the price field and sends `price: null`. `accounts` is the same shape; leave it out and there is no account field.
 
+### Limits
+
+`limits` is a [`limits`](limits.md) table, the desk's lines as data: a size to ask again past and a size to stop at, a distance from the market in ticks, the sides the book takes, and rules of your own. A block shows under its field as the ticket's own problems do, and holds every action that sends the draft (an action with `checked: false`, a cancel, still runs). A confirm turns the primary action into a two-step: the button says `Send anyway?`, the reason is said under the actions, and the next click on the same action sends; any change to the draft withdraws the question. Both run live and again as the click lands, against `reference` as the market: a buyer's price is measured against the offer, a seller's against the bid. A side with no field of its own is said on the same line under the actions.
+
 ### Labels
 
 Every word on the ticket is in `labels`, a partial of `DEFAULT_TICKET_LABELS`. The group is named `"Order ticket ZN"` for a screen reader; the side buttons carry `aria-pressed`; the errors are `FieldError`s tied to their fields.

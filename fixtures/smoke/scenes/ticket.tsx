@@ -17,6 +17,7 @@ export function TicketScene() {
         <Ticket
           instrument={ZN}
           reference={{ bid: 99.5, ask: 99.515625, last: 99.5 }}
+          limits={{ maxQuantity: { confirm: 10, block: 50 }, maxDistance: { ticks: 4 } }}
           actions={[{ id: "send", label: "Send", primary: true, run: (draft) => setSent((s) => [...s, draft]) }]}
           allowedActions={open ? ["send"] : []}
           status={ack ? "Acknowledged" : sent.length ? "Sent" : undefined}

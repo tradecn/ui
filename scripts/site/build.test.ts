@@ -533,6 +533,7 @@ describe("the docs pages", async () => {
       "Utilities",
       "Utilities",
       "Utilities",
+      "Utilities",
       "Themes",
       "Themes",
       "Themes",
@@ -548,7 +549,7 @@ describe("the docs pages", async () => {
     // A utility is not a component: format sits under Utilities, use-hotkeys under Hooks, the themes under Themes, and only the ui items and the block under Components.
     expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/flash-cell/">flash-cell</a></li>')
     expect(nav).toContain('<li><a href="/docs/workspace/">workspace</a></li>\n<li><a href="/docs/ticket/">ticket</a></li>\n<li><a href="/docs/countdown/">countdown</a></li>\n<li><a href="/docs/quote-field/">quote-field</a></li>\n<li><a href="/docs/rfq-ticket/">rfq-ticket</a></li>\n<li><a href="/docs/rfq-stack/">rfq-stack</a></li>\n<li><a href="/docs/perf-monitor/">perf-monitor</a></li>\n<li><a href="/docs/hotkey-editor/">hotkey-editor</a></li>\n<li><a href="/docs/column-chooser/">column-chooser</a></li>\n<li><a href="/docs/rules-editor/">rules-editor</a></li>\n<li><a href="/docs/alerts/">alerts</a></li>\n<li><a href="/docs/status-bar/">status-bar</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">use-hotkeys</a></li>\n</ul>')
-    expect(nav).toContain('<h2>Utilities</h2>\n<ul>\n<li><a href="/docs/format/" aria-current="page">format</a></li>\n<li><a href="/docs/row-store/">row-store</a></li>\n<li><a href="/docs/grid-rules/">grid-rules</a></li>\n<li><a href="/docs/preferences/">preferences</a></li>\n<li><a href="/docs/alert-store/">alert-store</a></li>\n<li><a href="/docs/session-calendar/">session-calendar</a></li>\n</ul>')
+    expect(nav).toContain('<h2>Utilities</h2>\n<ul>\n<li><a href="/docs/format/" aria-current="page">format</a></li>\n<li><a href="/docs/row-store/">row-store</a></li>\n<li><a href="/docs/grid-rules/">grid-rules</a></li>\n<li><a href="/docs/preferences/">preferences</a></li>\n<li><a href="/docs/alert-store/">alert-store</a></li>\n<li><a href="/docs/session-calendar/">session-calendar</a></li>\n<li><a href="/docs/limits/">limits</a></li>\n</ul>')
     // Amber is the default theme, so it leads the group; the registry order is the sidebar's.
     expect(nav).toContain('<h2><a href="/docs/theming/#themes">Themes</a></h2>\n<ul>\n<li><a href="/docs/tradecn-amber/">tradecn-amber</a></li>\n<li><a href="/docs/tradecn-slate/">tradecn-slate</a></li>\n<li><a href="/docs/tradecn-slate-east/">tradecn-slate-east</a></li>\n</ul>')
     expect(nav).not.toContain("terminal")

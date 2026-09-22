@@ -9,6 +9,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { NUMERIC_CLASS, formatPrice, formatQuantity, numericFontClass, stepByTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
 
@@ -64,6 +65,8 @@ export interface TicketAction {
   destructive?: boolean
   /** What `ticket.send` runs. The first allowed action by default. */
   primary?: boolean
+  /** The draft is checked, and held by a limit, before this runs. Default true; false for an action that sends nothing of the draft. */
+  checked?: boolean
 }
 
 export interface TicketLabels {
@@ -82,6 +85,8 @@ export interface TicketLabels {
   priceInvalid: string
   priceRequired: string
   nothingAllowed: string
+  /** The primary action's words while a limit asks again; `{action}` is its label. */
+  anyway: string
 }
 
 export const DEFAULT_TICKET_LABELS: TicketLabels = {
@@ -100,6 +105,7 @@ export const DEFAULT_TICKET_LABELS: TicketLabels = {
   priceInvalid: "Not a price in this instrument's notation.",
   priceRequired: "This order type needs a price.",
   nothingAllowed: "Nothing can be done with this ticket right now.",
+  anyway: "{action} anyway?",
 }
 
 export const DEFAULT_ORDER_TYPES: readonly TicketOption[] = [
@@ -136,6 +142,8 @@ export interface TicketProps {
   actions: readonly TicketAction[]
   /** What the server says may be done with this ticket now. No list means nothing, and no buttons. */
   allowedActions?: readonly string[]
+  /** The desk's lines, from `limits`: a block shows under its field and holds the actions that send the draft; a confirm makes the action ask again. Checked against `reference` as the market. */
+  limits?: Limits
   /** The server's word for where the order stands. Printed as it is. */
   status?: string
   /** What the server said about it, a rejection reason for one. Printed as it is. */
@@ -221,6 +229,7 @@ export function Ticket({
   onDraftChange,
   actions,
   allowedActions,
+  limits,
   status,
   message,
   acknowledged,
@@ -243,13 +252,23 @@ export function Ticket({
   }))
   const [quantityText, setQuantityText] = useState(() => (draft.quantity === null ? "" : formatQuantity(draft.quantity)))
   const [problems, setProblems] = useState<TicketProblems>({})
+  // The action a limit asked again about; the next click on it sends. Any change to the draft withdraws the question.
+  const [confirming, setConfirming] = useState<string | null>(null)
   const priced = isPriced(orderTypes, draft.type)
+
+  // The limits, live: a block shows under its field and holds the actions that send the draft; a confirm waits for the click.
+  const limitProblems = limits ? checkLimits({ side: draft.side, quantity: draft.quantity, price: priced ? draft.price : null }, limits, { market: reference, convention }) : []
+  const blockedBy = problemsByField(blocks(limitProblems))
+  const blocked = Object.keys(blockedBy).length > 0
+  const shownProblems = { quantity: problems.quantity ?? blockedBy.quantity, price: problems.price ?? blockedBy.price }
+  const otherBlocks = blocks(limitProblems).filter((p) => p.field !== "quantity" && p.field !== "price")
+  const asking = confirming !== null ? confirms(limitProblems) : []
 
   const box = useRef<HTMLDivElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
-  const latest = useRef({ onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled })
+  const latest = useRef({ onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming })
   useEffect(() => {
-    latest.current = { onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled }
+    latest.current = { onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming }
   })
 
   // The draft is told after it changed, never on the first render.
@@ -266,6 +285,7 @@ export function Ticket({
   function update(patch: Partial<TicketDraft>) {
     setDraft((d) => ({ ...d, ...patch }))
     setProblems((p) => (patch.quantity !== undefined && p.quantity ? { ...p, quantity: undefined } : patch.price !== undefined && p.price ? { ...p, price: undefined } : p))
+    setConfirming(null)
   }
 
   // The quote field is controlled and follows the draft, so a step or a reference click is one update.
@@ -318,12 +338,25 @@ export function Ticket({
 
   function run(action: TicketAction) {
     // Checked as the click lands, against the props as they are now: an action can stop being allowed.
-    const { draft: current, allowedActions: allowedNow, orderTypes: types, labels: words, instrument: inst, disabled: off } = latest.current
+    const { draft: current, allowedActions: allowedNow, orderTypes: types, labels: words, instrument: inst, disabled: off, limits: lines, reference: market, confirming: asked } = latest.current
     if (off || !allowedNow?.includes(action.id)) return
+    const price = isPriced(types, current.type) ? current.price : null
+    const send = () => {
+      setConfirming(null)
+      action.run({ ...current, price }, inst)
+    }
+    if (action.checked === false) return send()
     const found = checkDraft(current, types, words)
-    setProblems(found)
-    if (found.quantity || found.price) return
-    action.run({ ...current, price: isPriced(types, current.type) ? current.price : null }, inst)
+    // The limits, as the click lands: a block stops here and shows under its field; a confirm asks once, and the next click on the same action sends.
+    const over = lines ? checkLimits({ side: current.side, quantity: current.quantity, price }, lines, { market, convention: inst.convention }) : []
+    const stopped = problemsByField(blocks(over))
+    setProblems({ quantity: found.quantity ?? stopped.quantity, price: found.price ?? stopped.price })
+    if (found.quantity || found.price || Object.keys(stopped).length) return
+    if (confirms(over).length && asked !== action.id) {
+      setConfirming(action.id)
+      return
+    }
+    send()
   }
 
   // Keys: declared once per registry, bound to this ticket's box so another ticket's keys stay its own.
@@ -417,10 +450,10 @@ export function Ticket({
         </ButtonGroup>
 
         <div className="grid grid-cols-2 gap-2">
-          <Field data-invalid={problems.quantity ? true : undefined}>
+          <Field data-invalid={shownProblems.quantity ? true : undefined}>
             <FieldLabel htmlFor={`${id}-quantity`}>{labels.quantity}</FieldLabel>
-            <Input id={`${id}-quantity`} value={quantityText} inputMode="decimal" autoComplete="off" spellCheck={false} disabled={disabled} aria-invalid={problems.quantity ? true : undefined} data-numeric="" className={cn("h-7 text-xs md:text-xs", NUMERIC_CLASS)} onChange={(event) => onQuantityChange(event.target.value)} onBlur={onQuantityBlur} onKeyDown={stepper(stepQuantity)} />
-            {problems.quantity && <FieldError>{problems.quantity}</FieldError>}
+            <Input id={`${id}-quantity`} value={quantityText} inputMode="decimal" autoComplete="off" spellCheck={false} disabled={disabled} aria-invalid={shownProblems.quantity ? true : undefined} data-numeric="" className={cn("h-7 text-xs md:text-xs", NUMERIC_CLASS)} onChange={(event) => onQuantityChange(event.target.value)} onBlur={onQuantityBlur} onKeyDown={stepper(stepQuantity)} />
+            {shownProblems.quantity && <FieldError>{shownProblems.quantity}</FieldError>}
           </Field>
           <QuoteField
             id={`${id}-price`}
@@ -431,7 +464,7 @@ export function Ticket({
             stepFrom={priceToStepFrom()}
             disabled={disabled || !priced}
             placeholder={priced ? undefined : "market"}
-            error={problems.price}
+            error={shownProblems.price}
             invalidText={labels.priceInvalid}
             inputRef={priceInput}
           />
@@ -474,8 +507,18 @@ export function Ticket({
             <p className="text-muted-foreground">{labels.nothingAllowed}</p>
           ) : (
             allowed.map((action) => (
-              <Button key={action.id} type="button" variant={action.destructive ? "destructive" : action === primary ? "default" : "outline"} size="sm" className="h-7 gap-2" disabled={disabled} data-action={action.id} onClick={() => run(action)}>
-                {typeof action.label === "function" ? action.label(draft) : action.label}
+              <Button
+                key={action.id}
+                type="button"
+                variant={action.destructive ? "destructive" : action === primary ? "default" : "outline"}
+                size="sm"
+                className="h-7 gap-2"
+                disabled={disabled || (blocked && action.checked !== false)}
+                data-action={action.id}
+                data-confirming={confirming === action.id || undefined}
+                onClick={() => run(action)}
+              >
+                {confirming === action.id ? labels.anyway.replace("{action}", typeof action.label === "function" ? action.label(draft) : action.label) : typeof action.label === "function" ? action.label(draft) : action.label}
                 {action === primary && sendKeys && (
                   <KbdGroup aria-hidden>
                     {formatKeys(sendKeys)[0]?.map((cap) => (
@@ -487,6 +530,12 @@ export function Ticket({
             ))
           )}
         </div>
+
+        {(otherBlocks.length > 0 || asking.length > 0) && (
+          <p className={asking.length ? "text-stale" : "text-destructive"} data-ticket-limits={asking.length ? "confirm" : "block"}>
+            {[...otherBlocks, ...asking].map((p) => p.message).join(" ")}
+          </p>
+        )}
 
         {(status || message) && (
           <div className="flex flex-wrap items-baseline gap-x-2 border-t border-border pt-1.5">
