@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatPrice, parsePrice } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
-import { DATA_GRID_PRESETS, DataGrid, compareForSort, exportCsv, resolveColumns, type ColumnDef } from "@/registry/tradecn/ui/data-grid"
+import { DATA_GRID_PRESETS, DataGrid, compareForSort, editProblem, exportCsv, resolveColumns, type ColumnDef, type EditChange, type EditStatus } from "@/registry/tradecn/ui/data-grid"
 
 interface Quote {
   id: string
@@ -397,5 +397,248 @@ describe("footer totals and the tape", () => {
     fireEvent.pointerDown(container.querySelector("[data-row-id='r0']")!)
     act(() => other.applyDeltas({ upsert: [{ id: "r9", sym: "S0009", px: 109, qty: 90 }] }))
     expect(container.querySelector("[data-grid-behind]")).toBeNull()
+  })
+})
+
+describe("editing", () => {
+  const price = (text: string) => {
+    const n = Number(text.trim())
+    return Number.isFinite(n) ? n : editProblem("Not a price.")
+  }
+  const editable: ColumnDef<Quote>[] = [
+    { key: "sym", header: "Symbol", width: 80, frozen: "left", accessor: (r) => r.sym },
+    { key: "px", header: "Price", width: 90, numeric: true, accessor: (r) => r.px, format: (v) => (v as number).toFixed(2), edit: { parse: price, validate: (v) => ((v as number) > 1000 ? editProblem("Above 1,000.") : null), step: (v, dir, big) => (v as number) + dir * (big ? 10 : 1) } },
+    { key: "qty", header: "Qty", width: 70, numeric: true, accessor: (r) => r.qty, edit: { parse: (t) => (t.trim() === "" ? null : Number(t)), canEdit: (r) => r.id !== "r2" } },
+  ]
+  const setup = (onEdit?: (change: EditChange<Quote>) => void | Promise<unknown>, columns = editable) => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(5, store)
+    const onActivate = vi.fn()
+    render(<DataGrid store={store} columns={columns} label="Sheet" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} onRowActivate={onActivate} />)
+    const grid = screen.getByRole("grid")
+    const cell = (rowId: string, key: string) => document.querySelector<HTMLElement>(`[data-row-id="${rowId}"] [data-col="${key}"]`)!
+    // Focus r1's price cell: down twice, right twice.
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    return { store, grid, cell, onActivate }
+  }
+  const editor = () => screen.getByRole("textbox", { name: "Price" }) as HTMLInputElement
+
+  it("opens on Enter with the text selected, commits on Enter as a change, shows the committed value as pending, and settles when the store agrees", () => {
+    const onEdit = vi.fn()
+    const { store, grid, cell } = setup(onEdit)
+    expect(grid).toHaveAttribute("data-editable")
+    expect(grid).toHaveAttribute("data-preset", "parameters")
+    expect(cell("r1", "px")).toHaveAttribute("data-editable")
+    expect(cell("r1", "px")).toHaveAttribute("aria-readonly", "false")
+    expect(cell("r1", "sym")).not.toHaveAttribute("data-editable")
+    fireEvent.keyDown(grid, { key: "Enter" })
+    const input = editor()
+    expect(cell("r1", "px")).toHaveAttribute("data-editing")
+    expect(input.value).toBe("101.00")
+    expect(input).toHaveAttribute("data-numeric")
+    expect(document.activeElement).toBe(input)
+    expect(input.selectionStart).toBe(0)
+    expect(input.selectionEnd).toBe(6)
+    fireEvent.change(input, { target: { value: "105.5" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(onEdit).toHaveBeenCalledWith({ rowId: "r1", key: "px", value: 105.5, previous: 101, row: expect.objectContaining({ id: "r1" }) })
+    // The editor is gone, the grid has the keyboard, the cell wears the committed value muted until the server agrees.
+    expect(screen.queryByRole("textbox")).toBeNull()
+    expect(document.activeElement).toBe(grid)
+    expect(cell("r1", "px")).toHaveAttribute("data-pending")
+    expect(cell("r1", "px")).toHaveTextContent("105.50")
+    act(() => store.applyDeltas({ patch: [{ id: "r1", fields: { px: 105.5 } }] }))
+    expect(cell("r1", "px")).not.toHaveAttribute("data-pending")
+    expect(cell("r1", "px")).toHaveTextContent("105.50")
+    // A patch to another value does not settle it.
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.change(editor(), { target: { value: "106" } })
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    act(() => store.applyDeltas({ patch: [{ id: "r1", fields: { px: 107 } }] }))
+    expect(cell("r1", "px")).toHaveAttribute("data-pending")
+    expect(cell("r1", "px")).toHaveTextContent("106.00")
+  })
+
+  it("settles when the promise resolves, and a rejection keeps the previous value and prints the message in the cell", async () => {
+    let settle: (v?: unknown) => void = () => {}
+    let refuse: (e: unknown) => void = () => {}
+    const onEdit = vi.fn(() => new Promise((resolve, reject) => ((settle = resolve), (refuse = reject))))
+    const { grid, cell } = setup(onEdit)
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.change(editor(), { target: { value: "105.5" } })
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    expect(cell("r1", "px")).toHaveAttribute("data-pending")
+    await act(async () => {
+      settle()
+      await Promise.resolve()
+    })
+    expect(cell("r1", "px")).not.toHaveAttribute("data-pending")
+    expect(cell("r1", "px")).toHaveTextContent("101.00")
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.change(editor(), { target: { value: "99" } })
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    await act(async () => {
+      refuse(new Error("Outside the desk's band"))
+      await Promise.resolve()
+    })
+    const px = cell("r1", "px")
+    expect(px).not.toHaveAttribute("data-pending")
+    expect(px).toHaveAttribute("data-rejected", "Outside the desk's band")
+    expect(px).toHaveAttribute("aria-description", "Outside the desk's band")
+    expect(px.className).toContain("text-destructive")
+    expect(px).toHaveTextContent("101.00Outside the desk's band")
+    // The next edit of the cell clears the rejection.
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(px).not.toHaveAttribute("data-rejected")
+    fireEvent.keyDown(editor(), { key: "Escape" })
+  })
+
+  it("keeps the editor open with the problem said when the text does not parse or fails the check, and Escape reverts", () => {
+    const onEdit = vi.fn()
+    const { grid, cell } = setup(onEdit)
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.change(editor(), { target: { value: "abc" } })
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    expect(editor()).toHaveAttribute("aria-invalid", "true")
+    expect(editor()).toHaveAttribute("aria-description", "Not a price.")
+    expect(onEdit).not.toHaveBeenCalled()
+    fireEvent.change(editor(), { target: { value: "2000" } })
+    expect(editor()).not.toHaveAttribute("aria-invalid")
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    expect(editor()).toHaveAttribute("aria-description", "Above 1,000.")
+    fireEvent.keyDown(editor(), { key: "Escape" })
+    expect(screen.queryByRole("textbox")).toBeNull()
+    expect(cell("r1", "px")).toHaveTextContent("101.00")
+    expect(cell("r1", "px")).not.toHaveAttribute("data-pending")
+    expect(onEdit).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(grid)
+    // A blur with text that does not parse drops the edit; one that parses commits it.
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.change(editor(), { target: { value: "x" } })
+    fireEvent.blur(editor())
+    expect(onEdit).not.toHaveBeenCalled()
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.change(editor(), { target: { value: "102" } })
+    fireEvent.blur(editor())
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ value: 102 }))
+  })
+
+  it("Tab commits and opens the next editable cell of the row, Shift+Tab the one before, and the row's end hands the keyboard back to the grid", () => {
+    const onEdit = vi.fn()
+    const { grid, cell } = setup(onEdit)
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.change(editor(), { target: { value: "103" } })
+    fireEvent.keyDown(editor(), { key: "Tab" })
+    expect(onEdit).toHaveBeenLastCalledWith(expect.objectContaining({ key: "px", value: 103 }))
+    const qty = screen.getByRole("textbox", { name: "Qty" }) as HTMLInputElement
+    expect(qty.value).toBe("10")
+    expect(cell("r1", "qty")).toHaveAttribute("data-editing")
+    fireEvent.keyDown(qty, { key: "Tab", shiftKey: true })
+    // Nothing changed in qty, so nothing was sent; the price editor is open again.
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(editor().value).toBe("103.00")
+    fireEvent.keyDown(editor(), { key: "Tab", shiftKey: true })
+    // No editable column before the price: the keyboard is the grid's.
+    expect(screen.queryByRole("textbox")).toBeNull()
+    expect(document.activeElement).toBe(grid)
+  })
+
+  it("steps with the bare arrows when the column steps, ten with Shift, and leaves a modifier-held arrow to the listeners above", () => {
+    const { grid } = setup(vi.fn())
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.keyDown(editor(), { key: "ArrowUp" })
+    expect(editor().value).toBe("102.00")
+    fireEvent.keyDown(editor(), { key: "ArrowDown", shiftKey: true })
+    expect(editor().value).toBe("92.00")
+    const held = fireEvent.keyDown(editor(), { key: "ArrowUp", metaKey: true })
+    expect(held, "not prevented: the registry above may take it").toBe(true)
+    expect(editor().value).toBe("92.00")
+    // The grid's own arrows do not move focus while the editor is open.
+    expect(grid.getAttribute("aria-activedescendant")).toContain("r1")
+  })
+
+  it("opens by typing, with the character typed, by F2, and by a double click on the cell; a cell that cannot be edited leaves Enter to the row", () => {
+    const onEdit = vi.fn()
+    const { grid, cell, onActivate } = setup(onEdit)
+    fireEvent.keyDown(grid, { key: "9" })
+    expect(editor().value).toBe("9")
+    expect(editor().selectionStart).toBe(1)
+    fireEvent.keyDown(editor(), { key: "Escape" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    expect(editor().value).toBe("101.00")
+    fireEvent.keyDown(editor(), { key: "Escape" })
+    fireEvent.doubleClick(cell("r3", "px").firstElementChild!)
+    expect(editor().value).toBe("103.00")
+    expect(grid.getAttribute("aria-activedescendant")).toContain("r3")
+    fireEvent.keyDown(editor(), { key: "Escape" })
+    expect(onActivate).not.toHaveBeenCalled()
+    // r2's quantity is read-only by canEdit: Enter activates the row, a double click too, and the cell says so.
+    fireEvent.keyDown(grid, { key: "ArrowUp" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    expect(cell("r2", "qty")).toHaveAttribute("aria-readonly", "true")
+    expect(cell("r2", "qty")).not.toHaveAttribute("data-editable")
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(screen.queryByRole("textbox")).toBeNull()
+    expect(onActivate).toHaveBeenCalledWith(expect.objectContaining({ id: "r2" }), "r2")
+    fireEvent.doubleClick(cell("r2", "qty").firstElementChild!)
+    expect(onActivate).toHaveBeenCalledTimes(2)
+    // A column with no edit: Enter activates as it always did.
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(onActivate).toHaveBeenCalledTimes(3)
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it("a toggle column commits the toggled value from Enter or Space and never opens an editor, and a cell renderer commits through its handle", () => {
+    const onEdit = vi.fn()
+    const seen: (EditStatus | undefined)[] = []
+    const columns: ColumnDef<Quote>[] = [
+      { key: "sym", header: "Symbol", width: 80, accessor: (r) => r.sym },
+      {
+        key: "on",
+        header: "On",
+        width: 40,
+        accessor: (r) => r.qty !== null,
+        edit: { parse: (t) => t === "on", toggle: (v) => !v },
+        cell: ({ value, edit }) => {
+          seen.push(edit?.status)
+          return (
+            <button type="button" data-on={String(value)} onClick={() => edit?.commit(!value)}>
+              {value ? "on" : "off"}
+            </button>
+          )
+        },
+      },
+      { key: "px", header: "Price", width: 90, numeric: true, accessor: (r) => r.px, edit: { parse: price } },
+    ]
+    const { grid, cell } = setup(onEdit, columns)
+    // Focus sits on r1's second column, the toggle.
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(screen.queryByRole("textbox")).toBeNull()
+    expect(onEdit).toHaveBeenLastCalledWith(expect.objectContaining({ rowId: "r1", key: "on", value: false, previous: true }))
+    expect(cell("r1", "on")).toHaveAttribute("data-pending")
+    expect(seen.at(-1)).toMatchObject({ kind: "pending", value: false })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: " " })
+    expect(onEdit).toHaveBeenLastCalledWith(expect.objectContaining({ rowId: "r2", key: "on", value: false }))
+    fireEvent.keyDown(grid, { key: "9" })
+    expect(screen.queryByRole("textbox")).toBeNull()
+    fireEvent.click(cell("r3", "on").querySelector("button")!)
+    expect(onEdit).toHaveBeenLastCalledWith(expect.objectContaining({ rowId: "r3", key: "on", value: false }))
+    expect(onEdit).toHaveBeenCalledTimes(3)
+  })
+
+  it("opens nothing without onEdit", () => {
+    const { grid, cell } = setup(undefined)
+    expect(grid).not.toHaveAttribute("data-editable")
+    expect(cell("r1", "px")).not.toHaveAttribute("data-editable")
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.keyDown(grid, { key: "9" })
+    expect(screen.queryByRole("textbox")).toBeNull()
   })
 })

@@ -969,3 +969,76 @@ test("a tape grid follows its tail, stops on a touch, counts the new rows on a p
   await expect.poll(atTail).toBe(true)
   await expect(grid).toHaveAttribute("aria-rowcount", "72")
 })
+
+// Editing through the installed grid, against a pretend server 150 ms away: a value typed in place goes out
+// as a change and waits as pending until the server's row comes back with it, a refused one keeps the old value
+// with the server's words in the cell, the box asks and never flips itself, Escape reverts, Tab moves along the
+// row, and a row the server allows nothing on is read-only with a disabled box.
+test("a parameter grid types a value in place, waits for the server, prints a refusal, asks through the box, and keeps a locked row read-only", async ({ page }) => {
+  const errors: string[] = []
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
+  page.on("pageerror", (e) => errors.push(e.message))
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='parameter-grid']")
+  const grid = scene.getByRole("grid", { name: "Parameters" })
+  const cell = (id: string, key: string) => grid.locator(`[data-row-id='${id}'] [data-col='${key}']`)
+  await expect(grid).toHaveAttribute("data-preset", "parameters")
+  await expect(grid).toHaveAttribute("data-editable", "")
+  await expect(scene.locator("[data-parameter-asof]")).toHaveText("As of +120s")
+  await expect(cell("zn", "skew")).toHaveText("0.50")
+  await expect(cell("zn", "maxSize")).not.toHaveAttribute("data-editable", "")
+  // Changed since: ZB moved after the moment, ZN before it.
+  await expect(cell("zb", "name").locator("[data-parameter-changed]")).toHaveCount(1)
+  await expect(cell("zn", "name").locator("[data-parameter-changed]")).toHaveCount(0)
+  await expect(grid.locator("[data-row-id='zb']")).toHaveAttribute("aria-description", "Changed")
+  // Type a value: the editor opens on the value, steps, takes the text, and the cell waits for the server.
+  await cell("zn", "skew").dblclick()
+  const skew = grid.getByRole("textbox", { name: "Skew" })
+  await expect(skew).toHaveValue("0.50")
+  await expect(skew).toBeFocused()
+  await page.keyboard.press("ArrowUp")
+  await expect(skew).toHaveValue("0.75")
+  await skew.fill("1.25")
+  await page.keyboard.press("Enter")
+  await expect(cell("zn", "skew")).toHaveAttribute("data-pending", "true")
+  await expect(cell("zn", "skew")).toHaveText("1.25")
+  await expect(cell("zn", "skew")).not.toHaveAttribute("data-pending")
+  await expect(cell("zn", "skew")).toHaveText("1.25")
+  await expect(cell("zn", "updated")).toContainText("smoke")
+  await expect(grid).toBeFocused()
+  // Refused: the old value stands, and the server's words are in the cell.
+  await cell("zn", "width").dblclick()
+  await grid.getByRole("textbox", { name: "Width" }).fill("12")
+  await page.keyboard.press("Enter")
+  await expect(cell("zn", "width")).toHaveAttribute("data-rejected", "Risk declined it")
+  await expect(cell("zn", "width")).toHaveText("2.00Risk declined it")
+  // Past the line: the editor stays and says why; Escape reverts it.
+  await cell("zn", "skew").dblclick()
+  await skew.fill("9")
+  await page.keyboard.press("Enter")
+  await expect(skew).toHaveAttribute("aria-invalid", "true")
+  await expect(skew).toHaveAttribute("aria-description", "9.00 is above the maximum of 5.00.")
+  await page.keyboard.press("Escape")
+  await expect(skew).toHaveCount(0)
+  await expect(cell("zn", "skew")).toHaveText("1.25")
+  // Tab commits and opens the next editable cell; the read-only max size is skipped, so the row's end hands the keyboard back.
+  await cell("zb", "skew").dblclick()
+  await page.keyboard.press("Tab")
+  await expect(grid.getByRole("textbox", { name: "Width" })).toHaveValue("3.00")
+  await page.keyboard.press("Tab")
+  await expect(grid.getByRole("textbox")).toHaveCount(0)
+  await expect(grid).toBeFocused()
+  // The box asks the server: still the server's word while pending, then the row comes back off.
+  const box = grid.getByRole("checkbox", { name: "Disable ZN" })
+  await box.click()
+  await expect(cell("zn", "enabled")).toHaveAttribute("data-pending", "true")
+  await expect(box).toHaveAttribute("data-parameter-enabled", "true")
+  await expect(grid.getByRole("checkbox", { name: "Enable ZN" })).toHaveAttribute("data-parameter-enabled", "false")
+  await expect(cell("zn", "enabled")).not.toHaveAttribute("data-pending")
+  // The server allows nothing on TU: its cells are read-only and its box is disabled.
+  await expect(cell("tu", "skew")).toHaveAttribute("aria-readonly", "true")
+  await expect(grid.getByRole("checkbox", { name: "Disable TU" })).toBeDisabled()
+  await cell("tu", "skew").dblclick()
+  await expect(grid.getByRole("textbox")).toHaveCount(0)
+  expect(errors).toEqual([])
+})
