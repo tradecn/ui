@@ -1115,3 +1115,49 @@ test("an audit trail lists the events, shows one event's changes and the differe
   expect(csv).toContain("t12000,Filled,venue,,2 fields")
   expect(csv.trim().split("\r\n")).toHaveLength(6)
 })
+
+// The list through the consumer's input, button, and badge: save the current layout under a name, load it, paste
+// one that needs a kind the workspace lacks and see the ask before it opens, rename, duplicate, export, delete on
+// the second press, and reset.
+test("a layout manager saves, loads, warns before loading a layout with an unknown kind, renames, duplicates, exports, deletes on the second press, and resets", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='layout-manager']")
+  const state = scene.locator("[data-lm-loaded]")
+  const manager = scene.getByRole("region", { name: "Layouts" })
+  const field = manager.getByRole("textbox", { name: "Layout name" })
+  await field.fill("Morning")
+  await manager.getByRole("button", { name: "Save current" }).click()
+  const morning = manager.locator("[data-layout-template='t-1']")
+  await expect(morning.locator("[data-layout-name]")).toHaveText("Morning")
+  await expect(morning.locator("[data-layout-panels]")).toHaveText("2 panels")
+  await morning.getByRole("button", { name: "Load" }).click()
+  await expect(state).toHaveAttribute("data-lm-loaded", "Morning")
+  // A pasted layout that asks for a ladder: named on the row, and Load asks again before it opens.
+  await manager.getByRole("button", { name: "Import" }).click()
+  const layout = { version: 1, kind: "tradecn-workspace", dockview: { grid: { root: {} }, panels: { "ladder-1": {} } }, panels: { "ladder-1": { kind: "ladder", title: "Ladder", state: {} } } }
+  await manager.getByRole("textbox", { name: "Paste a layout's JSON" }).fill(JSON.stringify(layout))
+  await manager.getByRole("textbox", { name: "Layout name" }).nth(1).fill("With ladder")
+  await manager.getByRole("button", { name: "Add" }).click()
+  const ladder = manager.locator("[data-layout-template='t-2']")
+  await expect(ladder.locator("[data-layout-unknown]")).toHaveText("Needs ladder")
+  await ladder.getByRole("button", { name: "Load", exact: true }).click()
+  await expect(state).toHaveAttribute("data-lm-loaded", "Morning")
+  await ladder.getByRole("button", { name: "Load anyway?" }).click()
+  await expect(state).toHaveAttribute("data-lm-loaded", "With ladder")
+  // Rename in place, duplicate beside, export the JSON.
+  await morning.getByRole("button", { name: "Rename: Morning" }).click()
+  await manager.getByRole("textbox", { name: "Rename: Morning" }).fill("Open")
+  await page.keyboard.press("Enter")
+  await expect(morning.locator("[data-layout-name]")).toHaveText("Open")
+  await morning.getByRole("button", { name: "Duplicate: Open" }).click()
+  await expect(manager.locator("[data-layout-name]")).toHaveText(["Open", "Copy of Open", "With ladder"])
+  await morning.getByRole("button", { name: "Export: Open" }).click()
+  expect(JSON.parse((await state.getAttribute("data-lm-export")) ?? "{}")).toMatchObject({ kind: "tradecn-workspace" })
+  // Delete asks once; the second press deletes. Reset is the consumer's seed.
+  await ladder.getByRole("button", { name: "Delete: With ladder" }).click()
+  await expect(ladder).toHaveCount(1)
+  await ladder.getByRole("button", { name: "Delete?: With ladder" }).click()
+  await expect(ladder).toHaveCount(0)
+  await manager.getByRole("button", { name: "Reset to default" }).click()
+  await expect(state).toHaveAttribute("data-lm-resets", "1")
+})

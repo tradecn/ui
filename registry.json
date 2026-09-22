@@ -2449,6 +2449,94 @@
       }
     },
     {
+      "name": "layout-manager",
+      "type": "registry:ui",
+      "title": "Layout Manager",
+      "description": "Named layouts for a workspace: save the current one under a name, load one (with a warning first when it asks for a panel kind the workspace lacks), rename, duplicate, delete with an ask-again, import and export the JSON, and go back to the default. The list is the consumer's, read from and written to a preferences slot by two functions; every change is a new list, and every load is a request the consumer answers with the workspace's api.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [
+        "badge",
+        "button",
+        "input"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/layout-manager.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/lib/workspace-layout.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/preferences.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "layout"
+      ],
+      "docs": "Installs the workspace layout lib and preferences alongside and composes your badge, button, and input. It imports nothing from the workspace itself, so no dockview comes with it. Adds the stale token for the unknown-kinds badge.",
+      "meta": {
+        "components": [
+          {
+            "title": "LayoutManager",
+            "description": "The list with save, load, rename, duplicate, delete, import, export, and reset."
+          },
+          {
+            "title": "readLayoutTemplates",
+            "description": "The templates out of a preferences slot."
+          },
+          {
+            "title": "writeLayoutTemplates",
+            "description": "The envelope with the templates written to the slot."
+          },
+          {
+            "title": "parseLayoutTemplates",
+            "description": "A stored list read back, taking nothing on trust."
+          },
+          {
+            "title": "saveTemplate",
+            "description": "The list with a layout saved under a name, replacing the one already named."
+          },
+          {
+            "title": "importTemplate",
+            "description": "The list with a pasted layout added, or null when the text is not one."
+          },
+          {
+            "title": "exportTemplate",
+            "description": "A template's layout as JSON text."
+          },
+          {
+            "title": "DEFAULT_LAYOUT_MANAGER_LABELS",
+            "description": "Every word on it, to replace in part."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "stale": "oklch(0.52 0.13 75)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        },
+        "dark": {
+          "stale": "oklch(0.8 0.15 80)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
       "name": "grid-rules",
       "type": "registry:lib",
       "title": "Grid Rules",
