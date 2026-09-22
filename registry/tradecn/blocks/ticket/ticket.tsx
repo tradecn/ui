@@ -4,16 +4,16 @@ import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
-import { formatPrice, formatQuantity, parsePrice, stepByTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { formatPrice, formatQuantity, stepByTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
+import { QuoteField } from "@/registry/tradecn/ui/quote-field"
 
-// An order ticket. It types a price the way the instrument quotes it, steps it by the tick, and
-// hands a draft to whatever you named as an action. Two things it never does: work out a status, and
+// An order ticket. Its price field is a quote-field, so it types a price the way the instrument
+// quotes it and steps it by the tick, and it hands a draft to whatever you named as an action. Two things it never does: work out a status, and
 // offer an action the server did not allow. The status is a string the server said, printed as is.
 // The buttons are the actions whose ids are in `allowedActions`, and no list means no buttons.
 //
@@ -242,8 +242,6 @@ export function Ticket({
     ...defaultDraft,
   }))
   const [quantityText, setQuantityText] = useState(() => (draft.quantity === null ? "" : formatQuantity(draft.quantity)))
-  const [priceText, setPriceText] = useState(() => (draft.price === null ? "" : formatPrice(draft.price, convention.price)))
-  const [priceInvalid, setPriceInvalid] = useState(false)
   const [problems, setProblems] = useState<TicketProblems>({})
   const priced = isPriced(orderTypes, draft.type)
 
@@ -270,10 +268,9 @@ export function Ticket({
     setProblems((p) => (patch.quantity !== undefined && p.quantity ? { ...p, quantity: undefined } : patch.price !== undefined && p.price ? { ...p, price: undefined } : p))
   }
 
+  // The quote field is controlled and follows the draft, so a step or a reference click is one update.
   function setPrice(value: number | null) {
     update({ price: value })
-    setPriceText(value === null ? "" : formatPrice(value, convention.price))
-    setPriceInvalid(false)
   }
 
   /** Where a step starts when the field is blank: the last, then the mid, then whichever side there is. */
@@ -298,19 +295,6 @@ export function Ticket({
     setQuantityText(formatQuantity(next))
   }
 
-  function onPriceChange(text: string) {
-    setPriceText(text)
-    setPriceInvalid(false)
-    update({ price: parsePrice(text, convention.price) })
-  }
-
-  function onPriceBlur() {
-    if (!priceText.trim()) return setPriceInvalid(false)
-    const value = parsePrice(priceText, convention.price)
-    if (value === null) return setPriceInvalid(true)
-    setPriceText(formatPrice(value, convention.price))
-  }
-
   function onQuantityChange(text: string) {
     setQuantityText(text)
     update({ quantity: parseQuantity(text) })
@@ -321,8 +305,8 @@ export function Ticket({
     if (value !== null) setQuantityText(formatQuantity(value))
   }
 
-  // Arrows step inside the two numeric fields. Shift is ten at a time. With a modifier held the key
-  // belongs to the registry: `mod+up` steps the price from any field.
+  // Arrows step the quantity, Shift ten at a time. With a modifier held the key belongs to the
+  // registry: `mod+up` steps the price from any field. The quote field does the same for the price.
   const stepper = (step: (steps: number) => void) => (event: KeyboardEvent<HTMLInputElement>) => {
     if ((event.key !== "ArrowUp" && event.key !== "ArrowDown") || event.ctrlKey || event.metaKey || event.altKey) return
     event.preventDefault()
@@ -438,35 +422,19 @@ export function Ticket({
             <Input id={`${id}-quantity`} value={quantityText} inputMode="decimal" autoComplete="off" spellCheck={false} disabled={disabled} aria-invalid={problems.quantity ? true : undefined} className="h-7 font-mono text-xs md:text-xs" onChange={(event) => onQuantityChange(event.target.value)} onBlur={onQuantityBlur} onKeyDown={stepper(stepQuantity)} />
             {problems.quantity && <FieldError>{problems.quantity}</FieldError>}
           </Field>
-          <Field data-invalid={priceInvalid || problems.price ? true : undefined}>
-            <FieldLabel htmlFor={`${id}-price`}>{labels.price}</FieldLabel>
-            <InputGroup className="h-7">
-              <InputGroupInput
-                ref={priceInput}
-                id={`${id}-price`}
-                value={priceText}
-                placeholder={priced ? formatPrice(0, convention.price) : "market"}
-                inputMode="decimal"
-                autoComplete="off"
-                spellCheck={false}
-                disabled={disabled || !priced}
-                aria-invalid={priceInvalid || problems.price ? true : undefined}
-                className="font-mono text-xs md:text-xs"
-                onChange={(event) => onPriceChange(event.target.value)}
-                onBlur={onPriceBlur}
-                onKeyDown={stepper(stepPrice)}
-              />
-              <InputGroupAddon align="inline-end" className="gap-0">
-                <InputGroupButton type="button" size="icon-xs" aria-label="Price down one tick" disabled={disabled || !priced} data-step="-1" onClick={() => stepPrice(-1)}>
-                  −
-                </InputGroupButton>
-                <InputGroupButton type="button" size="icon-xs" aria-label="Price up one tick" disabled={disabled || !priced} data-step="1" onClick={() => stepPrice(1)}>
-                  +
-                </InputGroupButton>
-              </InputGroupAddon>
-            </InputGroup>
-            {(priceInvalid || problems.price) && <FieldError>{problems.price ?? labels.priceInvalid}</FieldError>}
-          </Field>
+          <QuoteField
+            id={`${id}-price`}
+            convention={convention}
+            label={labels.price}
+            value={draft.price}
+            onValueChange={setPrice}
+            stepFrom={priceToStepFrom()}
+            disabled={disabled || !priced}
+            placeholder={priced ? undefined : "market"}
+            error={problems.price}
+            invalidText={labels.priceInvalid}
+            inputRef={priceInput}
+          />
           <Field>
             <FieldLabel htmlFor={`${id}-type`}>{labels.type}</FieldLabel>
             <NativeSelect id={`${id}-type`} value={draft.type} disabled={disabled} className="w-full" onChange={(event) => update({ type: event.target.value })}>

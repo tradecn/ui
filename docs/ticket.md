@@ -24,11 +24,11 @@ const ZN: TicketInstrument = { symbol: "ZN", convention: { price: { kind: "fract
 
 ## API Reference
 
-This is the registry's first block: `ticket.tsx` lands in your `components` alias, not `components/ui`. If you already installed `format`, `flash-cell`, or `use-hotkeys`, the shared files are byte-identical and nothing of yours changes.
+This is the registry's first block: `ticket.tsx` lands in your `components` alias, not `components/ui`. If you already installed `quote-field`, `format`, `flash-cell`, or `use-hotkeys`, the shared files are byte-identical and nothing of yours changes.
 
 ### What it does
 
-It takes a side, a quantity, a price, an order type, a time in force, and an account when you give it accounts. The price field speaks the instrument's notation: `99-16+` parses through `parsePrice`, prints back through `formatPrice`, and steps by `stepByTick` with the arrows and the two buttons beside it, ten ticks with Shift held. The quantity steps by `quantityStep`. A bid, ask, or last you pass shows above the fields, and a click on one takes it as the price. When the field is blank the arrows start from `last`, then the mid, then whichever side there is.
+It takes a side, a quantity, a price, an order type, a time in force, and an account when you give it accounts. The price field is a [`quote-field`](quote-field.md), so it speaks the instrument's notation: `99-16+` parses through `parseQuote`, prints back through `formatQuote`, and steps by `stepQuote` with the arrows and the two buttons beside it, ten ticks with Shift held. The quantity steps by `quantityStep`. A bid, ask, or last you pass shows above the fields, and a click on one takes it as the price. When the field is blank the arrows start from `last`, then the mid, then whichever side there is.
 
 When an action runs, the draft is checked first: a quantity above zero, and a price when the order type takes one. What is wrong is said under the field, and nothing is sent. What passes goes to your `run` as a `TicketDraft`, with `price` null for a type that takes none. `checkDraft` and `describeDraft` are exported for a confirmation dialog, a palette row, or a test.
 

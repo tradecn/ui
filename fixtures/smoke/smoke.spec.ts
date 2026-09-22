@@ -400,6 +400,36 @@ test("a countdown says how long is left, turns in the last seconds, and stops at
   await expect(soon.locator("[data-countdown-digits]")).toHaveText("0:00")
 })
 
+// A bill on discount: a decimal in, snapped to the step, stepped by it, and marked when it is not one.
+test("a quote field reads a quote in the instrument's basis, snaps it, steps it, and marks what is not one", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='quote-field']")
+  const field = scene.getByLabel("Discount", { exact: true })
+  await field.click()
+  await page.keyboard.type("4.2531")
+  await expect(scene.locator("[data-quote-value]")).toHaveAttribute("data-quote-value", "4.253")
+  await field.blur()
+  await expect(field).toHaveValue("4.253")
+  await field.click()
+  await page.keyboard.press("ArrowUp")
+  await expect(field).toHaveValue("4.254")
+  await page.keyboard.press("Shift+ArrowDown")
+  await expect(field).toHaveValue("4.244")
+  await scene.getByRole("button", { name: "Discount up one tick" }).click()
+  await expect(field).toHaveValue("4.245")
+  await field.fill("4-16")
+  await field.blur()
+  await expect(field).toHaveAttribute("aria-invalid", "true")
+  await expect(scene.getByText("Not a discount in this instrument's notation.")).toBeVisible()
+  await field.fill("")
+  await field.blur()
+  await expect(field).not.toHaveAttribute("aria-invalid", "true")
+  // Blank, so a step starts from the reference beside it.
+  await field.click()
+  await page.keyboard.press("ArrowDown")
+  await expect(field).toHaveValue("4.249")
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.

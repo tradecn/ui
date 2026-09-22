@@ -7,6 +7,7 @@ import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
 import { PanelScene } from "./panel"
+import { QuoteFieldScene } from "./quote-field"
 import { RowStoreScene } from "./row-store"
 import { SparklineScene } from "./sparkline"
 import { TicketScene } from "./ticket"
@@ -37,6 +38,7 @@ export const items: Record<string, ItemScene> = {
   workspace: { title: "workspace", Scene: WorkspaceScene },
   ticket: { title: "ticket", Scene: TicketScene },
   countdown: { title: "countdown", Scene: CountdownScene },
+  "quote-field": { title: "quote-field", Scene: QuoteFieldScene },
   "tradecn-terminal": { title: "tradecn-terminal", Scene: TradecnTerminalScene },
   "tradecn-terminal-classic": { title: "tradecn-terminal-classic", Scene: TradecnTerminalClassicScene },
 }
