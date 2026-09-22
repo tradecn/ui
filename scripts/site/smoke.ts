@@ -403,11 +403,13 @@ for (const item of items) {
   const frames = (p: Page) =>
     p.evaluate(() =>
       [...document.querySelectorAll<HTMLIFrameElement>("iframe[data-preview]")].map((el) => {
+        // A frame caught mid-navigation has a document with no root or no body yet; it reads as nothing rather than throwing.
         const doc = el.contentDocument
-        return { item: el.dataset.preview ?? "", mode: doc?.documentElement.className ?? "", background: doc ? getComputedStyle(doc.body).backgroundColor : "" }
+        return { item: el.dataset.preview ?? "", mode: doc?.documentElement?.className ?? "", background: doc?.body ? getComputedStyle(doc.body).backgroundColor : "" }
       }),
     )
-  const framesIn = (p: Page, mode: string) => p.waitForFunction((name) => [...document.querySelectorAll<HTMLIFrameElement>("iframe[data-preview]")].every((el) => el.contentDocument?.documentElement.classList.contains(name)), mode, { timeout: 10_000 })
+  // Polls until every frame wears the mode. A frame mid-navigation has no root yet and counts as not there, so the wait keeps polling instead of throwing.
+  const framesIn = (p: Page, mode: string) => p.waitForFunction((name) => [...document.querySelectorAll<HTMLIFrameElement>("iframe[data-preview]")].every((el) => el.contentDocument?.documentElement?.classList.contains(name) ?? false), mode, { timeout: 10_000 })
   try {
     const index = await page.request.get(`${base}/${SEARCH_INDEX}`)
     const themes = new Set(((await index.json()) as SearchPage[]).filter((entry) => entry.group === "Themes").map((entry) => entry.path.split("/")[2]))
