@@ -23,6 +23,8 @@ import {
   FONTS_STYLES,
   GITHUB_LINK,
   installationSection,
+  MENU_ID,
+  MENU_TOGGLE,
   MODE_BUTTON,
   PAGES,
   readChangelog,
@@ -45,6 +47,7 @@ import {
   siteBase,
   siteDocs,
   siteHeader,
+  siteMenu,
   sitePageValues,
   siteThemes,
   START_PAGES,
@@ -142,9 +145,13 @@ describe("the opening page", () => {
     expect(page).not.toContain("shadcn@latest add")
   })
 
-  it("wears the header every page shares, with the sections then registry.json, the version menu, the search, the GitHub mark, the theme menu, and the mode button last", () => {
+  it("wears the header every page shares, with the Menu button first, the sections then registry.json, the version menu, the search, the GitHub mark, the theme menu, and the mode button last", () => {
     expect(page).toContain('<header class="site-header">')
-    expect(page).toContain('<a href="/docs/">Docs</a><a href="/docs/components/">Components</a><a href="/docs/changelog/">Changelog</a><a href="/r/registry.json">registry.json</a></nav>')
+    // The Menu button leads, ahead of the name: on a phone it stands in for the name and the sections, and it names the panel it opens.
+    expect(page).toContain(`<div class="wrap">\n${MENU_TOGGLE}\n<a class="name" href="/">`)
+    expect(MENU_TOGGLE).toMatch(new RegExp(`^<button type="button" class="menu-toggle" aria-expanded="false" aria-controls="${MENU_ID}"><svg class="menu-icon" [^>]*aria-hidden="true">.*</svg><svg class="close-icon" [^>]*aria-hidden="true">.*</svg><span>Menu</span></button>$`))
+    expect(page.match(/class="menu-toggle"/g)).toHaveLength(1)
+    expect(page).toContain('<nav aria-label="Sections"><a href="/docs/">Docs</a><a href="/docs/components/">Components</a><a href="/docs/changelog/">Changelog</a><a href="/r/registry.json">registry.json</a></nav>')
     // The version menu is first among the links, right before the search; the tag is no longer a bare label.
     expect(page).toContain(`<nav class="side" aria-label="Links">${versionPicker(tag)}${SEARCH_BUTTON}${GITHUB_LINK}`)
     expect(page).not.toContain('<span class="tag">')
@@ -175,6 +182,63 @@ describe("the opening page", () => {
     expect(SEARCH_BUTTON).toContain("<span>Search the docs</span><kbd>⌘K</kbd>")
     expect(renderPage(template("404.html"), values)).not.toContain("<dialog")
     expect(renderPage(template("404.html"), values)).not.toContain("search-button")
+  })
+
+  it("folds into a menu on a phone: a panel the Menu button opens, with the version and theme menus, Home, and the sections; the 404 page has none", () => {
+    const versions = versionPicker(tag)
+    const themes = themePicker(siteThemes(registry))
+    const menu = siteMenu(versions, themes)
+    expect(menu).toBe(
+      [
+        '<div class="menu-only">',
+        `<div class="menu-settings">${versions}${themes}</div>`,
+        '<nav class="menu-sections" aria-label="Menu">',
+        "<h2>Menu</h2>",
+        "<ul>",
+        '<li><a href="/">Home</a></li>',
+        '<li><a href="/docs/">Docs</a></li>',
+        '<li><a href="/docs/components/">Components</a></li>',
+        '<li><a href="/docs/changelog/">Changelog</a></li>',
+        '<li><a href="/r/registry.json">registry.json</a></li>',
+        "</ul>",
+        "</nav>",
+        "</div>",
+      ].join("\n"),
+    )
+    // The sections carry the page's own aria-current, as the header's do.
+    expect(siteMenu(versions, themes, "components", true)).toContain('<li><a href="/docs/components/" aria-current="page">Components</a></li>')
+    expect(siteMenu(versions, themes, "docs", false)).toContain('<li><a href="/docs/" aria-current="true">Docs</a></li>')
+    expect(siteMenu(versions, "")).toContain(`<div class="menu-settings">${versions}</div>`)
+    // The opening page's panel is that alone, named by the button, between the search dialog and the page; a docs page's is its sidebar.
+    expect(values.menu).toBe(menu)
+    const panel = `<aside class="sidebar menu" id="${MENU_ID}" aria-label="Menu" tabindex="-1">\n${menu}\n</aside>`
+    expect(page).toContain(panel)
+    expect(page.indexOf("</dialog>")).toBeLessThan(page.indexOf(panel))
+    expect(page.indexOf(panel)).toBeLessThan(page.indexOf('<main class="wrap">'))
+    expect(page.match(/id="site-menu"/g)).toHaveLength(1)
+    const lost = renderPage(template("404.html"), values)
+    expect(lost).not.toContain("menu-toggle")
+    expect(lost).not.toContain(MENU_ID)
+    // The stylesheet: the button and the panel's own part show on a phone with a script, the panel is the sidebar fixed under the header while open, and without a script the sidebar stays in the page.
+    const site = readFileSync(resolve(root, "site", SITE_STYLES), "utf8")
+    expect(site).toContain(".menu-only, .sidebar.menu { display: none; }")
+    const [, phone = ""] = site.split("@media (max-width: 48rem) {")
+    expect(phone).toContain("html.js .menu-toggle { display: inline-flex; }")
+    expect(phone).toContain('html.js .site-header .name, html.js .site-header nav[aria-label="Sections"], html.js .site-header .version-pick, html.js .site-header .theme-pick { display: none; }')
+    expect(phone).toContain("html.js .sidebar { display: none; }")
+    expect(phone).toContain('html.js[data-menu="open"], html.js[data-menu="open"] body { overflow: hidden; }')
+    expect(phone).toContain('html.js[data-menu="open"] .sidebar { display: block; position: fixed; top: var(--header-height, 3.25rem); right: 0; bottom: 0; left: 0;')
+    expect(phone).toContain("html.js .menu-only { display: block; }")
+    expect(phone).toContain("html:not(.js) .sidebar ul { display: flex; flex-wrap: wrap;")
+    // The script: the button toggles data-menu on <html>, measures the header, closes on Escape and on a link, and fills both version menus.
+    const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
+    expect(script).toContain('document.getElementById(toggle?.getAttribute("aria-controls") ?? "")')
+    expect(script).toContain("root.dataset.menu = MENU_OPEN")
+    expect(script).toContain("root.style.setProperty(\"--header-height\", `${header.offsetHeight}px`)")
+    expect(script).toContain('event.key !== "Escape" || !isOpen()')
+    expect(script).toContain('if (event.target.closest("a")) set(false)')
+    expect(script).toContain('document.querySelectorAll(".version-select")')
+    expect(script).toContain('const NARROW = "(max-width: 48rem)"')
   })
 
   it("lists every item by title, linking its doc on GitHub when the tag ships no page for it", () => {
@@ -223,7 +287,8 @@ describe("the opening page", () => {
     expect(picker.match(/<option /g)).toHaveLength(themes.length)
     expect(picker.match(/ selected>/g)).toHaveLength(1)
     expect(picker).toMatch(/<\/select><svg [^>]*aria-hidden="true">.*<\/svg><\/span>$/)
-    expect(page.match(/class="theme-select"/g)).toHaveLength(1)
+    // Two on the page, the header's and the phone menu's; the stylesheet shows one at a time.
+    expect(page.match(/class="theme-select"/g)).toHaveLength(2)
     // The menu shows a theme's title, or its name without one, escaped either way.
     expect(themePicker([{ name: "x<y", type: "registry:theme" }])).toContain('<option value="x&lt;y" selected>x&lt;y</option>')
     expect(themePicker([])).toBe("")
@@ -334,8 +399,8 @@ describe("the version menu and a release's own tree", () => {
     expect(() => versionList("1.2.0")).toThrow(/release tag/)
     expect(() => versionList("v1.2.0", ["v1.2"])).toThrow(/release tag/)
     expect(versionsIndex(["v1.2.0", "v1.1.0"])).toBe('{"latest":"v1.2.0","versions":["v1.2.0","v1.1.0"]}')
-    // One menu on the page, the one the template values carry; a page built with a list carries it.
-    expect(page.match(/class="version-select"/g)).toHaveLength(1)
+    // The menu the template values carry, twice on the page (the header's and the phone menu's, one showing at a time); a page built with a list carries it.
+    expect(page.match(/class="version-select"/g)).toHaveLength(2)
     expect(values.versionPicker).toBe(versionPicker(tag))
     expect(templateValues(registry, version, registry, new Set(), undefined, { versions: ["v0.1.0"] }).versionPicker).toBe(versionPicker(tag, [tag, "v0.1.0"]))
     // The page's <html> says which release it is and where its tree is served from: the root here.
@@ -710,6 +775,20 @@ describe("the docs pages", async () => {
     const format = at("docs/format/index.html")
     for (const doc of docs) expect(format).toContain(`href="${doc.path}"`)
     expect(at("docs/index.html")).toContain('<a href="/docs/" aria-current="page">Introduction</a>')
+  })
+
+  it("opens its sidebar with the phone menu's part, then the groups in a nav of their own", () => {
+    const versions = values.versionPicker ?? ""
+    const picker = values.themePicker ?? ""
+    const opening = (menu: string) => `<aside class="sidebar" id="${MENU_ID}" aria-label="Docs" tabindex="-1">\n${menu}\n<nav class="docs-nav" aria-label="Pages">\n`
+    // An item's page is in the Components section; the Components page is that section's own; the Introduction is the docs' own.
+    expect(at("docs/format/index.html")).toContain(opening(siteMenu(versions, picker, "components", false)))
+    expect(at("docs/components/index.html")).toContain(opening(siteMenu(versions, picker, "components", true)))
+    expect(at("docs/index.html")).toContain(opening(siteMenu(versions, picker, "docs", true)))
+    expect(at("docs/installation/index.html")).toContain(opening(siteMenu(versions, picker, "docs", false)))
+    expect(at("docs/format/index.html")).toContain(`${docsNav(docs, "format")}\n</nav>\n  </aside>`)
+    expect(at("docs/format/index.html").match(/id="site-menu"/g)).toHaveLength(1)
+    expect(at("docs/format/index.html").match(/class="version-select"/g)).toHaveLength(2)
   })
 
   it("puts each page in its header section", () => {

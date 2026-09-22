@@ -266,23 +266,62 @@ export function searchDialog(): string {
   ].join("\n")
 }
 
+/** The id of the panel the header's Menu button opens: the sidebar on a docs page, a panel of its own on the opening page. */
+export const MENU_ID = "site-menu"
+
+const MENU_ICON = `<svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h16M4 16h16"/></svg>`
+const CLOSE_ICON = `<svg class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`
+
 /**
- * The header on every page: the mark, the three sections with the registry file after them, then the version menu,
- * the search, the GitHub mark, the theme menu, and the mode button. `versions` is `versionPicker()` of the releases
- * the page knows and `themes` is `themePicker()` of the themes it carries; `current` marks the section a page is in,
- * `page` that it is the section's own page.
+ * The Menu button, first in the header. On a phone it stands in for the name and the sections and opens the panel
+ * `MENU_ID` names: the two lines become a cross while it is open, and site.js keeps `aria-expanded` true. At a
+ * laptop's width, and without a script, the stylesheet hides it and the sidebar is in the page.
  */
-export function siteHeader(versions: string, current: Section | null = null, page = false, themes = ""): string {
+export const MENU_TOGGLE = `<button type="button" class="menu-toggle" aria-expanded="false" aria-controls="${MENU_ID}">${MENU_ICON}${CLOSE_ICON}<span>Menu</span></button>`
+
+/** The three sections and the registry file, as the header and the menu both list them; `current` marks the section a page is in, `page` that it is the section's own page. */
+function sectionLinks(current: Section | null, page: boolean): string[] {
   const link = (section: Section, href: string, text: string) =>
     `<a href="${href}"${section === current ? ` aria-current="${page ? "page" : "true"}"` : ""}>${text}</a>`
+  return [link("docs", "/docs/", "Docs"), link("components", "/docs/components/", "Components"), link("changelog", "/docs/changelog/", "Changelog"), `<a href="/r/registry.json">registry.json</a>`]
+}
+
+/**
+ * The header on every page: the Menu button, the mark, the three sections with the registry file after them, then
+ * the version menu, the search, the GitHub mark, the theme menu, and the mode button. `versions` is `versionPicker()`
+ * of the releases the page knows and `themes` is `themePicker()` of the themes it carries; `current` marks the
+ * section a page is in, `page` that it is the section's own page.
+ */
+export function siteHeader(versions: string, current: Section | null = null, page = false, themes = ""): string {
   return [
     `<header class="site-header">`,
     `<div class="wrap">`,
+    MENU_TOGGLE,
     `<a class="name" href="/">${MARK}<span>tradecn<span class="slash">/</span>ui</span></a>`,
-    `<nav aria-label="Sections">${link("docs", "/docs/", "Docs")}${link("components", "/docs/components/", "Components")}${link("changelog", "/docs/changelog/", "Changelog")}<a href="/r/registry.json">registry.json</a></nav>`,
+    `<nav aria-label="Sections">${sectionLinks(current, page).join("")}</nav>`,
     `<nav class="side" aria-label="Links">${versions}${SEARCH_BUTTON}${GITHUB_LINK}${themes}${MODE_BUTTON}</nav>`,
     `</div>`,
     `</header>`,
+  ].join("\n")
+}
+
+/**
+ * What the Menu button's panel holds besides the docs groups, on a phone: the version and theme menus, which leave
+ * the header there, then Home and the header's sections. On a docs page it opens the sidebar, ahead of the groups;
+ * on the opening page it is the whole panel. At a laptop's width the stylesheet hides it, since the header shows all of it.
+ */
+export function siteMenu(versions: string, themes: string, current: Section | null = null, page = false): string {
+  return [
+    `<div class="menu-only">`,
+    `<div class="menu-settings">${versions}${themes}</div>`,
+    `<nav class="menu-sections" aria-label="Menu">`,
+    `<h2>Menu</h2>`,
+    `<ul>`,
+    `<li><a href="/">Home</a></li>`,
+    ...sectionLinks(current, page).map((link) => `<li>${link}</li>`),
+    `</ul>`,
+    `</nav>`,
+    `</div>`,
   ].join("\n")
 }
 
@@ -363,6 +402,7 @@ export function templateValues(
     fontSans,
     fontMono,
     header: siteHeader(versions, null, false, picker),
+    menu: siteMenu(versions, picker),
     search: searchDialog(),
     showcase: showcase(registry, tag, docSlugs, previews),
     itemCount: String(registry.items.length),
@@ -1039,6 +1079,8 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
     const body = [lead ? withPreview(doc.html, lead) : doc.html, doc.item ? builtOn(doc.item) : ""].filter(Boolean).join("\n")
     const content = [arrows(docs, index), body, pager(docs, index)].join("\n")
     const section = sectionOf(doc)
+    // The section's own page: the index, the Components page, the changelog. An item's page is in its section, not the section itself.
+    const own = !doc.item && (section !== "docs" || doc.slug === "index")
     return {
       path: `${doc.path.slice(1)}index.html`,
       html: renderPage(template, {
@@ -1046,7 +1088,8 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
         title: escapeHtml(doc.title),
         description: escapeHtml(doc.description),
         path: doc.path,
-        header: siteHeader(versions, section, !doc.item && (section !== "docs" || doc.slug === "index"), picker),
+        header: siteHeader(versions, section, own, picker),
+        menu: siteMenu(versions, picker, section, own),
         nav: docsNav(docs, doc.slug),
         toc: toc(body),
         content,

@@ -27,6 +27,13 @@ code, kbd { font-family: var(--font-mono); }
 /* The mark is drawn on a 16 px grid and shown at 16 px; the mode's circle sits inside a 24 px grid, so it gets more. */
 .site-header nav .github svg { width: 1rem; height: 1rem; }
 .mode-toggle svg { width: 1.05rem; height: 1.05rem; }
+/* The Menu button, first in the header: on a phone it stands in for the name and the sections and opens the panel
+   (below, with the docs). At a laptop's width, and without a script, it is not there. Its two lines are a cross while open. */
+.menu-toggle { display: none; align-items: center; gap: .5rem; margin: -.3rem 0; padding: .3rem .5rem .3rem 0; font: inherit; font-weight: 500; color: var(--foreground); background: none; border: 0; border-radius: var(--radius); cursor: pointer; }
+.menu-toggle svg { width: 1.15rem; height: 1.15rem; }
+.menu-toggle .close-icon, .menu-toggle[aria-expanded="true"] .menu-icon { display: none; }
+.menu-toggle[aria-expanded="true"] .close-icon { display: block; }
+.menu-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* The mode. theme.js puts light or dark on <html>, from the reader's choice or the system; color-scheme then picks
    the side of every light-dark() pair in the page's palette, and the browser's own controls and scrollbars follow. */
@@ -115,6 +122,11 @@ footer.site-foot p { margin: 0; }
 /* The docs: the sections down the left, the page, and its headings down the right. */
 .page { display: grid; grid-template-columns: 14rem minmax(0, 1fr) 13rem; gap: 3rem; padding-top: 1.5rem; max-width: 90rem; }
 .sidebar, .toc { position: sticky; top: 4.5rem; align-self: start; max-height: calc(100vh - 4.5rem); overflow-y: auto; font-size: .9rem; }
+/* What the sidebar holds for the phone's menu alone (the version and theme menus, Home and the sections) is not there
+   at a laptop's width, where the header shows all of it; the opening page's panel holds nothing else, so it is not
+   there at all. The panel takes focus when it opens, and needs no ring of its own for that. */
+.menu-only, .sidebar.menu { display: none; }
+.sidebar:focus { outline: none; }
 /* The sections. A group is a muted heading in sentence case and its pages are the foreground, so the two read apart at
    a glance; the current page sits on a filled block and a hover shows the same, shadcn's shape. The headings down the
    right wear the same heading; their links stay muted, as shadcn's do. */
@@ -225,13 +237,34 @@ html:not(.js) .tabs [role="tabpanel"][hidden] { display: block; }
 }
 @media (max-width: 48rem) {
   .page { grid-template-columns: 1fr; gap: 1.5rem; }
-  .sidebar { position: static; max-height: none; }
-  .sidebar ul { display: flex; flex-wrap: wrap; gap: .1rem .25rem; }
-  .sidebar li + li { margin-top: 0; }
   .hero { padding-top: 2.5rem; }
   .cta { flex-wrap: wrap; }
   /* On a phone the search is its icon, and the dialog takes the screen. */
   .search-button span, .search-button kbd { display: none; }
   .search-button { padding: .3rem .45rem; }
   dialog.search { margin: 1rem auto auto; max-height: calc(100vh - 2rem); }
+  /* The header folds: the Menu button stands in for the name and the sections, and the version and theme menus
+     move into the panel it opens, so the header is one row: the button, then the search, the GitHub mark, and the mode button. */
+  html.js .menu-toggle { display: inline-flex; }
+  html.js .site-header .name, html.js .site-header nav[aria-label="Sections"], html.js .site-header .version-pick, html.js .site-header .theme-pick { display: none; }
+  /* The panel is the sidebar, out of the page until the button opens it, then over the page from under the header to
+     the bottom of the screen, edge to edge, scrolling on its own while the page behind holds still. site.js measures
+     the header into --header-height, since it is one row, or two on the narrowest phone. The two menus lead, then
+     Home and the sections, then the docs groups, each name at a thumb's size, the current page in the primary. */
+  html.js .sidebar { display: none; }
+  html.js[data-menu="open"], html.js[data-menu="open"] body { overflow: hidden; }
+  /* align-self: stretch, because the sidebar's own align-self: start would size a fixed box to its content instead of filling the insets. */
+  html.js[data-menu="open"] .sidebar { display: block; position: fixed; top: var(--header-height, 3.25rem); right: 0; bottom: 0; left: 0; z-index: 9; align-self: stretch; max-height: none; padding: .5rem 16px 3rem; overflow-y: auto; font-size: 1rem; background: color-mix(in oklab, var(--background) 92%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  html.js .menu-only { display: block; }
+  .menu-settings { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: .75rem 0 .5rem; }
+  .menu-settings .version-pick, .menu-settings .theme-pick { margin: 0; color: var(--foreground); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+  html.js .sidebar h2 { margin: 1.5rem 0 .5rem; padding: 0; }
+  html.js .sidebar li + li { margin-top: 0; }
+  html.js .sidebar li a { display: block; padding: .4rem 0; font-size: 1.4rem; font-weight: 500; line-height: 1.3; border-radius: 0; }
+  html.js .sidebar li a:hover, html.js .sidebar li a:focus-visible, html.js .sidebar li a[aria-current="page"] { color: var(--primary); background: none; }
+  /* Without a script the button would open nothing, so it is not there, and the sidebar stays in the page as it
+     was: every group wrapped above the article, the version and theme menus in the header. */
+  html:not(.js) .sidebar { position: static; max-height: none; }
+  html:not(.js) .sidebar ul { display: flex; flex-wrap: wrap; gap: .1rem .25rem; }
+  html:not(.js) .sidebar li + li { margin-top: 0; }
 }
