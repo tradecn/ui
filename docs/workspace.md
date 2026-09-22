@@ -149,6 +149,10 @@ The window opens a page from your origin, `/popout.html` by default, and that pa
 
 A popout is part of the layout, so a layout saved with one open asks for that window again when it is restored. That happens on page load, with no click behind it, and a browser that blocks the window gets the panel back in the grid with an error from the dock in the console. Close popouts before you save a layout as a template.
 
+### One window per JavaScript context
+
+A desktop shell that gives each window its own webview cannot pop a panel out the way the browser does: there is no shared JavaScript to move the panel into. The shape that works there is one `Workspace` per window. Each window mounts its own workspace over its own stores, saves its own layout under the window's id, and the shell keeps the list of windows and which layout each one opens with. Link groups cross the windows through a `LinkTransport` made from the shell's events with `createCallbackTransport` (see [`panel`](panel.md)), and the hotkey registry is attached in each window by its own `HotkeysProvider`. `popout` and `api.popout` are not for that shell; leave them out of its panels' actions and let the shell open windows.
+
 ### The theme
 
 The dock draws itself from CSS variables, and the registry item's `css` block appends one class to your stylesheet that sets every one of them from your tokens: `--dv-group-view-background-color: var(--background)`, the tab strip from `--muted`, tab text from `--foreground` and `--muted-foreground`, separators from `--border`, the active sash and the drop indicator from `--ring`, the dropdown radius from `--radius`. So the dock follows your theme, light and dark, and follows a tradecn theme item too. `scripts/workspace-theme.test.ts` holds that class against the installed dock's own theme, so a variable dockview adds in a later version is a failing test here, not a transparent tab.

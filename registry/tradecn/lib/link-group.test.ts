@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { createBroadcastChannelTransport, createLinkGroupStore, cycleLinkGroup, isLinkMessage, normalizeSymbol, type LinkMessage, type LinkTransport } from "@/registry/tradecn/lib/link-group"
+import { createBroadcastChannelTransport, createCallbackTransport, createLinkGroupStore, cycleLinkGroup, isLinkMessage, normalizeSymbol, type LinkMessage, type LinkTransport } from "@/registry/tradecn/lib/link-group"
 
 // Every transport made from one hub hears what the others post, and never its own.
 function createHub() {
@@ -205,6 +205,61 @@ describe("between windows", () => {
   it("connects to nothing without a transport", () => {
     const store = createLinkGroupStore()
     expect(() => store.connect()()).not.toThrow()
+  })
+})
+
+describe("createCallbackTransport", () => {
+  // A shell with two windows that cannot see each other's JavaScript: each has an event bus of its own,
+  // and the shell forwards between them. Here the two buses are wired straight across.
+  function shell() {
+    const deliverTo = new Map<string, ((message: unknown) => void) | null>()
+    const receives = { a: 0, b: 0 }
+    const stops = { a: 0, b: 0 }
+    const transport = (me: "a" | "b", other: "a" | "b") =>
+      createCallbackTransport({
+        send: (message) => deliverTo.get(other)?.(JSON.parse(JSON.stringify(message))),
+        receive: (deliver) => {
+          receives[me]++
+          deliverTo.set(me, deliver)
+          return () => {
+            stops[me]++
+            deliverTo.set(me, null)
+          }
+        },
+      })
+    return { a: transport("a", "b"), b: transport("b", "a"), receives, stops, deliverTo }
+  }
+
+  it("carries a write from one window to the other through the shell's functions", () => {
+    const { a, b } = shell()
+    const left = createLinkGroupStore({ transport: a, id: "left" })
+    const right = createLinkGroupStore({ transport: b, id: "right" })
+    const offLeft = left.connect()
+    const offRight = right.connect()
+    left.set(1, "ZN", "book-1")
+    expect(right.get(1)).toMatchObject({ symbol: "ZN", source: "book-1", version: 1 })
+    right.set(1, "ES")
+    expect(left.get(1).symbol).toBe("ES")
+    offLeft()
+    offRight()
+  })
+
+  it("starts receiving with the first subscriber, stops with the last, and delivers only link messages", () => {
+    const { a, receives, stops, deliverTo } = shell()
+    const heard: LinkMessage[] = []
+    const off1 = a.subscribe((m) => heard.push(m))
+    const off2 = a.subscribe((m) => heard.push(m))
+    expect(receives.a).toBe(1)
+    deliverTo.get("a")!({ kind: "tradecn-link", type: "hello", origin: "x" })
+    deliverTo.get("a")!({ junk: true })
+    deliverTo.get("a")!("nope")
+    expect(heard).toHaveLength(2)
+    off1()
+    expect(stops.a).toBe(0)
+    off2()
+    expect(stops.a).toBe(1)
+    off2()
+    expect(stops.a).toBe(1)
   })
 })
 
