@@ -29,7 +29,7 @@ export function FeedHealthScene() {
     return () => clearInterval(t)
   }, [paused, gap, down])
   return (
-    <main className="mx-auto max-w-2xl space-y-4 p-6 font-mono text-xs">
+    <main className="mx-auto max-w-2xl space-y-4 p-6 font-(family-name:--tradecn-font-mono) text-xs">
       <h1 className="text-sm font-semibold">feed-health</h1>
       <FeedHealth feeds={feeds} />
       <FeedHealth feeds={feeds} compact />

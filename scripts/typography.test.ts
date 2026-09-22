@@ -9,10 +9,12 @@ import {
   NUMERIC_VARIANT,
   NUMERIC_VARIANT_TOKEN,
   ROOT,
+  TEXT_SIZE_FLOOR_PX,
   THEME_TYPOGRAPHY_CSS,
   TYPOGRAPHY_TOKEN,
   cssFor,
   cssVarsFor,
+  fontSizesUnderFloor,
   isColorValue,
   readRegistry,
   readTokens,
@@ -67,16 +69,14 @@ describe("the typography tokens", () => {
 })
 
 describe("the themes' typography", () => {
-  it("carry every typography token, set the numeric family to the mono stack, and append the base rules", () => {
+  it("carry every typography token at its default, the numeric family on the sans, and append the base rules", () => {
     for (const theme of themes) {
       for (const mode of ["light", "dark"] as const) {
-        for (const name of typography) expect(theme.cssVars?.[mode]?.[name], `${theme.name} ${mode} ${name}`).toBeDefined()
-        expect(theme.cssVars?.[mode]?.["tradecn-font-numeric"], theme.name).toBe(theme.name.startsWith("tradecn-terminal") ? "var(--tradecn-font-mono)" : "var(--tradecn-font-sans)")
+        for (const name of typography) expect(theme.cssVars?.[mode]?.[name], `${theme.name} ${mode} ${name}`).toBe(tokens[mode][name])
+        expect(theme.cssVars?.[mode]?.["tradecn-font-numeric"], theme.name).toBe("var(--tradecn-font-sans)")
         expect(theme.cssVars?.[mode]?.[NUMERIC_VARIANT_TOKEN], theme.name).toBe(NUMERIC_VARIANT)
       }
       expect(theme.css, theme.name).toEqual(THEME_TYPOGRAPHY_CSS)
-      // The terminal pair predates the typography tokens, so their docs promise a --diff of additions only; the two-sided themes were born with them.
-      if (theme.name.startsWith("tradecn-terminal")) expect(theme.docs, theme.name).toContain("additions only")
     }
   })
 
@@ -100,24 +100,32 @@ describe("the items' typography", () => {
     for (const item of registry.items) if (!withFonts.includes(item) && item.type !== "registry:theme") expect(item.css?.[ACCESSIBILITY_SELECTOR], item.name).toBeUndefined()
   })
 
-  it("set lining figures wherever they set tabular ones, and reach every font through a token", () => {
+  // The registry source is the contract's; the demos and scenes are shown to consumers under the Code tab and in the
+  // playground, so they read the way the contract asks too. The fixtures' spec and the playground's own shadcn
+  // components are not tradecn's to hold.
+  const SWEPT = ["registry/tradecn", "playground/src/demos", "playground/src/items", "playground/src/bench", "playground/src/App.tsx", "fixtures/smoke/scenes"]
+
+  it("set lining figures wherever they set tabular ones, reach every font through a token, and draw nothing under the floor", () => {
     const sources: string[] = []
-    const walk = (dir: string) => {
-      for (const name of readdirSync(dir)) {
-        const file = path.join(dir, name)
-        if (statSync(file).isDirectory()) walk(file)
-        else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) sources.push(file)
-      }
+    const walk = (entry: string) => {
+      if (statSync(entry).isDirectory()) for (const name of readdirSync(entry)) walk(path.join(entry, name))
+      else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) sources.push(entry)
     }
-    walk(path.join(ROOT, "registry/tradecn"))
-    expect(sources.length).toBeGreaterThan(20)
+    for (const root of SWEPT) walk(path.join(ROOT, root))
+    expect(sources.length).toBeGreaterThan(60)
+    expect(TEXT_SIZE_FLOOR_PX).toBe(parseFloat(tokens.dark["tradecn-text-size-grid-min"]!))
     for (const file of sources) {
       const lines = readFileSync(file, "utf8").split("\n")
       lines.forEach((line, index) => {
         if (/\btabular-nums\b/.test(line)) expect(line, `${path.relative(ROOT, file)}:${index + 1}`).toMatch(/\blining-nums\b/)
         expect(line, `${path.relative(ROOT, file)}:${index + 1}`).not.toMatch(/(?<![\w-])(?:[\w-]+:)*font-(?:mono|sans|serif)(?![\w-])/)
+        expect(fontSizesUnderFloor(line), `${path.relative(ROOT, file)}:${index + 1}`).toEqual([])
       })
     }
+    // The helper reads a class or an inline size in any unit, and leaves the floor itself alone.
+    expect(fontSizesUnderFloor('className="text-[10px] md:text-[11px] text-xs"')).toEqual(["text-[10px]", "md:text-[11px]"])
+    expect(fontSizesUnderFloor("style={{ fontSize: 11 }}")).toEqual(["fontSize: 11"])
+    expect(fontSizesUnderFloor('text-[0.7rem] text-[12px] text-[0.75rem] fontSize: "12px"')).toEqual(["text-[0.7rem]"])
     // Every ui item and block sets the figures on its root, so everything inside inherits them.
     for (const item of registry.items) {
       if (item.type !== "registry:ui" && item.type !== "registry:block") continue

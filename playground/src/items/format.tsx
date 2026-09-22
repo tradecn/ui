@@ -49,8 +49,8 @@ const rows: [string, string][] = [
 export function FormatScene() {
   return (
     <main className="mx-auto max-w-xl p-6">
-      <h1 className="mb-4 font-mono text-sm font-semibold">format</h1>
-      <table className="w-full font-mono text-xs tabular-nums">
+      <h1 className="mb-4 font-(family-name:--tradecn-font-mono) text-sm font-semibold">format</h1>
+      <table className="w-full font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
         <tbody>
           {rows.map(([label, value]) => (
             <tr key={label} className="border-b border-border">

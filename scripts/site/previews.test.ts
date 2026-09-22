@@ -7,7 +7,6 @@ import {
   DOCS_TEMPLATE,
   docPages,
   fullPalette,
-  LIGHT_PALETTE,
   PREVIEW_TEMPLATE,
   previewBlock,
   previewPages,
@@ -107,25 +106,29 @@ describe("the embed build", () => {
 
 describe("a theme on the site", () => {
   const theme = registry.items.find((item) => item.name === THEME_ITEM)!
-  const classic = registry.items.find((item) => item.name === "tradecn-terminal-classic")!
+  // A theme that is not the site's, so its preview page is told apart from the pages that wear the site's.
+  const slate = registry.items.find((item) => item.name === "tradecn-slate")!
 
   it("shows what the CLI writes instead of a demo's source", () => {
     const css = themeCss(theme)
-    expect(css).toMatch(/^@theme inline \{\n {2}--font-sans: /)
+    // No theme sets a @theme block any more: the type is the tokens', so the stylesheet starts at :root.
+    expect(css).toMatch(/^:root \{\n {2}--accent: /)
     expect(css).toContain(`:root {\n  --accent: ${theme.cssVars?.light?.accent};`)
     expect(css).toContain(`.dark {\n  --accent: ${theme.cssVars?.dark?.accent};`)
+    expect(themeCss({ ...theme, cssVars: { ...theme.cssVars, theme: { "font-sans": "monospace" } } })).toMatch(/^@theme inline \{\n {2}--font-sans: monospace;/)
   })
 
-  it("gives the embed page every variable the theme sets in a mode, font included", () => {
+  it("gives the embed page every variable the theme sets in a mode, and a font-sans only when the theme sets one", () => {
     for (const mode of ["light", "dark"] as const) {
       const palette = fullPalette(theme, mode)
       for (const [token, value] of Object.entries(theme.cssVars?.[mode] ?? {})) expect(palette).toContain(`  --${token}: ${value};`)
-      expect(palette).toContain(`  --font-sans: ${theme.cssVars?.theme?.["font-sans"]};`)
+      expect(palette).not.toContain("--font-sans:")
     }
+    expect(fullPalette({ ...theme, cssVars: { ...theme.cssVars, theme: { "font-sans": "monospace" } } }, "dark")).toContain("  --font-sans: monospace;")
     expect(() => fullPalette({ name: "bare", type: "registry:theme" }, "dark")).toThrow(/bare/)
   })
 
-  it("wears its own palette on its own preview page in both modes; every other page wears the terminal theme in dark and the site's light palette in light", async () => {
+  it("wears its own palette on its own preview page in both modes; every other page wears the site theme's dark side in dark and its light dozen in light", async () => {
     const docs = await readDocs(resolve(root, "docs"), registry)
     const values = templateValues(registry, version, registry, new Set(docs.map((doc) => doc.slug)))
     const previews: Previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()) }
@@ -139,24 +142,27 @@ describe("a theme on the site", () => {
     expect(typographyPage).toContain('<div id="root" data-item="typography"')
     expect(typographyPage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${theme.cssVars?.dark?.accent};`)
     expect(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE)).length).toBe(registry.items.length)
-    const classicPage = pages.get("preview/tradecn-terminal-classic/index.html") ?? ""
+    const slatePage = pages.get("preview/tradecn-slate/index.html") ?? ""
     const formatPage = pages.get("preview/format/index.html") ?? ""
     // A theme's page: the theme's dark side under .dark and its light side under .light, every variable of each.
-    expect(classicPage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${classic.cssVars?.dark?.accent};`)
-    expect(classicPage).toContain(`:root.light {\n  color-scheme: light;\n  --accent: ${classic.cssVars?.light?.accent};`)
-    expect(classicPage).toContain(`--down: ${classic.cssVars?.dark?.down};`)
-    expect(classicPage.match(/--popover:/g)).toHaveLength(2)
-    // Any other page: the terminal theme's dark side, and in light the site's dozen alone, so the bundle's light palette shows through the rest.
+    expect(slatePage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${slate.cssVars?.dark?.accent};`)
+    expect(slatePage).toContain(`:root.light {\n  color-scheme: light;\n  --accent: ${slate.cssVars?.light?.accent};`)
+    expect(slatePage).toContain(`--down: ${slate.cssVars?.dark?.down};`)
+    expect(slatePage.match(/--popover:/g)).toHaveLength(2)
+    // Any other page: the site theme's dark side, and in light its dozen alone, so the bundle's light palette shows through the rest.
     expect(formatPage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${theme.cssVars?.dark?.accent};`)
     expect(formatPage).toContain(`--down: ${theme.cssVars?.dark?.down};`)
-    expect(formatPage).toContain(`:root.light {\n  color-scheme: light;\n  --background: ${LIGHT_PALETTE.background};`)
-    expect(formatPage).toContain(`--down: ${LIGHT_PALETTE.down};`)
-    // The theme's typography tokens ride into the light side, so a light preview sets its numbers the way a dark one does.
-    expect(formatPage).toContain(`--radius: 0rem;\n  --tradecn-font-sans: ${theme.cssVars?.light?.["tradecn-font-sans"]};`)
-    expect(formatPage).toContain(`  --tradecn-numeric-variant: lining-nums tabular-nums;\n  --font-sans: ${theme.cssVars?.theme?.["font-sans"]};\n}`)
+    expect(formatPage).toContain(`:root.light {\n  color-scheme: light;\n  --background: ${theme.cssVars?.light?.background};`)
+    expect(formatPage).toContain(`--down: ${theme.cssVars?.light?.down};`)
+    expect(formatPage).toContain(`--radius: ${theme.cssVars?.light?.radius};`)
+    // The theme's typography tokens ride into the light side, so a light preview sets its numbers the way a dark one does, and no theme sets a font-sans of its own.
+    expect(formatPage).toMatch(/:root\.light \{[^}]* {2}--tradecn-font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;/)
+    expect(formatPage).toMatch(/:root\.light \{[^}]* {2}--tradecn-numeric-variant: lining-nums tabular-nums;/)
+    expect(formatPage).not.toContain("--font-sans:")
     expect(formatPage).not.toMatch(/:root\.light \{[^}]*--tradecn-color-body-fg/)
+    expect(formatPage).not.toMatch(/:root\.light \{[^}]*--accent:/)
     expect(formatPage.match(/--popover:/g)).toHaveLength(1)
-    expect(classic.cssVars?.dark?.down).not.toBe(theme.cssVars?.dark?.down)
+    expect(slate.cssVars?.dark?.down).not.toBe(theme.cssVars?.dark?.down)
     for (const html of pages.values()) {
       expect(html).not.toMatch(/\{\{\w+\}\}/)
       expect(html).toContain('<link rel="stylesheet" href="/preview/assets/embed-def.css">')

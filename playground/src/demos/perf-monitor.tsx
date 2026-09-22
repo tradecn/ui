@@ -48,11 +48,11 @@ export default function PerfMonitorDemo() {
     return () => cancelAnimationFrame(raf)
   }, [store, patches])
   return (
-    <div className="space-y-2 font-mono text-xs">
+    <div className="space-y-2 font-(family-name:--tradecn-font-mono) text-xs">
       <label className="flex items-center gap-2">
         <span className="text-muted-foreground">patches per frame</span>
         <input type="range" min={0} max={3000} step={100} value={patches} onChange={(event) => setPatches(Number(event.target.value))} className="w-48" />
-        <span className="tabular-nums">{patches}</span>
+        <span className="lining-nums tabular-nums">{patches}</span>
       </label>
       <PerfMonitor lanes={[{ label: "Quotes", store }]} readouts={[{ label: "patches/frame", value: String(patches) }]} />
       <div className="h-48">

@@ -108,7 +108,7 @@ function Scene() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-4 p-6 font-mono text-xs">
+    <main className="mx-auto max-w-3xl space-y-4 p-6 font-(family-name:--tradecn-font-mono) text-xs">
       <h1 className="text-sm font-semibold">command-palette</h1>
       <p className="text-muted-foreground">
         The go-bar below and the dialog share one registry, one symbol adapter, and one list of recents. Try <code>aapl gp</code>, <code>tick</code>, or a symbol, then Shift+Enter. The dialog opens on mod+k; the go-bar focuses on <code>/</code>.

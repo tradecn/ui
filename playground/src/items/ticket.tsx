@@ -63,7 +63,7 @@ export function TicketScene() {
   const [open, setOpen] = useState(true)
   return (
     <HotkeysProvider bindings={[]}>
-      <main className="mx-auto max-w-3xl space-y-4 p-6 font-mono text-xs">
+      <main className="mx-auto max-w-3xl space-y-4 p-6 font-(family-name:--tradecn-font-mono) text-xs">
         <h1 className="text-sm font-semibold">ticket</h1>
         <p className="text-muted-foreground">
           Type a price the way the instrument quotes it: <code>99-16+</code> for ZN, <code>5012.25</code> for ES. The arrows and the buttons step by the tick, Shift for ten. Click a bid, ask, or last to take it. <kbd>⌘↩</kbd> sends from any field, <kbd>⌘⇧X</kbd> flips the side, <kbd>⌘↑</kbd> and <kbd>⌘↓</kbd> step the

@@ -122,10 +122,13 @@ jobs:
             aws s3 sync site/dist/preview/assets "s3://$BUCKET/preview/assets" --delete \
               --cache-control "public, max-age=31536000, immutable"
           fi
-          aws s3 sync site/dist "s3://$BUCKET" --delete --exclude "r/*" --exclude "preview/assets/*" \
+          # The pages' two faces change only with the Fontsource packages, so a day's cache is enough and the invalidation covers a change.
+          aws s3 sync site/dist/fonts "s3://$BUCKET/fonts" --delete \
+            --content-type font/woff2 --cache-control "public, max-age=86400"
+          aws s3 sync site/dist "s3://$BUCKET" --delete --exclude "r/*" --exclude "preview/assets/*" --exclude "fonts/*" \
             --cache-control "no-cache, no-store, must-revalidate"
           id="$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" \
-            --paths "/" "/index.html" "/404.html" "/favicon.svg" "/site.js" "/site.css" "/theme.js" "/search.json" "/popout.html" "/docs/*" "/preview/*" "/r/*" --query Invalidation.Id --output text)"
+            --paths "/" "/index.html" "/404.html" "/favicon.svg" "/site.js" "/site.css" "/theme.js" "/fonts.css" "/fonts/*" "/search.json" "/popout.html" "/docs/*" "/preview/*" "/r/*" --query Invalidation.Id --output text)"
           aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION" --id "$id"
           echo "Latest pointer and page moved to $TAG." >> "$GITHUB_STEP_SUMMARY"
       - name: Install every item through the namespace

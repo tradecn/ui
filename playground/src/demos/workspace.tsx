@@ -138,7 +138,7 @@ export default function WorkspaceDemo() {
     <HotkeysProvider bindings={BINDINGS}>
       <LinkGroupProvider>
         <Keys api={api} />
-        <div className="flex h-[28rem] flex-col gap-2 font-mono text-xs">
+        <div className="flex h-[28rem] flex-col gap-2 font-(family-name:--tradecn-font-mono) text-xs">
           <p className="text-muted-foreground">
             Drag tabs to dock them, Shift+drag to float. <kbd>]</kbd> and <kbd>[</kbd> move between panels, <kbd>n b</kbd> and <kbd>n c</kbd> open a book or a chart, <kbd>w</kbd> closes the active one, <kbd>j</kbd> and <kbd>x</kbd> act on the book with focus.
             {saved ? ` Layout saved: ${Object.keys(saved.panels).length} panels, ${JSON.stringify(saved).length} bytes.` : ""}

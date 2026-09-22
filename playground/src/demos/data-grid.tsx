@@ -84,7 +84,7 @@ export default function DataGridDemo() {
   const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: {}, hidden: [] })
   const [selection, setSelection] = useState<ReadonlySet<string>>(new Set())
   return (
-    <div className="flex h-80 flex-col gap-2 font-mono text-xs">
+    <div className="flex h-80 flex-col gap-2 font-(family-name:--tradecn-font-mono) text-xs">
       <p className="text-muted-foreground">Click a header to sort, drag its edge to resize. Shift and mod extend the selection ({selection.size} selected). Right-click for the menu.</p>
       <div className="min-h-0 flex-1">
         <DataGrid

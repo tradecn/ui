@@ -11,11 +11,13 @@ import {
   NUMERIC_VARIANT,
   NUMERIC_VARIANT_TOKEN,
   ROOT,
+  TEXT_SIZE_FLOOR_PX,
   THEME_TYPOGRAPHY_CSS,
   TYPOGRAPHY_TOKEN,
   allTokenNames,
   cssFor,
   cssVarsFor,
+  fontSizesUnderFloor,
   isColorValue,
   readBuiltinsLock,
   readDepsAllow,
@@ -202,10 +204,12 @@ for (const item of registry.items) {
         importedPackages.add(pkg)
       }
     }
-    // Rule 14: every number is set in lining tabular figures, and every font comes from a tradecn token.
+    // Rule 14: every number is set in lining tabular figures, every font comes from a tradecn token, and nothing is
+    // drawn under the 12 px floor.
     source.split("\n").forEach((line, index) => {
       if (TABULAR.test(line) && !LINING.test(line)) fail(id, `${file.path}:${index + 1} sets tabular-nums without lining-nums; write "lining-nums tabular-nums" (contract rule 14)`)
       if (TAILWIND_FONT.test(line)) fail(id, `${file.path}:${index + 1} uses Tailwind's font-mono/font-sans; write font-(family-name:--tradecn-font-mono) so a consumer's --tradecn-font-* governs it (contract rule 14)`)
+      for (const size of fontSizesUnderFloor(line)) fail(id, `${file.path}:${index + 1} sets ${size}, under the ${TEXT_SIZE_FLOOR_PX} px floor; text-xs is the smallest size an item draws (contract rule 14)`)
     })
     sf.forEachDescendant((node) => {
       if (Node.isJsxAttribute(node)) {

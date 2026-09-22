@@ -11,11 +11,11 @@ A trading screen is read in glances, at arm's length, for hours, and most of wha
 
 Whether a face has serifs is not the axis that matters; the spacing between letters has the larger effect on how fast it reads ([Arditi and Cho](https://pmc.ncbi.nlm.nih.gov/articles/PMC4612630/)). So a serif your firm already licenses is not ruled out by the research, only by the checklist below.
 
-The two themes wear these tokens too, with one difference: the terminal is a monospace screen, so its `--tradecn-font-numeric` is its mono stack, a design preference that keeps a themed grid in one family. Their `--font-sans` stays the system monospace stack it always was.
+The themes wear these tokens too, at these defaults, and leave your `--font-sans` alone. If you want a themed grid in one family, point `--tradecn-font-numeric` at your mono stack yourself.
 
 ### Tokens
 
-Every item that reads a font token installs these into `:root` and `.dark` if you do not already have them, so your own values survive a later install; a theme sets all of them. The sizes, line heights, and weights are for your own stylesheet: the components keep their own sizes (12 px in the blotter and watchlist presets, 11 px in the option chain, a density call one step under the floor below) and read only the families and the numeric variant.
+Every item that reads a font token installs these into `:root` and `.dark` if you do not already have them, so your own values survive a later install; a theme sets all of them. The sizes, line heights, and weights are for your own stylesheet: the components keep their own sizes (12 px in every grid preset, the floor below, and nothing smaller anywhere: the validator refuses a size under it in registry source) and read only the families and the numeric variant.
 
 | Token | Default | For |
 |---|---|---|
@@ -35,7 +35,7 @@ Every item that reads a font token installs these into `:root` and `.dark` if yo
 | `--tradecn-color-body-fg` | `oklch(0.96 0 0)` dark, `oklch(0.2 0 0)` light | Body text: off-white, not pure white |
 | `--tradecn-color-body-bg` | `oklch(0.14 0 0)` dark, `oklch(0.98 0 0)` light | Body background: near-black, not pure black |
 
-The grid weight is one step heavier than the body's because thin strokes on a dark background lose to the glow around them; Bloomberg's terminal face, drawn for the screen by Matthew Carter, took a slightly thicker stroke on black and reported less fatigue ([Bloomberg on its terminal's design](https://www.bloomberg.com/company/stories/how-bloomberg-terminal-ux-designers-conceal-complexity/)). The two body colors are a design preference for long sessions, not a measured finding; the terminal theme's own foreground is already off-white, and its background is pure black by John's call.
+The grid weight is one step heavier than the body's because thin strokes on a dark background lose to the glow around them; Bloomberg's terminal face, drawn for the screen by Matthew Carter, took a slightly thicker stroke on black and reported less fatigue ([Bloomberg on its terminal's design](https://www.bloomberg.com/company/stories/how-bloomberg-terminal-ux-designers-conceal-complexity/)). The two body colors are a design preference for long sessions, not a measured finding; every theme's dark side is built the same way, an off-white on a near-black.
 
 ## Bring your own font
 

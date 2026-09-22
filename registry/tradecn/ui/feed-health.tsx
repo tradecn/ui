@@ -125,7 +125,7 @@ function FeedItem({ feed, thresholds, session, clock, compact }: ItemProps) {
         <span aria-hidden className={cn("size-1.5 rounded-full", STATE_DOT[feed.state])} />
         <span className="font-medium">{feed.label}</span>
         {!compact && (
-          <Badge variant="outline" className={cn("h-4 px-1 text-[10px] uppercase", TIER_CLASS[tier])}>
+          <Badge variant="outline" className={cn("h-4 px-1 text-xs uppercase", TIER_CLASS[tier])}>
             {tier}
           </Badge>
         )}

@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
@@ -14,8 +14,12 @@ import {
   GROUPS,
   FAVICON,
   firstParagraph,
+  FONT_PACKAGES,
+  FONT_WEIGHTS,
+  fontFiles,
+  FONTS_PATH,
+  FONTS_STYLES,
   installationSection,
-  LIGHT_PALETTE,
   MODE_BUTTON,
   PAGES,
   readChangelog,
@@ -33,6 +37,7 @@ import {
   searchDialog,
   searchIndex,
   SITE_DOCS,
+  SITE_STYLES,
   siteDocs,
   siteHeader,
   sitePageValues,
@@ -63,6 +68,40 @@ function fakeEmbed(): string {
   )
   return dir
 }
+
+describe("the pages' type", () => {
+  const fonts = readFileSync(resolve(root, "site", FONTS_STYLES), "utf8")
+  const rules = [...fonts.matchAll(/@font-face \{([^}]+)\}/g)].map((match) => match[1]!)
+
+  it("declares the two faces the tokens name, in the weights the stylesheet uses, one rule per file the builder copies, each the package's own", () => {
+    const tokens = registry.items.find((item) => item.name === THEME_ITEM)!.cssVars!.light!
+    for (const { family } of FONT_PACKAGES) expect(tokens[family === "Inter" ? "tradecn-font-sans" : "tradecn-font-mono"]).toMatch(new RegExp(`^'${family}',`))
+    expect(rules).toHaveLength(fontFiles().length)
+    for (const { package: pkg, file } of fontFiles()) {
+      const rule = rules.find((text) => text.includes(`url(/${FONTS_PATH}/${file})`))
+      expect(rule, file).toBeDefined()
+      const family = FONT_PACKAGES.find((entry) => entry.package === pkg)!.family
+      const weight = /-(\d+)-normal\.woff2$/.exec(file)![1]!
+      expect(rule).toContain(`font-family: '${family}';`)
+      expect(rule).toContain(`font-weight: ${weight};`)
+      expect(rule).toContain("font-display: swap;")
+      expect(rule).toMatch(/src: url\([^)]+\) format\('woff2'\);/)
+      // The file exists where the builder reads it, and its unicode-range is the one Fontsource ships for that subset.
+      const source = resolve(root, "node_modules/@fontsource", pkg, "files", file)
+      expect(existsSync(source), source).toBe(true)
+      const packageCss = readFileSync(resolve(root, "node_modules/@fontsource", pkg, `${weight}.css`), "utf8")
+      const block = new RegExp(`/\\* ${file.replace(/\.woff2$/, "")} \\*/\\s*@font-face \\{([^}]+)\\}`).exec(packageCss)![1]!
+      const range = /unicode-range: ([^;]+);/.exec(block)![1]!
+      expect(rule, file).toContain(`unicode-range: ${range};`)
+    }
+    expect(FONT_WEIGHTS).toEqual([400, 500, 600])
+    // The stylesheet reads the two stacks the pages set, never a family by name, so the theme's tokens govern the pages too.
+    const site = readFileSync(resolve(root, "site", SITE_STYLES), "utf8")
+    expect(site).toContain("font: 15px/1.55 var(--font-sans)")
+    expect(site).toContain("font-family: var(--font-mono)")
+    expect(site).not.toMatch(/font(-family)?:[^;]*(Inter|JetBrains|monospace|sans-serif)/)
+  })
+})
 
 describe("the opening page", () => {
   const values = templateValues(registry, version)
@@ -151,25 +190,30 @@ describe("the opening page", () => {
     expect((partial.showcase ?? "").match(/<iframe /g)).toHaveLength(1)
   })
 
-  it("takes its dark palette from the terminal theme and its light one from the site, one light-dark() pair per token", () => {
-    const theme = registry.items.find((item) => item.name === THEME_ITEM)
+  it("takes both sides of its palette from the amber theme, one light-dark() pair per token, and its type from the theme's font tokens", () => {
+    const theme = registry.items.find((item) => item.name === THEME_ITEM)!
+    expect(THEME_ITEM).toBe("tradecn-amber")
+    const light = theme.cssVars!.light!
+    const dark = theme.cssVars!.dark!
     expect(page).toContain(`<meta name="color-scheme" content="light dark">`)
-    expect(page).toContain(":root {\n  color-scheme: light dark;\n  --background: light-dark(oklch(1 0 0), oklch(0 0 0));")
-    expect(page).toContain(`--primary: light-dark(${LIGHT_PALETTE.primary}, ${theme?.cssVars?.dark?.primary});`)
-    expect(page).toContain(`--up: light-dark(${LIGHT_PALETTE.up}, ${theme?.cssVars?.dark?.up});`)
-    expect(page).toContain(`--font: ${theme?.cssVars?.theme?.["font-sans"]};`)
-    // A token the two sides agree on is written once: the theme's dark side leaves the radius to its light side, and both are square.
-    expect(page).toContain("--radius: 0rem;")
-    expect(page).not.toContain("light-dark(0rem")
-    // Up and down are the items' own light tokens, so the soft shades an item installs beside them match in a light preview.
-    const flash = registry.items.find((item) => item.name === "flash-cell")
-    expect(LIGHT_PALETTE.up).toBe(flash?.cssVars?.light?.up)
-    expect(LIGHT_PALETTE.down).toBe(flash?.cssVars?.light?.down)
+    expect(page).toContain(`:root {\n  color-scheme: light dark;\n  --background: light-dark(${light.background}, ${dark.background});`)
+    expect(page).toContain(`--primary: light-dark(${light.primary}, ${dark.primary});`)
+    expect(page).toContain(`--up: light-dark(${light.up}, ${dark.up});`)
+    expect(page).toContain(`--font-sans: ${light["tradecn-font-sans"]};`)
+    expect(page).toContain(`--font-mono: ${light["tradecn-font-mono"]};`)
+    expect(page).not.toContain("--font: ")
+    // A token the two sides agree on is written once: the theme's dark side leaves the radius to its light side.
+    expect(page).toContain(`--radius: ${light.radius};`)
+    expect(page).not.toContain(`light-dark(${light.radius}`)
+    // The pages self-host the two faces: their stylesheet is linked before the site's.
+    expect(page).toContain(`<link rel="stylesheet" href="/${FONTS_STYLES}">`)
+    expect(page.indexOf(FONTS_STYLES)).toBeLessThan(page.indexOf(SITE_STYLES))
     // The 404 page has no script, so its palette alone carries both modes and it follows the system.
     const notFound = renderPage(template("404.html"), values)
     expect(notFound).toContain(`<meta name="color-scheme" content="light dark">`)
     expect(notFound).toContain("  color-scheme: light dark;")
-    expect(notFound).toContain(`--primary: light-dark(${LIGHT_PALETTE.primary}, ${theme?.cssVars?.dark?.primary});`)
+    expect(notFound).toContain(`--primary: light-dark(${light.primary}, ${dark.primary});`)
+    expect(notFound).toContain(`<link rel="stylesheet" href="/${FONTS_STYLES}">`)
     expect(notFound).not.toContain("<script")
   })
 
@@ -431,8 +475,6 @@ describe("the docs pages", async () => {
       "Themes",
       "Themes",
       "Themes",
-      "Themes",
-      "Themes",
     ])
     expect(docs[0]?.path).toBe("/docs/")
     expect(docs[1]?.path).toBe("/docs/installation/")
@@ -446,7 +488,9 @@ describe("the docs pages", async () => {
     expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/flash-cell/">flash-cell</a></li>')
     expect(nav).toContain('<li><a href="/docs/workspace/">workspace</a></li>\n<li><a href="/docs/ticket/">ticket</a></li>\n<li><a href="/docs/countdown/">countdown</a></li>\n<li><a href="/docs/quote-field/">quote-field</a></li>\n<li><a href="/docs/rfq-ticket/">rfq-ticket</a></li>\n<li><a href="/docs/rfq-stack/">rfq-stack</a></li>\n<li><a href="/docs/perf-monitor/">perf-monitor</a></li>\n<li><a href="/docs/hotkey-editor/">hotkey-editor</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">use-hotkeys</a></li>\n</ul>')
     expect(nav).toContain('<h2>Utilities</h2>\n<ul>\n<li><a href="/docs/format/" aria-current="page">format</a></li>\n<li><a href="/docs/row-store/">row-store</a></li>\n</ul>')
-    expect(nav).toContain('<h2><a href="/docs/theming/#themes">Themes</a></h2>\n<ul>\n<li><a href="/docs/tradecn-terminal/">tradecn-terminal</a></li>\n<li><a href="/docs/tradecn-terminal-classic/">tradecn-terminal-classic</a></li>\n<li><a href="/docs/tradecn-slate/">tradecn-slate</a></li>\n<li><a href="/docs/tradecn-slate-east/">tradecn-slate-east</a></li>\n<li><a href="/docs/tradecn-amber/">tradecn-amber</a></li>\n</ul>')
+    // Amber is the default theme, so it leads the group; the registry order is the sidebar's.
+    expect(nav).toContain('<h2><a href="/docs/theming/#themes">Themes</a></h2>\n<ul>\n<li><a href="/docs/tradecn-amber/">tradecn-amber</a></li>\n<li><a href="/docs/tradecn-slate/">tradecn-slate</a></li>\n<li><a href="/docs/tradecn-slate-east/">tradecn-slate-east</a></li>\n</ul>')
+    expect(nav).not.toContain("terminal")
     expect(nav.match(/<h2>/g)).toHaveLength(5)
     // A tag without a kind shows no heading for it.
     expect(docsNav(docs.filter((doc) => groupOf(doc.item) !== "Hooks"), null)).not.toContain("Hooks")
@@ -536,15 +580,14 @@ describe("the docs pages", async () => {
     expect(theming).toContain('<span class="swatch" style="background: var(--muted-foreground)"></span><code>var(--color-muted-foreground)</code>')
     expect(theming).toContain("<code>--link-1</code>")
     // A typography token is listed with the items that add it and no swatch, since a font stack paints nothing.
-    expect(theming).toMatch(/<tr><td><code>--tradecn-font-mono<\/code><\/td><td class="value"><code>&#39;JetBrains Mono&#39;, ui-monospace/)
+    expect(theming).toMatch(/<tr><td><code>--tradecn-font-mono<\/code><\/td><td class="value"><code class="stack">&#39;JetBrains Mono&#39;, ui-monospace/)
     expect(theming).not.toMatch(/<span class="swatch" style="background: &#39;/)
     // The numeric variant is a theme's token alone: the items set the figures with utilities, so no item adds it.
     expect(theming).not.toContain("<code>--tradecn-numeric-variant</code>")
     expect(theming).toContain("<code>--panel-active</code>")
     expect(theming).not.toContain("<code>--sidebar</code>")
-    expect(theming).toContain('<li><a href="/docs/tradecn-terminal/"><code>tradecn-terminal</code></a> ')
-    expect(theming).toContain('<li><a href="/docs/tradecn-terminal-classic/"><code>tradecn-terminal-classic</code></a> ')
     expect(theming).toContain('<li><a href="/docs/tradecn-slate/"><code>tradecn-slate</code></a> ')
+    expect(theming).toContain('<li><a href="/docs/tradecn-slate-east/"><code>tradecn-slate-east</code></a> ')
     expect(theming).toContain('<li><a href="/docs/tradecn-amber/"><code>tradecn-amber</code></a> ')
   })
 
@@ -627,9 +670,10 @@ describe("the docs pages", async () => {
     expect(format).not.toContain("Install the dependencies")
     expect(format).not.toContain("Add the shadcn components")
     expect(format).toContain('<p class="file"><code>lib/format.ts</code></p>')
-    const theme = at("docs/tradecn-terminal/index.html")
+    const theme = at("docs/tradecn-slate/index.html")
     expect(theme).toContain("<p>Replace the variables in your stylesheet with these:</p>")
-    expect(theme).toContain("@theme inline {")
+    expect(theme).toContain(":root {\n  --accent:")
+    expect(theme).toContain(".dark {\n  --accent:")
     expect(theme).not.toContain("Copy the files")
     const contract = at("docs/contract/index.html")
     expect(contract).not.toContain('id="installation"')
@@ -673,7 +717,7 @@ describe("the docs pages", async () => {
     expect(index.map((page) => page.group)).toEqual(docs.map((doc) => groupOf(doc.item)))
     expect(index.find((page) => page.path === "/docs/use-hotkeys/")?.group).toBe("Hooks")
     expect(index.find((page) => page.path === "/docs/row-store/")?.group).toBe("Utilities")
-    expect(index.find((page) => page.path === "/docs/tradecn-terminal/")?.group).toBe("Themes")
+    expect(index.find((page) => page.path === "/docs/tradecn-slate/")?.group).toBe("Themes")
     expect(index.find((page) => page.path === "/docs/ticket/")?.group).toBe("Components")
     const intro = index.find((page) => page.path === "/docs/")!
     expect(intro.title).toBe("Introduction")

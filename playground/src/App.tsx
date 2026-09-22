@@ -9,10 +9,10 @@ const lazyDemos = Object.fromEntries(Object.entries(demos).map(([name, load]) =>
 // The docs-site demo for one item, in the box tradecn.dev gives it, so it can be worked on here.
 function DemoPage({ name }: { name: string }) {
   const Demo = lazyDemos[name]
-  if (!Demo) return <main className="p-6 font-mono text-xs">No demo named {name}.</main>
+  if (!Demo) return <main className="p-6 font-(family-name:--tradecn-font-mono) text-xs">No demo named {name}.</main>
   return (
     <main className="mx-auto max-w-4xl p-6">
-      <h1 className="mb-4 font-mono text-sm font-semibold">{name} demo</h1>
+      <h1 className="mb-4 font-(family-name:--tradecn-font-mono) text-sm font-semibold">{name} demo</h1>
       <div className="border border-border p-4">
         <Suspense>
           <Demo />
@@ -31,7 +31,7 @@ export function App() {
   if (path.startsWith("/demos/")) return <DemoPage name={path.slice("/demos/".length)} />
   if (path === "/bench") return <BenchPage />
   return (
-    <main className="mx-auto max-w-2xl p-6 font-mono text-sm">
+    <main className="mx-auto max-w-2xl p-6 font-(family-name:--tradecn-font-mono) text-sm">
       <h1 className="mb-4 text-base font-semibold">tradecn playground</h1>
       <ul className="space-y-1">
         {Object.entries(items).map(([name, { title }]) => (

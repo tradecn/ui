@@ -23,7 +23,7 @@ export default function FlashCellDemo() {
     return () => clearInterval(t)
   }, [])
   return (
-    <table className="w-full font-mono text-xs tabular-nums">
+    <table className="w-full font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
       <thead>
         <tr className="text-muted-foreground">
           <th className="py-1 text-left font-normal">Symbol</th>

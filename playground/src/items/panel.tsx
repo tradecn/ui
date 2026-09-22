@@ -85,7 +85,7 @@ export function PanelScene() {
   return (
     <HotkeysProvider bindings={BINDINGS}>
       <LinkGroupProvider>
-        <main className="mx-auto max-w-3xl space-y-4 p-6 font-mono text-xs">
+        <main className="mx-auto max-w-3xl space-y-4 p-6 font-(family-name:--tradecn-font-mono) text-xs">
           <h1 className="text-sm font-semibold">panel</h1>
           <p className="text-muted-foreground">
             Book A and Book B start in link group 1: retype one symbol and the other follows, with a ring. Try a symbol that is not ZN, ZB, ZF, ZT, ES, NQ, CL, or GC. Click a book, then j and x act on that book only. Pop one out: its state, its keys, and its link come along. Open this page in a second tab and the groups follow across.

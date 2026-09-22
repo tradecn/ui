@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
-import { DOCS_TEMPLATE, HEADERS_FILE, MODE_SCRIPT, PREVIEW_TEMPLATE, SITE_SCRIPT, SITE_STYLES } from "./build"
+import { DOCS_TEMPLATE, FONTS_PATH, FONTS_STYLES, HEADERS_FILE, MODE_SCRIPT, PREVIEW_TEMPLATE, SITE_SCRIPT, SITE_STYLES } from "./build"
 
 const root = resolve(import.meta.dirname, "../..")
 const headers = JSON.parse(readFileSync(resolve(root, "site", HEADERS_FILE), "utf8")) as Record<string, string>
@@ -65,8 +65,17 @@ describe("the site's security headers", () => {
     expect(build).toContain('cp(join(root, "site", MODE_SCRIPT), join(out, MODE_SCRIPT))')
     // The stylesheet is a file too, and the release job invalidates all three so a page never runs an old script against new markup.
     expect(build).toContain('cp(join(root, "site", SITE_STYLES), join(out, SITE_STYLES))')
+    // The pages' fonts are files too: declared in one stylesheet linked before the site's, copied by the builder, synced and invalidated by the release job.
+    expect(build).toContain('cp(join(root, "site", FONTS_STYLES), join(out, FONTS_STYLES))')
+    for (const name of ["index.html", DOCS_TEMPLATE, "404.html"]) {
+      const html = readFileSync(resolve(root, "site", name), "utf8")
+      expect(html, name).toContain(`<link rel="stylesheet" href="/${FONTS_STYLES}">`)
+      if (name !== "404.html") expect(html.indexOf(FONTS_STYLES), name).toBeLessThan(html.indexOf(SITE_STYLES))
+    }
     const release = readFileSync(resolve(root, ".github/workflows/release-please.yml"), "utf8")
-    expect(release).toContain(`"/${SITE_SCRIPT}" "/${SITE_STYLES}" "/${MODE_SCRIPT}"`)
+    expect(release).toContain(`"/${SITE_SCRIPT}" "/${SITE_STYLES}" "/${MODE_SCRIPT}" "/${FONTS_STYLES}" "/${FONTS_PATH}/*"`)
+    expect(release).toContain(`aws s3 sync site/dist/${FONTS_PATH} "s3://$BUCKET/${FONTS_PATH}"`)
+    expect(release).toContain(`--exclude "${FONTS_PATH}/*"`)
     expect(release).toContain("--changelog release/CHANGELOG.md")
   })
 

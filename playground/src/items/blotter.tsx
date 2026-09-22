@@ -51,7 +51,7 @@ export function BlotterScene() {
     [store],
   )
   return (
-    <main className="mx-auto max-w-4xl space-y-3 p-6 font-mono text-xs">
+    <main className="mx-auto max-w-4xl space-y-3 p-6 font-(family-name:--tradecn-font-mono) text-xs">
       <h1 className="text-sm font-semibold">blotter</h1>
       <p className="text-muted-foreground">Orders fill on their own, a quarter at a time. Select a few, some working and some filled: the button says how many it will cancel. Watch a selected order fill and the count drop without the grid re-rendering. Delete runs Cancel here because this scene turned that on. The status column is whatever the stand-in server last said.</p>
       <div className="h-80">

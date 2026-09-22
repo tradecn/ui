@@ -36,7 +36,7 @@ export default function SparklineDemo() {
   }, [])
   const lead = rows[2]!
   return (
-    <div className="space-y-4 font-mono text-xs tabular-nums">
+    <div className="space-y-4 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
       {/* A fixed size in a table: nothing is observed. The dashed line is the open each one is compared against. */}
       <table className="w-full">
         <tbody>

@@ -81,7 +81,7 @@ export function rfqStackColumns<T extends RfqStackRow>(options: RfqStackColumnOp
       cell: ({ row }) => (
         <span className="flex min-w-0 items-baseline gap-1">
           <span className="truncate font-semibold">{row.client ?? NULL_TOKEN}</span>
-          {row.tier && <span className="shrink-0 text-[10px] text-muted-foreground">{row.tier}</span>}
+          {row.tier && <span className="shrink-0 text-xs text-muted-foreground">{row.tier}</span>}
         </span>
       ),
     },
@@ -95,7 +95,7 @@ export function rfqStackColumns<T extends RfqStackRow>(options: RfqStackColumnOp
     { key: "status", header: "Status", width: 96, sortable: true, flash: "fill", accessor: (r) => r.status },
     // Sorted by the moment it ends, which never moves, so a sort by time left never needs a clock.
     { key: "timeLeft", header: "Left", width: 64, numeric: true, sortable: true, flash: false, accessor: (r) => r.expiresAt, cell: ({ row }) => <Countdown expiresAt={row.expiresAt} startsAt={row.receivedAt} compact announce={false} thresholds={options.thresholds} clock={options.clock} label={`Time left ${row.id}`} /> },
-    { key: "auto", header: <span className="sr-only">Auto</span>, width: 44, align: "center", flash: false, accessor: (r) => Boolean(r.auto), cell: ({ row }) => (row.auto ? <span className="rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">auto</span> : null) },
+    { key: "auto", header: <span className="sr-only">Auto</span>, width: 44, align: "center", flash: false, accessor: (r) => Boolean(r.auto), cell: ({ row }) => (row.auto ? <span className="rounded-sm bg-muted px-1 text-xs text-muted-foreground">auto</span> : null) },
   ]
 }
 

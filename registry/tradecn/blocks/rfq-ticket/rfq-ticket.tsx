@@ -414,12 +414,12 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             </div>
             <div className="flex flex-wrap items-center gap-1 text-muted-foreground">
               {inquiry.client?.tier && (
-                <Badge variant="outline" className="h-4 px-1 text-[10px]" data-rfq-tier>
+                <Badge variant="outline" className="h-4 px-1 text-xs" data-rfq-tier>
                   {inquiry.client.tier}
                 </Badge>
               )}
               {inquiry.tags?.map((tag) => (
-                <Badge key={tag} variant="secondary" className="h-4 px-1 text-[10px]" data-rfq-tag>
+                <Badge key={tag} variant="secondary" className="h-4 px-1 text-xs" data-rfq-tag>
                   {tag}
                 </Badge>
               ))}

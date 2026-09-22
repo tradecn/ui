@@ -66,7 +66,7 @@ export function RowStoreScene() {
     return () => clearInterval(t)
   }, [])
   return (
-    <main className="mx-auto max-w-xl p-6 font-mono text-xs tabular-nums" onPointerDown={() => view.touch()} onKeyDown={() => view.touch()}>
+    <main className="mx-auto max-w-xl p-6 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums" onPointerDown={() => view.touch()} onKeyDown={() => view.touch()}>
       <h1 className="mb-2 text-sm font-semibold">row-store</h1>
       <p className="mb-4 text-muted-foreground">
         {N} rows, {UPDATES_PER_FRAME} patches per frame through the batcher. batch {meta.version}, dropped {meta.dropped}, row renders {renders.current}. Sorted by change; click to hold the order for 1.5 s.

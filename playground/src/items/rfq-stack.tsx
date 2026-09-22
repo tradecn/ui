@@ -118,7 +118,7 @@ export function RfqStackScene() {
 
   return (
     <HotkeysProvider bindings={[]}>
-      <main className="mx-auto flex h-screen max-w-6xl flex-col gap-3 p-6 font-mono text-xs">
+      <main className="mx-auto flex h-screen max-w-6xl flex-col gap-3 p-6 font-(family-name:--tradecn-font-mono) text-xs">
         <h1 className="text-sm font-semibold">rfq-stack</h1>
         <p className="text-muted-foreground">
           Inquiries arrive; about nine in ten are answered by the pretend auto-quoter and hidden under the threshold when small. The stack is sorted by size then time left and holds still for a second after any key or click. The one in the ticket stays there until you act or the venue ends it; arrivals never move it, the focus, or the viewport. Enter or a

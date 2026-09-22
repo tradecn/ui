@@ -13,14 +13,14 @@ function Quote({ title, convention, stepFrom, label }: { title: string; conventi
     <div className="flex w-56 flex-col gap-1">
       <span className="text-muted-foreground">{title}</span>
       <QuoteField convention={convention} value={value} onValueChange={setValue} stepFrom={stepFrom} label={label} />
-      <span className="tabular-nums text-muted-foreground">{value === null ? NULL_TOKEN : `${value} prints ${formatQuote(value, convention)}`}</span>
+      <span className="lining-nums tabular-nums text-muted-foreground">{value === null ? NULL_TOKEN : `${value} prints ${formatQuote(value, convention)}`}</span>
     </div>
   )
 }
 
 export default function QuoteFieldDemo() {
   return (
-    <div className="space-y-3 font-mono text-xs">
+    <div className="space-y-3 font-(family-name:--tradecn-font-mono) text-xs">
       <div className="flex flex-wrap gap-6">
         <Quote title="a note, in 32nds" convention={NOTE} stepFrom={99.5} />
         <Quote title="a bill, on discount" convention={BILL} stepFrom={4.25} />

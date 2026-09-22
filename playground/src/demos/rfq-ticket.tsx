@@ -62,7 +62,7 @@ export default function RfqTicketDemo() {
   }
   return (
     <HotkeysProvider bindings={[]}>
-      <div className="space-y-3 font-mono text-xs">
+      <div className="space-y-3 font-(family-name:--tradecn-font-mono) text-xs">
         <div className="w-[26rem] max-w-full">
           <RfqTicket key={inquiry.id} inquiry={inquiry} actions={actions} acknowledged={quoteId} />
         </div>

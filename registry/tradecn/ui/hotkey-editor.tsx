@@ -150,7 +150,7 @@ function Row({ entry, conflicts, byId, labels }: RowProps) {
         <span className="min-w-0 flex-1">
           {entry.description}
           {entry.remapped && (
-            <Badge variant="outline" className="ml-2 h-4 px-1 text-[10px]">
+            <Badge variant="outline" className="ml-2 h-4 px-1 text-xs">
               {labels.remapped}
             </Badge>
           )}
@@ -260,7 +260,7 @@ export function HotkeyEditor({ onExport, onImport, hide, labels: labelsProp, cla
       {groups.length === 0 && <p className="text-muted-foreground">{labels.empty}</p>}
       {groups.map(([group, list]) => (
         <section key={group} aria-label={group} data-hotkey-group={group}>
-          <h3 className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{group}</h3>
+          <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group}</h3>
           {list.map((entry) => (
             <Row key={entry.id} entry={entry} conflicts={conflicts.filter((c) => c.ids.includes(entry.id))} byId={byId} labels={labels} />
           ))}

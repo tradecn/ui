@@ -664,7 +664,7 @@ test("the installed theme is what the page is drawn with, in both modes", async 
   expect(base.restored, "removing the attribute restores the fonts").toBe(true)
   expect(base.before.replace(/["']/g, ""), "the sans is the theme's").toBe(theme.cssVars.light["tradecn-font-sans"]?.replace(/["']/g, ""))
   // What those variables do to the page: the body is the theme's background, the panel's corners follow the theme's radius
-  // (square on the terminal), and the sans stack is the theme's when the theme sets one.
+  // (square when a theme sets it to 0rem), and the sans stack is the theme's when the theme sets one.
   const drawn = await page.evaluate(() => {
     const probe = document.createElement("i")
     probe.style.backgroundColor = "var(--background)"
@@ -683,7 +683,7 @@ test("the installed theme is what the page is drawn with, in both modes", async 
   })
   expect(drawn.body, "the body is painted with --background").toBe(drawn.background)
   expect(drawn.radius, "rounded-md is 0.8 of the theme's --radius").toBe(drawn.radiusMd)
-  if (theme.cssVars.light.radius === "0rem") expect(drawn.radius, "the terminal is square").toBe("0px")
+  if (theme.cssVars.light.radius === "0rem") expect(drawn.radius, "a theme with --radius 0rem is square").toBe("0px")
   const stack = theme.cssVars.theme?.["font-sans"]
   if (stack) expect(drawn.font.replace(/["']/g, ""), "font-sans is the theme's stack").toBe(stack.replace(/["']/g, ""))
   await page.evaluate(() => document.documentElement.classList.add("dark"))
