@@ -21,6 +21,11 @@ export const HOSTED_ZONE_ID = "Z08196132ZI9KWD707HU7"
 export const SITE_BUCKET = "tradecn-dev-site"
 export const LOGS_BUCKET = "tradecn-dev-logs"
 
+// Every TXT value at the apex, in one record: Route 53 keeps one TXT record set per name, so a
+// value added anywhere else would fail against this one. The Google token proves the domain to
+// Search Console; the token is public by design (it is what the record publishes).
+export const APEX_TXT_VALUES = ["google-site-verification=AFluqJ31SaBFWAyyTLSJUankaHMWd0Xx3Y8No1gB1wI"]
+
 // The security headers every response carries, shared with scripts/site/smoke.ts, which serves them
 // locally: a page this policy would break fails the smoke before it is published. The first
 // previews shipped against a policy written for a page with no script, and only the live check saw it.
@@ -199,6 +204,14 @@ export class TradecnSiteStack extends Stack {
       new route53.ARecord(this, `${name}A`, { zone, recordName, target: alias })
       new route53.AaaaRecord(this, `${name}Aaaa`, { zone, recordName, target: alias })
     }
+
+    new route53.TxtRecord(this, "ApexTxt", {
+      zone,
+      recordName: DOMAIN,
+      values: APEX_TXT_VALUES,
+      comment: "Domain verification for tradecn.dev",
+      ttl: Duration.minutes(5),
+    })
 
     new CfnOutput(this, "SiteBucketName", {
       value: siteBucket.bucketName,
