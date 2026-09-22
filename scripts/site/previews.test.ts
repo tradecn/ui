@@ -248,7 +248,7 @@ describe("the preview card", () => {
       const html = withEmbed.get(`${doc.path.slice(1)}index.html`) ?? ""
       if (doc.item) {
         expect(html).toContain(`<iframe src="/preview/${doc.slug}/"`)
-        // The card sits between the one sentence and Installation, and its Code tab's source is a code block like any other: wrapped, with its copy button.
+        // The card sits between the opening paragraph and Installation, and its Code tab's source is a code block like any other: wrapped, with its copy button.
         expect(html.indexOf('<div class="preview"')).toBeLessThan(html.indexOf('<h2 id="installation">'))
         expect(html).toMatch(/class="preview-code" id="preview-[\w-]+-code"[\s\S]*?<div class="code"><pre><code class="language-(tsx|css)">[\s\S]*?<\/pre><button type="button" class="copy"/)
       } else if (demos.has(doc.slug)) {

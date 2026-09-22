@@ -685,7 +685,7 @@ export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
   ].join("\n")
 }
 
-/** The preview and the Installation go after the first paragraph: the title, the one sentence, then the item itself and how to get it. */
+/** The preview and the Installation go after the first paragraph: the title, the summary, then the item itself and how to get it. */
 export function withPreview(html: string, block: string): string {
   const h1 = html.indexOf("</h1>")
   const p = html.indexOf("</p>\n", h1 < 0 ? 0 : h1)
@@ -900,7 +900,7 @@ export function sectionOf(doc: Doc): Section {
 
 /**
  * The rendered docs pages, as paths under the output directory. An item's page is the doc in shadcn's shape:
- * title, one sentence, the preview, Installation, then the doc's own Usage and API Reference, the shadcn
+ * title, opening paragraph, the preview, Installation, then the doc's own Usage and API Reference, the shadcn
  * components it is built on, and the pager. Every page gets the arrows beside its title and its own headings
  * down the right.
  */

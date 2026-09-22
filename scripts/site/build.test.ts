@@ -682,13 +682,12 @@ describe("the docs pages", async () => {
     expect(at("docs/contract/index.html")).toContain("<code>docs/contract.md</code>")
   })
 
-  it("keeps every item doc in the page's shape: the title, one sentence, then Usage first and API Reference last", () => {
+  it("keeps every item doc in the page's shape: the title, one paragraph, then Usage first and API Reference last", () => {
     for (const doc of items) {
       const markdown = readFileSync(resolve(root, "docs", doc.source), "utf8")
       const [intro = "", ...sections] = markdown.split(/^## /m)
       const paragraphs = intro.split(/\n{2,}/).map((text) => text.trim()).filter(Boolean)
       expect(paragraphs, `${doc.source}: the title and one paragraph before the first section`).toHaveLength(2)
-      expect(paragraphs[1], `${doc.source}: one sentence`).toMatch(/^[^.!?]+[.!?]$/)
       expect(paragraphs[1], `${doc.source}: the install is the builder's`).not.toMatch(/shadcn add|npx /)
       const headings = sections.map((section) => section.split("\n")[0]?.trim())
       expect(headings[0], doc.source).toBe("Usage")
@@ -697,7 +696,7 @@ describe("the docs pages", async () => {
     }
   })
 
-  it("puts Installation after the one sentence and before Usage, with Command and Manual tabs", () => {
+  it("puts Installation after the opening paragraph and before Usage, with Command and Manual tabs", () => {
     const grid = at("docs/data-grid/index.html")
     const installation = grid.indexOf('<h2 id="installation"><a href="#installation">Installation</a></h2>')
     expect(installation).toBeGreaterThan(grid.indexOf("</h1>"))
