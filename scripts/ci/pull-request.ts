@@ -7,7 +7,9 @@ import { readRegistry } from "../lib/registry"
 
 /**
  * What a type does to the version. A `none` type is hidden from the changelog, and release-please
- * opens no release for hidden commits alone. Any releasing type with `!` is a major.
+ * opens no release for hidden commits alone. `docs` is a patch, not `none`: tradecn.dev shows the docs
+ * of the tag it serves, so a docs change has to release to be seen. Any releasing type with `!` is a
+ * major.
  */
 export const TYPES = {
   feat: "minor",
@@ -16,7 +18,7 @@ export const TYPES = {
   refactor: "patch",
   chore: "patch",
   revert: "patch",
-  docs: "none",
+  docs: "patch",
   ci: "none",
   test: "none",
   style: "none",

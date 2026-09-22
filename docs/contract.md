@@ -32,4 +32,4 @@ The tag is the version, and from `v0.1.3` on it is semver with no pre-1.0 except
 - A **minor** means new items or new props. What you installed keeps working as it did.
 - A **patch** means a file changed and its API did not: a fix, a performance change, a refactor, a tidy. `--diff` shows you the bytes.
 
-Docs, CI, and test changes cut no release, so tradecn.dev shows the docs of the tag it serves. [`CONTRIBUTING.md`](https://github.com/tradecn/ui/blob/main/CONTRIBUTING.md) says how a pull request title picks the bump.
+A patch can also be docs alone. tradecn.dev shows the docs of the tag it serves, so a docs change releases to be seen; `--diff` against such a tag shows nothing. CI and test changes cut no release. [`CONTRIBUTING.md`](https://github.com/tradecn/ui/blob/main/CONTRIBUTING.md) says how a pull request title picks the bump.

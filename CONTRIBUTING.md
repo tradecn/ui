@@ -14,13 +14,14 @@
 | `perf` | patch | Performance |
 | `refactor`, `chore` | patch | Maintenance |
 | `revert` | patch | Reverts |
-| `docs`, `ci`, `test`, `style`, `build` | none | nothing |
+| `docs` | patch | Documentation |
+| `ci`, `test`, `style`, `build` | none | nothing |
 
 Why `chore` and `refactor` release: what you install is source. A tidied `data-grid.tsx` is a different file in your repo, and `--diff` should be able to see it.
 
-Why `docs` doesn't: tradecn.dev shows the docs of the tag it serves. A docs fix lands with the next release and the page keeps matching the files. If it can't wait, it's a `fix`.
+Why `docs` releases: tradecn.dev shows the docs of the tag it serves, so a docs change nobody released is a docs change nobody sees. As a patch it opens the release pull request, or joins the one already open, and the page goes live with the files it describes.
 
-`!` goes on a type that releases. `docs!` would cut a major for a change nobody installs, so the check refuses it.
+`!` goes on a type that releases. `ci!` would cut a major for a change nobody installs, so the check refuses it.
 
 The scope is the item you changed (`ticket`, `use-hotkeys`), or one of `repo`, `registry`, `contract`, `typography`, `rig`, `site`, `infra`, `ci`, `deps`. `main` is release-please's own.
 
