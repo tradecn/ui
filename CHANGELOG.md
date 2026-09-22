@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.2.0](https://github.com/tradecn/ui/compare/v1.1.0...v1.2.0) (2026-09-22)
+
+
+### Features
+
+* **audit-trail:** the life of an order as events, with a changes pane ([#73](https://github.com/tradecn/ui/issues/73)) ([976eba3](https://github.com/tradecn/ui/commit/976eba317d5f4cec3a0eab908ef06f6fe6e4d0fc))
+* **data-grid:** editable cells, and a parameter grid over them ([#70](https://github.com/tradecn/ui/issues/70)) ([b3a9faa](https://github.com/tradecn/ui/commit/b3a9faa38491aa2109d98c1ca7696c8d617a2efe))
+* **feed-health:** actions the server allows, in each feed's menu ([#76](https://github.com/tradecn/ui/issues/76)) ([db63803](https://github.com/tradecn/ui/commit/db638031389165db221345ec95330e7fb2364ff0))
+* **instrument-search:** a field that reads what was typed before it asks the server ([#77](https://github.com/tradecn/ui/issues/77)) ([da0e0d0](https://github.com/tradecn/ui/commit/da0e0d02331bf3f72c4201d205f9762e8c3f3f1d))
+* **layout-manager:** named layouts for a workspace ([#74](https://github.com/tradecn/ui/issues/74)) ([cabd5b5](https://github.com/tradecn/ui/commit/cabd5b56d18c29077bb91773e69553fa9a4caee9))
+* **positions:** a book of positions on the grid ([#72](https://github.com/tradecn/ui/issues/72)) ([6f1008c](https://github.com/tradecn/ui/commit/6f1008c1eb31452e8901c4e321c27aeac655e31d))
+* **ticket:** quick sizes on both tickets, as buttons and mod+1 to mod+9 ([#78](https://github.com/tradecn/ui/issues/78)) ([c91f07a](https://github.com/tradecn/ui/commit/c91f07ab5e3f73bf27b8322597bd29468af2db63))
+
+
+### Maintenance
+
+* **ci:** a docs commit cuts a patch ([#81](https://github.com/tradecn/ui/issues/81)) ([6a3e54a](https://github.com/tradecn/ui/commit/6a3e54a2e0d2a0243e9d77d698fce256fb8358b5))
+
+
+### Documentation
+
+* **contract:** simplify the item contract ([#84](https://github.com/tradecn/ui/issues/84)) ([3b74434](https://github.com/tradecn/ui/commit/3b7443430484c558da85389901108dd40142d420))
+* **countdown:** simplify the guide and add a props reference ([#75](https://github.com/tradecn/ui/issues/75)) ([85c22f1](https://github.com/tradecn/ui/commit/85c22f1c7f02edec23933b6cbfe606790c030afb))
+* **data-grid:** simplify the API reference ([#79](https://github.com/tradecn/ui/issues/79)) ([fb13280](https://github.com/tradecn/ui/commit/fb13280729028a05897c4cd0f1cf0c2139bd8a8d))
+* **panel:** simplify the API reference ([#87](https://github.com/tradecn/ui/issues/87)) ([e73e868](https://github.com/tradecn/ui/commit/e73e86815464588a13722dc1c0bb89972c44574a))
+* **rfq-stack:** simplify the API reference ([#89](https://github.com/tradecn/ui/issues/89)) ([4e29a1e](https://github.com/tradecn/ui/commit/4e29a1ea914658ef04b3a7b4c55f17ed4cebb54b))
+* **workspace:** simplify the API reference ([#82](https://github.com/tradecn/ui/issues/82)) ([03616e8](https://github.com/tradecn/ui/commit/03616e8e1475baac6ecd87093f0c02afd68407ea))
+
 ## [1.1.0](https://github.com/tradecn/ui/compare/v1.0.0...v1.1.0) (2026-09-22)
 
 
