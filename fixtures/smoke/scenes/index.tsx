@@ -13,6 +13,7 @@ import { GridRulesScene } from "./grid-rules"
 import { HotkeyEditorScene } from "./hotkey-editor"
 import { LimitsScene } from "./limits"
 import { PanelScene } from "./panel"
+import { ParameterGridScene } from "./parameter-grid"
 import { PerfMonitorScene } from "./perf-monitor"
 import { PreferencesScene } from "./preferences"
 import { QuoteFieldScene } from "./quote-field"
@@ -58,6 +59,7 @@ export const scenes: SmokeScene[] = [
   { name: "rules-editor", Scene: RulesEditorScene },
   { name: "alerts", Scene: AlertsScene },
   { name: "status-bar", Scene: StatusBarScene },
+  { name: "parameter-grid", Scene: ParameterGridScene },
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
   { name: "alert-store", Scene: AlertStoreScene },

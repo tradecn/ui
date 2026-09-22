@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
@@ -49,8 +50,8 @@ export interface ColumnDef<T> {
   accessor: (row: T) => unknown
   /** Text for the value. Defaults to String(value), NULL_TOKEN for null. */
   format?: (value: unknown, row: T) => string
-  /** Custom cell content. The cell still flashes by `accessor` value. */
-  cell?: (ctx: { row: T; value: unknown; rowId: RowId }) => ReactNode
+  /** Custom cell content. The cell still flashes by `accessor` value. `edit` is there when the column is editable and the grid has `onEdit`. */
+  cell?: (ctx: { row: T; value: unknown; rowId: RowId; edit?: CellEditHandle }) => ReactNode
   /** Flash on change. Defaults to the preset's variant for numeric columns and off otherwise. */
   flash?: false | "fill" | "ring"
   /** Right-aligned, lining tabular figures in the numeric family, flashes by default. */
@@ -59,6 +60,8 @@ export interface ColumnDef<T> {
   font?: "numeric" | "mono"
   /** Reads a value typed into a rule in this column's own format (`99-16+` on a 32nds column). Default: a number for a numeric column, the text itself otherwise. */
   parse?: (text: string) => unknown
+  /** Lets the cell be edited in place, when the grid has `onEdit`. An edit is a command the server answers, never a local truth. */
+  edit?: CellEdit<T>
 }
 
 export interface ColumnState {
@@ -67,9 +70,64 @@ export interface ColumnState {
   hidden: string[]
 }
 
+/** What stops an edit, in a sentence: what `parse` or `validate` return instead of a value. */
+export interface EditProblem {
+  problem: string
+}
+
+export function editProblem(problem: string): EditProblem {
+  return { problem }
+}
+
+export function isEditProblem(value: unknown): value is EditProblem {
+  return typeof value === "object" && value !== null && Object.keys(value).length === 1 && typeof (value as EditProblem).problem === "string"
+}
+
+/** How a column's cells are edited. Every function gets the row, because a step or a check can depend on it. */
+export interface CellEdit<T> {
+  /** Reads the typed text as a value, or says what is wrong with it. */
+  parse: (text: string, row: T) => unknown
+  /** The text the editor opens with. Default: the column's `format`, else the value as text, blank for null. */
+  format?: (value: unknown, row: T) => string
+  /** A check on the parsed value before it is committed. */
+  validate?: (value: unknown, row: T) => EditProblem | null | undefined
+  /** Up and Down in the editor: the value one step away, ten with Shift. Left out, the arrows do nothing. */
+  step?: (value: unknown, dir: 1 | -1, big: boolean, row: T) => unknown
+  /** Enter or Space on the focused cell commits this in place of opening an editor: a checkbox column. */
+  toggle?: (value: unknown, row: T) => unknown
+  /** False keeps this row's cell read-only. Default: editable. */
+  canEdit?: (row: T) => boolean
+}
+
+/** What `onEdit` is handed: one cell's committed value, with what it replaces. */
+export interface EditChange<T> {
+  rowId: RowId
+  key: string
+  value: unknown
+  previous: unknown
+  row: T
+}
+
+/**
+ * Where an edit stands. `editing` while the editor is open; `pending` from the commit until a later batch
+ * brings the row's value to the committed one or `onEdit`'s promise resolves; `rejected` when that promise
+ * rejects, with the server's message and the value that stands.
+ */
+export type EditStatus =
+  | { kind: "editing"; text: string; problem: string | null; selectAll: boolean }
+  | { kind: "pending"; value: unknown; text: string }
+  | { kind: "rejected"; value: unknown; message: string }
+
+/** What a `cell` renderer gets for an editable column: the edit's status, and a way to commit a value of its own (a checkbox's). */
+export interface CellEditHandle {
+  status: EditStatus | undefined
+  commit: (value: unknown) => void
+  open: () => void
+}
+
 export type SortState = { key: string; dir: "asc" | "desc" } | null
 export type SelectionMode = "none" | "single" | "multi"
-export type DataGridPreset = "blotter" | "watchlist" | "rfq" | "option-chain" | "tape"
+export type DataGridPreset = "blotter" | "watchlist" | "rfq" | "option-chain" | "tape" | "parameters"
 
 export interface RowEnterBehavior {
   /** Highlight rows as they arrive. */
@@ -100,6 +158,7 @@ export const DATA_GRID_PRESETS: Record<DataGridPreset, DataGridPresetConfig> = {
   rfq: { rowHeight: 26, fontClass: "text-xs", reorderHoldMs: 1000, flash: "ring", selectionMode: "single", rowEnter: { highlight: true, pinViewport: true }, announceRowCount: "debounced" },
   "option-chain": { rowHeight: 20, fontClass: "text-xs", reorderHoldMs: 0, flash: "ring", selectionMode: "none", rowEnter: { highlight: false, pinViewport: false }, announceRowCount: "off" },
   tape: { rowHeight: 22, fontClass: "text-xs", reorderHoldMs: 0, flash: "fill", selectionMode: "single", rowEnter: { highlight: true, pinViewport: false, followTail: true }, announceRowCount: "debounced" },
+  parameters: { rowHeight: 24, fontClass: "text-xs", reorderHoldMs: 0, flash: "ring", selectionMode: "single", rowEnter: { highlight: false, pinViewport: true }, announceRowCount: "off" },
 }
 
 export const EMPTY_COLUMN_STATE: ColumnState = { order: [], widths: {}, hidden: [] }
@@ -148,6 +207,13 @@ export interface DataGridProps<T> {
    * never flashed. Keep the object's identity stable between renders, as with `filter`.
    */
   footer?: Record<string, (rows: T[]) => string>
+  /**
+   * A cell was edited: send the change on. Editing is on only when this is given, for the columns with
+   * `edit`. The cell shows the committed value as pending until a later batch brings the row's value to it
+   * or the promise you return resolves; a rejected promise keeps the previous value and prints the
+   * message in the cell. Multi-cell paste is not part of this.
+   */
+  onEdit?: (change: EditChange<T>) => void | Promise<unknown>
   flashWindowMs?: number
   className?: string
   /** Viewport size before layout is measured (tests, server rendering). */
@@ -248,6 +314,82 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
   return [header, ...lines].join("\r\n") + "\r\n"
 }
 
+// Editing. One editor at a time, its status kept in a tracker the cells subscribe to one key at a time,
+// so opening, typing in, or settling one cell re-renders that cell and nothing else. The controller is
+// one object for the grid's life; its callbacks read the latest props through a ref.
+
+const cellKey = (rowId: RowId, key: string) => `${rowId}\u0000${key}`
+
+interface EditTracker {
+  get(key: string): EditStatus | undefined
+  set(key: string, status: EditStatus | undefined): void
+  subscribe(key: string, cb: () => void): () => void
+  /** The cell whose editor is open. */
+  editing(): string | null
+}
+
+function createEditTracker(): EditTracker {
+  const statuses = new Map<string, EditStatus>()
+  const listeners = new Map<string, Set<() => void>>()
+  let open: string | null = null
+  return {
+    get: (key) => statuses.get(key),
+    set(key, status) {
+      if (status) statuses.set(key, status)
+      else statuses.delete(key)
+      if (status?.kind === "editing") open = key
+      else if (open === key) open = null
+      const set = listeners.get(key)
+      if (set) for (const cb of set) cb()
+    },
+    subscribe(key, cb) {
+      let set = listeners.get(key)
+      if (!set) listeners.set(key, (set = new Set()))
+      set.add(cb)
+      return () => {
+        set!.delete(cb)
+        if (!set!.size) listeners.delete(key)
+      }
+    },
+    editing: () => open,
+  }
+}
+
+interface EditController {
+  tracker: EditTracker
+  open(rowId: RowId, key: string, typed?: string): void
+  type(rowId: RowId, key: string, text: string): void
+  /** Parse, check, and send. `move` opens the next (1) or previous (-1) editable cell of the row after. */
+  commit(rowId: RowId, key: string, move?: 1 | -1): void
+  /** A value a cell renderer settled itself (a checkbox): sent as it is. */
+  commitValue(rowId: RowId, key: string, value: unknown): void
+  cancel(rowId: RowId, key: string): void
+  step(rowId: RowId, key: string, dir: 1 | -1, big: boolean): void
+  /** Focus left the editor: commit what parses, drop what does not. */
+  blur(rowId: RowId, key: string): void
+  /** A later batch brought the row's value to the committed one. */
+  settle(rowId: RowId, key: string): void
+}
+
+function editText<T>(col: ColumnDef<T>, value: unknown, row: T): string {
+  if (col.edit?.format) return col.edit.format(value, row)
+  if (value === null || value === undefined) return ""
+  return col.format ? col.format(value, row) : String(value)
+}
+
+function messageOf(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === "string") return error
+  return "Rejected"
+}
+
+function canEditCell<T>(col: ColumnDef<T> | undefined, row: T | undefined): col is ColumnDef<T> & { edit: CellEdit<T> } {
+  return Boolean(col?.edit) && row !== undefined && (col!.edit!.canEdit?.(row) ?? true)
+}
+
+const noopSubscribe = () => () => {}
+const undefinedStatus = () => undefined
+
 const FILL_CLASSES = "data-[direction=up]:bg-up-soft data-[direction=down]:bg-down-soft data-[direction=flat]:bg-flat-soft"
 const RING_CLASSES = "data-[direction=up]:shadow-[inset_0_0_0_1px_var(--up)] data-[direction=down]:shadow-[inset_0_0_0_1px_var(--down)] data-[direction=flat]:shadow-[inset_0_0_0_1px_var(--flat)]"
 
@@ -269,41 +411,157 @@ interface CellProps<T> {
   rules: AppliedRules<T> | null
   /** The row's own rule, for a frozen cell to paint: its opaque background would otherwise cut a gap in the row's tint. */
   rowRule: RuleDecoration | undefined
+  /** The grid's editing, or null when it has no `onEdit`. */
+  edits: EditController | null
 }
 
-function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol, rules, rowRule }: CellProps<T>) {
+interface CellEditorProps {
+  rowId: RowId
+  colKey: string
+  label: string
+  status: Extract<EditStatus, { kind: "editing" }>
+  numeric: boolean
+  className: string
+  edits: EditController
+}
+
+// The editor: a bare input the size of the cell. Enter commits, Escape reverts, Tab and Shift+Tab commit
+// and move along the row, bare Up and Down step. With a modifier held the arrows are not its business:
+// they belong to whoever listens above it, the way a ticket's mod+up reaches its registry from a field.
+function CellEditor({ rowId, colKey, label, status, numeric, className, edits }: CellEditorProps) {
+  const ref = useRef<HTMLInputElement>(null)
+  const selectAll = status.selectAll
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.focus({ preventScroll: true })
+    if (selectAll) el.select()
+    else el.setSelectionRange(el.value.length, el.value.length)
+    // On mount only: a keystroke must not reselect the text under the hand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    const mod = e.metaKey || e.ctrlKey || e.altKey
+    switch (e.key) {
+      case "Enter":
+        e.preventDefault()
+        edits.commit(rowId, colKey)
+        return
+      case "Escape":
+        e.preventDefault()
+        edits.cancel(rowId, colKey)
+        return
+      case "Tab":
+        e.preventDefault()
+        edits.commit(rowId, colKey, e.shiftKey ? -1 : 1)
+        return
+      case "ArrowUp":
+      case "ArrowDown":
+        if (mod) return
+        e.preventDefault()
+        edits.step(rowId, colKey, e.key === "ArrowUp" ? 1 : -1, e.shiftKey)
+        return
+    }
+  }
+  return (
+    <input
+      ref={ref}
+      data-cell-editor=""
+      data-numeric={numeric ? "" : undefined}
+      aria-label={label}
+      aria-invalid={status.problem ? true : undefined}
+      aria-description={status.problem ?? undefined}
+      title={status.problem ?? undefined}
+      value={status.text}
+      autoComplete="off"
+      spellCheck={false}
+      inputMode={numeric ? "decimal" : undefined}
+      className={cn("h-full w-full min-w-0 bg-background px-2 text-inherit outline-none ring-1 ring-inset ring-ring aria-invalid:ring-destructive", numeric && "text-right", className)}
+      onChange={(e) => edits.type(rowId, colKey, e.target.value)}
+      onKeyDown={onKeyDown}
+      onBlur={() => edits.blur(rowId, colKey)}
+    />
+  )
+}
+
+function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol, rules, rowRule, edits }: CellProps<T>) {
   const value = col.accessor(row)
   const ref = useRef<HTMLDivElement>(null)
   const flash = col.flash ?? (col.numeric ? flashVariant : false)
-  useFlash(ref, value, { memory, cellKey: `${rowId}\u0000${col.key}`, variant: flash || "fill", windowMs: flashWindowMs, disabled: !flash })
-  const content = col.cell ? col.cell({ row, value, rowId }) : col.format ? col.format(value, row) : value === null || value === undefined ? NULL_TOKEN : String(value)
+  const key = cellKey(rowId, col.key)
+  useFlash(ref, value, { memory, cellKey: key, variant: flash || "fill", windowMs: flashWindowMs, disabled: !flash })
+  // Editable cells follow their own entry in the tracker; the rest subscribe to nothing.
+  const editable = edits !== null && Boolean(col.edit)
+  const tracker = editable ? edits.tracker : null
+  const subscribe = useCallback((cb: () => void) => (tracker ? tracker.subscribe(key, cb) : noopSubscribe()), [tracker, key])
+  const get = useCallback(() => (tracker ? tracker.get(key) : undefined), [tracker, key])
+  const status = useSyncExternalStore(subscribe, get, undefinedStatus)
+  // A later batch brought the row's value to the committed one: the edit is settled, and the cell reads the store again.
+  const settled = status?.kind === "pending" && Object.is(status.value, value)
+  useEffect(() => {
+    if (settled) edits?.settle(rowId, col.key)
+  }, [settled, edits, rowId, col.key])
+  const handle = useMemo<CellEditHandle | undefined>(
+    () => (editable ? { status, commit: (next) => edits!.commitValue(rowId, col.key, next), open: () => edits!.open(rowId, col.key) } : undefined),
+    [editable, status, edits, rowId, col.key],
+  )
+  const numericClass = col.numeric ? (col.font === "mono" ? MONO_NUMERIC_CLASS : NUMERIC_CLASS) : ""
+  const header = typeof col.header === "string" ? col.header : col.key
+  const editing = status?.kind === "editing"
+  const pendingText = status?.kind === "pending" && !col.cell ? status.text : null
+  const content = editing
+    ? null
+    : pendingText !== null
+      ? pendingText
+      : col.cell
+        ? col.cell({ row, value, rowId, edit: handle })
+        : col.format
+          ? col.format(value, row)
+          : value === null || value === undefined
+            ? NULL_TOKEN
+            : String(value)
   // A matched rule names itself on the cell and says its words to a screen reader; the color is the hint.
   const rule = rules?.cell(col.key, row)
+  const rejected = status?.kind === "rejected" ? status.message : null
   return (
     <div
       ref={ref}
       role="gridcell"
       aria-colindex={colIndex + 1}
-      aria-description={rule?.["aria-description"]}
+      aria-description={rejected ?? rule?.["aria-description"]}
+      aria-readonly={editable ? !canEditCell(col, row) : undefined}
       data-col={col.key}
       data-numeric={col.numeric ? "" : undefined}
       data-focused-col={focusedCol || undefined}
       data-rule={rule?.["data-rule"]}
       data-tone={rule?.["data-tone"]}
-      title={typeof content === "string" ? content : undefined}
+      data-editable={editable && canEditCell(col, row) ? "" : undefined}
+      data-editing={editing || undefined}
+      data-pending={status?.kind === "pending" || undefined}
+      data-rejected={rejected ?? undefined}
+      title={rejected ?? (typeof content === "string" ? content : undefined)}
       className={cn(
-        "flex h-full min-w-0 items-center truncate px-2",
+        "flex h-full min-w-0 items-center truncate",
+        !editing && "px-2",
         alignClass(col),
-        col.numeric && cn("justify-end", col.font === "mono" ? MONO_NUMERIC_CLASS : NUMERIC_CLASS),
+        col.numeric && cn("justify-end", numericClass),
         col.align === "center" && "justify-center",
         flash === "ring" ? RING_CLASSES : flash === "fill" ? FILL_CLASSES : undefined,
         left !== undefined && "sticky z-10 bg-background",
         focusedCol && "bg-muted/50",
+        status?.kind === "pending" && "text-muted-foreground italic",
+        rejected !== null && "text-destructive",
         rule?.className ?? (left !== undefined ? rowRule?.className : undefined),
       )}
       style={left !== undefined ? { left } : undefined}
     >
-      <span className="truncate">{content}</span>
+      {editing ? (
+        <CellEditor rowId={rowId} colKey={col.key} label={header} status={status} numeric={Boolean(col.numeric)} className={numericClass} edits={edits!} />
+      ) : (
+        // Beside a refusal the value keeps its digits and the message is what gives way.
+        <span className={cn("truncate", rejected !== null && "shrink-0")}>{content}</span>
+      )}
+      {rejected !== null && <span data-edit-message="" className="ml-1 truncate">{rejected}</span>}
     </div>
   )
 }
@@ -331,6 +589,7 @@ interface RowProps<T> {
   highlightEnter: boolean
   getRowProps?: (row: T, id: RowId) => RowDecoration | undefined
   rules: AppliedRules<T> | null
+  edits: EditController | null
 }
 
 function RowInner<T>(p: RowProps<T>) {
@@ -389,6 +648,7 @@ function RowInner<T>(p: RowProps<T>) {
           focusedCol={p.focusedColKey === col.key}
           rules={p.rules}
           rowRule={rule}
+          edits={p.edits}
         />
       ))}
     </div>
@@ -465,6 +725,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     onRowActivate,
     renderContextMenu,
     footer,
+    onEdit,
     initialRect,
     overscan = 8,
   } = props
@@ -519,6 +780,146 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   const memory = useMemo(() => createFlashMemory(), [])
   const scrollRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
+  // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
+  const editLatest = useRef({ columns, resolved, onEdit })
+  useEffect(() => {
+    editLatest.current = { columns, resolved, onEdit }
+  })
+  const editable = Boolean(onEdit)
+  const edits = useMemo<EditController | null>(() => {
+    if (!editable) return null
+    const tracker = createEditTracker()
+    const column = (key: string) => editLatest.current.columns.find((c) => c.key === key)
+    const focusGrid = () => rootRef.current?.focus({ preventScroll: true })
+    const send = (rowId: RowId, col: ColumnDef<T> & { edit: CellEdit<T> }, row: T, value: unknown) => {
+      const previous = col.accessor(row)
+      const k = cellKey(rowId, col.key)
+      if (Object.is(value, previous)) {
+        tracker.set(k, undefined)
+        return
+      }
+      tracker.set(k, { kind: "pending", value, text: editText(col, value, row) })
+      let result: void | Promise<unknown>
+      try {
+        result = editLatest.current.onEdit?.({ rowId, key: col.key, value, previous, row })
+      } catch (error) {
+        tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error) })
+        return
+      }
+      if (result && typeof (result as Promise<unknown>).then === "function") {
+        ;(result as Promise<unknown>).then(
+          () => {
+            const now = tracker.get(k)
+            if (now?.kind === "pending" && Object.is(now.value, value)) tracker.set(k, undefined)
+          },
+          (error: unknown) => {
+            const now = tracker.get(k)
+            if (now?.kind === "pending" && Object.is(now.value, value)) tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error) })
+          },
+        )
+      }
+    }
+    const moveOn = (rowId: RowId, key: string, move: 1 | -1 | undefined) => {
+      if (!move) return focusGrid()
+      const row = store.getRow(rowId)
+      const list = editLatest.current.resolved
+      let i = list.findIndex((c) => c.key === key) + move
+      for (; i >= 0 && i < list.length; i += move) {
+        const next = list[i]!
+        if (canEditCell(next, row) && !next.edit.toggle) {
+          setFocusedColKey(next.key)
+          return open(rowId, next.key)
+        }
+      }
+      focusGrid()
+    }
+    function open(rowId: RowId, key: string, typed?: string) {
+      const col = column(key)
+      const row = store.getRow(rowId)
+      if (!canEditCell(col, row) || col.edit.toggle) return
+      const k = cellKey(rowId, key)
+      const before = tracker.editing()
+      if (before && before !== k) tracker.set(before, undefined)
+      // A pending cell reopens on what it shows, the committed value, not on the value the store still holds.
+      const now = tracker.get(k)
+      const text = now?.kind === "pending" ? now.text : editText(col, col.accessor(row!), row!)
+      tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined })
+    }
+    const controller: EditController = {
+      tracker,
+      open,
+      type(rowId, key, text) {
+        const k = cellKey(rowId, key)
+        const now = tracker.get(k)
+        if (now?.kind === "editing") tracker.set(k, { ...now, text, problem: null })
+      },
+      commit(rowId, key, move) {
+        const k = cellKey(rowId, key)
+        const now = tracker.get(k)
+        if (now?.kind !== "editing") return
+        const col = column(key)
+        const row = store.getRow(rowId)
+        if (!canEditCell(col, row)) {
+          tracker.set(k, undefined)
+          return focusGrid()
+        }
+        const parsed = col.edit.parse(now.text, row!)
+        const problem = isEditProblem(parsed) ? parsed : col.edit.validate?.(parsed, row!)
+        if (problem) {
+          tracker.set(k, { ...now, problem: problem.problem })
+          return
+        }
+        send(rowId, col, row!, parsed)
+        moveOn(rowId, key, move)
+      },
+      commitValue(rowId, key, value) {
+        const col = column(key)
+        const row = store.getRow(rowId)
+        if (!canEditCell(col, row)) return
+        const problem = col.edit.validate?.(value, row!)
+        if (problem) {
+          tracker.set(cellKey(rowId, key), { kind: "rejected", value: col.accessor(row!), message: problem.problem })
+          return
+        }
+        send(rowId, col, row!, value)
+      },
+      cancel(rowId, key) {
+        const k = cellKey(rowId, key)
+        if (tracker.get(k)?.kind === "editing") tracker.set(k, undefined)
+        focusGrid()
+      },
+      step(rowId, key, dir, big) {
+        const k = cellKey(rowId, key)
+        const now = tracker.get(k)
+        const col = column(key)
+        const row = store.getRow(rowId)
+        if (now?.kind !== "editing" || !canEditCell(col, row) || !col.edit.step) return
+        const typed = col.edit.parse(now.text, row!)
+        const from = isEditProblem(typed) ? col.accessor(row!) : typed
+        const next = col.edit.step(from, dir, big, row!)
+        tracker.set(k, { ...now, text: editText(col, next, row!), problem: null })
+      },
+      blur(rowId, key) {
+        const k = cellKey(rowId, key)
+        const now = tracker.get(k)
+        if (now?.kind !== "editing") return
+        const col = column(key)
+        const row = store.getRow(rowId)
+        if (!canEditCell(col, row)) return tracker.set(k, undefined)
+        const parsed = col.edit.parse(now.text, row!)
+        if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!)) return tracker.set(k, undefined)
+        send(rowId, col, row!, parsed)
+      },
+      settle(rowId, key) {
+        const k = cellKey(rowId, key)
+        if (tracker.get(k)?.kind === "pending") tracker.set(k, undefined)
+      },
+    }
+    return controller
+  }, [editable, store])
   const virtualizer = useVirtualizer({
     count: ids.length,
     getScrollElement: () => scrollRef.current,
@@ -681,12 +1082,30 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   const visibleCount = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? initialRect?.height ?? rowHeight * 10) / rowHeight))
 
+  // The focused cell's column when it can be edited now, else undefined.
+  const editableFocus = () => {
+    if (!edits || focusedRowId === null || focusedColKey === null) return undefined
+    const col = resolved.find((c) => c.key === focusedColKey)
+    return canEditCell(col, store.getRow(focusedRowId)) ? col : undefined
+  }
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    // The editor owns its keys; what it lets through (a modifier-held arrow) is for the listeners above the grid.
+    if ((e.target as HTMLElement).closest?.("[data-cell-editor]")) return
     view.touch()
     stopFollowing()
     const fi = focusedRowId !== null ? (indexOf.get(focusedRowId) ?? -1) : -1
     const ci = focusedColKey !== null ? resolved.findIndex((c) => c.key === focusedColKey) : -1
     const mod = e.metaKey || e.ctrlKey
+    // Typing on an editable cell opens its editor with the character typed.
+    if (e.key.length === 1 && e.key !== " " && !mod && !e.altKey) {
+      const col = editableFocus()
+      if (col && !col.edit.toggle) {
+        e.preventDefault()
+        edits!.open(focusedRowId!, col.key, e.key)
+        return
+      }
+    }
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault()
@@ -725,16 +1144,34 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         setFocusedColKey(next?.key ?? null)
         return
       }
-      case " ":
+      case " ": {
         e.preventDefault()
+        const col = editableFocus()
+        if (col?.edit.toggle) {
+          const row = store.getRow(focusedRowId!)!
+          edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row))
+          return
+        }
         if (focusedRowId !== null) select([focusedRowId], selectionMode === "multi" ? "toggle" : "replace")
         return
+      }
       case "Enter":
+      case "F2": {
+        const col = editableFocus()
+        if (col) {
+          e.preventDefault()
+          const row = store.getRow(focusedRowId!)!
+          if (col.edit.toggle) edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row))
+          else edits!.open(focusedRowId!, col.key)
+          return
+        }
+        if (e.key === "F2") return
         if (focusedRowId !== null) {
           const row = store.getRow(focusedRowId)
           if (row !== undefined) onRowActivate?.(row, focusedRowId)
         }
         return
+      }
       case "Escape":
         setSelection(EMPTY_SET)
         return
@@ -799,10 +1236,21 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     else select([id], "replace")
   }
 
+  // A double click on an editable cell opens it; anywhere else on the row it activates the row.
   const onRowDoubleClick = (e: MouseEvent<HTMLDivElement>) => {
-    const id = (e.target as HTMLElement).closest<HTMLElement>("[data-row-id]")?.dataset.rowId
+    const target = e.target as HTMLElement
+    const id = target.closest<HTMLElement>("[data-row-id]")?.dataset.rowId
     const row = id !== undefined ? store.getRow(id) : undefined
-    if (id !== undefined && row !== undefined) onRowActivate?.(row, id)
+    if (id === undefined || row === undefined) return
+    const key = target.closest<HTMLElement>("[data-col]")?.dataset.col
+    const col = key !== undefined ? resolved.find((c) => c.key === key) : undefined
+    if (edits && canEditCell(col, row) && !col.edit.toggle) {
+      setFocusedRowId(id)
+      setFocusedColKey(col.key)
+      edits.open(id, col.key)
+      return
+    }
+    onRowActivate?.(row, id)
   }
 
   const toggle = useCallback((id: RowId) => select([id], "toggle"), [select])
@@ -881,6 +1329,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
                 highlightEnter={rowEnter.highlight}
                 getRowProps={getRowProps}
                 rules={rules}
+                edits={edits}
               />
             )
           })}
@@ -893,9 +1342,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   return (
     <div
+      ref={rootRef}
       role="grid"
       data-slot="tradecn-data-grid"
       data-preset={props.preset ?? "blotter"}
+      data-editable={edits ? "" : undefined}
       tabIndex={0}
       aria-label={label}
       aria-rowcount={ids.length + (footer ? 2 : 1)}

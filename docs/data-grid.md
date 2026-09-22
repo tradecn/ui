@@ -38,7 +38,7 @@ Rows have a fixed height (from the preset, or `rowHeight`) and are positioned by
 
 ### Presets
 
-`blotter` (24px, multi-select, fill flash, hold 750 ms, new rows highlighted and pinned), `watchlist` (22px, single-select, fill), `rfq` (26px, single-select, ring flash, hold 1 s, new rows highlighted and pinned, row count announced), `option-chain` (20px, no selection, ring), `tape` (22px, single-select, fill, new rows highlighted, the viewport follows the tail, row count announced). Every preset value is a prop you can override. [`watchlist`](watchlist.md) and [`blotter`](blotter.md) are items built on the first two.
+`blotter` (24px, multi-select, fill flash, hold 750 ms, new rows highlighted and pinned), `watchlist` (22px, single-select, fill), `rfq` (26px, single-select, ring flash, hold 1 s, new rows highlighted and pinned, row count announced), `option-chain` (20px, no selection, ring), `tape` (22px, single-select, fill, new rows highlighted, the viewport follows the tail, row count announced), `parameters` (24px, single-select, ring, no hold, the viewport pinned). Every preset value is a prop you can override. [`watchlist`](watchlist.md), [`blotter`](blotter.md), and [`parameter-grid`](parameter-grid.md) are items built on three of them.
 
 ### The reorder hold
 
@@ -56,6 +56,12 @@ An append-only feed (a trade tape, an event log) wants the other viewport rule: 
 
 `rules` takes a `GridRules` object from [`grid-rules`](grid-rules.md), installed alongside: `columns` colors cells and rows, `filter` keeps rows, and `sort` orders them, all as plain objects a desk writes without a build. The grid wires them itself. A header sort comes first and the rules' order breaks its ties. Every filter rule has to hold, along with your own `filter`. A cell with a matched rule carries `data-rule`, `data-tone`, and the rule's words in its accessible description, and a row rule marks the row the same way, under whatever `getRowProps` says. A value in a rule is typed in the column's format and read through the column's `parse`, so give a price column `parse: (text) => parsePrice(text, convention)`. With a `view` of your own the grid ignores `rules.filter` and `rules.sort`, as it ignores `filter`, since the view's membership and order are yours; `rules.columns` still apply. Keep the object's identity stable between renders, as with `filter`: a new object is a new view.
 
+### Editing in place
+
+Give a column `edit` and the grid `onEdit`, and that column's cells can be typed in. `edit` is `{ parse, format?, validate?, step?, toggle?, canEdit? }`: `parse(text, row)` reads the typed text as a value or returns `editProblem("…")` with what is wrong, `format` is the text the editor opens with (the column's `format` by default), `validate` is a check on the value before it goes, `step` is what bare Up and Down do in the editor (ten with Shift), `toggle` makes the cell a switch that Enter or Space flips without opening anything (a checkbox column), and `canEdit(row)` keeps a row's cell read-only, which the cell says with `aria-readonly`. Enter, F2, a double click, or typing opens the editor on the focused cell, with the text selected or with the character typed; Enter commits, Escape reverts, Tab and Shift+Tab commit and open the next or previous editable cell of the row. A modifier-held arrow is left to whoever listens above the grid, so a `mod+up` bound in a hotkey registry still fires from inside a cell. Focus leaving the editor commits what parses and drops what does not.
+
+An edit is a command the server answers, never a local truth. A commit hands `onEdit` a change, `{ rowId, key, value, previous, row }`, and the cell shows the committed value muted with `data-pending` until a later batch brings the row's value to it, or the promise you return resolves. A rejected promise keeps the previous value and prints the message in the cell with `data-rejected`, in destructive, until the cell is edited again. A `cell` renderer of an editable column is given `edit`, the status and a `commit(value)` of its own, so a checkbox can ask the server through the same path and disable itself while the answer is out. Nothing is written to the store here. One cell is edited at a time; multi-cell paste is not part of this version. [`parameter-grid`](parameter-grid.md) is the item built on it.
+
 ### Identity
 
 Selection, focus, and the context menu are all row ids. Indices are derived per render. `aria-activedescendant` names the focused row; `aria-rowindex` is the view index plus two; the live region says "1,024 rows, 12 new" at most once a second.
@@ -66,4 +72,4 @@ Up and Down move focus (Shift extends the selection in multi mode), PageUp and P
 
 ### What it does not do
 
-Fetching, grouping, tree rows, inline editing, variable row height, local storage. Column state comes back through `onColumnStateChange` for you to keep, and rules go in as data; the grid does not know where either lives.
+Fetching, grouping, tree rows, multi-cell paste, variable row height, local storage. Column state comes back through `onColumnStateChange` for you to keep, rules go in as data, and an edit goes out as a command; the grid does not know where any of them lives.
