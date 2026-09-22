@@ -152,7 +152,7 @@ Totals calculate on mount and subscribe to store batches. Changes to the view's 
 
 A supplied view also ignores `sort` for ordering. Header controls can still report changes through `onSortChange` for you to apply.
 
-Rule values use the column's `parse`, for example `parse: (text) => parsePrice(text, convention)`. Matched cells and rows carry `data-rule`, `data-tone`, and an accessible description. `getRowProps` takes precedence over row decorations; a cell's rejection message takes precedence over its rule description.
+String rule values use the column's `parse` when provided, for example `parse: (text) => parsePrice(text, convention)`. Numeric and boolean values bypass it. Matched cells and rows carry `data-rule`, `data-tone`, and an accessible description. `getRowProps` takes precedence over row decorations; a cell's rejection message takes precedence over its rule description.
 
 ### Editing in place
 
@@ -175,7 +175,7 @@ A commit calls `onEdit` with `{ rowId, key, value, previous, row }`. The grid ne
 
 A thrown error or rejection of a still-pending promise displays the store value with the error message, `data-rejected`, and destructive styling. Reopening the editor clears the error. A pending cell can also be reopened, starting from its committed text.
 
-A custom `cell` receives `edit: { status, commit(value), open() }` when editing is enabled for its column. `status` is absent or an object whose `kind` is `editing`, `pending`, or `rejected`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text.
+A custom `cell` receives `edit: { status, commit(value), open() }` when editing is enabled for its column. It sees `status` as absent or an object whose `kind` is `pending` or `rejected`. While a text editor is open, the grid renders its built-in editor instead of calling `cell`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text.
 
 ### Identity
 
@@ -197,7 +197,7 @@ With focus in the grid, outside a text editor:
 | Space | Toggle selection in multi mode; select in single mode. On an editable toggle cell, commit its toggle instead. |
 | Enter | Edit the focused editable cell, including toggles; otherwise activate the row. |
 | F2 | Edit the focused editable cell, including toggles. |
-| Type a character other than Space | Open a text editor with that character, when the cell is editable. |
+| Type a character other than Space | Open an editable text cell with that character. Toggle cells and Ctrl, Cmd, or Alt combinations do not open an editor. |
 | Escape | Clear selection. |
 | Ctrl or Cmd+A | Select all rows in the view in multi mode. |
 | Alt+Left / Right | Move the focused column. |
@@ -206,7 +206,7 @@ With focus in the grid, outside a text editor:
 | Alt+H | Hide the focused column. |
 | Shift+F10 / Menu | Open the context menu on the focused row. |
 
-Row navigation also selects the focused row in single-select mode. A double click opens an editable text cell or activates the row. Each header has sort, move, hide, and reset controls, plus a resize handle.
+Row navigation also selects the focused row in single-select mode. A double click opens an editable text cell or activates the row. Each column header has move, hide, and reset controls, plus a resize handle. Sort controls appear only when the column has `sortable: true`.
 
 Inside a text editor:
 
