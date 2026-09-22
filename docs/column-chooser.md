@@ -1,4 +1,4 @@
-# column-chooser
+# ColumnChooser
 
 The dialog over one grid's columns: show and hide, reorder by drag or by keyboard, reset a width, find one, all through the grid's own column state.
 

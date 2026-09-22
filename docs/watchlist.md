@@ -1,4 +1,4 @@
-# watchlist
+# Watchlist
 
 The data grid as a watchlist: symbol, last, bid, ask, change, change %, and volume, with a field that adds and three ways to remove.
 

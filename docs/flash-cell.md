@@ -1,4 +1,4 @@
-# flash-cell
+# FlashCell
 
 A cell that flashes on change, colored up, down, or flat, as a fill or an inset ring.
 

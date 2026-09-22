@@ -1,4 +1,4 @@
-# countdown
+# Countdown
 
 Time left until a deadline, with ticking digits and a shrinking bar. Both stop at zero.
 

@@ -1,4 +1,4 @@
-# positions
+# Positions
 
 The data grid as a book of positions: instrument, position signed in its unit, average, mark, the day's and the total P&L colored by their sign with the sign printed, a risk column the desk names, and totals under the body.
 

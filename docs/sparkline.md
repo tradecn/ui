@@ -1,4 +1,4 @@
-# sparkline
+# Sparkline
 
 A line small enough for a grid cell that still says which way, how far, and between what.
 

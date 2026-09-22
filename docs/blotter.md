@@ -1,4 +1,4 @@
-# blotter
+# Blotter
 
 The data grid as an order blotter: time, symbol, side, quantity, filled, price, status, and account, with actions on the orders in hand.
 

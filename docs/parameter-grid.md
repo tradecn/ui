@@ -1,4 +1,4 @@
-# parameter-grid
+# ParameterGrid
 
 A parameter table on the data grid: one row per instrument, tier, or pair, the values typed in place and held pending until the server's row comes back with them, an enable box that asks the server and never flips itself, and when each row last changed.
 

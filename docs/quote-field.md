@@ -1,4 +1,4 @@
-# quote-field
+# QuoteField
 
 A field that types a quote the way the instrument quotes it, steps it by the instrument's own step, and hands the number up.
 

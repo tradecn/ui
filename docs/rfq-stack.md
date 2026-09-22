@@ -1,4 +1,4 @@
-# rfq-stack
+# RfqStack
 
 `RfqStack` displays inquiries with market prices, time left, and a mark on the inquiry in the ticket. It adds inquiry columns and an optional auto-quote threshold to the data grid's `rfq` preset.
 

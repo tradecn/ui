@@ -1,4 +1,4 @@
-# rfq-ticket
+# RfqTicket
 
 A client inquiry with market and quoted levels, a countdown, and quote fields in the instrument's notation. The server supplies the status and allowed actions.
 

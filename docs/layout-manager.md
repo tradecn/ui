@@ -1,4 +1,4 @@
-# layout-manager
+# LayoutManager
 
 Named layouts for a workspace: save the current one, load, rename, duplicate, delete with an ask-again, import and export the JSON, and go back to the default, over a list the consumer keeps in a preferences slot.
 

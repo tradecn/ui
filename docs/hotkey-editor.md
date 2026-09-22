@@ -1,4 +1,4 @@
-# hotkey-editor
+# HotkeyEditor
 
 The settings screen for the hotkey registry: every binding under its group with its keys in force, and three ways to change one.
 

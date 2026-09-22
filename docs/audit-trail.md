@@ -1,4 +1,4 @@
-# audit-trail
+# AuditTrail
 
 The life of one order or inquiry as events on a tape: when, the server's word for what happened, who, and what changed, with a pane beside it that shows one event's changes or the difference between two.
 

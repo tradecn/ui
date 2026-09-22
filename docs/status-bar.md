@@ -1,4 +1,4 @@
-# status-bar
+# StatusBar
 
 The strip at the bottom of every terminal: which environment this is, what time it is where the markets are, who is signed in, and your own readouts in the slots between.
 

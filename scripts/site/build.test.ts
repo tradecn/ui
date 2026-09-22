@@ -13,6 +13,7 @@ import {
   escapeHtml,
   groupOf,
   GROUPS,
+  headingOf,
   FAVICON,
   firstParagraph,
   FONT_PACKAGES,
@@ -573,7 +574,7 @@ describe("the search index", () => {
           { id: "fixes", heading: "Fixes", parent: "0.1.5 (date)", text: "x < y" },
         ],
       },
-      { path: "/docs/format/", title: "format", label: "Format", group: "Utilities", text: "Prices in 32nds. formatPrice(99.5)", sections: [] },
+      { path: "/docs/format/", name: "format", title: "format", label: "Format", group: "Utilities", text: "Prices in 32nds. formatPrice(99.5)", sections: [] },
     ])
   })
 
@@ -835,12 +836,31 @@ describe("the docs pages", async () => {
     expect(at("docs/contract/index.html")).toContain("<code>docs/contract.md</code>")
   })
 
+  it("heads an item's page by the name its implementation goes by: a component's export, a hook's, a utility's or a theme's own name", () => {
+    const heading = (name: string) => headingOf(registry.items.find((item) => item.name === name)!)
+    expect(heading("data-grid")).toBe("DataGrid")
+    expect(heading("rfq-ticket")).toBe("RfqTicket")
+    expect(heading("use-hotkeys")).toBe("useHotkeys")
+    expect(heading("row-store")).toBe("row-store")
+    expect(heading("tradecn-amber")).toBe("tradecn-amber")
+    // The heading is a real export: every component, block, and hook lists it among the exports its meta names.
+    for (const item of registry.items.filter((item) => item.type !== "registry:lib" && item.type !== "registry:theme")) {
+      expect(item.meta?.components?.map((component) => component.title), item.name).toContain(headingOf(item))
+    }
+    // The sidebar keeps the registry title (`Data Grid`); the page's own title is the heading (`DataGrid`).
+    expect(items.find((doc) => doc.slug === "data-grid")?.label).toBe("Data Grid")
+    expect(items.find((doc) => doc.slug === "data-grid")?.title).toBe("DataGrid")
+    expect(items.find((doc) => doc.slug === "use-hotkeys")?.title).toBe("useHotkeys")
+    expect(items.find((doc) => doc.slug === "format")?.title).toBe("format")
+  })
+
   it("keeps every item doc in the page's shape: the title, one paragraph, then Usage first and API Reference last", () => {
     for (const doc of items) {
       const markdown = readFileSync(resolve(root, "docs", doc.source), "utf8")
       const [intro = "", ...sections] = markdown.split(/^## /m)
       const paragraphs = intro.split(/\n{2,}/).map((text) => text.trim()).filter(Boolean)
       expect(paragraphs, `${doc.source}: the title and one paragraph before the first section`).toHaveLength(2)
+      expect(paragraphs[0], `${doc.source}: headed by the name its implementation goes by`).toBe(`# ${headingOf(doc.item!)}`)
       expect(paragraphs[1], `${doc.source}: the install is the builder's`).not.toMatch(/shadcn add|npx /)
       const headings = sections.map((section) => section.split("\n")[0]?.trim())
       expect(headings[0], doc.source).toBe("Usage")

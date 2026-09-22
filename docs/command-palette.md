@@ -1,4 +1,4 @@
-# command-palette
+# CommandPalette
 
 A command palette on your own shadcn `command`: actions from a registry, symbol search through your adapter, recents, and shortcuts read live from the hotkey registry.
 

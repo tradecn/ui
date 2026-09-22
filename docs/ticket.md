@@ -1,4 +1,4 @@
-# ticket
+# Ticket
 
 Enter an order in the instrument's notation and pass a checked draft to an allowed action.
 
