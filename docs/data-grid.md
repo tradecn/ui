@@ -38,11 +38,19 @@ Rows have a fixed height (from the preset, or `rowHeight`) and are positioned by
 
 ### Presets
 
-`blotter` (24px, multi-select, fill flash, hold 750 ms, new rows highlighted and pinned), `watchlist` (22px, single-select, fill), `rfq` (26px, single-select, ring flash, hold 1 s, new rows highlighted and pinned, row count announced), `option-chain` (20px, no selection, ring). Every preset value is a prop you can override. [`watchlist`](watchlist.md) and [`blotter`](blotter.md) are items built on the first two.
+`blotter` (24px, multi-select, fill flash, hold 750 ms, new rows highlighted and pinned), `watchlist` (22px, single-select, fill), `rfq` (26px, single-select, ring flash, hold 1 s, new rows highlighted and pinned, row count announced), `option-chain` (20px, no selection, ring), `tape` (22px, single-select, fill, new rows highlighted, the viewport follows the tail, row count announced). Every preset value is a prop you can override. [`watchlist`](watchlist.md) and [`blotter`](blotter.md) are items built on the first two.
 
 ### The reorder hold
 
 With `sort` (or a `view` of your own) rows can move as values change. After any key or pointer interaction the grid calls `view.touch()`, and for `reorderHoldMs` the order freezes: new rows append, removed rows vanish, nothing moves under the cursor. When the hold lapses the grid settles to the sort. Pass your own `view` when the order is a rule you own (a desk's prioritization); the grid then leaves sorting to you.
+
+### Following the tail
+
+An append-only feed (a trade tape, an event log) wants the other viewport rule: new rows land at the end and the view goes there. `tape` turns it on, and `rowEnter={{ followTail: true }}` does on any preset. The grid follows the tail after every commit until a key, a pointer, or a scroll away from the end stops it; from then the rows that arrive count up on a `N new` pill over the bottom edge, and pressing it, or scrolling back to the end, follows again. `pinViewport` and `followTail` are two answers to one question, so a preset sets one of them.
+
+### Footer totals
+
+`footer={{ size: (rows) => formatQuantity(sum(rows)) }}` adds a sticky row under the body with one value per column named, given the view's rows: filtered and ordered, what is on screen. It recomputes once per applied batch (the store's meta changes once a batch), never per frame and never per row, and it does not flash. Numeric columns keep their alignment and figures in the footer. Keep the object's identity stable between renders, as with `filter`; a new object is a recompute.
 
 ### Rules as data
 

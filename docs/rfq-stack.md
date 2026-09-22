@@ -42,6 +42,8 @@ An auto-quoter answers most inquiries and a trader wants to see only the ones wo
 
 Pass `activeId` to the stack and its row wears the mark (`data-state="active"`, a bar on the left). `onActivate` fires on Enter or a double click, the moment a trader asks for a row in the ticket. Mount the ticket with `key={active.activeId}` and the two agree.
 
+`park(id)` sets an inquiry aside: it stays on the stack in its place in the order and still ends on the server's word, but it is never the next one, and parking the active one hands the ticket to the next open inquiry. `unpark(id)` lets it back in line, and picking a parked one with `setActive` does the same, since picking it is the trader's word. `parked` is the set; pass it to the stack as `parkedIds` and those rows are muted, wear `data-state="parked"`, and say `Parked` to a screen reader. The server never hears of a park. A parked inquiry whose row leaves the store leaves the set with it.
+
 ### Arrival never moves anything
 
 A new inquiry never moves the viewport (the preset pins it, so rows arriving above shift the scroll by exactly their height), never moves focus (focus is a row id), never moves the active mark, and never moves the order while a hand is on the grid. That is the stack's whole promise, and every part of it is held by identity, not by position.

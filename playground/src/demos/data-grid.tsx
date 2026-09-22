@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { ContextMenuItem } from "@/components/ui/context-menu"
-import { createInstrumentFormatter, formatQuantity, formatSigned } from "@/registry/tradecn/lib/format"
+import { createInstrumentFormatter, formatNotional, formatQuantity, formatSigned } from "@/registry/tradecn/lib/format"
 import { createFrameBatcher, createRowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, type ColumnDef, type ColumnState, type SortState } from "@/registry/tradecn/ui/data-grid"
 
@@ -78,6 +78,13 @@ const columns: ColumnDef<Rfq>[] = [
   { key: "secondsLeft", header: "Time", width: 60, numeric: true, sortable: true, accessor: (r) => r.secondsLeft },
 ]
 
+// Totals under the body, of the rows on screen, once per applied batch. The object is made once so the grid does not recompute on every render.
+const footer = {
+  id: (rows: Rfq[]) => `${rows.length} open`,
+  size: (rows: Rfq[]) => formatNotional(rows.reduce((sum, r) => sum + r.size, 0), { compact: true }),
+  chg: (rows: Rfq[]) => formatSigned(rows.length ? rows.reduce((sum, r) => sum + r.chg, 0) / rows.length : 0, { decimals: 3 }),
+}
+
 export default function DataGridDemo() {
   const store = usePublisher()
   const [sort, setSort] = useState<SortState>({ key: "secondsLeft", dir: "asc" })
@@ -98,6 +105,7 @@ export default function DataGridDemo() {
           onColumnStateChange={setColumnState}
           selection={selection}
           onSelectionChange={setSelection}
+          footer={footer}
           renderContextMenu={(rows) => (
             <>
               <ContextMenuItem>Quote {rows.length}</ContextMenuItem>

@@ -538,7 +538,7 @@ test("an rfq ticket shows the inquiry, quotes against the market, sends from a k
 
 // Three inquiries sorted by size with the biggest in the ticket; the venue ends it and the next takes
 // its place; Enter picks one; the threshold hides the small auto-quoted one and leaves the others.
-test("an rfq stack marks the active inquiry, moves on when the venue ends it, picks on Enter, and hides small auto quotes under the threshold", async ({ page }) => {
+test("an rfq stack marks the active inquiry, moves on when the venue ends it, parks one and moves on, picks on Enter, and hides small auto quotes under the threshold", async ({ page }) => {
   await page.goto("/")
   const scene = page.locator("section[data-scene='rfq-stack']")
   const stack = scene.locator("[data-slot='tradecn-rfq-stack']")
@@ -551,6 +551,16 @@ test("an rfq stack marks the active inquiry, moves on when the venue ends it, pi
   await expect(state).toHaveAttribute("data-rfq-active", "q1")
   await expect(stack.locator("[data-row-id='q1']")).toHaveAttribute("data-state", "active")
   await expect(stack.locator("[data-row-id='q2']")).not.toHaveAttribute("data-state", "active")
+  // Parked: q1 keeps its place, muted and marked, and the ticket moves on; let back, it waits its turn.
+  await scene.getByRole("button", { name: "park q1", exact: true }).click()
+  await expect(state).toHaveAttribute("data-rfq-active", "q3")
+  await expect(state).toHaveAttribute("data-rfq-parked", "q1")
+  await expect(stack.locator("[data-row-id='q1']")).toHaveAttribute("data-state", "parked")
+  await expect(stack.locator("[data-row-id='q1']")).toHaveAttribute("aria-description", "Parked")
+  await scene.getByRole("button", { name: "unpark q1", exact: true }).click()
+  await expect(state).toHaveAttribute("data-rfq-parked", "")
+  await expect(stack.locator("[data-row-id='q1']")).not.toHaveAttribute("data-state", "parked")
+  await expect(state).toHaveAttribute("data-rfq-active", "q3")
   // Enter on the focused row asks for it.
   await stack.locator("[data-row-id='q3'] [role='gridcell']").first().click()
   await page.keyboard.press("Enter")
@@ -926,4 +936,36 @@ test("the installed theme is what the page is drawn with, in both modes", async 
   if (stack) expect(drawn.font.replace(/["']/g, ""), "font-sans is the theme's stack").toBe(stack.replace(/["']/g, ""))
   await page.evaluate(() => document.documentElement.classList.add("dark"))
   expect(await mismatches(expected(theme.cssVars.dark)), `${name}: every dark color`).toEqual([])
+})
+
+// The tape preset in a real scroll box: mounted at the tail, ten appended rows keep it there with no hand
+// on the wheel, a click on a row stops the following, the next ten count up on the pill, and the pill goes
+// back to the end. The footer's total is of the rows on screen and follows each batch.
+test("a tape grid follows its tail, stops on a touch, counts the new rows on a pill, returns on it, and totals its rows in the footer", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='data-grid']")
+  const grid = scene.locator("[data-slot='tradecn-data-grid']")
+  const box = grid.locator(".overflow-auto")
+  const footer = grid.locator("[data-grid-footer] [data-col='px']")
+  const pill = grid.locator("[data-grid-behind]")
+  const atTail = () => box.evaluate((el) => el.scrollTop + el.clientHeight >= el.scrollHeight - 1)
+  await expect(grid).toHaveAttribute("aria-rowcount", "52")
+  await expect(footer).toHaveText("6225")
+  await expect.poll(() => box.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+  await expect.poll(atTail).toBe(true)
+  await scene.getByRole("button", { name: "append 10" }).click()
+  await expect(grid).toHaveAttribute("aria-rowcount", "62")
+  await expect(footer).toHaveText("7770")
+  await expect.poll(atTail).toBe(true)
+  await expect(pill).toHaveCount(0)
+  // A touch stops the following: the next arrivals count, and the box stays where it was.
+  await grid.locator("[data-row-id='r59'] [role='gridcell']").first().click()
+  await scene.getByRole("button", { name: "append 10" }).click()
+  await expect(pill).toHaveText("10 new")
+  await expect.poll(atTail).toBe(false)
+  await expect(footer).toHaveText("9415")
+  await pill.click()
+  await expect(pill).toHaveCount(0)
+  await expect.poll(atTail).toBe(true)
+  await expect(grid).toHaveAttribute("aria-rowcount", "72")
 })

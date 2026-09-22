@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { ContextMenuItem } from "@/components/ui/context-menu"
-import { createInstrumentFormatter, formatQuantity, formatSigned } from "@/registry/tradecn/lib/format"
+import { createInstrumentFormatter, formatNotional, formatQuantity, formatSigned } from "@/registry/tradecn/lib/format"
 import { createFrameBatcher, createRowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, exportCsv, type ColumnDef, type ColumnState, type DataGridPreset, type SortState } from "@/registry/tradecn/ui/data-grid"
 
@@ -80,6 +80,13 @@ const columns: ColumnDef<Rfq>[] = [
   { key: "state", header: "State", width: 80, accessor: (r) => r.state },
 ]
 
+// Totals of the rows on screen, once per applied batch.
+const footer = {
+  id: (rows: Rfq[]) => `${rows.length} open`,
+  size: (rows: Rfq[]) => formatNotional(rows.reduce((sum, r) => sum + r.size, 0), { compact: true }),
+  chg: (rows: Rfq[]) => formatSigned(rows.length ? rows.reduce((sum, r) => sum + r.chg, 0) / rows.length : 0, { decimals: 3 }),
+}
+
 export function DataGridScene() {
   const params = new URLSearchParams(window.location.search)
   const rows = Number(params.get("rows") ?? 1000)
@@ -97,7 +104,7 @@ export function DataGridScene() {
           {rows} rows, {updates} patches/frame, 2 new RFQs and 1 expiry pass per second. Selected: {selection.size}.
         </span>
         <select className="ml-auto rounded border border-border bg-background px-1" value={preset} onChange={(e) => setPreset(e.target.value as DataGridPreset)}>
-          {(["rfq", "blotter", "watchlist", "option-chain"] as const).map((p) => (
+          {(["rfq", "blotter", "watchlist", "option-chain", "tape"] as const).map((p) => (
             <option key={p}>{p}</option>
           ))}
         </select>
@@ -117,6 +124,7 @@ export function DataGridScene() {
           onColumnStateChange={setColumnState}
           selection={selection}
           onSelectionChange={setSelection}
+          footer={footer}
           onRowActivate={(r) => console.log("activate", r.id)}
           renderContextMenu={(rs) => (
             <>
