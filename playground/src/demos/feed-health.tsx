@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { FeedHealth, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, type FeedAction, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 
 function initialFeeds(): FeedDescriptor[] {
   const now = Date.now()
   return [
-    { id: "md", label: "Market data", state: "connected", lane: "coalesced", lastMessageAt: now, dropped: 0 },
-    { id: "rfq", label: "RFQ", state: "connected", lane: "ordered", lastMessageAt: now, seq: 1, gap: null },
+    { id: "md", label: "Market data", state: "connected", lane: "coalesced", lastMessageAt: now, dropped: 0, allowedActions: ["pause"] },
+    { id: "rfq", label: "RFQ", state: "connected", lane: "ordered", lastMessageAt: now, seq: 1, gap: null, allowedActions: ["resubscribe"] },
     { id: "vpn", label: "VPN", state: "connected", lane: "ordered", lastMessageAt: now },
   ]
 }
@@ -30,10 +30,24 @@ export default function FeedHealthDemo() {
     }, 500)
     return () => clearInterval(t)
   }, [paused, gap, down])
+  // The menu on a feed offers what the server allows on it. A press is a request: the feed shows it pending until its state moves.
+  const actions: FeedAction[] = [
+    { id: "pause", label: "Pause", run: () => {
+      setTimeout(() => setPaused(true), 400)
+    } },
+    { id: "resume", label: "Resume", run: () => {
+      setTimeout(() => setPaused(false), 400)
+    } },
+    { id: "reconnect", label: "Reconnect", run: () => {
+      setTimeout(() => setDown(false), 800)
+    } },
+    { id: "resubscribe", label: "Resubscribe", run: () => new Promise((resolve) => setTimeout(resolve, 1200)) },
+  ]
+  const offered = feeds.map((f) => (f.id === "md" ? { ...f, allowedActions: [paused ? "resume" : "pause"], state: paused ? ("connecting" as const) : ("connected" as const) } : f.id === "vpn" ? { ...f, allowedActions: down ? ["reconnect"] : [] } : f))
   return (
     <div className="space-y-4 font-(family-name:--tradecn-font-mono) text-xs">
-      <FeedHealth feeds={feeds} />
-      <FeedHealth feeds={feeds} compact />
+      <FeedHealth feeds={offered} actions={actions} />
+      <FeedHealth feeds={offered} actions={actions} compact />
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" onClick={() => setPaused((p) => !p)}>
           {paused ? "Resume market data" : "Pause market data"}
