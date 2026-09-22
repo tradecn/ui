@@ -423,7 +423,7 @@ describe("the docs pages", async () => {
     // The registry lists the utilities first; the pages put the components first and never mix the kinds.
     expect(byGroup).not.toEqual(itemSlugs)
     expect(docs.filter((doc) => doc.item).map((doc) => groupOf(doc.item))).toEqual([
-      ...Array(12).fill("Components"),
+      ...Array(13).fill("Components"),
       "Hooks",
       "Utilities",
       "Utilities",
@@ -440,7 +440,7 @@ describe("the docs pages", async () => {
     expect(nav).toContain('<li><a href="/docs/changelog/">Changelog</a></li>\n<li><a href="/docs/contract/">The item contract</a></li>\n</ul>')
     // A utility is not a component: format sits under Utilities, use-hotkeys under Hooks, the themes under Themes, and only the ui items and the block under Components.
     expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/flash-cell/">flash-cell</a></li>')
-    expect(nav).toContain('<li><a href="/docs/workspace/">workspace</a></li>\n<li><a href="/docs/ticket/">ticket</a></li>\n<li><a href="/docs/countdown/">countdown</a></li>\n<li><a href="/docs/quote-field/">quote-field</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">use-hotkeys</a></li>\n</ul>')
+    expect(nav).toContain('<li><a href="/docs/workspace/">workspace</a></li>\n<li><a href="/docs/ticket/">ticket</a></li>\n<li><a href="/docs/countdown/">countdown</a></li>\n<li><a href="/docs/quote-field/">quote-field</a></li>\n<li><a href="/docs/rfq-ticket/">rfq-ticket</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">use-hotkeys</a></li>\n</ul>')
     expect(nav).toContain('<h2>Utilities</h2>\n<ul>\n<li><a href="/docs/format/" aria-current="page">format</a></li>\n<li><a href="/docs/row-store/">row-store</a></li>\n</ul>')
     expect(nav).toContain('<h2><a href="/docs/theming/#themes">Themes</a></h2>\n<ul>\n<li><a href="/docs/tradecn-terminal/">tradecn-terminal</a></li>\n<li><a href="/docs/tradecn-terminal-classic/">tradecn-terminal-classic</a></li>\n</ul>')
     expect(nav.match(/<h2>/g)).toHaveLength(5)
@@ -510,7 +510,7 @@ describe("the docs pages", async () => {
       if (groupOf(item) === "Components") expect(components).toContain(card)
       else expect(components, item.name).not.toContain(card)
     }
-    expect(components.match(/<a class="card"/g)).toHaveLength(12)
+    expect(components.match(/<a class="card"/g)).toHaveLength(13)
     expect(components).toContain('<span class="kind">block</span>')
     expect(components).not.toContain('<span class="kind">lib</span>')
     expect(components).not.toContain("<iframe")
