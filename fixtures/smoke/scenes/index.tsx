@@ -6,6 +6,7 @@ import { DataGridScene } from "./data-grid"
 import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
+import { GridRulesScene } from "./grid-rules"
 import { HotkeyEditorScene } from "./hotkey-editor"
 import { PanelScene } from "./panel"
 import { PerfMonitorScene } from "./perf-monitor"
@@ -45,5 +46,6 @@ export const scenes: SmokeScene[] = [
   { name: "rfq-stack", Scene: RfqStackScene },
   { name: "perf-monitor", Scene: PerfMonitorScene },
   { name: "hotkey-editor", Scene: HotkeyEditorScene },
+  { name: "grid-rules", Scene: GridRulesScene },
 ]
 export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "expiring", "expiring-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4"]

@@ -6,6 +6,7 @@ import { DataGridScene } from "./data-grid"
 import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
+import { GridRulesScene } from "./grid-rules"
 import { HotkeyEditorScene } from "./hotkey-editor"
 import { PanelScene } from "./panel"
 import { PerfMonitorScene } from "./perf-monitor"
@@ -48,6 +49,7 @@ export const items: Record<string, ItemScene> = {
   "rfq-stack": { title: "rfq-stack", Scene: RfqStackScene },
   "perf-monitor": { title: "perf-monitor", Scene: PerfMonitorScene },
   "hotkey-editor": { title: "hotkey-editor", Scene: HotkeyEditorScene },
+  "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   "tradecn-slate": { title: "tradecn-slate", Scene: TradecnSlateScene },
   "tradecn-slate-east": { title: "tradecn-slate-east", Scene: TradecnSlateEastScene },
   "tradecn-amber": { title: "tradecn-amber", Scene: TradecnAmberScene },

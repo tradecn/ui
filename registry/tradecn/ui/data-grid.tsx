@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { createFlashMemory, playFlash, useFlash, type FlashMemory } from "@/registry/tradecn/hooks/use-flash"
 import { useRow, useRowIds } from "@/registry/tradecn/hooks/use-row-store"
 import { MONO_NUMERIC_CLASS, NULL_TOKEN, NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
+import { applyRules, compareDirected, compareValues, compileComparator, compileFilter, type AppliedRules, type GridRules, type RuleDecoration } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 
 // A virtualized grid fed by a RowStore one row at a time.
@@ -55,6 +56,8 @@ export interface ColumnDef<T> {
   numeric?: boolean
   /** The family a numeric cell sets in: `numeric` (the sans, digits at one width) by default, or `mono` for a column of fraction quotes whose ticks must line up. */
   font?: "numeric" | "mono"
+  /** Reads a value typed into a rule in this column's own format (`99-16+` on a 32nds column). Default: a number for a numeric column, the text itself otherwise. */
+  parse?: (text: string) => unknown
 }
 
 export interface ColumnState {
@@ -123,11 +126,27 @@ export interface DataGridProps<T> {
   /** Accessible name for the grid. */
   label: string
   emptyState?: ReactNode
-  getRowProps?: (row: T, id: RowId) => { className?: string; "data-state"?: string }
+  getRowProps?: (row: T, id: RowId) => RowDecoration | undefined
+  /**
+   * Rules as data: cells and rows to color, rows to show, and the order, from `grid-rules`. The grid
+   * wires them itself; `cell`, `getRowProps`, `filter`, and `sort` stay yours for what code has to do.
+   * With a `view` of your own the grid ignores `rules.filter` and `rules.sort`, as it ignores `filter`.
+   * Keep the object's identity stable between renders, as with `filter`.
+   */
+  rules?: GridRules
   flashWindowMs?: number
   className?: string
   /** Viewport size before layout is measured (tests, server rendering). */
   initialRect?: { width: number; height: number }
+}
+
+/** What `getRowProps` may put on a row. A rule's decoration from `grid-rules` is one. */
+export interface RowDecoration {
+  className?: string
+  "data-state"?: string
+  "data-rule"?: string
+  "data-tone"?: string
+  "aria-description"?: string
 }
 
 type Resolved<T> = ColumnDef<T> & { width: number; minWidth: number }
@@ -150,24 +169,30 @@ function useControllable<V>(value: V | undefined, onChange: ((v: V) => void) | u
   return [current, set]
 }
 
-/** Nulls last, numbers numerically, everything else as text. */
+/** Nulls last, numbers numerically, everything else as text. `compareValues` in `grid-rules`, kept here by name. */
 export function compareForSort(a: unknown, b: unknown): number {
-  const an = a === null || a === undefined || (typeof a === "number" && !Number.isFinite(a))
-  const bn = b === null || b === undefined || (typeof b === "number" && !Number.isFinite(b))
-  if (an && bn) return 0
-  if (an) return 1
-  if (bn) return -1
-  if (typeof a === "number" && typeof b === "number") return a - b
-  return String(a).localeCompare(String(b))
+  return compareValues(a, b)
 }
 
+/** The header's sort as a comparator, a null last whichever way it runs. */
 export function comparatorFor<T>(columns: ColumnDef<T>[], sort: SortState): ((a: T, b: T) => number) | undefined {
   if (!sort) return undefined
   const col = columns.find((c) => c.key === sort.key)
   if (!col) return undefined
-  return (x, y) => {
-    const c = compareForSort(col.accessor(x), col.accessor(y))
-    return sort.dir === "asc" ? c : -c
+  return (x, y) => compareDirected(col.accessor(x), col.accessor(y), sort.dir)
+}
+
+/** One comparator after another: the first that tells two rows apart decides. Undefined when there is none. */
+function chainComparators<T>(...comparators: (((a: T, b: T) => number) | undefined)[]): ((a: T, b: T) => number) | undefined {
+  const list = comparators.filter((c): c is (a: T, b: T) => number => c !== undefined)
+  if (!list.length) return undefined
+  if (list.length === 1) return list[0]
+  return (a, b) => {
+    for (const compare of list) {
+      const c = compare(a, b)
+      if (c !== 0) return c
+    }
+    return 0
   }
 }
 
@@ -227,22 +252,30 @@ interface CellProps<T> {
   flashVariant: "fill" | "ring"
   flashWindowMs: number
   focusedCol: boolean
+  rules: AppliedRules<T> | null
+  /** The row's own rule, for a frozen cell to paint: its opaque background would otherwise cut a gap in the row's tint. */
+  rowRule: RuleDecoration | undefined
 }
 
-function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol }: CellProps<T>) {
+function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol, rules, rowRule }: CellProps<T>) {
   const value = col.accessor(row)
   const ref = useRef<HTMLDivElement>(null)
   const flash = col.flash ?? (col.numeric ? flashVariant : false)
   useFlash(ref, value, { memory, cellKey: `${rowId}\u0000${col.key}`, variant: flash || "fill", windowMs: flashWindowMs, disabled: !flash })
   const content = col.cell ? col.cell({ row, value, rowId }) : col.format ? col.format(value, row) : value === null || value === undefined ? NULL_TOKEN : String(value)
+  // A matched rule names itself on the cell and says its words to a screen reader; the color is the hint.
+  const rule = rules?.cell(col.key, row)
   return (
     <div
       ref={ref}
       role="gridcell"
       aria-colindex={colIndex + 1}
+      aria-description={rule?.["aria-description"]}
       data-col={col.key}
       data-numeric={col.numeric ? "" : undefined}
       data-focused-col={focusedCol || undefined}
+      data-rule={rule?.["data-rule"]}
+      data-tone={rule?.["data-tone"]}
       title={typeof content === "string" ? content : undefined}
       className={cn(
         "flex h-full min-w-0 items-center truncate px-2",
@@ -252,6 +285,7 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
         flash === "ring" ? RING_CLASSES : flash === "fill" ? FILL_CLASSES : undefined,
         left !== undefined && "sticky z-10 bg-background",
         focusedCol && "bg-muted/50",
+        rule?.className ?? (left !== undefined ? rowRule?.className : undefined),
       )}
       style={left !== undefined ? { left } : undefined}
     >
@@ -281,7 +315,8 @@ interface RowProps<T> {
   flashWindowMs: number
   entered: Set<RowId>
   highlightEnter: boolean
-  getRowProps?: (row: T, id: RowId) => { className?: string; "data-state"?: string }
+  getRowProps?: (row: T, id: RowId) => RowDecoration | undefined
+  rules: AppliedRules<T> | null
 }
 
 function RowInner<T>(p: RowProps<T>) {
@@ -296,6 +331,8 @@ function RowInner<T>(p: RowProps<T>) {
   }, [])
   if (row === undefined) return null
   const extra = p.getRowProps?.(row, p.id)
+  // A row rule paints under whatever your own props say: yours are read last, so they win a class.
+  const rule = p.rules?.getRowProps(row)
   return (
     <div
       ref={ref}
@@ -303,6 +340,9 @@ function RowInner<T>(p: RowProps<T>) {
       id={p.domId}
       data-row-id={p.id}
       data-state={extra?.["data-state"]}
+      data-rule={extra?.["data-rule"] ?? rule?.["data-rule"]}
+      data-tone={extra?.["data-tone"] ?? rule?.["data-tone"]}
+      aria-description={extra?.["aria-description"] ?? rule?.["aria-description"]}
       data-focused={p.focused || undefined}
       aria-rowindex={p.index + 2}
       aria-selected={p.selected || undefined}
@@ -311,6 +351,7 @@ function RowInner<T>(p: RowProps<T>) {
         FILL_CLASSES,
         p.selected && "bg-accent",
         p.focused && "outline-1 -outline-offset-1 outline-ring",
+        rule?.className,
         extra?.className,
       )}
       style={{ gridTemplateColumns: p.template, width: p.width, height: p.height, transform: `translateY(${p.start}px)` }}
@@ -332,6 +373,8 @@ function RowInner<T>(p: RowProps<T>) {
           flashVariant={p.flashVariant}
           flashWindowMs={p.flashWindowMs}
           focusedCol={p.focusedColKey === col.key}
+          rules={p.rules}
+          rowRule={rule}
         />
       ))}
     </div>
@@ -368,9 +411,20 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const [focusedColKey, setFocusedColKey] = useState<string | null>(null)
   const anchorRef = useRef<RowId | null>(null)
 
-  // The view: yours, or one made from sort and filter.
-  const comparator = useMemo(() => comparatorFor(columns, sort), [columns, sort])
-  const { filter } = props
+  // The view: yours, or one made from sort, filter, and the rules. A header sort comes first and the
+  // rules' order breaks its ties; every filter rule has to hold, along with your own filter.
+  const ruleSort = props.rules?.sort
+  const ruleFilter = props.rules?.filter
+  const ruleColumns = props.rules?.columns
+  const comparator = useMemo(() => chainComparators(comparatorFor(columns, sort), ruleSort?.length ? compileComparator(ruleSort, columns) : undefined), [columns, sort, ruleSort])
+  const ownFilter = props.filter
+  const filter = useMemo(() => {
+    const byRules = ruleFilter?.length ? compileFilter(ruleFilter, columns) : undefined
+    if (!byRules) return ownFilter
+    if (!ownFilter) return byRules
+    return (row: T) => ownFilter(row) && byRules(row)
+  }, [ownFilter, ruleFilter, columns])
+  const rules = useMemo(() => (ruleColumns?.length ? applyRules(ruleColumns, columns) : null), [ruleColumns, columns])
   const ownView = useMemo(() => (props.view ? null : store.createView({ comparator, filter, reorderHoldMs })), [props.view, store, comparator, filter, reorderHoldMs])
   useEffect(() => () => ownView?.dispose(), [ownView])
   const view = props.view ?? ownView!
@@ -715,6 +769,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
                 entered={entered}
                 highlightEnter={rowEnter.highlight}
                 getRowProps={getRowProps}
+                rules={rules}
               />
             )
           })}

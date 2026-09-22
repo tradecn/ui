@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { formatPrice, parsePrice } from "@/registry/tradecn/lib/format"
+import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 import { DATA_GRID_PRESETS, DataGrid, compareForSort, exportCsv, resolveColumns, type ColumnDef } from "@/registry/tradecn/ui/data-grid"
 
@@ -201,6 +203,89 @@ describe("DataGrid", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} emptyState="Nothing yet" />)
     expect(screen.getByText("Nothing yet")).toBeInTheDocument()
+  })
+})
+
+describe("rules as data", () => {
+  const thirtySeconds = { kind: "fraction", denominator: 32, half: "+" } as const
+  const ruled: ColumnDef<Quote>[] = [
+    { key: "sym", header: "Symbol", width: 80, frozen: "left", sortable: true, accessor: (r) => r.sym },
+    { key: "px", header: "Price", width: 90, numeric: true, sortable: true, accessor: (r) => r.px, format: (v) => formatPrice(v as number, thirtySeconds), parse: (text) => parsePrice(text, thirtySeconds) },
+    { key: "qty", header: "Qty", width: 70, numeric: true, sortable: true, accessor: (r) => r.qty },
+  ]
+  const rules: GridRules = {
+    columns: [
+      { id: "rich", column: "px", when: { op: "gte", value: "105-00" }, tone: "up", label: "Rich to the market" },
+      { id: "cheap", column: "px", when: { op: "lt", value: "101-16" }, tone: "down" },
+      { id: "big", column: "qty", when: { op: "gte", value: "70" }, tone: "primary", target: "row", label: "Large" },
+    ],
+    filter: [{ column: "qty", op: "notNull" }],
+    sort: [{ key: "qty", dir: "desc" }],
+  }
+  const cell = (rowId: string, key: string) => document.querySelector<HTMLElement>(`[data-row-id="${rowId}"] [data-col="${key}"]`)!
+
+  it("colors a cell by the first matching rule, in the column's own notation, and says the rule in words beside the color", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(10, store)
+    render(<DataGrid store={store} columns={ruled} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} rules={rules} />)
+    // Prices run 100 + i: r9 at 109 is above 105-00, r1 at 101 is below 101-16, r3 at 103 is neither. r0 is filtered out (its qty is null).
+    expect(cell("r9", "px")).toHaveAttribute("data-rule", "rich")
+    expect(cell("r9", "px")).toHaveAttribute("data-tone", "up")
+    expect(cell("r9", "px")).toHaveAttribute("aria-description", "Rich to the market")
+    expect(cell("r9", "px").className).toContain("text-up")
+    expect(cell("r1", "px")).toHaveAttribute("data-rule", "cheap")
+    expect(cell("r1", "px")).toHaveAttribute("aria-description", "Price below 101-16")
+    expect(cell("r3", "px")).not.toHaveAttribute("data-rule")
+    expect(cell("r3", "px")).not.toHaveAttribute("aria-description")
+    // The row rule marks the row, not the cell it read.
+    const big = document.querySelector<HTMLElement>('[data-row-id="r9"]')!
+    expect(big).toHaveAttribute("data-rule", "big")
+    expect(big).toHaveAttribute("data-tone", "primary")
+    expect(big).toHaveAttribute("aria-description", "Large")
+    expect(big.className).toContain("text-primary")
+    expect(cell("r9", "qty")).not.toHaveAttribute("data-rule")
+    expect(document.querySelector('[data-row-id="r2"]')).not.toHaveAttribute("data-rule")
+    // The frozen cell keeps its opaque background and paints the row's tint over it, so the row's color has no gap; the other cells leave it to the row.
+    expect(cell("r9", "sym").className).toContain("bg-background")
+    expect(cell("r9", "sym").className).toContain("linear-gradient(color-mix(in_oklab,var(--primary)")
+    expect(cell("r9", "qty").className).not.toContain("linear-gradient")
+    expect(cell("r2", "sym").className).not.toContain("linear-gradient")
+  })
+
+  it("filters and orders by the rules, and a header sort comes first with the rules breaking its ties", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(10, store)
+    const { rerender } = render(<DataGrid store={store} columns={ruled} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} rules={rules} />)
+    const grid = screen.getByRole("grid")
+    // r0 and r7 have a null qty and are filtered out; the rest run by qty, largest first.
+    expect(grid).toHaveAttribute("aria-rowcount", "9")
+    expect(screen.getAllByRole("row").slice(1).map((row) => row.getAttribute("data-row-id"))).toEqual(["r9", "r8", "r6", "r5", "r4", "r3", "r2", "r1"])
+    // A header sort by price ascending comes first; the rule's order would have reversed it.
+    rerender(<DataGrid store={store} columns={ruled} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} rules={rules} sort={{ key: "px", dir: "asc" }} />)
+    expect(screen.getAllByRole("row").slice(1).map((row) => row.getAttribute("data-row-id"))).toEqual(["r1", "r2", "r3", "r4", "r5", "r6", "r8", "r9"])
+    // Your own filter applies with the rules'.
+    rerender(<DataGrid store={store} columns={ruled} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} rules={rules} filter={(r) => r.px < 105} />)
+    expect(grid).toHaveAttribute("aria-rowcount", "5")
+  })
+
+  it("ignores the rules' filter and sort on a view of yours, and still colors by them", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(10, store)
+    const view = store.createView({ comparator: (a, b) => a.px - b.px })
+    render(<DataGrid store={store} columns={ruled} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} rules={rules} view={view} />)
+    expect(screen.getByRole("grid")).toHaveAttribute("aria-rowcount", "11")
+    expect(screen.getAllByRole("row")[1]).toHaveAttribute("data-row-id", "r0")
+    expect(cell("r9", "px")).toHaveAttribute("data-rule", "rich")
+    view.dispose()
+  })
+
+  it("puts a null last from the header whichever way the sort runs", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(10, store)
+    render(<DataGrid store={store} columns={ruled} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "qty", dir: "desc" }} />)
+    const ids = screen.getAllByRole("row").slice(1).map((row) => row.getAttribute("data-row-id"))
+    expect(ids.slice(0, 2)).toEqual(["r9", "r8"])
+    expect(ids.slice(-2).sort()).toEqual(["r0", "r7"])
   })
 })
 
