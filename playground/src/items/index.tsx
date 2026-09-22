@@ -1,6 +1,7 @@
 import type { ComponentType } from "react"
 import { BlotterScene } from "./blotter"
 import { CommandPaletteScene } from "./command-palette"
+import { CountdownScene } from "./countdown"
 import { DataGridScene } from "./data-grid"
 import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
@@ -35,6 +36,7 @@ export const items: Record<string, ItemScene> = {
   blotter: { title: "blotter", Scene: BlotterScene },
   workspace: { title: "workspace", Scene: WorkspaceScene },
   ticket: { title: "ticket", Scene: TicketScene },
+  countdown: { title: "countdown", Scene: CountdownScene },
   "tradecn-terminal": { title: "tradecn-terminal", Scene: TradecnTerminalScene },
   "tradecn-terminal-classic": { title: "tradecn-terminal-classic", Scene: TradecnTerminalClassicScene },
 }

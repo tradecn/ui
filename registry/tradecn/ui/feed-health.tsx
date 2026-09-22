@@ -1,9 +1,11 @@
 import { cn } from "cn"
-import { useState, useSyncExternalStore } from "react"
+import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useNow } from "@/registry/tradecn/hooks/use-clock"
+import { createClock, sharedClock, type Clock } from "@/registry/tradecn/lib/clock"
 
 // A strip that says, for each feed, whether it is connected and how old its data is.
 //
@@ -66,47 +68,9 @@ export function formatAge(ms: number | null): string {
   return `${Math.floor(ms / 3_600_000)}h`
 }
 
-export interface Clock {
-  subscribe(cb: () => void): () => void
-  /** The time of the last tick; stable between ticks. */
-  now(): number
-}
-
-/** One interval shared by every subscriber; it runs only while someone is listening. */
-export function createClock(intervalMs = 1000, source: () => number = Date.now): Clock {
-  let current = source()
-  let timer: ReturnType<typeof setInterval> | null = null
-  const listeners = new Set<() => void>()
-  return {
-    now: () => current,
-    subscribe(cb) {
-      listeners.add(cb)
-      if (timer === null) {
-        current = source()
-        timer = setInterval(() => {
-          current = source()
-          for (const l of listeners) l()
-        }, intervalMs)
-      }
-      return () => {
-        listeners.delete(cb)
-        if (!listeners.size && timer !== null) {
-          clearInterval(timer)
-          timer = null
-        }
-      }
-    },
-  }
-}
-
-let shared: Clock | null = null
-function sharedClock(): Clock {
-  return (shared ??= createClock(1000))
-}
-
-function useNow(clock: Clock): number {
-  return useSyncExternalStore(clock.subscribe, clock.now, clock.now)
-}
+// The clock lives in lib/clock so a countdown ticks on the same interval. Exported from here still, so nothing that imported it moves.
+export { createClock }
+export type { Clock }
 
 const TIER_CLASS: Record<Tier, string> = {
   live: "text-foreground",

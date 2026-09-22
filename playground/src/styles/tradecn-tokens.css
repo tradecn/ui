@@ -4,6 +4,8 @@
 :root {
   --down: oklch(0.58 0.19 45);
   --down-soft: oklch(0.58 0.19 45 / 18%);
+  --expiring: oklch(0.6 0.2 350);
+  --expiring-soft: oklch(0.6 0.2 350 / 18%);
   --flat: var(--color-muted-foreground);
   --flat-soft: oklch(0.55 0 0 / 14%);
   --link-1: oklch(0.62 0.2 25);
@@ -23,6 +25,8 @@
 .dark {
   --down: oklch(0.74 0.18 45);
   --down-soft: oklch(0.74 0.18 45 / 18%);
+  --expiring: oklch(0.74 0.17 350);
+  --expiring-soft: oklch(0.74 0.17 350 / 18%);
   --flat: var(--color-muted-foreground);
   --flat-soft: oklch(0.7 0 0 / 14%);
   --link-1: oklch(0.7 0.19 25);
@@ -42,6 +46,8 @@
 @theme inline {
   --color-down: var(--down);
   --color-down-soft: var(--down-soft);
+  --color-expiring: var(--expiring);
+  --color-expiring-soft: var(--expiring-soft);
   --color-flat: var(--flat);
   --color-flat-soft: var(--flat-soft);
   --color-link-1: var(--link-1);
