@@ -1,7 +1,7 @@
 // The site's one script, on the landing page and every docs page: the preview card's tabs and the
 // iframe's height from the message its page posts, the package-manager tabs on every install block,
-// the copy button on every code block, and the search. A file, not an inline script, so the site's
-// Content-Security-Policy can keep script-src to 'self'.
+// the copy button on every code block, the phone's menu, the version menu, and the search. A file, not
+// an inline script, so the site's Content-Security-Policy can keep script-src to 'self'.
 // Loaded in <head> and not deferred, on purpose: the parser stops here until it has run, so the
 // message listener below exists before any preview iframe is even parsed, let alone loaded (a
 // deferred copy lost that race on the live site, where the preview bundle is cached and this file is
@@ -132,10 +132,11 @@ async function goToVersion(version, latest) {
 }
 
 function versions() {
-  const select = document.querySelector(".version-select")
-  if (!select || !VERSION) return
+  // Two menus on a page, the header's and the phone menu's; the stylesheet shows one at a time and both say the same.
+  const selects = [...document.querySelectorAll(".version-select")]
+  if (!selects.length || !VERSION) return
   // Until the list arrives the menu holds the releases the page was built with, the newest of them first.
-  let latest = select.options[0]?.value ?? VERSION
+  let latest = selects[0].options[0]?.value ?? VERSION
   fetch(VERSIONS_INDEX)
     .then((response) => (response.ok ? response.json() : Promise.reject(new Error(`${VERSIONS_INDEX} answered ${response.status}`))))
     .then((index) => {
@@ -143,13 +144,57 @@ function versions() {
       // A list without this release (its tree is being published) leaves the menu as built.
       if (!listed.includes(VERSION)) return
       latest = typeof index.latest === "string" ? index.latest : listed[0]
-      select.replaceChildren(...listed.map((version) => new Option(version, version, false, version === VERSION)))
+      for (const select of selects) select.replaceChildren(...listed.map((version) => new Option(version, version, false, version === VERSION)))
     })
     .catch(() => {
       // The list did not load: the menu keeps the releases it was built with.
     })
-  select.addEventListener("change", () => {
-    goToVersion(select.value, latest)
+  for (const select of selects) {
+    select.addEventListener("change", () => {
+      goToVersion(select.value, latest)
+    })
+  }
+}
+
+// The menu. On a phone the header folds: its name and its sections give way to a Menu button, and the sidebar is
+// the panel it opens, over the page under the header, with the version and theme menus, Home, and the sections
+// ahead of the docs groups (the opening page has a panel of its own with just those). The state is on <html> as
+// data-menu, which the stylesheet reads, and the page behind holds still while it is open. Escape closes it and
+// hands focus back to the button; a link inside closes it too, so a heading on this same page is not scrolled to
+// behind it; widening the window past the fold closes it, since the sidebar is in the page again there.
+const MENU_OPEN = "open"
+const NARROW = "(max-width: 48rem)"
+
+function menu() {
+  const toggle = document.querySelector(".menu-toggle")
+  const header = document.querySelector(".site-header")
+  const panel = document.getElementById(toggle?.getAttribute("aria-controls") ?? "")
+  if (!toggle || !header || !panel) return
+  const root = document.documentElement
+  // The panel starts where the header ends, whatever height the header takes: one row, or two on the narrowest phone.
+  new ResizeObserver(() => root.style.setProperty("--header-height", `${header.offsetHeight}px`)).observe(header)
+  const isOpen = () => root.dataset.menu === MENU_OPEN
+  const set = (open) => {
+    if (open) root.dataset.menu = MENU_OPEN
+    else delete root.dataset.menu
+    toggle.setAttribute("aria-expanded", String(open))
+  }
+  toggle.addEventListener("click", () => {
+    set(!isOpen())
+    if (isOpen()) panel.focus({ preventScroll: true })
+  })
+  addEventListener("keydown", (event) => {
+    // The search dialog's Escape is its own.
+    if (event.key !== "Escape" || !isOpen() || document.querySelector("dialog[open]")) return
+    set(false)
+    toggle.focus()
+  })
+  panel.addEventListener("click", (event) => {
+    if (event.target.closest("a")) set(false)
+  })
+  const narrow = matchMedia(NARROW)
+  narrow.addEventListener("change", () => {
+    if (!narrow.matches) set(false)
   })
 }
 
@@ -412,6 +457,7 @@ function search() {
 }
 
 addEventListener("DOMContentLoaded", () => {
+  menu()
   versions()
   search()
   // Tabbed cards: the preview's Preview / Code and the Installation's Command / Manual. The card's bar is its

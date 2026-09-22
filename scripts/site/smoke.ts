@@ -10,7 +10,8 @@
 // on Enter, and a key pressed inside a preview never opens it, nor its key a demo's palette. Then the mode:
 // the page follows the system until the header's button makes a choice, which every preview on the page,
 // the next page, and another tab follow, and a press goes back. Then the theme: the header's menu offers
-// every theme the site carries, and choosing one re-colors the page and its previews the same way.
+// every theme the site carries, and choosing one re-colors the page and its previews the same way. Then
+// the phone: the header folds into a Menu button, and the sidebar is the panel it opens over the page.
 //   bun scripts/site/smoke.ts [--dist site/dist] [--base https://tradecn.dev] [--port 4174] [--headers site/headers.json]
 // Without --base it serves --dist itself, with the index.html rewrite the CloudFront function does and
 // the security headers the edge sends (--headers names another file, to prove a policy breaks the pages).
@@ -290,10 +291,11 @@ for (const item of items) {
     }
     // Names alone: no kind, no description, no code in the list.
     if (await page.locator(".item-list code, .item-list .kind, .item-list p").count()) failures.push("components: the list carries more than the names")
-    const headings = await page.locator(".sidebar h2").evaluateAll((els) => els.map((el) => el.textContent ?? ""))
+    // The docs groups alone: the sidebar also holds the phone menu's part, hidden here, with a heading of its own.
+    const headings = await page.locator(".docs-nav h2").evaluateAll((els) => els.map((el) => el.textContent ?? ""))
     if (headings.join(",") !== groups.join(",")) failures.push(`docs: the sidebar is grouped as ${headings.join(", ")}, the index as ${groups.join(", ")}`)
     for (const item of items) {
-      const heading = await page.locator(`.sidebar ul:has(a[href='/docs/${item}/'])`).locator("xpath=preceding-sibling::h2[1]").textContent()
+      const heading = await page.locator(`.docs-nav ul:has(a[href='/docs/${item}/'])`).locator("xpath=preceding-sibling::h2[1]").textContent()
       if (heading !== groupOf.get(`/docs/${item}/`)) failures.push(`docs: ${item} is listed under ${heading}, the index says ${groupOf.get(`/docs/${item}/`)}`)
     }
     const changelog = await page.goto(`${base}/docs/changelog/`, { waitUntil: "load" })
@@ -302,7 +304,7 @@ for (const item of items) {
     if (!(await page.locator("article h2").count())) failures.push("changelog: no release on the page")
     const intro = await page.goto(`${base}/docs/`, { waitUntil: "load" })
     if (!intro?.ok()) failures.push(`docs: /docs/ answered ${intro?.status()}`)
-    if (!(await page.locator(".sidebar a[href='/docs/'][aria-current='page']").count())) failures.push("docs: /docs/ is not the Introduction in the sidebar")
+    if (!(await page.locator(".docs-nav a[href='/docs/'][aria-current='page']").count())) failures.push("docs: /docs/ is not the Introduction in the sidebar")
     console.log(`ok  components, changelog, and introduction pages; the sidebar groups ${groups.join(", ")}`)
   } catch (error) {
     failures.push(`docs: ${firstLine(error)}`)
@@ -449,7 +451,8 @@ for (const item of items) {
     const first = await page.locator(".site-header nav.side > *").evaluateAll((els) => els.slice(0, 2).map((el) => el.className))
     if (first.join(",") !== "version-pick,search-button") failures.push(`versions: the header's links start ${first.join(", ")}, not the version menu then the search`)
     if (!(await select.isVisible())) failures.push("versions: no version menu in the header")
-    await page.waitForFunction((count) => document.querySelectorAll(".version-select option").length === count, versions.length, { timeout: 5_000 })
+    // The header's menu; the phone menu's copy, hidden here, fills from the same list.
+    await page.waitForFunction((count) => document.querySelectorAll(".site-header .version-select option").length === count, versions.length, { timeout: 5_000 })
     const options = await select.locator("option").evaluateAll((els) => els.map((el) => (el as HTMLOptionElement).value))
     if (options.join() !== versions.join()) failures.push(`versions: the menu lists ${options.join(", ")}, the list ${versions.join(", ")}`)
     if ((await select.inputValue()) !== current) failures.push(`versions: the menu shows ${await select.inputValue()} on ${current}'s pages`)
@@ -774,6 +777,113 @@ for (const item of items) {
     failures.push(`fonts: ${firstLine(error)}`)
   } finally {
     await page.close()
+  }
+}
+
+// The phone. The header folds: the name and the sections give way to a Menu button, the version and theme menus
+// leave the header, and the sidebar is the panel the button opens, over the page from under the header to the bottom
+// of the screen, holding the two menus, Home and the sections, then the groups the wide sidebar shows, each name at
+// a thumb's size. The page behind holds still; Escape closes it and hands focus back; a link closes it and goes. The
+// opening page has the button and a panel of the menus, Home, and the sections alone. At a laptop's width none of
+// this shows and the sidebar is in the page; without a script the sidebar is in the page on a phone too.
+{
+  const page = await context.newPage()
+  watch(page, "menu")
+  const toggle = page.locator(".site-header .menu-toggle")
+  const panel = page.locator("#site-menu")
+  const hidden = async (selector: string) => !(await page.locator(selector).isVisible())
+  const expanded = () => toggle.getAttribute("aria-expanded")
+  const headings = () => panel.locator("h2").evaluateAll((els) => els.map((el) => el.textContent ?? ""))
+  const pageOverflow = () => page.evaluate(() => getComputedStyle(document.documentElement).overflow)
+  try {
+    const index = await page.request.get(`${base}/${SEARCH_INDEX}`)
+    const groups = [...new Set(((await index.json()) as SearchPage[]).map((entry) => entry.group))]
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(`${base}/docs/${itemPreviews[0]}/`, { waitUntil: "load" })
+    if (!(await toggle.isVisible())) failures.push("menu: no Menu button in the header at 390px")
+    if ((await toggle.innerText()).trim() !== "Menu") failures.push(`menu: the button reads "${await toggle.innerText()}"`)
+    for (const [what, selector] of [
+      ["the name", ".site-header .name"],
+      ["the sections", ".site-header nav[aria-label='Sections']"],
+      ["the version menu", ".site-header .version-pick"],
+      ["the theme menu", ".site-header .theme-pick"],
+    ]) {
+      if (!(await hidden(selector!))) failures.push(`menu: ${what} shows in the header at 390px`)
+    }
+    for (const selector of [".site-header .search-button", ".site-header a.github", ".site-header .mode-toggle"]) if (await hidden(selector)) failures.push(`menu: ${selector} is gone from the header at 390px`)
+    // One row: the button, then the search, the GitHub mark, and the mode button.
+    const header = await page.locator(".site-header").boundingBox()
+    if (!header || header.height > 56) failures.push(`menu: the header is ${header ? Math.round(header.height) : "not"}px tall at 390px, more than one row`)
+    if (!(await hidden("#site-menu"))) failures.push("menu: the sidebar shows before the button is pressed")
+    if ((await expanded()) !== "false") failures.push(`menu: the button says aria-expanded=${await expanded()} while closed`)
+    await toggle.click()
+    if ((await expanded()) !== "true") failures.push("menu: the button does not say it is expanded")
+    if (!(await panel.isVisible())) failures.push("menu: the panel did not open")
+    // The panel covers the page from under the header to the bottom of the screen, edge to edge, and the page behind holds still.
+    const box = await panel.boundingBox()
+    if (!box || !header) failures.push("menu: the open panel has no box")
+    else if (Math.abs(box.y - (header.y + header.height)) > 1 || Math.round(box.width) !== 390 || Math.abs(box.y + box.height - 844) > 1) {
+      failures.push(`menu: the panel sits at y=${Math.round(box.y)}, ${Math.round(box.width)}x${Math.round(box.height)}, under a header ending at ${Math.round(header.y + header.height)} on an 844px screen`)
+    }
+    if ((await pageOverflow()) !== "hidden") failures.push(`menu: the page behind the open menu has overflow ${await pageOverflow()}`)
+    // The version and theme menus lead, then Home and the sections, then the groups the wide sidebar shows, at a thumb's size.
+    if (!(await panel.locator(".version-select").isVisible()) || !(await panel.locator(".theme-select").isVisible())) failures.push("menu: the version or theme menu is not in the panel")
+    const links = await panel.locator(".menu-sections a").evaluateAll((els) => els.map((el) => `${el.textContent}=${el.getAttribute("href")}`))
+    if (links.join(" ") !== "Home=/ Docs=/docs/ Components=/docs/components/ Changelog=/docs/changelog/ registry.json=/r/registry.json") failures.push(`menu: the panel opens with ${links.join(" ")}`)
+    const grouped = await headings()
+    if (grouped.join(",") !== ["Menu", ...groups].join(",")) failures.push(`menu: the panel is grouped as ${grouped.join(", ")}, not Menu then ${groups.join(", ")}`)
+    const size = await panel.locator(".docs-nav li a").first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+    if (size < 18) failures.push(`menu: the panel's names are ${size}px`)
+    // Escape closes it and hands focus back to the button; the page scrolls again.
+    await page.keyboard.press("Escape")
+    if (await panel.isVisible()) failures.push("menu: Escape did not close the panel")
+    if ((await expanded()) !== "false") failures.push("menu: the button still says it is expanded after Escape")
+    if (!(await toggle.evaluate((el) => el === document.activeElement))) failures.push("menu: focus did not return to the button after Escape")
+    if ((await pageOverflow()) === "hidden") failures.push("menu: the page is still held after the menu closed")
+    // A link closes it and goes.
+    await toggle.click()
+    await panel.locator(".docs-nav a[href='/docs/installation/']").click()
+    await page.waitForURL(`${base}/docs/installation/`, { timeout: 10_000 })
+    await page.waitForLoadState("load")
+    if (await panel.isVisible()) failures.push("menu: the panel is open on the next page")
+    if ((await expanded()) !== "false") failures.push("menu: the button says it is expanded on the next page")
+    // The opening page has the button and a panel of the two menus, Home, and the sections alone.
+    await page.goto(`${base}/`, { waitUntil: "load" })
+    if (!(await toggle.isVisible())) failures.push("menu: no Menu button on the opening page at 390px")
+    if (!(await hidden("#site-menu"))) failures.push("menu: the opening page's panel shows before the button is pressed")
+    await toggle.click()
+    if (!(await panel.isVisible())) failures.push("menu: the opening page's panel did not open")
+    const home = await headings()
+    if (home.join(",") !== "Menu") failures.push(`menu: the opening page's panel is grouped as ${home.join(", ")}, not Menu alone`)
+    if (!(await panel.locator(".theme-select").isVisible()) || !(await panel.locator(".menu-sections a[href='/docs/']").isVisible())) failures.push("menu: the opening page's panel lacks the theme menu or the Docs link")
+    await page.keyboard.press("Escape")
+    // At a laptop's width the button is gone, the header shows everything, and the sidebar is in the page with the groups alone.
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.goto(`${base}/docs/${itemPreviews[0]}/`, { waitUntil: "load" })
+    if (await toggle.isVisible()) failures.push("menu: the Menu button shows at 1280px")
+    for (const selector of [".site-header .name", ".site-header nav[aria-label='Sections']", ".site-header .version-select", ".site-header .theme-select"]) if (await hidden(selector)) failures.push(`menu: ${selector} is gone from the header at 1280px`)
+    if (!(await page.locator("#site-menu .docs-nav").isVisible())) failures.push("menu: the sidebar is not in the page at 1280px")
+    if (!(await hidden("#site-menu .menu-only"))) failures.push("menu: the phone menu's part shows in the sidebar at 1280px")
+    console.log(`ok  menu: the header folds at 390px into a Menu button over a panel of the menus, Home, the sections, and ${groups.length} groups; nothing of it at 1280px`)
+  } catch (error) {
+    failures.push(`menu: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+  // Without a script the button would open nothing, so it is not there, and the sidebar stays in the page, every group above the article.
+  const still = await browser.newContext({ viewport: { width: 390, height: 844 }, javaScriptEnabled: false })
+  const plain = await still.newPage()
+  try {
+    await plain.goto(`${base}/docs/${itemPreviews[0]}/`, { waitUntil: "load" })
+    if (await plain.locator(".site-header .menu-toggle").isVisible()) failures.push("menu: the Menu button shows without a script")
+    if (!(await plain.locator(".site-header .name").isVisible()) || !(await plain.locator(".site-header .version-select").isVisible())) failures.push("menu: the name or the version menu is gone from the header without a script")
+    if (!(await plain.locator("#site-menu .docs-nav").isVisible())) failures.push("menu: the sidebar is not in the page without a script")
+    if (await plain.locator("#site-menu .menu-only").isVisible()) failures.push("menu: the phone menu's part shows without a script")
+    console.log("ok  menu: without a script the sidebar stays in the page")
+  } catch (error) {
+    failures.push(`menu (no script): ${firstLine(error)}`)
+  } finally {
+    await still.close()
   }
 }
 
