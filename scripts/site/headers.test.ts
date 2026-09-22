@@ -105,8 +105,11 @@ describe("the site's security headers", () => {
 
   it("redeploy the stack when they change, since the policy lives at the edge and a page publish alone would leave the old one there", () => {
     const infra = readFileSync(resolve(root, ".github/workflows/infra.yml"), "utf8")
-    const [, pullRequest = "", push = ""] = infra.split(/^ {2}(?:pull_request|push):$/m)
-    expect(pullRequest).toContain(`- site/${HEADERS_FILE}`)
+    const [, push = ""] = infra.split(/^ {2}push:$/m)
     expect(push).toContain(`- site/${HEADERS_FILE}`)
+    // Every pull request synthesizes the stack in ci.yml, with no path filter, so a policy change is checked before it merges.
+    const ci = readFileSync(resolve(root, ".github/workflows/ci.yml"), "utf8")
+    expect(ci).toContain("bun run --cwd infra synth")
+    expect(ci).not.toMatch(/^ {4}paths:$/m)
   })
 })

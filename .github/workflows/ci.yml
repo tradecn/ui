@@ -92,3 +92,55 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bash scripts/ci/github-form.sh ${{ github.event.pull_request.head.sha || github.sha }}
+
+  # The tradecn.dev stack, synthesized on every pull request whatever it touches, so a change to
+  # infra/ or site/headers.json cannot merge unsynthesized behind the one required check.
+  # infra.yml deploys it on push.
+  infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile --cwd infra
+      - run: bun run --cwd infra typecheck
+      - run: bun run --cwd infra synth
+
+  # The one check to require, and the one auto-merge waits on. Green only when every job above is
+  # green and, on a pull request, the title and body pass scripts/ci/pull-request.ts as they read
+  # now: a title fixed after this ran stays red here until the job reruns. A release pull request
+  # gets this check from release-please.yml instead, since GitHub starts no workflow on one.
+  passed:
+    name: CI passed
+    needs: [verify, consumer-matrix, site, github-form, infra]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: The title and body as they read now
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          PR_TITLE="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .title)"
+          PR_BODY="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '.body // ""')"
+          export PR_TITLE PR_BODY
+          bun scripts/ci/pull-request.ts || {
+            echo "::error::Fix the title or body, then rerun this job. It reads them as they are now."
+            exit 1
+          }
+      - name: Every job
+        if: always()
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          # github-form skips itself on a pull request from a fork, whose commit the CLI cannot install by ref.
+          MAY_SKIP: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'github-form' || '' }}
+        run: bun scripts/ci/passed.ts

@@ -35,9 +35,13 @@ The body is the commit message, and release-please reads it too.
 - No line may start like a commit (`fix(data-grid): ...`). release-please would read it as a second commit and change the release. Say it another way.
 - A `BREAKING CHANGE:` paragraph without `!` in the title fails, and so does the reverse.
 
-## The check
+## The checks
 
-`pull-request` runs on every pull request, and again when you edit the title or body. It is `scripts/ci/pull-request.ts`, with a test table beside it. GitHub does not require it: a release pull request is opened by a bot, and GitHub won't run that pull request's workflows without a hand on the approve button, so a required check would sit between you and the tag. Green is still the bar to merge.
+`ci` runs on every pull request: `verify` (lint, types, tests, the validator, the registry build), `consumer-matrix` (three clean projects install the registry through the real CLI and render every item), `site` (tradecn.dev as the commit would publish it, smoke-tested in a browser), `github-form` (the install-by-ref path against the exact commit), and `infra` (the tradecn.dev stack synthesizes). `pull-request` checks the title and body against the rules above the moment you open or edit them. It is `scripts/ci/pull-request.ts`, with a test table beside it.
+
+`CI passed` is the one to watch, and the one the `main` ruleset requires. It goes green when every `ci` job is green and the title and body pass as they read at that moment. A title fixed after the run stays red there until the job reruns: Re-run failed jobs on the `ci` run, and it reads the pull request again. Enable auto-merge on a pull request and it merges the moment `CI passed` reports.
+
+A release pull request is opened by a bot with the workflow token, and GitHub starts no workflow on one. It gets `CI passed` from the `release-please` run instead, after every push to `main`: the commits it releases were each checked on their own pull request, and the release commit changes only the changelog, `version.txt`, the README's tag lines, and the manifest. Merging it is still a deliberate act. The same skip means a pull request that touches only those release files gets no `ci` run at all, so make such a change alongside something else.
 
 ## What releases
 
