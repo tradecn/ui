@@ -196,7 +196,7 @@ function ThresholdField({ value, unit, label, onChange }: ThresholdFieldProps) {
         spellCheck={false}
         aria-label={label}
         placeholder={unit === "mm" ? "mm" : "contracts"}
-        className="h-6 w-20 rounded-sm px-1.5 py-0 font-mono text-xs md:text-xs"
+        className="h-6 w-20 rounded-sm px-1.5 py-0 font-(family-name:--tradecn-font-mono) text-xs md:text-xs"
         onChange={(event) => {
           const next = event.target.value
           setText(next)
@@ -274,7 +274,7 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
   const menu = useCallback((rows: T[], ids: RowId[]) => latest.current.renderContextMenu?.(rows, ids), [])
 
   return (
-    <div data-slot="tradecn-rfq-stack" data-active={activeId ?? undefined} className={cn("flex h-full min-h-0 flex-col gap-1", className)}>
+    <div data-slot="tradecn-rfq-stack" data-active={activeId ?? undefined} className={cn("flex h-full min-h-0 flex-col gap-1 lining-nums tabular-nums", className)}>
       {showField && <ThresholdField value={threshold} unit={thresholdUnit} label={thresholdLabel} onChange={setThreshold} />}
       <div className="min-h-0 flex-1">
         <DataGrid<T> {...grid} store={store} preset="rfq" label={label} columns={all} filter={combined} onRowActivate={activate} getRowProps={rowProps} renderContextMenu={hasOwnMenu ? menu : undefined} />

@@ -573,7 +573,7 @@ export function CommandPalette({ actions, variant = "palette", open: openProp, d
   if (variant === "palette") {
     return (
       <CommandDialog open={open} onOpenChange={setOpen} title={labels.title} description={labels.description} className={className}>
-        <div data-slot="tradecn-command-palette" data-variant="palette">
+        <div data-slot="tradecn-command-palette" data-variant="palette" className="lining-nums tabular-nums">
           {body(true)}
         </div>
       </CommandDialog>
@@ -584,7 +584,7 @@ export function CommandPalette({ actions, variant = "palette", open: openProp, d
       ref={root}
       data-slot="tradecn-command-palette"
       data-variant="go-bar"
-      className={cn("relative w-full", className)}
+      className={cn("relative w-full lining-nums tabular-nums", className)}
       onBlur={(event: FocusEvent<HTMLDivElement>) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
       }}

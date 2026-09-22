@@ -53,7 +53,7 @@ export function Panel({ kind, active, dragTarget = false, error = false, classNa
         data-kind={kind}
         data-state={state}
         className={cn(
-          "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-border bg-card text-card-foreground outline-none",
+          "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-border bg-card text-card-foreground outline-none lining-nums tabular-nums",
           "data-[state=active]:border-panel-active data-[state=auto]:focus-within:border-panel-active",
           "data-[state=drag-target]:border-panel-drag-target data-[state=drag-target]:bg-panel-drag-target/10",
           "data-[state=error]:border-panel-error",
@@ -186,7 +186,7 @@ export function SymbolTag({ value, onCommit, normalize = defaultNormalize, valid
   }, [value])
 
   return (
-    <span ref={root} {...keepFromDrag} data-symbol-tag="" data-editing={editing} className={cn("inline-flex h-5 items-center rounded-sm font-mono text-xs", className)}>
+    <span ref={root} {...keepFromDrag} data-symbol-tag="" data-editing={editing} className={cn("inline-flex h-5 items-center rounded-sm font-(family-name:--tradecn-font-mono) text-xs", className)}>
       {editing ? (
         <Input
           ref={input}
@@ -202,7 +202,7 @@ export function SymbolTag({ value, onCommit, normalize = defaultNormalize, valid
           spellCheck={false}
           autoComplete="off"
           autoCapitalize="characters"
-          className="h-5 w-24 rounded-sm px-1 py-0 font-mono text-xs md:text-xs"
+          className="h-5 w-24 rounded-sm px-1 py-0 font-(family-name:--tradecn-font-mono) text-xs md:text-xs"
         />
       ) : (
         <button

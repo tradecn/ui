@@ -32,6 +32,8 @@ const store = createRowStore<Rfq>({ getRowId: (r) => r.id, lane: "ordered" })
 
 Rows subscribe to their own store entry through `useRow`. A delta to one row re-renders that row and nothing else; the header, the body, and the other rows do not run. A batch that touches two thousand rows is one commit over the rows that changed. Numeric cells flash by direction through one shared flash memory keyed by row and column, so a row that scrolls out of view and back resumes its flash where it was. The flash draws from the `up`, `down`, and `flat` tokens, added to your stylesheet if you do not have them.
 
+A `numeric` column is right-aligned and set in lining, tabular figures in the numeric family, `--tradecn-font-numeric`, and its cells carry `data-numeric`. Give a column of fraction quotes `font: "mono"` so `99-16+` over `99-17` keeps its dash and its tail in one place; [`typography.md`](typography.md) says why, and `numericFontClass` in [`format`](format.md) makes the same choice from a convention.
+
 Rows have a fixed height (from the preset, or `rowHeight`) and are positioned by TanStack Virtual. That is a requirement, not a limit: it is what makes `pinViewport` exact. When rows arrive above the first visible row, the grid moves `scrollTop` by exactly that many row heights and the trader's view does not jump.
 
 ### Presets

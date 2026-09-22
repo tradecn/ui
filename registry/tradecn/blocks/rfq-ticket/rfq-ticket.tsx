@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
-import { formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, quoteBasisOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
@@ -398,15 +398,17 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const hasSuggested = Boolean(inquiry.suggested && sides.some((side) => level(inquiry.suggested![side]) !== null))
 
   return (
-    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${inquiry.id}`} data-slot="tradecn-rfq-ticket" data-inquiry={inquiry.id} data-side={inquiry.side} data-status={inquiry.status} className={cn("block outline-none", className)}>
+    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${inquiry.id}`} data-slot="tradecn-rfq-ticket" data-inquiry={inquiry.id} data-side={inquiry.side} data-status={inquiry.status} className={cn("block outline-none lining-nums tabular-nums", className)}>
       <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground">
         <div className="flex items-start gap-2">
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <div className="flex flex-wrap items-baseline gap-x-1.5" data-rfq-headline>
               <span className="font-semibold">{inquiry.client?.name ?? labels.client}</span>{" "}
               <span className="text-muted-foreground">{sideWord}</span>{" "}
-              <span className="font-mono font-semibold tabular-nums">{size}</span>{" "}
-              <span className="font-mono font-semibold" data-rfq-instrument>
+              <span className="font-(family-name:--tradecn-font-mono) font-semibold lining-nums tabular-nums" data-numeric="">
+                {size}
+              </span>{" "}
+              <span className="font-(family-name:--tradecn-font-mono) font-semibold" data-rfq-instrument>
                 {description}
               </span>
             </div>
@@ -439,7 +441,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
         </div>
 
         {inquiry.context && inquiry.context.length > 0 && (
-          <dl className="flex flex-wrap gap-x-3 gap-y-0.5 tabular-nums" data-rfq-context>
+          <dl className="flex flex-wrap gap-x-3 gap-y-0.5 lining-nums tabular-nums" data-rfq-context>
             {inquiry.context.map((item) => (
               <div key={item.label} className="flex gap-1">
                 <dt className="text-muted-foreground">{item.label}</dt>
@@ -450,7 +452,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
         )}
 
         {showMarket && (
-          <div className="grid gap-x-3 gap-y-0.5 font-mono tabular-nums" style={{ gridTemplateColumns: `auto repeat(${sides.length}, minmax(0, 1fr))` }} data-rfq-market>
+          <div className={cn("grid gap-x-3 gap-y-0.5", numericFontClass(convention))} style={{ gridTemplateColumns: `auto repeat(${sides.length}, minmax(0, 1fr))` }} data-rfq-market data-numeric="">
             <span />
             {sides.map((side) => (
               <span key={side} className="text-right text-muted-foreground">
@@ -486,7 +488,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             return (
               <div key={side} className="flex flex-col gap-0.5">
                 <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} disabled={!quoting} error={problems[side]} inputRef={inputs[side]} />
-                <span className="h-4 text-right text-muted-foreground tabular-nums" data-rfq-distance={side} aria-live="off">
+                <span className="h-4 text-right text-muted-foreground lining-nums tabular-nums" data-rfq-distance={side} data-numeric="" aria-live="off">
                   {distance ? `${distance.text} ${labels.vsMarket}` : " "}
                 </span>
               </div>
@@ -496,7 +498,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
         <div className="flex flex-wrap items-center gap-2" data-rfq-actions={allowed.length}>
           {hasSuggested && (
-            <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-1.5 font-mono" disabled={!quoting} aria-label={`${labels.takeSuggested}: ${suggestedText}`} data-rfq-suggested onClick={takeSuggested}>
+            <Button type="button" variant="ghost" size="sm" className={cn("h-7 gap-1 px-1.5", numericFontClass(convention))} disabled={!quoting} aria-label={`${labels.takeSuggested}: ${suggestedText}`} data-rfq-suggested onClick={takeSuggested}>
               <span className="text-muted-foreground">{labels.suggested}</span>
               {suggestedText}
             </Button>

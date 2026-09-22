@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 // Open the built site in a browser and check every preview: the docs page frames it, the embed page
-// mounts it, the iframe takes the height it reports, and nothing errors on the way. Then the opening
+// mounts it, every number in it is set in lining tabular figures (contract rule 14), the iframe takes the
+// height it reports, and nothing errors on the way. Then the opening
 // page: the two ways in, and every item running in the showcase at the height it reported. Then the
 // Installation page: the install blocks switch package manager together, the choice survives to the
 // next page, and the copy buttons copy what is showing. Then the Components and Changelog pages answer,
@@ -73,6 +74,46 @@ const browser = await chromium.launch()
 // The copy buttons write the clipboard; the check reads it back.
 const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, permissions: ["clipboard-read", "clipboard-write"] })
 
+// The search index says which group each page is in. A preview whose page is under Get Started is a doc's
+// own demo (the Typography page's), not an item's: it has no Installation and is not in the showcase.
+const pageGroups = new Map<string, string>(((await (await context.request.get(`${base}/${SEARCH_INDEX}`)).json()) as SearchPage[]).map((entry) => [entry.path, entry.group]))
+const isItem = (name: string) => pageGroups.get(`/docs/${name}/`) !== "Get Started"
+const itemPreviews = items.filter(isItem)
+if (!itemPreviews.length) {
+  console.error(`none of ${items.join(", ")} is an item's preview`)
+  process.exit(1)
+}
+
+/**
+ * Contract rule 14, read off the rendered page: every element under a tradecn slot whose own text holds a
+ * digit, every input under one holding a number, and every node marked data-numeric is set in lining,
+ * tabular figures. Returns the offenders, each named by its slot and its data attributes.
+ */
+const numericProblems = (page: Page) =>
+  page.evaluate(() => {
+    const where = (el: Element) => {
+      const slot = el.closest("[data-slot^='tradecn-']")?.getAttribute("data-slot") ?? "page"
+      const attrs = [...el.attributes]
+        .filter((a) => a.name.startsWith("data-") && a.name !== "data-slot")
+        .map((a) => `[${a.name}${a.value ? `=${a.value}` : ""}]`)
+        .join("")
+      return `${slot} ${el.tagName.toLowerCase()}${attrs}`
+    }
+    const out: string[] = []
+    const seen = new Set<Element>()
+    const candidates = [...document.querySelectorAll("[data-slot^='tradecn-']")].flatMap((root) => [root, ...root.querySelectorAll("*")]).concat([...document.querySelectorAll("[data-numeric]")])
+    for (const el of candidates) {
+      if (seen.has(el)) continue
+      seen.add(el)
+      const own = [...el.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.textContent ?? "").join("")
+      const typed = el instanceof HTMLInputElement ? el.value : ""
+      if (!/\d/.test(own) && !/\d/.test(typed) && !el.hasAttribute("data-numeric")) continue
+      const variant = getComputedStyle(el).fontVariantNumeric
+      if (!variant.includes("lining-nums") || !variant.includes("tabular-nums")) out.push(`${where(el)}: font-variant-numeric is "${variant}"`)
+    }
+    return out
+  })
+
 function watch(page: Page, label: string) {
   page.on("pageerror", (error) => failures.push(`${label}: page error: ${error.message}`))
   page.on("console", (message) => {
@@ -98,6 +139,9 @@ for (const item of items) {
     if (!rendered) failures.push(`${item}: the demo mounted nothing`)
     const themed = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--primary").trim())
     if (!themed) failures.push(`${item}: the embed page has no --primary; the palette did not reach it`)
+    const font = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--tradecn-font-mono").trim())
+    if (!font) failures.push(`${item}: the embed page has no --tradecn-font-mono; the typography tokens did not reach it`)
+    for (const problem of await numericProblems(page)) failures.push(`${item}: ${problem}`)
     // The docs page frames it, and the height message arrives.
     await page.goto(`${base}/docs/${item}/`, { waitUntil: "load" })
     const frame = page.locator(`.preview[data-preview='${item}'] iframe`)
@@ -105,8 +149,9 @@ for (const item of items) {
     // A demo is taller than the root's padding alone; the height has to be the demo's, not the empty page's.
     await page.waitForFunction((name) => parseFloat((document.querySelector(`.preview[data-preview='${name}'] iframe`) as HTMLIFrameElement | null)?.style.height ?? "0") > 40, item, { timeout: 15_000 })
     const height = await frame.evaluate((el) => parseFloat((el as HTMLIFrameElement).style.height))
-    // The page's own headings are down the right, Installation first, and the arrows sit beside the title.
-    if (!(await page.locator(".toc a[href='#installation']").count())) failures.push(`${item}: the page lists no Installation under On this page`)
+    // The page's own headings are down the right, Installation first on an item's page, and the arrows sit beside the title.
+    if (isItem(item) && !(await page.locator(".toc a[href='#installation']").count())) failures.push(`${item}: the page lists no Installation under On this page`)
+    if (!isItem(item) && (await page.locator("#installation").count())) failures.push(`${item}: a doc's page grew an Installation section`)
     if (!(await page.locator(".arrows a[rel='prev'], .arrows a[rel='next']").count())) failures.push(`${item}: no arrows beside the title`)
     // The Code tab shows something, and swapping tabs works without a framework.
     await page.getByRole("tab", { name: "Code" }).click()
@@ -118,6 +163,10 @@ for (const item of items) {
     const source = await previewCode.evaluate((el) => el.textContent ?? "")
     await page.locator(".preview-code .copy").click()
     if ((await clipboard(page)) !== source.trimEnd()) failures.push(`${item}: the Code tab's copy button copied something else`)
+    if (!isItem(item)) {
+      console.log(`ok  ${item.padEnd(26)} ${Math.round(height)}px (a doc's demo)`)
+      continue
+    }
     // Installation: Command shows the pinned command under the page's package manager, npm until a reader picks
     // one; Manual opens on its tab and spells the install out with a consumer's imports, never the playground's.
     const command = await page.locator("#installation-command .command pre:visible code").innerText()
@@ -150,15 +199,15 @@ for (const item of items) {
       if (!(await page.locator(`.hero a.button[href='${href}']`, { hasText: text }).count())) failures.push(`opening: no "${text}" button to ${href}`)
     }
     const frames = page.locator(".showcase iframe[data-preview]")
-    if ((await frames.count()) !== items.length) failures.push(`opening: ${await frames.count()} items in the showcase, not ${items.length}`)
+    if ((await frames.count()) !== itemPreviews.length) failures.push(`opening: ${await frames.count()} items in the showcase, not ${itemPreviews.length}`)
     // Every frame takes its demo's height, including the ones far below the fold; a demo is taller than 40px.
     await page.waitForFunction(() => [...document.querySelectorAll(".showcase iframe[data-preview]")].every((el) => parseFloat((el as HTMLIFrameElement).style.height || "0") > 40), undefined, { timeout: 30_000 })
-    for (const item of items) {
+    for (const item of itemPreviews) {
       const card = page.locator(`.showcase .card[data-preview='${item}']`)
       if (!(await card.locator(`a[href='/docs/${item}/']`).count())) failures.push(`opening: the ${item} card does not link its page`)
     }
-    const heights = await Promise.all(items.map((item) => frameHeight(page, item)))
-    console.log(`ok  opening page: ${items.length} items running, ${Math.round(Math.min(...heights))}px to ${Math.round(Math.max(...heights))}px`)
+    const heights = await Promise.all(itemPreviews.map((item) => frameHeight(page, item)))
+    console.log(`ok  opening page: ${itemPreviews.length} items running, ${Math.round(Math.min(...heights))}px to ${Math.round(Math.max(...heights))}px`)
   } catch (error) {
     failures.push(`opening: ${firstLine(error)}`)
   } finally {
@@ -187,11 +236,11 @@ for (const item of items) {
     await page.locator(".code:not(.command) .copy").first().click()
     if (!(await clipboard(page)).includes('"@tradecn": "')) failures.push("installation: the components.json block did not copy")
     // The choice holds on the next page.
-    await page.goto(`${base}/docs/${items[0]}/`, { waitUntil: "load" })
+    await page.goto(`${base}/docs/${itemPreviews[0]}/`, { waitUntil: "load" })
     const kept = await page.locator("#installation-command .command pre:visible code").innerText()
-    if (!kept.startsWith("pnpm dlx ")) failures.push(`${items[0]}: shows "${kept}" after pnpm was picked on the Installation page`)
+    if (!kept.startsWith("pnpm dlx ")) failures.push(`${itemPreviews[0]}: shows "${kept}" after pnpm was picked on the Installation page`)
     const tab = await page.locator("#installation-command .command [role='tab'][aria-selected='true']").innerText()
-    if (tab !== "pnpm") failures.push(`${items[0]}: the ${tab} tab is selected after pnpm was picked on the Installation page`)
+    if (tab !== "pnpm") failures.push(`${itemPreviews[0]}: the ${tab} tab is selected after pnpm was picked on the Installation page`)
     console.log("ok  installation page: the install blocks, their copy buttons, and the package manager choice")
   } catch (error) {
     failures.push(`installation: ${firstLine(error)}`)
@@ -408,9 +457,9 @@ for (const item of items) {
     await page.waitForFunction(() => matchMedia("(prefers-color-scheme: dark)").matches, undefined, { timeout: 5_000 })
     if ((await modeOf(page)) !== "light") failures.push(`mode: the system's dark overrode the reader's light`)
     // The next page opens in the choice, and its preview with it.
-    await page.goto(`${base}/docs/${items[0]}/`, { waitUntil: "load" })
-    if ((await modeOf(page)) !== "light") failures.push(`mode: ${items[0]} opened in ${await modeOf(page)} after light was chosen`)
-    await page.locator(`.preview[data-preview='${items[0]}'] iframe`).waitFor({ timeout: 15_000 })
+    await page.goto(`${base}/docs/${itemPreviews[0]}/`, { waitUntil: "load" })
+    if ((await modeOf(page)) !== "light") failures.push(`mode: ${itemPreviews[0]} opened in ${await modeOf(page)} after light was chosen`)
+    await page.locator(`.preview[data-preview='${itemPreviews[0]}'] iframe`).waitFor({ timeout: 15_000 })
     await framesIn(page, "light")
     // The 404 page has no script and no button; it follows the system. A 404 document logs its own status
     // as a console error, and that one line is expected here.
@@ -429,7 +478,7 @@ for (const item of items) {
     await lost.emulateMedia({ colorScheme: "light" })
     if ((await backgroundOf(lost)) !== light) failures.push(`mode: under a light system the 404 page's background is ${await backgroundOf(lost)}, not ${light}`)
     await lost.close()
-    console.log(`ok  mode: the system, the button, ${items.length} previews following, the next page, another tab, and the 404 page`)
+    console.log(`ok  mode: the system, the button, ${itemPreviews.length} previews following, the next page, another tab, and the 404 page`)
   } catch (error) {
     failures.push(`mode: ${firstLine(error)}`)
   } finally {
@@ -440,7 +489,7 @@ for (const item of items) {
 // No page scrolls sideways, at a desktop, a laptop under the on-page column's breakpoint, a tablet, and a phone:
 // a wide table or code block scrolls inside its own box, never the page. The tokens table once did.
 {
-  const pages = ["/", "/docs/", "/docs/installation/", "/docs/components/", "/docs/theming/", "/docs/changelog/", `/docs/${items[0]}/`]
+  const pages = ["/", "/docs/", "/docs/installation/", "/docs/components/", "/docs/theming/", "/docs/changelog/", "/docs/typography/", `/docs/${itemPreviews[0]}/`]
   const widths = [1280, 1024, 768, 390]
   const page = await context.newPage()
   watch(page, "overflow")

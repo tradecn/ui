@@ -10,7 +10,9 @@
 @custom-variant dark (&:is(.dark *));
 
 /* The fonts are variables, not inlined: the embedded previews set --font-sans to the theme's stack
-   on :root, the way the theme item does in a consumer's stylesheet. main.tsx loads Inter. */
+   on :root, the way the theme item does in a consumer's stylesheet. main.tsx loads Inter Variable for
+   the playground's own chrome; main.tsx and embed.tsx also load Inter and JetBrains Mono under those
+   plain names, the defaults behind --tradecn-font-sans and --tradecn-font-mono. */
 @theme {
     --font-heading: var(--font-sans);
     --font-sans: 'Inter Variable', sans-serif;

@@ -34,6 +34,10 @@ They were picked by hand and checked by arithmetic: a test converts each `oklch(
 
 The browser matrix installs the theme alone into each of the three consumers, runs every other test again under it, and reads each color back out of the page, comparing colors and not text, since a production build respells `oklch(0.26 0.03 70)` as `oklch(26% .03 70)`.
 
+### Typography
+
+It sets the typography tokens with the rest, at their defaults, with one exception: a terminal is a monospace screen, so `--tradecn-font-numeric` is `var(--tradecn-font-mono)` and a grid's prices set in the mono stack instead of the sans, a design preference that keeps a themed grid in one family. Below its variables it appends three base rules: `font-variant-numeric: lining-nums tabular-nums` on `:root` and on `.tradecn-num, [data-numeric]`, and the `data-accessibility="hyperlegible"` remap. The typography release added tokens and rules and renamed or removed nothing, so a `--diff` against an earlier install shows additions only. [`typography.md`](typography.md) has the tokens, the research, and the checklist.
+
 ### What it does not do
 
 Change a component, add a font file, or ship a light variant. The monospace stack is system fonts only (`ui-monospace`, SF Mono, Menlo, Consolas, Liberation Mono); put your own at the front of `--font-sans` if you have one. It does not switch at runtime: it is values in your stylesheet, and a theme switcher is yours to build over them.

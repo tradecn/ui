@@ -18,6 +18,21 @@
   --panel-sync: oklch(0.7 0.12 220);
   --stale: oklch(0.72 0.16 75);
   --stale-soft: oklch(0.72 0.16 75 / 16%);
+  --tradecn-color-body-bg: oklch(0.98 0 0);
+  --tradecn-color-body-fg: oklch(0.2 0 0);
+  --tradecn-font-accessible: 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif;
+  --tradecn-font-accessible-mono: 'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --tradecn-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --tradecn-font-numeric: var(--tradecn-font-sans);
+  --tradecn-font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --tradecn-font-weight-body: 450;
+  --tradecn-font-weight-grid: 500;
+  --tradecn-line-height-body: 1.45;
+  --tradecn-line-height-grid: 1.35;
+  --tradecn-numeric-variant: lining-nums tabular-nums;
+  --tradecn-text-size-body: 14px;
+  --tradecn-text-size-grid: 13px;
+  --tradecn-text-size-grid-min: 12px;
   --up: oklch(0.58 0.14 165);
   --up-soft: oklch(0.58 0.14 165 / 18%);
 }
@@ -39,6 +54,21 @@
   --panel-sync: oklch(0.78 0.12 220);
   --stale: oklch(0.8 0.15 80);
   --stale-soft: oklch(0.8 0.15 80 / 16%);
+  --tradecn-color-body-bg: oklch(0.14 0 0);
+  --tradecn-color-body-fg: oklch(0.96 0 0);
+  --tradecn-font-accessible: 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif;
+  --tradecn-font-accessible-mono: 'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --tradecn-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --tradecn-font-numeric: var(--tradecn-font-sans);
+  --tradecn-font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --tradecn-font-weight-body: 450;
+  --tradecn-font-weight-grid: 500;
+  --tradecn-line-height-body: 1.45;
+  --tradecn-line-height-grid: 1.35;
+  --tradecn-numeric-variant: lining-nums tabular-nums;
+  --tradecn-text-size-body: 14px;
+  --tradecn-text-size-grid: 13px;
+  --tradecn-text-size-grid-min: 12px;
   --up: oklch(0.74 0.15 165);
   --up-soft: oklch(0.74 0.15 165 / 18%);
 }
@@ -60,6 +90,27 @@
   --color-panel-sync: var(--panel-sync);
   --color-stale: var(--stale);
   --color-stale-soft: var(--stale-soft);
+  --color-tradecn-color-body-bg: var(--tradecn-color-body-bg);
+  --color-tradecn-color-body-fg: var(--tradecn-color-body-fg);
+  --tradecn-font-accessible: var(--tradecn-font-accessible);
+  --tradecn-font-accessible-mono: var(--tradecn-font-accessible-mono);
+  --tradecn-font-mono: var(--tradecn-font-mono);
+  --tradecn-font-numeric: var(--tradecn-font-numeric);
+  --tradecn-font-sans: var(--tradecn-font-sans);
+  --tradecn-font-weight-body: var(--tradecn-font-weight-body);
+  --tradecn-font-weight-grid: var(--tradecn-font-weight-grid);
+  --tradecn-line-height-body: var(--tradecn-line-height-body);
+  --tradecn-line-height-grid: var(--tradecn-line-height-grid);
+  --tradecn-numeric-variant: var(--tradecn-numeric-variant);
+  --tradecn-text-size-body: var(--tradecn-text-size-body);
+  --tradecn-text-size-grid: var(--tradecn-text-size-grid);
+  --tradecn-text-size-grid-min: var(--tradecn-text-size-grid-min);
   --color-up: var(--up);
   --color-up-soft: var(--up-soft);
+}
+
+/* The accessibility remap every item that reads a font token installs (docs/typography.md). */
+:root[data-accessibility="hyperlegible"], [data-accessibility="hyperlegible"] {
+  --tradecn-font-sans: var(--tradecn-font-accessible);
+  --tradecn-font-mono: var(--tradecn-font-accessible-mono);
 }

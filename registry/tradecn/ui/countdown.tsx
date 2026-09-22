@@ -127,9 +127,11 @@ export function Countdown({ expiresAt, startsAt, thresholds = PROVISIONAL_COUNTD
       aria-label={label}
       data-slot="tradecn-countdown"
       data-tier={tier}
-      className={cn(compact ? "inline-flex items-baseline" : "inline-flex min-w-16 flex-col gap-0.5 rounded px-1", "text-xs tabular-nums", tier === "soon" && !compact && "bg-expiring-soft", TIER_CLASS[tier], className)}
+      className={cn(compact ? "inline-flex items-baseline" : "inline-flex min-w-16 flex-col gap-0.5 rounded px-1", "text-xs lining-nums tabular-nums", tier === "soon" && !compact && "bg-expiring-soft", TIER_CLASS[tier], className)}
     >
-      <span data-countdown-digits>{formatRemaining(remaining)}</span>
+      <span data-countdown-digits data-numeric="">
+        {formatRemaining(remaining)}
+      </span>
       {!compact && (
         <span aria-hidden className="block h-1 w-full overflow-hidden rounded-full bg-muted">
           <span ref={bar} className={cn("block h-full w-full origin-left", BAR_CLASS[tier])} style={staticBar ? { transform: `scaleX(${fraction})` } : undefined} />

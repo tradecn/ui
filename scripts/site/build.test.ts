@@ -412,6 +412,7 @@ describe("the docs pages", async () => {
     expect(byPath.has("docs/theming/index.html")).toBe(true)
     expect(byPath.has("docs/changelog/index.html")).toBe(true)
     expect(byPath.has("docs/contract/index.html")).toBe(true)
+    expect(byPath.has("docs/typography/index.html")).toBe(true)
     expect(byPath.has("docs/data-grid/index.html")).toBe(true)
   })
 
@@ -419,7 +420,7 @@ describe("the docs pages", async () => {
     const itemSlugs = registry.items.map((item) => item.name).filter((name) => docSlugs.has(name))
     expect(tagDocs.filter((doc) => doc.item).map((doc) => doc.slug)).toEqual(itemSlugs)
     const byGroup = GROUPS.flatMap((group) => registry.items.filter((item) => docSlugs.has(item.name) && groupOf(item) === group).map((item) => item.name))
-    expect(docs.map((doc) => doc.slug)).toEqual([...START_PAGES, "contract", ...byGroup])
+    expect(docs.map((doc) => doc.slug)).toEqual([...START_PAGES, "contract", "typography", ...byGroup])
     // The registry lists the utilities first; the pages put the components first and never mix the kinds.
     expect(byGroup).not.toEqual(itemSlugs)
     expect(docs.filter((doc) => doc.item).map((doc) => groupOf(doc.item))).toEqual([
@@ -437,7 +438,7 @@ describe("the docs pages", async () => {
   it("groups the sidebar by kind, marks the current page, and links every other page", () => {
     const nav = docsNav(docs, "format")
     expect(nav).toContain('<h2>Get Started</h2>\n<ul>\n<li><a href="/docs/">Introduction</a></li>\n<li><a href="/docs/installation/">Installation</a></li>')
-    expect(nav).toContain('<li><a href="/docs/changelog/">Changelog</a></li>\n<li><a href="/docs/contract/">The item contract</a></li>\n</ul>')
+    expect(nav).toContain('<li><a href="/docs/changelog/">Changelog</a></li>\n<li><a href="/docs/contract/">The item contract</a></li>\n<li><a href="/docs/typography/">Typography</a></li>\n</ul>')
     // A utility is not a component: format sits under Utilities, use-hotkeys under Hooks, the themes under Themes, and only the ui items and the block under Components.
     expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/flash-cell/">flash-cell</a></li>')
     expect(nav).toContain('<li><a href="/docs/workspace/">workspace</a></li>\n<li><a href="/docs/ticket/">ticket</a></li>\n<li><a href="/docs/countdown/">countdown</a></li>\n<li><a href="/docs/quote-field/">quote-field</a></li>\n<li><a href="/docs/rfq-ticket/">rfq-ticket</a></li>\n<li><a href="/docs/rfq-stack/">rfq-stack</a></li>\n<li><a href="/docs/perf-monitor/">perf-monitor</a></li>\n<li><a href="/docs/hotkey-editor/">hotkey-editor</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">use-hotkeys</a></li>\n</ul>')
@@ -531,6 +532,11 @@ describe("the docs pages", async () => {
     // A shadcn variable paints through the page's own palette.
     expect(theming).toContain('<span class="swatch" style="background: var(--muted-foreground)"></span><code>var(--color-muted-foreground)</code>')
     expect(theming).toContain("<code>--link-1</code>")
+    // A typography token is listed with the items that add it and no swatch, since a font stack paints nothing.
+    expect(theming).toMatch(/<tr><td><code>--tradecn-font-mono<\/code><\/td><td class="value"><code>&#39;JetBrains Mono&#39;, ui-monospace/)
+    expect(theming).not.toMatch(/<span class="swatch" style="background: &#39;/)
+    // The numeric variant is a theme's token alone: the items set the figures with utilities, so no item adds it.
+    expect(theming).not.toContain("<code>--tradecn-numeric-variant</code>")
     expect(theming).toContain("<code>--panel-active</code>")
     expect(theming).not.toContain("<code>--sidebar</code>")
     expect(theming).toContain('<li><a href="/docs/tradecn-terminal/"><code>tradecn-terminal</code></a> ')
@@ -636,7 +642,8 @@ describe("the docs pages", async () => {
     const last = docs.at(-1)!
     expect(at(`docs/${last.slug}/index.html`)).toContain(`<a rel="prev" href="${docs.at(-2)!.path}">← ${docs.at(-2)!.slug}</a>\n<span></span>`)
     expect(at("docs/contract/index.html")).toContain(`<a rel="prev" href="/docs/changelog/">← Changelog</a>`)
-    expect(at("docs/contract/index.html")).toContain(`<a rel="next" href="/docs/${items[0]!.slug}/">${items[0]!.slug} →</a>`)
+    expect(at("docs/contract/index.html")).toContain(`<a rel="next" href="/docs/typography/">Typography →</a>`)
+    expect(at("docs/typography/index.html")).toContain(`<a rel="next" href="/docs/${items[0]!.slug}/">${items[0]!.slug} →</a>`)
   })
 
   it("refuses a doc with its own Installation heading, an item whose files the checkout lacks, and a site page with a placeholder the builder does not set", async () => {

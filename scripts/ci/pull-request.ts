@@ -25,8 +25,8 @@ export const TYPES = {
 export type Type = keyof typeof TYPES
 export type Bump = "major" | "minor" | "patch" | "none"
 
-/** Scopes that are not items. `main` is release-please's own: `chore(main): release x.y.z`. */
-export const SCOPES = ["repo", "registry", "contract", "rig", "site", "infra", "ci", "deps", "main"] as const
+/** Scopes that are not items. `typography` is the font system, which runs through every item and the themes. `main` is release-please's own: `chore(main): release x.y.z`. */
+export const SCOPES = ["repo", "registry", "contract", "typography", "rig", "site", "infra", "ci", "deps", "main"] as const
 
 const HEADER = /^(?<type>[a-z]+)(?:\((?<scope>[^()]*)\))?(?<bang>!)?: (?<subject>.*)$/
 /** release-please splits a squash body at a paragraph that starts like a commit and reads a footer that looks like one as a commit. */

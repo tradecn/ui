@@ -97,7 +97,7 @@ export interface FeedAgeProps {
 export function FeedAge({ feed, clock, className }: FeedAgeProps) {
   const now = useNow(clock ?? sharedClock())
   return (
-    <span aria-hidden className={cn("tabular-nums", className)}>
+    <span aria-hidden data-numeric="" className={cn("lining-nums tabular-nums", className)}>
       {formatAge(feed.lastMessageAt === null ? null : Math.max(0, now - feed.lastMessageAt))}
     </span>
   )
@@ -130,7 +130,7 @@ function FeedItem({ feed, thresholds, session, clock, compact }: ItemProps) {
           </Badge>
         )}
         <FeedAge feed={feed} clock={clock} />
-        {feed.lane === "coalesced" && Boolean(feed.dropped) && <span className="tabular-nums text-muted-foreground">{`drop ${feed.dropped!.toLocaleString()}`}</span>}
+        {feed.lane === "coalesced" && Boolean(feed.dropped) && <span className="text-muted-foreground lining-nums tabular-nums">{`drop ${feed.dropped!.toLocaleString()}`}</span>}
         {feed.lane === "ordered" && feed.gap && (
           <span className="inline-flex items-center gap-1 text-stale">
             {feed.gap.replaying && <Spinner className="size-3" />}
@@ -139,7 +139,7 @@ function FeedItem({ feed, thresholds, session, clock, compact }: ItemProps) {
         )}
       </TooltipTrigger>
       <TooltipContent>
-        <div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 text-left tabular-nums">
+        <div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 text-left lining-nums tabular-nums">
           <span>State</span>
           <span>{feed.state}</span>
           <span>Data</span>
@@ -208,7 +208,7 @@ export function FeedHealth({ feeds, thresholds = PROVISIONAL_THRESHOLDS, session
   // exports TooltipProvider, so the strip brings its own and works in a consumer that never added one.
   return (
     <TooltipProvider>
-      <div role="group" aria-label="Feed health" data-slot="tradecn-feed-health" className={cn("flex items-center gap-1", className)}>
+      <div role="group" aria-label="Feed health" data-slot="tradecn-feed-health" className={cn("flex items-center gap-1 lining-nums tabular-nums", className)}>
         {feeds.map((feed, i) => (
           <span key={feed.id} className="inline-flex items-center gap-1">
             {i > 0 && <Separator orientation="vertical" className="h-3" />}

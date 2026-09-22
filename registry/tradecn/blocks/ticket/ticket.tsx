@@ -8,7 +8,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
-import { formatPrice, formatQuantity, stepByTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, formatPrice, formatQuantity, numericFontClass, stepByTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
 
@@ -371,7 +371,7 @@ export function Ticket({
     const value = reference?.[name]
     if (typeof value !== "number") return null
     return (
-      <Button key={name} type="button" variant="ghost" size="sm" className="h-5 gap-1 px-1 font-mono text-xs" disabled={disabled || !priced} aria-label={`${label} ${formatPrice(value, convention.price)}, use it`} data-reference={name} onClick={() => setPrice(value)}>
+      <Button key={name} type="button" variant="ghost" size="sm" className={cn("h-5 gap-1 px-1 text-xs", numericFontClass(convention.price))} disabled={disabled || !priced} aria-label={`${label} ${formatPrice(value, convention.price)}, use it`} data-reference={name} onClick={() => setPrice(value)}>
         <span className="text-muted-foreground">{label}</span>
         {formatPrice(value, convention.price)}
       </Button>
@@ -398,10 +398,10 @@ export function Ticket({
   )
 
   return (
-    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} className={cn("block outline-none", className)}>
+    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} className={cn("block outline-none lining-nums tabular-nums", className)}>
       <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-sm font-semibold" data-ticket-symbol>
+          <span className="font-(family-name:--tradecn-font-mono) text-sm font-semibold" data-ticket-symbol>
             {instrument.symbol}
           </span>
           <span className="ml-auto flex items-center gap-1">
@@ -419,7 +419,7 @@ export function Ticket({
         <div className="grid grid-cols-2 gap-2">
           <Field data-invalid={problems.quantity ? true : undefined}>
             <FieldLabel htmlFor={`${id}-quantity`}>{labels.quantity}</FieldLabel>
-            <Input id={`${id}-quantity`} value={quantityText} inputMode="decimal" autoComplete="off" spellCheck={false} disabled={disabled} aria-invalid={problems.quantity ? true : undefined} className="h-7 font-mono text-xs md:text-xs" onChange={(event) => onQuantityChange(event.target.value)} onBlur={onQuantityBlur} onKeyDown={stepper(stepQuantity)} />
+            <Input id={`${id}-quantity`} value={quantityText} inputMode="decimal" autoComplete="off" spellCheck={false} disabled={disabled} aria-invalid={problems.quantity ? true : undefined} data-numeric="" className={cn("h-7 text-xs md:text-xs", NUMERIC_CLASS)} onChange={(event) => onQuantityChange(event.target.value)} onBlur={onQuantityBlur} onKeyDown={stepper(stepQuantity)} />
             {problems.quantity && <FieldError>{problems.quantity}</FieldError>}
           </Field>
           <QuoteField

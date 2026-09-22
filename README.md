@@ -82,6 +82,8 @@ npx shadcn@latest add tooltip --diff                       # a shadcn change und
 
 No icon library either. shadcn picks a different one per base, so the grid draws its own three dots.
 
+No font files either. [`typography.md`](docs/typography.md) says which families the components expect and why, with the research behind each, and every one of them is a CSS variable you set once. Any component rendering numeric data MUST set `font-variant-numeric: lining-nums tabular-nums` on the numeric node. That is the one rule the components enforce on their own, whatever font you chose.
+
 ## Numbers
 
 Apple M5 Max, 128 GB, macOS 27.0, headless Chromium 153, 2026-09-20. 1,000 rows, 60 visible, 12 numeric columns, every patch applied in one batch per animation frame, 10 seconds measured after 1 second of warm-up.

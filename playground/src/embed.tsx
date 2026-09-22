@@ -1,11 +1,20 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
+import "@fontsource/inter/400.css"
+import "@fontsource/inter/500.css"
+import "@fontsource/inter/600.css"
+import "@fontsource/jetbrains-mono/400.css"
+import "@fontsource/jetbrains-mono/500.css"
+import "@fontsource/jetbrains-mono/600.css"
 import "./index.css"
 import { demos } from "./demos"
 
 // The entry tradecn.dev embeds: one demo per page, named by the root's data-item, mounted in an
 // iframe the docs page sizes from the height this posts. The palette is the page's, written by
-// scripts/site/build.ts around this bundle, so the demo and the docs share one theme.
+// scripts/site/build.ts around this bundle, so the demo and the docs share one theme. The two default
+// faces are self-hosted through Fontsource's static packages, which register them under the names the
+// tokens use ('Inter', 'JetBrains Mono'; the variable packages say 'Inter Variable'), so a preview calls
+// no third party for its type and still gets the face the token names.
 const root = document.getElementById("root")
 if (!root) throw new Error("no #root to mount the demo in")
 const item = root.dataset.item ?? ""

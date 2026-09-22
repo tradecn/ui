@@ -22,7 +22,7 @@ Why `docs` doesn't: tradecn.dev shows the docs of the tag it serves. A docs fix 
 
 `!` goes on a type that releases. `docs!` would cut a major for a change nobody installs, so the check refuses it.
 
-The scope is the item you changed (`ticket`, `use-hotkeys`), or one of `repo`, `registry`, `contract`, `rig`, `site`, `infra`, `ci`, `deps`. `main` is release-please's own.
+The scope is the item you changed (`ticket`, `use-hotkeys`), or one of `repo`, `registry`, `contract`, `typography`, `rig`, `site`, `infra`, `ci`, `deps`. `main` is release-please's own.
 
 Dependency bumps are `build(deps)`. `package.json` sits at the root, where release-please can't ignore it by path, so the type does the ignoring.
 
