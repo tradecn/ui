@@ -716,6 +716,14 @@ test("a rules editor builds a highlight, a filter, and a sort key that the grid 
   await expect(scene.locator("[data-rules-state]")).toHaveAttribute("data-rules-state", /"sort":\[\{"key":"size","dir":"desc"\}\]/)
 })
 
+// The envelope's round trip through the installed lib: a template export carries the template slot alone,
+// the person's export carries theirs too and never the session's, and an import under the template
+// boundary lands only the template slot.
+test("a preferences envelope keeps its boundaries through export and import", async ({ page }) => {
+  await page.goto("/")
+  await expect(page.locator("section[data-scene='preferences'] [data-slot='tradecn-preferences']")).toHaveText("layout | layout,hotkeys | layout")
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.

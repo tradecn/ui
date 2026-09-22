@@ -11,6 +11,7 @@ import { GridRulesScene } from "./grid-rules"
 import { HotkeyEditorScene } from "./hotkey-editor"
 import { PanelScene } from "./panel"
 import { PerfMonitorScene } from "./perf-monitor"
+import { PreferencesScene } from "./preferences"
 import { QuoteFieldScene } from "./quote-field"
 import { RfqStackScene } from "./rfq-stack"
 import { RfqTicketScene } from "./rfq-ticket"
@@ -54,6 +55,7 @@ export const items: Record<string, ItemScene> = {
   "column-chooser": { title: "column-chooser", Scene: ColumnChooserScene },
   "rules-editor": { title: "rules-editor", Scene: RulesEditorScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
+  preferences: { title: "preferences", Scene: PreferencesScene },
   "tradecn-slate": { title: "tradecn-slate", Scene: TradecnSlateScene },
   "tradecn-slate-east": { title: "tradecn-slate-east", Scene: TradecnSlateEastScene },
   "tradecn-amber": { title: "tradecn-amber", Scene: TradecnAmberScene },

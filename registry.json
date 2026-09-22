@@ -1888,6 +1888,23 @@
       }
     },
     {
+      "name": "preferences",
+      "type": "registry:lib",
+      "title": "Preferences",
+      "description": "The envelope everything a trader or a desk changes without a build travels in: slots with a version and a JSON value for a workspace layout, a grid's column state, hotkey overrides, rules, a threshold, and a payload that says which slots may leave as a desk template, which are one person's, and which never leave a session. Parse, set, read, diff, export, import, and migrate; not a store and not a provider.",
+      "categories": [
+        "layout"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/lib/preferences.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "docs": "Pure functions, no dependencies. The items keep their controlled props; wire a slot to a prop with setSlot and readSlot, and keep the envelope wherever your app keeps things."
+    },
+    {
       "name": "tradecn-amber",
       "type": "registry:theme",
       "title": "Amber",
