@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{title}} · tradecn/ui</title>
 <meta name="description" content="{{description}}">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="light dark">
 <link rel="canonical" href="{{siteUrl}}{{path}}">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
@@ -15,8 +15,10 @@
 }
 </style>
 <link rel="stylesheet" href="/site.css">
-<!-- Blocking, in the head, so the page is listening for a preview's height before the iframe exists,
-     and knows the reader's package manager before the first install block is parsed. -->
+<!-- Blocking, in the head: the mode is on <html> before anything paints, the page is listening for a
+     preview's height before the iframe exists, and it knows the reader's package manager before the
+     first install block is parsed. -->
+<script src="/theme.js"></script>
 <script src="/site.js"></script>
 </head>
 <body>

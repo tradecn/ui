@@ -15,6 +15,8 @@ import {
   FAVICON,
   firstParagraph,
   installationSection,
+  LIGHT_PALETTE,
+  MODE_BUTTON,
   PAGES,
   readChangelog,
   readDemos,
@@ -86,11 +88,13 @@ describe("the opening page", () => {
     expect(page).not.toContain("shadcn@latest add")
   })
 
-  it("wears the header every page shares, with the sections, the search, and the links out", () => {
+  it("wears the header every page shares, with the sections, the search, the links out, and the mode button last", () => {
     expect(page).toContain('<header class="site-header">')
     expect(page).toContain('<a href="/docs/">Docs</a><a href="/docs/components/">Components</a><a href="/docs/changelog/">Changelog</a>')
     expect(page).toContain(`${SEARCH_BUTTON}<a href="https://github.com/tradecn/ui">GitHub</a><a href="/r/registry.json">registry.json</a>`)
-    expect(page).toContain(`<span class="tag">${tag}</span>`)
+    expect(page).toContain(`<span class="tag">${tag}</span>${MODE_BUTTON}</nav>`)
+    expect(MODE_BUTTON).toContain('<button type="button" class="mode-toggle" aria-label="Toggle theme">')
+    expect(page.match(/class="mode-toggle"/g)).toHaveLength(1)
     expect(page).toContain('<link rel="stylesheet" href="/site.css">')
     expect(siteHeader(tag, "components")).toContain('<a href="/docs/components/" aria-current="true">Components</a>')
     expect(siteHeader(tag, "docs", true)).toContain('<a href="/docs/" aria-current="page">Docs</a>')
@@ -147,11 +151,26 @@ describe("the opening page", () => {
     expect((partial.showcase ?? "").match(/<iframe /g)).toHaveLength(1)
   })
 
-  it("takes its palette from the terminal theme", () => {
+  it("takes its dark palette from the terminal theme and its light one from the site, one light-dark() pair per token", () => {
     const theme = registry.items.find((item) => item.name === THEME_ITEM)
-    expect(page).toContain(`--primary: ${theme?.cssVars?.light?.primary};`)
-    expect(page).toContain(`--up: ${theme?.cssVars?.light?.up};`)
+    expect(page).toContain(`<meta name="color-scheme" content="light dark">`)
+    expect(page).toContain(":root {\n  color-scheme: light dark;\n  --background: light-dark(oklch(1 0 0), oklch(0 0 0));")
+    expect(page).toContain(`--primary: light-dark(${LIGHT_PALETTE.primary}, ${theme?.cssVars?.dark?.primary});`)
+    expect(page).toContain(`--up: light-dark(${LIGHT_PALETTE.up}, ${theme?.cssVars?.dark?.up});`)
     expect(page).toContain(`--font: ${theme?.cssVars?.theme?.["font-sans"]};`)
+    // A token the two sides agree on is written once: the theme's dark side leaves the radius to its light side, and both are square.
+    expect(page).toContain("--radius: 0rem;")
+    expect(page).not.toContain("light-dark(0rem")
+    // Up and down are the items' own light tokens, so the soft shades an item installs beside them match in a light preview.
+    const flash = registry.items.find((item) => item.name === "flash-cell")
+    expect(LIGHT_PALETTE.up).toBe(flash?.cssVars?.light?.up)
+    expect(LIGHT_PALETTE.down).toBe(flash?.cssVars?.light?.down)
+    // The 404 page has no script, so its palette alone carries both modes and it follows the system.
+    const notFound = renderPage(template("404.html"), values)
+    expect(notFound).toContain(`<meta name="color-scheme" content="light dark">`)
+    expect(notFound).toContain("  color-scheme: light dark;")
+    expect(notFound).toContain(`--primary: light-dark(${LIGHT_PALETTE.primary}, ${theme?.cssVars?.dark?.primary});`)
+    expect(notFound).not.toContain("<script")
   })
 
   it("escapes item text", () => {

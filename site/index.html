@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tradecn/ui</title>
 <meta name="description" content="Trading-terminal components you install with shadcn add. The source lands in your repo and it's yours.">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="light dark">
 <link rel="canonical" href="{{siteUrl}}/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
@@ -15,7 +15,9 @@
 }
 </style>
 <link rel="stylesheet" href="/site.css">
-<!-- Blocking, in the head, so the page is listening for a preview's height before the first iframe exists. -->
+<!-- Blocking, in the head: the mode is on <html> before anything paints, and the page is listening
+     for a preview's height before the first iframe exists. -->
+<script src="/theme.js"></script>
 <script src="/site.js"></script>
 </head>
 <body>

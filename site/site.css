@@ -20,6 +20,17 @@ code { font-family: var(--font); }
 .site-header .side { margin-left: auto; align-items: center; }
 .site-header .tag { color: var(--muted-foreground); }
 
+/* The mode. theme.js puts light or dark on <html>, from the reader's choice or the system; color-scheme then picks
+   the side of every light-dark() pair in the page's palette, and the browser's own controls and scrollbars follow. */
+:root.light { color-scheme: light; }
+:root.dark { color-scheme: dark; }
+.mode-toggle { display: inline-flex; align-items: center; justify-content: center; width: 1.9rem; height: 1.9rem; margin: -.3rem 0; padding: 0; color: var(--muted-foreground); background: none; border: 0; border-radius: var(--radius); cursor: pointer; }
+.mode-toggle:hover, .mode-toggle:focus-visible { color: var(--foreground); background: var(--card); }
+.mode-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.mode-toggle svg { width: 1.05rem; height: 1.05rem; }
+/* Without the script the button would switch nothing, so it is not there; the palette still follows the system. */
+html:not(.js) .mode-toggle { display: none; }
+
 /* The search: a button in the header, and a dialog over every page's headings and text that it and mod+k open. */
 .search-button { display: inline-flex; align-items: center; gap: .5rem; margin: -.3rem 0; padding: .3rem .6rem; font: inherit; font-size: .85rem; color: var(--muted-foreground); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
 .search-button:hover, .search-button:focus-visible { color: var(--foreground); border-color: var(--primary); }

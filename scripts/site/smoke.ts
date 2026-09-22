@@ -6,7 +6,9 @@
 // next page, and the copy buttons copy what is showing. Then the Components and Changelog pages answer,
 // the Components index holds the components alone, and the sidebar groups the pages by kind.
 // Then the search: the button and mod+k open it, it lists every page, ranks a heading first, goes there
-// on Enter, and a key pressed inside a preview never opens it, nor its key a demo's palette.
+// on Enter, and a key pressed inside a preview never opens it, nor its key a demo's palette. Then the mode:
+// the page follows the system until the header's button makes a choice, which every preview on the page,
+// the next page, and another tab follow, and a press goes back.
 //   bun scripts/site/smoke.ts [--dist site/dist] [--base https://tradecn.dev] [--port 4174] [--headers site/headers.json]
 // Without --base it serves --dist itself, with the index.html rewrite the CloudFront function does and
 // the security headers the edge sends (--headers names another file, to prove a policy breaks the pages).
@@ -40,7 +42,8 @@ function serve() {
       if (pathname.endsWith("/")) pathname += "index.html"
       else if (pathname.lastIndexOf(".") <= pathname.lastIndexOf("/")) pathname += "/index.html"
       const file = Bun.file(path.join(dist, pathname))
-      if (!(await file.exists())) return new Response("not found", { status: 404, headers })
+      // A missing key is the 404 page at a 404 status, as the distribution's error responses serve it.
+      if (!(await file.exists())) return new Response(Bun.file(path.join(dist, "404.html")), { status: 404, headers })
       // The site script is a no-store round trip on the edge while the preview bundle is cached, so on
       // the live site a preview can mount before the page is listening. Make it lose that race here, every run.
       if (pathname === `/${SITE_SCRIPT}`) await Bun.sleep(300)
@@ -335,6 +338,103 @@ for (const item of items) {
   }
 }
 
+// Light and dark. With no choice made a page follows the system, and so do the previews on it and the 404 page,
+// which has no script. The header's button makes a choice: the page and every preview on it switch at once and
+// wear one background, the next page opens in it, another tab hears it, the system no longer decides, and a
+// second press goes back. A theme's own preview wears that theme, which is black in either mode.
+{
+  const page = await context.newPage()
+  watch(page, "mode")
+  const button = page.locator(".site-header .mode-toggle")
+  const modeOf = (p: Page) => p.evaluate(() => [...document.documentElement.classList].filter((name) => name === "light" || name === "dark").join(",") || "none")
+  const backgroundOf = (p: Page) => p.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)
+  const stored = (p: Page) => p.evaluate(() => localStorage.getItem("tradecn-theme"))
+  const inMode = (p: Page, mode: string) => p.waitForFunction((name) => document.documentElement.classList.contains(name), mode, { timeout: 5_000 })
+  /** Each preview frame on the page, as the frame sees itself: its item, its mode class, and its body's background. */
+  const frames = (p: Page) =>
+    p.evaluate(() =>
+      [...document.querySelectorAll<HTMLIFrameElement>("iframe[data-preview]")].map((el) => {
+        const doc = el.contentDocument
+        return { item: el.dataset.preview ?? "", mode: doc?.documentElement.className ?? "", background: doc ? getComputedStyle(doc.body).backgroundColor : "" }
+      }),
+    )
+  const framesIn = (p: Page, mode: string) => p.waitForFunction((name) => [...document.querySelectorAll<HTMLIFrameElement>("iframe[data-preview]")].every((el) => el.contentDocument?.documentElement.classList.contains(name)), mode, { timeout: 10_000 })
+  try {
+    const index = await page.request.get(`${base}/${SEARCH_INDEX}`)
+    const themes = new Set(((await index.json()) as SearchPage[]).filter((entry) => entry.group === "Themes").map((entry) => entry.path.split("/")[2]))
+    await page.emulateMedia({ colorScheme: "light" })
+    await page.goto(`${base}/`, { waitUntil: "load" })
+    if (!(await button.isVisible())) failures.push("mode: no mode button in the header")
+    if ((await modeOf(page)) !== "light") failures.push(`mode: the page is ${await modeOf(page)} under a light system with no choice made`)
+    if ((await stored(page)) !== null) failures.push(`mode: a choice (${await stored(page)}) is stored before any was made`)
+    if ((await button.getAttribute("aria-label")) !== "Switch to dark mode") failures.push(`mode: in light the button reads "${await button.getAttribute("aria-label")}"`)
+    const light = await backgroundOf(page)
+    await page.emulateMedia({ colorScheme: "dark" })
+    await inMode(page, "dark")
+    const dark = await backgroundOf(page)
+    if (light === dark) failures.push(`mode: the background is ${light} whichever the system says`)
+    await page.emulateMedia({ colorScheme: "light" })
+    await inMode(page, "light")
+    // Every preview is up and follows the system too.
+    await page.waitForFunction(() => [...document.querySelectorAll(".showcase iframe[data-preview]")].every((el) => parseFloat((el as HTMLIFrameElement).style.height || "0") > 40), undefined, { timeout: 30_000 })
+    await framesIn(page, "light")
+    for (const frame of await frames(page)) {
+      if (!themes.has(frame.item) && frame.background !== light) failures.push(`mode: in light the ${frame.item} preview's background is ${frame.background}, the page's ${light}`)
+      if (themes.has(frame.item) && frame.background !== dark) failures.push(`mode: in light the ${frame.item} preview's background is ${frame.background}; a theme's preview wears the theme, which is black`)
+    }
+    // The button chooses dark: the page, the store, the label, and every preview at once, through the storage event.
+    await button.click()
+    await inMode(page, "dark")
+    if ((await backgroundOf(page)) !== dark) failures.push(`mode: after the button the background is ${await backgroundOf(page)}, not ${dark}`)
+    if ((await stored(page)) !== "dark") failures.push(`mode: the button stored ${await stored(page)}, not dark`)
+    if ((await button.getAttribute("aria-label")) !== "Switch to light mode") failures.push(`mode: in dark the button reads "${await button.getAttribute("aria-label")}"`)
+    await framesIn(page, "dark")
+    for (const frame of await frames(page)) if (frame.background !== dark) failures.push(`mode: in dark the ${frame.item} preview's background is ${frame.background}, the page's ${dark}`)
+    // The choice beats the system now, and another tab hears it.
+    const other = await context.newPage()
+    watch(other, "mode (other tab)")
+    await other.emulateMedia({ colorScheme: "light" })
+    await other.goto(`${base}/docs/`, { waitUntil: "load" })
+    if ((await modeOf(other)) !== "dark") failures.push(`mode: another tab opened in ${await modeOf(other)} after dark was chosen under a light system`)
+    await button.click()
+    await inMode(page, "light")
+    if ((await stored(page)) !== "light") failures.push(`mode: the second press stored ${await stored(page)}, not light`)
+    if ((await backgroundOf(page)) !== light) failures.push(`mode: after the second press the background is ${await backgroundOf(page)}, not ${light}`)
+    await inMode(other, "light")
+    await other.close()
+    await page.emulateMedia({ colorScheme: "dark" })
+    await page.waitForFunction(() => matchMedia("(prefers-color-scheme: dark)").matches, undefined, { timeout: 5_000 })
+    if ((await modeOf(page)) !== "light") failures.push(`mode: the system's dark overrode the reader's light`)
+    // The next page opens in the choice, and its preview with it.
+    await page.goto(`${base}/docs/${items[0]}/`, { waitUntil: "load" })
+    if ((await modeOf(page)) !== "light") failures.push(`mode: ${items[0]} opened in ${await modeOf(page)} after light was chosen`)
+    await page.locator(`.preview[data-preview='${items[0]}'] iframe`).waitFor({ timeout: 15_000 })
+    await framesIn(page, "light")
+    // The 404 page has no script and no button; it follows the system. A 404 document logs its own status
+    // as a console error, and that one line is expected here.
+    await page.evaluate(() => localStorage.removeItem("tradecn-theme"))
+    const lost = await context.newPage()
+    lost.on("pageerror", (error) => failures.push(`mode: 404 page error: ${error.message}`))
+    lost.on("console", (message) => {
+      if (message.type() === "error" && !/status of 404/.test(message.text())) failures.push(`mode: 404 console error: ${message.text()}`)
+    })
+    await lost.emulateMedia({ colorScheme: "dark" })
+    const missing = await lost.goto(`${base}/no-such-page/`, { waitUntil: "load" })
+    if (missing?.status() !== 404) failures.push(`mode: /no-such-page/ answered ${missing?.status()}`)
+    if (!(await lost.locator("h1", { hasText: "404" }).count())) failures.push("mode: /no-such-page/ is not the 404 page")
+    if (await lost.locator(".mode-toggle, script").count()) failures.push("mode: the 404 page has a mode button or a script")
+    if ((await backgroundOf(lost)) !== dark) failures.push(`mode: under a dark system the 404 page's background is ${await backgroundOf(lost)}, not ${dark}`)
+    await lost.emulateMedia({ colorScheme: "light" })
+    if ((await backgroundOf(lost)) !== light) failures.push(`mode: under a light system the 404 page's background is ${await backgroundOf(lost)}, not ${light}`)
+    await lost.close()
+    console.log(`ok  mode: the system, the button, ${items.length} previews following, the next page, another tab, and the 404 page`)
+  } catch (error) {
+    failures.push(`mode: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
 // No page scrolls sideways, at a desktop, a laptop under the on-page column's breakpoint, a tablet, and a phone:
 // a wide table or code block scrolls inside its own box, never the page. The tokens table once did.
 {
@@ -366,4 +466,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ${failure}`)
   process.exit(1)
 }
-console.log(`\n${items.length} previews, the opening page, the docs pages, and the search checked at ${base}`)
+console.log(`\n${items.length} previews, the opening page, the docs pages, the search, and both modes checked at ${base}`)
