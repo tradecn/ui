@@ -1,6 +1,7 @@
 import type { ComponentType } from "react"
 import { AlertStoreScene } from "./alert-store"
 import { AlertsScene } from "./alerts"
+import { AuditTrailScene } from "./audit-trail"
 import { BlotterScene } from "./blotter"
 import { ColumnChooserScene } from "./column-chooser"
 import { CommandPaletteScene } from "./command-palette"
@@ -65,6 +66,7 @@ export const items: Record<string, ItemScene> = {
   "status-bar": { title: "status-bar", Scene: StatusBarScene },
   "parameter-grid": { title: "parameter-grid", Scene: ParameterGridScene },
   positions: { title: "positions", Scene: PositionsScene },
+  "audit-trail": { title: "audit-trail", Scene: AuditTrailScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   preferences: { title: "preferences", Scene: PreferencesScene },
   "alert-store": { title: "alert-store", Scene: AlertStoreScene },

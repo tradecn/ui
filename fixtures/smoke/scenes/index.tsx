@@ -1,6 +1,7 @@
 import type { ComponentType } from "react"
 import { AlertStoreScene } from "./alert-store"
 import { AlertsScene } from "./alerts"
+import { AuditTrailScene } from "./audit-trail"
 import { BlotterScene } from "./blotter"
 import { ColumnChooserScene } from "./column-chooser"
 import { CommandPaletteScene } from "./command-palette"
@@ -62,6 +63,7 @@ export const scenes: SmokeScene[] = [
   { name: "status-bar", Scene: StatusBarScene },
   { name: "parameter-grid", Scene: ParameterGridScene },
   { name: "positions", Scene: PositionsScene },
+  { name: "audit-trail", Scene: AuditTrailScene },
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
   { name: "alert-store", Scene: AlertStoreScene },
