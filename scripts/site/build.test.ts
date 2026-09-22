@@ -6,6 +6,8 @@ import {
   codeBlocks,
   commandFor,
   consumerPath,
+  DESK_DEMO,
+  deskItems,
   DOCS_TEMPLATE,
   docPages,
   componentItems,
@@ -258,8 +260,48 @@ describe("the opening page", () => {
     expect(withDocs).toContain(`https://github.com/tradecn/ui/blob/${tag}/docs/row-store.md`)
   })
 
-  it("runs every item live when the tag has an embed build, in registry order, each card naming and linking it", async () => {
+  it("runs the desk when the tag's demos hold it: one frame, its source at the tag, and every item it runs linked under it by group", async () => {
     const demos = await readDemos(resolve(root, "playground/src/demos"))
+    const embed = await readEmbed(fakeEmbed())
+    const live = renderPage(template("index.html"), templateValues(registry, version, registry, new Set(registry.items.map((item) => item.name)), { demos, embed }))
+    expect(live).toContain('<section class="showcase desk" aria-label="Every item, one desk">')
+    expect(live.match(/<iframe /g)).toHaveLength(1)
+    expect(live).toContain(`<iframe src="/preview/${DESK_DEMO}/" title="The desk, live" data-preview="${DESK_DEMO}"></iframe>`)
+    expect(live).toContain(`<a class="open" href="https://github.com/tradecn/ui/blob/${tag}/playground/src/demos/${DESK_DEMO}.tsx">Source</a>`)
+    expect(live).toContain(`<a class="open" href="/preview/${DESK_DEMO}/" target="_blank" rel="noopener">Open in a new tab</a>`)
+    // Every item but the themes is on the desk, and the legend links each one's page under its group, in the sidebar's order.
+    const onDesk = deskItems(demos.get(DESK_DEMO)!.source, registry)
+    for (const item of registry.items) {
+      const link = `<a href="/docs/${item.name}/"><code>${item.name}</code></a>`
+      if (item.type === "registry:theme") {
+        expect(onDesk, `${item.name} is not on the desk`).not.toContain(item)
+        expect(live).not.toContain(link)
+      } else {
+        expect(onDesk, `${item.name} is on the desk`).toContain(item)
+        expect(live).toContain(link)
+      }
+    }
+    const groups = [...live.matchAll(/<span class="legend-group">(\w+)<\/span>/g)].map((match) => match[1])
+    expect(groups).toEqual(["Components", "Hooks", "Utilities"])
+    expect(live).toMatch(/<span class="legend-group">Components<\/span> <a href="\/docs\/alerts\/"><code>alerts<\/code><\/a> <a href="\/docs\/audit-trail\/">/)
+    expect(live).not.toContain('<ul class="item-list">')
+    expect(live).not.toContain('<article class="card" data-preview="format">')
+  })
+
+  it("reads the desk's items off the demo's imports and the files those items ride", () => {
+    const names = (source: string) => deskItems(source, registry).map((item) => item.name)
+    // A watchlist is a data grid, a row store, the format library, and the grid rules running too; nothing else rides along.
+    expect(names('import { Watchlist } from "@/registry/tradecn/ui/watchlist"')).toEqual(["format", "row-store", "data-grid", "watchlist", "grid-rules"])
+    // A block imports through its folder; a hook through hooks/; and a shared file with no item of its own (use-flash) names none.
+    expect(names('import { Ticket } from "@/registry/tradecn/blocks/ticket/ticket"')).toEqual(["format", "use-hotkeys", "ticket", "quote-field", "limits"])
+    expect(names('import { useHotkey } from "@/registry/tradecn/hooks/use-hotkeys"')).toEqual(["use-hotkeys"])
+    // A theme has no file and is never on it; an import the registry does not know is nothing; the consumer's built-ins are not items.
+    expect(names('import { Button } from "@/components/ui/button"\nimport x from "@/registry/tradecn/ui/no-such-item"')).toEqual([])
+    expect(names("")).toEqual([])
+  })
+
+  it("runs every item live, one card each in registry order, when the tag's demos have no desk", async () => {
+    const demos = new Map([...(await readDemos(resolve(root, "playground/src/demos")))].filter(([name]) => name !== DESK_DEMO))
     const embed = await readEmbed(fakeEmbed())
     const live = renderPage(template("index.html"), templateValues(registry, version, registry, new Set(registry.items.map((item) => item.name)), { demos, embed }))
     expect(live).toContain('<section class="showcase" aria-label="Every item, live">')

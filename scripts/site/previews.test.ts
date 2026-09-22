@@ -4,6 +4,7 @@ import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 import {
   consumerImports,
+  DESK_DEMO,
   DOCS_TEMPLATE,
   docPages,
   fullPalette,
@@ -70,14 +71,15 @@ describe("the demo source shown under Code", () => {
     ])
   })
 
-  it("has one demo per item, and a demo only for an item or a docs page of the same name", async () => {
+  it("has one demo per item, and a demo only for an item or a docs page of the same name, the desk aside", async () => {
     const demos = await readDemos(resolve(root, "playground/src/demos"))
     const items = registry.items.map((item) => item.name)
     for (const name of items) expect(demos.has(name), `${name} has a demo`).toBe(true)
-    // The Typography page has a demo of its own; a demo with neither an item nor a page would embed nowhere.
+    // The Typography page has a demo of its own, and the opening page frames the desk; a demo that is none of those would embed nowhere.
     const docs = new Set((await readDocs(resolve(root, "docs"), registry)).map((doc) => doc.slug))
-    for (const name of demos.keys()) expect(items.includes(name) || docs.has(name), `${name} is an item or a docs page`).toBe(true)
+    for (const name of demos.keys()) expect(items.includes(name) || docs.has(name) || name === DESK_DEMO, `${name} is an item, a docs page, or the desk`).toBe(true)
     expect(demos.has("typography")).toBe(true)
+    expect(demos.has(DESK_DEMO)).toBe(true)
     for (const demo of demos.values()) {
       expect(demo.code).not.toContain("@/registry/")
       expect(demo.source).toContain("export default function")
@@ -149,14 +151,15 @@ describe("a theme on the site", () => {
     const previews: Previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()) }
     const docSlugs = new Set(docs.map((doc) => doc.slug))
     const pages = new Map(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE), docSlugs).map((page) => [page.path, page.html]))
-    // One page per item, and one per docs page with a demo of its own (Typography, Color), which wear the site's palette like any item's.
+    // One page per item, one per docs page with a demo of its own (Typography, Color), and one for the desk, all of which wear the site's palette like any item's.
     const docDemos = [...docSlugs].filter((slug) => previews.demos.has(slug) && !registry.items.some((item) => item.name === slug))
     expect(docDemos.sort()).toEqual(["color", "typography"])
-    expect(pages.size).toBe(registry.items.length + docDemos.length)
+    expect(pages.size).toBe(registry.items.length + docDemos.length + 1)
+    expect(pages.has(`preview/${DESK_DEMO}/index.html`)).toBe(true)
     const typographyPage = pages.get("preview/typography/index.html") ?? ""
     expect(typographyPage).toContain('<div id="root" data-item="typography"')
     expect(typographyPage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${theme.cssVars?.dark?.accent};`)
-    expect(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE)).length).toBe(registry.items.length)
+    expect(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE)).length).toBe(registry.items.length + 1)
     const slatePage = pages.get("preview/tradecn-slate/index.html") ?? ""
     const formatPage = pages.get("preview/format/index.html") ?? ""
     // A theme's page: the theme's dark side under .dark and its light side under .light, every variable of each.
