@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.2.1](https://github.com/tradecn/ui/compare/v1.2.0...v1.2.1) (2026-09-22)
+
+
+### Maintenance
+
+* **site:** a version menu, and every release keeps its pages ([#94](https://github.com/tradecn/ui/issues/94)) ([15bdd6f](https://github.com/tradecn/ui/commit/15bdd6fe3c36e533256b1a69650c828655abe071))
+* **site:** one desk on the front page, every item on it ([#107](https://github.com/tradecn/ui/issues/107)) ([7c7da04](https://github.com/tradecn/ui/commit/7c7da0416e29bccb0b8c21a6f2ae910d43e84b7d))
+
+
+### Documentation
+
+* **command-palette:** simplify the API reference ([#102](https://github.com/tradecn/ui/issues/102)) ([a1a8835](https://github.com/tradecn/ui/commit/a1a88357e4329e70fa2533b1a295958e777a22d8))
+* **format:** simplify the API reference ([#96](https://github.com/tradecn/ui/issues/96)) ([a799160](https://github.com/tradecn/ui/commit/a79916099e3977aa6c8515d46652e33476e7734d))
+* **grid-rules:** simplify the API reference ([#95](https://github.com/tradecn/ui/issues/95)) ([e625055](https://github.com/tradecn/ui/commit/e62505548ecbf2db1543074a5abaa41211d69cae))
+* **parameter-grid:** simplify the API reference ([#100](https://github.com/tradecn/ui/issues/100)) ([b71e999](https://github.com/tradecn/ui/commit/b71e999b97d386cbcd33156a84812d58d7529ef4))
+* **preferences:** simplify the API reference ([#99](https://github.com/tradecn/ui/issues/99)) ([08f306b](https://github.com/tradecn/ui/commit/08f306bd903716b798e486e7f78597597f2c5b1d))
+* **registry:** an item's page is headed by the name you import ([#97](https://github.com/tradecn/ui/issues/97)) ([f2840d8](https://github.com/tradecn/ui/commit/f2840d88cb921abc914e48c7138c758a0df5a7b8))
+* **rfq-ticket:** simplify the API reference ([#90](https://github.com/tradecn/ui/issues/90)) ([407c5b8](https://github.com/tradecn/ui/commit/407c5b81dce9f62189fab071b9c1417c06415453))
+* **row-store:** simplify the API reference ([#104](https://github.com/tradecn/ui/issues/104)) ([dedab9e](https://github.com/tradecn/ui/commit/dedab9e3aab1bda62b8755094acb2c57c3bc246c))
+* **ticket:** simplify the API reference ([#93](https://github.com/tradecn/ui/issues/93)) ([3467c4a](https://github.com/tradecn/ui/commit/3467c4af63657fa804c218cb30380738fbadcb16))
+* **use-hotkeys:** simplify the API reference ([#103](https://github.com/tradecn/ui/issues/103)) ([c737ea2](https://github.com/tradecn/ui/commit/c737ea2e08b2ed93d8a7d19cd10a924bbf4a0416))
+
 ## [1.2.0](https://github.com/tradecn/ui/compare/v1.1.0...v1.2.0) (2026-09-22)
 
 
