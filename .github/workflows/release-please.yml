@@ -36,6 +36,25 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+  # GitHub starts no workflow on a release pull request, since a bot opened it with the workflow
+  # token, so nothing would report "CI passed" there and a ruleset that requires the check would
+  # hold the tag. This writes the check on the release pull request's head after every push to
+  # main: the commits it releases were each checked on their own pull request, and the release
+  # commit changes only the changelog, version.txt, the README's tag lines, and the manifest.
+  release-check:
+    needs: release-please
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: bash scripts/ci/release-check.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   # tradecn.dev serves releases only. GitHub starts no workflow from a tag its own token pushed, so
   # the publish rides in the run that made the release. /r/<tag>/ is written for every tag; the
   # latest pointer and the landing page move only when the tag is the highest in the repo.

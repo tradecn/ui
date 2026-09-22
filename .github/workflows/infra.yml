@@ -1,12 +1,8 @@
 name: infra
 
-# The tradecn.dev stack. Content is published by the deploy job in release-please.yml.
+# The tradecn.dev stack. Content is published by the deploy job in release-please.yml. A pull request
+# synthesizes the stack in ci.yml's infra job, whatever it touches, so the CI passed check covers it.
 on:
-  pull_request:
-    paths:
-      - infra/**
-      - site/headers.json
-      - .github/workflows/infra.yml
   push:
     branches: [main]
     paths:
@@ -38,7 +34,6 @@ jobs:
 
   deploy:
     needs: synth
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: production
     concurrency:
