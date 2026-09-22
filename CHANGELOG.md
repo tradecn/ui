@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0](https://github.com/tradecn/ui/compare/v0.1.6...v0.2.0) (2026-09-22)
+
+
+### Features
+
+* **countdown:** time left as digits on one shared clock and a bar on one animation, turning in the last seconds and stopping at zero ([#40](https://github.com/tradecn/ui/issues/40)) ([02971af](https://github.com/tradecn/ui/commit/02971af7efceb1aeac77e2b5b7cd3068c8b1fceb))
+* **format:** a quote basis per instrument, coupons in eighths, maturities, ticks between two prices, and millions as the desk says them ([#42](https://github.com/tradecn/ui/issues/42)) ([6714e8d](https://github.com/tradecn/ui/commit/6714e8dcd894fbc41a32e786437767e31695f5d7))
+* **hotkey-editor:** the settings screen for the hotkey registry, with three ways to change a shortcut and conflicts said in words ([#47](https://github.com/tradecn/ui/issues/47)) ([9f5d8b6](https://github.com/tradecn/ui/commit/9f5d8b6f931f79ebcebf80f8b4cf82eb94d32ec9))
+* **panel:** a link transport over a shell's own two functions, and one workspace per window for shells whose windows are separate contexts ([#48](https://github.com/tradecn/ui/issues/48)) ([360ddef](https://github.com/tradecn/ui/commit/360ddefd4dddaf04a6939d25befd84b588be7ef1))
+* **perf-monitor:** the frame rate on the screen it measures, a histogram against the budget, and a line per lane from its store ([#46](https://github.com/tradecn/ui/issues/46)) ([bc1ceac](https://github.com/tradecn/ui/commit/bc1ceacadf0ec3cb022a8ce0d14f771630a312ed))
+* **quote-field:** a field that types a quote the way the instrument quotes it, in its basis, and steps by its step ([#43](https://github.com/tradecn/ui/issues/43)) ([5642a0e](https://github.com/tradecn/ui/commit/5642a0ec33b99e09551d164ea4aadb07b3f2d0e6))
+* **rfq-stack:** the stack of open inquiries with a countdown per row, a threshold for the small auto quotes, and the one rule for which inquiry is in the ticket ([#45](https://github.com/tradecn/ui/issues/45)) ([f2cf838](https://github.com/tradecn/ui/commit/f2cf8388d5eba8b9afcd7d0c25317cc10a924087))
+* **rfq-ticket:** a dealer's ticket for a request for quote, one inquiry each, quoting in the instrument's basis against the market ([#44](https://github.com/tradecn/ui/issues/44)) ([d217dee](https://github.com/tradecn/ui/commit/d217dee4ed1bf3e82505513a34510f536ecf52e3))
+
 ## [0.1.6](https://github.com/tradecn/ui/compare/v0.1.5...v0.1.6) (2026-09-21)
 
 
