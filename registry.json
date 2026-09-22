@@ -228,12 +228,13 @@
       "name": "feed-health",
       "type": "registry:ui",
       "title": "Feed Health",
-      "description": "A strip that shows each feed's connection state, the age of its data, and a staleness tier, with drop counts for coalesced lanes and gap indicators for ordered ones. Pluggable thresholds and session calendar; only the leaves tick.",
+      "description": "A strip that shows each feed's connection state, the age of its data, and a staleness tier, with drop counts for coalesced lanes and gap indicators for ordered ones. Each feed offers the actions the server allows on it in a menu of its own, pending until the feed reports back. Pluggable thresholds and session calendar; only the leaves tick.",
       "dependencies": [
         "cn@^0.3.0"
       ],
       "registryDependencies": [
         "badge",
+        "dropdown-menu",
         "separator",
         "spinner",
         "tooltip"
@@ -256,7 +257,7 @@
         "feed",
         "chrome"
       ],
-      "docs": "Adds the stale and up tokens and installs the shared one-second clock alongside. The default thresholds (2 s aging, 10 s stale) are placeholders: agree real ones with the people who trade on the data and pass them in.",
+      "docs": "Adds the stale and up tokens and installs the shared one-second clock alongside. Composes your badge, separator, spinner, tooltip, and dropdown-menu. The default thresholds (2 s aging, 10 s stale) are placeholders: agree real ones with the people who trade on the data and pass them in. A feed's actions are the ids the server allows on it; a press shows pending until the feed's state moves.",
       "meta": {
         "components": [
           {
@@ -274,6 +275,10 @@
           {
             "title": "createClock",
             "description": "A shared interval that runs only while subscribed."
+          },
+          {
+            "title": "feedActionsFor",
+            "description": "The actions a feed offers now: yours, kept to the ids the server allows."
           }
         ]
       },

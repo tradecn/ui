@@ -1161,3 +1161,23 @@ test("a layout manager saves, loads, warns before loading a layout with an unkno
   await manager.getByRole("button", { name: "Reset to default" }).click()
   await expect(state).toHaveAttribute("data-lm-resets", "1")
 })
+
+// A feed's actions through the consumer's real dropdown menu: the market-data feed offers the two the server
+// allows, the RFQ feed has no menu, a press marks the feed pending with the tier untouched, and the pretend
+// server's new state settles it.
+test("a feed's menu offers what the server allows, marks a press pending, and settles when the feed reports back", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='feed-health']")
+  const md = scene.locator("[data-feed='md']")
+  await expect(scene.getByRole("button", { name: "Actions: RFQ" })).toHaveCount(0)
+  await scene.getByRole("button", { name: "Actions: Market data" }).click()
+  const items = page.getByRole("menuitem")
+  await expect(items).toHaveText(["Reconnect", "Pause"])
+  await items.filter({ hasText: "Reconnect" }).click()
+  await expect(scene.locator("[data-feed-acted]")).toHaveAttribute("data-feed-acted", "reconnect:md")
+  await expect(md).toHaveAttribute("data-pending", "reconnect")
+  await expect(md.locator("[data-feed-pending]")).toContainText("Reconnect")
+  await expect(md).toHaveAttribute("data-tier", "live")
+  await expect(md).toHaveAttribute("data-state", "connecting")
+  await expect(md).not.toHaveAttribute("data-pending")
+})
