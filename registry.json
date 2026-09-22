@@ -1263,6 +1263,71 @@
       }
     },
     {
+      "name": "hotkey-editor",
+      "type": "registry:ui",
+      "title": "Hotkey Editor",
+      "description": "The settings screen for the hotkey registry: every binding under its group with its keys in force, a field that finds one by its words or its keys, and three ways to change one: press the new shortcut, type a chord as text, or reset it. Conflicts are said under the rows they touch, in words. Every change goes through the registry, so the app's persistence hears it through onChange; the editor keeps nothing of its own.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [
+        "badge",
+        "button",
+        "input",
+        "kbd"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/hotkey-editor.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-hotkeys.tsx",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/hotkeys.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "hotkeys"
+      ],
+      "docs": "Installs the hotkey registry alongside and composes your badge, button, input, and kbd. Needs a HotkeysProvider above it. Export hands you the overrides; Import calls you back to open your picker and registry.load what you read. Adds the stale token for the conflict lines.",
+      "meta": {
+        "components": [
+          {
+            "title": "HotkeyEditor",
+            "description": "The list, the search, and the three ways to change a shortcut."
+          },
+          {
+            "title": "DEFAULT_HOTKEY_EDITOR_LABELS",
+            "description": "Every word on it, to replace in part."
+          },
+          {
+            "title": "matchesQuery",
+            "description": "Whether a binding answers a search, by words or by keys."
+          },
+          {
+            "title": "groupOf",
+            "description": "The group a binding is listed under."
+          },
+          {
+            "title": "scopeWord",
+            "description": "The word for a scope on a row."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "stale": "oklch(0.72 0.16 75)"
+        },
+        "dark": {
+          "stale": "oklch(0.8 0.15 80)"
+        }
+      }
+    },
+    {
       "name": "tradecn-terminal",
       "type": "registry:theme",
       "title": "Terminal",

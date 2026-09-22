@@ -524,6 +524,42 @@ test("a perf monitor counts real frames, draws the histogram against the budget,
   await expect(monitor.locator("[data-perf-readout='ipc batch']")).toHaveText("ipc batch 2 rows")
 })
 
+// Real keys through the consumer's button: a shortcut changed by pressing it, said back as key caps,
+// handed to the app's persistence, then typed as a chord, then reset.
+test("a hotkey editor changes a shortcut by pressing it, by typing it, and resets it, and the app hears each change", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='hotkey-editor']")
+  const saved = scene.locator("[data-hotkey-saved]")
+  const editor = scene.getByRole("region", { name: "Keyboard shortcuts" })
+  await expect(editor).toBeVisible()
+  const row = editor.locator("[data-hotkey-row='edit.go']")
+  await expect(row.locator("kbd[data-slot='kbd']")).toHaveText(["G", "B"])
+  await row.getByRole("button", { name: "Change: Go to the blotter" }).click()
+  await page.keyboard.press("ControlOrMeta+Shift+L")
+  // The caps come in the platform's order (⇧ ⌘ on a Mac, Ctrl Shift elsewhere); the keys underneath are one string.
+  await expect(row.locator("[data-hotkey-keys]")).toHaveAttribute("data-hotkey-keys", /^(ctrl\+shift|shift\+meta)\+l$/)
+  await expect(row.locator("kbd[data-slot='kbd']")).toHaveCount(3)
+  await expect(row).toHaveAttribute("data-remapped", "true")
+  await expect.poll(async () => JSON.parse((await saved.getAttribute("data-hotkey-saved")) ?? "{}")).toEqual({ "edit.go": expect.stringMatching(/^(ctrl\+shift|shift\+meta)\+l$/) })
+  // A chord as text.
+  const book = editor.locator("[data-hotkey-row='edit.book']")
+  await book.getByRole("button", { name: "Type it: Go to the book" }).click()
+  const input = book.getByLabel("Keys for Go to the book")
+  await input.fill("g h")
+  await input.press("Enter")
+  await expect(book.locator("kbd[data-slot='kbd']")).toHaveText(["G", "H"])
+  // A duplicate is said under both rows.
+  await book.getByRole("button", { name: "Type it: Go to the book" }).click()
+  await book.getByLabel("Keys for Go to the book").fill("x")
+  await book.getByLabel("Keys for Go to the book").press("Enter")
+  await expect(book.locator("[data-hotkey-conflicts]")).toContainText("Cancel the selected order")
+  // Reset all takes everything back, and the app hears an empty map.
+  await editor.getByRole("button", { name: "Reset all" }).click()
+  await expect(row.locator("kbd[data-slot='kbd']")).toHaveText(["G", "B"])
+  await expect(book.locator("kbd[data-slot='kbd']")).toHaveText(["G", "O"])
+  await expect(saved).toHaveAttribute("data-hotkey-saved", "{}")
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.
