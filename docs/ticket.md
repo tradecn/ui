@@ -1,6 +1,6 @@
 # ticket
 
-An order ticket that types a price the way the instrument quotes it and hands a checked draft to the action you named.
+Enter an order in the instrument's notation and pass a checked draft to an allowed action.
 
 ## Usage
 
@@ -24,48 +24,119 @@ const ZN: TicketInstrument = { symbol: "ZN", convention: { price: { kind: "fract
 
 ## API Reference
 
-This is the registry's first block: `ticket.tsx` lands in your `components` alias, not `components/ui`. If you already installed `quote-field`, `format`, `flash-cell`, or `use-hotkeys`, the shared files are byte-identical and nothing of yours changes.
+This is the registry's first block: `ticket.tsx` installs into your `components` alias, not `components/ui`. Its shared files use the same source as `quote-field`, `format`, `flash-cell`, and `use-hotkeys`.
+
+### Props
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `instrument` | `TicketInstrument` | Required | Symbol, price convention, and quantity step. |
+| `actions` | `readonly TicketAction[]` | Required | Action definitions, in display order. |
+| `allowedActions` | `readonly string[]` | None allowed | Server-authorized action ids. |
+| `reference` | `TicketReference` | None | Bid, ask, and last for price buttons, stepping, and limits. |
+| `orderTypes` | `readonly TicketOption[]` | `DEFAULT_ORDER_TYPES` | Limit and market. |
+| `timeInForces` | `readonly TicketOption[]` | `DEFAULT_TIME_IN_FORCES` | Day, GTC, and IOC. |
+| `accounts` | `readonly TicketOption[]` | No field | Account choices; an empty list also hides the field. |
+| `defaultDraft` | `Partial<TicketDraft>` | See [The draft](#the-draft) | Initial values. |
+| `onDraftChange` | `(draft: TicketDraft) => void` | None | Receives draft updates after mount. |
+| `limits` | `Limits` | None | Blocks and confirmation rules. |
+| `quickSizes` | `readonly number[]` | No buttons | Quantities to select with a button or shortcut. |
+| `status` | `string` | None | Server status, printed as supplied. |
+| `message` | `string` | None | Server detail, such as a rejection reason. |
+| `acknowledged` | `unknown` | None | A changed value triggers the acknowledgement ring. |
+| `disabled` | `boolean` | `false` | Disables fields and buttons; stops actions and quick-size shortcuts. |
+| `hotkeys` | `boolean` | `true` | Declares missing bindings in the nearest hotkey registry. |
+| `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Built-in labels and validation messages. |
+| `className` | `string` | None | Classes on the outer group. |
+
+`TicketInstrument` requires `symbol: string` and `convention: InstrumentConvention`; `quantityStep?: number` defaults to `1`. See [`format`](format.md) for conventions. `TicketReference` has optional `bid`, `ask`, and `last` fields, each `number | null`.
+
+`TicketOption` requires `id: string` and `label: string`. Its optional `priced: boolean` defaults to `true` and matters only in `orderTypes`. A type with `priced: false` disables the price field and reference buttons; actions receive `price: null`.
 
 ### What it does
 
-It takes a side, a quantity, a price, an order type, a time in force, and an account when you give it accounts. The price field is a [`quote-field`](quote-field.md), so it speaks the instrument's notation: `99-16+` parses through `parseQuote`, prints back through `formatQuote`, and steps by `stepQuote` with the arrows and the two buttons beside it, ten ticks with Shift held. The quantity steps by `quantityStep`. A bid, ask, or last you pass shows above the fields, and a click on one takes it as the price. When the field is blank the arrows start from `last`, then the mid, then whichever side there is.
+The [`quote-field`](quote-field.md) parses through `parseQuote` and formats through `formatQuote`: `99-16+` becomes `99.515625` and prints back in the instrument's notation on blur. Invalid text is marked on blur; typing clears the mark. The field's arrows and step buttons use `stepQuote`; Shift multiplies arrow steps by ten.
 
-When an action runs, the draft is checked first: a quantity above zero, and a price when the order type takes one. What is wrong is said under the field, and nothing is sent. What passes goes to your `run` as a `TicketDraft`, with `price` null for a type that takes none. `checkDraft` and `describeDraft` are exported for a confirmation dialog, a palette row, or a test.
+Reference prices appear above the fields; click one to use it. Blank or invalid prices step from `last`, then the bid/ask midpoint snapped to `convention.tick`, then whichever side exists. Without a parsed value or reference, stepping does nothing. Reference buttons format with `formatPrice`; see [Keys](#keys) for the modifier shortcuts' step.
+
+### Actions
+
+| `TicketAction` field | Type | Default | Purpose |
+|---|---|---|---|
+| `id` | `string` | Required | Matches an id in `allowedActions`. |
+| `label` | `string \| ((draft: TicketDraft) => string)` | Required | Button text, optionally derived from the current draft. |
+| `run` | `(draft: TicketDraft, instrument: TicketInstrument) => void` | Required | Receives the draft and instrument. |
+| `primary` | `boolean` | First allowed action | Selects the action for `ticket.send` and its key hint. |
+| `checked` | `boolean` | `true` | Checks the draft and limits before calling `run`. |
+| `destructive` | `boolean` | `false` | Uses the destructive button variant. |
+
+The first allowed action marked `primary` wins; otherwise the first allowed action is primary. Checked actions require a quantity above zero and a non-null price for priced order types. Problems appear under the fields and prevent `run`. Use `checked: false` for an action such as cancel that needs neither draft validation nor limit checks.
 
 ### What it does not do
 
-It does not send anything, and it does not decide anything about the order after your `run` returns. Three things are the server's, and this item holds the line on them the same way [`blotter`](blotter.md) does:
+The ticket makes no network request and infers no order state from `run`. As with [`blotter`](blotter.md), the server supplies the allowed actions and status.
 
-- **The buttons are the actions the server allowed.** You declare `actions` with ids; the ticket renders the ones whose id is in `allowedActions`, in your order, and none when the list is empty or missing, with a line saying so. A closed market, an account without permission, an order that can no longer be amended: the server says, and the ticket shows what it said. The check is made again as the click lands, against the props as they are then.
-- **The status is the server's word.** `status` is a string and the ticket prints it as it arrives. It never sets "Sent" for itself when a button is pressed, because the server may reject, hold, or lose the order, and a screen that is ahead of it is a screen that is sometimes wrong about money. `message` is the server's second line, a rejection reason for one, printed the same way.
-- **The acknowledgement is the server's too.** Pass anything that changes identity when the server acknowledges, an order id or a timestamp, as `acknowledged`, and the ticket rings once in `primary`. It is `useFlash` in its ring variant with a color instead of a direction, because an acknowledgement has none. Under `prefers-reduced-motion` it does not ring.
+Only actions named in `allowedActions` render, in `actions` order. A missing or empty allowlist shows `labels.nothingAllowed`. Permission and `disabled` are checked again when an action runs. `status` and `message` print as supplied; clicking a button never sets “Sent.”
+
+Change `acknowledged` when the server acknowledges, using an order id or timestamp. After mount, each change under `Object.is` triggers a 900 ms `useFlash` ring in `primary`, without direction coloring. The initial value does not flash. Under `prefers-reduced-motion`, the ticket does not ring.
 
 ### Keys
 
-Four `editing` bindings, so they work while you type in the ticket and nowhere else: `ticket.send` on `mod+enter` runs the primary action (the one marked `primary`, or the first allowed), `ticket.flip` on `mod+shift+x` swaps buy and sell, and `ticket.tick-up` and `ticket.tick-down` on `mod+up` and `mod+down` step the price from any field; with `quickSizes`, `ticket.size-1` to `ticket.size-9` on `mod+1` to `mod+9` put a quick size in the quantity. Inside a `HotkeysProvider` the ticket declares them when you have not; several tickets share one declaration and the last one to leave takes it back. Spread `TICKET_BINDINGS` into your own list to change the keys or the wording, or remap them like any binding. The primary button shows the send keys from the registry, so a remap shows.
+| Key | Binding | Effect |
+|---|---|---|
+| `mod+enter` | `ticket.send` | Runs the primary allowed action, including its checks. |
+| `mod+shift+x` | `ticket.flip` | Swaps buy and sell. |
+| `mod+up` / `mod+down` | `ticket.tick-up` / `ticket.tick-down` | Steps the price by `convention.tick` from any field. |
+| `mod+1` … `mod+9` | `ticket.size-1` … `ticket.size-9` | Selects the corresponding quick size, if present. |
+| Up / Down | Field behavior | Steps the focused price or quantity field. |
+| Shift+Up / Shift+Down | Field behavior | Takes ten field steps. |
 
-The ticket is a `HotkeyScope` of its own, and its handlers are bound to its box, so two tickets side by side each answer for themselves. A dialog is a wall, and a ticket inside one keeps its keys because its scope is inside the wall: `mod+enter` sends, and a global `x` cannot reach a blotter behind it.
+`mod` is Command on Mac and Ctrl elsewhere. Registry shortcuts need a [`HotkeysProvider`](use-hotkeys.md). The ticket declares missing `TICKET_BINDINGS` as `editing` bindings and removes its shared declarations when no ticket with `hotkeys` enabled uses them. Declare your own bindings or remap them to change keys or wording. The primary button shows the registry's current send keys.
 
-Plain Enter does nothing. There is no `<form>` here on purpose: an implicit submit on Enter in a price field would send an order while someone was still typing it.
+`hotkeys={false}` skips declarations but still attaches handlers for bindings you supply. Each ticket has its own `HotkeyScope` and handlers, so shortcuts work while typing inside that ticket. They also work inside a dialog; global keys cannot reach a blotter behind it.
+
+The flip and price-step shortcuts do not check `disabled`, and price-step shortcuts do not check whether the order type is priced. Those shortcuts use `convention.tick`, even when the quote field uses another quote basis or step.
+
+Plain Enter in a field does not submit an order. The ticket has no `<form>` or implicit submit.
 
 ### The draft
 
-`defaultDraft` is where the ticket starts, and a new `key` starts it again, which is how an amend ticket takes an order's values. `onDraftChange` fires on every change and not on the first render. Quantities are whole numbers; `parseQuantity` reads them with or without thousands separators.
+| `TicketDraft` field | Type | Initial value before `defaultDraft` overrides |
+|---|---|---|
+| `side` | `"buy" \| "sell"` | `"buy"` |
+| `quantity` | `number \| null` | `null` |
+| `price` | `number \| null` | `null` |
+| `type` | `string` | First order-type id, or `""`. |
+| `tif` | `string` | First time-in-force id, or `""`. |
+| `account` | `string \| null` | First account id, or `null`. |
 
-`orderTypes` and `timeInForces` are lists of `{ id, label, priced? }`, defaulting to limit and market, and day, GTC, and IOC. A type with `priced: false` disables the price field and sends `price: null`. `accounts` is the same shape; leave it out and there is no account field.
+`defaultDraft` applies on mount. Change the React `key` to start again, such as when opening an order for amendment. `onDraftChange` receives draft updates, never the initial render. It retains the stored price for unpriced order types; only the draft passed to `run` replaces that price with `null`.
+
+Typed quantities accept nonnegative safe integers, with optional commas. Blank, negative, fractional, or invalid input becomes `null`. Quantity arrows add or subtract `quantityStep`, round to its nearest multiple, and clamp at zero. An empty field starts from zero.
+
+| Helper | Result |
+|---|---|
+| `parseQuantity(text)` | Parsed quantity or `null`. |
+| `checkDraft(draft, orderTypes, labels?)` | `TicketProblems`: optional `quantity` and `price` messages, or `{}`. Uses `DEFAULT_TICKET_LABELS`; does not check limits. |
+| `describeDraft(draft, instrument, orderTypes?, labels?)` | Summary such as `Buy 5 ZN @ 99-16+` or `Buy 5 ZN at market`. Defaults to `DEFAULT_ORDER_TYPES` and the default buy/sell labels; prices use `formatPrice`. |
+
+Use these helpers in a confirmation dialog, palette row, or test.
 
 ### Limits
 
-`limits` is a [`limits`](limits.md) table, the desk's lines as data: a size to ask again past and a size to stop at, a distance from the market in ticks, the sides the book takes, and rules of your own. A block shows under its field as the ticket's own problems do, and holds every action that sends the draft (an action with `checked: false`, a cancel, still runs). A confirm turns the primary action into a two-step: the button says `Send anyway?`, the reason is said under the actions, and the next click on the same action sends; any change to the draft withdraws the question. Both run live and again as the click lands, against `reference` as the market: a buyer's price is measured against the offer, a seller's against the bid. A side with no field of its own is said on the same line under the actions.
+Pass a [`limits`](limits.md) table for quantity thresholds, distance from market, permitted sides, or custom rules. Checks run live and again when an action runs, using `reference` as the market. A buyer's price is measured against the offer, a seller's against the bid, falling back to the midpoint and then last. Distance uses ticks for a price basis and basis points for other quote bases.
+
+- A `block` appears under its quantity or price field and disables checked actions. Other fields, including side, appear below the actions. An action with `checked: false` can still run.
+- A `confirm` makes the chosen checked action ask again: its label becomes `{action} anyway?`, and reasons appear below the actions. The next activation of that same action runs it if checks still pass. Any draft update clears the confirmation; changes to the market or limits alone do not.
 
 ### Quick sizes
 
-`quickSizes` puts a row of sizes under the quantity field, printed in the convention's unit (a count, or millions of notional when the convention quotes notional), and a press puts that size in the field; the pressed one says so with `aria-pressed`. `mod+1` to `mod+9` do the same from any field, as `ticket.size-1` to `ticket.size-9` in `TICKET_BINDINGS`, declared beside the four above so you can remap or drop them like any binding. The sizes are the desk's; the ticket adds nothing to the list.
+`quickSizes` renders your sizes below the quantity field; selecting one replaces the quantity. The matching size has `aria-pressed="true"`. `formatQuickSize(size, convention)` is exported: it prints a count, or millions such as `2.5mm` when `quantityUnit` is `"notional"`. Supply raw quantities such as `2_500_000`, not `2.5`. The ticket adds no sizes of its own; the first nine have [shortcuts](#keys).
 
 ### Labels
 
-Every word on the ticket is in `labels`, a partial of `DEFAULT_TICKET_LABELS`. The group is named `"Order ticket ZN"` for a screen reader; the side buttons carry `aria-pressed`; the errors are `FieldError`s tied to their fields.
+`labels` overrides `DEFAULT_TICKET_LABELS`. Option labels, action labels, and server text come from their own props; custom limit messages come from limit rules. The group is named `"Order ticket ZN"` by default, side buttons use `aria-pressed`, and invalid fields use `aria-invalid` with a `FieldError` below them.
 
 ### Tokens
 
-The install adds the `up` and `down` tokens and their `-soft` variants if you do not have them; the side buttons and the acknowledgement draw from them and from `primary`.
+The install adds `up`, `down`, and their `-soft` variants if absent. Side buttons use `up` and `down`; the acknowledgement ring uses `primary`.
