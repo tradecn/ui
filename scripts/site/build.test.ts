@@ -19,6 +19,7 @@ import {
   fontFiles,
   FONTS_PATH,
   FONTS_STYLES,
+  GITHUB_LINK,
   installationSection,
   MODE_BUTTON,
   PAGES,
@@ -130,8 +131,11 @@ describe("the opening page", () => {
   it("wears the header every page shares, with the sections, the search, the links out, and the mode button last", () => {
     expect(page).toContain('<header class="site-header">')
     expect(page).toContain('<a href="/docs/">Docs</a><a href="/docs/components/">Components</a><a href="/docs/changelog/">Changelog</a>')
-    expect(page).toContain(`${SEARCH_BUTTON}<a href="https://github.com/tradecn/ui">GitHub</a><a href="/r/registry.json">registry.json</a>`)
+    expect(page).toContain(`${SEARCH_BUTTON}${GITHUB_LINK}<a href="/r/registry.json">registry.json</a>`)
     expect(page).toContain(`<span class="tag">${tag}</span>${MODE_BUTTON}</nav>`)
+    // The repository link is GitHub's mark alone, named for a screen reader; the word is no longer in the header.
+    expect(GITHUB_LINK).toMatch(/^<a class="github" href="https:\/\/github\.com\/tradecn\/ui" aria-label="GitHub"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6\.766 11\.328c[^"]+"\/><\/svg><\/a>$/)
+    expect(page).not.toContain(">GitHub</a>")
     expect(MODE_BUTTON).toContain('<button type="button" class="mode-toggle" aria-label="Toggle theme">')
     expect(page.match(/class="mode-toggle"/g)).toHaveLength(1)
     expect(page).toContain('<link rel="stylesheet" href="/site.css">')
