@@ -724,6 +724,57 @@ test("a preferences envelope keeps its boundaries through export and import", as
   await expect(page.locator("section[data-scene='preferences'] [data-slot='tradecn-preferences']")).toHaveText("layout | layout,hotkeys | layout")
 })
 
+// Four notices in the store, three in the strip: the severity word beside a bar painted with the tone's
+// token, a repeat folded into its row with a climbing count, only the allowed action offered and run
+// through the consumer's button, the whole list in the consumer's dialog as a grid, then dismiss and clear.
+test("an alerts strip shows the newest notices in words and tone, folds a repeated key, offers only allowed actions, opens the list, and clears", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='alerts']")
+  const strip = scene.getByRole("group", { name: "Notices" })
+  await expect(strip).toHaveAttribute("data-count", "4")
+  await expect(strip.locator("li[data-alert-id]")).toHaveCount(3)
+  await expect(strip.locator("li[data-alert-id='up']")).toHaveCount(0)
+  await expect(strip.locator("li[data-tone='destructive'] [data-alert-severity]")).toHaveText("critical")
+  const painted = await page.evaluate(() => {
+    const bar = document.querySelector("section[data-scene='alerts'] li[data-tone='destructive'] [data-alert-bar]")!
+    const probe = document.createElement("i")
+    probe.style.backgroundColor = "var(--destructive)"
+    document.body.append(probe)
+    const out = { bar: getComputedStyle(bar).backgroundColor, token: getComputedStyle(probe).backgroundColor }
+    probe.remove()
+    return out
+  })
+  expect(painted.bar, "the bar is painted with the tone's token").toBe(painted.token)
+  expect(painted.bar).not.toBe("rgba(0, 0, 0, 0)")
+  await scene.getByRole("button", { name: "slow feed again" }).click()
+  await scene.getByRole("button", { name: "slow feed again" }).click()
+  await expect(strip.locator("li[data-alert-id='slow'] [data-alert-count]")).toHaveText("×3")
+  await expect(strip.locator("li[data-alert-id='slow']")).toContainText("2.0 s behind")
+  await expect(strip).toHaveAttribute("data-count", "4")
+  await expect(strip.locator("li[data-alert-id='slow'] [data-alert-action]")).toHaveText(["Reconnect"])
+  await expect(strip.locator("li[data-alert-id='fill'] [data-alert-action]")).toHaveCount(0)
+  await strip.locator("li[data-alert-id='slow'] [data-alert-action='reconnect']").click()
+  await expect(scene.locator("[data-alerts-acted]")).toHaveAttribute("data-alerts-acted", "reconnect:slow")
+  await strip.getByRole("button", { name: "1 more" }).click()
+  const dialog = page.getByRole("dialog", { name: "All notices" })
+  await expect(dialog.getByRole("grid", { name: "All notices" })).toHaveAttribute("aria-rowcount", "5")
+  await expect(dialog.locator("[data-row-id]").first()).toHaveAttribute("data-row-id", "slow")
+  await page.keyboard.press("Escape")
+  await expect(dialog).toHaveCount(0)
+  await strip.getByRole("button", { name: "Dismiss: Order rejected" }).click()
+  await expect(strip).toHaveAttribute("data-count", "3")
+  await strip.getByRole("button", { name: "Clear all" }).click()
+  await expect(strip).toHaveAttribute("data-count", "0")
+  await expect(strip.getByText("No notices.")).toBeVisible()
+})
+
+// The store alone through the installed lib: the keyed repeat is one row at a count of two, and the cap
+// of three let the oldest plain notice go while the keyed one, which has an action, stayed.
+test("an alert store folds a repeated key and keeps to its cap", async ({ page }) => {
+  await page.goto("/")
+  await expect(page.locator("section[data-scene='alert-store'] [data-slot='tradecn-alert-store']")).toHaveText("fill 2×1 fill 1×1 keyed×2")
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.
