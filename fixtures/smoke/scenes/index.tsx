@@ -12,6 +12,7 @@ import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
 import { GridRulesScene } from "./grid-rules"
 import { HotkeyEditorScene } from "./hotkey-editor"
+import { InstrumentSearchScene } from "./instrument-search"
 import { LayoutManagerScene } from "./layout-manager"
 import { LimitsScene } from "./limits"
 import { PanelScene } from "./panel"
@@ -66,6 +67,7 @@ export const scenes: SmokeScene[] = [
   { name: "positions", Scene: PositionsScene },
   { name: "audit-trail", Scene: AuditTrailScene },
   { name: "layout-manager", Scene: LayoutManagerScene },
+  { name: "instrument-search", Scene: InstrumentSearchScene },
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
   { name: "alert-store", Scene: AlertStoreScene },

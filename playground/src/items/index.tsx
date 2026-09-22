@@ -12,6 +12,7 @@ import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
 import { GridRulesScene } from "./grid-rules"
 import { HotkeyEditorScene } from "./hotkey-editor"
+import { InstrumentSearchScene } from "./instrument-search"
 import { LayoutManagerScene } from "./layout-manager"
 import { LimitsScene } from "./limits"
 import { PanelScene } from "./panel"
@@ -69,6 +70,7 @@ export const items: Record<string, ItemScene> = {
   positions: { title: "positions", Scene: PositionsScene },
   "audit-trail": { title: "audit-trail", Scene: AuditTrailScene },
   "layout-manager": { title: "layout-manager", Scene: LayoutManagerScene },
+  "instrument-search": { title: "instrument-search", Scene: InstrumentSearchScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   preferences: { title: "preferences", Scene: PreferencesScene },
   "alert-store": { title: "alert-store", Scene: AlertStoreScene },
