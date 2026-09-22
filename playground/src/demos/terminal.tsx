@@ -27,6 +27,7 @@ import { ColumnChooser } from "@/registry/tradecn/ui/column-chooser"
 import { CommandPalette, createActionRegistry, type ActionRegistry, type PaletteAction } from "@/registry/tradecn/ui/command-palette"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/registry/tradecn/ui/data-grid"
+import { DepthLadder, levelId, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
 import { FeedHealth, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { FlashCell } from "@/registry/tradecn/ui/flash-cell"
 import { HotkeyEditor } from "@/registry/tradecn/ui/hotkey-editor"
@@ -43,13 +44,13 @@ import { StatusBar } from "@/registry/tradecn/ui/status-bar"
 import { Watchlist, watchlistColumns, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
 import { Workspace, useWorkspacePanel, type WorkspaceApi } from "@/registry/tradecn/ui/workspace"
 
-// One desk, every item. A workspace of eleven panels over one pretend venue and one pretend server, which decide
+// One desk, every item. A workspace of twelve panels over one pretend venue and one pretend server, which decide
 // every status and every allowed action the way real ones do; the components print the words and offer what
 // they are allowed. tradecn.dev frames this at /preview/terminal/ on its opening page, and a test in scripts/site
 // holds it to the whole registry, so a new item joins this desk before it ships.
 //
-// The market is six futures on a watchlist; a chart, an order ticket, a tape, and the positions follow the
-// symbol through link group 1. The inquiries are cash Treasuries: the stack orders them, the quote ticket
+// The market is six futures on a watchlist; a chart, a ladder, an order ticket, a tape, and the positions follow
+// the symbol through link group 1, and a click on the ladder starts the order ticket from that price and side. The inquiries are cash Treasuries: the stack orders them, the quote ticket
 // takes the active one, and the quoter sheet says which the auto-quoter answers on its own. Every order lands
 // in the blotter and every step of its life in the audit trail; fills, rejects, and a slow feed become notices.
 
@@ -123,6 +124,13 @@ interface Print {
   size: number
   px: number
   mine?: boolean
+}
+interface Staged {
+  id: "order"
+  seq: number
+  symbol: string
+  price: number
+  side: "buy" | "sell"
 }
 interface Sheet extends ParameterRow {
   skew: number
@@ -213,6 +221,8 @@ interface Desk {
   positions: RowStore<PositionRow>
   sheet: RowStore<Sheet>
   feeds: RowStore<FeedDescriptor>
+  /** One row, "order": the price and side the ladder last staged, for the order ticket to start from. */
+  staged: RowStore<Staged>
   alerts: AlertStore
   actions: ActionRegistry
   /** The workspace, once it is up; the go keys and the layouts reach it here. */
@@ -220,6 +230,10 @@ interface Desk {
   api(): WorkspaceApi | null
   /** Puts a symbol on the watchlist, so the chart and the ticket have a market for it. */
   watch(symbol: string): void
+  /** A symbol's book, levels keyed by tick: made the first time a ladder asks, fed by the venue from then on. */
+  book(symbol: string): RowStore<DepthLevel>
+  /** The ladder's click: the order ticket starts again from this price and side, and takes the focus. */
+  stage(symbol: string, stage: LadderStage): void
   send(draft: TicketDraft, instrument: TicketInstrument): string
   cancel(ids: readonly RowId[]): void
   quote(id: string, levels: RfqLevels): void
@@ -254,6 +268,90 @@ function createDesk(): Desk {
   const events = createRowStore<AuditEvent>({ getRowId: (e) => e.id, lane: "ordered" })
   const prints = createRowStore<Print>({ getRowId: (p) => p.id, lane: "ordered" })
   const positions = createRowStore<PositionRow>({ getRowId: (p) => p.id })
+  const staged = createRowStore<Staged>({ getRowId: (s) => s.id })
+  let stageSeq = 0
+  // The books, one store per symbol, made when a ladder first asks. The venue rebuilds a book around its quote
+  // when the quote moves and stirs a couple of sizes when it does not, and the desk's working orders sit on
+  // their rungs as its own size, so a fill or a cancel takes the size off the rung.
+  const books = new Map<string, RowStore<DepthLevel>>()
+  const LEVELS_A_SIDE = 12
+  const lotOf = (symbol: string) => (symbol === "ES" ? 1 : 5)
+  const mineAt = (symbol: string, tick: number) => {
+    const mine = new Map<number, { bid: number; ask: number }>()
+    for (const id of orders.getIds()) {
+      const o = orders.getRow(id)
+      if (!o || o.symbol !== symbol || o.price === null || o.price === undefined || !o.allowedActions?.includes("cancel")) continue
+      const t = tickIndexOf(o.price, tick)
+      const at = mine.get(t) ?? { bid: 0, ask: 0 }
+      at[o.side === "buy" ? "bid" : "ask"] += o.quantity - (o.filled ?? 0)
+      mine.set(t, at)
+    }
+    return mine
+  }
+  const levelsFor = (symbol: string): DepthLevel[] => {
+    const q = quotes.getRow(symbol)
+    const f = FUTURES[symbol]
+    if (!q || !f) return []
+    const tick = f.convention.tick
+    const last = q.last ?? q.close
+    const bid = tickIndexOf(q.bid ?? last - tick, tick)
+    const ask = tickIndexOf(q.ask ?? last + tick, tick)
+    const mine = mineAt(symbol, tick)
+    const size = () => lotOf(symbol) * (2 + Math.floor(Math.random() * 60))
+    const levels: DepthLevel[] = []
+    for (let i = 0; i < LEVELS_A_SIDE; i++) {
+      levels.push({ tick: bid - i, bidSize: size(), myBid: mine.get(bid - i)?.bid || null })
+      levels.push({ tick: ask + i, askSize: size(), myAsk: mine.get(ask + i)?.ask || null })
+    }
+    // A working order off the book's levels gets a rung of its own, so the desk's size always shows.
+    for (const [t, at] of mine) if (t < bid - LEVELS_A_SIDE + 1 || t > ask + LEVELS_A_SIDE - 1 || (t > bid && t < ask)) levels.push({ tick: t, myBid: at.bid || null, myAsk: at.ask || null })
+    return levels
+  }
+  const rebuildBook = (symbol: string) => {
+    const store = books.get(symbol)
+    if (!store) return
+    const levels = levelsFor(symbol)
+    const keep = new Set(levels.map((l) => levelId(l.tick)))
+    store.applyDeltas({ upsert: levels, remove: store.getIds().filter((id) => !keep.has(id)) })
+  }
+  const stirBook = (symbol: string) => {
+    const store = books.get(symbol)
+    const f = FUTURES[symbol]
+    if (!store || !f) return
+    const ids = store.getIds()
+    if (!ids.length) return
+    const patch: { id: RowId; fields: Partial<DepthLevel> }[] = []
+    for (let n = 0; n < 2; n++) {
+      const id = pick(ids)
+      const level = store.getRow(id)
+      if (!level || (!level.bidSize && !level.askSize)) continue
+      const size = lotOf(symbol) * (2 + Math.floor(Math.random() * 60))
+      patch.push({ id, fields: level.bidSize ? { bidSize: size } : { askSize: size } })
+    }
+    const mine = mineAt(symbol, f.convention.tick)
+    for (const id of ids) {
+      const level = store.getRow(id)!
+      const at = mine.get(level.tick)
+      const myBid = at?.bid || null
+      const myAsk = at?.ask || null
+      if ((level.myBid ?? null) !== myBid || (level.myAsk ?? null) !== myAsk) patch.push({ id, fields: { myBid, myAsk } })
+    }
+    if (patch.length) store.applyDeltas({ patch })
+  }
+  const bookOf = (symbol: string) => {
+    let store = books.get(symbol)
+    if (!store) {
+      store = createRowStore<DepthLevel>({ getRowId: (l) => levelId(l.tick) })
+      books.set(symbol, store)
+      watch(symbol)
+      rebuildBook(symbol)
+    }
+    return store
+  }
+  const stage = (symbol: string, s: LadderStage) => {
+    staged.applyDeltas({ upsert: [{ id: "order", seq: ++stageSeq, symbol, price: s.price, side: s.side }] })
+    api()?.focusPanel("order-1")
+  }
   const book: [string, number, number | null][] = [
     ["ZT", 250, 102.234375],
     ["ZF", -180, 106.484375],
@@ -472,6 +570,9 @@ function createDesk(): Desk {
           }),
         })
       }
+      // The books: rebuilt around a quote that moved, stirred where it did not.
+      const movedIds = new Set(moved.map((m) => m.id))
+      for (const symbol of books.keys()) (movedIds.has(symbol) ? rebuildBook : stirBook)(symbol)
       // The tape: a print every other beat, at the bid or the ask.
       if (beat % 2 === 0) {
         const id = pick(quotes.getIds())
@@ -533,7 +634,7 @@ function createDesk(): Desk {
     }),
   })
 
-  return { quotes, inquiries, orders, events, prints, positions, sheet, feeds, alerts, actions, attach, api, watch, send, cancel, quote, pass, reconnect, start }
+  return { quotes, inquiries, orders, events, prints, positions, sheet, feeds, staged, alerts, actions, attach, api, watch, book: bookOf, stage, send, cancel, quote, pass, reconnect, start }
 }
 
 // What the panels read the desk through.
@@ -741,6 +842,8 @@ function OrderPanel() {
   const link = useLinkGroup({ source: panel.id, defaultGroup: (panel.state.group as LinkGroup | undefined) ?? 1, defaultSymbol: DEFAULT_SYMBOL, onGroupChange: (group) => panel.setState({ group }) })
   const future = futureOf(link.symbol)
   const market = useRow(desk.quotes, future.symbol)
+  const stagedRow = useRow(desk.staged, "order")
+  const stagedHere = stagedRow?.symbol === future.symbol ? stagedRow : undefined
   const [lastId, setLastId] = useState<string | null>(null)
   const last = useRow(desk.orders, lastId ?? "")
   const instrument = useMemo<TicketInstrument>(() => ({ symbol: future.symbol, convention: future.convention, quantityStep: 1 }), [future])
@@ -773,7 +876,8 @@ function OrderPanel() {
       </PanelHeader>
       <PanelContent className="p-2">
         <Ticket
-          key={future.symbol}
+          key={stagedHere ? `${future.symbol}:${stagedHere.seq}` : future.symbol}
+          defaultDraft={stagedHere ? { side: stagedHere.side, price: stagedHere.price } : undefined}
           instrument={instrument}
           reference={{ bid: market?.bid, ask: market?.ask, last: market?.last }}
           quickSizes={[1, 5, 10, 25]}
@@ -916,6 +1020,34 @@ function ChartPanel() {
   )
 }
 
+// The ladder follows the symbol the way the chart does, over the book the venue keeps for it. A click on a size
+// stages that price and side into the order ticket, which starts again from them; the ladder itself sends nothing.
+function LadderPanel() {
+  const desk = useDesk()
+  const panel = useWorkspacePanel()
+  const link = useLinkGroup({ source: panel.id, defaultGroup: (panel.state.group as LinkGroup | undefined) ?? 1, defaultSymbol: DEFAULT_SYMBOL, onGroupChange: (group) => panel.setState({ group }) })
+  const future = futureOf(link.symbol)
+  const market = useRow(desk.quotes, future.symbol)
+  const book = useMemo(() => desk.book(future.symbol), [desk, future.symbol])
+  const commit = (symbol: string | null) => {
+    if (symbol) desk.watch(symbol)
+    link.setSymbol(symbol)
+  }
+  return (
+    <>
+      <PanelHeader>
+        <PanelTitle>Ladder</PanelTitle>
+        <SymbolTag value={link.symbol} onCommit={commit} validate={(symbol) => symbol in FUTURES} />
+        <LinkGroupDot group={link.group} onGroupChange={link.setGroup} />
+        <span className="truncate text-muted-foreground">Click a size to stage it</span>
+      </PanelHeader>
+      <PanelContent>
+        <DepthLadder store={book} convention={future.convention} mid={market?.last ?? market?.close ?? null} label={`${future.symbol} ladder`} depth={40} onStage={(stage) => desk.stage(future.symbol, stage)} className={GRID} />
+      </PanelContent>
+    </>
+  )
+}
+
 function TapePanel() {
   const desk = useDesk()
   return (
@@ -954,7 +1086,7 @@ function FramesPanel() {
   )
 }
 
-const PANELS = { watchlist: WatchlistPanel, positions: PositionsPanel, stack: StackPanel, quote: QuotePanel, order: OrderPanel, blotter: BlotterPanel, audit: AuditPanel, parameters: ParametersPanel, chart: ChartPanel, tape: TapePanel, frames: FramesPanel }
+const PANELS = { watchlist: WatchlistPanel, positions: PositionsPanel, stack: StackPanel, quote: QuotePanel, order: OrderPanel, blotter: BlotterPanel, audit: AuditPanel, parameters: ParametersPanel, chart: ChartPanel, ladder: LadderPanel, tape: TapePanel, frames: FramesPanel }
 
 // The layout: three columns, the market on the left, the inquiries and the orders in the middle, the tickets and
 // the chart on the right, tabs where two panels share a place. Ids are fixed so the go keys can name them.
@@ -964,6 +1096,7 @@ function seed(api: WorkspaceApi) {
   api.addPanel({ kind: "order", id: "order-1", title: "Order", state: { group: 1 }, position: { reference: "stack-1", direction: "right" }, focus: false })
   api.addPanel({ kind: "quote", id: "quote-1", title: "Quote", position: { reference: "order-1", direction: "within" }, focus: false })
   api.addPanel({ kind: "positions", id: "positions-1", title: "Positions", position: { reference: "watchlist-1", direction: "below" }, focus: false })
+  api.addPanel({ kind: "ladder", id: "ladder-1", title: "Ladder", state: { group: 1 }, position: { reference: "positions-1", direction: "below" }, focus: false })
   api.addPanel({ kind: "blotter", id: "blotter-1", title: "Blotter", position: { reference: "stack-1", direction: "below" }, focus: false })
   api.addPanel({ kind: "audit", id: "audit-1", title: "Audit trail", position: { reference: "blotter-1", direction: "within" }, focus: false })
   api.addPanel({ kind: "parameters", id: "parameters-1", title: "Quoter", position: { reference: "blotter-1", direction: "within" }, focus: false })
@@ -1009,6 +1142,7 @@ function Toolbar() {
       focus("order", "Go to the order ticket", "go.order"),
       focus("blotter", "Go to the blotter", "go.blotter"),
       focus("chart", "Go to the chart", "go.chart"),
+      focus("ladder", "Go to the ladder"),
       focus("positions", "Go to the positions"),
       focus("audit", "Go to the audit trail"),
       focus("parameters", "Go to the quoter"),
