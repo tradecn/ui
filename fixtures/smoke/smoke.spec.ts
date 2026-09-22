@@ -315,10 +315,15 @@ test("a workspace docks its panels, keeps their keys apart, saves, restores, and
   await scene.locator("[data-workspace-tab='book-1']").click()
   await book.getByRole("button", { name: "to ES" }).click()
   await expect(book.locator("[data-ws-symbol]")).toHaveText("ES")
-  await expect.poll(async () => Number(await state.getAttribute("data-ws-saves"))).toBeGreaterThan(saves + 1)
+  // The save is debounced and adding the book may have saved twice, so a count can pass before the ES save
+  // lands and a reload then restores the older layout, with the second book in front and ZN behind it.
+  // Wait for the stored layout to carry ES instead.
+  await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem("tradecn-smoke-workspace") ?? "{}") as { panels?: Record<string, { state?: { symbol?: string } }> }).panels?.["book-1"]?.state?.symbol ?? null)).toBe("ES")
   await page.reload()
   await expect(state).toHaveAttribute("data-ws-restored", "yes")
   await expect(tabs).toHaveCount(3)
+  // A group draws one panel at a time: bring the first book to the front before reading it.
+  await scene.locator("[data-workspace-tab='book-1']").click()
   await expect(book.locator("[data-ws-symbol]")).toHaveText("ES")
   // Closing from the tab: the second book goes, the first stays.
   await scene.getByRole("button", { name: "Close Book" }).last().click()
@@ -668,6 +673,47 @@ test("a column chooser hides, reorders, and resets through the grid's own column
   await expect(headers).toHaveCount(4)
   await page.keyboard.press("Escape")
   await expect(dialog).toHaveCount(0)
+})
+
+// The editor's fields are the consumer's native-select and input, and every edit is a new rules object the
+// grid reads at once: a highlight typed here colors a cell, a filter drops a row, a sort key reorders, and
+// the chooser in the fourth tab hides a column. The count beside a rule reads the same store as the grid.
+test("a rules editor builds a highlight, a filter, and a sort key that the grid follows, and holds the chooser in a tab", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='rules-editor']")
+  const editor = scene.getByRole("region", { name: "Rules" })
+  const grid = scene.getByRole("grid", { name: "Ruled by the editor" })
+  await expect(grid).toHaveAttribute("aria-rowcount", "4")
+  await editor.getByRole("button", { name: "Add highlight" }).click()
+  const highlight = editor.locator("[data-rule-row='0']")
+  await highlight.getByLabel(/^Column:/).selectOption("px")
+  await highlight.getByLabel(/^Condition:/).selectOption("gte")
+  await highlight.getByLabel(/^Value:/).fill("100")
+  await expect(highlight.locator("[data-rule-count]")).toHaveAttribute("data-rule-count", "1")
+  await highlight.getByLabel(/^Label:/).fill("Rich")
+  const cell = grid.locator("[data-row-id='b'] [data-col='px']")
+  await expect(cell).toHaveAttribute("data-tone", "up")
+  await expect(cell).toHaveAttribute("aria-description", "Rich")
+  await expect(grid.locator("[data-row-id='a'] [data-col='px']")).not.toHaveAttribute("data-rule", /./)
+  await editor.getByRole("tab", { name: /^Filters/ }).click()
+  await editor.getByRole("button", { name: "Add filter" }).click()
+  const filter = editor.locator("[data-rule-row='0']")
+  await filter.getByLabel(/^Column:/).selectOption("size")
+  await filter.getByLabel(/^Condition:/).selectOption("gte")
+  await filter.getByLabel(/^Value:/).fill("2000000")
+  await expect(grid).toHaveAttribute("aria-rowcount", "3")
+  await expect(grid.locator("[data-row-id='c']")).toHaveCount(0)
+  await expect(editor.locator("[data-rules-shown]")).toHaveText("2 of 3 rows show")
+  await editor.getByRole("tab", { name: /^Sort/ }).click()
+  await editor.getByRole("button", { name: "Add sort key" }).click()
+  const sort = editor.locator("[data-rule-row='0']")
+  await sort.getByLabel(/^Column:/).selectOption("size")
+  await sort.getByLabel(/^Direction:/).selectOption("desc")
+  await expect(grid.locator("[data-row-id]").first()).toHaveAttribute("data-row-id", "b")
+  await editor.getByRole("tab", { name: /^Columns/ }).click()
+  await editor.getByRole("checkbox", { name: "Show Status" }).click()
+  await expect(grid.locator("[role='columnheader']")).toHaveCount(4)
+  await expect(scene.locator("[data-rules-state]")).toHaveAttribute("data-rules-state", /"sort":\[\{"key":"size","dir":"desc"\}\]/)
 })
 
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
