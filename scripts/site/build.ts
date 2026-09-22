@@ -103,8 +103,14 @@ export function groupOf(item?: RegistryItem): Group {
   }
 }
 
-/** An item's name as the sidebar, the pager, and the search print it: its registry title (`Data Grid`), or its name for an item without one. */
-export const titleOf = (item: RegistryItem) => item.title ?? item.name
+/** `use-hotkeys` as `useHotkeys`: the name a hook is exported under. */
+const camelCase = (name: string) => name.replace(/-(\w)/g, (_, letter: string) => letter.toUpperCase())
+
+/**
+ * An item's name as the sidebar, the pager, and the search print it: its registry title (`Data Grid`), a hook by
+ * the name it is exported under (`useHotkeys`), or its name for an item without a title.
+ */
+export const titleOf = (item: RegistryItem) => (item.type === "registry:hook" ? camelCase(item.name) : item.title ?? item.name)
 
 /** Alphabetical by title, the order a group of items is listed in. */
 const byTitle = (a: RegistryItem, b: RegistryItem) => titleOf(a).localeCompare(titleOf(b), "en")
@@ -574,7 +580,7 @@ export async function readSitePages(dir: string, values: Record<string, string>)
   )
 }
 
-/** Alphabetical by the name the sidebar shows, so `RFQ Stack` sits before `Rules Editor` and `use-hotkeys` is listed as `Hotkeys`. */
+/** Alphabetical by the name the sidebar shows, so `RFQ Stack` sits before `Rules Editor` and a hook sorts as `useHotkeys`. */
 const byLabel = (a: Doc, b: Doc) => a.label.localeCompare(b.label, "en")
 
 /**
