@@ -821,6 +821,10 @@
           "type": "registry:block"
         },
         {
+          "path": "registry/tradecn/ui/quote-field.tsx",
+          "type": "registry:ui"
+        },
+        {
           "path": "registry/tradecn/hooks/use-flash.ts",
           "type": "registry:hook"
         },
@@ -840,7 +844,7 @@
       "categories": [
         "ticket"
       ],
-      "docs": "The registry first block: ticket.tsx goes to your components alias, not components/ui. Installs format, use-flash, and the hotkey registry alongside, composes your button, button-group, field, input, input-group, kbd, and native-select, and adds the up and down tokens. Inside a HotkeysProvider it declares ticket.send (mod+enter), ticket.flip, ticket.tick-up, and ticket.tick-down as editing bindings unless you did.",
+      "docs": "The registry first block: ticket.tsx goes to your components alias, not components/ui. Installs quote-field, format, use-flash, and the hotkey registry alongside, composes your button, button-group, field, input, input-group, kbd, and native-select, and adds the up and down tokens. Inside a HotkeysProvider it declares ticket.send (mod+enter), ticket.flip, ticket.tick-up, and ticket.tick-down as editing bindings unless you did.",
       "meta": {
         "components": [
           {
@@ -941,6 +945,42 @@
           "expiring": "oklch(0.74 0.17 350)",
           "expiring-soft": "oklch(0.74 0.17 350 / 18%)"
         }
+      }
+    },
+    {
+      "name": "quote-field",
+      "type": "registry:ui",
+      "title": "Quote Field",
+      "description": "A field that types a quote the way the instrument quotes it: 99-16+ for a note on price, 4.253 for a bill on discount, 12.6 for credit on a spread. It parses on every keystroke and hands the number up, marks what is not a quote on blur and prints a good one back in the notation, and steps by the instrument's own step with the arrows and two buttons, ten with Shift. A held modifier leaves the arrows to the registry above it.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [
+        "field",
+        "input-group"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/quote-field.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "ticket",
+        "rfq"
+      ],
+      "docs": "Installs format alongside and composes your field and input-group. Controlled: the value is yours and the text follows it. It declares no keys and checks nothing but whether the text is a quote; what your ticket's check finds goes in error.",
+      "meta": {
+        "components": [
+          {
+            "title": "QuoteField",
+            "description": "The field."
+          }
+        ]
       }
     },
     {

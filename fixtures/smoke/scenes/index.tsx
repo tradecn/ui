@@ -7,6 +7,7 @@ import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
 import { PanelScene } from "./panel"
+import { QuoteFieldScene } from "./quote-field"
 import { RowStoreScene } from "./row-store"
 import { SparklineScene } from "./sparkline"
 import { TicketScene } from "./ticket"
@@ -35,5 +36,6 @@ export const scenes: SmokeScene[] = [
   { name: "workspace", Scene: WorkspaceScene },
   { name: "ticket", Scene: TicketScene },
   { name: "countdown", Scene: CountdownScene },
+  { name: "quote-field", Scene: QuoteFieldScene },
 ]
 export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "expiring", "expiring-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4"]
