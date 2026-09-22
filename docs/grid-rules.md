@@ -1,6 +1,6 @@
 # grid-rules
 
-Rules as data for a grid: which cells to color, which rows to show, and the order, as plain objects a desk writes without a build.
+Define grid colors, filters, and sort order as plain objects a desk can change without a build.
 
 ## Usage
 
@@ -28,23 +28,154 @@ const rules: GridRules = {
 
 ### What a rule is
 
-A rule names a column by its key and reads a row through that column's own `accessor`, so it sees what the cell sees. A `ColumnRule` (`id`, `column`, `when`, `tone`, `label`, `target`) colors the cell in its column when `when` holds, or the whole row with `target: "row"`. A `FilterRule` (`column`, `op`, `value`, `values`) keeps a row when it holds, and every filter rule has to hold. A `SortRule` (`key`, `dir`) orders, and the first rule that tells two rows apart decides. `GridRules` is the three lists together, `columns`, `filter`, and `sort`. The ops are `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `between` (two `values`, low then high, both inclusive), `in` (any number of `values`), `contains`, `startsWith`, `isNull`, and `notNull`. Text compares without regard to case. A cell with no value answers only `isNull` and `notNull`: it is never above, below, or unequal to anything, so a missing price is not "below 99" and is not "not 99" either. `RULE_OP_LABELS` has the word for each op, `opsFor(column)` the ops a column offers (comparisons and ranges for a numeric one, text matching for the rest), and `describeRule(rule, columns)` says a rule in words: `Price above 99-16+`, `Client one of ALPHA, BETA`, `Status is empty`.
+A rule names a column by key and reads each row through its `accessor`. It compares the underlying value, before the cell's display formatting.
+
+`GridRules` groups three optional lists:
+
+| Field | Type | When omitted | Purpose |
+|---|---|---|---|
+| `columns` | `ColumnRule[]` | No rule decorations | Color cells or rows that match. |
+| `filter` | `FilterRule[]` | No rule filtering | Keep rows that match every filter rule. |
+| `sort` | `SortRule[]` | No rule ordering | Order by the first rule that distinguishes two rows. |
+
+`ColumnRule` describes a highlight:
+
+| Field | Type | Required / default | Purpose |
+|---|---|---|---|
+| `id` | `string` | Required | Identifies the applied rule in `data-rule`. |
+| `column` | `string` | Required | Key of the column to read. |
+| `when` | `RuleCondition` | Required | Condition that triggers the highlight. |
+| `tone` | `RuleTone` | Required | Token used for the text and background tint. |
+| `label` | `string` | Generated description | Accessible description; a blank label also uses the generated words. |
+| `target` | `"cell" \| "row"` | `"cell"` | Paint the cell in `column` or the whole row. |
+
+The first matching cell rule wins for each column. The first matching row rule wins for the row. Cell and row rules apply independently.
+
+`RuleCondition` contains the operator and its inputs. `FilterRule` adds `column`:
+
+| Field | Type | Required / default | Purpose |
+|---|---|---|---|
+| `column` | `string` | Required on `FilterRule` | Key of the column to read. |
+| `op` | `RuleOp` | Required | Operator from the table below. |
+| `value` | `RuleValue` | Omitted | Single comparison value, where the operator needs one. |
+| `values` | `RuleValue[]` | Omitted | Range endpoints for `between`, or candidates for `in`. |
+
+`RuleValue` is `string | number | boolean | null`. Strings use the column's parser; numbers and booleans are already typed.
+
+`SortRule` has two required fields:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `key` | `string` | Key of the column to read. |
+| `dir` | `"asc" \| "desc"` | Ascending or descending order; missing values stay last either way. |
+
+### Operators
+
+| Operator | Input | Matches | Offered by `opsFor` |
+|---|---|---|---|
+| `eq` | `value` | Equal value | All columns |
+| `ne` | `value` | Unequal, nonmissing value | All columns |
+| `gt` | `value` | Above | Numeric columns |
+| `gte` | `value` | At or above | Numeric columns |
+| `lt` | `value` | Below | Numeric columns |
+| `lte` | `value` | At or below | Numeric columns |
+| `between` | `values: [low, high]` | Within the range, including both ends | Numeric columns |
+| `in` | `values` | Equal to any candidate | All columns |
+| `contains` | `value` | Contains the text | Other columns |
+| `startsWith` | `value` | Starts with the text | Other columns |
+| `isNull` | None | Missing value | All columns |
+| `notNull` | None | Nonmissing value | All columns |
+
+For `eq`, `ne`, and `in`, two strings compare without regard to case; a string and a number compare after converting the string to a number. `contains` and `startsWith` convert both sides to lowercase text. Ordering comparisons and sorting use numeric comparison when both sides are numbers, otherwise `String(a).localeCompare(String(b))`.
+
+`null`, `undefined`, `NaN`, and infinities count as missing. A missing row value matches only `isNull`; it fails `notNull` and every other operator, including `ne`. An empty string is a value, not a missing value.
+
+| Helper | Result |
+|---|---|
+| `RULE_OPS` | All twelve operators. |
+| `NUMBER_OPS`, `TEXT_OPS` | The numeric and other-column choices listed above. |
+| `RULE_OP_LABELS` | Human-readable wording for each operator. |
+| `opsFor(column)` | `NUMBER_OPS` when `column.numeric` is true, otherwise `TEXT_OPS`, including for `undefined`. This is an editor choice list; compilation does not restrict operators by column kind. |
+| `columnName(column, key?)` | A nonblank string header, otherwise the column key. Without a column, uses `key` or `""`. |
+| `describeRule(rule, columns)` | Words for a `ColumnRule` or `FilterRule`, using values as typed: `Price above 99-16+`, `Client one of ALPHA, BETA`, `Status is empty`. |
 
 ### Values are typed in the column's format
 
-A value in a rule is what someone typed. A string is read through the column's `parse`, so a price rule on a 32nds column is written `99-16+` and a size `5,000,000`; a numeric column with no `parse` reads a number, and any other column keeps the text. A number or a boolean is used as it is. `readRuleValue(column, value)` is that reading. It returns null for text the column cannot read, and null matches nothing, so a typo hides no rows and colors no cells. `ruleProblem(rule, columns)` says why in a sentence, for an editor to show under the rule. Give a column a `parse` wherever its format is not a plain number: `parse: (text) => parsePrice(text, convention)` on a price column, `parse: (text) => text === "yes"` on a boolean one. [`data-grid`](data-grid.md)'s `ColumnDef` carries it.
+`RuleColumn<T>` supplies what the helpers need from a column. [`data-grid`](data-grid.md)'s `ColumnDef<T>` satisfies this interface.
+
+| Field | Type | Required / default | Purpose |
+|---|---|---|---|
+| `key` | `string` | Required | Name used by rules. |
+| `header` | `unknown` | Falls back to `key` | A nonblank string names the column in descriptions and problems. |
+| `accessor` | `(row: T) => unknown` | Required | Reads the row value to compare. |
+| `numeric` | `boolean` | `false` | Selects numeric parsing and the numeric operator list. |
+| `parse` | `(text: string) => unknown` | Numeric or text fallback | Reads a string entered in a rule. |
+
+`readRuleValue(column, value)` accepts a `RuleColumn<T>` or `undefined`, and a `RuleValue` or `undefined`:
+
+| Input | Reading |
+|---|---|
+| String with a column `parse` | Calls `parse(text)` and normalizes its result. |
+| String on a numeric column without `parse` | Trims whitespace, removes commas, replaces Unicode minus (`−`) with `-`, then calls `Number`. Empty or invalid numeric text becomes `null`. |
+| Any other string | Keeps the text, including `""`. |
+| Number or boolean | Keeps the value, except nonfinite numbers become `null`. |
+| `null` or `undefined` | Returns `null`. |
+
+`normalizeValue(value)` maps `null`, `undefined`, `NaN`, and infinities to `null`, leaving other values unchanged. A custom `parse` should return a missing value when it cannot read the text; thrown errors are not caught.
+
+For a 32nds price column, use `parse: (text) => parsePrice(text, convention)` to accept `99-16+`. A numeric size column accepts `5,000,000` without a custom parser. For a boolean column, `parse: (text) => text === "yes"` makes `yes` true and every other string false.
+
+If a required scalar comparison value parses to `null`, the condition matches no rows. As a highlight, it colors nothing; as a filter, it excludes every row. For `in` and `between`, compilation drops values that parse to `null`: `in` uses the remaining candidates, and `between` uses the first two remaining values, low then high. No candidates, or fewer than two endpoints, matches nothing.
+
+`ruleProblem(rule, columns)` accepts a `ColumnRule` or `FilterRule` and returns a problem sentence or `null`. Use it to show missing columns, missing or unreadable inputs, or a range without exactly two endpoints. It checks the supplied rule separately; compilation does not call it. For example, an `in` list containing one readable and one unreadable numeric value reports a problem but still compiles to match the readable value.
 
 ### Tones are tokens
 
-A tone is a token name, `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`, never a literal color, so a rule reads the same under every theme. The text takes the token and the background a tint of its soft variant, painted as a background image so it layers over whatever color the element already has: a frozen cell keeps its opaque background under the tint, and a selected row's highlight shows through. `RULE_TONE_CLASS` has the class for each tone and `RULE_TONES` the list. Direction never rides on hue alone: an applied rule sets `data-rule` to the rule's id and `data-tone` to its tone on the element, and puts the rule's `label`, or `describeRule`'s words when there is none, in the element's accessible description, so a test reads it and a screen reader hears it.
+`RuleTone` is a token name: `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`. `RULE_TONES` lists them; `RULE_TONE_CLASS` maps each to its CSS classes.
+
+The text uses the token color. The background uses its soft variant, or a 12% tint for `primary` and `destructive`. This tint is a background image: a frozen cell keeps its opaque background, and a selected row's highlight shows through.
+
+`ruleDecoration(rule, columns)` returns a `RuleDecoration` for a `ColumnRule`, without checking whether it matches:
+
+| Field | Type | Value |
+|---|---|---|
+| `data-rule` | `string` | Rule `id`. |
+| `data-tone` | `RuleTone` | Rule `tone`. |
+| `aria-description` | `string` | Trimmed `label`, or `describeRule(rule, columns)` when the label is absent or blank. |
+| `className` | `string` | `RULE_TONE_CLASS[rule.tone]`. |
+
+These attributes carry the rule's meaning alongside its color for tests and assistive technology. In `DataGrid`, an edit rejection takes precedence over the cell's rule description, and your `getRowProps` can override the row's description and data attributes.
 
 ### Compiling
 
-`compileFilter(rules, columns)` returns a `(row) => boolean`, `compileComparator(rules, columns)` a comparator with a null last whichever way a rule runs, and `applyRules(rules, columns)` the decorations: `cell(columnKey, row)` and `getRowProps(row)`, each answering with the first matching rule's `data-rule`, `data-tone`, `aria-description`, and `className`, or undefined, plus `byColumn`, the rules that apply keyed by column. Every typed value is read once, when the rule compiles, so what runs per row only compares. A rule on a column the grid does not have is skipped. `compareValues` and `compareDirected` are the comparisons underneath, nulls last, numbers numerically, everything else as text. The data grid does this wiring itself from its `rules` prop; the functions are here for a grid of your own, a `view` you build, or [`rfq-stack`](rfq-stack.md)'s `useRfqStackView`.
+The compilation helpers take `RuleColumn<T>` columns. Functions that take rule lists accept readonly rule and column arrays and skip rules naming absent columns.
+
+| Function | Input | Result |
+|---|---|---|
+| `compileCondition(condition, column)` | One `RuleCondition` and one column | `(row: T) => boolean`. |
+| `compileFilter(rules, columns)` | `FilterRule[]` | `(row: T) => boolean`; all compiled conditions must hold. With no rules naming existing columns, every row passes. |
+| `compileComparator(rules, columns)` | `SortRule[]` | `(a: T, b: T) => number`, or `undefined` with no rules naming existing columns. Tries rules in order; returns `0` when all tie. |
+| `applyRules(rules, columns)` | `ColumnRule[]` | `AppliedRules<T>`, described below. |
+| `compareValues(a, b)` | Two values of type `unknown` | Numeric comparison for two numbers, text comparison otherwise; missing values last. |
+| `compareDirected(a, b, dir)` | Two values and `"asc"` or `"desc"` | The same comparison in the requested direction, with missing values still last. |
+
+Compilation parses condition inputs before evaluating rows. Compiled conditions read row values through the column's `accessor` as needed. Recompile when rules or columns change.
+
+`AppliedRules<T>` provides:
+
+| Member | Type | Result |
+|---|---|---|
+| `cell` | `(columnKey: string, row: T) => RuleDecoration \| undefined` | First matching cell rule for this column. |
+| `getRowProps` | `(row: T) => RuleDecoration \| undefined` | First matching row rule. |
+| `byColumn` | `ReadonlyMap<string, readonly ColumnRule[]>` | All rules naming known columns, grouped by column key in input order, including row rules. |
+
+`DataGrid` compiles its `rules` prop itself. Its header sort takes precedence, with rule sorting breaking ties; its `filter` callback must pass along with rule filters. With a custom `view`, the grid ignores rule filtering and sorting but still applies decorations. Keep rule arrays and columns stable between renders until they change.
+
+Use the helpers directly for your own grid, a custom `view`, or [`rfq-stack`](rfq-stack.md)'s `useRfqStackView`.
 
 ### What it does not do
 
-It keeps no rules and decides no value. Where a desk's rules live, and who may change them, is yours; the shape is JSON so they travel.
+The helpers compare row values with rule values. Your application owns storage and permissions; the rules are plain JSON data you can save or share.
 
 ### Tokens
 
