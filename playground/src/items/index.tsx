@@ -19,6 +19,7 @@ import { RfqStackScene } from "./rfq-stack"
 import { RfqTicketScene } from "./rfq-ticket"
 import { RowStoreScene } from "./row-store"
 import { RulesEditorScene } from "./rules-editor"
+import { SessionCalendarScene } from "./session-calendar"
 import { SparklineScene } from "./sparkline"
 import { StatusBarScene } from "./status-bar"
 import { TicketScene } from "./ticket"
@@ -62,6 +63,7 @@ export const items: Record<string, ItemScene> = {
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   preferences: { title: "preferences", Scene: PreferencesScene },
   "alert-store": { title: "alert-store", Scene: AlertStoreScene },
+  "session-calendar": { title: "session-calendar", Scene: SessionCalendarScene },
   "tradecn-slate": { title: "tradecn-slate", Scene: TradecnSlateScene },
   "tradecn-slate-east": { title: "tradecn-slate-east", Scene: TradecnSlateEastScene },
   "tradecn-amber": { title: "tradecn-amber", Scene: TradecnAmberScene },

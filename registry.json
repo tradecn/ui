@@ -2161,6 +2161,23 @@
       "docs": "Installs the row store alongside. createAlertStore().store is a RowStore<Alert> on the ordered lane, so a grid, a view, or useRowIds reads it like any feed."
     },
     {
+      "name": "session-calendar",
+      "type": "registry:lib",
+      "title": "Session Calendar",
+      "description": "A session calendar from sessions, holidays, and early closes in a venue's own time zone, the SessionCalendar feed-health reads plus the next transition, the time to the close, and whether a date is a trading day. Sessions may run across midnight. Time zones and daylight saving go through Intl.DateTimeFormat, no dependency, and the lib ships no venue's data.",
+      "categories": [
+        "feed"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/lib/session-calendar.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "docs": "Pure functions, no dependencies. Hand the calendar to feed-health's session prop, and its status(now) the clock's now. The sessions, holidays, and early closes are yours, from the venue's own published calendar."
+    },
+    {
       "name": "tradecn-amber",
       "type": "registry:theme",
       "title": "Amber",

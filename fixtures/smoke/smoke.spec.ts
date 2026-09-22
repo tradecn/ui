@@ -802,6 +802,13 @@ test("a status bar names the environment in a word and a tone, ticks its clock, 
   await expect(bar.locator("[data-status-slot='left'] [data-status-child]")).toHaveText("feeds ok")
 })
 
+// Six readings of one calendar through the installed lib: a trading morning, its post-close, a Saturday, a
+// holiday, an early-close afternoon, and the first morning on daylight time, each read in New York's zone.
+test("a session calendar reads a trading day, a weekend, a holiday, an early close, and daylight saving in the venue's zone", async ({ page }) => {
+  await page.goto("/")
+  await expect(page.locator("section[data-scene='session-calendar'] [data-slot='tradecn-session-calendar']")).toHaveText("open post closed holiday post open")
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.
