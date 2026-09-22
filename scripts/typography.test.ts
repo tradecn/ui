@@ -71,11 +71,12 @@ describe("the themes' typography", () => {
     for (const theme of themes) {
       for (const mode of ["light", "dark"] as const) {
         for (const name of typography) expect(theme.cssVars?.[mode]?.[name], `${theme.name} ${mode} ${name}`).toBeDefined()
-        expect(theme.cssVars?.[mode]?.["tradecn-font-numeric"], theme.name).toBe("var(--tradecn-font-mono)")
+        expect(theme.cssVars?.[mode]?.["tradecn-font-numeric"], theme.name).toBe(theme.name.startsWith("tradecn-terminal") ? "var(--tradecn-font-mono)" : "var(--tradecn-font-sans)")
         expect(theme.cssVars?.[mode]?.[NUMERIC_VARIANT_TOKEN], theme.name).toBe(NUMERIC_VARIANT)
       }
       expect(theme.css, theme.name).toEqual(THEME_TYPOGRAPHY_CSS)
-      expect(theme.docs, theme.name).toContain("additions only")
+      // The terminal pair predates the typography tokens, so their docs promise a --diff of additions only; the two-sided themes were born with them.
+      if (theme.name.startsWith("tradecn-terminal")) expect(theme.docs, theme.name).toContain("additions only")
     }
   })
 

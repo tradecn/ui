@@ -100,10 +100,11 @@ describe("the themes", () => {
       it(`${theme.name} ${mode}: a soft tint stays a tint, and the value on it still reads`, () => {
         for (const soft of ["up-soft", "down-soft", "flat-soft", "stale-soft", "expiring-soft"]) {
           const tint = resolve(soft)
-          // Over black the tint has to stay dark enough that the foreground still clears 4.5 on it.
+          // The tint over the page has to stay close enough to the page that the foreground still clears 4.5 on it,
+          // whichever is the lighter of the two: over black the tint brightens, over white it darkens.
           const over = luminance(tint, resolve("background"))
           const fg = luminance(resolve("foreground"))
-          expect((fg + 0.05) / (over + 0.05), `foreground on ${soft}`).toBeGreaterThanOrEqual(4.5)
+          expect((Math.max(fg, over) + 0.05) / (Math.min(fg, over) + 0.05), `foreground on ${soft}`).toBeGreaterThanOrEqual(4.5)
         }
       })
 
@@ -112,10 +113,58 @@ describe("the themes", () => {
       })
     }
 
-    it(`${theme.name}: is the same terminal in both modes, except that radius lives in :root`, () => {
-      const { radius, ...light } = theme.cssVars?.light ?? {}
-      expect(radius).toBe("0rem")
-      expect(light).toEqual(theme.cssVars?.dark)
-    })
+    if (theme.name.startsWith("tradecn-terminal")) {
+      it(`${theme.name}: is the same terminal in both modes, except that radius lives in :root`, () => {
+        const { radius, ...light } = theme.cssVars?.light ?? {}
+        expect(radius).toBe("0rem")
+        expect(light).toEqual(theme.cssVars?.dark)
+      })
+    } else {
+      it(`${theme.name}: has a light side and a dark side, one hue per token at the lightness each background needs`, () => {
+        const light = theme.cssVars!.light!
+        const dark = theme.cssVars!.dark!
+        expect(light.radius).toBeDefined()
+        expect(dark.radius).toBeUndefined()
+        expect(parseOklch(light.background!)!.l).toBeGreaterThan(0.95)
+        expect(parseOklch(dark.background!)!.l).toBeLessThan(0.2)
+        // Near-black, not black, and off-white, not white, on the dark side.
+        expect(parseOklch(dark.background!)!.l).toBeGreaterThan(0.1)
+        expect(parseOklch(dark.foreground!)!.l).toBeLessThan(0.97)
+        for (const token of ["up", "down", "stale", "expiring", "panel-sync", "primary"]) {
+          const a = parseOklch(light[token]!)!
+          const b = parseOklch(dark[token]!)!
+          expect(Math.abs(a.h - b.h), `${token} keeps its hue across modes`).toBeLessThanOrEqual(10)
+          expect(b.l, `${token} is lighter on the dark side`).toBeGreaterThan(a.l)
+        }
+        // The body pair is the theme's own page and text.
+        expect(light["tradecn-color-body-bg"]).toBe(light.background)
+        expect(dark["tradecn-color-body-fg"]).toBe(dark.foreground)
+      })
+    }
   }
+
+  it("east is slate with the pair turned around, and differs from it in nothing else", () => {
+    const slate = themes.find((t) => t.name === "tradecn-slate")!
+    const east = themes.find((t) => t.name === "tradecn-slate-east")!
+    for (const mode of ["light", "dark"] as const) {
+      const a = slate.cssVars![mode]!
+      const b = east.cssVars![mode]!
+      const differing = Object.keys({ ...a, ...b }).filter((key) => a[key] !== b[key])
+      expect(differing.sort(), mode).toEqual(["down", "down-soft", "up", "up-soft"])
+      expect(b.up, mode).toBe(a.down)
+      expect(b.down, mode).toBe(a.up)
+    }
+    // Red for up, by hue.
+    expect(parseOklch(east.cssVars!.dark!.up!)!.h).toBeLessThan(60)
+  })
+
+  it("amber takes blue for up, the pair furthest apart under every kind of color blindness", () => {
+    const amber = themes.find((t) => t.name === "tradecn-amber")!
+    for (const mode of ["light", "dark"] as const) {
+      expect(parseOklch(amber.cssVars![mode]!.up!)!.h).toBeGreaterThan(230)
+      expect(parseOklch(amber.cssVars![mode]!.up!)!.h).toBeLessThan(255)
+      expect(parseOklch(amber.cssVars![mode]!.down!)!.h).toBeLessThan(60)
+    }
+    expect(amber.cssVars?.theme).toBeUndefined()
+  })
 })

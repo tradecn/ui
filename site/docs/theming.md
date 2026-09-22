@@ -10,7 +10,7 @@ An item adds the tokens its files use to your stylesheet on install, in `:root` 
 
 ## Themes
 
-Two themes, `cssVars` only, no files. Each one overwrites every variable, so `--diff` it first.
+Themes are `cssVars` and the typography base, no files. Each one overwrites every variable, so `--diff` it first. The terminal pair is black in both modes; slate and amber have a light side and a dark side, switched by your `dark` class. [Color](color.md) has the research behind the choices and a demo that runs every pair through the three kinds of color blindness.
 
 {{themes}}
 

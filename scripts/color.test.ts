@@ -1,0 +1,67 @@
+import { readFileSync, readdirSync, statSync } from "node:fs"
+import path from "node:path"
+import { describe, expect, it } from "vitest"
+import { luminance, parseOklch } from "./lib/oklch"
+import { ROOT, readRegistry } from "./lib/registry"
+
+// Contract rule 15: direction never rides on hue alone. Every registry file that colors a value by direction
+// is listed here with the other channel it carries the direction in, and the test fails on a file that colors
+// by direction and is not in the table, so a new use has to say what else it does. docs/color.md has the why.
+
+const DIRECTION_COLOR = /(?<![\w-])(?:[\w-]+:)*(?:text|bg|border|stroke|fill)-(?:up|down)(?:-soft)?(?![\w-])/
+
+/** File under registry/tradecn, the channel besides color, and a string the file must contain to prove it. */
+const CHANNELS: Array<{ file: string; channel: string; proof: RegExp }> = [
+  { file: "hooks/use-flash.ts", channel: "the data-direction attribute the hook writes for the flash window; directionClass is paired with formatSigned where the watchlist uses it", proof: /data-direction|dataset\.direction/ },
+  { file: "ui/flash-cell.tsx", channel: "data-direction on the cell for the window, and the value's own sign inside it", proof: /data-\[direction=/ },
+  { file: "ui/data-grid.tsx", channel: "data-direction on a flashing cell; the cell's text is the signed value", proof: /data-\[direction=/ },
+  { file: "ui/sparkline.tsx", channel: "data-direction on the root and the direction in the words a screen reader hears", proof: /data-direction=\{tone\}/ },
+  { file: "ui/blotter.tsx", channel: "the side column's text is the word Buy or Sell", proof: /row\.side/ },
+  { file: "ui/feed-health.tsx", channel: "the dot is aria-hidden; the tier badge and the label carry the state in words", proof: /aria-hidden/ },
+  { file: "blocks/ticket/ticket.tsx", channel: "the pressed side button says Buy or Sell, and aria-pressed says which", proof: /aria-pressed/ },
+  { file: "blocks/rfq-ticket/rfq-ticket.tsx", channel: "a toned context value prints the consumer's text beside its label; the tone is a hint on it", proof: /TONE_CLASS\[item\.tone\]/ },
+]
+
+function* sources(dir: string): Generator<string> {
+  for (const name of readdirSync(dir)) {
+    const file = path.join(dir, name)
+    if (statSync(file).isDirectory()) yield* sources(file)
+    else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) yield file
+  }
+}
+
+describe("contract rule 15: direction never rides on hue alone", () => {
+  const registryDir = path.join(ROOT, "registry/tradecn")
+  const colored = [...sources(registryDir)].filter((file) => DIRECTION_COLOR.test(readFileSync(file, "utf8"))).map((file) => path.relative(registryDir, file))
+
+  it("lists every file that colors by direction, with the channel it carries the direction in besides color", () => {
+    expect(colored.sort()).toEqual(CHANNELS.map((entry) => entry.file).sort())
+  })
+
+  it("can point at the proof of each channel in the file", () => {
+    for (const entry of CHANNELS) {
+      const source = readFileSync(path.join(registryDir, entry.file), "utf8")
+      expect(source, `${entry.file}: ${entry.channel}`).toMatch(entry.proof)
+      expect(entry.channel.length).toBeGreaterThan(20)
+    }
+  })
+
+  it("keeps a two-sided theme's direction pair apart in gray as well as hue, so it survives a grayscale print", () => {
+    const themes = readRegistry().items.filter((item) => item.type === "registry:theme")
+    expect(themes.length).toBeGreaterThanOrEqual(5)
+    for (const theme of themes) {
+      for (const mode of ["light", "dark"] as const) {
+        const vars = theme.cssVars?.[mode] ?? {}
+        const up = parseOklch(vars.up!)!
+        const down = parseOklch(vars.down!)!
+        expect(Math.abs(up.h - down.h), `${theme.name} ${mode}: up and down differ in hue`).toBeGreaterThan(60)
+        // The same ratio a grayscale print or a luminance-only view sees. The terminal pair sits at 1.16 and leans on
+        // the sign and the words, as its docs say; the themes with a light side were drawn with the gap.
+        const a = luminance(up)
+        const b = luminance(down)
+        const gray = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+        if (!theme.name.startsWith("tradecn-terminal")) expect(gray, `${theme.name} ${mode}: up against down in gray`).toBeGreaterThanOrEqual(1.3)
+      }
+    }
+  })
+})

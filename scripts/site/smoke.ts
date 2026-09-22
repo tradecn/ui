@@ -399,13 +399,21 @@ for (const item of items) {
   const backgroundOf = (p: Page) => p.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)
   const stored = (p: Page) => p.evaluate(() => localStorage.getItem("tradecn-theme"))
   const inMode = (p: Page, mode: string) => p.waitForFunction((name) => document.documentElement.classList.contains(name), mode, { timeout: 5_000 })
-  /** Each preview frame on the page, as the frame sees itself: its item, its mode class, and its body's background. */
+  /** Each preview frame on the page, as the frame sees itself: its item, its mode class, its body's background, and its own --background resolved the same way. */
   const frames = (p: Page) =>
     p.evaluate(() =>
       [...document.querySelectorAll<HTMLIFrameElement>("iframe[data-preview]")].map((el) => {
         // A frame caught mid-navigation has a document with no root or no body yet; it reads as nothing rather than throwing.
         const doc = el.contentDocument
-        return { item: el.dataset.preview ?? "", mode: doc?.documentElement?.className ?? "", background: doc?.body ? getComputedStyle(doc.body).backgroundColor : "" }
+        let own = ""
+        if (doc?.body) {
+          const probe = doc.createElement("i")
+          probe.style.backgroundColor = "var(--background)"
+          doc.body.append(probe)
+          own = getComputedStyle(probe).backgroundColor
+          probe.remove()
+        }
+        return { item: el.dataset.preview ?? "", mode: doc?.documentElement?.className ?? "", background: doc?.body ? getComputedStyle(doc.body).backgroundColor : "", own }
       }),
     )
   // Polls until every frame wears the mode. A frame mid-navigation has no root yet and counts as not there, so the wait keeps polling instead of throwing.
@@ -429,9 +437,10 @@ for (const item of items) {
     // Every preview is up and follows the system too.
     await page.waitForFunction(() => [...document.querySelectorAll(".showcase iframe[data-preview]")].every((el) => parseFloat((el as HTMLIFrameElement).style.height || "0") > 40), undefined, { timeout: 30_000 })
     await framesIn(page, "light")
+    // A theme's preview wears that theme's own light side (black for the terminal pair, an off-white for the two-sided themes); every other preview wears the page's.
     for (const frame of await frames(page)) {
       if (!themes.has(frame.item) && frame.background !== light) failures.push(`mode: in light the ${frame.item} preview's background is ${frame.background}, the page's ${light}`)
-      if (themes.has(frame.item) && frame.background !== dark) failures.push(`mode: in light the ${frame.item} preview's background is ${frame.background}; a theme's preview wears the theme, which is black`)
+      if (themes.has(frame.item) && (frame.background !== frame.own || frame.background === light)) failures.push(`mode: in light the ${frame.item} preview's background is ${frame.background}; a theme's preview wears the theme's own light side (${frame.own}), not the page's`)
     }
     // The button chooses dark: the page, the store, the label, and every preview at once, through the storage event.
     await button.click()
@@ -440,7 +449,10 @@ for (const item of items) {
     if ((await stored(page)) !== "dark") failures.push(`mode: the button stored ${await stored(page)}, not dark`)
     if ((await button.getAttribute("aria-label")) !== "Switch to light mode") failures.push(`mode: in dark the button reads "${await button.getAttribute("aria-label")}"`)
     await framesIn(page, "dark")
-    for (const frame of await frames(page)) if (frame.background !== dark) failures.push(`mode: in dark the ${frame.item} preview's background is ${frame.background}, the page's ${dark}`)
+    for (const frame of await frames(page)) {
+      if (!themes.has(frame.item) && frame.background !== dark) failures.push(`mode: in dark the ${frame.item} preview's background is ${frame.background}, the page's ${dark}`)
+      if (themes.has(frame.item) && frame.background !== frame.own) failures.push(`mode: in dark the ${frame.item} preview's background is ${frame.background}, not the theme's own ${frame.own}`)
+    }
     // The choice beats the system now, and another tab hears it.
     const other = await context.newPage()
     watch(other, "mode (other tab)")
