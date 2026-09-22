@@ -1,5 +1,6 @@
 import type { ComponentType } from "react"
 import { BlotterScene } from "./blotter"
+import { ColumnChooserScene } from "./column-chooser"
 import { CommandPaletteScene } from "./command-palette"
 import { CountdownScene } from "./countdown"
 import { DataGridScene } from "./data-grid"
@@ -49,6 +50,7 @@ export const items: Record<string, ItemScene> = {
   "rfq-stack": { title: "rfq-stack", Scene: RfqStackScene },
   "perf-monitor": { title: "perf-monitor", Scene: PerfMonitorScene },
   "hotkey-editor": { title: "hotkey-editor", Scene: HotkeyEditorScene },
+  "column-chooser": { title: "column-chooser", Scene: ColumnChooserScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   "tradecn-slate": { title: "tradecn-slate", Scene: TradecnSlateScene },
   "tradecn-slate-east": { title: "tradecn-slate-east", Scene: TradecnSlateEastScene },

@@ -1558,6 +1558,141 @@
       }
     },
     {
+      "name": "column-chooser",
+      "type": "registry:ui",
+      "title": "Column Chooser",
+      "description": "The dialog over one grid's columns: every column with show and hide, reorder by drag or by keyboard, a width reset where a column was resized, a search box, frozen columns marked, and reset all. It reads and writes the grid's own column state and stores nothing, and a rule that names a column is said in words beside it.",
+      "categories": [
+        "grid"
+      ],
+      "dependencies": [
+        "cn@^0.3.0",
+        "@tanstack/react-virtual@^3.14.13"
+      ],
+      "registryDependencies": [
+        "badge",
+        "button",
+        "checkbox",
+        "context-menu",
+        "dialog",
+        "dropdown-menu",
+        "input"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/column-chooser.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/ui/data-grid.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/grid-rules.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "meta": {
+        "components": [
+          {
+            "title": "ColumnChooser",
+            "description": "The panel in your dialog, a hotkey wall while it is open."
+          },
+          {
+            "title": "ColumnChooserPanel",
+            "description": "The list inline: for a sheet, a tab, or a settings page."
+          },
+          {
+            "title": "DEFAULT_COLUMN_CHOOSER_LABELS",
+            "description": "Every word on it, to replace in part."
+          },
+          {
+            "title": "chooserRows",
+            "description": "The columns as the chooser lists them: the grid's order, frozen first, hidden in place."
+          },
+          {
+            "title": "moveColumnTo",
+            "description": "The state with one column in another's place, on its own side of the frozen line."
+          },
+          {
+            "title": "moveColumnBy",
+            "description": "The state with one column one place up or down."
+          },
+          {
+            "title": "setColumnVisible",
+            "description": "The state with one column shown or hidden."
+          },
+          {
+            "title": "resetColumnWidth",
+            "description": "The state with one column's width forgotten."
+          },
+          {
+            "title": "isDefaultColumnState",
+            "description": "True when the state changes nothing."
+          }
+        ]
+      },
+      "docs": "Installs the data grid alongside, since its column state is what this edits, and composes your badge, button, checkbox, dialog, and input plus the checkbox, context-menu, and dropdown-menu the grid uses. Adds @tanstack/react-virtual and the grid's tokens.",
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.46 0.19 40)",
+          "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "expiring": "oklch(0.53 0.2 350)",
+          "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "stale": "oklch(0.52 0.13 75)",
+          "stale-soft": "oklch(0.52 0.13 75 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.52 0.13 165)",
+          "up-soft": "oklch(0.52 0.13 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.66 0.19 40)",
+          "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "stale": "oklch(0.8 0.15 80)",
+          "stale-soft": "oklch(0.8 0.15 80 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
       "name": "grid-rules",
       "type": "registry:lib",
       "title": "Grid Rules",
