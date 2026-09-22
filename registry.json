@@ -1845,6 +1845,141 @@
       }
     },
     {
+      "name": "alerts",
+      "type": "registry:ui",
+      "title": "Alerts",
+      "description": "The strip of notices: the newest few, each with the severity as your word and the tone as a bar beside it, the count when one notice stands for many, the actions the server allowed, a dismiss, a clear-all, and a button that opens the whole list in the data grid. Over a store that coalesces by key and keeps to a cap, so a thousand events at the close are a few rows. It never takes focus; a screen reader hears a new notice politely, and at once only for a severity you name. With it, useToastBridge forwards each new notice to whatever toast you have.",
+      "categories": [
+        "feed",
+        "chrome"
+      ],
+      "dependencies": [
+        "cn@^0.3.0",
+        "@tanstack/react-virtual@^3.14.13"
+      ],
+      "registryDependencies": [
+        "badge",
+        "button",
+        "checkbox",
+        "context-menu",
+        "dialog",
+        "dropdown-menu"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/alerts.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/lib/alert-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/ui/data-grid.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/grid-rules.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "meta": {
+        "components": [
+          {
+            "title": "Alerts",
+            "description": "The strip, the more button, and the dialog with the whole list."
+          },
+          {
+            "title": "AlertList",
+            "description": "The whole list in the data grid, newest first, for a panel of your own."
+          },
+          {
+            "title": "alertColumns",
+            "description": "Time, severity, title, message, count, as a list to spread."
+          },
+          {
+            "title": "useAlertView",
+            "description": "A view of the store newest first."
+          },
+          {
+            "title": "useToastBridge",
+            "description": "Forwards each new notice to your toast function; imports no toast package."
+          },
+          {
+            "title": "ALERT_TONE_BAR",
+            "description": "The bar's class per tone."
+          },
+          {
+            "title": "ALERT_TONE_TEXT",
+            "description": "The severity's class per tone."
+          },
+          {
+            "title": "DEFAULT_ALERTS_LABELS",
+            "description": "Every word on it, to replace in part."
+          }
+        ]
+      },
+      "docs": "Installs the alert store and the data grid alongside and composes your badge, button, and dialog plus the checkbox, context-menu, and dropdown-menu the grid uses. Adds @tanstack/react-virtual and the up, down, flat, stale, and expiring tokens for the tones. Imports no toast package: useToastBridge takes your function.",
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.46 0.19 40)",
+          "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "expiring": "oklch(0.53 0.2 350)",
+          "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "stale": "oklch(0.52 0.13 75)",
+          "stale-soft": "oklch(0.52 0.13 75 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.52 0.13 165)",
+          "up-soft": "oklch(0.52 0.13 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.66 0.19 40)",
+          "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "stale": "oklch(0.8 0.15 80)",
+          "stale-soft": "oklch(0.8 0.15 80 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
       "name": "grid-rules",
       "type": "registry:lib",
       "title": "Grid Rules",
@@ -1903,6 +2038,27 @@
         }
       ],
       "docs": "Pure functions, no dependencies. The items keep their controlled props; wire a slot to a prop with setSlot and readSlot, and keep the envelope wherever your app keeps things."
+    },
+    {
+      "name": "alert-store",
+      "type": "registry:lib",
+      "title": "Alert Store",
+      "description": "A store for notices over the row store's ordered lane: a notice with the same key replaces the last and grows its count instead of adding a row, a cap lets the oldest without an action go first, and the severity, tone, and allowed actions are the consumer's words and the server's ids, never decided here.",
+      "categories": [
+        "feed"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/lib/alert-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "docs": "Installs the row store alongside. createAlertStore().store is a RowStore<Alert> on the ordered lane, so a grid, a view, or useRowIds reads it like any feed."
     },
     {
       "name": "tradecn-amber",

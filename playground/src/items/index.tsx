@@ -1,4 +1,6 @@
 import type { ComponentType } from "react"
+import { AlertStoreScene } from "./alert-store"
+import { AlertsScene } from "./alerts"
 import { BlotterScene } from "./blotter"
 import { ColumnChooserScene } from "./column-chooser"
 import { CommandPaletteScene } from "./command-palette"
@@ -54,8 +56,10 @@ export const items: Record<string, ItemScene> = {
   "hotkey-editor": { title: "hotkey-editor", Scene: HotkeyEditorScene },
   "column-chooser": { title: "column-chooser", Scene: ColumnChooserScene },
   "rules-editor": { title: "rules-editor", Scene: RulesEditorScene },
+  alerts: { title: "alerts", Scene: AlertsScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   preferences: { title: "preferences", Scene: PreferencesScene },
+  "alert-store": { title: "alert-store", Scene: AlertStoreScene },
   "tradecn-slate": { title: "tradecn-slate", Scene: TradecnSlateScene },
   "tradecn-slate-east": { title: "tradecn-slate-east", Scene: TradecnSlateEastScene },
   "tradecn-amber": { title: "tradecn-amber", Scene: TradecnAmberScene },

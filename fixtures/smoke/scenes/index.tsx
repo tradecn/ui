@@ -1,4 +1,6 @@
 import type { ComponentType } from "react"
+import { AlertStoreScene } from "./alert-store"
+import { AlertsScene } from "./alerts"
 import { BlotterScene } from "./blotter"
 import { ColumnChooserScene } from "./column-chooser"
 import { CommandPaletteScene } from "./command-palette"
@@ -51,7 +53,9 @@ export const scenes: SmokeScene[] = [
   { name: "hotkey-editor", Scene: HotkeyEditorScene },
   { name: "column-chooser", Scene: ColumnChooserScene },
   { name: "rules-editor", Scene: RulesEditorScene },
+  { name: "alerts", Scene: AlertsScene },
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
+  { name: "alert-store", Scene: AlertStoreScene },
 ]
 export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "expiring", "expiring-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4"]
