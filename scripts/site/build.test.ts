@@ -177,19 +177,20 @@ describe("the opening page", () => {
     expect(renderPage(template("404.html"), values)).not.toContain("search-button")
   })
 
-  it("shows every item as a card, linking its doc on GitHub when the tag ships no page for it", () => {
-    expect(page).toContain('<div class="cards">')
+  it("lists every item by title, linking its doc on GitHub when the tag ships no page for it", () => {
+    expect(page).toContain('<ul class="item-list">')
     for (const item of registry.items) {
-      expect(page).toContain(`<code>${item.name}</code>`)
-      expect(page).toContain(`https://github.com/tradecn/ui/blob/${tag}/docs/${item.name}.md`)
+      expect(page).toContain(`<li><a href="https://github.com/tradecn/ui/blob/${tag}/docs/${item.name}.md">${titleOf(item)}</a></li>`)
     }
-    expect(page).toContain(`<span class="card-title"><code>format</code><span class="kind">lib</span></span>`)
+    // The registry title, and a hook by the name it is exported under, as the sidebar lists them.
+    expect(page).toContain(`<li><a href="https://github.com/tradecn/ui/blob/${tag}/docs/format.md">Format</a></li>`)
+    expect(page).toContain(`<li><a href="https://github.com/tradecn/ui/blob/${tag}/docs/use-hotkeys.md">useHotkeys</a></li>`)
     expect(page).not.toContain("<iframe")
   })
 
   it("links the item's own page when the tag ships a doc for it", () => {
     const withDocs = renderPage(template("index.html"), templateValues(registry, version, registry, new Set(["format"])))
-    expect(withDocs).toContain(`<a class="card" href="/docs/format/">`)
+    expect(withDocs).toContain(`<li><a href="/docs/format/">Format</a></li>`)
     expect(withDocs).toContain(`https://github.com/tradecn/ui/blob/${tag}/docs/row-store.md`)
   })
 
@@ -206,7 +207,7 @@ describe("the opening page", () => {
     }
     const order = [...live.matchAll(/<article class="card" data-preview="([\w-]+)">/g)].map((match) => match[1])
     expect(order).toEqual(registry.items.map((item) => item.name))
-    expect(live).not.toContain('<div class="cards">')
+    expect(live).not.toContain('<ul class="item-list">')
     // A demo without an item is not on the page; an item without a demo gets no card.
     const partial = templateValues(registry, version, registry, new Set(), { demos: new Map([["format", demos.get("format")!]]), embed })
     expect((partial.showcase ?? "").match(/<iframe /g)).toHaveLength(1)
@@ -308,8 +309,8 @@ describe("the opening page", () => {
       items: registry.items.filter((item) => ["format", "row-store", "flash-cell", "data-grid", "feed-health"].includes(item.name)),
     }
     const values = templateValues(early, "0.1.0", registry)
-    expect(values.showcase).toContain("<code>format</code>")
-    expect(values.showcase).not.toContain(`<code>${THEME_ITEM}</code>`)
+    expect(values.showcase).toContain(">Format</a></li>")
+    expect(values.showcase).not.toContain(`docs/${THEME_ITEM}`)
     expect(values.palette).toContain("--primary:")
     expect(() => templateValues(early, "0.1.0")).toThrow(THEME_ITEM)
   })
@@ -401,7 +402,7 @@ describe("the version menu and a release's own tree", () => {
     expect(outside(grid)).toBeNull()
     expect(grid).not.toContain(`${base}${base}`)
     const components = pages.get("docs/components/index.html") ?? ""
-    expect(components).toContain(`<a class="card" href="${base}/docs/data-grid/">`)
+    expect(components).toContain(`<li><a href="${base}/docs/data-grid/">Data Grid</a></li>`)
     expect(outside(components)).toBeNull()
     expect(components).not.toContain(`${base}${base}`)
     // The search index keeps the paths within the tree; site.js puts the base in front of them.
@@ -763,22 +764,29 @@ describe("the docs pages", async () => {
     expect(install).toContain(`@tradecn/${registry.items.at(-1)?.name}\n</code>`)
   })
 
-  it("indexes the components on the Components page as cards linking their pages, and nothing of another kind", () => {
+  it("indexes the components on the Components page as a list of titles linking their pages, and nothing of another kind", () => {
     const components = at("docs/components/index.html")
     expect(components).toContain('<h1 id="components">')
-    expect(components).toContain('<div class="cards">')
+    // The list alone: the sidebar links the same pages with the same markup, so the page as a whole proves nothing.
+    const start = components.indexOf('<ul class="item-list">')
+    expect(start).toBeGreaterThan(components.indexOf("<article"))
+    const list = components.slice(start, components.indexOf("</ul>", start))
     for (const item of registry.items) {
-      const card = `<a class="card" href="/docs/${item.name}/"><span class="card-title"><code>${item.name}</code><span class="kind">${item.type.replace("registry:", "")}</span></span>`
-      if (groupOf(item) === "Components") expect(components).toContain(card)
-      else expect(components, item.name).not.toContain(card)
+      const link = `<li><a href="/docs/${item.name}/">${titleOf(item)}</a></li>`
+      if (groupOf(item) === "Components") expect(list).toContain(link)
+      else expect(list, item.name).not.toContain(link)
     }
-    expect(components.match(/<a class="card"/g)).toHaveLength(25)
-    // The cards are alphabetical by title, as the sidebar is: alerts, audit-trail, blotter lead, not flash-cell.
-    const order = [...components.matchAll(/<a class="card" href="\/docs\/([^/]+)\/"/g)].map((match) => match[1])
+    // Names alone, shadcn's page: no kind, no description, no code, nothing but the title in each row.
+    const rows = list.trimEnd().split("\n").slice(1)
+    expect(rows).toHaveLength(25)
+    for (const row of rows) expect(row).toMatch(/^<li><a href="\/docs\/[\w-]+\/">[^<]+<\/a><\/li>$/)
+    expect(list).toContain('<li><a href="/docs/rfq-stack/">RFQ Stack</a></li>')
+    expect(list).toContain('<li><a href="/docs/ticket/">Ticket</a></li>')
+    // Alphabetical by title, as the sidebar is: alerts, audit-trail, blotter lead, not flash-cell.
+    const order = [...list.matchAll(/<li><a href="\/docs\/([^/]+)\/"/g)].map((match) => match[1])
     expect(order.slice(0, 3)).toEqual(["alerts", "audit-trail", "blotter"])
     expect(order).toEqual(componentItems(registry).map((item) => item.name))
-    expect(components).toContain('<span class="kind">block</span>')
-    expect(components).not.toContain('<span class="kind">lib</span>')
+    expect(components).not.toContain('class="card"')
     expect(components).not.toContain("<iframe")
   })
 
