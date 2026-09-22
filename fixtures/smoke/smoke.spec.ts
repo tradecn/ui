@@ -1181,3 +1181,43 @@ test("a feed's menu offers what the server allows, marks a press pending, and se
   await expect(md).toHaveAttribute("data-state", "connecting")
   await expect(md).not.toHaveAttribute("data-pending")
 })
+
+// The field over the consumer's own command: a CUSIP is read as one and said so, the server is asked with the hint
+// and its answer listed with the identifier that matched, Enter picks and clears; a run's phrase is read as a coupon
+// and maturity; a ticker's list moves with the arrows; a query the server does not know says so.
+test("an instrument search reads a CUSIP, a run's phrase, and a ticker, lists the server's answers, and picks on Enter", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='instrument-search']")
+  const root = scene.locator("[data-slot='tradecn-instrument-search']")
+  const field = scene.getByRole("combobox")
+  await field.click()
+  await page.keyboard.type("037833100")
+  await expect(root).toHaveAttribute("data-query-kind", "cusip")
+  await expect(scene.locator("[data-instrument-hint]")).toHaveText("Read as CUSIP")
+  const aapl = scene.locator("[data-instrument-hit='aapl']")
+  await expect(aapl).toContainText("AAPL")
+  await expect(aapl).toContainText("Apple Inc.")
+  await expect(aapl).toContainText("037833100")
+  await expect(aapl).toContainText("Equity")
+  await page.keyboard.press("Enter")
+  await expect(scene.locator("[data-instrument-picked]")).toHaveAttribute("data-instrument-picked", "aapl:cusip")
+  await expect(field).toHaveValue("")
+  await expect(root).not.toHaveAttribute("data-query-kind")
+  // A run's phrase.
+  await page.keyboard.type("4 1/8 05/34")
+  await expect(root).toHaveAttribute("data-query-kind", "coupon-maturity")
+  await expect(scene.locator("[data-instrument-hint]")).toContainText("Read as Coupon and maturity")
+  await expect(scene.locator("[data-instrument-hit='t10']")).toBeVisible()
+  await page.keyboard.press("Enter")
+  await expect(scene.locator("[data-instrument-picked]")).toHaveAttribute("data-instrument-picked", "t10:coupon-maturity")
+  // A ticker with two answers: the arrows move the highlight, Enter picks the second.
+  await page.keyboard.type("z")
+  await expect(root).toHaveAttribute("data-query-kind", "ticker")
+  await expect(scene.locator("[data-instrument-hit]")).toHaveCount(2)
+  await page.keyboard.press("ArrowDown")
+  await page.keyboard.press("Enter")
+  await expect(scene.locator("[data-instrument-picked]")).toHaveAttribute("data-instrument-picked", "zb:ticker")
+  // Nothing the server knows.
+  await page.keyboard.type("qqq")
+  await expect(scene.getByText("Nothing matches qqq.")).toBeVisible()
+})

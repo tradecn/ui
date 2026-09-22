@@ -2542,6 +2542,76 @@
       }
     },
     {
+      "name": "instrument-search",
+      "type": "registry:ui",
+      "title": "Instrument Search",
+      "description": "A typed field over your instrument search that reads what was typed first, a CUSIP with its check digit, an ISIN with its Luhn digit, a ticker, or a coupon and maturity the way a run prints it, hands the server the query with that hint, and lists what came back on your own command. Keyboard first; only answers to the query on screen; the identifier is checked here and resolved by the server. With it, the recognizers as a lib and an adapter for the palette's symbol rows.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [
+        "badge",
+        "command"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/instrument-search.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/lib/instrument-query.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "palette",
+        "watchlist"
+      ],
+      "docs": "Installs the recognizers (lib/instrument-query.ts) alongside and composes your command and badge. The search is yours: search(query, hint, signal). toSymbolAdapter(search) hands the same function to the command palette.",
+      "meta": {
+        "components": [
+          {
+            "title": "InstrumentSearch",
+            "description": "The field, the hint under it, and the list of the server's answers."
+          },
+          {
+            "title": "useInstrumentSearch",
+            "description": "The debounced, abortable search over the recognized query."
+          },
+          {
+            "title": "toSymbolAdapter",
+            "description": "The command palette's symbols adapter over the same search."
+          },
+          {
+            "title": "matchedIdentifier",
+            "description": "The identifier on a hit that the query named."
+          },
+          {
+            "title": "DEFAULT_INSTRUMENT_SEARCH_LABELS",
+            "description": "Every word on it, to replace in part."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        },
+        "dark": {
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
       "name": "grid-rules",
       "type": "registry:lib",
       "title": "Grid Rules",
