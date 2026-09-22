@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/tradecn/ui/compare/v0.2.0...v0.3.0) (2026-09-22)
+
+
+### Features
+
+* **registry:** three themes with a light side and a dark side from the color research, slate, slate-east, and amber, with a Color page and a rule that direction never rides on hue alone ([#52](https://github.com/tradecn/ui/issues/52)) ([63d252d](https://github.com/tradecn/ui/commit/63d252d8df2ebb955545f050242d31d09bc0c0a7))
+* **typography:** research-grounded font system with consumer overrides ([#50](https://github.com/tradecn/ui/issues/50)) ([72b6cb0](https://github.com/tradecn/ui/commit/72b6cb0266f4d74da0ce1c831a96990ff40652cb))
+
 ## [0.2.0](https://github.com/tradecn/ui/compare/v0.1.6...v0.2.0) (2026-09-22)
 
 
