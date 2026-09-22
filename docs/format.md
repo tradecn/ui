@@ -21,7 +21,7 @@ formatBps(12.5) // "12.5 bp"
 
 ## API Reference
 
-Pure functions, no React. Every formatter takes `number | null | undefined` and returns `NULL_TOKEN` (an en dash) for null, undefined, NaN, and infinities, so a cell never prints `NaN` while a feed warms up. Negative numbers use the typographic minus (U+2212). Tabular numerals are your CSS (`tabular-nums`); the formatters never pad.
+Pure functions, no React. Every formatter takes `number | null | undefined` and returns `NULL_TOKEN` (an en dash) for null, undefined, NaN, and infinities, so a cell never prints `NaN` while a feed warms up. Negative numbers use the typographic minus (U+2212). The formatters never pad: the figures line up because the node that prints them is set in lining, tabular figures, which every tradecn component does on its own and the classes below do for yours.
 
 ### Prices
 
@@ -46,6 +46,10 @@ Not every instrument is quoted on its price. Bills quote on a discount rate, som
 ### Ticks between two prices
 
 `ticksBetween(a, b, tick)` is how many ticks `a` sits from `b`, signed, to the nearest eighth of a tick: a quote of `99-17` against a composite of `99-16+` on a 1/64 tick is `1`. `formatTicks(n)` prints the count signed and trimmed, `+1`, `−0.5`, `0`, with `unit` for a word after it. Together they say how far a quote is inside or through the market in the instrument's own steps; for a spread quote, `formatBps` does the same job in basis points.
+
+### Numeric classes
+
+`NUMERIC_CLASS` is `font-(family-name:--tradecn-font-numeric) lining-nums tabular-nums`: the numeric family (the sans by default, so letters stay proportional and only the digits take one width) with the figures rule 14 of [the contract](contract.md) requires. `MONO_NUMERIC_CLASS` is the same figures in `--tradecn-font-mono`. `numericFontClass(convention)` picks between them: a fraction price (`99-16+`) sets in the mono stack so its dash and its tail line up down a column, and every other price, and every quote in another basis, keeps the numeric family. [`quote-field`](quote-field.md), [`ticket`](ticket.md), and [`rfq-ticket`](rfq-ticket.md) read it; a [`data-grid`](data-grid.md) column takes `font: "mono"` for the same effect. [`typography.md`](typography.md) has the tokens and the reasoning.
 
 ### The rest
 

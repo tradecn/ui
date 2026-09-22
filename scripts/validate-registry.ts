@@ -4,10 +4,19 @@ import { existsSync, readdirSync, statSync } from "node:fs"
 import path from "node:path"
 import { Node, Project, SyntaxKind } from "ts-morph"
 import {
+  ACCESSIBILITY_REMAP,
+  ACCESSIBILITY_SELECTOR,
+  ACCESSIBLE_TOKENS,
   LOCKED_STYLES,
+  NUMERIC_VARIANT,
+  NUMERIC_VARIANT_TOKEN,
   ROOT,
+  THEME_TYPOGRAPHY_CSS,
+  TYPOGRAPHY_TOKEN,
   allTokenNames,
+  cssFor,
   cssVarsFor,
+  isColorValue,
   readBuiltinsLock,
   readDepsAllow,
   readItemSources,
@@ -27,6 +36,11 @@ const CATEGORIES = new Set(["grid", "feed", "format", "palette", "hotkeys", "lay
 const FORBIDDEN_PACKAGES = [/^radix-ui$/, /^@radix-ui\//, /^@base-ui\//, /^@base-ui-components\//, /^cmdk$/, /^react-resizable-panels$/]
 const PEERS = new Set(["react", "react-dom"])
 const CSS_KEYS = [/^@keyframes tradecn-[\w-]+$/, /^@layer components$/]
+// A class string that sets tabular figures without lining ones, or reaches a font through Tailwind's own
+// stack instead of a tradecn token (contract rule 14). Line by line, so the message can point at one.
+const TABULAR = /\btabular-nums\b/
+const LINING = /\blining-nums\b/
+const TAILWIND_FONT = /(?<![\w-])(?:[\w-]+:)*font-(?:mono|sans|serif)(?![\w-])/
 // The classes a `@layer components` restyle may start from: dockview's.
 const CSS_RESTYLE_SELECTORS = [/^\.dockview-theme-tradecn\b/, /^\.dv-[\w-]+/]
 const FORBIDDEN_JSX_ATTRS = new Set(["asChild", "render", "nativeButton"])
@@ -41,11 +55,32 @@ const project = new Project({ tsConfigFilePath: path.join(ROOT, "playground/tsco
 const problems: string[] = []
 const fail = (item: string, msg: string) => problems.push(`${item}: ${msg}`)
 
-// tokens.json itself: only forms the shadcn CLI turns into utilities.
-for (const scope of ["light", "dark"] as const) {
-  for (const [k, v] of Object.entries(tokens[scope])) {
-    if (!/^oklch\(/.test(v) && !/^var\(--color-[\w-]+\)$/.test(v)) fail("tokens.json", `${scope}.${k} must be oklch(...) or var(--color-<shadcn token>), got "${v}"`)
+/**
+ * A token's value, by what the token is. A color is oklch() or var(--color-<shadcn token>), the two forms the
+ * CLI turns into utilities. A typography token is a font stack, a px size, a unitless line height, a weight, or
+ * the numeric variant, and never a color. The numeric variant is the one value the contract fixes (rule 14).
+ * The accessible stacks name their fallbacks in full: the remap sets --tradecn-font-sans to var(--tradecn-font-accessible)
+ * on the same element, and a var(--tradecn-font-sans) inside the accessible stack would close a cycle there.
+ */
+function checkToken(where: string, k: string, v: string, fail: (msg: string) => void) {
+  if (k === "radius") return
+  if (!TYPOGRAPHY_TOKEN.test(k)) {
+    if (!/^oklch\(/.test(v) && !/^var\(--color-[\w-]+\)$/.test(v)) fail(`${where}.${k} must be oklch(...) or var(--color-<shadcn token>), got "${v}"`)
+    return
   }
+  if (!v.trim()) fail(`${where}.${k} is empty`)
+  if (isColorValue(v)) fail(`${where}.${k} is a typography token and cannot hold a color, got "${v}"`)
+  if (k === NUMERIC_VARIANT_TOKEN && v !== NUMERIC_VARIANT) fail(`${where}.${k} must be "${NUMERIC_VARIANT}" (contract rule 14), got "${v}"`)
+  if (/^tradecn-text-size-/.test(k) && !/^\d+(\.\d+)?px$/.test(v)) fail(`${where}.${k} must be a px size, got "${v}"`)
+  if (/^tradecn-line-height-/.test(k) && !/^\d+(\.\d+)?$/.test(v)) fail(`${where}.${k} must be a unitless line height, got "${v}"`)
+  if (/^tradecn-font-weight-/.test(k) && !/^[1-9]00$|^[1-9]\d0$/.test(v)) fail(`${where}.${k} must be a weight from 100 to 900, got "${v}"`)
+  if ((ACCESSIBLE_TOKENS as readonly string[]).includes(k) && /var\(/.test(v)) fail(`${where}.${k} names its fallbacks itself; a var() here would cycle with the accessibility remap, got "${v}"`)
+}
+
+// tokens.json itself.
+for (const scope of ["light", "dark"] as const) {
+  for (const [k, v] of Object.entries(tokens[scope])) checkToken(`tokens.json ${scope}`, k, v, (msg) => fail("tokens.json", msg))
+  if (!(NUMERIC_VARIANT_TOKEN in tokens[scope])) fail("tokens.json", `${scope} has no ${NUMERIC_VARIANT_TOKEN}`)
 }
 
 const seen = new Set<string>()
@@ -167,6 +202,11 @@ for (const item of registry.items) {
         importedPackages.add(pkg)
       }
     }
+    // Rule 14: every number is set in lining tabular figures, and every font comes from a tradecn token.
+    source.split("\n").forEach((line, index) => {
+      if (TABULAR.test(line) && !LINING.test(line)) fail(id, `${file.path}:${index + 1} sets tabular-nums without lining-nums; write "lining-nums tabular-nums" (contract rule 14)`)
+      if (TAILWIND_FONT.test(line)) fail(id, `${file.path}:${index + 1} uses Tailwind's font-mono/font-sans; write font-(family-name:--tradecn-font-mono) so a consumer's --tradecn-font-* governs it (contract rule 14)`)
+    })
     sf.forEachDescendant((node) => {
       if (Node.isJsxAttribute(node)) {
         const name = node.getNameNode().getText()
@@ -197,16 +237,26 @@ for (const item of registry.items) {
         continue
       }
       for (const t of tokenNames) if (!(t in vars)) fail(id, `cssVars.${scope} does not set the "${t}" token; a theme sets every tradecn token`)
-      for (const [k, v] of Object.entries(vars)) {
-        if (k === "radius") continue
-        if (!/^oklch\(/.test(v) && !/^var\(--color-[\w-]+\)$/.test(v)) fail(id, `cssVars.${scope}.${k} must be oklch(...) or var(--color-<shadcn token>), got "${v}"`)
-      }
+      for (const [k, v] of Object.entries(vars)) checkToken(`cssVars.${scope}`, k, v, (msg) => fail(id, msg))
     }
+    // Below its variables a theme carries the typography base, exactly: the numeric variant on the root and the
+    // consumer hooks in @layer base, and the accessibility remap unlayered. Nothing else, and nothing less.
+    if (JSON.stringify(item.css ?? null) !== JSON.stringify(THEME_TYPOGRAPHY_CSS)) fail(id, `a theme's css is the typography base and nothing else (THEME_TYPOGRAPHY_CSS in scripts/lib/registry.ts)`)
   }
 
-  // css: keyframes and third-party restyles only. A restyle names a class of the third-party package,
-  // never an element, a shadcn class, or a tradecn slot: those are styled from the source files.
+  // css: keyframes and third-party restyles only, plus the accessibility remap `just tokens` writes for any
+  // item that reads a font token. A restyle names a class of the third-party package, never an element, a
+  // shadcn class, or a tradecn slot: those are styled from the source files.
+  if (item.type !== "registry:theme") {
+    const expectedCss = cssFor(used, tokens, item.css)
+    if (JSON.stringify(expectedCss ?? null) !== JSON.stringify(item.css ?? null)) fail(id, "css is out of date; run `just tokens`")
+  }
   for (const [key, value] of Object.entries(item.css ?? {})) {
+    if (item.type === "registry:theme") break
+    if (key === ACCESSIBILITY_SELECTOR) {
+      if (JSON.stringify(value) !== JSON.stringify(ACCESSIBILITY_REMAP)) fail(id, "the accessibility remap is written by `just tokens`; do not edit it")
+      continue
+    }
     if (!CSS_KEYS.some((re) => re.test(key))) fail(id, `css key "${key}" is not allowed (only @keyframes tradecn-* and @layer components)`)
     if (key === "@layer components") {
       for (const selector of Object.keys((value ?? {}) as Record<string, unknown>)) {

@@ -34,6 +34,41 @@ test("tradecn items render in this consumer", async ({ page }) => {
   expect(errors).toEqual([])
 })
 
+// Contract rule 14: every number a tradecn item renders is set in lining, tabular figures, whatever font
+// the consumer chose. Asked of the page as the browser drew it, not of the source: every element under a
+// tradecn slot whose own text holds a digit, every input under one holding a number, and every node marked
+// data-numeric. A bare `tabular-nums` from a shadcn built-in or a consumer class would show up here as
+// "tabular-nums" alone, because Tailwind's utilities replace the whole property.
+test("every number in a tradecn item is set in lining tabular figures", async ({ page }) => {
+  await page.goto("/")
+  await page.waitForLoadState("networkidle")
+  await expect(page.locator("main[data-smoke]")).toBeVisible()
+  const problems = await page.evaluate(() => {
+    const where = (el: Element) => {
+      const slot = el.closest("[data-slot^='tradecn-']")?.getAttribute("data-slot") ?? "page"
+      const attrs = [...el.attributes]
+        .filter((a) => a.name.startsWith("data-") && a.name !== "data-slot")
+        .map((a) => `[${a.name}${a.value ? `=${a.value}` : ""}]`)
+        .join("")
+      return `${slot} ${el.tagName.toLowerCase()}${attrs}`
+    }
+    const out: string[] = []
+    const seen = new Set<Element>()
+    const candidates = [...document.querySelectorAll("[data-slot^='tradecn-']")].flatMap((root) => [root, ...root.querySelectorAll("*")]).concat([...document.querySelectorAll("[data-numeric]")])
+    for (const el of candidates) {
+      if (seen.has(el)) continue
+      seen.add(el)
+      const own = [...el.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.textContent ?? "").join("")
+      const typed = el instanceof HTMLInputElement ? el.value : ""
+      if (!/\d/.test(own) && !/\d/.test(typed) && !el.hasAttribute("data-numeric")) continue
+      const variant = getComputedStyle(el).fontVariantNumeric
+      if (!variant.includes("lining-nums") || !variant.includes("tabular-nums")) out.push(`${where(el)}: font-variant-numeric is "${variant}"`)
+    }
+    return out
+  })
+  expect(problems, "contract rule 14: lining-nums tabular-nums on every numeric node").toEqual([])
+})
+
 // Real key events through the real listener: a chord from the page, then a panel key that only
 // counts with focus inside its scope.
 test("hotkeys reach their handlers", async ({ page }) => {
@@ -578,8 +613,25 @@ test("the installed theme is what the page is drawn with, in both modes", async 
       const ref = /^var\(--color-([\w-]+)\)$/.exec(vars[name] ?? "")
       return ref ? resolve(ref[1]!) : (vars[name] ?? "")
     }
-    return Object.keys(vars).filter((name) => name !== "radius").map((name) => [name, resolve(name)] as [string, string])
+    return Object.keys(vars).filter((name) => name !== "radius" && !TYPOGRAPHY.test(name)).map((name) => [name, resolve(name)] as [string, string])
   }
+  // The typography tokens are not colors. Each is read back through the property it is for, both sides through
+  // one probe, so a respelled font stack or a rounded weight compares the way the browser holds it.
+  const TYPOGRAPHY = /^tradecn-(font-|text-size-|line-height-|numeric-variant$)/
+  const typography = (vars: Record<string, string>) => Object.entries(vars).filter(([name]) => TYPOGRAPHY.test(name))
+  const typographyMismatches = (pairs: [string, string][]) =>
+    page.evaluate((list) => {
+      const probe = document.createElement("i")
+      document.body.append(probe)
+      const prop = (name: string) => (name.startsWith("tradecn-font-weight-") ? "fontWeight" : name.startsWith("tradecn-font-") ? "fontFamily" : name.startsWith("tradecn-text-size-") ? "fontSize" : name.startsWith("tradecn-line-height-") ? "lineHeight" : "fontVariantNumeric") as "fontWeight" | "fontFamily" | "fontSize" | "lineHeight" | "fontVariantNumeric"
+      const as = (name: string, value: string) => ((probe.style[prop(name)] = ""), (probe.style[prop(name)] = value), getComputedStyle(probe)[prop(name)])
+      const out = list.flatMap(([name, want]) => {
+        const got = as(name, `var(--${name})`)
+        return got === as(name, want) && got !== "" ? [] : [`--${name}: wanted ${want}, the page has ${getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim() || "nothing"}`]
+      })
+      probe.remove()
+      return out
+    }, pairs)
   const mismatches = (pairs: [string, string][]) =>
     page.evaluate((list) => {
       const probe = document.createElement("i")
@@ -593,6 +645,24 @@ test("the installed theme is what the page is drawn with, in both modes", async 
       return out
     }, pairs)
   expect(await mismatches(expected(theme.cssVars.light)), `${name}: every light color`).toEqual([])
+  expect(await typographyMismatches(typography(theme.cssVars.light)), `${name}: every typography token`).toEqual([])
+  // The theme's base rules: the numeric variant on the root, and the accessibility remap once the attribute is on <html>.
+  const base = await page.evaluate(() => {
+    const probe = document.createElement("i")
+    document.body.append(probe)
+    const family = (value: string) => ((probe.style.fontFamily = ""), (probe.style.fontFamily = value), getComputedStyle(probe).fontFamily)
+    const before = family("var(--tradecn-font-sans)")
+    document.documentElement.setAttribute("data-accessibility", "hyperlegible")
+    const remapped = family("var(--tradecn-font-sans)") === family("var(--tradecn-font-accessible)") && family("var(--tradecn-font-mono)") === family("var(--tradecn-font-accessible-mono)")
+    document.documentElement.removeAttribute("data-accessibility")
+    const restored = family("var(--tradecn-font-sans)") === before
+    probe.remove()
+    return { root: getComputedStyle(document.documentElement).fontVariantNumeric, remapped, restored, before }
+  })
+  expect(base.root, "the root is set in the numeric variant").toBe("lining-nums tabular-nums")
+  expect(base.remapped, "data-accessibility=hyperlegible swaps the sans and the mono for the accessible pair").toBe(true)
+  expect(base.restored, "removing the attribute restores the fonts").toBe(true)
+  expect(base.before.replace(/["']/g, ""), "the sans is the theme's").toBe(theme.cssVars.light["tradecn-font-sans"]?.replace(/["']/g, ""))
   // What those variables do to the page: the body is the theme's background, corners are square, the sans stack is the theme's.
   const drawn = await page.evaluate(() => {
     const probe = document.createElement("i")

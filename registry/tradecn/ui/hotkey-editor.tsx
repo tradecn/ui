@@ -161,7 +161,7 @@ function Row({ entry, conflicts, byId, labels }: RowProps) {
             <span className="sr-only">, {labels.cancelHint}</span>
           </Button>
         ) : mode === "text" ? (
-          <Input autoFocus value={text} aria-label={`${labels.keysFor} ${entry.description}`} aria-invalid={problem ? true : undefined} spellCheck={false} autoComplete="off" className="h-6 w-36 px-1.5 font-mono text-xs md:text-xs" onChange={(event) => setText(event.target.value)} onKeyDown={typed} onBlur={() => setMode("idle")} />
+          <Input autoFocus value={text} aria-label={`${labels.keysFor} ${entry.description}`} aria-invalid={problem ? true : undefined} spellCheck={false} autoComplete="off" className="h-6 w-36 px-1.5 font-(family-name:--tradecn-font-mono) text-xs md:text-xs" onChange={(event) => setText(event.target.value)} onKeyDown={typed} onBlur={() => setMode("idle")} />
         ) : (
           <span data-hotkey-keys={entry.keys}>
             <Keys keys={entry.keys} platform={registry.platform} unbound={labels.unbound} />
@@ -238,9 +238,9 @@ export function HotkeyEditor({ onExport, onImport, hide, labels: labelsProp, cla
   const byId = useMemo(() => new Map(entries.map((e) => [e.id, e])), [entries])
   const remapped = entries.filter((e) => e.remapped).length
   return (
-    <div role="region" aria-label={labels.title} data-slot="tradecn-hotkey-editor" data-remapped={remapped} className={cn("flex flex-col gap-2 text-xs", className)}>
+    <div role="region" aria-label={labels.title} data-slot="tradecn-hotkey-editor" data-remapped={remapped} className={cn("flex flex-col gap-2 text-xs lining-nums tabular-nums", className)}>
       <div className="flex flex-wrap items-center gap-2">
-        <Input value={query} aria-label={labels.search} placeholder={labels.search} spellCheck={false} autoComplete="off" className="h-7 max-w-64 font-mono text-xs md:text-xs" onChange={(event) => setQuery(event.target.value)} />
+        <Input value={query} aria-label={labels.search} placeholder={labels.search} spellCheck={false} autoComplete="off" className="h-7 max-w-64 font-(family-name:--tradecn-font-mono) text-xs md:text-xs" onChange={(event) => setQuery(event.target.value)} />
         <span className="ml-auto flex items-center gap-1">
           {onImport && (
             <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onImport}>

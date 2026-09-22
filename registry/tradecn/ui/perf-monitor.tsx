@@ -84,7 +84,7 @@ function Lane({ lane, at }: LaneProps) {
   }
   const age = meta.lastBatchAt === null ? null : Math.max(0, at - meta.lastBatchAt)
   return (
-    <div className="flex flex-wrap items-baseline gap-x-2 tabular-nums" data-perf-lane={lane.label} data-lane={meta.lane}>
+    <div className="flex flex-wrap items-baseline gap-x-2 lining-nums tabular-nums" data-perf-lane={lane.label} data-lane={meta.lane} data-numeric="">
       <span className="font-medium">{lane.label}</span>
       <span className="text-muted-foreground">{meta.lane}</span>
       <span>
@@ -174,10 +174,10 @@ export function PerfMonitor({ lanes, budgetMs = 1000 / 60, window: frames = 600,
   )
 
   return (
-    <div role="group" aria-label={label} data-slot="tradecn-perf-monitor" data-dropped={report.dropped} data-frames={report.frames} className={cn("flex flex-col gap-1 font-mono text-xs", className)}>
+    <div role="group" aria-label={label} data-slot="tradecn-perf-monitor" data-dropped={report.dropped} data-frames={report.frames} className={cn("flex flex-col gap-1 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums", className)}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {!compact && <Histogram report={report} budgetMs={budgetMs} />}
-        <div className="flex flex-wrap items-baseline gap-x-2 tabular-nums">
+        <div className="flex flex-wrap items-baseline gap-x-2 lining-nums tabular-nums" data-numeric="">
           {readout("frames", "frames", report.frames.toLocaleString())}
           {readout("p50", "p50", formatMs(report.p50))}
           {readout("p99", "p99", formatMs(report.p99))}

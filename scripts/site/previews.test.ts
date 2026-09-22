@@ -67,9 +67,14 @@ describe("the demo source shown under Code", () => {
     ])
   })
 
-  it("has one demo per item and no demo without an item", async () => {
+  it("has one demo per item, and a demo only for an item or a docs page of the same name", async () => {
     const demos = await readDemos(resolve(root, "playground/src/demos"))
-    expect([...demos.keys()].sort()).toEqual(registry.items.map((item) => item.name).sort())
+    const items = registry.items.map((item) => item.name)
+    for (const name of items) expect(demos.has(name), `${name} has a demo`).toBe(true)
+    // The Typography page has a demo of its own; a demo with neither an item nor a page would embed nowhere.
+    const docs = new Set((await readDocs(resolve(root, "docs"), registry)).map((doc) => doc.slug))
+    for (const name of demos.keys()) expect(items.includes(name) || docs.has(name), `${name} is an item or a docs page`).toBe(true)
+    expect(demos.has("typography")).toBe(true)
     for (const demo of demos.values()) {
       expect(demo.code).not.toContain("@/registry/")
       expect(demo.source).toContain("export default function")
@@ -124,8 +129,14 @@ describe("a theme on the site", () => {
     const docs = await readDocs(resolve(root, "docs"), registry)
     const values = templateValues(registry, version, registry, new Set(docs.map((doc) => doc.slug)))
     const previews: Previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()) }
-    const pages = new Map(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE)).map((page) => [page.path, page.html]))
-    expect(pages.size).toBe(registry.items.length)
+    const docSlugs = new Set(docs.map((doc) => doc.slug))
+    const pages = new Map(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE), docSlugs).map((page) => [page.path, page.html]))
+    // One page per item, and one for the Typography page's own demo, which wears the site's palette like any item's.
+    expect(pages.size).toBe(registry.items.length + 1)
+    const typographyPage = pages.get("preview/typography/index.html") ?? ""
+    expect(typographyPage).toContain('<div id="root" data-item="typography"')
+    expect(typographyPage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${theme.cssVars?.dark?.accent};`)
+    expect(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE)).length).toBe(registry.items.length)
     const classicPage = pages.get("preview/tradecn-terminal-classic/index.html") ?? ""
     const formatPage = pages.get("preview/format/index.html") ?? ""
     // A theme's page: the theme's dark side under .dark and its light side under .light, every variable of each.
@@ -138,7 +149,10 @@ describe("a theme on the site", () => {
     expect(formatPage).toContain(`--down: ${theme.cssVars?.dark?.down};`)
     expect(formatPage).toContain(`:root.light {\n  color-scheme: light;\n  --background: ${LIGHT_PALETTE.background};`)
     expect(formatPage).toContain(`--down: ${LIGHT_PALETTE.down};`)
-    expect(formatPage).toContain(`--radius: 0rem;\n  --font-sans: ${theme.cssVars?.theme?.["font-sans"]};\n}`)
+    // The theme's typography tokens ride into the light side, so a light preview sets its numbers the way a dark one does.
+    expect(formatPage).toContain(`--radius: 0rem;\n  --tradecn-font-sans: ${theme.cssVars?.light?.["tradecn-font-sans"]};`)
+    expect(formatPage).toContain(`  --tradecn-numeric-variant: lining-nums tabular-nums;\n  --font-sans: ${theme.cssVars?.theme?.["font-sans"]};\n}`)
+    expect(formatPage).not.toMatch(/:root\.light \{[^}]*--tradecn-color-body-fg/)
     expect(formatPage.match(/--popover:/g)).toHaveLength(1)
     expect(classic.cssVars?.dark?.down).not.toBe(theme.cssVars?.dark?.down)
     for (const html of pages.values()) {
@@ -207,6 +221,10 @@ describe("the preview card", () => {
         // The card sits between the one sentence and Installation, and its Code tab's source is a code block like any other: wrapped, with its copy button.
         expect(html.indexOf('<div class="preview"')).toBeLessThan(html.indexOf('<h2 id="installation">'))
         expect(html).toMatch(/class="preview-code" id="preview-[\w-]+-code"[\s\S]*?<div class="code"><pre><code class="language-(tsx|css)">[\s\S]*?<\/pre><button type="button" class="copy"/)
+      } else if (demos.has(doc.slug)) {
+        // A doc with a demo of its own (Typography) gets the card and no Installation.
+        expect(html).toContain(`<iframe src="/preview/${doc.slug}/"`)
+        expect(html).not.toContain('id="installation"')
       } else expect(html, doc.path).not.toContain("<iframe")
       expect(html).not.toMatch(/\{\{\w+\}\}/)
     }

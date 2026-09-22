@@ -320,3 +320,29 @@ describe("Intl cache", () => {
     spy.mockRestore()
   })
 })
+
+// The classes a number wears (contract rule 14), imported apart so the block reads on its own.
+import { MONO_NUMERIC_CLASS, NUMERIC_CLASS, numericFontClass } from "@/registry/tradecn/lib/format"
+
+describe("numericFontClass", () => {
+  it("sets every number in lining tabular figures, through a tradecn font token", () => {
+    for (const cls of [NUMERIC_CLASS, MONO_NUMERIC_CLASS]) {
+      expect(cls).toContain("lining-nums tabular-nums")
+      expect(cls).toMatch(/font-\(family-name:--tradecn-font-(numeric|mono)\)/)
+    }
+    expect(NUMERIC_CLASS).not.toBe(MONO_NUMERIC_CLASS)
+  })
+
+  it("picks the mono stack for a fraction price and the numeric family for everything else", () => {
+    const fraction = { kind: "fraction", denominator: 32, half: "+" } as const
+    expect(numericFontClass(fraction)).toBe(MONO_NUMERIC_CLASS)
+    expect(numericFontClass({ kind: "decimal", decimals: 2 })).toBe(NUMERIC_CLASS)
+    expect(numericFontClass({ kind: "tick", tick: 0.005 })).toBe(NUMERIC_CLASS)
+    // An instrument on price follows its price convention; one quoted on yield, discount, or spread prints decimals.
+    expect(numericFontClass({ price: fraction, tick: 1 / 64 })).toBe(MONO_NUMERIC_CLASS)
+    expect(numericFontClass({ price: fraction, tick: 1 / 64, quoteBasis: "yield" })).toBe(NUMERIC_CLASS)
+    expect(numericFontClass({ price: { kind: "decimal", decimals: 3 }, tick: 0.0005, quoteBasis: "discount" })).toBe(NUMERIC_CLASS)
+    expect(numericFontClass()).toBe(NUMERIC_CLASS)
+    expect(numericFontClass(null)).toBe(NUMERIC_CLASS)
+  })
+})

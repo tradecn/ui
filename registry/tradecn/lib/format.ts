@@ -281,6 +281,25 @@ export function formatTicks(v: Nullable, o: { signed?: boolean; unit?: string } 
   return o.unit ? `${body} ${o.unit}` : body
 }
 
+/**
+ * The class a number wears (contract rule 14): lining, tabular figures whatever the font, in the numeric family.
+ * `--tradecn-font-numeric` is the sans by default, so letters stay proportional and only the digits take one
+ * width, which is what a column of prices wants. docs/typography.md has the reasoning and the tokens.
+ */
+export const NUMERIC_CLASS = "font-(family-name:--tradecn-font-numeric) lining-nums tabular-nums"
+/** The same figures in the mono stack, `--tradecn-font-mono`: for a fraction quote, whose dash, ticks, and tail must line up down a column. */
+export const MONO_NUMERIC_CLASS = "font-(family-name:--tradecn-font-mono) lining-nums tabular-nums"
+
+/**
+ * The class for a number printed under a convention: a fraction price (99-16+) sets in the mono stack, so
+ * 99-16+ over 99-17 keeps its dash and its tail in the same place; every other price, and every quote in
+ * another basis, keeps the numeric family.
+ */
+export function numericFontClass(c?: PriceConvention | InstrumentConvention | null): string {
+  const price = c && "price" in c ? (quoteBasisOf(c) === "price" ? c.price : null) : c
+  return price?.kind === "fraction" ? MONO_NUMERIC_CLASS : NUMERIC_CLASS
+}
+
 /** The word for a quote field's label, per basis. */
 export const QUOTE_BASIS_LABELS: Record<QuoteBasis, string> = { price: "Price", yield: "Yield", discount: "Discount", spread: "Spread" }
 

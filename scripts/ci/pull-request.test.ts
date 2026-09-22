@@ -33,7 +33,7 @@ describe("what a title does to the version", () => {
 
   it("keeps the table and the scope list in step with CONTRIBUTING.md", () => {
     expect(Object.keys(TYPES)).toEqual(["feat", "fix", "perf", "refactor", "chore", "revert", "docs", "ci", "test", "style", "build"])
-    expect(SCOPES).toEqual(["repo", "registry", "contract", "rig", "site", "infra", "ci", "deps", "main"])
+    expect(SCOPES).toEqual(["repo", "registry", "contract", "typography", "rig", "site", "infra", "ci", "deps", "main"])
   })
 })
 

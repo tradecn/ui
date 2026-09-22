@@ -35,8 +35,9 @@ export function FlashCell({
       ref={ref}
       data-slot="tradecn-flash-cell"
       data-variant={variant}
+      data-numeric=""
       className={cn(
-        "tabular-nums",
+        "lining-nums tabular-nums",
         // The static color under reduced motion, and behind the animation while it runs.
         variant === "fill"
           ? "data-[direction=up]:bg-up-soft data-[direction=down]:bg-down-soft data-[direction=flat]:bg-flat-soft"

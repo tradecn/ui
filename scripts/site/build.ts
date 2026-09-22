@@ -13,6 +13,7 @@ import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { parseArgs } from "node:util"
 import { Marked } from "marked"
+import { TYPOGRAPHY_TOKEN, isColorValue } from "../lib/registry"
 
 export const SITE_URL = "https://tradecn.dev"
 export const REPO_URL = "https://github.com/tradecn/ui"
@@ -428,8 +429,8 @@ export function dependenciesTable(registry: Registry, tag: string, docSlugs: Rea
   return `<table class="dependencies">\n<thead><tr><th>Package</th><th>Needed by</th></tr></thead>\n<tbody>\n${rows.join("\n")}\n</tbody>\n</table>`
 }
 
-/** A token's value as a swatch can paint it: a shadcn variable through the page's own palette, anything else as written. */
-const swatch = (value: string) => `<span class="swatch" style="background: ${escapeHtml(value.replace(/^var\(--color-/, "var(--"))}"></span>`
+/** A token's value as a swatch can paint it: a shadcn variable through the page's own palette, a color as written, and nothing for a font stack or a size. */
+const swatch = (value: string) => (isColorValue(value) ? `<span class="swatch" style="background: ${escapeHtml(value.replace(/^var\(--color-/, "var(--"))}"></span>` : "")
 
 /** Every token the items add, in the order the registry introduces them: its light and dark values, and the items that add it. Themes set everything, so they are not in it. */
 export function tokensTable(registry: Registry, tag: string, docSlugs: ReadonlySet<string>): string {
@@ -590,6 +591,8 @@ export function fullPalette(theme: RegistryItem, mode: "light" | "dark"): string
  */
 export function siteLightPalette(theme: RegistryItem): string {
   const lines = PALETTE.map((token) => `  --${token}: ${LIGHT_PALETTE[token]};`)
+  // The theme's typography is the same in both modes, so a light preview sets its numbers the way a dark one does.
+  for (const [token, value] of Object.entries(theme.cssVars?.light ?? {})) if (TYPOGRAPHY_TOKEN.test(token)) lines.push(`  --${token}: ${value};`)
   const font = theme.cssVars?.theme?.["font-sans"]
   if (font) lines.push(`  --font-sans: ${font};`)
   return lines.join("\n")
@@ -599,7 +602,7 @@ export function siteLightPalette(theme: RegistryItem): string {
 export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
   const name = doc.slug
   const theme = doc.item?.type === "registry:theme"
-  const code = theme && doc.item ? themeCss(doc.item) : demo.code
+  const code = theme && doc.item ? [themeCss(doc.item), doc.item.css ? registryCss(doc.item.css) : ""].filter(Boolean).join("\n\n") : demo.code
   const language = theme ? "css" : "tsx"
   const codeSource = theme ? `what <code>${escapeHtml(name)}</code> writes into your stylesheet` : `<code>playground/src/demos/${escapeHtml(name)}.tsx</code>`
   // Ids carry the demo's name, so a page could hold more than one card.
@@ -844,7 +847,7 @@ export function sectionOf(doc: Doc): Section {
 export function docPages(docs: Doc[], values: Record<string, string>, template: string, previews: Previews = NO_PREVIEWS, sources: Sources = new Map()): Array<{ path: string; html: string }> {
   const { tag = "", repoUrl } = values
   return docs.map((doc, index) => {
-    const demo = doc.item && previews.embed ? previews.demos.get(doc.slug) : undefined
+    const demo = previews.embed ? previews.demos.get(doc.slug) : undefined
     const foot = doc.file ? `<p class="foot">This page is <code>${escapeHtml(doc.file)}</code> at <a href="${repoUrl}/blob/${tag}/${escapeHtml(doc.file)}">${tag}</a>.</p>` : ""
     if (doc.item && doc.html.includes('id="installation"')) throw new Error(`docs/${doc.source} has its own Installation heading, and the builder adds one`)
     const lead = [demo ? previewBlock(doc, demo, tag) : "", doc.item ? installationSection(doc.item, tag, sources) : ""].filter(Boolean).join("\n")
@@ -873,17 +876,18 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
  * wears that theme in both; every other page wears the site's, from `themeSource`, in dark and the site's own
  * light palette in light, so a demo looks like the docs page that frames it.
  */
-export function previewPages(registry: Registry, themeSource: Registry, previews: Previews, values: Record<string, string>, template: string): Array<{ path: string; html: string }> {
+export function previewPages(registry: Registry, themeSource: Registry, previews: Previews, values: Record<string, string>, template: string, docSlugs: ReadonlySet<string> = new Set()): Array<{ path: string; html: string }> {
   const { embed } = previews
   if (!embed) return []
   const site = themeSource.items.find((item) => item.name === THEME_ITEM)
   if (!site) throw new Error(`${THEME_ITEM} is not in the theme source`)
   const styles = embed.styles.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")
+  // A demo is an item's, or a doc's own (the Typography page has one); a stray demo with no page gets none.
   return [...previews.demos.values()]
-    .filter((demo) => registry.items.some((item) => item.name === demo.name))
+    .filter((demo) => registry.items.some((item) => item.name === demo.name) || docSlugs.has(demo.name))
     .map((demo) => {
-      const item = registry.items.find((entry) => entry.name === demo.name)!
-      const theme = item.type === "registry:theme" ? item : null
+      const item = registry.items.find((entry) => entry.name === demo.name)
+      const theme = item?.type === "registry:theme" ? item : null
       return {
         path: `${PREVIEW_PATH}/${demo.name}/index.html`,
         html: render(template, {
@@ -955,7 +959,7 @@ async function main() {
     await writeFile(join(out, page.path), page.html)
   }
   await writeFile(join(out, SEARCH_INDEX), JSON.stringify(searchIndex(docs)))
-  const pages = previewPages(registry, themeSource, previews, values, await readFile(join(root, "site", PREVIEW_TEMPLATE), "utf8"))
+  const pages = previewPages(registry, themeSource, previews, values, await readFile(join(root, "site", PREVIEW_TEMPLATE), "utf8"), docSlugs)
   if (previews.embed) {
     await cp(join(previews.embed.dir, "assets"), join(out, PREVIEW_PATH, "assets"), { recursive: true })
     await cp(join(previews.embed.dir, POPOUT), join(out, POPOUT))

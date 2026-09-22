@@ -13,6 +13,9 @@ export default mergeConfig(
       outDir: "dist/embed",
       manifest: true,
       rollupOptions: { input: path.resolve(import.meta.dirname, "src/embed.tsx") },
+      // A font is always a file under /preview/assets/, never a data: URL: the site's policy allows fonts from
+      // 'self' alone, and one inlined subset would be blocked and logged on every preview.
+      assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
     },
   }),
 )

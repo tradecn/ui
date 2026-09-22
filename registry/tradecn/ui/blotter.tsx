@@ -127,7 +127,7 @@ function Toolbar<T extends BlotterRow>({ store, ids, actions, newLabel, onNew, o
           {newLabel}
         </Button>
       )}
-      <span aria-live="polite" className="ml-auto text-xs text-muted-foreground tabular-nums">
+      <span aria-live="polite" data-numeric="" className="ml-auto text-xs text-muted-foreground lining-nums tabular-nums">
         {ids.length > 0 ? `${ids.length} selected` : ""}
       </span>
       {actions.map((action) => {
@@ -234,7 +234,7 @@ export function Blotter<T extends BlotterRow = BlotterRow>({ columns, price, tim
   )
 
   return (
-    <div data-slot="tradecn-blotter" onKeyDown={onKeyDown} className={cn("flex h-full min-h-0 flex-col gap-1", className)}>
+    <div data-slot="tradecn-blotter" onKeyDown={onKeyDown} className={cn("flex h-full min-h-0 flex-col gap-1 lining-nums tabular-nums", className)}>
       {(onNew || actions.length > 0) && <Toolbar store={store} ids={inHand} actions={actions} newLabel={newLabel} onNew={onNew} onRun={(id) => run(id, inHand)} />}
       <div className="min-h-0 flex-1">
         <DataGrid<T>

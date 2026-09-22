@@ -23,6 +23,9 @@ describe("the site's security headers", () => {
     expect(csp.get("frame-ancestors")).toEqual(["'self'"])
     // default-src 'none' covers fetch, so the search index needs this or the dialog says it did not load.
     expect(csp.get("connect-src")).toEqual(["'self'"])
+    // And it covers fonts: the previews self-host Inter and JetBrains Mono under /preview/assets/, and without
+    // this every preview logged a blocked font per subset and fell back to the system face.
+    expect(csp.get("font-src")).toEqual(["'self'"])
     expect(csp.get("base-uri")).toEqual(["'none'"])
     expect(csp.get("form-action")).toEqual(["'none'"])
     expect(headers["x-frame-options"]).toBe("SAMEORIGIN")

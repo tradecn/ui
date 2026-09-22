@@ -100,7 +100,7 @@ function AddField({ placeholder, onSubmit }: AddFieldProps) {
         spellCheck={false}
         autoComplete="off"
         autoCapitalize="characters"
-        className="h-6 flex-1 rounded-sm px-1.5 py-0 font-mono text-xs md:text-xs"
+        className="h-6 flex-1 rounded-sm px-1.5 py-0 font-(family-name:--tradecn-font-mono) text-xs md:text-xs"
       />
       <Button type="submit" variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={!draft.trim()}>
         Add
@@ -201,7 +201,7 @@ export function Watchlist<T extends WatchlistRow = WatchlistRow>({ columns, pric
   )
 
   return (
-    <div data-slot="tradecn-watchlist" onKeyDown={onKeyDown} className={cn("flex h-full min-h-0 flex-col gap-1", className)}>
+    <div data-slot="tradecn-watchlist" onKeyDown={onKeyDown} className={cn("flex h-full min-h-0 flex-col gap-1 lining-nums tabular-nums", className)}>
       {onAdd && <AddField placeholder={addPlaceholder} onSubmit={add} />}
       <div className="min-h-0 flex-1">
         <DataGrid<T>

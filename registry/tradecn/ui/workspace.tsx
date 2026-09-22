@@ -376,7 +376,7 @@ export function Workspace({ panels, defaultLayout, seed, onLayoutChange, layoutC
 
   return (
     <WorkspaceContext.Provider value={context}>
-      <div data-slot="tradecn-workspace" className={cn("relative h-full min-h-0 w-full min-w-0", className)} {...props}>
+      <div data-slot="tradecn-workspace" className={cn("relative h-full min-h-0 w-full min-w-0 lining-nums tabular-nums", className)} {...props}>
         <DockviewReact
           components={COMPONENTS}
           defaultTabComponent={WorkspaceTab}

@@ -128,7 +128,7 @@ export function Sparkline({ values, label, direction = "auto", baseline, width, 
         props.onBlur?.(event)
         if (live) setActive(null)
       }}
-      className={cn("relative inline-block h-6 w-24 shrink-0 align-middle outline-none", live && "cursor-crosshair rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50", className)}
+      className={cn("relative inline-block h-6 w-24 shrink-0 align-middle outline-none lining-nums tabular-nums", live && "cursor-crosshair rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50", className)}
       style={fixed ? { ...style, width, height } : style}
     >
       {geometry && w !== undefined && h !== undefined && (
@@ -145,7 +145,7 @@ export function Sparkline({ values, label, direction = "auto", baseline, width, 
         </svg>
       )}
       {live && at && w !== undefined && (
-        <span data-sparkline-readout="" className={cn("pointer-events-none absolute -top-4 rounded-sm bg-popover px-1 text-[10px] leading-4 whitespace-nowrap text-popover-foreground tabular-nums shadow-sm", at.x > w / 2 ? "right-0" : "left-0")}>
+        <span data-sparkline-readout="" data-numeric="" className={cn("pointer-events-none absolute -top-4 rounded-sm bg-popover px-1 text-[10px] leading-4 whitespace-nowrap text-popover-foreground lining-nums tabular-nums shadow-sm", at.x > w / 2 ? "right-0" : "left-0")}>
           {describe(at.index, at.value)}
         </span>
       )}

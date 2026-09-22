@@ -18,7 +18,29 @@
       "categories": [
         "format"
       ],
-      "docs": "Pure functions, no dependencies. Bind a convention per instrument with createInstrumentFormatter and pass its price() to a grid column."
+      "docs": "Pure functions, no dependencies. Bind a convention per instrument with createInstrumentFormatter and pass its price() to a grid column.",
+      "cssVars": {
+        "light": {
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif"
+        },
+        "dark": {
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
     },
     {
       "name": "row-store",
@@ -157,6 +179,11 @@
           "down-soft": "oklch(0.58 0.19 45 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.58 0.14 165)",
           "up-soft": "oklch(0.58 0.14 165 / 18%)"
         },
@@ -165,8 +192,19 @@
           "down-soft": "oklch(0.74 0.18 45 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.74 0.15 165)",
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     },
@@ -421,7 +459,10 @@
           "panel-active": "var(--color-primary)",
           "panel-drag-target": "var(--color-ring)",
           "panel-error": "var(--color-destructive)",
-          "panel-sync": "oklch(0.7 0.12 220)"
+          "panel-sync": "oklch(0.7 0.12 220)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
         },
         "dark": {
           "link-1": "oklch(0.7 0.19 25)",
@@ -431,7 +472,16 @@
           "panel-active": "var(--color-primary)",
           "panel-drag-target": "var(--color-ring)",
           "panel-error": "var(--color-destructive)",
-          "panel-sync": "oklch(0.78 0.12 220)"
+          "panel-sync": "oklch(0.78 0.12 220)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     },
@@ -555,6 +605,11 @@
           "down-soft": "oklch(0.58 0.19 45 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.58 0.14 165)",
           "up-soft": "oklch(0.58 0.14 165 / 18%)"
         },
@@ -563,8 +618,19 @@
           "down-soft": "oklch(0.74 0.18 45 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.74 0.15 165)",
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     },
@@ -636,6 +702,11 @@
           "down-soft": "oklch(0.58 0.19 45 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.58 0.14 165)",
           "up-soft": "oklch(0.58 0.14 165 / 18%)"
         },
@@ -644,8 +715,19 @@
           "down-soft": "oklch(0.74 0.18 45 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.74 0.15 165)",
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     },
@@ -773,6 +855,10 @@
             "--dv-tab-group-line-height": "2px",
             "--dv-tab-group-line-opacity": "0.6"
           }
+        },
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       },
       "cssVars": {
@@ -784,7 +870,10 @@
           "panel-active": "var(--color-primary)",
           "panel-drag-target": "var(--color-ring)",
           "panel-error": "var(--color-destructive)",
-          "panel-sync": "oklch(0.7 0.12 220)"
+          "panel-sync": "oklch(0.7 0.12 220)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
         },
         "dark": {
           "link-1": "oklch(0.7 0.19 25)",
@@ -794,7 +883,10 @@
           "panel-active": "var(--color-primary)",
           "panel-drag-target": "var(--color-ring)",
           "panel-error": "var(--color-destructive)",
-          "panel-sync": "oklch(0.78 0.12 220)"
+          "panel-sync": "oklch(0.78 0.12 220)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
         }
       }
     },
@@ -875,6 +967,11 @@
           "down-soft": "oklch(0.58 0.19 45 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.58 0.14 165)",
           "up-soft": "oklch(0.58 0.14 165 / 18%)"
         },
@@ -883,8 +980,19 @@
           "down-soft": "oklch(0.74 0.18 45 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.74 0.15 165)",
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     },
@@ -981,6 +1089,28 @@
             "description": "The field."
           }
         ]
+      },
+      "cssVars": {
+        "light": {
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif"
+        },
+        "dark": {
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
       }
     },
     {
@@ -1081,6 +1211,11 @@
           "expiring-soft": "oklch(0.6 0.2 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.58 0.14 165)",
           "up-soft": "oklch(0.58 0.14 165 / 18%)"
         },
@@ -1091,8 +1226,19 @@
           "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.74 0.15 165)",
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     },
@@ -1206,6 +1352,11 @@
           "expiring-soft": "oklch(0.6 0.2 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.58 0.14 165)",
           "up-soft": "oklch(0.58 0.14 165 / 18%)"
         },
@@ -1216,8 +1367,19 @@
           "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
           "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up": "oklch(0.74 0.15 165)",
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     },
@@ -1255,10 +1417,22 @@
       },
       "cssVars": {
         "light": {
-          "stale": "oklch(0.72 0.16 75)"
+          "stale": "oklch(0.72 0.16 75)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
         },
         "dark": {
-          "stale": "oklch(0.8 0.15 80)"
+          "stale": "oklch(0.8 0.15 80)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     },
@@ -1320,10 +1494,22 @@
       },
       "cssVars": {
         "light": {
-          "stale": "oklch(0.72 0.16 75)"
+          "stale": "oklch(0.72 0.16 75)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
         },
         "dark": {
-          "stale": "oklch(0.8 0.15 80)"
+          "stale": "oklch(0.8 0.15 80)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     },
@@ -1337,7 +1523,7 @@
       "categories": [
         "theme"
       ],
-      "docs": "This one overwrites. It replaces your background, foreground, primary, border, radius, font-sans and the rest of shadcn's variables, in light and dark alike, and sets every tradecn token to its dark-tuned value. Review it with --diff first. Components are untouched.",
+      "docs": "This one overwrites. It replaces your background, foreground, primary, border, radius, font-sans and the rest of shadcn's variables, in light and dark alike, and sets every tradecn token to its dark-tuned value. Review it with --diff first. Components are untouched. Since the typography release it also adds the typography tokens (fonts, sizes, weights, the numeric variant) and three base rules; it renames and removes nothing, so --diff shows additions only. The terminal is a monospace screen, so its numeric family is its mono stack.",
       "cssVars": {
         "theme": {
           "font-sans": "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace"
@@ -1392,7 +1578,22 @@
           "up": "oklch(0.74 0.15 165)",
           "up-soft": "oklch(0.74 0.15 165 / 18%)",
           "expiring": "oklch(0.74 0.17 350)",
-          "expiring-soft": "oklch(0.74 0.17 350 / 18%)"
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-mono)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-text-size-body": "14px",
+          "tradecn-text-size-grid": "13px",
+          "tradecn-text-size-grid-min": "12px",
+          "tradecn-line-height-body": "1.45",
+          "tradecn-line-height-grid": "1.35",
+          "tradecn-font-weight-body": "450",
+          "tradecn-font-weight-grid": "500",
+          "tradecn-numeric-variant": "lining-nums tabular-nums",
+          "tradecn-color-body-fg": "oklch(0.96 0 0)",
+          "tradecn-color-body-bg": "oklch(0.14 0 0)"
         },
         "dark": {
           "accent": "oklch(0.26 0.03 70)",
@@ -1443,7 +1644,36 @@
           "up": "oklch(0.74 0.15 165)",
           "up-soft": "oklch(0.74 0.15 165 / 18%)",
           "expiring": "oklch(0.74 0.17 350)",
-          "expiring-soft": "oklch(0.74 0.17 350 / 18%)"
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-mono)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-text-size-body": "14px",
+          "tradecn-text-size-grid": "13px",
+          "tradecn-text-size-grid-min": "12px",
+          "tradecn-line-height-body": "1.45",
+          "tradecn-line-height-grid": "1.35",
+          "tradecn-font-weight-body": "450",
+          "tradecn-font-weight-grid": "500",
+          "tradecn-numeric-variant": "lining-nums tabular-nums",
+          "tradecn-color-body-fg": "oklch(0.96 0 0)",
+          "tradecn-color-body-bg": "oklch(0.14 0 0)"
+        }
+      },
+      "css": {
+        "@layer base": {
+          ":root": {
+            "font-variant-numeric": "var(--tradecn-numeric-variant)"
+          },
+          ".tradecn-num, [data-numeric]": {
+            "font-variant-numeric": "var(--tradecn-numeric-variant)"
+          }
+        },
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     },
@@ -1457,7 +1687,7 @@
       "categories": [
         "theme"
       ],
-      "docs": "This one overwrites, the same as tradecn-terminal: it replaces shadcn's variables and sets every tradecn token, in light and dark alike. Review it with --diff first. It differs from tradecn-terminal in four tokens only: up, down, up-soft, and down-soft. Install one or the other, not both.",
+      "docs": "This one overwrites, the same as tradecn-terminal: it replaces shadcn's variables and sets every tradecn token, in light and dark alike. Review it with --diff first. It differs from tradecn-terminal in four tokens only: up, down, up-soft, and down-soft. Install one or the other, not both. Since the typography release it also adds the typography tokens (fonts, sizes, weights, the numeric variant) and three base rules; it renames and removes nothing, so --diff shows additions only. The terminal is a monospace screen, so its numeric family is its mono stack.",
       "cssVars": {
         "theme": {
           "font-sans": "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace"
@@ -1512,7 +1742,22 @@
           "up": "oklch(0.76 0.2 145)",
           "up-soft": "oklch(0.76 0.2 145 / 18%)",
           "expiring": "oklch(0.74 0.17 350)",
-          "expiring-soft": "oklch(0.74 0.17 350 / 18%)"
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-mono)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-text-size-body": "14px",
+          "tradecn-text-size-grid": "13px",
+          "tradecn-text-size-grid-min": "12px",
+          "tradecn-line-height-body": "1.45",
+          "tradecn-line-height-grid": "1.35",
+          "tradecn-font-weight-body": "450",
+          "tradecn-font-weight-grid": "500",
+          "tradecn-numeric-variant": "lining-nums tabular-nums",
+          "tradecn-color-body-fg": "oklch(0.96 0 0)",
+          "tradecn-color-body-bg": "oklch(0.14 0 0)"
         },
         "dark": {
           "accent": "oklch(0.26 0.03 70)",
@@ -1563,7 +1808,36 @@
           "up": "oklch(0.76 0.2 145)",
           "up-soft": "oklch(0.76 0.2 145 / 18%)",
           "expiring": "oklch(0.74 0.17 350)",
-          "expiring-soft": "oklch(0.74 0.17 350 / 18%)"
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-mono)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-text-size-body": "14px",
+          "tradecn-text-size-grid": "13px",
+          "tradecn-text-size-grid-min": "12px",
+          "tradecn-line-height-body": "1.45",
+          "tradecn-line-height-grid": "1.35",
+          "tradecn-font-weight-body": "450",
+          "tradecn-font-weight-grid": "500",
+          "tradecn-numeric-variant": "lining-nums tabular-nums",
+          "tradecn-color-body-fg": "oklch(0.96 0 0)",
+          "tradecn-color-body-bg": "oklch(0.14 0 0)"
+        }
+      },
+      "css": {
+        "@layer base": {
+          ":root": {
+            "font-variant-numeric": "var(--tradecn-numeric-variant)"
+          },
+          ".tradecn-num, [data-numeric]": {
+            "font-variant-numeric": "var(--tradecn-numeric-variant)"
+          }
+        },
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     }

@@ -9,5 +9,5 @@ export function RowStoreScene() {
     return s
   }, [])
   const row = useRow(store, "a")
-  return <div data-slot="tradecn-row-store">{row?.px}</div>
+  return <div data-slot="tradecn-row-store" className="lining-nums tabular-nums">{row?.px}</div>
 }

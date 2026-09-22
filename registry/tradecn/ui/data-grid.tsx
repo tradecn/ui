@@ -20,7 +20,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { createFlashMemory, playFlash, useFlash, type FlashMemory } from "@/registry/tradecn/hooks/use-flash"
 import { useRow, useRowIds } from "@/registry/tradecn/hooks/use-row-store"
-import { NULL_TOKEN } from "@/registry/tradecn/lib/format"
+import { MONO_NUMERIC_CLASS, NULL_TOKEN, NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 
 // A virtualized grid fed by a RowStore one row at a time.
@@ -51,8 +51,10 @@ export interface ColumnDef<T> {
   cell?: (ctx: { row: T; value: unknown; rowId: RowId }) => ReactNode
   /** Flash on change. Defaults to the preset's variant for numeric columns and off otherwise. */
   flash?: false | "fill" | "ring"
-  /** Right-aligned, tabular numerals, flashes by default. */
+  /** Right-aligned, lining tabular figures in the numeric family, flashes by default. */
   numeric?: boolean
+  /** The family a numeric cell sets in: `numeric` (the sans, digits at one width) by default, or `mono` for a column of fraction quotes whose ticks must line up. */
+  font?: "numeric" | "mono"
 }
 
 export interface ColumnState {
@@ -239,12 +241,13 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
       role="gridcell"
       aria-colindex={colIndex + 1}
       data-col={col.key}
+      data-numeric={col.numeric ? "" : undefined}
       data-focused-col={focusedCol || undefined}
       title={typeof content === "string" ? content : undefined}
       className={cn(
         "flex h-full min-w-0 items-center truncate px-2",
         alignClass(col),
-        col.numeric && "justify-end tabular-nums",
+        col.numeric && cn("justify-end", col.font === "mono" ? MONO_NUMERIC_CLASS : NUMERIC_CLASS),
         col.align === "center" && "justify-center",
         flash === "ring" ? RING_CLASSES : flash === "fill" ? FILL_CLASSES : undefined,
         left !== undefined && "sticky z-10 bg-background",
@@ -732,7 +735,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       aria-multiselectable={selectionMode === "multi" || undefined}
       aria-activedescendant={focusedRowId !== null && indexOf.has(focusedRowId) ? domId(focusedRowId) : undefined}
       onKeyDown={onKeyDown}
-      className={cn("flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40", preset.fontClass, className)}
+      className={cn("flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", preset.fontClass, className)}
       style={{ lineHeight: `${rowHeight}px` } as CSSProperties}
     >
       {renderContextMenu ? (

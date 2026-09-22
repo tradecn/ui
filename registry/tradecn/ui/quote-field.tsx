@@ -2,7 +2,7 @@ import { cn } from "cn"
 import { useId, useState, type KeyboardEvent, type RefObject } from "react"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
-import { QUOTE_BASIS_LABELS, formatQuote, parseQuote, quoteBasisOf, stepQuote, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { QUOTE_BASIS_LABELS, formatQuote, numericFontClass, parseQuote, quoteBasisOf, stepQuote, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 
 // A field that types a quote the way the instrument quotes it: 99-16+ for a note on price, 4.253
 // for a bill on discount, 12.6 for credit on a spread. It parses on every keystroke and hands the
@@ -92,7 +92,7 @@ export function QuoteField({ convention, value, onValueChange, stepFrom = null, 
   const problem = error ?? (invalid ? (invalidText ?? `Not a ${word.toLowerCase()} in this instrument's notation.`) : undefined)
 
   return (
-    <div data-slot="tradecn-quote-field" data-basis={basis} data-side={side} className={cn("block", className)}>
+    <div data-slot="tradecn-quote-field" data-basis={basis} data-side={side} className={cn("block lining-nums tabular-nums", className)}>
       <Field data-invalid={problem ? true : undefined}>
         <FieldLabel htmlFor={id}>{word}</FieldLabel>
         <InputGroup className="h-7">
@@ -106,7 +106,8 @@ export function QuoteField({ convention, value, onValueChange, stepFrom = null, 
             spellCheck={false}
             disabled={disabled}
             aria-invalid={problem ? true : undefined}
-            className="font-mono text-xs md:text-xs"
+            data-numeric=""
+            className={cn(numericFontClass(convention), "text-xs md:text-xs")}
             onChange={(event) => change(event.target.value)}
             onBlur={blur}
             onKeyDown={keyDown}
