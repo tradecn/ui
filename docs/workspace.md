@@ -1,6 +1,6 @@
 # workspace
 
-Panels that dock, tab, float, and pop out, on dockview: the dock owns where things sit, and tradecn owns what each panel is.
+Dock, tab, float, and pop out panels with dockview. Each panel keeps its kind, title, and JSON state; you save and restore the layout.
 
 ## Usage
 
@@ -18,17 +18,17 @@ const PANELS = { book: Book, chart: Chart }
   defaultLayout={localStorage.getItem("layout")}
   onLayoutChange={(layout) => localStorage.setItem("layout", JSON.stringify(layout))}
   seed={(api) => {
-    api.addPanel({ kind: "book", state: { symbol: "ZN" } })
-    api.addPanel({ kind: "chart", position: { reference: "book-1", direction: "right" } })
+    const book = api.addPanel({ kind: "book", state: { symbol: "ZN" } })
+    api.addPanel({ kind: "chart", position: { reference: book, direction: "right" } })
   }}
 />
 ```
 
+Keep `panels` stable with a module constant or `useMemo`; replacing it re-renders every panel. The example reads browser storage, so run it on the client. `workspace.tsx` imports dockview's stylesheet.
+
 ## Composition
 
-Use the following composition to build a workspace:
-
-```
+```text
 Workspace
 └── Panel
     ├── PanelHeader
@@ -38,21 +38,52 @@ Workspace
     └── PanelContent
 ```
 
-The workspace wraps each docked panel in a `Panel` of its kind; the component you register under that kind draws the header and the content, and reaches its panel through `useWorkspacePanel()`.
+`Workspace` supplies the `Panel` wrapper. Your registered component renders its header and content and calls `useWorkspacePanel()` for state and actions.
 
 ## API Reference
 
-### The dependency
+### Workspace
 
-This is the one item that brings a package of any weight, so here is what it is. `dockview-react` does docking, tabs, floating groups, popout windows, and a layout that goes to JSON and back. shadcn's `resizable` does the last of those and none of the others, and a grid layout library gives you tiles that do not dock. Checked against `8.3.1` on 2026-09-21: MIT; it brings two packages with it, `dockview` (a re-export) and `dockview-core`, from the same repository as itself, and nothing under those. Some of its options live in a separate `dockview-enterprise` package under a licence of its own (keyboard navigation, drag compass, multi-row tabs, smart guides, edge groups) and this item uses none of them. Its keyboard story is the hotkey registry, below.
-
-The dock's stylesheet is imported by `workspace.tsx`, so there is nothing to add to yours. Keep `panels` the same object between renders, a module constant or a `useMemo`: it is the dock's component table, and a new one re-renders every panel. If you already installed [`panel`](panel.md), the shared files are byte-identical and nothing of yours changes.
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `panels` | `Record<string, ComponentType<WorkspacePanelProps>>` | Required | Components indexed by panel kind. |
+| `defaultLayout` | `unknown` | None | Layout object or JSON text to restore at initialization. Use `api.load` for later changes. |
+| `seed` | `(api: WorkspaceApi) => void` | None | Builds the initial layout when none can be restored. |
+| `onReady` | `(api: WorkspaceApi) => void` | None | Receives the API after the initial load or seed call returns. |
+| `onLayoutChange` | `(layout: WorkspaceLayout) => void` | None | Receives layouts for you to save. |
+| `layoutChangeDelay` | `number` | `250` | Debounce interval in milliseconds, captured at initialization. |
+| `onLayoutError` | `(reason: unknown) => void` | None | Receives load failures and synchronous errors while producing or saving a layout. |
+| `watermark` | `ReactNode` | `null` | Content shown when the main grid has no visible groups, including when all panels float or pop out. |
+| `locked` | `boolean` | `false` | Disables resizing with grid splitters. |
+| `disableFloating` | `boolean` | `false` | Disables the Shift-drag gesture for floating. |
+| `popoutUrl` | `string` | `"/popout.html"` | Same-origin page served for popouts. |
+| `className` | `string` | None | Styles the outer wrapper; give the workspace a height. |
+| Other div props | `ComponentProps<"div">` | None | Forwarded to the wrapper, except `children` and `ref`. |
 
 ### Panels by kind
 
-`panels` maps a kind to the component that draws it. The workspace wraps every panel in a `Panel` of its kind, so each one is the hotkey scope `panel:<kind>`, a `region` named by its title, and wears the active border when the dock says it is the active panel. Inside the component, `useWorkspacePanel()` is the panel:
+Each panel is a `region` named by its title, with hotkey scope `panel:<kind>` and an active border controlled by the dock. Registered components receive `id` and `kind` as string props. Inside them, `useWorkspacePanel()` returns:
+
+| Member | Type | Purpose |
+|---|---|---|
+| `id`, `kind`, `title` | `string` | Identity, registered kind, and display title. |
+| `state` | `WorkspacePanelState` | The panel's saved JSON object. |
+| `active` | `boolean` | Whether this is the dock's active panel. |
+| `location` | `"grid" \| "floating" \| "popout" \| "edge"` | Current location; edge groups require direct dockview API use. |
+| `setTitle` | `(title: string) => void` | Updates the title; ignores empty strings. |
+| `setState` | `(patch: WorkspacePanelStatePatch \| ((state: WorkspacePanelState) => WorkspacePanelStatePatch)) => void` | Merges a state patch. |
+| `close`, `toggleMaximize` | `() => void` | Close this panel, or maximize/restore its grid group. |
+| `float` | `(box?: WorkspaceBox) => void` | Moves this panel into a floating group. |
+| `popout` | `() => Promise<boolean>` | Opens a popout; see the window requirements below. |
+
+For linked symbols and panel hotkeys, mount `LinkGroupProvider` and `HotkeysProvider` above the workspace (see [`panel`](panel.md) and [`use-hotkeys`](use-hotkeys.md)):
 
 ```tsx
+import { Button } from "@/components/ui/button"
+import { useHotkey } from "@/hooks/use-hotkeys"
+import { useLinkGroup } from "@/hooks/use-link-group"
+import type { LinkGroup } from "@/lib/link-group"
+
 function Book() {
   const panel = useWorkspacePanel()
   const link = useLinkGroup({
@@ -69,8 +100,8 @@ function Book() {
         <SymbolTag value={link.symbol} onCommit={link.setSymbol} />
         <LinkGroupDot group={link.group} onGroupChange={link.setGroup} />
         <PanelActions>
-          <Button size="icon-xs" variant="ghost" onClick={panel.float}>float</Button>
-          <Button size="icon-xs" variant="ghost" onClick={panel.popout}>pop out</Button>
+          <Button size="icon-xs" variant="ghost" onClick={() => panel.float()}>float</Button>
+          <Button size="icon-xs" variant="ghost" onClick={() => panel.popout()}>pop out</Button>
         </PanelActions>
       </PanelHeader>
       <PanelContent>{/* rows for link.symbol */}</PanelContent>
@@ -79,54 +110,74 @@ function Book() {
 }
 ```
 
-The handle has `id`, `kind`, `title`, `state`, `active`, and `location` (`grid`, `floating`, `popout`), and `setTitle`, `setState`, `close`, `float`, `popout`, `toggleMaximize`. The component is given `id` and `kind` as props too, for the outer component that does not want the hook.
+Drag panels by their tabs. `PanelHeader` holds controls but is not a workspace drag handle. Tabs show the title and a close button. No tab context menu is enabled; use your shadcn `context-menu` or configure dockview's own menu through `api.dockview`.
 
-In a workspace the tab is the drag handle, not `PanelHeader`. Put a `PanelHeader` in a panel for its symbol tag, its link dot, and its actions; nothing listens to it for a drag. The tab shows the title and a close button. There is no right-click menu on a tab: the dock has one of its own, unstyled by this item and not wired, and a menu of yours would be your shadcn `context-menu`.
+An unregistered kind renders a placeholder with a working close button, so older layouts still open. `unknownPanelKinds(layout, Object.keys(PANELS))` lists missing kinds up front. Import it from `@/lib/workspace-layout`.
 
-A kind the workspace was not given draws a placeholder that says so, in a panel that can still be closed, so a stored layout from a build that had more kinds still opens. `unknownPanelKinds(layout, Object.keys(PANELS))` tells you which, up front.
+### Adding panels
+
+`api.addPanel(options)` returns the panel id. If that id is already open, it focuses the existing panel and leaves its title and state unchanged.
+
+| Option | Type | Default | Purpose |
+|---|---|---|---|
+| `kind` | `string` | Required | Selects the registered component. |
+| `id` | `string` | Lowest free `<kind>-N`, starting at 1 | Identifies the panel. |
+| `title` | `string` | `kind` | Names the panel and tab. |
+| `state` | `WorkspacePanelState` | `{}` | Initial JSON state. |
+| `position` | `{ reference?: string; direction: "left" \| "right" \| "above" \| "below" \| "within" }` | Active group | Places the panel beside a reference panel, or tabs it with `within`. |
+| `floating` | `boolean \| WorkspaceBox` | `false` | Opens floating; takes precedence over `position`. |
+| `focus` | `boolean` | `true` | Moves keyboard focus into the new panel after rendering. |
+
+`WorkspaceBox` has optional numeric `x`, `y`, `width`, and `height` fields in CSS pixels. Omitted fields use dockview's defaults: position `(100, 100)`, size `300 × 300` in 8.3.1.
 
 ### What a panel keeps
 
-`state` is what the panel keeps across a reload: a symbol, a link group, a view setting. It is JSON, and it is small. `setState` takes a patch and merges it, or a function of the state before that returns a patch; a key set to `undefined` is removed. What goes in is stored as JSON would store it, so a function or a `Date` becomes what `JSON.stringify` makes of it. A patch that changes nothing changes nothing: no render, no save.
+Keep small settings in `state`: a symbol, link group, or view option. `WorkspacePanelState` is a string-keyed object of JSON values; `WorkspacePanelStatePatch` also accepts `undefined` to remove a key. `setState` shallow-merges a patch or a patch returned from a function of the previous state. An identical serialized result triggers no store update or save.
 
-The restored symbol goes into the link group as a seed (see [`panel`](panel.md)), so a symbol from storage never overrules the one people are looking at in another window.
+Runtime values are cleaned through JSON serialization. Function-valued object properties disappear, dates become strings, and an unserializable object becomes `{}`. These non-JSON values are outside the declared input type.
+
+In the example, `useLinkGroup` treats the restored symbol as a seed. A real group write, including one from another window, takes precedence.
 
 ### The layout, and what it leaves out
 
-`onLayoutChange` gets a `WorkspaceLayout`:
+`onLayoutChange` receives a `WorkspaceLayout`:
 
 ```ts
 {
   version: 1,
   kind: "tradecn-workspace",
-  dockview: { ... },                       // the dock's own form: where everything sits, floating and popout positions too
+  dockview: { ... }, // Arrangement, including floating and popout positions.
   panels: { "book-1": { kind: "book", title: "Order book", state: { symbol: "ZN", group: 1 } }, ... },
   boundaries: WORKSPACE_PERSISTENCE_BOUNDARIES,
 }
 ```
 
-Read `panels`, not `dockview`. The dock's form is its own and may change with its version; the records are this item's and will not.
+Read panel records from `panels`. Treat `dockview` as opaque data owned by the installed dockview version. Layout types, `parseWorkspaceLayout`, and `WORKSPACE_PERSISTENCE_BOUNDARIES` are exported from `@/lib/workspace-layout`.
 
-A layout is meant to be reused: saved as a template, handed to a colleague, restored next quarter. That only works if nothing tied to a session is in it, and `boundaries` says, in the payload, what the writer put in and what it kept out:
+The payload records these persistence boundaries so saved templates can travel between workspaces:
 
-- `autosave`: in the layout, and a fresh one is handed over when any of it changes. The dock arrangement, floating and popout positions, each panel's kind, title, and state.
-- `workspaceScoped`: belongs to one workspace and is not in the layout. Column widths and sort, a selection, a scroll position, a half-typed ticket. Store these beside the layout, keyed by panel id, if you store them at all.
-- `globalScoped`: belongs to the person, whichever workspace is open. Hotkey remaps, palette recents, the theme, instrument conventions.
-- `excluded`: stored by nobody. Market data, orders and their status, positions, feed health, and the symbol a link group holds right now.
+| Boundary | Contents | Storage |
+|---|---|---|
+| `autosave` | Dock arrangement, floating/popout positions, panel kinds, titles, and state. | Included in the layout. |
+| `workspaceScoped` | Column widths and sort, selection, scroll position, ticket drafts. | Store separately by panel id if needed. |
+| `globalScoped` | Hotkey remaps, palette recents, theme, instrument conventions. | Store as the person's preferences. |
+| `excluded` | Market data, orders and status, positions, feed health, live link-group symbols. | Keep out of saved state. |
 
-This item can hold you to the first: `state` is JSON and it is per panel. The other three are a promise you keep, and a reader of a stored layout, two years on, can see what the promise was. Nothing in the layout points at a server or a session by design, so a layout from one desk opens on another.
+These boundaries document a policy; they do not filter panel state. You must keep session data out of `state` to make a layout portable. A panel's saved symbol is a starting value, separate from a link group's live symbol.
 
-`parseWorkspaceLayout(value)` reads one back, from the object or its JSON text, and returns `null` for anything that is not a version 1 tradecn workspace whose every docked panel has a record with a kind. A record with no panel is dropped, a missing title becomes the kind, and the state is cleaned. It hands back a copy, so the object you stored is not the one the dock gets. `defaultLayout` runs through it; so does `api.load`. When a version 2 exists, the parser will take a 1 and hand back a 2.
+`parseWorkspaceLayout(value)` accepts an object or JSON text and returns a copy, or `null`. It checks the version-1 envelope and basic dock structure, requires a nonempty kind for every panel, drops orphan records, defaults missing or empty titles to the kind, and cleans state. Valid recorded boundaries are preserved; missing or malformed boundaries use the current defaults. It does not fully validate dockview's internal layout. Only version 1 is currently supported.
+
+Both `defaultLayout` and `api.load` use this parser. If parsing fails or dockview refuses the layout, `api.load` clears the workspace, calls `onLayoutError`, and returns `false`. At initialization, a missing or failed layout falls back to `seed(api)`; later `api.load` calls do not seed.
 
 ### Saving is yours
 
-The layout is handed over `layoutChangeDelay` milliseconds (250 by default) after the last change, because a sash drag reports a change on every pointer move. Restoring a layout is not a change, and neither is a report from the dock that left the layout as it was. The last change is written out when the workspace unmounts, so closing a page does not lose a move made a moment before. Where it goes is yours: `localStorage`, a file in a desktop shell, the server. `onLayoutError` hears about a stored layout that was refused, and about a write that threw.
+`onLayoutChange` runs after changes stop for `layoutChangeDelay` milliseconds. Resize drags can report on every pointer move. Seeding schedules a save; a successful synchronous restore establishes the saved baseline, and unchanged snapshots do not save again. Delayed popout restoration can produce further changes.
 
-With no `defaultLayout`, or one that does not parse, `seed(api)` builds the starting layout. Seeding is a change, and it is saved.
+Unmounting flushes a pending callback before disposing the dock. This does not guarantee a write when a page closes: page unload need not unmount React, and asynchronous writes are not awaited. Choose storage in your callback: `localStorage`, a desktop file, or a server. `onLayoutError` receives synchronous serialization or callback errors; handle rejected asynchronous writes yourself.
 
 ### Keys
 
-The workspace declares no bindings of its own. It gives you `api.focusPanel(id)`, `api.focusNext()`, `api.focusNext(-1)`, `api.addPanel`, and `closePanel`, and you bind them:
+Receive the API through `onReady` and bind its actions through the hotkey registry. The workspace declares no bindings:
 
 ```ts
 const BINDINGS: HotkeyBinding[] = [
@@ -137,34 +188,77 @@ const BINDINGS: HotkeyBinding[] = [
 useHotkey("workspace.next", () => api.focusNext())
 ```
 
-`focusPanel` makes the panel active and puts the keyboard inside it, so the keys of `panel:<kind>` answer from there; clicking a tab does the same. The dock's own keyboard navigation is one of the enterprise modules and is off, which suits: the registry is the one place keys are declared, and the one list a palette or a help overlay reads.
+`focusPanel(id)` activates the panel and moves keyboard focus inside it; clicking a tab does the same. Its `panel:<kind>` bindings can then answer. Use `focusNext()` or `focusNext(-1)` to move in dockview's order, and bind `addPanel` or `closePanel` as needed. Dockview's optional enterprise keymap is not enabled; the registry supplies the binding list for your palette or help overlay.
 
 ### Floating, popout, maximize
 
-`api.float(id)` lifts a panel out of the grid into a group that floats over it; `api.toggleMaximize(id)` fills the workspace with it and back; `api.popout(id)` moves it to a window of its own. All three are on the handle too. Dragging a tab with Shift held floats it (the dock's own gesture), and `disableFloating` turns floating off. `locked` stops dragging and resizing.
+`api.float(id)` creates a floating group over the workspace. Shift-dragging a tab does the same unless `disableFloating` is set; direct `float` calls and `addPanel({ floating: true, ... })` remain available. `api.toggleMaximize(id)` maximizes or restores the panel's group, only while it is in the grid.
 
-A popout runs in the page's JavaScript: one React tree, one set of stores, so a link group needs no transport to reach it, and state is kept, as with `PanelPopout`. The dock copies the page's stylesheets into the window; the workspace attaches the hotkey registry to that document, so the panel's keys work there, and mirrors the root element's attributes into it and keeps them in step, so a `dark` class follows a toggle. What does not come along is the same as for `PanelPopout`: anything your shadcn components portal to `document.body` opens in the main window, a stylesheet hot-reloaded after the window opened is not copied again, and a desktop shell whose windows are separate JavaScript contexts cannot do this.
+`locked` disables grid splitter resizing. To also stop drag and drop, use `api.dockview.updateOptions({ disableDnd: true })`. See dockview's [locking behavior](https://dockview.dev/docs/core/locked/).
 
-The window opens a page from your origin, `/popout.html` by default, and that page has to exist: in a Vite project, an empty `public/popout.html`. `popoutUrl` names another. `popout()` has to run inside a click or a key press and resolves to `false` when the browser blocked it. Closing the window from its own close button puts the panel back in the grid.
+`api.popout(id)` opens a separate window in the same JavaScript context: one React tree and shared stores, as with `PanelPopout`. Link groups need no transport between the main page and its popouts. Dockview copies stylesheets when the window loads; the workspace attaches an available hotkey registry and mirrors root-element attributes, including theme-class changes.
 
-A popout is part of the layout, so a layout saved with one open asks for that window again when it is restored. That happens on page load, with no click behind it, and a browser that blocks the window gets the panel back in the grid with an error from the dock in the console. Close popouts before you save a layout as a template.
+Popouts have the same limits as `PanelPopout`: components that portal to the main `document.body` open there, and later stylesheet changes are not copied. Separate JavaScript contexts need the desktop-shell approach below.
+
+Serve an empty same-origin page at `/popout.html` (`public/popout.html` in Vite), or set `popoutUrl`. Call `popout()` from a click or key press. It resolves to `false` if the panel is missing or the browser blocks the window. Closing the window returns its panels to the main workspace; a panel popped out from a floating group can return there.
+
+Saved popouts are reopened during restoration, often without a user gesture. If blocked, dockview returns their panels to the grid and logs an error to the console. Close popouts before saving a reusable template.
 
 ### One window per JavaScript context
 
-A desktop shell that gives each window its own webview cannot pop a panel out the way the browser does: there is no shared JavaScript to move the panel into. The shape that works there is one `Workspace` per window. Each window mounts its own workspace over its own stores, saves its own layout under the window's id, and the shell keeps the list of windows and which layout each one opens with. Link groups cross the windows through a `LinkTransport` made from the shell's events with `createCallbackTransport` (see [`panel`](panel.md)), and the hotkey registry is attached in each window by its own `HotkeysProvider`. `popout` and `api.popout` are not for that shell; leave them out of its panels' actions and let the shell open windows.
+For a desktop shell with separate webviews, mount one `Workspace` per window, each with its own stores and layout saved under the window id. The shell tracks windows and their layouts and opens new windows itself; omit workspace `popout` actions.
+
+Connect link groups through a `LinkTransport` built with `createCallbackTransport` and the shell's events (see [`panel`](panel.md)). Mount a `HotkeysProvider` in each window.
 
 ### The theme
 
-The dock draws itself from CSS variables, and the registry item's `css` block appends one class to your stylesheet that sets every one of them from your tokens: `--dv-group-view-background-color: var(--background)`, the tab strip from `--muted`, tab text from `--foreground` and `--muted-foreground`, separators from `--border`, the active sash and the drop indicator from `--ring`, the dropdown radius from `--radius`. So the dock follows your theme, light and dark, and follows a tradecn theme item too. `scripts/workspace-theme.test.ts` holds that class against the installed dock's own theme, so a variable dockview adds in a later version is a failing test here, not a transparent tab.
+The registry appends `.dockview-theme-tradecn` to your stylesheet, mapping dockview variables to your shadcn tokens:
 
-Its overlay z-index is 30, under the 50 your dialogs and menus use, so a menu opened from a floating panel is not behind another floating panel. The dock's tab-group colors, used only if you turn that feature on through `api.dockview`, map to `--chart-1` to `--chart-5`.
+| Dock surface | Token |
+|---|---|
+| Group background | `--background` |
+| Tab strip | `--muted` |
+| Tab text | `--foreground`, `--muted-foreground` |
+| Separators | `--border` |
+| Active splitter and drop indicator | `--ring` |
+| Dropdown radius | `--radius` |
 
-The install also adds the panel tokens if you do not have them: `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` to `link-4`.
+These mappings follow light, dark, and tradecn themes. `scripts/workspace-theme.test.ts` checks coverage against the installed dockview light theme, including variables added by upgrades.
+
+Dock overlays use z-index `30`, below shadcn menus and dialogs at `50`. Optional tab-group colors configured through `api.dockview` use `--chart-1` through `--chart-5`, with grey using `--muted-foreground`. Installation also adds `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` if missing.
 
 ### The dock's own API
 
-`api.dockview` is dockview's `DockviewApi`, with the types from `dockview-react`, for what this item does not cover. Changes made through it are still saved. What it does to a panel this item does not know about (a panel added with a component name other than the workspace's) is outside this item's contract.
+`onReady` and `seed` receive a `WorkspaceApi`:
+
+| Method | Returns | Purpose |
+|---|---|---|
+| `addPanel(options)` | `string` | Adds or focuses a panel; see the options above. |
+| `closePanel(id)` | `void` | Closes the panel and removes its saved record. |
+| `focusPanel(id)` | `void` | Activates and focuses the panel. |
+| `focusNext(step = 1)` | `void` | Moves forward (`1`) or backward (`-1`). |
+| `panels()` | `WorkspacePanelInfo[]` | Lists each panel's `id`, `kind`, `title`, `active`, and `location`. |
+| `activePanel()` | `string \| null` | Returns the active id, or `null`. |
+| `getState(id)` | `WorkspacePanelState \| undefined` | Reads a panel's state. |
+| `setTitle(id, title)` | `void` | Updates a nonempty title. |
+| `setState(id, patch)` | `void` | Applies the same patch or updater accepted by the panel handle. |
+| `float(id, box?)` | `void` | Moves a panel into a floating group. |
+| `popout(id)` | `Promise<boolean>` | Opens a popout. |
+| `toggleMaximize(id)` | `void` | Maximizes or restores the panel's grid group. |
+| `toLayout()` | `WorkspaceLayout` | Takes a layout snapshot immediately. |
+| `load(layout: unknown)` | `boolean` | Replaces the workspace; failure leaves it empty. |
+| `clear()` | `void` | Removes all panels. |
+
+`api.dockview` exposes `DockviewApi` from `dockview-react` for features outside this wrapper. Its layout changes still schedule saves. Panels added directly with a different component name have no workspace record and are outside this item's persistence contract.
+
+### The dependency
+
+Dependency baseline: `dockview-react` 8.3.1, checked 2026-09-21. It brings `dockview` (a re-export) and `dockview-core`: three MIT packages from one repository, with no further runtime dependencies beyond React peers. Dockview supplies docking, tabs, floating groups, popouts, and JSON layouts. shadcn's `resizable` supplies resizable panels; a grid library supplies tiles rather than docking.
+
+This item uses no `dockview-enterprise` features. The separately licensed package adds the keyboard keymap, drag compass, multi-row tabs, smart guides, and auto-hide/dock-to-edge behavior; basic edge groups are free. See the [feature and license comparison](https://dockview.dev/docs/overview/licence/).
+
+If you already installed [`panel`](panel.md), both items reference the same shared source files. Local edits to installed files still need the usual update review.
 
 ### What it does not do
 
-It does not persist anything, fetch anything, or confirm a close: a panel closes when its tab's button is pressed, and a ticket with a draft in it is closed with it. It does not give a panel a minimum size, a tab a right-click menu, or the dock its keyboard navigation. Those are yours through `api.dockview` if you want them, and the first two may become options here.
+The workspace provides no storage backend, data fetching, or close confirmation. Closing a tab also discards any unsaved draft held by that panel. Minimum panel sizes, tab context menus, and dockview's own keyboard navigation are not exposed as workspace props; configure them through `api.dockview` where supported.
