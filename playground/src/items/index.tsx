@@ -20,6 +20,7 @@ import { RfqTicketScene } from "./rfq-ticket"
 import { RowStoreScene } from "./row-store"
 import { RulesEditorScene } from "./rules-editor"
 import { SparklineScene } from "./sparkline"
+import { StatusBarScene } from "./status-bar"
 import { TicketScene } from "./ticket"
 import { TradecnSlateScene } from "./tradecn-slate"
 import { TradecnSlateEastScene } from "./tradecn-slate-east"
@@ -57,6 +58,7 @@ export const items: Record<string, ItemScene> = {
   "column-chooser": { title: "column-chooser", Scene: ColumnChooserScene },
   "rules-editor": { title: "rules-editor", Scene: RulesEditorScene },
   alerts: { title: "alerts", Scene: AlertsScene },
+  "status-bar": { title: "status-bar", Scene: StatusBarScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   preferences: { title: "preferences", Scene: PreferencesScene },
   "alert-store": { title: "alert-store", Scene: AlertStoreScene },

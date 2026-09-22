@@ -20,6 +20,7 @@ import { RfqTicketScene } from "./rfq-ticket"
 import { RowStoreScene } from "./row-store"
 import { RulesEditorScene } from "./rules-editor"
 import { SparklineScene } from "./sparkline"
+import { StatusBarScene } from "./status-bar"
 import { TicketScene } from "./ticket"
 import { UseHotkeysScene } from "./use-hotkeys"
 import { WatchlistScene } from "./watchlist"
@@ -54,6 +55,7 @@ export const scenes: SmokeScene[] = [
   { name: "column-chooser", Scene: ColumnChooserScene },
   { name: "rules-editor", Scene: RulesEditorScene },
   { name: "alerts", Scene: AlertsScene },
+  { name: "status-bar", Scene: StatusBarScene },
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
   { name: "alert-store", Scene: AlertStoreScene },

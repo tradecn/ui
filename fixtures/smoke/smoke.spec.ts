@@ -775,6 +775,33 @@ test("an alert store folds a repeated key and keeps to its cap", async ({ page }
   await expect(page.locator("section[data-scene='alert-store'] [data-slot='tradecn-alert-store']")).toHaveText("fill 2×1 fill 1×1 keyed×2")
 })
 
+// The environment as a word painted in its tone's token, a clock on the shared timer that moves within
+// a few seconds, the user with the words a screen reader hears, and a child in the slot it was given.
+test("a status bar names the environment in a word and a tone, ticks its clock, and holds what it is given", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='status-bar']")
+  const bar = scene.getByRole("group", { name: "Status" })
+  await expect(bar).toHaveAttribute("data-environment", "UAT")
+  const env = bar.locator("[data-status-environment]")
+  await expect(env).toHaveText("Environment: UAT")
+  const painted = await page.evaluate(() => {
+    const el = document.querySelector("section[data-scene='status-bar'] [data-status-environment]")!
+    const probe = document.createElement("i")
+    probe.style.color = "var(--stale)"
+    document.body.append(probe)
+    const out = { color: getComputedStyle(el).color, token: getComputedStyle(probe).color }
+    probe.remove()
+    return out
+  })
+  expect(painted.color, "the environment word is painted with the tone's token").toBe(painted.token)
+  const time = bar.locator("[data-status-clock='UTC'] [data-status-time]")
+  await expect(time).toHaveText(/^\d\d:\d\d:\d\d$/)
+  const first = (await time.textContent()) ?? ""
+  await expect(time).not.toHaveText(first, { timeout: 4000 })
+  await expect(bar.locator("[data-status-user]")).toHaveText("Signed in as smoke")
+  await expect(bar.locator("[data-status-slot='left'] [data-status-child]")).toHaveText("feeds ok")
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.
