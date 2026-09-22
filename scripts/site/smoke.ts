@@ -18,7 +18,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { chromium, type Page } from "@playwright/test"
-import { compareTags, FONT_PACKAGES, HEADERS_FILE, PREVIEW_PATH, SEARCH_INDEX, SITE_SCRIPT, THEME_ITEM, VERSIONS_INDEX } from "./build"
+import { compareTags, DESK_DEMO, FONT_PACKAGES, HEADERS_FILE, PREVIEW_PATH, SEARCH_INDEX, SITE_SCRIPT, THEME_ITEM, VERSIONS_INDEX } from "./build"
 import type { SearchPage } from "./build"
 
 const { values: args } = parseArgs({
@@ -58,7 +58,7 @@ function serve() {
 const server = args.base ? null : serve()
 const base = args.base ?? `http://127.0.0.1:${port}`
 const previewDir = path.join(dist, PREVIEW_PATH)
-const items = args.base
+const previews = args.base
   ? (process.env.SMOKE_ITEMS ?? "").split(",").filter(Boolean)
   : existsSync(previewDir)
     ? readdirSync(previewDir, { withFileTypes: true })
@@ -66,6 +66,9 @@ const items = args.base
         .map((entry) => entry.name)
         .sort()
     : []
+// The desk is a preview with no docs page of its own: the opening page's block checks it, the loop below the rest.
+const hasDesk = previews.includes(DESK_DEMO)
+const items = previews.filter((name) => name !== DESK_DEMO)
 if (!items.length) {
   console.error(args.base ? "set SMOKE_ITEMS=a,b,c to name the previews to check on a live site" : `${previewDir} has no previews; build the site first`)
   process.exit(1)
@@ -188,7 +191,8 @@ for (const item of items) {
   }
 }
 
-// The opening page: the two ways in, the header's GitHub mark, and every item running in the showcase at the height it reported.
+// The opening page: the two ways in, the header's GitHub mark, and the desk running at the height it reported with every
+// item the tag has linked under it; on a tag from before the desk, every item running in its own card instead.
 {
   const page = await context.newPage()
   watch(page, "opening")
@@ -212,16 +216,32 @@ for (const item of items) {
       const mark = await github.locator("svg").boundingBox()
       if (!mark || mark.width < 14) failures.push("opening: the GitHub mark's svg has no size")
     }
-    const frames = page.locator(".showcase iframe[data-preview]")
-    if ((await frames.count()) !== itemPreviews.length) failures.push(`opening: ${await frames.count()} items in the showcase, not ${itemPreviews.length}`)
-    // Every frame takes its demo's height, including the ones far below the fold; a demo is taller than 40px.
-    await page.waitForFunction(() => [...document.querySelectorAll(".showcase iframe[data-preview]")].every((el) => parseFloat((el as HTMLIFrameElement).style.height || "0") > 40), undefined, { timeout: 30_000 })
-    for (const item of itemPreviews) {
-      const card = page.locator(`.showcase .card[data-preview='${item}']`)
-      if (!(await card.locator(`a[href='/docs/${item}/']`).count())) failures.push(`opening: the ${item} card does not link its page`)
+    if (hasDesk) {
+      // The desk: one frame, taller than any single demo, with the workspace and a dozen kinds of item mounted in it,
+      // its source linked at the tag, and under it a link to the page of every item the tag has, themes aside.
+      const frames = page.locator(".showcase.desk iframe[data-preview]")
+      if ((await frames.count()) !== 1) failures.push(`opening: ${await frames.count()} frames in the desk, not one`)
+      await page.waitForFunction((name) => parseFloat((document.querySelector(`.showcase.desk iframe[data-preview='${name}']`) as HTMLIFrameElement | null)?.style.height ?? "0") > 600, DESK_DEMO, { timeout: 30_000 })
+      const desk = page.frameLocator(`.showcase.desk iframe[data-preview='${DESK_DEMO}']`)
+      await desk.locator("[data-slot='tradecn-workspace']").waitFor({ timeout: 15_000 })
+      const kinds = await desk.locator("[data-slot^='tradecn-']").evaluateAll((els) => new Set(els.map((el) => el.getAttribute("data-slot"))).size)
+      if (kinds < 12) failures.push(`opening: the desk mounts ${kinds} kinds of item, fewer than 12`)
+      if (!(await page.locator(`.showcase.desk a[href$='/playground/src/demos/${DESK_DEMO}.tsx']`).count())) failures.push("opening: the desk does not link its source")
+      const linked = new Set(await page.locator(".desk-legend a").evaluateAll((els) => els.map((el) => el.getAttribute("href"))))
+      for (const [path, group] of pageGroups) if (group !== "Get Started" && group !== "Themes" && !linked.has(path)) failures.push(`opening: the desk's legend does not link ${path}`)
+      console.log(`ok  opening page: the desk, ${kinds} kinds of item on it, ${Math.round(await frameHeight(page, DESK_DEMO))}px, ${linked.size} items linked under it`)
+    } else {
+      const frames = page.locator(".showcase iframe[data-preview]")
+      if ((await frames.count()) !== itemPreviews.length) failures.push(`opening: ${await frames.count()} items in the showcase, not ${itemPreviews.length}`)
+      // Every frame takes its demo's height, including the ones far below the fold; a demo is taller than 40px.
+      await page.waitForFunction(() => [...document.querySelectorAll(".showcase iframe[data-preview]")].every((el) => parseFloat((el as HTMLIFrameElement).style.height || "0") > 40), undefined, { timeout: 30_000 })
+      for (const item of itemPreviews) {
+        const card = page.locator(`.showcase .card[data-preview='${item}']`)
+        if (!(await card.locator(`a[href='/docs/${item}/']`).count())) failures.push(`opening: the ${item} card does not link its page`)
+      }
+      const heights = await Promise.all(itemPreviews.map((item) => frameHeight(page, item)))
+      console.log(`ok  opening page: ${itemPreviews.length} items running, ${Math.round(Math.min(...heights))}px to ${Math.round(Math.max(...heights))}px`)
     }
-    const heights = await Promise.all(itemPreviews.map((item) => frameHeight(page, item)))
-    console.log(`ok  opening page: ${itemPreviews.length} items running, ${Math.round(Math.min(...heights))}px to ${Math.round(Math.max(...heights))}px`)
   } catch (error) {
     failures.push(`opening: ${firstLine(error)}`)
   } finally {

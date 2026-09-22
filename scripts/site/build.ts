@@ -483,6 +483,12 @@ export const SITE_DOCS = "docs"
 export const START_PAGES = ["index", "installation", "components", "theming", "changelog"] as const
 /** Where the embedded previews live on the site: /preview/<item>/ and the bundle under /preview/assets/. */
 export const PREVIEW_PATH = "preview"
+/**
+ * The demo the opening page frames: one workspace with every item on it, `playground/src/demos/terminal.tsx`.
+ * It is no item's and no docs page's, so `previewPages` writes its page by this name and the previews test
+ * allows the one demo that is neither.
+ */
+export const DESK_DEMO = "terminal"
 /** dockview opens this on the site's origin for a popped-out workspace panel; the playground's copy is published at the root. */
 export const POPOUT = "popout.html"
 
@@ -647,13 +653,70 @@ export function itemList(items: RegistryItem[], tag: string, docSlugs: ReadonlyS
   return `<ul class="item-list">\n${links.join("\n")}\n</ul>`
 }
 
+/** The file named for an item is its own; the rest of its `files[]` are the ones it rides. */
+const ownFileOf = (item: RegistryItem) => item.files?.find((file) => file.path.replace(/\.tsx?$/, "").endsWith(`/${item.name}`))
+
 /**
- * The opening page below the fold: every item that has a demo, running, in the order the registry lists them,
- * each in a card that names it and links its page. The iframe is sized by the height its page reports, like the
- * preview on a docs page. A tag with no embed build gets the names without the frames.
+ * Every item the desk runs: the ones whose own file the demo's source imports, and the ones whose own file rides
+ * in an imported item's `files[]`, since a watchlist on screen is a data grid, a row store, and the format
+ * library running too. Registry order. A theme has no file, so none is ever on it; the header's menu is where
+ * the themes live.
+ */
+export function deskItems(source: string, registry: Registry): RegistryItem[] {
+  const strip = (path: string) => path.replace(/\.tsx?$/, "")
+  const owners = new Map<string, RegistryItem>()
+  for (const item of registry.items) {
+    const own = ownFileOf(item)
+    if (own) owners.set(strip(own.path), item)
+  }
+  const imported = new Set([...source.matchAll(/"@\/registry\/tradecn\/((?:ui|hooks|lib)\/[\w-]+|blocks\/[\w-]+\/[\w-]+)"/g)].map((match) => `registry/tradecn/${match[1]}`))
+  const on = new Set<RegistryItem>()
+  for (const [path, item] of owners) if (imported.has(path)) on.add(item)
+  for (const item of [...on]) {
+    for (const file of item.files ?? []) {
+      const owner = owners.get(strip(file.path))
+      if (owner) on.add(owner)
+    }
+  }
+  return registry.items.filter((item) => on.has(item))
+}
+
+/**
+ * The opening page below the fold when the tag's demos hold the desk: one workspace with every item on it, in a
+ * card that names it, links its source at the tag, and opens it on its own, and under it every item it runs,
+ * grouped as the sidebar groups them and linking each page, so the map from what is on screen to the docs is
+ * on the page. The iframe is sized by the height its page reports, like the preview on a docs page.
+ */
+export function desk(registry: Registry, tag: string, docSlugs: ReadonlySet<string>, demo: Demo): string {
+  const items = deskItems(demo.source, registry)
+  const legend = GROUPS.filter((group) => group !== "Get Started" && group !== "Themes")
+    .map((group) => {
+      const members = items.filter((item) => groupOf(item) === group).sort(byTitle)
+      return members.length ? `<p><span class="legend-group">${group}</span> ${members.map((item) => `<a href="${docHref(item, tag, docSlugs)}"><code>${escapeHtml(item.name)}</code></a>`).join(" ")}</p>` : ""
+    })
+    .filter(Boolean)
+  const name = escapeHtml(demo.name)
+  return [
+    `<section class="showcase desk" aria-label="Every item, one desk">`,
+    `<article class="card" data-preview="${name}">`,
+    `<div class="card-bar"><span class="desk-name">The desk</span><span class="kind">every item, one workspace</span><a class="open" href="${REPO_URL}/blob/${tag}/playground/src/demos/${name}.tsx">Source</a><a class="open" href="/${PREVIEW_PATH}/${name}/" target="_blank" rel="noopener">Open in a new tab</a></div>`,
+    `<iframe src="/${PREVIEW_PATH}/${name}/" title="The desk, live" data-preview="${name}"></iframe>`,
+    `<div class="desk-legend" aria-label="On this desk">\n${legend.join("\n")}\n</div>`,
+    `</article>`,
+    `</section>`,
+  ].join("\n")
+}
+
+/**
+ * The opening page below the fold: the desk when the tag's demos hold it; before that, every item that has a
+ * demo, running, in the order the registry lists them, each in a card that names it and links its page. The
+ * iframes are sized by the height their pages report, like the preview on a docs page. A tag with no embed
+ * build gets the names without the frames.
  */
 export function showcase(registry: Registry, tag: string, docSlugs: ReadonlySet<string>, previews: Previews): string {
   if (!previews.embed) return itemList(registry.items, tag, docSlugs)
+  const deskDemo = previews.demos.get(DESK_DEMO)
+  if (deskDemo) return desk(registry, tag, docSlugs, deskDemo)
   const cards = registry.items
     .filter((item) => previews.demos.has(item.name))
     .map((item) => {
@@ -1069,9 +1132,9 @@ export function previewPages(registry: Registry, themeSource: Registry, previews
   const site = themes[0]!
   const others = previewThemePalettes(themes)
   const styles = embed.styles.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")
-  // A demo is an item's, or a doc's own (the Typography page has one); a stray demo with no page gets none.
+  // A demo is an item's, a doc's own (the Typography page has one), or the desk's; a stray demo that is none of those gets no page.
   return [...previews.demos.values()]
-    .filter((demo) => registry.items.some((item) => item.name === demo.name) || docSlugs.has(demo.name))
+    .filter((demo) => demo.name === DESK_DEMO || registry.items.some((item) => item.name === demo.name) || docSlugs.has(demo.name))
     .map((demo) => {
       const item = registry.items.find((entry) => entry.name === demo.name)
       const theme = item?.type === "registry:theme" ? item : null
