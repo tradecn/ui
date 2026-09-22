@@ -196,9 +196,9 @@ export function searchDialog(): string {
 }
 
 /**
- * The header on every page: the mark, the three sections, the search, the links out, the theme menu, and the mode
- * button. `current` marks the section a page is in, `page` that it is the section's own page, and `picker` is
- * `themePicker()` of the themes the page carries, left of the mode button.
+ * The header on every page: the mark, the three sections with the registry file after them, the search, the GitHub
+ * mark, the tag, the theme menu, and the mode button. `current` marks the section a page is in, `page` that it is the
+ * section's own page, and `picker` is `themePicker()` of the themes the page carries, left of the mode button.
  */
 export function siteHeader(tag: string, current: Section | null = null, page = false, picker = ""): string {
   const link = (section: Section, href: string, text: string) =>
@@ -207,8 +207,8 @@ export function siteHeader(tag: string, current: Section | null = null, page = f
     `<header class="site-header">`,
     `<div class="wrap">`,
     `<a class="name" href="/">${MARK}<span>tradecn<span class="slash">/</span>ui</span></a>`,
-    `<nav aria-label="Sections">${link("docs", "/docs/", "Docs")}${link("components", "/docs/components/", "Components")}${link("changelog", "/docs/changelog/", "Changelog")}</nav>`,
-    `<nav class="side" aria-label="Links">${SEARCH_BUTTON}${GITHUB_LINK}<a href="/r/registry.json">registry.json</a><span class="tag">${escapeHtml(tag)}</span>${picker}${MODE_BUTTON}</nav>`,
+    `<nav aria-label="Sections">${link("docs", "/docs/", "Docs")}${link("components", "/docs/components/", "Components")}${link("changelog", "/docs/changelog/", "Changelog")}<a href="/r/registry.json">registry.json</a></nav>`,
+    `<nav class="side" aria-label="Links">${SEARCH_BUTTON}${GITHUB_LINK}<span class="tag">${escapeHtml(tag)}</span>${picker}${MODE_BUTTON}</nav>`,
     `</div>`,
     `</header>`,
   ].join("\n")

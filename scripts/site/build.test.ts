@@ -135,10 +135,12 @@ describe("the opening page", () => {
     expect(page).not.toContain("shadcn@latest add")
   })
 
-  it("wears the header every page shares, with the sections, the search, the links out, the theme menu, and the mode button last", () => {
+  it("wears the header every page shares, with the sections then registry.json, the search, the GitHub mark, the tag, the theme menu, and the mode button last", () => {
     expect(page).toContain('<header class="site-header">')
-    expect(page).toContain('<a href="/docs/">Docs</a><a href="/docs/components/">Components</a><a href="/docs/changelog/">Changelog</a>')
-    expect(page).toContain(`${SEARCH_BUTTON}${GITHUB_LINK}<a href="/r/registry.json">registry.json</a>`)
+    expect(page).toContain('<a href="/docs/">Docs</a><a href="/docs/components/">Components</a><a href="/docs/changelog/">Changelog</a><a href="/r/registry.json">registry.json</a></nav>')
+    expect(page).toContain(`<nav class="side" aria-label="Links">${SEARCH_BUTTON}${GITHUB_LINK}<span class="tag">`)
+    // The registry file rides after the sections, not among the links out.
+    expect(page).not.toContain(`${GITHUB_LINK}<a href="/r/registry.json">`)
     expect(page).toContain(`<span class="tag">${tag}</span>${themePicker(siteThemes(registry))}${MODE_BUTTON}</nav>`)
     // The repository link is GitHub's mark alone, named for a screen reader; the word is no longer in the header.
     expect(GITHUB_LINK).toMatch(/^<a class="github" href="https:\/\/github\.com\/tradecn\/ui" aria-label="GitHub"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6\.766 11\.328c[^"]+"\/><\/svg><\/a>$/)
