@@ -131,8 +131,10 @@ describe("a theme on the site", () => {
     const previews: Previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()) }
     const docSlugs = new Set(docs.map((doc) => doc.slug))
     const pages = new Map(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE), docSlugs).map((page) => [page.path, page.html]))
-    // One page per item, and one for the Typography page's own demo, which wears the site's palette like any item's.
-    expect(pages.size).toBe(registry.items.length + 1)
+    // One page per item, and one per docs page with a demo of its own (Typography, Color), which wear the site's palette like any item's.
+    const docDemos = [...docSlugs].filter((slug) => previews.demos.has(slug) && !registry.items.some((item) => item.name === slug))
+    expect(docDemos.sort()).toEqual(["color", "typography"])
+    expect(pages.size).toBe(registry.items.length + docDemos.length)
     const typographyPage = pages.get("preview/typography/index.html") ?? ""
     expect(typographyPage).toContain('<div id="root" data-item="typography"')
     expect(typographyPage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${theme.cssVars?.dark?.accent};`)

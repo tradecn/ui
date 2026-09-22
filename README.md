@@ -54,6 +54,9 @@ You already have shadcn's menus and tooltips. This adds what a trading screen ne
 | [`ticket`](docs/ticket.md) | An order ticket, the registry's first block. Types `99-16+` and steps by the tick. The buttons are the actions the server allowed and nothing else; the status is the server's word. It sends nothing: it hands you a checked draft. |
 | [`tradecn-terminal`](docs/tradecn-terminal.md) | A theme, not a component. Black, amber, square corners, monospace. It's the one item that overwrites your variables, so `--diff` it first. Keeps the colorblind-safe up and down. |
 | [`tradecn-terminal-classic`](docs/tradecn-terminal-classic.md) | The same theme with green and red. Four tokens differ and nothing else. The signs and the words matter more with this one, not less. |
+| [`tradecn-slate`](docs/tradecn-slate.md) | A theme with a real light side and a real dark side: cool neutrals, a blue primary, the colorblind-safe bluish green and vermilion for up and down. Every color checked at 4.5:1 on its surface, both modes. |
+| [`tradecn-slate-east`](docs/tradecn-slate-east.md) | Slate with red for up and green for down, the way screens in China, Japan, and Taiwan show it. Four tokens differ. |
+| [`tradecn-amber`](docs/tradecn-amber.md) | The terminal's amber with a day side. Warm paper by day, near-black by night, and blue and vermilion for direction: the pair that stays apart under every kind of color blindness. |
 
 ## It rides shadcn
 
@@ -81,6 +84,8 @@ npx shadcn@latest add tooltip --diff                       # a shadcn change und
 `cn`, `@tanstack/react-virtual` under the grids, `dockview-react` under the workspace (it brings `dockview` and `dockview-core`, same repo, nothing else). That's the list, and an item only pulls in the part it uses. It's short on purpose: some of you ship into places where every package is a form to fill out.
 
 No icon library either. shadcn picks a different one per base, so the grid draws its own three dots.
+
+The colors are data too. [`color.md`](docs/color.md) has the research behind the themes: who cannot tell red from green, what red does to a reader's expectations, why a theme wants two palettes, and the one rule every component keeps: direction never rides on hue alone.
 
 No font files either. [`typography.md`](docs/typography.md) says which families the components expect and why, with the research behind each, and every one of them is a CSS variable you set once. Any component rendering numeric data MUST set `font-variant-numeric: lining-nums tabular-nums` on the numeric node. That is the one rule the components enforce on their own, whatever font you chose.
 

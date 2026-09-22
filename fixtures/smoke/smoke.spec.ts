@@ -663,23 +663,29 @@ test("the installed theme is what the page is drawn with, in both modes", async 
   expect(base.remapped, "data-accessibility=hyperlegible swaps the sans and the mono for the accessible pair").toBe(true)
   expect(base.restored, "removing the attribute restores the fonts").toBe(true)
   expect(base.before.replace(/["']/g, ""), "the sans is the theme's").toBe(theme.cssVars.light["tradecn-font-sans"]?.replace(/["']/g, ""))
-  // What those variables do to the page: the body is the theme's background, corners are square, the sans stack is the theme's.
+  // What those variables do to the page: the body is the theme's background, the panel's corners follow the theme's radius
+  // (square on the terminal), and the sans stack is the theme's when the theme sets one.
   const drawn = await page.evaluate(() => {
     const probe = document.createElement("i")
     probe.style.backgroundColor = "var(--background)"
+    // Tailwind's `@theme inline` inlines --radius-md into the utility and emits no variable for it, so the probe computes what rounded-md computes.
+    probe.style.borderRadius = "calc(var(--radius) * 0.8)"
     document.body.append(probe)
     const out = {
       body: getComputedStyle(document.body).backgroundColor,
       background: getComputedStyle(probe).backgroundColor,
       radius: getComputedStyle(document.querySelector("[data-slot='tradecn-panel']")!).borderTopLeftRadius,
+      radiusMd: getComputedStyle(probe).borderTopLeftRadius,
       font: getComputedStyle(document.documentElement).fontFamily,
     }
     probe.remove()
     return out
   })
   expect(drawn.body, "the body is painted with --background").toBe(drawn.background)
-  expect(drawn.radius, "rounded-md is square").toBe("0px")
-  expect(drawn.font.replace(/["']/g, ""), "font-sans is the theme's stack").toBe(theme.cssVars.theme?.["font-sans"]?.replace(/["']/g, ""))
+  expect(drawn.radius, "rounded-md is 0.8 of the theme's --radius").toBe(drawn.radiusMd)
+  if (theme.cssVars.light.radius === "0rem") expect(drawn.radius, "the terminal is square").toBe("0px")
+  const stack = theme.cssVars.theme?.["font-sans"]
+  if (stack) expect(drawn.font.replace(/["']/g, ""), "font-sans is the theme's stack").toBe(stack.replace(/["']/g, ""))
   await page.evaluate(() => document.documentElement.classList.add("dark"))
   expect(await mismatches(expected(theme.cssVars.dark)), `${name}: every dark color`).toEqual([])
 })

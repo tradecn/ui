@@ -17,6 +17,9 @@ import { SparklineScene } from "./sparkline"
 import { TicketScene } from "./ticket"
 import { TradecnTerminalScene } from "./tradecn-terminal"
 import { TradecnTerminalClassicScene } from "./tradecn-terminal-classic"
+import { TradecnSlateScene } from "./tradecn-slate"
+import { TradecnSlateEastScene } from "./tradecn-slate-east"
+import { TradecnAmberScene } from "./tradecn-amber"
 import { UseHotkeysScene } from "./use-hotkeys"
 import { WatchlistScene } from "./watchlist"
 import { WorkspaceScene } from "./workspace"
@@ -49,4 +52,7 @@ export const items: Record<string, ItemScene> = {
   "hotkey-editor": { title: "hotkey-editor", Scene: HotkeyEditorScene },
   "tradecn-terminal": { title: "tradecn-terminal", Scene: TradecnTerminalScene },
   "tradecn-terminal-classic": { title: "tradecn-terminal-classic", Scene: TradecnTerminalClassicScene },
+  "tradecn-slate": { title: "tradecn-slate", Scene: TradecnSlateScene },
+  "tradecn-slate-east": { title: "tradecn-slate-east", Scene: TradecnSlateEastScene },
+  "tradecn-amber": { title: "tradecn-amber", Scene: TradecnAmberScene },
 }

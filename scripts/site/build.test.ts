@@ -420,7 +420,7 @@ describe("the docs pages", async () => {
     const itemSlugs = registry.items.map((item) => item.name).filter((name) => docSlugs.has(name))
     expect(tagDocs.filter((doc) => doc.item).map((doc) => doc.slug)).toEqual(itemSlugs)
     const byGroup = GROUPS.flatMap((group) => registry.items.filter((item) => docSlugs.has(item.name) && groupOf(item) === group).map((item) => item.name))
-    expect(docs.map((doc) => doc.slug)).toEqual([...START_PAGES, "contract", "typography", ...byGroup])
+    expect(docs.map((doc) => doc.slug)).toEqual([...START_PAGES, "color", "contract", "typography", ...byGroup])
     // The registry lists the utilities first; the pages put the components first and never mix the kinds.
     expect(byGroup).not.toEqual(itemSlugs)
     expect(docs.filter((doc) => doc.item).map((doc) => groupOf(doc.item))).toEqual([
@@ -428,6 +428,9 @@ describe("the docs pages", async () => {
       "Hooks",
       "Utilities",
       "Utilities",
+      "Themes",
+      "Themes",
+      "Themes",
       "Themes",
       "Themes",
     ])
@@ -438,12 +441,12 @@ describe("the docs pages", async () => {
   it("groups the sidebar by kind, marks the current page, and links every other page", () => {
     const nav = docsNav(docs, "format")
     expect(nav).toContain('<h2>Get Started</h2>\n<ul>\n<li><a href="/docs/">Introduction</a></li>\n<li><a href="/docs/installation/">Installation</a></li>')
-    expect(nav).toContain('<li><a href="/docs/changelog/">Changelog</a></li>\n<li><a href="/docs/contract/">The item contract</a></li>\n<li><a href="/docs/typography/">Typography</a></li>\n</ul>')
+    expect(nav).toContain('<li><a href="/docs/changelog/">Changelog</a></li>\n<li><a href="/docs/color/">Color</a></li>\n<li><a href="/docs/contract/">The item contract</a></li>\n<li><a href="/docs/typography/">Typography</a></li>\n</ul>')
     // A utility is not a component: format sits under Utilities, use-hotkeys under Hooks, the themes under Themes, and only the ui items and the block under Components.
     expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/flash-cell/">flash-cell</a></li>')
     expect(nav).toContain('<li><a href="/docs/workspace/">workspace</a></li>\n<li><a href="/docs/ticket/">ticket</a></li>\n<li><a href="/docs/countdown/">countdown</a></li>\n<li><a href="/docs/quote-field/">quote-field</a></li>\n<li><a href="/docs/rfq-ticket/">rfq-ticket</a></li>\n<li><a href="/docs/rfq-stack/">rfq-stack</a></li>\n<li><a href="/docs/perf-monitor/">perf-monitor</a></li>\n<li><a href="/docs/hotkey-editor/">hotkey-editor</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">use-hotkeys</a></li>\n</ul>')
     expect(nav).toContain('<h2>Utilities</h2>\n<ul>\n<li><a href="/docs/format/" aria-current="page">format</a></li>\n<li><a href="/docs/row-store/">row-store</a></li>\n</ul>')
-    expect(nav).toContain('<h2><a href="/docs/theming/#themes">Themes</a></h2>\n<ul>\n<li><a href="/docs/tradecn-terminal/">tradecn-terminal</a></li>\n<li><a href="/docs/tradecn-terminal-classic/">tradecn-terminal-classic</a></li>\n</ul>')
+    expect(nav).toContain('<h2><a href="/docs/theming/#themes">Themes</a></h2>\n<ul>\n<li><a href="/docs/tradecn-terminal/">tradecn-terminal</a></li>\n<li><a href="/docs/tradecn-terminal-classic/">tradecn-terminal-classic</a></li>\n<li><a href="/docs/tradecn-slate/">tradecn-slate</a></li>\n<li><a href="/docs/tradecn-slate-east/">tradecn-slate-east</a></li>\n<li><a href="/docs/tradecn-amber/">tradecn-amber</a></li>\n</ul>')
     expect(nav.match(/<h2>/g)).toHaveLength(5)
     // A tag without a kind shows no heading for it.
     expect(docsNav(docs.filter((doc) => groupOf(doc.item) !== "Hooks"), null)).not.toContain("Hooks")
@@ -541,6 +544,8 @@ describe("the docs pages", async () => {
     expect(theming).not.toContain("<code>--sidebar</code>")
     expect(theming).toContain('<li><a href="/docs/tradecn-terminal/"><code>tradecn-terminal</code></a> ')
     expect(theming).toContain('<li><a href="/docs/tradecn-terminal-classic/"><code>tradecn-terminal-classic</code></a> ')
+    expect(theming).toContain('<li><a href="/docs/tradecn-slate/"><code>tradecn-slate</code></a> ')
+    expect(theming).toContain('<li><a href="/docs/tradecn-amber/"><code>tradecn-amber</code></a> ')
   })
 
   it("renders the tag's CHANGELOG.md on the Changelog page, each version a heading, without the seed heading at the end", () => {
@@ -641,7 +646,8 @@ describe("the docs pages", async () => {
     expect(at("docs/index.html")).toContain(`<nav class="pager" aria-label="Previous and next">\n<span></span>\n<a rel="next" href="/docs/installation/">Installation →</a>`)
     const last = docs.at(-1)!
     expect(at(`docs/${last.slug}/index.html`)).toContain(`<a rel="prev" href="${docs.at(-2)!.path}">← ${docs.at(-2)!.slug}</a>\n<span></span>`)
-    expect(at("docs/contract/index.html")).toContain(`<a rel="prev" href="/docs/changelog/">← Changelog</a>`)
+    expect(at("docs/color/index.html")).toContain(`<a rel="prev" href="/docs/changelog/">← Changelog</a>`)
+    expect(at("docs/contract/index.html")).toContain(`<a rel="prev" href="/docs/color/">← Color</a>`)
     expect(at("docs/contract/index.html")).toContain(`<a rel="next" href="/docs/typography/">Typography →</a>`)
     expect(at("docs/typography/index.html")).toContain(`<a rel="next" href="/docs/${items[0]!.slug}/">${items[0]!.slug} →</a>`)
   })
