@@ -93,6 +93,17 @@ describe("the site's security headers", () => {
     expect(release).toContain("--changelog release/CHANGELOG.md")
   })
 
+  it("say on <html> which release a page is and where its tree is served from, and the edge reads a dotted release as a route", () => {
+    for (const name of ["index.html", DOCS_TEMPLATE]) expect(readFileSync(resolve(root, "site", name), "utf8"), name).toContain('<html lang="en" data-version="{{tag}}" data-base="{{base}}">')
+    // The 404 page has no script to read them, and lives at the root alone.
+    expect(readFileSync(resolve(root, "site", "404.html"), "utf8")).toContain('<html lang="en">')
+    // /v1.2.0 is a release's tree, not a file: an extension starts with a letter. The smoke's server does what the edge does.
+    const stack = readFileSync(resolve(root, "infra/lib/tradecn-site-stack.ts"), "utf8")
+    expect(stack).toContain(String.raw`!/\\.[a-z][a-z0-9]*$/i.test(uri.slice(uri.lastIndexOf("/")))`)
+    const smoke = readFileSync(resolve(root, "scripts/site/smoke.ts"), "utf8")
+    expect(smoke).toContain(String.raw`!/\.[a-z][a-z0-9]*$/i.test(pathname.slice(pathname.lastIndexOf("/")))`)
+  })
+
   it("are the ones the stack deploys and the smoke serves", () => {
     const stack = readFileSync(resolve(root, "infra/lib/tradecn-site-stack.ts"), "utf8")
     expect(stack).toContain(`../../site/${HEADERS_FILE}`)

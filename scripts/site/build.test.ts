@@ -30,6 +30,7 @@ import {
   readEmbed,
   readSitePages,
   readSources,
+  rebase,
   registryCss,
   render,
   renderMarkdown,
@@ -40,6 +41,7 @@ import {
   searchIndex,
   SITE_DOCS,
   SITE_STYLES,
+  siteBase,
   siteDocs,
   siteHeader,
   sitePageValues,
@@ -55,6 +57,10 @@ import {
   THEMES_META,
   themesMeta,
   toc,
+  versionList,
+  versionPicker,
+  VERSIONS_INDEX,
+  versionsIndex,
 } from "./build"
 import type { Doc, Registry } from "./build"
 
@@ -135,22 +141,24 @@ describe("the opening page", () => {
     expect(page).not.toContain("shadcn@latest add")
   })
 
-  it("wears the header every page shares, with the sections then registry.json, the search, the GitHub mark, the tag, the theme menu, and the mode button last", () => {
+  it("wears the header every page shares, with the sections then registry.json, the version menu, the search, the GitHub mark, the theme menu, and the mode button last", () => {
     expect(page).toContain('<header class="site-header">')
     expect(page).toContain('<a href="/docs/">Docs</a><a href="/docs/components/">Components</a><a href="/docs/changelog/">Changelog</a><a href="/r/registry.json">registry.json</a></nav>')
-    expect(page).toContain(`<nav class="side" aria-label="Links">${SEARCH_BUTTON}${GITHUB_LINK}<span class="tag">`)
+    // The version menu is first among the links, right before the search; the tag is no longer a bare label.
+    expect(page).toContain(`<nav class="side" aria-label="Links">${versionPicker(tag)}${SEARCH_BUTTON}${GITHUB_LINK}`)
+    expect(page).not.toContain('<span class="tag">')
     // The registry file rides after the sections, not among the links out.
     expect(page).not.toContain(`${GITHUB_LINK}<a href="/r/registry.json">`)
-    expect(page).toContain(`<span class="tag">${tag}</span>${themePicker(siteThemes(registry))}${MODE_BUTTON}</nav>`)
+    expect(page).toContain(`${GITHUB_LINK}${themePicker(siteThemes(registry))}${MODE_BUTTON}</nav>`)
     // The repository link is GitHub's mark alone, named for a screen reader; the word is no longer in the header.
     expect(GITHUB_LINK).toMatch(/^<a class="github" href="https:\/\/github\.com\/tradecn\/ui" aria-label="GitHub"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6\.766 11\.328c[^"]+"\/><\/svg><\/a>$/)
     expect(page).not.toContain(">GitHub</a>")
     expect(MODE_BUTTON).toContain('<button type="button" class="mode-toggle" aria-label="Toggle theme">')
     expect(page.match(/class="mode-toggle"/g)).toHaveLength(1)
     expect(page).toContain('<link rel="stylesheet" href="/site.css">')
-    expect(siteHeader(tag, "components")).toContain('<a href="/docs/components/" aria-current="true">Components</a>')
-    expect(siteHeader(tag, "docs", true)).toContain('<a href="/docs/" aria-current="page">Docs</a>')
-    expect(siteHeader(tag)).not.toContain("aria-current")
+    expect(siteHeader(versionPicker(tag), "components")).toContain('<a href="/docs/components/" aria-current="true">Components</a>')
+    expect(siteHeader(versionPicker(tag), "docs", true)).toContain('<a href="/docs/" aria-current="page">Docs</a>')
+    expect(siteHeader(versionPicker(tag))).not.toContain("aria-current")
   })
 
   it("carries the search dialog, closed, after the header; the 404 page has no script and none", () => {
@@ -218,8 +226,8 @@ describe("the opening page", () => {
     expect(themePicker([{ name: "x<y", type: "registry:theme" }])).toContain('<option value="x&lt;y" selected>x&lt;y</option>')
     expect(themePicker([])).toBe("")
     // A header built without one has none; a docs page passes the one the template values carry.
-    expect(siteHeader(tag)).not.toContain("theme-select")
-    expect(siteHeader(tag, "docs", true, picker)).toContain(`<span class="tag">${tag}</span>${picker}${MODE_BUTTON}</nav>`)
+    expect(siteHeader(versionPicker(tag))).not.toContain("theme-select")
+    expect(siteHeader(versionPicker(tag), "docs", true, picker)).toContain(`${GITHUB_LINK}${picker}${MODE_BUTTON}</nav>`)
     expect(values.themePicker).toBe(picker)
     // A theme source without the site's theme has nothing to offer or to wear.
     expect(() => siteThemes({ name: "t", items: registry.items.filter((item) => item.type !== "registry:theme") })).toThrow(THEME_ITEM)
@@ -303,6 +311,130 @@ describe("the opening page", () => {
     expect(values.showcase).not.toContain(`<code>${THEME_ITEM}</code>`)
     expect(values.palette).toContain("--primary:")
     expect(() => templateValues(early, "0.1.0")).toThrow(THEME_ITEM)
+  })
+})
+
+describe("the version menu and a release's own tree", () => {
+  const values = templateValues(registry, version)
+  const page = renderPage(template("index.html"), values)
+  const base = `/${tag}`
+  /** Every root path on a page that is neither under the base nor the registry's. */
+  const outside = (html: string) => html.match(new RegExp(` (?:href|src)="/(?!r/|${tag.replace(/\./g, "\\.")}/)[^"]*"`, "g"))
+
+  it("lists every release with pages, newest first, this one selected, and the tag it was built with alone otherwise", () => {
+    expect(versionPicker(tag)).toMatch(new RegExp(`^<span class="version-pick"><select class="version-select" aria-label="Version"><option value="${tag}" selected>${tag}</option></select><svg [^>]*aria-hidden="true">.*</svg></span>$`))
+    const menu = versionPicker("v1.1.0", ["v1.2.0", "v1.1.0", "v1.0.0"])
+    expect(menu).toContain('<option value="v1.2.0">v1.2.0</option><option value="v1.1.0" selected>v1.1.0</option><option value="v1.0.0">v1.0.0</option>')
+    expect(menu.match(/ selected>/g)).toHaveLength(1)
+    // The list is sorted by the numbers, not the letters, and this build's tag is in it whatever was named.
+    expect(versionList("v1.2.0", ["v1.1.0", "v1.10.0", "v0.9.9", "v1.2.0"])).toEqual(["v1.10.0", "v1.2.0", "v1.1.0", "v0.9.9"])
+    expect(versionList("v1.2.0")).toEqual(["v1.2.0"])
+    expect(() => versionList("1.2.0")).toThrow(/release tag/)
+    expect(() => versionList("v1.2.0", ["v1.2"])).toThrow(/release tag/)
+    expect(versionsIndex(["v1.2.0", "v1.1.0"])).toBe('{"latest":"v1.2.0","versions":["v1.2.0","v1.1.0"]}')
+    // One menu on the page, the one the template values carry; a page built with a list carries it.
+    expect(page.match(/class="version-select"/g)).toHaveLength(1)
+    expect(values.versionPicker).toBe(versionPicker(tag))
+    expect(templateValues(registry, version, registry, new Set(), undefined, { versions: ["v0.1.0"] }).versionPicker).toBe(versionPicker(tag, [tag, "v0.1.0"]))
+    // The page's <html> says which release it is and where its tree is served from: the root here.
+    expect(page).toContain(`<html lang="en" data-version="${tag}" data-base="">`)
+    expect(values.base).toBe("")
+  })
+
+  it("moves every site path under the base, never the registry's or one already there, and leaves escaped code alone", () => {
+    const html = [
+      '<a class="name" href="/">Home</a><a href="/docs/x/">x</a><a href="/#install">i</a>',
+      '<iframe src="/preview/x/"></iframe><script src="/site.js"></script><link rel="icon" href="/favicon.svg">',
+      '<a href="/r/registry.json">r</a><a href="/r/v1.2.0/x.json">r</a>',
+      '<a href="https://tradecn.dev/docs/">abs</a><a href="//cdn/x">pp</a><a href="#install">hash</a>',
+      "<code>href=&quot;/docs/&quot;</code>",
+    ].join("")
+    const moved = rebase(html, "/v1.2.0")
+    expect(moved).toBe(
+      [
+        '<a class="name" href="/v1.2.0/">Home</a><a href="/v1.2.0/docs/x/">x</a><a href="/v1.2.0/#install">i</a>',
+        '<iframe src="/v1.2.0/preview/x/"></iframe><script src="/v1.2.0/site.js"></script><link rel="icon" href="/v1.2.0/favicon.svg">',
+        '<a href="/r/registry.json">r</a><a href="/r/v1.2.0/x.json">r</a>',
+        '<a href="https://tradecn.dev/docs/">abs</a><a href="//cdn/x">pp</a><a href="#install">hash</a>',
+        "<code>href=&quot;/docs/&quot;</code>",
+      ].join(""),
+    )
+    // Safe to repeat: a site page is filled before marked runs and rendered again after.
+    expect(rebase(moved, "/v1.2.0")).toBe(moved)
+    expect(render('<a href="/docs/">d</a>', { base: "/v1.2.0" })).toBe('<a href="/v1.2.0/docs/">d</a>')
+    expect(render('<a href="/docs/">d</a>', { base: "" })).toBe('<a href="/docs/">d</a>')
+    expect(siteBase("")).toBe("")
+    expect(siteBase("/v1.2.0")).toBe("/v1.2.0")
+    for (const bad of ["v1.2.0", "/v1.2.0/", "/a/b", "/"]) expect(() => siteBase(bad), bad).toThrow(/one path segment/)
+  })
+
+  it("renders a release's own tree from the same inputs, every path under the base, canonical at the root, the registry where it is", async () => {
+    const tree = templateValues(registry, version, registry, new Set(), undefined, { base, versions: ["v0.1.0"] })
+    const opening = renderPage(template("index.html"), tree)
+    expect(opening).toContain(`<html lang="en" data-version="${tag}" data-base="${base}">`)
+    expect(opening).toContain(`<link rel="stylesheet" href="${base}/site.css">`)
+    expect(opening).toContain(`<script src="${base}/theme.js"></script>`)
+    expect(opening).toContain(`<link rel="icon" href="${base}/favicon.svg"`)
+    expect(opening).toContain(`<a class="name" href="${base}/">`)
+    expect(opening).toContain(`<a href="${base}/docs/">Docs</a>`)
+    expect(opening).toContain('<a href="/r/registry.json">registry.json</a>')
+    expect(opening).toContain(`<a class="badge" href="${base}/docs/changelog/">`)
+    expect(opening).toContain('<link rel="canonical" href="https://tradecn.dev/">')
+    expect(opening).toContain(versionPicker(tag, [tag, "v0.1.0"]))
+    expect(outside(opening)).toBeNull()
+    expect(opening).not.toContain(`${base}${base}`)
+    // The docs pages likewise, content links and the site's own pages' cards included, once each.
+    const tagDocs = await readDocs(resolve(root, "docs"), registry)
+    const docSlugs = new Set(tagDocs.map((doc) => doc.slug))
+    const treeValues = templateValues(registry, version, registry, docSlugs, undefined, { base })
+    const site = await readSitePages(resolve(root, "site", SITE_DOCS), sitePageValues(registry, treeValues, docSlugs, "There is no changelog at this tag."))
+    const docs = siteDocs(site, tagDocs)
+    const previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()) }
+    const pages = new Map(docPages(docs, treeValues, template(DOCS_TEMPLATE), previews, await readSources(registry, root)).map((entry) => [entry.path, entry.html]))
+    const grid = pages.get("docs/data-grid/index.html") ?? ""
+    expect(grid).toContain(`<html lang="en" data-version="${tag}" data-base="${base}">`)
+    expect(grid).toContain(`<li><a href="${base}/docs/">Introduction</a></li>`)
+    expect(grid).toContain(`<a rel="prev" href="${base}/docs/countdown/">`)
+    expect(grid).toContain(`<iframe src="${base}/preview/data-grid/"`)
+    expect(grid).toContain('<link rel="canonical" href="https://tradecn.dev/docs/data-grid/">')
+    expect(outside(grid)).toBeNull()
+    expect(grid).not.toContain(`${base}${base}`)
+    const components = pages.get("docs/components/index.html") ?? ""
+    expect(components).toContain(`<a class="card" href="${base}/docs/data-grid/">`)
+    expect(outside(components)).toBeNull()
+    expect(components).not.toContain(`${base}${base}`)
+    // The search index keeps the paths within the tree; site.js puts the base in front of them.
+    for (const entry of searchIndex(docs)) expect(entry.path).toMatch(/^\/docs\//)
+  })
+
+  it("writes versions.json at the root alone, which site.js reads from the root on every tree, and both trees are built wherever the site is", () => {
+    const build = readFileSync(resolve(root, "scripts/site/build.ts"), "utf8")
+    expect(build).toContain("if (atRoot) await writeFile(join(out, VERSIONS_INDEX), versionsIndex(versions))")
+    // The 404 page and the popout live at the root alone: the distribution serves the one for every missing key, dockview opens the other there.
+    expect(build).toContain("PAGES.filter((page) => page !== NOT_FOUND_PAGE)")
+    expect(build).toContain("if (atRoot) await cp(join(previews.embed.dir, POPOUT), join(out, POPOUT))")
+    const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
+    expect(script).toContain(`const VERSIONS_INDEX = "/${VERSIONS_INDEX}"`)
+    expect(script).toContain("fetch(VERSIONS_INDEX)")
+    expect(script).not.toContain("BASE + VERSIONS_INDEX")
+    expect(script).toContain("document.documentElement.dataset.version")
+    expect(script).toContain("document.documentElement.dataset.base")
+    // A pick goes to this page under the release, else its docs, else its opening page, by a HEAD; the latest lives at the root.
+    expect(script).toContain('const root = version === latest ? "" : `/${version}`')
+    expect(script).toContain('for (const candidate of [path, "/docs/", "/"])')
+    expect(script).toContain('fetch(url, { method: "HEAD" })')
+    for (const file of ["justfile", ".github/workflows/ci.yml"]) {
+      expect(readFileSync(resolve(root, file), "utf8"), file).toContain('bun scripts/site/build.ts --base "/v$(cat version.txt)" --out "site/dist/v$(cat version.txt)"')
+    }
+    const release = readFileSync(resolve(root, ".github/workflows/release-please.yml"), "utf8")
+    expect(release).toContain('build --out "site/dist/$TAG" --base "/$TAG"')
+    expect(release).toContain('--versions "$VERSIONS"')
+    expect(release).toContain(`aws s3 cp site/dist/${VERSIONS_INDEX} "s3://$BUCKET/${VERSIONS_INDEX}"`)
+    expect(release).toContain(`--paths "/$TAG" "/$TAG/*" "/${VERSIONS_INDEX}"`)
+    // The root's sync neither writes nor deletes the trees or the list, and the bundle is built once for both trees.
+    expect(release).toContain(`--exclude "v[0-9]*/*" --exclude "${VERSIONS_INDEX}"`)
+    expect(release).toContain("bun run --cwd playground build:embed -- --base ./")
+    expect(readFileSync(resolve(root, "playground/vite.embed.config.ts"), "utf8")).toContain('base: "./"')
   })
 })
 
@@ -450,7 +582,9 @@ describe("the search index", () => {
     expect(build).toContain("await writeFile(join(out, SEARCH_INDEX), JSON.stringify(searchIndex(docs)))")
     const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
     expect(script).toContain(`const SEARCH_INDEX = "/${SEARCH_INDEX}"`)
-    expect(script).toContain("fetch(SEARCH_INDEX)")
+    // Fetched under this tree's base: a release's own tree has an index of its own, and the paths in it are the tree's.
+    expect(script).toContain("fetch(BASE + SEARCH_INDEX)")
+    expect(script).toContain("href: `${BASE}${page.path}`")
     expect(script).toContain('dialog.querySelector("input")')
     expect(script).toContain("dialog.showModal()")
     // mod+k opens and closes it, with either modifier, so a Mac reader's ⌘K and everyone else's Ctrl+K both work.

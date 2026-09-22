@@ -143,7 +143,8 @@ export class TradecnSiteStack extends Stack {
   var uri = request.uri;
   if (uri.endsWith("/")) {
     request.uri = uri + "index.html";
-  } else if (uri.lastIndexOf(".") <= uri.lastIndexOf("/")) {
+  } else if (!/\\.[a-z][a-z0-9]*$/i.test(uri.slice(uri.lastIndexOf("/")))) {
+    // A file has an extension that starts with a letter; a dot before a digit is a release, /v1.2.0, a route.
     request.uri = uri + "/index.html";
   }
   return request;

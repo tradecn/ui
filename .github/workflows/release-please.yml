@@ -91,20 +91,17 @@ jobs:
           bun run registry:build
           test -f public/r/registry.json
       # The previews are the tag's demos over the tag's registry source. A tag from before they
-      # existed has no embed config, and its pages go out without them.
+      # existed has no embed config, and its pages go out without them. The bundle takes a relative
+      # base, so one build serves /preview/assets/ at the root and under /<tag>/ alike (a chunk finds
+      # the next by its own URL); a tag whose config still says /preview/ takes the base from here.
       - name: Build the previews from the tag
         working-directory: release
         run: |
           if [ -f playground/vite.embed.config.ts ]; then
-            bun run --cwd playground build:embed
+            bun run --cwd playground build:embed -- --base ./
           else
             echo "$TAG predates the embedded previews; its docs pages carry none." >> "$GITHUB_STEP_SUMMARY"
           fi
-      - name: Build the pages for the tag
-        run: |
-          bun install --frozen-lockfile
-          bun scripts/site/build.ts --registry release/registry.json --version release/version.txt --docs release/docs \
-            --changelog release/CHANGELOG.md --demos release/playground/src/demos --embed release/playground/dist/embed --out site/dist
       - name: Find the highest tag
         id: highest
         run: |
@@ -122,12 +119,62 @@ jobs:
           output() { aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
           echo "bucket=$(output SiteBucketName)" >> "$GITHUB_OUTPUT"
           echo "distribution=$(output DistributionId)" >> "$GITHUB_OUTPUT"
+      # Every release with pages, newest first, this one among them: what the header's menu lists and
+      # what /versions.json names. Read off the bucket, so a re-run and a backfill of an older tag both
+      # keep the list whole.
+      - name: List the releases with pages
+        id: versions
+        env:
+          BUCKET: ${{ steps.stack.outputs.bucket }}
+        run: |
+          published="$(aws s3api list-objects-v2 --bucket "$BUCKET" --delimiter / --prefix v --query 'CommonPrefixes[].Prefix' --output text \
+            | tr '\t' '\n' | sed 's#/$##' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)"
+          versions="$(printf '%s\n%s\n' "$published" "$TAG" | grep . | sort -V -r -u | paste -sd, -)"
+          echo "versions=$versions" >> "$GITHUB_OUTPUT"
+          echo "Releases with pages: $versions." >> "$GITHUB_STEP_SUMMARY"
+      # Two trees from the same inputs: the root's, which the latest release owns, and the tag's own
+      # under /<tag>/ with every path moved under it, so a release's pages stay up beside the latest.
+      - name: Build the pages for the tag
+        env:
+          VERSIONS: ${{ steps.versions.outputs.versions }}
+        run: |
+          bun install --frozen-lockfile
+          build() {
+            bun scripts/site/build.ts --registry release/registry.json --version release/version.txt --docs release/docs \
+              --changelog release/CHANGELOG.md --demos release/playground/src/demos --embed release/playground/dist/embed \
+              --versions "$VERSIONS" "$@"
+          }
+          build --out site/dist
+          build --out "site/dist/$TAG" --base "/$TAG"
       - name: Publish /r/${{ env.TAG }}/
         env:
           BUCKET: ${{ steps.stack.outputs.bucket }}
         run: |
           aws s3 sync release/public/r "s3://$BUCKET/r/$TAG" \
             --content-type application/json --cache-control "public, max-age=31536000, immutable"
+      # The tag's own pages, for every tag: the bundle for good, the fonts for a day, the pages fresh, as
+      # the root's are. Then the list of releases at the root, so every tree's menu offers this one.
+      - name: Publish /${{ env.TAG }}/
+        env:
+          BUCKET: ${{ steps.stack.outputs.bucket }}
+          DISTRIBUTION: ${{ steps.stack.outputs.distribution }}
+        run: |
+          if [ -d "site/dist/$TAG/preview/assets" ]; then
+            aws s3 sync "site/dist/$TAG/preview/assets" "s3://$BUCKET/$TAG/preview/assets" --delete \
+              --cache-control "public, max-age=31536000, immutable"
+          fi
+          aws s3 sync "site/dist/$TAG/fonts" "s3://$BUCKET/$TAG/fonts" --delete \
+            --content-type font/woff2 --cache-control "public, max-age=86400"
+          aws s3 sync "site/dist/$TAG" "s3://$BUCKET/$TAG" --delete --exclude "preview/assets/*" --exclude "fonts/*" \
+            --cache-control "no-cache, no-store, must-revalidate"
+          aws s3 cp site/dist/versions.json "s3://$BUCKET/versions.json" \
+            --content-type application/json --cache-control "public, max-age=300"
+          id="$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" \
+            --paths "/$TAG" "/$TAG/*" "/versions.json" --query Invalidation.Id --output text)"
+          aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION" --id "$id"
+          echo "Pages for $TAG at /$TAG/." >> "$GITHUB_STEP_SUMMARY"
+      # The root: the latest release's pages, and the pointers. The trees under /vX.Y.Z/ and the list of
+      # releases are not the root's to write or delete, so the sync leaves them alone.
       - name: Move the latest pointer and the page
         if: steps.highest.outputs.highest == env.TAG
         env:
@@ -145,6 +192,7 @@ jobs:
           aws s3 sync site/dist/fonts "s3://$BUCKET/fonts" --delete \
             --content-type font/woff2 --cache-control "public, max-age=86400"
           aws s3 sync site/dist "s3://$BUCKET" --delete --exclude "r/*" --exclude "preview/assets/*" --exclude "fonts/*" \
+            --exclude "v[0-9]*/*" --exclude "versions.json" \
             --cache-control "no-cache, no-store, must-revalidate"
           id="$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" \
             --paths "/" "/index.html" "/404.html" "/favicon.svg" "/site.js" "/site.css" "/theme.js" "/fonts.css" "/fonts/*" "/search.json" "/popout.html" "/docs/*" "/preview/*" "/r/*" --query Invalidation.Id --output text)"

@@ -51,10 +51,12 @@ bench *args:
     bun scripts/bench.ts {{args}}
 
 # Render tradecn.dev into site/dist: the pages from registry.json, version.txt, and docs/, and the
-# embedded previews from playground/src/demos through a Vite build of the playground.
+# embedded previews from playground/src/demos through a Vite build of the playground. Twice, as the
+# release job publishes it: the root, and this release's own tree under site/dist/vX.Y.Z/.
 site:
     cd playground && bun run build:embed
     bun scripts/site/build.ts
+    bun scripts/site/build.ts --base "/v$(cat version.txt)" --out "site/dist/v$(cat version.txt)"
 
 # Open the built site in a browser: every preview mounts, sizes itself, and shows its code.
 site-smoke:
