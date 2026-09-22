@@ -1293,15 +1293,19 @@ test("a depth ladder centers on the mid, prints prices in 32nds, marks the desk'
   // One level's change reaches its cell.
   await scene.getByRole("button", { name: "bid grows" }).click()
   await expect(rung(6368).locator("[data-col='bid']")).toContainText("150")
-  // The keys: Up from the mid, Right to the ask column, Enter stages a sell; Home follows again.
+  // The keys walk from the rung the click focused: Up one tick, Right twice to the ask column, Enter stages a
+  // sell there; Home follows again.
   await ladder.focus()
+  await expect(rung(6368)).toHaveAttribute("data-focused", "true")
   await page.keyboard.press("ArrowUp")
   await expect(ladder).toHaveAttribute("data-following", "false")
-  await expect(rung(6372)).toHaveAttribute("data-focused", "true")
+  await expect(rung(6369)).toHaveAttribute("data-focused", "true")
+  await expect(rung(6369).locator("[data-col='bid']")).toHaveAttribute("data-focused-col", "true")
   await page.keyboard.press("ArrowRight")
-  await expect(rung(6372).locator("[data-col='ask']")).toHaveAttribute("data-focused-col", "true")
+  await page.keyboard.press("ArrowRight")
+  await expect(rung(6369).locator("[data-col='ask']")).toHaveAttribute("data-focused-col", "true")
   await page.keyboard.press("Enter")
-  await expect(staged).toHaveText("sell 99.5625")
+  await expect(staged).toHaveText("sell 99.515625")
   await page.keyboard.press("Home")
   await expect(ladder).toHaveAttribute("data-following", "true")
   await expect.poll(() => offCenter(6371)).toBeLessThan(22)
