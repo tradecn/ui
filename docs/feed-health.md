@@ -33,7 +33,7 @@ The two lanes fail differently, so they report differently. A coalesced lane dro
 
 ### Thresholds and the session
 
-The default thresholds are placeholders and are named `PROVISIONAL_THRESHOLDS` so nobody mistakes them for a decision. `session` is a `SessionCalendar` with one method, `status(now)`; the default is always open. Real exchange calendars are yours to supply.
+The default thresholds are placeholders and are named `PROVISIONAL_THRESHOLDS` so nobody mistakes them for a decision. `session` is a `SessionCalendar` with one method, `status(now)`; the default is always open. Real exchange calendars are yours to supply, and [`session-calendar`](session-calendar.md) builds one from sessions, holidays, and early closes in the venue's zone.
 
 ### The clock
 

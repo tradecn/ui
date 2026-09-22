@@ -19,6 +19,7 @@ import { RfqStackScene } from "./rfq-stack"
 import { RfqTicketScene } from "./rfq-ticket"
 import { RowStoreScene } from "./row-store"
 import { RulesEditorScene } from "./rules-editor"
+import { SessionCalendarScene } from "./session-calendar"
 import { SparklineScene } from "./sparkline"
 import { StatusBarScene } from "./status-bar"
 import { TicketScene } from "./ticket"
@@ -59,5 +60,6 @@ export const scenes: SmokeScene[] = [
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
   { name: "alert-store", Scene: AlertStoreScene },
+  { name: "session-calendar", Scene: SessionCalendarScene },
 ]
 export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "expiring", "expiring-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4"]
