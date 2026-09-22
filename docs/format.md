@@ -1,6 +1,6 @@
 # format
 
-Number formatting for trading screens: prices by convention, a quote basis per instrument, yields, basis points, DV01, notional, coupons, maturities, ticks, signed values, and one null sentinel.
+Format trading values and parse or step quotes in each instrument's convention.
 
 ## Usage
 
@@ -21,36 +21,125 @@ formatBps(12.5) // "12.5 bp"
 
 ## API Reference
 
-Pure functions, no React. Every formatter takes `number | null | undefined` and returns `NULL_TOKEN` (an en dash) for null, undefined, NaN, and infinities, so a cell never prints `NaN` while a feed warms up. Negative numbers use the typographic minus (U+2212). The formatters never pad: the figures line up because the node that prints them is set in lining, tabular figures, which every tradecn component does on its own and the classes below do for yours.
+Pure functions with no React dependency. Numeric formatters accept `Nullable` (`number | null | undefined`) and return `NULL_TOKEN` (`–`, an en dash) for null, undefined, NaN, and infinities. Negative numeric output uses the typographic minus (`−`, U+2212).
+
+`Locale` is `{ locale?: string }`, with `"en-US"` as the default. Decimal and date output can use another locale, such as `{ locale: "de-DE" }`; fraction notation stays fixed. Parsing is not locale-aware: `parsePrice` and `parseQuote` accept a decimal point, remove commas, trim whitespace, and accept either minus sign.
 
 ### Prices
 
-A `PriceConvention` says how an instrument quotes:
+`PriceConvention` selects the notation and precision. Fields below are required unless marked optional.
 
-- `{ kind: "decimal", decimals: 2 }` for fixed decimals.
-- `{ kind: "tick", tick: 0.005 }` derives the decimals from the tick (`decimalsFromTick(0.005)` is 3) and snaps to the grid.
-- `{ kind: "fraction", denominator: 32, half: "+" }` quotes in 32nds: 99.515625 is `99-16+`. `half: "5"` renders `99-165`; `eighths: true` renders eighths of a 32nd as a trailing digit, `99-162`. `denominator: 64` is the same shape in 64ths.
+| `kind` | Fields | Formatting |
+|---|---|---|
+| `"decimal"` | `decimals: number` | Fixed decimal places; `1234.5` with `decimals: 2` is `1,234.50` |
+| `"tick"` | `tick: number` | Snap to the tick grid and derive decimal places from the tick; `100.0049` with `tick: 0.005` is `100.005` |
+| `"fraction"` | `denominator: 32 \| 64`, `half: "+" \| "5"`, optional `eighths: boolean` (default `false`) | Round to halves of a 32nd or 64th, or eighths when enabled |
 
-`formatPrice(v, convention)` and `parsePrice(text, convention)` are inverses on the convention's grid; `parsePrice` also accepts a plain decimal, so a ticket can take either. `roundToTick` and `stepByTick` snap and step on the grid without float noise.
+In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `eighths: true`, the trailing digit counts eighths: `99.5078125` is `99-162` and `99.515625` is `99-164`. A denominator of 64 uses the same notation in 64ths.
 
-`createInstrumentFormatter({ price, tick, yieldDecimals })` binds a convention once; a grid column then calls `formatters[row.instrumentId].price(value)`. Conventions are data, so a new instrument type is a new object, not new code.
+| Function | Result |
+|---|---|
+| `formatPrice(value, convention, locale?)` | Format a `Nullable` price; the third argument is a `Locale` object |
+| `formatFraction(value, convention)` | Format a `Nullable` price with the fraction variant of `PriceConvention` |
+| `parsePrice(text, convention)` | Read a string in the convention's notation or as a plain decimal; return a number or `null` for unreadable text |
+| `decimalsFromTick(tick, max = 8)` | Decimal places needed for a numeric tick, capped at `max`; `0.005` gives `3`, `1 / 32` gives `5`; nonpositive or nonfinite ticks give `0` |
+| `roundToTick(value, tick)` | Snap a number to the nearest tick and clean float noise; return `value` unchanged if it or the tick is nonfinite, or the tick is nonpositive |
+| `stepByTick(value, tick, steps)` | Snap to the grid, move by `steps` ticks, then snap again; all inputs are numbers and negative steps are allowed |
+
+`parsePrice` rounds decimal input to `decimals` for a decimal convention and snaps it to `tick` for a tick convention. For a fraction convention, plain decimal input is accepted without snapping. With the default locale, formatted prices read back on the convention's representable grid.
+
+### Instrument formatter
+
+`createInstrumentFormatter(convention, locale?)` binds an `InstrumentConvention` and optional `Locale` once. A grid column can then call `formatters[row.instrumentId].price(value)`; a new instrument convention is another data object.
+
+| `InstrumentConvention` field | Type | Default | Purpose |
+|---|---|---|---|
+| `price` | `PriceConvention` | Required | Price notation |
+| `tick` | `number` | Required | Price increment for stepping |
+| `yieldDecimals` | `number` | `3` | Decimal places for the bound `yield` formatter |
+| `quantityUnit` | `"notional" \| "contracts"` | Unset | Metadata; the bound `quantity` formatter always prints whole quantities |
+| `quoteBasis` | `QuoteBasis` | `"price"` | Basis used by quote methods |
+| `quoteStep` | `number` | Basis default below | Step for yield, discount, or spread quotes; ignored for price quotes |
+| `quoteDecimals` | `number` | Basis default below | Decimal places for yield, discount, or spread quotes; ignored for price quotes |
+
+| Bound member | Equivalent |
+|---|---|
+| `tick`, `basis`, `quoteStep` | `convention.tick`, `quoteBasisOf(convention)`, `quoteStepOf(convention)` |
+| `price(value)`, `parsePrice(text)` | `formatPrice` and `parsePrice` with `convention.price` |
+| `yield(value)` | `formatYield` with `yieldDecimals` |
+| `quantity(value)` | `formatQuantity` |
+| `step(value, steps)` | `stepByTick` with `convention.tick` |
+| `quote(value)`, `parseQuote(text)`, `stepQuote(value, steps)` | Quote functions below with the bound convention |
 
 ### The quote basis
 
-Not every instrument is quoted on its price. Bills quote on a discount rate, some bonds on yield, and credit often on a spread in basis points, and a trader wants to type and read the number in the basis the product trades in. `quoteBasis` on the convention says which (`price` unless said), and three functions follow it: `formatQuote(v, convention)` prints a quote in that basis, `parseQuote(text, convention)` reads one back, and `stepQuote(v, convention, steps)` moves it by its step. A price quote follows its `PriceConvention`; the others print as a fixed decimal with no unit, since the field's label says the basis (`QUOTE_BASIS_LABELS` has the words), and snap to `quoteStep`: the tick for a price, and by default 0.001 for yield and discount and 0.1 for spread, with `quoteDecimals` 3, 3, and 1. Set either on the convention for a desk that steps differently. The instrument formatter carries `basis`, `quoteStep`, `quote`, `parseQuote`, and `stepQuote`. [`ticket`](ticket.md) types through them.
+`QuoteBasis` says what the trader types and reads. Bills quote on discount, some bonds on yield, and credit often on spread. [`ticket`](ticket.md)'s quote field uses these quote functions.
+
+| Basis | Default step | Default decimals | `QUOTE_BASIS_LABELS` |
+|---|---|---|---|
+| `"price"` | `convention.tick` | From `convention.price` | `"Price"` |
+| `"yield"` | `0.001` | `3` | `"Yield"` |
+| `"discount"` | `0.001` | `3` | `"Discount"` |
+| `"spread"` | `0.1` | `1` | `"Spread"` |
+
+| Function | Result |
+|---|---|
+| `quoteBasisOf(convention)` | Effective basis, defaulting to `"price"` |
+| `quoteStepOf(convention)` | Effective step from the table or an applicable `quoteStep` override |
+| `formatQuote(value, convention, locale?)` | Format a `Nullable` quote; optional third argument is `Locale` |
+| `parseQuote(text, convention)` | Parse a string as a price or a decimal in the selected basis; return a number or `null` for unreadable text |
+| `stepQuote(value, convention, steps)` | Move a numeric quote by `steps` from the nearest grid value; negative steps are allowed |
+
+Price quotes format and parse through `convention.price`. Other bases snap to `quoteStep` and print a fixed decimal with no unit; the field's label supplies the basis. Yield and discount values use percentage points; spread values use basis points. Set `quoteDecimals` high enough to display the chosen step without losing precision.
 
 ### Coupons, maturities, and millions
 
-`formatCoupon(4.125)` is `4 1/8`, the way a run prints it: coupons step in eighths, so `4.5` is `4 1/2`, `4` is `4`, and one off the grid, `4.1`, prints as the decimal it is. `formatCoupon(v, { style: "decimal" })` is `4.125%`. `formatMaturity("2034-05-15")` is `05/15/34`, or `05/15/2034` with `year: "numeric"`; it reads the date in UTC, so a date-only string is that day on every screen. `daysToMaturity(date, now)` is the whole UTC days between, negative once past, null when the date does not read. `formatNotional(5e6, { unit: "mm" })` is `5mm`, the desk's word for millions, never scaled to billions: `1,250mm`.
+| Function | Inputs and options | Example output |
+|---|---|---|
+| `formatCoupon(value, options?)` | `Nullable`; `style: "fraction" \| "decimal"` (default `"fraction"`), `decimals: number` (default `3`), `locale` | `4.125` → `4 1/8`; decimal style → `4.125%` |
+| `formatMaturity(date, options?)` | `DateLike \| null \| undefined`; `year: "2-digit" \| "numeric"` (default `"2-digit"`), `locale` | `"2034-05-15"` → `05/15/34`; numeric year → `05/15/2034` |
+| `daysToMaturity(date, now?)` | `DateLike \| null \| undefined`; `now: DateLike` defaults to the current time | Whole UTC calendar days to maturity; `0` on the same day, negative on later days, `null` if either date is invalid |
+| `formatNotional(value, { unit: "mm" })` | `Nullable`; optional `decimals: number` (default `2`) and `locale` | `5e6` → `5mm`; `1.25e9` → `1,250mm` |
+
+Fraction coupons reduce eighths: `4.5` is `4 1/2` and `4` is `4`. Values off the eighths grid use up to `decimals` places, so `4.1` stays `4.1`; decimal style always uses fixed places and a `%` suffix. The `mm` notional unit means millions, trims trailing zeros, and takes precedence over `compact` without scaling to billions.
+
+`DateLike` is `Date | number | string`: a date, milliseconds since the Unix epoch, or a string `Date` can read. Maturities format in UTC, so a date-only string stays on the same day in every timezone. `formatMaturity` returns `NULL_TOKEN` for missing or invalid dates.
 
 ### Ticks between two prices
 
-`ticksBetween(a, b, tick)` is how many ticks `a` sits from `b`, signed, to the nearest eighth of a tick: a quote of `99-17` against a composite of `99-16+` on a 1/64 tick is `1`. `formatTicks(n)` prints the count signed and trimmed, `+1`, `−0.5`, `0`, with `unit` for a word after it. Together they say how far a quote is inside or through the market in the instrument's own steps; for a spread quote, `formatBps` does the same job in basis points.
+| Function | Inputs and options | Result |
+|---|---|---|
+| `ticksBetween(a, b, tick)` | Three numbers | `(a - b) / tick`, rounded to the nearest eighth; `NaN` if either price is nonfinite or `tick > 0` is false |
+| `formatTicks(value, options?)` | `Nullable`; `signed: boolean` (default `true`), `unit: string` (default none), `locale` | Up to three decimals, no trailing zeros: `+1`, `−0.5`, `0`; a unit adds a space and suffix, such as `+2 ticks` |
+
+A quote of `99-17` against a composite of `99-16+` on a `1 / 64` tick is one tick: `ticksBetween(99.53125, 99.515625, 1 / 64)` returns `1`. Use `formatBps` for spread differences in basis points.
 
 ### Numeric classes
 
-`NUMERIC_CLASS` is `font-(family-name:--tradecn-font-numeric) lining-nums tabular-nums`: the numeric family (the sans by default, so letters stay proportional and only the digits take one width) with the figures rule 14 of [the contract](contract.md) requires. `MONO_NUMERIC_CLASS` is the same figures in `--tradecn-font-mono`. `numericFontClass(convention)` picks between them: a fraction price (`99-16+`) sets in the mono stack so its dash and its tail line up down a column, and every other price, and every quote in another basis, keeps the numeric family. [`quote-field`](quote-field.md), [`ticket`](ticket.md), and [`rfq-ticket`](rfq-ticket.md) read it; a [`data-grid`](data-grid.md) column takes `font: "mono"` for the same effect. [`typography.md`](typography.md) has the tokens and the reasoning.
+Formatters add no alignment spaces. tradecn components set lining, tabular figures on numeric nodes; use these classes on your own nodes to meet rule 14 of [the contract](contract.md).
+
+| Export | Value or behavior |
+|---|---|
+| `NUMERIC_CLASS` | `font-(family-name:--tradecn-font-numeric) lining-nums tabular-nums` |
+| `MONO_NUMERIC_CLASS` | `font-(family-name:--tradecn-font-mono) lining-nums tabular-nums` |
+| `numericFontClass(convention?)` | Accepts `PriceConvention \| InstrumentConvention \| null`; selects mono for a fraction price and the numeric family otherwise, including non-price quote bases and no convention |
+
+The numeric family defaults to sans: letters stay proportional and digits have equal widths. Fraction prices use mono so dashes and tails align too. [`quote-field`](quote-field.md), [`ticket`](ticket.md), and [`rfq-ticket`](rfq-ticket.md) use `numericFontClass`; a [`data-grid`](data-grid.md) column uses `numeric: true` and `font: "mono"` for the same effect. [`typography.md`](typography.md) explains the tokens and choices.
 
 ### The rest
 
-`formatYield(4.2531)` is `4.253%`. `formatBps(12.5)` is `12.5 bp`, with `signed` and `unit` options. `formatDv01(1234)` is `$1,234`, `compact` gives `$1.23K`. `formatNotional(1250000, { compact: true })` is `1.25M` (K, M, B, T). `formatSigned(0.12)` is `+0.12`, and zero is `0.00` with no sign: flat carries no sign, the same rule the flash cell uses for direction. `formatPercent`, `formatQuantity` as you would expect. Locale is an option on each (`{ locale: "de-DE" }`), and `Intl.NumberFormat` instances are cached per locale and option set.
+These functions take a `Nullable` value and an optional options object. Every options object accepts `locale`; examples use `"en-US"`.
+
+| Function | Options and defaults | Example output |
+|---|---|---|
+| `formatYield` | `decimals: number = 3`, `suffix: "%" \| "" = "%"` | `4.2531` → `4.253%` |
+| `formatBps` | `decimals: number = 1`, `signed: boolean = false`, `unit: "bp" \| "bps" \| "" = "bp"` | `12.5` → `12.5 bp` |
+| `formatDv01` | `currency: string = "USD"`, `compact: boolean = false` | `1234` → `$1,234`; compact → `$1.23K` |
+| `formatNotional` | `decimals: number = 2`, `compact: boolean = false`, optional `unit: "mm"` | `1250000` → `1,250,000.00`; compact → `1.25M` |
+| `formatSigned` | `decimals: number = 2` | `0.12` → `+0.12`; `0` → `0.00` |
+| `formatPercent` | `decimals: number = 2`, `signed: boolean = false` | `1.234` → `1.23%`; signed → `+1.23%` |
+| `formatQuantity` | No options beyond `locale` | `1000000.6` → `1,000,001` |
+
+Yield and percent inputs are already percentage points: `1` means `1%`. DV01 rounds to whole currency units. Compact notional output uses `K`, `M`, `B`, or `T`; values below `1,000` round to a whole number. Signed formatters omit the sign when the displayed value rounds to zero.
+
+`numberFormat(locale, options)` returns a cached `Intl.NumberFormat` for a locale string (or `undefined` for `"en-US"`) and `Intl.NumberFormatOptions`. Numeric formatters share this cache by locale and option set.
