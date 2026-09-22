@@ -1,47 +1,57 @@
 # panel
 
-The frame around a book, a chart, or a blotter: a hotkey scope with a header, a symbol tag, link groups, and a popout.
+Frame a book, chart, or blotter with a header and hotkey scope. Add symbol editing, link groups, and a popout as needed.
 
 ## Usage
 
 ```tsx
+import { Button } from "@/components/ui/button"
 import { LinkGroupDot, Panel, PanelActions, PanelContent, PanelHeader, PanelTitle, SymbolTag } from "@/components/ui/panel"
 import { LinkGroupProvider, useLinkGroup } from "@/hooks/use-link-group"
 import { HotkeysProvider, useHotkey } from "@/hooks/use-hotkeys"
+import type { HotkeyBinding } from "@/lib/hotkeys"
 ```
 
 ```tsx
-function Book({ id }: { id: string }) {
-  const link = useLinkGroup({ source: id, defaultSymbol: "ZN" })
+const BINDINGS: HotkeyBinding[] = [
+  { id: "book.cancel", keys: "x", scope: "panel:book", description: "Cancel the selected order" },
+]
+
+function BookContent({ cancelSelected }: { cancelSelected: () => void }) {
   useHotkey("book.cancel", cancelSelected)
+  return <PanelContent>{/* rows */}</PanelContent>
+}
+
+function Book({ id, cancelSelected, close }: { id: string; cancelSelected: () => void; close: () => void }) {
+  const link = useLinkGroup({ source: id, defaultSymbol: "ZN" })
   return (
-    <Panel kind="book">
+    <Panel kind="book" className="h-full">
       <PanelHeader>
         <PanelTitle>Order book</PanelTitle>
         <SymbolTag value={link.symbol} onCommit={link.setSymbol} />
         <LinkGroupDot group={link.group} onGroupChange={link.setGroup} />
         <PanelActions>
-          <Button size="icon-xs" variant="ghost" onClick={close}>×</Button>
+          <Button size="icon-xs" variant="ghost" aria-label="Close order book" onClick={close}>×</Button>
         </PanelActions>
       </PanelHeader>
-      <PanelContent>{/* rows */}</PanelContent>
+      <BookContent cancelSelected={cancelSelected} />
     </Panel>
   )
 }
 
 <HotkeysProvider bindings={BINDINGS}>
   <LinkGroupProvider>
-    <Book id="book-1" />
-    <Book id="book-2" />
+    <Book id="book-1" cancelSelected={() => cancelSelected("book-1")} close={() => close("book-1")} />
+    <Book id="book-2" cancelSelected={() => cancelSelected("book-2")} close={() => close("book-2")} />
   </LinkGroupProvider>
 </HotkeysProvider>
 ```
 
+Supply your own `cancelSelected(id)` and `close(id)` actions. Call `useHotkey` in a child of `Panel`, as `BookContent` does, so each book handles only its own keys. Calling it in the component that returns `Panel` puts the handler outside that panel's scope.
+
 ## Composition
 
-Use the following composition to build a panel:
-
-```
+```text
 Panel
 ├── PanelHeader
 │   ├── PanelTitle
@@ -51,93 +61,164 @@ Panel
 └── PanelContent
 ```
 
-`PanelPopout` wraps a `Panel` to move it into a window of its own; see Popout below.
+`PanelPopout` wraps the panel for a [popout](#popout). The header, title, actions, and content accept div props, including `children` and `className`. `PanelContent` fills the remaining height and scrolls overflow.
 
 ## API Reference
 
 ### A panel is a hotkey scope
 
-`kind="book"` is the scope `panel:book`. It names a kind of panel, not an instance: declare `book.cancel` once, call `useHotkey("book.cancel", ...)` inside the panel, and with two books on screen the one holding focus is the one that answers. Clicking anywhere in a panel is enough to aim the keyboard at it. Palette actions with `scope: "panel:book"` are on offer only when the palette was opened from inside one. A `Panel` renders without a `HotkeysProvider`; its keys start working inside one.
+| Panel prop | Type | Default | Purpose |
+|---|---|---|---|
+| `kind` | `string` | Required | Hotkey scope `panel:<kind>`, shared by panels of this kind. |
+| `active` | `boolean` | Focus within | Controls the active border; `false` suppresses it even with focus inside. |
+| `dragTarget` | `boolean` | `false` | Shows the drag target border and background. |
+| `error` | `boolean` | `false` | Shows the error border. |
+| `className` | `string` | None | Styles and sizes the panel. |
+| Other div props | `Omit<ComponentProps<"div">, "ref">` | None | Includes `children`, event handlers, and accessible labels. |
 
-`Panel` is a `region` named by its `PanelTitle`, or by an `aria-label` if you pass one.
+Declare a binding once for `panel:book`; the handler under the focused book answers it. Clicking the panel aims the keyboard at it. Palette actions with that scope appear when opened from inside a book. `Panel` renders without `HotkeysProvider`, but hotkeys need the provider. See [`use-hotkeys`](use-hotkeys.md) for binding options.
 
-The border says one thing at a time. `error` outranks `dragTarget`, which outranks active. Leave `active` out and the panel is active while focus is inside it; pass it when a layout decides which panel is active, and `active={false}` holds the border off even with focus inside. The state is on the element as `data-state`.
+`Panel` renders a `region` named by `PanelTitle`, or by an explicit `aria-label`. Border priority is `error`, then `dragTarget`, then active. `data-state` is `error`, `drag-target`, `active`, `inactive`, or `auto`; `auto` uses CSS focus-within.
 
 ### The header is a drag handle
 
-`PanelHeader` carries `data-panel-handle`, for a layout that takes a handle selector. The panel does not drag anything itself. `SymbolTag`, `LinkGroupDot`, and everything inside `PanelActions` stop `pointerdown`, `mousedown`, and `touchstart` from reaching the header, so pressing a button does not pick the panel up. A layout built on HTML drag and drop (`draggable`) starts its drag from `dragstart`, which these do not stop; give such a layout its own handle element beside them.
+Point your layout's handle selector at `[data-panel-handle]` on `PanelHeader`. The panel does not drag itself. `SymbolTag`, `LinkGroupDot`, and `PanelActions` stop `pointerdown`, `mousedown`, and `touchstart` from reaching the header. They do not stop `dragstart`; HTML drag and drop needs a separate handle beside these controls.
 
-There is no icon here, because shadcn ships a different icon library per base. `PanelActions` is a place for your buttons.
+`PanelActions` aligns your buttons at the header's far end. Supply their icons; shadcn's icon library varies by base.
 
 ### SymbolTag
 
-Click it, or press Enter on it, and it becomes your `input` with the symbol selected. Enter commits, Escape and clicking away put the old symbol back. A blank draft, or the symbol already showing, commits nothing. After Enter or Escape focus returns to the tag, so it stays inside the panel and the panel's keys keep working; after a click away, focus stays where you clicked.
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `value` | `string \| null` | Required | Current symbol. |
+| `onCommit` | `(symbol: string) => void` | Required | Receives an accepted, changed symbol; update `value` to display it. |
+| `normalize` | `(raw: string) => string` | Trim and uppercase | Converts the draft before comparison and validation; override for case-sensitive symbols such as `BRK.b`. |
+| `validate` | `(symbol: string) => boolean` | None | Returning `false` keeps the field open with `aria-invalid`. |
+| `placeholder` | `string` | `"symbol"` | Text when `value` is `null`. |
+| `editing` | `boolean` | Internal state | Controls edit mode, for example from a hotkey. |
+| `onEditingChange` | `(editing: boolean) => void` | None | Receives requests to open or close the field. |
+| `disabled` | `boolean` | `false` | Prevents editing, including when `editing` is `true`. |
+| `label` | `string` | `"Symbol"` | Accessible input label and prefix for the button's label. |
+| `className` | `string` | None | Styles the tag wrapper. |
 
-`normalize` trims and upper-cases by default; pass your own where case matters (`BRK.b`). `validate` returning false keeps the field open and marks it `aria-invalid`. `editing` and `onEditingChange` control the field from outside, which is how a hotkey opens it.
+Click or press Enter on the tag to edit with the current symbol selected. Enter submits; an empty or unchanged normalized draft closes without committing. Escape or blur cancels. Keyboard exits restore focus to the tag; blur leaves focus where it moved. With controlled `editing`, update it in `onEditingChange` to complete the exit.
 
-While the field is open, Enter and Escape are its own: it calls `preventDefault` and `stopPropagation`, so an `editing`-scope binding on either does not also fire. The tests hold that.
+Typing on the closed tag does not open it, so single-key panel bindings still work. While editing, Enter and Escape call `preventDefault` and `stopPropagation`, preventing `editing`-scope bindings from also firing.
 
-A panel inside a dialog is a different matter, and this part is read from the two libraries' source, not exercised by the browser matrix. Base UI (1.8.0) closes a dialog from a bubble-phase `keydown` listener on the document, which a `stopPropagation` from inside React never reaches, so the Escape that cancels the edit should leave the dialog open. Radix listens on the document with `capture: true`, which runs before any component inside the dialog, so there the same Escape closes it.
+Dialog behavior is inferred from library source, not covered by the browser matrix: Base UI (1.8.0) listens for Escape on the document in the bubble phase, so cancelling the edit should leave the dialog open. Radix's capture-phase listener runs first, so the same Escape can close its dialog.
 
-The tag does not open when you start typing at it. Focus rests on the tag after every commit, and a panel's single-key bindings have to keep working from there.
-
-When the symbol changes and it was not typed into this tag, the tag rings once in `panel-sync`. That is how a panel shows it followed its link group. Under `prefers-reduced-motion` it does not ring.
+External `value` changes show a 900 ms `panel-sync` ring, including changes from a link group. The initial value and locally committed value do not ring. Reduced motion or an unavailable animation API disables the ring.
 
 ### Link groups
 
-Panels in the same group show the same symbol. `useLinkGroup()` gives a panel `{ group, symbol, setSymbol, setGroup, cycleGroup }`, and needs a `LinkGroupProvider` above it. There is no module-level store to fall back on: on a server that would be one store shared by every request.
+`useLinkGroup()` requires `LinkGroupProvider`; there is no shared module-level fallback on the server. It returns `{ group, symbol, setSymbol, setGroup, cycleGroup }`. A `LinkGroup` is `1 | 2 | 3 | 4 | null`, where `null` means unlinked.
 
-- Unlinked, the symbol is the panel's own.
-- Joining a group that has a symbol adopts it.
-- Joining a group nobody has written to gives it this panel's symbol. That is a seed: it stays in this window, and any real write replaces it. A symbol restored from storage therefore never overrules the one people are looking at in another window.
-- Leaving a group keeps what was showing.
-- `setSymbol(null)` on a linked panel clears the group, and the other panels follow the clear.
+| Hook option | Type | Default | Purpose |
+|---|---|---|---|
+| `group` | `LinkGroup` | Internal state | Controlled group. |
+| `defaultGroup` | `LinkGroup` | `null` | Initial uncontrolled group. |
+| `onGroupChange` | `(group: LinkGroup) => void` | None | Receives requests from `setGroup` or `cycleGroup`; update a controlled `group` here. |
+| `defaultSymbol` | `string \| null` | `null` | Initial symbol, trimmed; blank becomes `null`. |
+| `onSymbolChange` | `(symbol: string \| null) => void` | None | Reports displayed symbol changes for persistence. |
+| `source` | `string` | None | Writer identity stored with group writes, usually the panel id. |
 
-Groups are `1` to `4`, or `null` for unlinked, and they are numbers because the colors are yours: `--link-1` to `--link-4`. `LinkGroupDot` shows the number inside the color, since color is never the only channel. Click moves to the next group, Shift+click to the one before.
+`setSymbol(string | null)` trims without changing case; blank becomes `null`. Unlinked, it changes this panel alone. Linked, it changes the group, including clears. Joining adopts the group's symbol or clear; an untouched group takes the first joiner's nonblank symbol as a local seed. Seeds do not cross windows and yield to real writes, so restored defaults cannot overwrite another window's written symbol. Leaving keeps the displayed symbol.
 
-Persistence is yours. `group`, `defaultGroup`, and `onGroupChange` control the group. `defaultSymbol` is where the panel starts, and `onSymbolChange` fires whenever what the panel shows changes, by its own hand or through its group, and not on the first render. `source` is recorded on the group with each write.
+Persist the group and symbol yourself. `onSymbolChange` skips an unchanged initial symbol, but can fire during mounting if joining a group changes it.
+
+`cycleGroup(step?)` cycles through unlinked, 1, 2, 3, 4, then unlinked; `step` is `1` by default or `-1` for reverse. `LinkGroupDot` uses this order on click, reversed by Shift+click. It shows a number and an accessible label as well as a color from `--link-1` to `--link-4`.
+
+| LinkGroupDot prop | Type | Default | Purpose |
+|---|---|---|---|
+| `group` | `LinkGroup` | Required | Displayed group. |
+| `onGroupChange` | `(group: LinkGroup) => void` | Required | Receives the next group. |
+| `onClick` | `MouseEventHandler<HTMLButtonElement>` | None | Runs before cycling; `preventDefault()` cancels it. |
+| `className` | `string` | None | Styles the button. |
+| Other button props | `Omit<ComponentProps<"button">, "onChange" \| "children">` | None | Includes `disabled`, accessible labels, and event handlers. |
 
 #### Between windows
 
-The provider opens a `BroadcastChannel` named `tradecn-link`, so every same-origin window or tab with a provider follows. `channel="rates"` renames it, `transport={null}` keeps links inside one window, and `transport` takes anything with `post(message)` and `subscribe(cb)`, which is how a desktop shell uses its own events instead. The channel opens when the provider mounts and closes when it unmounts.
+| LinkGroupProvider prop | Type | Default | Purpose |
+|---|---|---|---|
+| `store` | `LinkGroupStore` | New store | Supply a store; its transport takes precedence over `transport` and `channel`. |
+| `transport` | `LinkTransport \| null` | BroadcastChannel | Cross-window transport; `null` keeps links local. Read at initialization. |
+| `channel` | `string` | `"tradecn-link"` | Default channel name, read at initialization. |
+| `children` | `ReactNode` | None | Panels sharing the store. |
 
-For a shell whose windows are separate JavaScript contexts and cannot share a channel (a desktop app that gives each window its own webview), `createCallbackTransport({ send, receive })` makes a transport from the shell's own two functions: `send` puts a message on the shell's event bus, and `receive` hands what arrives to the transport and returns the way to stop listening. It is called for the first subscriber and stopped with the last, and what arrives is checked before it reaches a store. Each window then runs its own `LinkGroupProvider` with that transport, and the shell forwards between them.
+Providers on the same origin and channel exchange symbols when `BroadcastChannel` is available. The provider connects its store while mounted. A transport opens its channel with the first subscriber and closes it with the last. Incoming messages are validated.
 
-A store that connects asks the others what they hold, so a window opened late shows the group's symbol instead of nothing. When two windows write at once the higher version wins, and on a tie the higher window id, so both settle on the same symbol. Messages are validated on the way in. `createLinkGroupStore()` is the store without React, and `store` on the provider takes one you made.
+For separate desktop webviews, `createCallbackTransport({ send, receive })` adapts the shell's event bus to `LinkTransport`, whose methods are `post(message)` and `subscribe(callback)`. Each window runs its own provider; the shell forwards messages between them.
 
-One narrow race is not closed: a window that reloads and writes within a few milliseconds, before the others have answered its hello, can have that first write replaced by what they held.
+| Callback transport option | Type | Default | Purpose |
+|---|---|---|---|
+| `send` | `(message: LinkMessage) => void` | Required | Sends to other windows. |
+| `receive` | `(deliver: (message: unknown) => void) => () => void` | Required | Starts on the first subscriber; its returned function stops listening after the last. Messages are validated before delivery. |
+
+`createLinkGroupStore(options?)` provides the store without React. Pass it to the provider, or call `connect()` yourself and retain the returned disconnect function.
+
+| Store option | Type | Default | Purpose |
+|---|---|---|---|
+| `transport` | `LinkTransport \| null` | `null` | Links stay local unless supplied. |
+| `id` | `string` | Generated id | Store identity used to break cross-window version ties. |
+
+Connecting requests other windows' written symbols, excluding seeds. Concurrent writes settle on the higher version, then the higher origin id. A write made just after reloading, before replies arrive, can still be replaced by an older window's state.
 
 ### Popout
 
 `usePopout()` and `PanelPopout` move a panel into a window of its own and back, without remounting it.
 
 ```tsx
+import { PanelPopout } from "@/components/ui/panel"
+import { usePopout } from "@/hooks/use-popout"
+
 const popout = usePopout({ title: "Order book", width: 720, height: 480 })
 
 <PanelPopout popout={popout} placeholder={<Button onClick={popout.close}>Bring it back</Button>}>
-  <Book id="book-1" />
+  <Book id="book-1" cancelSelected={() => cancelSelected("book-1")} close={() => close("book-1")} />
 </PanelPopout>
 
 <Button onClick={popout.open}>Pop out</Button>
 ```
 
-The children render through a portal into one host element. The host sits in the page while the popout is closed and in the popout's body while it is open, and moving a DOM node does not remount what React rendered into it. State, subscriptions, and context carry over both ways. The popout runs in the opener's JavaScript: one React tree, one set of stores, so a link group needs no transport to reach it. Inside a `HotkeysProvider`, `PanelPopout` attaches the registry to the popout's document, and the panel's keys work there.
+Call the hook inside a component under the providers from Usage. `PanelPopout` accepts:
 
-`open()` has to run inside a click or a key press, returns false when the browser blocked it, and calls `onBlocked`. Calling it while open focuses the window. The page's stylesheets are copied in, and the root element's attributes are mirrored and kept in step, so a theme class follows a toggle; `copyStyles={false}` turns both off. Closing the popout from either side returns the panel to the page, and unmounting the panel or leaving the page closes the window. In the popout the host fills the viewport, so give the panel `h-full`.
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `popout` | `Popout` | Required | Handle from `usePopout`. |
+| `placeholder` | `ReactNode` | None | Content left in the page while open. |
+| `children` | `ReactNode` | None | Content moved between the page and window. |
 
-`openWindow` replaces `window.open` for a shell that makes its own windows. It must hand back a same-origin window synchronously, because the panel is moved into it in the same tick.
+`usePopout(options?)` accepts:
 
-What does not come along:
+| Option | Type | Default | Purpose |
+|---|---|---|---|
+| `title` | `string` | Unchanged | Window title, set on opening. |
+| `width`, `height` | `number` | `640`, `420` | Requested inner size in CSS pixels, rounded. |
+| `left`, `top` | `number` | Browser decides | Requested screen position in CSS pixels, rounded. |
+| `name` | `string` | `"_blank"` | Window name; a matching name reuses a window. |
+| `copyStyles` | `boolean` | `true` | Copies styles and mirrors root attributes. |
+| `openWindow` | `(features: string) => Window \| null` | `window.open` | Shell adapter; must return a same-origin window synchronously. |
+| `onOpen` | `(popout: Window) => void` | None | Runs after obtaining the window, before React moves the host. |
+| `onClose` | `() => void` | None | Runs from `close()` or the popout's `pagehide`; unmount cleanup does not call it. |
+| `onBlocked` | `() => void` | None | Runs when the opener returns `null`. |
 
-- Moving a node between documents resets what the browser keeps on it: scroll positions, focus, running CSS animations, and an iframe reloads. React state is kept; that is not the same thing.
-- Anything your shadcn components portal to `document.body` (a tooltip, a menu, a dialog) opens in the main window, because that is the `document` they were built with. Keep those out of a popped-out panel, or accept where they land.
-- In dev, a stylesheet hot-reloaded after the popout opened is not copied again.
-- A desktop shell whose windows are separate JavaScript contexts cannot do this at all. There, each window renders its own panels and a `LinkTransport` carries the links.
+The handle exposes `isOpen`, `window`, `host`, `slotRef`, `open()`, and `close()`. `PanelPopout` handles the host and slot for you; without a host, as on the server, it renders no children.
+
+Call `open()` from a click or key press. It returns `false` when blocked and `true` on success; calling it while open focuses the existing window. Closing or reloading the popout returns the panel to the page. Unmounting the hook or leaving the opener closes the window. Give the panel `h-full` to fill the popout host.
+
+One portal host moves between documents, preserving React state, subscriptions, and context. The popout shares the opener's JavaScript and stores, so link groups need no transport. `PanelPopout` attaches hotkeys to the popout document when under `HotkeysProvider`.
+
+Stylesheets and the body's class are copied on opening. Root attributes stay synchronized, so theme toggles follow. `copyStyles: false` disables both copying and mirroring.
+
+- Browser state such as focus, scroll positions, and CSS animations can reset during the move; iframes can reload.
+- Portals targeting the opener's `document.body` still open there, including menus, tooltips, or dialogs configured that way.
+- Stylesheets hot-reloaded after opening are not copied again.
+- Separate JavaScript contexts cannot share this portal. Render panels in each window and connect them with `LinkTransport`.
 
 ### Tokens
 
-The install adds `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` to `link-4` to your stylesheet if you do not have them. The border and the dots draw from them.
+The install adds missing `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` tokens for borders, the sync ring, and group colors.
 
 ### What it does not do
 
-Layout, docking, resizing, or tabs. That is [`workspace`](workspace.md). It does not persist a group or a symbol, and it does not fetch anything for the symbol it holds.
+Use [`workspace`](workspace.md) for layout, docking, resizing, and tabs. Your app owns persistence and fetching data for the selected symbol.
