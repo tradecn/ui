@@ -1,6 +1,6 @@
 # preferences
 
-The envelope everything a trader or a desk changes without a build travels in: slots with a version and a JSON value, and a payload that says which slots may leave as a desk template, which are one person's, and which never leave a session.
+Keep trader and desk settings in versioned JSON slots, with boundaries for desk templates, personal settings, and session values.
 
 ## Usage
 
@@ -28,24 +28,102 @@ const columns = readSlot<ColumnState>(prefs, "columns:blotter")
 
 ### The envelope
 
-`{ tradecn: "preferences", version: 1, slots, boundaries }`. Each slot is `{ version, value }`: the version of the shape as the item that owns it numbers it, and the value as JSON. `createPreferences(boundaries)` is an empty one; `parsePreferences(objectOrText)` reads a stored one back and takes nothing on trust, refusing anything that is not a version 1 envelope, dropping a slot that is not an object with a whole-number version and a JSON value, keeping the rest, and returning a copy. `setSlot(prefs, name, value, version?)` returns a new envelope with the value stored as JSON (functions and `undefined` gone) at the given version, else the slot's own, else 1, and hands back the same envelope when nothing changed, so an autosave or a subscriber comparing by identity sees no change. `getSlot`, `removeSlot`, and `diffPreferences(a, b)` (which slots were added, removed, changed, and kept, for a support view or a save prompt) round it out.
+`Preferences` is `{ tradecn: "preferences", version: 1, slots, boundaries }`. The marker and envelope version are exported as `PREFERENCES_MARK` and `PREFERENCES_VERSION`.
+
+`slots` is a `Record<string, PreferenceSlot>`. Each slot has its own numeric `version` and a `value` of type `PreferencesJson`: a JSON primitive, array, or object. The item that owns the value defines its shape and version, separately from the envelope version.
+
+In the functions below, `prefs`, `target`, `a`, and `b` are `Preferences`; slot names are strings.
+
+| Function | Inputs / defaults | Result |
+|---|---|---|
+| `createPreferences(boundaries?)` | Partial `PreferenceBoundaries`; omitted lists default to `[]` | Empty envelope with copied boundary lists. |
+| `parsePreferences(value)` | `unknown`; object or JSON text | A checked copy, or `null` for an invalid envelope. |
+| `getSlot(prefs, name)` | Slot name | Stored `PreferenceSlot`, or `undefined`. |
+| `setSlot(prefs, name, value, version?)` | `value: unknown`; numeric version defaults to the existing slot's version, then `1` | Envelope with a JSON copy of the value. |
+| `removeSlot(prefs, name)` | Slot name | Envelope without that slot; leaves boundary lists intact. |
+| `diffPreferences(a, b)` | Before and after envelopes | `PreferencesDiff`: sorted name lists in `added`, `removed`, `changed`, and `same`. |
+| `toJson(value)` | `unknown` | JSON round-trip copy, or `null` when serialization fails. |
+
+`parsePreferences` requires the marker, envelope version `1`, and an object for `slots`. It drops malformed slots individually: each needs a nonnegative integer version and a serializable value. A non-null value that serializes to `null`, such as `NaN`, is also dropped; literal `null` is valid. Missing or malformed boundary lists become empty lists; nonstring entries are removed.
+
+JSON serialization removes functions and `undefined` from objects, turns them into `null` in arrays, and converts dates to strings. `setSlot` ignores a value that cannot be serialized or becomes `null`, unless the input is literal `null`. It returns the same envelope when the version and serialized value match; otherwise it returns a new one. `removeSlot` returns the same envelope when the slot is absent.
+
+`diffPreferences` compares slot versions and serialized values, ignoring boundaries. Both diffing and `setSlot` compare `JSON.stringify` output, so object key order matters. Use the diff for a support view or save prompt; identity checks can skip unchanged saves.
 
 ### Boundaries
 
-Three, in the language [`workspace`](workspace.md)'s layout already uses. `template`: shareable as a desk template, handed to a colleague, restored next quarter, so nothing tied to a person or a session may be in it. `user`: belongs to the person, whichever desk they sit at. `session`: never leaves a session, whatever else does. A slot named under no boundary is the person's. `boundaryOf(prefs, name)` says where a slot goes and `withBoundary(prefs, name, boundary)` moves it. The lists travel in the payload, so a reader knows what an envelope holds without knowing who wrote it.
+Like [`workspace`](workspace.md)'s layout, the envelope records its persistence boundaries in the payload. `PreferenceBoundary` names the three categories below; `PreferenceBoundaries` maps each to a readonly list of slot names.
+
+| Boundary | Purpose |
+|---|---|
+| `"template"` | Shared desk settings; keep personal and session data out. |
+| `"user"` | Personal settings that follow a trader between desks. |
+| `"session"` | Values excluded from import and export. |
+
+Name each slot under one boundary. An unlisted slot uses `DEFAULT_BOUNDARY`, `"user"`. If lists overlap, the first match in `PREFERENCE_BOUNDARIES` wins: `template`, then `user`, then `session`.
+
+| Function | Result |
+|---|---|
+| `boundaryOf(prefs, name)` | Effective `PreferenceBoundary` for the slot name, even if no slot exists. |
+| `withBoundary(prefs, name, boundary)` | Same envelope if the requested boundary is already effective and explicitly lists the name; otherwise a new envelope with the name removed from every list and added to the requested one. |
 
 ### Export and import
 
-`exportPreferences(prefs, { boundary })` is the envelope as JSON text with the slots allowed out: `template` keeps the template slots alone, `user` (the default) keeps those and the person's own, and a `session` slot never goes out. `importPreferences(target, text, { boundary })` merges another envelope's slots into this one under the boundary allowed in, the incoming slot winning where both have one, its boundaries coming with it, a `session` slot never landing, and null when the text is not an envelope. `exportableSlots(prefs, boundary)` is the list either one works from.
+The transfer boundary accepts `"template"` or `"user"`, defaulting to `"user"`:
+
+| Slot's effective boundary | Template transfer | User transfer |
+|---|---|---|
+| `"template"` | Included | Included |
+| `"user"` or unlisted | Excluded | Included |
+| `"session"` | Excluded | Excluded |
+
+| Function | Inputs / defaults | Result |
+|---|---|---|
+| `exportableSlots(prefs, boundary?)` | Transfer boundary | Names of existing slots allowed by the table. |
+| `exportPreferences(prefs, options?)` | `boundary`; numeric `indent` defaults to `2` | JSON text containing allowed slots and all boundary lists. Use `indent: 0` for compact text. |
+| `importPreferences(target, incoming, options?)` | `incoming: unknown`, object or JSON text; `boundary` | Merged envelope, or `null` when parsing fails. |
+
+Export filters slot values, not the boundary lists: excluded slots' names can still appear in the JSON. Import checks the incoming envelope's boundaries. Each allowed slot replaces the target's same-named slot and takes the incoming boundary, even if the target classified it as `session`. Other target slots and their boundaries stay intact.
+
+Import returns the original target when no allowed values, versions, or boundary assignments change. Parsing and importing do not migrate slot versions; use a migrator when reading or updating older values.
 
 ### Versions and migrators
 
-A shape changes between builds. A migrator per slot, `{ version, migrate(value, from) }`, is the consumer's: the version its code reads, and a function that brings an older value up or returns null to drop it. `migratePreferences(prefs, migrators)` brings every slot with a migrator up, leaves a current or newer slot alone (a newer build wrote it), and hands back the same envelope when nothing moved. `readSlot(prefs, name, migrator?)` is one slot's value at the version the code reads, through the migrator when the stored one is older, and undefined when the slot is missing, newer than the migrator reads, or dropped; it does not write the envelope.
+Supply a `PreferenceMigrator` when a slot's shape changes:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `version` | `number` | Required target version your code reads. |
+| `migrate` | `(value: PreferencesJson, from: number) => PreferencesJson \| null` | Required function that converts an older value directly to the target version; `null` rejects it. |
+
+`PreferenceMigrators` is a record of slot names to migrators. `migratePreferences(prefs, migrators)` returns an updated envelope; `readSlot<V>(prefs, name, migrator?)` returns one value without writing the result back.
+
+| Stored slot | `migratePreferences` | `readSlot` |
+|---|---|---|
+| Missing | Leave absent | `undefined` |
+| No migrator | Keep slot | Stored value, regardless of version |
+| Older than migrator | Pass migrated value to `setSlot` at target version; remove slot on `null` | Migrated value, or `undefined` on `null` |
+| Same version | Keep slot | Stored value |
+| Newer than migrator | Keep slot | `undefined` |
+
+`migratePreferences` applies `setSlot`'s JSON conversion and returns the same envelope when nothing changes. `readSlot` returns a non-null migrator result directly. Migrators run only for older slots; thrown errors propagate.
+
+`readSlot` returns `V | undefined`, with `V` defaulting to `PreferencesJson`; the generic supplies a TypeScript type, not runtime validation.
 
 ### The slots are the items' own shapes
 
-Nothing here knows what a slot holds. A workspace slot is a `WorkspaceLayout`, a grid's is a `ColumnState`, the hotkeys' is `HotkeyOverrides`, the rules' is `GridRules`, a threshold is a number, each the export of the item that owns it, so the item's own parser (`parseWorkspaceLayout`, for one) is what checks a slot's value before it reaches a prop. The demo carries one envelope with a layout, two grids' column states, hotkey overrides, rules, and a threshold.
+Envelope parsing checks JSON structure, not the value's domain schema. Use the owning item's parser, such as `parseWorkspaceLayout`, before passing a slot value to a controlled prop.
+
+| Setting | Value shape |
+|---|---|
+| Workspace layout | `WorkspaceLayout` |
+| Grid columns | `ColumnState` |
+| Hotkey overrides | `HotkeyOverrides` |
+| Grid rules | `GridRules` |
+| Threshold | `number` |
+
+The demo carries a layout, two grids' column states, hotkey overrides, rules, and a threshold in one envelope.
 
 ### What it does not do
 
-It is not a store and not a provider. It does not subscribe, notify, or persist. Where the envelope lives, `localStorage`, a file in a desktop shell, a server, and when it is written, are the consumer's. The items keep their controlled props; a slot is wired to a prop by the consumer, and a change on either side is a `setSlot` and a `readSlot` away.
+These functions do not subscribe, notify, or persist. Your application owns storage and save timing, whether it uses `localStorage`, a desktop file, or a server. Keep settings in your own state and wire `readSlot` and `setSlot` to each item's controlled props.
