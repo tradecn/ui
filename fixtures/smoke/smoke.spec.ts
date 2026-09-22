@@ -504,6 +504,26 @@ test("an rfq stack marks the active inquiry, moves on when the venue ends it, pi
   await expect(stack.locator("[data-row-id='q3']")).toHaveCount(0)
 })
 
+// The frames are real: within a second the window has some, the histogram has its bars and the budget
+// line, the lane reads its store, and a readout of the consumer's prints as given.
+test("a perf monitor counts real frames, draws the histogram against the budget, and reads its lane", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='perf-monitor']")
+  const monitor = scene.getByRole("group", { name: "Frame health" })
+  await expect(monitor).toBeVisible()
+  await expect.poll(async () => Number(await monitor.getAttribute("data-frames")), { timeout: 5000 }).toBeGreaterThan(10)
+  await expect(monitor.locator("[data-perf='p50']")).toHaveText(/p50 \d+\.\d ms/)
+  const chart = monitor.locator("[data-perf-histogram]")
+  await expect(chart).toHaveAttribute("role", "img")
+  await expect(chart.locator("rect")).toHaveCount(20)
+  await expect(chart.locator("[data-perf-budget]")).toHaveText("16.7 ms")
+  const lane = monitor.locator("[data-perf-lane='Quotes']")
+  await expect(lane).toHaveAttribute("data-lane", "ordered")
+  await expect(lane).toContainText("rows 2")
+  await expect(lane.locator("[data-perf-seq]")).toContainText("seq 7")
+  await expect(monitor.locator("[data-perf-readout='ipc batch']")).toHaveText("ipc batch 2 rows")
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.

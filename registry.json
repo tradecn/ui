@@ -1222,6 +1222,47 @@
       }
     },
     {
+      "name": "perf-monitor",
+      "type": "registry:ui",
+      "title": "Perf Monitor",
+      "description": "The frame rate on the screen it measures: frames in the window, p50, p99, max, dropped (a gap past one and a half budgets), and long tasks where the browser reports them, a histogram of frame gaps against the budget, and a line per lane from its row store (rows, batches a second, drops or sequence and gap, age). One number into a ring per frame and a redraw four times a second, so watching costs almost nothing. It decides nothing: the numbers are read on the machine that matters, against a threshold written down beforehand.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/perf-monitor.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/lib/frame-stats.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "feed",
+        "chrome"
+      ],
+      "docs": "Installs frame-stats alongside (the sampler and the arithmetic as pure functions) and adds the stale token for an open gap. Composes nothing of shadcn's. Make the sampler yourself and pass it to read report() from a harness or a gate; the monitor starts it while mounted and stops it after.",
+      "meta": {
+        "components": [
+          {
+            "title": "PerfMonitor",
+            "description": "The numbers, the histogram, and the lanes."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "stale": "oklch(0.72 0.16 75)"
+        },
+        "dark": {
+          "stale": "oklch(0.8 0.15 80)"
+        }
+      }
+    },
+    {
       "name": "tradecn-terminal",
       "type": "registry:theme",
       "title": "Terminal",

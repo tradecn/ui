@@ -7,6 +7,7 @@ import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
 import { PanelScene } from "./panel"
+import { PerfMonitorScene } from "./perf-monitor"
 import { QuoteFieldScene } from "./quote-field"
 import { RfqStackScene } from "./rfq-stack"
 import { RfqTicketScene } from "./rfq-ticket"
@@ -43,6 +44,7 @@ export const items: Record<string, ItemScene> = {
   "quote-field": { title: "quote-field", Scene: QuoteFieldScene },
   "rfq-ticket": { title: "rfq-ticket", Scene: RfqTicketScene },
   "rfq-stack": { title: "rfq-stack", Scene: RfqStackScene },
+  "perf-monitor": { title: "perf-monitor", Scene: PerfMonitorScene },
   "tradecn-terminal": { title: "tradecn-terminal", Scene: TradecnTerminalScene },
   "tradecn-terminal-classic": { title: "tradecn-terminal-classic", Scene: TradecnTerminalClassicScene },
 }
