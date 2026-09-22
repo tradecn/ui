@@ -89,3 +89,13 @@ describe("the check in the workflows", () => {
     expect(read("scripts/ci/release-check.sh")).toContain(`name="${CHECK_NAME}"`)
   })
 })
+
+describe("the runs on main", () => {
+  it("are never cancelled: a pull request groups by its ref and cancels, a push groups by its own commit", () => {
+    const ci = read(".github/workflows/ci.yml")
+    const block = /^concurrency:\n((?: {2}.*\n)+)/m.exec(ci)?.[1] ?? ""
+    expect(block).toContain("group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}")
+    expect(block).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}")
+    expect(block).not.toContain("cancel-in-progress: true")
+  })
+})
