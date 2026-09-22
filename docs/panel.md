@@ -1,4 +1,4 @@
-# panel
+# Panel
 
 Frame a book, chart, or blotter with a header and hotkey scope. Add symbol editing, link groups, and a popout as needed.
 

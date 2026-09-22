@@ -1,4 +1,4 @@
-# data-grid
+# DataGrid
 
 A virtualized, editable grid backed by a row store, with sorting, selection, and per-cell flashes.
 

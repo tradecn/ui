@@ -189,8 +189,9 @@ function findHits(pages, query) {
       hits.push({ page, order, score: 0, href: `${BASE}${page.path}` })
       return
     }
-    // A page answers to its title (`data-grid`) and to the name the sidebar shows (`Data Grid`), when they differ.
-    const names = [...new Set([page.title, nameOf(page)])].map((name) => name.toLowerCase())
+    // A page answers to the item's name (`data-grid`, what `shadcn add` takes), to its title (`DataGrid`, the doc's
+    // heading), and to the name the sidebar shows (`Data Grid`), whichever of them differ.
+    const names = [...new Set([page.name, page.title, nameOf(page)].filter(Boolean))].map((name) => name.toLowerCase())
     const pageScore = scoreOf(words, names, "", page.text.toLowerCase())
     if (pageScore) hits.push({ page, order, score: pageScore, href: `${BASE}${page.path}`, text: page.text })
     for (const section of page.sections) {

@@ -1,4 +1,4 @@
-# feed-health
+# FeedHealth
 
 A strip that shows each feed's connection state, the age of its data, and a staleness tier.
 

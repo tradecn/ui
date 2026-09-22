@@ -1,4 +1,4 @@
-# workspace
+# Workspace
 
 Dock, tab, float, and pop out panels with dockview. Each panel keeps its kind, title, and JSON state; you save and restore the layout.
 

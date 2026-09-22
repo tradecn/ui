@@ -1,4 +1,4 @@
-# instrument-search
+# InstrumentSearch
 
 A typed field over your instrument search that recognizes what was typed, a CUSIP, an ISIN, a ticker, or a coupon and maturity, hands the server the query with that hint, and lists what came back on your own `command`.
 

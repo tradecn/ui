@@ -1,4 +1,4 @@
-# rules-editor
+# RulesEditor
 
 The editor over one grid's rules: highlights, filters, and the sort stack as lists to add to, edit, reorder, and remove, with a live count of the rows each rule matches, and the column chooser in a fourth tab.
 

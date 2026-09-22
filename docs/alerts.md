@@ -1,4 +1,4 @@
-# alerts
+# Alerts
 
 The strip of notices: the newest few with the severity as your word and the tone beside it, the count when one stands for many, the actions the server allowed, a dismiss, a clear-all, and the whole list a click away, over a store that folds repeats and keeps to a cap.
 

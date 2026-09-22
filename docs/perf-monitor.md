@@ -1,4 +1,4 @@
-# perf-monitor
+# PerfMonitor
 
 The frame rate on the screen it measures: the numbers a per-frame core is judged by, a histogram of frame gaps against the budget, and a line per lane from its store.
 

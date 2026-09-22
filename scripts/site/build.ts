@@ -72,6 +72,8 @@ export type RegistryItem = {
   files?: RegistryFile[]
   cssVars?: { theme?: Record<string, string>; light?: Record<string, string>; dark?: Record<string, string> }
   css?: Record<string, unknown>
+  /** The exports the item names, its primary component first; `headingOf` is held to one of them. */
+  meta?: { components?: { title: string; description?: string }[] }
 }
 export type Registry = { name: string; items: RegistryItem[] }
 
@@ -109,6 +111,27 @@ export function groupOf(item?: RegistryItem): Group {
 
 /** `use-hotkeys` as `useHotkeys`: the name a hook is exported under. */
 const camelCase = (name: string) => name.replace(/-(\w)/g, (_, letter: string) => letter.toUpperCase())
+
+/** `data-grid` as `DataGrid`: the name a component is exported under. */
+const pascalCase = (name: string) => camelCase(name).replace(/^\w/, (letter) => letter.toUpperCase())
+
+/**
+ * What an item's page is headed by: the name its implementation goes by in the consumer's code. A component or a
+ * block is its export (`DataGrid`, `RfqTicket`), a hook is its (`useHotkeys`), and a utility or a theme is the
+ * name `shadcn add` takes (`row-store`, `tradecn-amber`), since a module and a set of variables have no identifier
+ * of their own. The doc's own `#` line says it; `build.test.ts` holds every item doc to this.
+ */
+export const headingOf = (item: RegistryItem): string => {
+  switch (item.type) {
+    case "registry:ui":
+    case "registry:block":
+      return pascalCase(item.name)
+    case "registry:hook":
+      return camelCase(item.name)
+    default:
+      return item.name
+  }
+}
 
 /**
  * An item's name as the sidebar, the pager, and the search print it: its registry title (`Data Grid`), a hook by
@@ -922,8 +945,12 @@ export function textOf(html: string): string {
 }
 
 export type SearchSection = { id: string; heading: string; parent?: string; text: string }
-/** A page in the search index: where it is, its title, the name the sidebar shows, which sidebar group it is in, its opening text, and every h2 and h3 with the text under it. */
-export type SearchPage = { path: string; title: string; label: string; group: Group; text: string; sections: SearchSection[] }
+/**
+ * A page in the search index: where it is, the item's name for an item page (`data-grid`, what `shadcn add` takes),
+ * its title (the doc's own heading, `DataGrid`), the name the sidebar shows (`Data Grid`), which sidebar group it is
+ * in, its opening text, and every h2 and h3 with the text under it. A query answers to all three names.
+ */
+export type SearchPage = { path: string; name?: string; title: string; label: string; group: Group; text: string; sections: SearchSection[] }
 
 /**
  * The search index, from the docs in nav order. It reads each doc's own HTML, so the generated parts of an item's
@@ -942,7 +969,7 @@ export function searchIndex(docs: Doc[]): SearchPage[] {
       const text = textOf(doc.html.slice(match.index + whole.length, headings[index + 1]?.index ?? doc.html.length))
       return level === "3" && parent ? { id, heading, parent, text } : { id, heading, text }
     })
-    return { path: doc.path, title: doc.title, label: doc.label, group: groupOf(doc.item), text: textOf(intro), sections }
+    return { path: doc.path, name: doc.item?.name, title: doc.title, label: doc.label, group: groupOf(doc.item), text: textOf(intro), sections }
   })
 }
 

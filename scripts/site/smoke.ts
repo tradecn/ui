@@ -343,6 +343,11 @@ for (const item of items) {
     await page.keyboard.type("32nds")
     await page.waitForFunction(() => document.querySelector("dialog.search [role='option'][href='/docs/format/#prices']"), undefined, { timeout: 5_000 })
     if (!(await dialog.locator("mark", { hasText: "32nds" }).count())) failures.push("search: the matched word is not marked in the results")
+    // An item's page answers to the name `shadcn add` takes, to its own heading, and to the name the sidebar shows, and comes first for each.
+    for (const query of ["data-grid", "datagrid", "data grid"]) {
+      await page.fill("dialog.search input", query)
+      await page.waitForFunction(() => document.querySelector("dialog.search .search-page")?.textContent?.startsWith("Data Grid"), undefined, { timeout: 5_000 }).catch(() => failures.push(`search: "${query}" does not put Data Grid first`))
+    }
     // A heading that matches ranks above text that does, and Enter goes to it.
     await page.fill("dialog.search input", "recents")
     await page.waitForFunction(() => document.querySelector("dialog.search [role='option'][aria-selected='true']")?.getAttribute("href") === "/docs/command-palette/#recents", undefined, { timeout: 5_000 })

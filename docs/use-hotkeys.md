@@ -1,4 +1,4 @@
-# use-hotkeys
+# useHotkeys
 
 A hotkey registry: bindings declared once as data, one keydown listener, and scopes read from the DOM so a panel's keys beat global ones.
 
