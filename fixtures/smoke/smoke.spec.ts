@@ -430,6 +430,55 @@ test("a quote field reads a quote in the instrument's basis, snaps it, steps it,
   await expect(field).toHaveValue("4.249")
 })
 
+// A client buys, so the dealer offers: one field against the market's offer, a suggested level in one
+// click, the check before a send, the send from a key, then the venue's words and nothing else.
+test("an rfq ticket shows the inquiry, quotes against the market, sends from a key, and shows only what the venue allows", async ({ page }) => {
+  const errors: string[] = []
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
+  page.on("pageerror", (e) => errors.push(e.message))
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='rfq-ticket']")
+  const ticket = scene.getByRole("group", { name: "Inquiry Q-7" })
+  const state = scene.locator("[data-rfq-sent]")
+  await expect(ticket).toBeVisible()
+  await expect(ticket.locator("[data-rfq-headline]")).toHaveText(/Client A\s*buys\s*5mm\s*T 4 1\/8 05\/15\/34/)
+  await expect(ticket.getByRole("timer", { name: "Inquiry Q-7" })).toHaveAttribute("data-tier", "plenty")
+  const offer = ticket.getByLabel("Offer", { exact: true })
+  await expect(ticket.getByLabel("Bid", { exact: true })).toHaveCount(0)
+  await expect(ticket.locator("[data-rfq-market-level='ask']")).toHaveText("99-16+")
+  // A level typed against the market, measured in ticks.
+  await offer.click()
+  await page.keyboard.type("99-17")
+  await expect(ticket.locator("[data-rfq-distance='ask']")).toHaveText("+1 vs market")
+  // The suggested level, in one click.
+  await ticket.locator("[data-rfq-suggested]").click()
+  await expect(offer).toHaveValue("99-17+")
+  await expect(ticket.locator("[data-rfq-distance='ask']")).toHaveText("+2 vs market")
+  // A blank quote is stopped and said; then a level and mod+enter from inside the field sends.
+  await offer.fill("")
+  await ticket.getByRole("button", { name: /^Quote/ }).click()
+  await expect(ticket.getByText("An offer is needed.")).toBeVisible()
+  await expect(state).toHaveAttribute("data-rfq-sent", "[]")
+  await offer.click()
+  await page.keyboard.type("99-16+")
+  await page.keyboard.press("ControlOrMeta+Enter")
+  await expect.poll(async () => JSON.parse((await state.getAttribute("data-rfq-sent")) ?? "[]")).toEqual([{ inquiryId: "Q-7", bid: null, ask: 99.515625 }])
+  // The venue takes it: its word for the status, the quoted level, one ring on the box.
+  await scene.getByRole("button", { name: "venue takes it" }).click()
+  await expect(ticket.locator("[data-rfq-status]")).toHaveText("Quoted")
+  await expect(ticket.locator("[data-rfq-quoted='ask']")).toHaveText("99-16+")
+  await expect(ticket.locator("[data-direction='flat']")).toHaveCount(1)
+  // The venue ends it: no buttons, a line that says so, a field that is not live, a key that does nothing.
+  await scene.getByRole("button", { name: "venue ends it" }).click()
+  await expect(ticket.getByRole("button", { name: /^Quote/ })).toHaveCount(0)
+  await expect(ticket.getByText("Nothing can be done with this inquiry right now.")).toBeVisible()
+  await expect(offer).toBeDisabled()
+  await expect(ticket).toHaveAttribute("data-status", "Done away")
+  await page.keyboard.press("ControlOrMeta+Enter")
+  await expect.poll(async () => JSON.parse((await state.getAttribute("data-rfq-sent")) ?? "[]").length).toBe(1)
+  expect(errors).toEqual([])
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.

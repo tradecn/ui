@@ -984,6 +984,119 @@
       }
     },
     {
+      "name": "rfq-ticket",
+      "type": "registry:block",
+      "title": "RFQ Ticket",
+      "description": "A dealer's ticket for a request for quote: the inquiry as it came (who, which way, how much, in what, with the venue's words on it), the market beside it, the levels already quoted, the auto price when there is one, a countdown to its end, and the fields to type a level in the instrument's own basis. The buttons are the actions the server allowed, checked again as the click lands; the status is the venue's word, printed as it is. One ticket is one inquiry, so a new one never lands in a ticket being worked.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [
+        "badge",
+        "button",
+        "field",
+        "input-group",
+        "kbd"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/blocks/rfq-ticket/rfq-ticket.tsx",
+          "type": "registry:block"
+        },
+        {
+          "path": "registry/tradecn/ui/quote-field.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/ui/countdown.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-clock.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-hotkeys.tsx",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/clock.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/hotkeys.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "rfq",
+        "ticket"
+      ],
+      "docs": "A block: rfq-ticket.tsx goes to your components alias. Installs quote-field, countdown, format, use-flash, the shared clock, and the hotkey registry alongside, composes your badge, button, field, input-group, and kbd, and adds the up, down, flat, and expiring tokens. Inside a HotkeysProvider it declares rfq.send (mod+enter), rfq.tick-up, rfq.tick-down, and rfq.suggested (mod+shift+a) as editing bindings unless you did. Mount it with key={inquiry.id}.",
+      "meta": {
+        "components": [
+          {
+            "title": "RfqTicket",
+            "description": "The ticket."
+          },
+          {
+            "title": "RFQ_TICKET_BINDINGS",
+            "description": "Its four editing bindings, to spread into your own list or leave to it."
+          },
+          {
+            "title": "checkQuote",
+            "description": "What stops a quote from being sent, as a pure function."
+          },
+          {
+            "title": "describeQuote",
+            "description": "A quote in words: Offer 5mm T 4 1/8 05/15/34 @ 99-16+."
+          },
+          {
+            "title": "quoteDistance",
+            "description": "How far a level sits from the market, in ticks or basis points."
+          },
+          {
+            "title": "quotedSides",
+            "description": "Which sides the dealer quotes for a client who buys, sells, or asks a market."
+          },
+          {
+            "title": "formatSize",
+            "description": "The size as the desk says it: millions, or contracts."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.58 0.19 45)",
+          "down-soft": "oklch(0.58 0.19 45 / 18%)",
+          "expiring": "oklch(0.6 0.2 350)",
+          "expiring-soft": "oklch(0.6 0.2 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "up": "oklch(0.58 0.14 165)",
+          "up-soft": "oklch(0.58 0.14 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.74 0.18 45)",
+          "down-soft": "oklch(0.74 0.18 45 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      }
+    },
+    {
       "name": "tradecn-terminal",
       "type": "registry:theme",
       "title": "Terminal",
