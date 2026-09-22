@@ -9,7 +9,8 @@
 // Then the search: the button and mod+k open it, it lists every page, ranks a heading first, goes there
 // on Enter, and a key pressed inside a preview never opens it, nor its key a demo's palette. Then the mode:
 // the page follows the system until the header's button makes a choice, which every preview on the page,
-// the next page, and another tab follow, and a press goes back.
+// the next page, and another tab follow, and a press goes back. Then the theme: the header's menu offers
+// every theme the site carries, and choosing one re-colors the page and its previews the same way.
 //   bun scripts/site/smoke.ts [--dist site/dist] [--base https://tradecn.dev] [--port 4174] [--headers site/headers.json]
 // Without --base it serves --dist itself, with the index.html rewrite the CloudFront function does and
 // the security headers the edge sends (--headers names another file, to prove a policy breaks the pages).
@@ -499,6 +500,141 @@ for (const item of items) {
   }
 }
 
+// The theme. The header's menu offers every theme the site carries, the site's own first and worn until a choice
+// is made. Choosing another re-colors the page and every preview on it at once, the mode button still works under
+// it, the next page opens in it, another tab hears it, a theme's own preview keeps its own theme, the 404 page (no
+// script) stays in the site's, and choosing the site's own again goes back.
+{
+  const page = await context.newPage()
+  watch(page, "theme")
+  const select = page.locator(".site-header .theme-select")
+  const button = page.locator(".site-header .mode-toggle")
+  const themeOf = (p: Page) => p.evaluate(() => document.documentElement.dataset.theme ?? "none")
+  const stored = (p: Page) => p.evaluate(() => localStorage.getItem("tradecn-palette"))
+  const inTheme = (p: Page, theme: string) => p.waitForFunction((name) => document.documentElement.dataset.theme === name, theme, { timeout: 5_000 })
+  const inMode = (p: Page, mode: string) => p.waitForFunction((name) => document.documentElement.classList.contains(name), mode, { timeout: 5_000 })
+  /** The page's background, primary, and up, each resolved through a probe, so a production respelling never matters. */
+  const colorsOf = (p: Page) =>
+    p.evaluate(() => {
+      const probe = document.createElement("i")
+      document.body.append(probe)
+      const read = (token: string) => {
+        probe.style.backgroundColor = `var(--${token})`
+        return getComputedStyle(probe).backgroundColor
+      }
+      const colors = { background: read("background"), primary: read("primary"), up: read("up") }
+      probe.remove()
+      return colors
+    })
+  /** Each preview frame on the page, as the frame sees itself: its item, its data-theme, and its primary and up resolved inside it. */
+  const frames = (p: Page) =>
+    p.evaluate(() =>
+      [...document.querySelectorAll<HTMLIFrameElement>("iframe[data-preview]")].map((el) => {
+        // A frame caught mid-navigation has a document with no root or no body yet; it reads as nothing rather than throwing.
+        const doc = el.contentDocument
+        const colors = { primary: "", up: "" }
+        if (doc?.body) {
+          const probe = doc.createElement("i")
+          doc.body.append(probe)
+          for (const token of ["primary", "up"] as const) {
+            probe.style.backgroundColor = `var(--${token})`
+            colors[token] = getComputedStyle(probe).backgroundColor
+          }
+          probe.remove()
+        }
+        return { item: el.dataset.preview ?? "", theme: doc?.documentElement?.dataset.theme ?? "", ...colors }
+      }),
+    )
+  // Polls until every frame carries the theme; a frame mid-navigation has no root yet and counts as not there.
+  const framesIn = (p: Page, theme: string) => p.waitForFunction((name) => [...document.querySelectorAll<HTMLIFrameElement>("iframe[data-preview]")].every((el) => el.contentDocument?.documentElement?.dataset.theme === name), theme, { timeout: 10_000 })
+  const framesInMode = (p: Page, mode: string) => p.waitForFunction((name) => [...document.querySelectorAll<HTMLIFrameElement>("iframe[data-preview]")].every((el) => el.contentDocument?.documentElement?.classList.contains(name) ?? false), mode, { timeout: 10_000 })
+  try {
+    const index = await page.request.get(`${base}/${SEARCH_INDEX}`)
+    const themePages = new Set(((await index.json()) as SearchPage[]).filter((entry) => entry.group === "Themes").map((entry) => entry.path.split("/")[2]))
+    await page.emulateMedia({ colorScheme: "light" })
+    await page.goto(`${base}/`, { waitUntil: "load" })
+    if (!(await select.isVisible())) failures.push("theme: no theme menu in the header")
+    // The menu sits left of the mode button and offers the themes the page declares, the site's own first: the themes with pages, whatever order the registry lists them in.
+    const [menuBox, buttonBox] = [await select.boundingBox(), await button.boundingBox()]
+    if (!menuBox || !buttonBox || menuBox.x + menuBox.width > buttonBox.x || Math.abs(menuBox.y + menuBox.height / 2 - (buttonBox.y + buttonBox.height / 2)) > 4) failures.push(`theme: the menu (${JSON.stringify(menuBox)}) is not left of the mode button (${JSON.stringify(buttonBox)}) on its line`)
+    const themes = await select.locator("option").evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value))
+    const declared = await page.evaluate(() => (document.querySelector('meta[name="tradecn-themes"]') as HTMLMetaElement | null)?.content.split(" ") ?? [])
+    if (themes.join(" ") !== declared.join(" ")) failures.push(`theme: the menu offers ${themes.join(", ")}, the page declares ${declared.join(", ")}`)
+    if (themes[0] !== THEME_ITEM) failures.push(`theme: the menu offers ${themes[0]} first, not ${THEME_ITEM}`)
+    if ([...themes].sort().join() !== [...themePages].sort().join()) failures.push(`theme: the menu offers ${themes.join(", ")}, the site's theme pages are ${[...themePages].join(", ")}`)
+    if ((await select.inputValue()) !== THEME_ITEM) failures.push(`theme: the menu shows ${await select.inputValue()} with no choice made`)
+    if ((await themeOf(page)) !== THEME_ITEM) failures.push(`theme: the page wears ${await themeOf(page)} with no choice made`)
+    if ((await stored(page)) !== null) failures.push(`theme: a choice (${await stored(page)}) is stored before any was made`)
+    const home = await colorsOf(page)
+    await page.waitForFunction(() => [...document.querySelectorAll(".showcase iframe[data-preview]")].every((el) => parseFloat((el as HTMLIFrameElement).style.height || "0") > 40), undefined, { timeout: 30_000 })
+    await framesIn(page, THEME_ITEM)
+    // Choose the second theme: the page, the store, the menu, and every preview at once, through the storage event.
+    const other = themes[1]
+    if (!other) throw new Error(`the menu offers ${themes.length} theme(s); nothing to switch to`)
+    await select.selectOption(other)
+    await inTheme(page, other)
+    if ((await stored(page)) !== other) failures.push(`theme: the menu stored ${await stored(page)}, not ${other}`)
+    if ((await select.inputValue()) !== other) failures.push(`theme: the menu shows ${await select.inputValue()} after choosing ${other}`)
+    const chosen = await colorsOf(page)
+    if (chosen.primary === home.primary && chosen.background === home.background) failures.push(`theme: the page looks the same (${chosen.primary} on ${chosen.background}) under ${other} as under ${THEME_ITEM}`)
+    await framesIn(page, other)
+    for (const frame of await frames(page)) {
+      // A theme's own preview keeps its own theme; every other preview wears the page's.
+      if (frame.item === other || !themePages.has(frame.item)) {
+        if (frame.primary !== chosen.primary || frame.up !== chosen.up) failures.push(`theme: under ${other} the ${frame.item} preview's colors are ${frame.primary} and ${frame.up}, the page's ${chosen.primary} and ${chosen.up}`)
+      } else if (frame.primary === chosen.primary && frame.up === chosen.up) failures.push(`theme: under ${other} the ${frame.item} preview wears the page's colors (${chosen.primary}, ${chosen.up}), not its own`)
+    }
+    // The mode still switches under the choice, and the previews follow both.
+    await button.click()
+    await inMode(page, "dark")
+    const night = await colorsOf(page)
+    if (night.background === chosen.background) failures.push(`theme: under ${other} the mode button left the background ${night.background}`)
+    if ((await themeOf(page)) !== other) failures.push(`theme: the mode button changed the theme to ${await themeOf(page)}`)
+    await framesInMode(page, "dark")
+    for (const frame of await frames(page)) if (!themePages.has(frame.item) && frame.primary !== night.primary) failures.push(`theme: in dark under ${other} the ${frame.item} preview's primary is ${frame.primary}, the page's ${night.primary}`)
+    await button.click()
+    await inMode(page, "light")
+    // Another tab opens in the choice with its menu showing it, and the next page too, with its preview.
+    const tab = await context.newPage()
+    watch(tab, "theme (other tab)")
+    await tab.emulateMedia({ colorScheme: "light" })
+    await tab.goto(`${base}/docs/`, { waitUntil: "load" })
+    if ((await themeOf(tab)) !== other) failures.push(`theme: another tab opened in ${await themeOf(tab)} after ${other} was chosen`)
+    const tabMenu = await tab.locator(".site-header .theme-select").inputValue()
+    if (tabMenu !== other) failures.push(`theme: another tab's menu shows ${tabMenu}, not ${other}`)
+    await tab.close()
+    await page.goto(`${base}/docs/${itemPreviews[0]}/`, { waitUntil: "load" })
+    if ((await themeOf(page)) !== other) failures.push(`theme: ${itemPreviews[0]} opened in ${await themeOf(page)} after ${other} was chosen`)
+    await page.locator(`.preview[data-preview='${itemPreviews[0]}'] iframe`).waitFor({ timeout: 15_000 })
+    await framesIn(page, other)
+    // The 404 page has no script and no menu; it wears the site's own theme. Its status logs one console error, so it is not watched.
+    const lost = await context.newPage()
+    lost.on("pageerror", (error) => failures.push(`theme: 404 page error: ${error.message}`))
+    await lost.emulateMedia({ colorScheme: "light" })
+    await lost.goto(`${base}/no-such-page/`, { waitUntil: "load" })
+    if (await lost.locator(".theme-select").count()) failures.push("theme: the 404 page has a theme menu")
+    if ((await themeOf(lost)) !== "none") failures.push(`theme: the 404 page carries data-theme ${await themeOf(lost)}`)
+    const lostColors = await colorsOf(lost)
+    if (lostColors.primary !== home.primary) failures.push(`theme: the 404 page's primary is ${lostColors.primary}, not the site's own ${home.primary}`)
+    await lost.close()
+    // Choosing the site's own theme again goes back.
+    await select.selectOption(THEME_ITEM)
+    await inTheme(page, THEME_ITEM)
+    if ((await stored(page)) !== THEME_ITEM) failures.push(`theme: choosing ${THEME_ITEM} stored ${await stored(page)}`)
+    const back = await colorsOf(page)
+    if (back.primary !== home.primary) failures.push(`theme: after choosing ${THEME_ITEM} again the primary is ${back.primary}, not ${home.primary}`)
+    await page.evaluate(() => {
+      localStorage.removeItem("tradecn-palette")
+      localStorage.removeItem("tradecn-theme")
+    })
+    console.log(`ok  theme: ${themes.length} themes on the menu, ${other} on the page and its previews in both modes, the next page, another tab, the 404 page, and back`)
+  } catch (error) {
+    failures.push(`theme: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
 // The type: the pages are set in the theme's sans and their code in its mono, the two faces the typography tokens
 // name, self-hosted under /fonts/ and loaded under the policy (a blocked font logs a console error, which the
 // watcher above turns into a failure). Read after the fonts settle, from the faces the document loaded.
@@ -557,4 +693,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ${failure}`)
   process.exit(1)
 }
-console.log(`\n${items.length} previews, the opening page, the docs pages, the search, and both modes checked at ${base}`)
+console.log(`\n${items.length} previews, the opening page, the docs pages, the search, both modes, and the themes checked at ${base}`)

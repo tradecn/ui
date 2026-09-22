@@ -41,11 +41,16 @@ import {
   siteDocs,
   siteHeader,
   sitePageValues,
+  siteThemes,
   START_PAGES,
   tables,
   templateValues,
   textOf,
   THEME_ITEM,
+  themePalettes,
+  themePicker,
+  THEMES_META,
+  themesMeta,
   toc,
 } from "./build"
 import type { Doc, Registry } from "./build"
@@ -127,11 +132,11 @@ describe("the opening page", () => {
     expect(page).not.toContain("shadcn@latest add")
   })
 
-  it("wears the header every page shares, with the sections, the search, the links out, and the mode button last", () => {
+  it("wears the header every page shares, with the sections, the search, the links out, the theme menu, and the mode button last", () => {
     expect(page).toContain('<header class="site-header">')
     expect(page).toContain('<a href="/docs/">Docs</a><a href="/docs/components/">Components</a><a href="/docs/changelog/">Changelog</a>')
     expect(page).toContain(`${SEARCH_BUTTON}<a href="https://github.com/tradecn/ui">GitHub</a><a href="/r/registry.json">registry.json</a>`)
-    expect(page).toContain(`<span class="tag">${tag}</span>${MODE_BUTTON}</nav>`)
+    expect(page).toContain(`<span class="tag">${tag}</span>${themePicker(siteThemes(registry))}${MODE_BUTTON}</nav>`)
     expect(MODE_BUTTON).toContain('<button type="button" class="mode-toggle" aria-label="Toggle theme">')
     expect(page.match(/class="mode-toggle"/g)).toHaveLength(1)
     expect(page).toContain('<link rel="stylesheet" href="/site.css">')
@@ -188,6 +193,54 @@ describe("the opening page", () => {
     // A demo without an item is not on the page; an item without a demo gets no card.
     const partial = templateValues(registry, version, registry, new Set(), { demos: new Map([["format", demos.get("format")!]]), embed })
     expect((partial.showcase ?? "").match(/<iframe /g)).toHaveLength(1)
+  })
+
+  it("offers every theme in the registry in a menu left of the mode button, the site's own first and selected, by title", () => {
+    const themes = siteThemes(registry)
+    const others = registry.items.filter((item) => item.type === "registry:theme" && item.name !== THEME_ITEM).map((item) => item.name)
+    expect(themes.map((theme) => theme.name)).toEqual([THEME_ITEM, ...others])
+    expect(others.length).toBeGreaterThan(0)
+    const picker = themePicker(themes)
+    expect(picker).toMatch(/^<span class="theme-pick"><select class="theme-select" aria-label="Theme"><option value="tradecn-amber" selected>Amber<\/option><option value="tradecn-slate">Slate<\/option><option value="tradecn-slate-east">Slate East<\/option>/)
+    expect(picker.match(/<option /g)).toHaveLength(themes.length)
+    expect(picker.match(/ selected>/g)).toHaveLength(1)
+    expect(picker).toMatch(/<\/select><svg [^>]*aria-hidden="true">.*<\/svg><\/span>$/)
+    expect(page.match(/class="theme-select"/g)).toHaveLength(1)
+    // The menu shows a theme's title, or its name without one, escaped either way.
+    expect(themePicker([{ name: "x<y", type: "registry:theme" }])).toContain('<option value="x&lt;y" selected>x&lt;y</option>')
+    expect(themePicker([])).toBe("")
+    // A header built without one has none; a docs page passes the one the template values carry.
+    expect(siteHeader(tag)).not.toContain("theme-select")
+    expect(siteHeader(tag, "docs", true, picker)).toContain(`<span class="tag">${tag}</span>${picker}${MODE_BUTTON}</nav>`)
+    expect(values.themePicker).toBe(picker)
+    // A theme source without the site's theme has nothing to offer or to wear.
+    expect(() => siteThemes({ name: "t", items: registry.items.filter((item) => item.type !== "registry:theme") })).toThrow(THEME_ITEM)
+  })
+
+  it("carries the other themes' palettes keyed on the data-theme the script writes, and names the themes in a meta before the script", () => {
+    const themes = siteThemes(registry)
+    const [site, ...others] = themes
+    const meta = themesMeta(themes)
+    expect(meta).toBe(`<meta name="${THEMES_META}" content="${themes.map((theme) => theme.name).join(" ")}">`)
+    expect(page).toContain(meta)
+    expect(page.indexOf(meta)).toBeLessThan(page.indexOf('<script src="/theme.js">'))
+    const blocks = themePalettes(themes)
+    expect(page).toContain(blocks)
+    expect(blocks.match(/:root\[data-theme=/g)).toHaveLength(others.length)
+    for (const theme of others) {
+      const light = theme.cssVars!.light!
+      const dark = theme.cssVars!.dark!
+      expect(blocks).toContain(`:root[data-theme="${theme.name}"] {\n  --background: light-dark(${light.background}, ${dark.background});`)
+      expect(blocks).toContain(`--up: light-dark(${light.up}, ${dark.up});`)
+      expect(blocks).toContain(`--radius: ${light.radius};`)
+    }
+    // The default is :root itself, so it has no keyed block, and no block sets color-scheme, which the mode classes own.
+    expect(blocks).not.toContain(`data-theme="${site!.name}"`)
+    expect(blocks).not.toContain("color-scheme")
+    // The 404 page has no script, so it never wears another theme and carries neither the meta nor the blocks.
+    const notFound = renderPage(template("404.html"), values)
+    expect(notFound).not.toContain(THEMES_META)
+    expect(notFound).not.toContain("data-theme")
   })
 
   it("takes both sides of its palette from the amber theme, one light-dark() pair per token, and its type from the theme's font tokens", () => {
@@ -501,6 +554,8 @@ describe("the docs pages", async () => {
 
   it("puts each page in its header section", () => {
     expect(at("docs/index.html")).toContain('<a href="/docs/" aria-current="page">Docs</a>')
+    // The docs pages carry the theme menu the opening page does, left of the mode button.
+    expect(at("docs/index.html")).toContain(`${themePicker(siteThemes(registry))}${MODE_BUTTON}</nav>`)
     expect(at("docs/installation/index.html")).toContain('<a href="/docs/" aria-current="true">Docs</a>')
     expect(at("docs/components/index.html")).toContain('<a href="/docs/components/" aria-current="page">Components</a>')
     expect(at("docs/format/index.html")).toContain('<a href="/docs/components/" aria-current="true">Components</a>')

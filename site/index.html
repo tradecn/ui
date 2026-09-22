@@ -14,11 +14,13 @@
   --font-sans: {{fontSans}};
   --font-mono: {{fontMono}};
 }
+{{themePalettes}}
 </style>
 <link rel="stylesheet" href="/fonts.css">
 <link rel="stylesheet" href="/site.css">
-<!-- Blocking, in the head: the mode is on <html> before anything paints, and the page is listening
-     for a preview's height before the first iframe exists. -->
+<!-- Blocking, in the head: the mode and the theme are on <html> before anything paints, and the page is
+     listening for a preview's height before the first iframe exists. The meta names the themes the script may put there. -->
+{{themesMeta}}
 <script src="/theme.js"></script>
 <script src="/site.js"></script>
 </head>

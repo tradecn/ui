@@ -8,12 +8,13 @@
 // come from main. The palette is main's because a tag from before the theme existed has none to give. A tag from
 // before the previews existed has no embed build, and its pages go out without them.
 // The pages have a light and a dark mode, both sides of the amber theme: warm paper by day, near-black by night, set
-// in the two faces its typography tokens name. site/theme.js puts the mode on <html>, from the reader's choice or the system.
+// in the two faces its typography tokens name. site/theme.js puts the mode on <html>, from the reader's choice or the system,
+// and the theme beside it: the header's menu offers every theme in the registry, and a page carries each one's palette.
 import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { parseArgs } from "node:util"
 import { Marked } from "marked"
-import { TYPOGRAPHY_TOKEN, isColorValue } from "../lib/registry"
+import { isColorValue } from "../lib/registry"
 
 export const SITE_URL = "https://tradecn.dev"
 export const REPO_URL = "https://github.com/tradecn/ui"
@@ -132,6 +133,32 @@ const MODE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
  */
 export const MODE_BUTTON = `<button type="button" class="mode-toggle" aria-label="Toggle theme">${MODE_ICON}</button>`
 
+/** The themes the pages can wear, from the theme source: the site's own first, which is what a page wears until the reader picks another. */
+export function siteThemes(themeSource: Registry): RegistryItem[] {
+  const themes = themeSource.items.filter((item) => item.type === "registry:theme")
+  const site = themes.find((item) => item.name === THEME_ITEM)
+  if (!site) throw new Error(`${THEME_ITEM} is not in the theme source and the page takes its palette from it`)
+  return [site, ...themes.filter((item) => item !== site)]
+}
+
+/** The meta theme.js reads the themes from, before it runs: their names in this order, the first the default a page wears with no choice made. */
+export const THEMES_META = "tradecn-themes"
+export const themesMeta = (themes: RegistryItem[]) => `<meta name="${THEMES_META}" content="${themes.map((theme) => escapeHtml(theme.name)).join(" ")}">`
+
+const CHEVRON_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`
+
+/**
+ * The theme menu, beside the mode button: a native select of the registry's themes by title, the site's own first
+ * and selected. theme.js puts the choice on <html> as data-theme, which the page's palette blocks and the previews'
+ * are keyed on, and remembers it beside the mode. Without a script it would change nothing, so the stylesheet hides
+ * it, and the page wears the default.
+ */
+export function themePicker(themes: RegistryItem[]): string {
+  if (!themes.length) return ""
+  const options = themes.map((theme, index) => `<option value="${escapeHtml(theme.name)}"${index === 0 ? " selected" : ""}>${escapeHtml(theme.title ?? theme.name)}</option>`).join("")
+  return `<span class="theme-pick"><select class="theme-select" aria-label="Theme">${options}</select>${CHEVRON_ICON}</span>`
+}
+
 /**
  * The search dialog, on the opening page and every docs page, closed until the button or mod+k opens it.
  * A native dialog: the browser gives it the top layer, the backdrop, Escape, and focus back to the button.
@@ -146,8 +173,12 @@ export function searchDialog(): string {
   ].join("\n")
 }
 
-/** The header on every page: the mark, the three sections, the search, the links out, and the mode button. `current` marks the section a page is in, `page` that it is the section's own page. */
-export function siteHeader(tag: string, current: Section | null = null, page = false): string {
+/**
+ * The header on every page: the mark, the three sections, the search, the links out, the theme menu, and the mode
+ * button. `current` marks the section a page is in, `page` that it is the section's own page, and `picker` is
+ * `themePicker()` of the themes the page carries, left of the mode button.
+ */
+export function siteHeader(tag: string, current: Section | null = null, page = false, picker = ""): string {
   const link = (section: Section, href: string, text: string) =>
     `<a href="${href}"${section === current ? ` aria-current="${page ? "page" : "true"}"` : ""}>${text}</a>`
   return [
@@ -155,7 +186,7 @@ export function siteHeader(tag: string, current: Section | null = null, page = f
     `<div class="wrap">`,
     `<a class="name" href="/">${MARK}<span>tradecn<span class="slash">/</span>ui</span></a>`,
     `<nav aria-label="Sections">${link("docs", "/docs/", "Docs")}${link("components", "/docs/components/", "Components")}${link("changelog", "/docs/changelog/", "Changelog")}</nav>`,
-    `<nav class="side" aria-label="Links">${SEARCH_BUTTON}<a href="${REPO_URL}">GitHub</a><a href="/r/registry.json">registry.json</a><span class="tag">${escapeHtml(tag)}</span>${MODE_BUTTON}</nav>`,
+    `<nav class="side" aria-label="Links">${SEARCH_BUTTON}<a href="${REPO_URL}">GitHub</a><a href="/r/registry.json">registry.json</a><span class="tag">${escapeHtml(tag)}</span>${picker}${MODE_BUTTON}</nav>`,
     `</div>`,
     `</header>`,
   ].join("\n")
@@ -168,16 +199,28 @@ export function siteHeader(tag: string, current: Section | null = null, page = f
  * which has no script, still has both modes, from this alone.
  */
 export function pagePalette(theme: RegistryItem): string {
+  return ["  color-scheme: light dark;", ...paletteLines(theme)].join("\n")
+}
+
+/** The pages' dozen tokens for one theme, each a `light-dark()` pair or one value where the sides agree. */
+function paletteLines(theme: RegistryItem): string[] {
   const light = theme.cssVars?.light
   const dark = theme.cssVars?.dark
   if (!light || !dark) throw new Error(`${theme.name} has no cssVars.light and cssVars.dark, and the page takes its palette from both`)
-  const lines = PALETTE.map((token) => {
+  return PALETTE.map((token) => {
     const day = light[token]
     const night = dark[token] ?? day
     if (!day || !night) throw new Error(`${theme.name} sets no ${token} token`)
     return `  --${token}: ${day === night ? day : `light-dark(${day}, ${night})`};`
   })
-  return ["  color-scheme: light dark;", ...lines].join("\n")
+}
+
+/**
+ * The other themes' palettes for the pages, a block each keyed on the data-theme theme.js writes, the same pairs as
+ * the default's. The default stays on `:root` itself, so a page with no script, or a reader who has not chosen, wears it.
+ */
+export function themePalettes(themes: RegistryItem[]): string {
+  return themes.slice(1).map((theme) => `:root[data-theme="${escapeHtml(theme.name)}"] {\n${paletteLines(theme).join("\n")}\n}`).join("\n")
 }
 
 /** The pages' two faces: the theme's sans for prose and its mono for code, the same tokens every item reads. */
@@ -198,17 +241,21 @@ export function templateValues(
   previews: Previews = NO_PREVIEWS,
 ): Record<string, string> {
   const tag = `v${version}`
-  const theme = themeSource.items.find((item) => item.name === THEME_ITEM)
-  if (!theme) throw new Error(`${THEME_ITEM} is not in the theme source and the page takes its palette from it`)
+  const themes = siteThemes(themeSource)
+  const theme = themes[0]!
   const palette = pagePalette(theme)
   const { fontSans, fontMono } = pageFonts(theme)
+  const picker = themePicker(themes)
   return {
     version,
     tag,
     palette,
+    themePalettes: themePalettes(themes),
+    themesMeta: themesMeta(themes),
+    themePicker: picker,
     fontSans,
     fontMono,
-    header: siteHeader(tag),
+    header: siteHeader(tag, null, false, picker),
     search: searchDialog(),
     showcase: showcase(registry, tag, docSlugs, previews),
     itemCount: String(registry.items.length),
@@ -591,22 +638,14 @@ export function fullPalette(theme: RegistryItem, mode: "light" | "dark"): string
 }
 
 /**
- * The embed page's light side for an item that is not a theme: the site theme's light dozen over the bundle's own
- * light palette, with the theme's typography tokens, so a demo looks like the light page that frames it. The bundle
- * keeps every token this does not name (accent, popover, the sidebar).
+ * Every other theme's two sides for the embed page, each block keyed on the data-theme theme.js writes beside the mode
+ * class, so a preview wears the theme the page around it chose: the whole palette, as the default's blocks are.
  */
-export function siteLightPalette(theme: RegistryItem): string {
-  const light = theme.cssVars?.light ?? {}
-  const lines = PALETTE.map((token) => {
-    const value = light[token]
-    if (!value) throw new Error(`${theme.name} sets no ${token} token`)
-    return `  --${token}: ${value};`
-  })
-  // The theme's typography is the same in both modes, so a light preview sets its numbers the way a dark one does.
-  for (const [token, value] of Object.entries(light)) if (TYPOGRAPHY_TOKEN.test(token)) lines.push(`  --${token}: ${value};`)
-  const font = theme.cssVars?.theme?.["font-sans"]
-  if (font) lines.push(`  --font-sans: ${font};`)
-  return lines.join("\n")
+export function previewThemePalettes(themes: RegistryItem[]): string {
+  return themes
+    .slice(1)
+    .map((theme) => (["dark", "light"] as const).map((mode) => `:root.${mode}[data-theme="${escapeHtml(theme.name)}"] {\n${fullPalette(theme, mode)}\n}`).join("\n"))
+    .join("\n")
 }
 
 /** The Preview / Code card on an item's page. The iframe is sized by the message the embed posts. */
@@ -856,7 +895,7 @@ export function sectionOf(doc: Doc): Section {
  * down the right.
  */
 export function docPages(docs: Doc[], values: Record<string, string>, template: string, previews: Previews = NO_PREVIEWS, sources: Sources = new Map()): Array<{ path: string; html: string }> {
-  const { tag = "", repoUrl } = values
+  const { tag = "", repoUrl, themePicker: picker = "" } = values
   return docs.map((doc, index) => {
     const demo = previews.embed ? previews.demos.get(doc.slug) : undefined
     const foot = doc.file ? `<p class="foot">This page is <code>${escapeHtml(doc.file)}</code> at <a href="${repoUrl}/blob/${tag}/${escapeHtml(doc.file)}">${tag}</a>.</p>` : ""
@@ -872,7 +911,7 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
         title: escapeHtml(doc.title),
         description: escapeHtml(doc.description),
         path: doc.path,
-        header: siteHeader(tag, section, !doc.item && (section !== "docs" || doc.slug === "index")),
+        header: siteHeader(tag, section, !doc.item && (section !== "docs" || doc.slug === "index"), picker),
         nav: docsNav(docs, doc.slug),
         toc: toc(body),
         content,
@@ -884,14 +923,16 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
 
 /**
  * One page per demo at /preview/<item>/, around the embed bundle, with a palette for each mode. A theme's page
- * wears that theme in both; every other page wears the site's theme, from `themeSource`, its whole dark side in
- * dark and its light dozen in light, so a demo looks like the docs page that frames it.
+ * wears that theme in both, whatever the reader chose in the header; every other page wears the site's theme, from
+ * `themeSource`, both whole sides, and carries every other theme's sides keyed on the choice, so a demo looks like
+ * the docs page that frames it.
  */
 export function previewPages(registry: Registry, themeSource: Registry, previews: Previews, values: Record<string, string>, template: string, docSlugs: ReadonlySet<string> = new Set()): Array<{ path: string; html: string }> {
   const { embed } = previews
   if (!embed) return []
-  const site = themeSource.items.find((item) => item.name === THEME_ITEM)
-  if (!site) throw new Error(`${THEME_ITEM} is not in the theme source`)
+  const themes = siteThemes(themeSource)
+  const site = themes[0]!
+  const others = previewThemePalettes(themes)
   const styles = embed.styles.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")
   // A demo is an item's, or a doc's own (the Typography page has one); a stray demo with no page gets none.
   return [...previews.demos.values()]
@@ -905,7 +946,8 @@ export function previewPages(registry: Registry, themeSource: Registry, previews
           ...values,
           item: escapeHtml(demo.name),
           darkPalette: fullPalette(theme ?? site, "dark"),
-          lightPalette: theme ? fullPalette(theme, "light") : siteLightPalette(site),
+          lightPalette: fullPalette(theme ?? site, "light"),
+          themePalettes: theme ? "" : others,
           styles,
           script: embed.script,
         }),

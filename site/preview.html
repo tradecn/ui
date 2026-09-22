@@ -7,14 +7,16 @@
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<!-- Blocking, before the bundle: the mode class is on <html> before the demo mounts, from the same choice the page around this made. -->
+<!-- Blocking, before the bundle: the mode class and the theme are on <html> before the demo mounts, from the same choices the page around this made. -->
+{{themesMeta}}
 <script src="/theme.js"></script>
 {{styles}}
 <style>
 /* After the bundle's stylesheet on purpose: these beat its palette and its @theme fonts, the way a theme
-   item's variables beat the defaults in a consumer's stylesheet. Dark is the site theme's whole dark side
-   over the bundle's dark palette; light is its light dozen over the bundle's light one, or a theme's own
-   light palette on that theme's page. theme.js puts one class or the other on <html>. */
+   item's variables beat the defaults in a consumer's stylesheet. Both sides are the site theme's whole
+   palette over the bundle's, or a theme's own on that theme's page; then every other theme's two sides,
+   keyed on the data-theme theme.js puts on <html> beside the mode class, so a preview wears what the page
+   around it chose. A theme's own page carries no other theme and wears its own whatever the choice. */
 :root.dark {
   color-scheme: dark;
 {{darkPalette}}
@@ -23,6 +25,7 @@
   color-scheme: light;
 {{lightPalette}}
 }
+{{themePalettes}}
 body { margin: 0; }
 </style>
 </head>

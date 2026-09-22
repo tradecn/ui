@@ -1,15 +1,20 @@
-// Light or dark: the reader's last choice in this browser, or the system's until they make one. On
-// every page and every preview, blocking in <head>, so the first paint is already in the right mode
-// and a demo mounts into it. The pages and the previews share an origin, so they share the choice,
-// and the storage event carries a change to every open document: the previews on a page follow its
-// button, and so does every other tab. A file, not an inline script, so the site's
-// Content-Security-Policy can keep script-src to 'self'.
+// Light or dark, and which theme: the reader's last choices in this browser, or the defaults until they
+// make one (the system's mode, the site's theme). On every page and every preview, blocking in <head>, so
+// the first paint is already in the right mode and theme and a demo mounts into them. The pages and the
+// previews share an origin, so they share the choices, and the storage event carries a change to every
+// open document: the previews on a page follow its button and its menu, and so does every other tab.
+// A file, not an inline script, so the site's Content-Security-Policy can keep script-src to 'self'.
 const MODE_KEY = "tradecn-theme"
+const THEME_KEY = "tradecn-palette"
 const MODES = ["light", "dark"]
+// The themes this page can wear, from the meta the builder writes before this script: the site's own first,
+// which is the page's :root palette and what it wears until the reader picks another.
+const THEMES = (document.querySelector('meta[name="tradecn-themes"]')?.content ?? "").split(" ").filter(Boolean)
 const systemDark = matchMedia("(prefers-color-scheme: dark)")
 
-// The choice, held here too, so the button still works where storage is blocked or full.
+// The choices, held here too, so the button and the menu still work where storage is blocked or full.
 let chosen = storedMode()
+let chosenTheme = storedTheme()
 
 function storedMode() {
   try {
@@ -20,9 +25,24 @@ function storedMode() {
   }
 }
 
+function storedTheme() {
+  try {
+    const stored = localStorage.getItem(THEME_KEY)
+    // A theme this page does not know (one since removed, say) is no choice at all.
+    return THEMES.includes(stored) ? stored : null
+  } catch {
+    return null
+  }
+}
+
 /** The mode the page is in: the choice, or the system's when there is none. */
 function currentMode() {
   return chosen ?? (systemDark.matches ? "dark" : "light")
+}
+
+/** The theme the page wears: the choice, or the site's own when there is none. */
+function currentTheme() {
+  return chosenTheme ?? THEMES[0] ?? null
 }
 
 /** Puts the mode on <html> as a class, which is where the palette and the components read it, and says on the button what a press would do. */
@@ -33,28 +53,52 @@ function applyMode() {
   for (const button of document.querySelectorAll(".mode-toggle")) button.setAttribute("aria-label", mode === "dark" ? "Switch to light mode" : "Switch to dark mode")
 }
 
+/** Puts the theme on <html> as data-theme, which the page's palette blocks and the previews' are keyed on, and shows it in the menu. */
+function applyTheme() {
+  const theme = currentTheme()
+  const root = document.documentElement
+  if (theme) root.dataset.theme = theme
+  else delete root.dataset.theme
+  for (const select of document.querySelectorAll(".theme-select")) select.value = theme ?? ""
+}
+
 applyMode()
+applyTheme()
 // The system changes under a page that follows it (a scheduled switch at dusk, say).
 systemDark.addEventListener("change", applyMode)
-// Another document on this origin made a choice: a page's button, with this a preview inside it, or another tab.
+// Another document on this origin made a choice: a page's button or menu, with this a preview inside it, or another tab.
 addEventListener("storage", (event) => {
-  if (event.key !== null && event.key !== MODE_KEY) return
+  if (event.key !== null && event.key !== MODE_KEY && event.key !== THEME_KEY) return
   chosen = storedMode()
+  chosenTheme = storedTheme()
   applyMode()
+  applyTheme()
 })
 
+function remember(key, value) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Storage that is blocked or full: the choice still holds for this page.
+  }
+}
+
 addEventListener("DOMContentLoaded", () => {
-  // The button exists now; its label catches up with the mode the head set.
+  // The button and the menu exist now; the label and the menu catch up with what the head set.
   applyMode()
+  applyTheme()
   for (const button of document.querySelectorAll(".mode-toggle")) {
     button.addEventListener("click", () => {
       chosen = currentMode() === "dark" ? "light" : "dark"
-      try {
-        localStorage.setItem(MODE_KEY, chosen)
-      } catch {
-        // Storage that is blocked or full: the choice still holds for this page.
-      }
+      remember(MODE_KEY, chosen)
       applyMode()
+    })
+  }
+  for (const select of document.querySelectorAll(".theme-select")) {
+    select.addEventListener("change", () => {
+      chosenTheme = THEMES.includes(select.value) ? select.value : null
+      if (chosenTheme) remember(THEME_KEY, chosenTheme)
+      applyTheme()
     })
   }
 })
