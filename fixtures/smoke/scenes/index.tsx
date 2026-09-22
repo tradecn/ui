@@ -7,6 +7,7 @@ import { ColumnChooserScene } from "./column-chooser"
 import { CommandPaletteScene } from "./command-palette"
 import { CountdownScene } from "./countdown"
 import { DataGridScene } from "./data-grid"
+import { DepthLadderScene } from "./depth-ladder"
 import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
@@ -68,6 +69,7 @@ export const scenes: SmokeScene[] = [
   { name: "audit-trail", Scene: AuditTrailScene },
   { name: "layout-manager", Scene: LayoutManagerScene },
   { name: "instrument-search", Scene: InstrumentSearchScene },
+  { name: "depth-ladder", Scene: DepthLadderScene },
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
   { name: "alert-store", Scene: AlertStoreScene },

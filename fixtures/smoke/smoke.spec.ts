@@ -1234,3 +1234,75 @@ test("an instrument search reads a CUSIP, a run's phrase, and a ticker, lists th
   await page.keyboard.type("qqq")
   await expect(scene.getByText("Nothing matches qqq.")).toBeVisible()
 })
+
+// The installed ladder over a small book in 32nds: the mid rung in the middle of the box, prices in the
+// convention, the desk's own size in its chip, the bid column painted with the up token under a header that
+// says Bid, a click in it staging a buy and holding the ladder still while the market moves, Recenter and
+// Home putting the mid back, one level's change reaching one cell, and the keys walking the rungs.
+test("a depth ladder centers on the mid, prints prices in 32nds, marks the desk's size, stages from a click, holds still under a hand, and recenters", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='depth-ladder']")
+  const ladder = scene.getByRole("grid", { name: "ZN ladder" })
+  const box = ladder.locator(".overflow-auto")
+  const rung = (tick: number) => ladder.locator(`[data-tick='${tick}']`)
+  const staged = scene.locator("[data-ladder-staged]")
+  // How far a rung's middle sits from the box's middle, in px.
+  const offCenter = async (tick: number) => {
+    const a = await rung(tick).boundingBox()
+    const b = await box.boundingBox()
+    return a && b ? Math.abs(a.y + a.height / 2 - (b.y + b.height / 2)) : Infinity
+  }
+  await expect(ladder).toHaveAttribute("aria-rowcount", "82")
+  await expect(ladder).toHaveAttribute("data-following", "true")
+  await expect(rung(6369)).toHaveAttribute("data-mid", "")
+  await expect(rung(6369).locator("[data-col='price']")).toHaveText("99-16+")
+  await expect(rung(6368).locator("[data-col='price']")).toHaveText("99-16")
+  await expect(rung(6372).locator("[data-col='price']")).toHaveText("99-18")
+  await expect.poll(() => offCenter(6369)).toBeLessThan(22)
+  await expect(rung(6368)).toHaveAttribute("data-mine", "bid")
+  await expect(rung(6368).locator("[data-col='bid'] [data-mine-size]")).toHaveText("5 yours")
+  await expect(rung(6368).locator("[data-col='bid']")).toContainText("120")
+  await expect(rung(6371)).toHaveAttribute("data-mine", "ask")
+  await expect(rung(6369).locator("[data-col='bid']")).toHaveText("")
+  await expect(ladder.getByRole("columnheader")).toHaveText(["Bid", "Price", "Ask"])
+  const painted = await page.evaluate(() => {
+    const bid = document.querySelector("section[data-scene='depth-ladder'] [data-tick='6367'] [data-col='bid']")!
+    const probe = document.createElement("i")
+    probe.style.color = "var(--up)"
+    document.body.append(probe)
+    const out = { color: getComputedStyle(bid).color, up: getComputedStyle(probe).color }
+    probe.remove()
+    return out
+  })
+  expect(painted.color, "a bid size is painted with the up token").toBe(painted.up)
+  // A click in the bid column stages a buy at that price, and is a hand on the ladder.
+  await rung(6368).locator("[data-col='bid']").click()
+  await expect(staged).toHaveText("buy 99.5")
+  await expect(ladder).toHaveAttribute("data-following", "false")
+  await expect(ladder.locator("[data-ladder-recenter]")).toBeVisible()
+  // The market moves two ticks while held: the new mid is marked, the prices on screen stay put.
+  await scene.getByRole("button", { name: "mid moves up" }).click()
+  await expect(rung(6371)).toHaveAttribute("data-mid", "")
+  await expect.poll(() => offCenter(6369)).toBeLessThan(22)
+  await expect.poll(() => offCenter(6371)).toBeGreaterThan(30)
+  // Recenter puts the mid in the middle and follows again.
+  await ladder.locator("[data-ladder-recenter]").click()
+  await expect(ladder).toHaveAttribute("data-following", "true")
+  await expect(ladder.locator("[data-ladder-recenter]")).toHaveCount(0)
+  await expect.poll(() => offCenter(6371)).toBeLessThan(22)
+  // One level's change reaches its cell.
+  await scene.getByRole("button", { name: "bid grows" }).click()
+  await expect(rung(6368).locator("[data-col='bid']")).toContainText("150")
+  // The keys: Up from the mid, Right to the ask column, Enter stages a sell; Home follows again.
+  await ladder.focus()
+  await page.keyboard.press("ArrowUp")
+  await expect(ladder).toHaveAttribute("data-following", "false")
+  await expect(rung(6372)).toHaveAttribute("data-focused", "true")
+  await page.keyboard.press("ArrowRight")
+  await expect(rung(6372).locator("[data-col='ask']")).toHaveAttribute("data-focused-col", "true")
+  await page.keyboard.press("Enter")
+  await expect(staged).toHaveText("sell 99.5625")
+  await page.keyboard.press("Home")
+  await expect(ladder).toHaveAttribute("data-following", "true")
+  await expect.poll(() => offCenter(6371)).toBeLessThan(22)
+})
