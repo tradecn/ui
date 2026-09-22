@@ -1,5 +1,6 @@
 import type { ComponentType } from "react"
 import { BlotterScene } from "./blotter"
+import { ColumnChooserScene } from "./column-chooser"
 import { CommandPaletteScene } from "./command-palette"
 import { CountdownScene } from "./countdown"
 import { DataGridScene } from "./data-grid"
@@ -46,6 +47,7 @@ export const scenes: SmokeScene[] = [
   { name: "rfq-stack", Scene: RfqStackScene },
   { name: "perf-monitor", Scene: PerfMonitorScene },
   { name: "hotkey-editor", Scene: HotkeyEditorScene },
+  { name: "column-chooser", Scene: ColumnChooserScene },
   { name: "grid-rules", Scene: GridRulesScene },
 ]
 export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "expiring", "expiring-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4"]

@@ -629,6 +629,47 @@ test("a grid under rules colors by the token, filters, orders, and says each rul
   await expect(scene.locator("[data-row-id='big'] [data-col='size']")).not.toHaveAttribute("data-rule", /./)
 })
 
+// The chooser writes the grid's own column state, so everything it does shows in the grid's header: a
+// column hidden here leaves the grid, a move here reorders the headers, a drag does too, a width the state
+// holds shows here with its reset and the header narrows when it is reset. Then the dialog, through the
+// consumer's dialog: open from the button, a checkbox inside changes the grid, Escape closes it.
+test("a column chooser hides, reorders, and resets through the grid's own column state, and opens as a dialog", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='column-chooser']")
+  const panel = scene.locator("[data-slot='tradecn-column-chooser']")
+  const grid = scene.getByRole("grid", { name: "Chosen" })
+  const headers = grid.locator("[role='columnheader']")
+  await expect(headers).toHaveText(["RFQ", "Client", "Price", "Size", "Status"])
+  await expect(panel.locator("li[data-column='px'] [data-column-rule='rich']")).toHaveText("Rich to the market")
+  await panel.getByRole("checkbox", { name: "Show Price" }).click()
+  await expect(headers).toHaveText(["RFQ", "Client", "Size", "Status"])
+  await expect(panel.locator("[data-column-hidden-count]")).toHaveText("1 hidden")
+  await panel.getByRole("checkbox", { name: "Show Price" }).click()
+  await expect(headers).toHaveCount(5)
+  await panel.getByRole("button", { name: "Move up: Status" }).click()
+  await expect(headers).toHaveText(["RFQ", "Client", "Price", "Status", "Size"])
+  await panel.locator("li[data-column='size']").dragTo(panel.locator("li[data-column='px']"))
+  await expect(headers).toHaveText(["RFQ", "Client", "Size", "Price", "Status"])
+  const priceHeader = grid.locator("[role='columnheader'][data-col='px']")
+  const wide = (await priceHeader.boundingBox())!.width
+  await expect(panel.locator("li[data-column='px'] [data-column-width]")).toHaveText("120 px")
+  await panel.getByRole("button", { name: "Reset width: Price" }).click()
+  await expect(panel.locator("li[data-column='px'] [data-column-width]")).toHaveText("80 px")
+  expect((await priceHeader.boundingBox())!.width, "the grid's header narrowed with the reset").toBeLessThan(wide)
+  await panel.locator("li[data-column='size']").focus()
+  await page.keyboard.press("Alt+ArrowDown")
+  await expect(headers).toHaveText(["RFQ", "Client", "Price", "Size", "Status"])
+  await panel.getByRole("button", { name: "Reset all" }).click()
+  await expect(scene.locator("[data-chooser-state]")).toHaveAttribute("data-chooser-state", JSON.stringify({ order: [], widths: {}, hidden: [] }))
+  await scene.getByRole("button", { name: "open chooser" }).click()
+  const dialog = page.getByRole("dialog", { name: "Columns" })
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole("checkbox", { name: "Show Status" }).click()
+  await expect(headers).toHaveCount(4)
+  await page.keyboard.press("Escape")
+  await expect(dialog).toHaveCount(0)
+})
+
 // A theme has no element to look for, so it is read back out of the stylesheet instead. The matrix
 // runs this once per theme, after installing that theme alone, and runs every test above again under
 // it. Without TRADECN_THEME this is the plain run and there is no theme to check.
