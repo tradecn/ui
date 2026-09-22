@@ -126,7 +126,7 @@ article { min-width: 0; padding-bottom: 4rem; }
 article > :not(.preview) { max-width: 72ch; }
 article > .cards, article > .table { max-width: none; }
 article h1 { margin: .5rem 0 .5rem; font-size: 1.75rem; font-weight: 600; letter-spacing: -.01em; }
-/* The one sentence under the title is the page's lede. */
+/* The opening paragraph under the title is the page's lede. */
 article > h1 + p { margin: 0 0 1.5rem; font-size: 1.05rem; color: var(--muted-foreground); }
 article h2 { margin: 2.25rem 0 .75rem; font-size: 1.15rem; font-weight: 600; }
 article h3 { margin: 1.75rem 0 .5rem; font-size: 1rem; font-weight: 600; }
