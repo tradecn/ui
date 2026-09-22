@@ -1042,3 +1042,40 @@ test("a parameter grid types a value in place, waits for the server, prints a re
   await expect(grid.getByRole("textbox")).toHaveCount(0)
   expect(errors).toEqual([])
 })
+
+// A book through the installed grid: the position printed with its sign and its side named, a loss painted with
+// the down token through the installed hook's class, the totals under the body, and a mark moving on the
+// server carrying the P&L and the total with it.
+test("a positions grid prints the sign and names the side, colors a loss by the token, and totals the book under it", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='positions']")
+  const grid = scene.getByRole("grid", { name: "Positions" })
+  const cell = (id: string, key: string) => grid.locator(`[data-row-id='${id}'] [data-col='${key}']`)
+  await expect(grid).toHaveAttribute("aria-rowcount", "5")
+  await expect(cell("ty", "position")).toHaveText("−25mm")
+  await expect(cell("ty", "position").locator("[data-side]")).toHaveAttribute("data-side", "short")
+  await expect(cell("zn", "position")).toHaveText("+120")
+  await expect(cell("zn", "position").locator("[data-side]")).toHaveAttribute("data-side", "long")
+  await expect(cell("fv", "position")).toHaveText("0")
+  await expect(grid.locator("[data-row-id='ty']")).toHaveAttribute("aria-description", "short")
+  await expect(grid.getByRole("columnheader", { name: /DV01/ })).toBeVisible()
+  const painted = await page.evaluate(() => {
+    const loss = document.querySelector("section[data-scene='positions'] [data-row-id='ty'] [data-col='dayPnl'] span > span")!
+    const probe = document.createElement("i")
+    probe.style.color = "var(--down)"
+    document.body.append(probe)
+    const out = { color: getComputedStyle(loss).color, down: getComputedStyle(probe).color }
+    probe.remove()
+    return out
+  })
+  expect(painted.color, "a loss is painted with the down token").toBe(painted.down)
+  const footer = grid.locator("[data-grid-footer]")
+  await expect(footer.locator("[data-col='instrument']")).toHaveText("3 positions")
+  await expect(footer.locator("[data-col='dayPnl']")).toHaveText("−50,000")
+  await expect(footer.locator("[data-col='risk']")).toHaveText("−12,600")
+  await expect(footer.locator("[data-col='position']")).toHaveText("")
+  await scene.getByRole("button", { name: "mark moves" }).click()
+  await expect(cell("ty", "mark")).toHaveText("99.75")
+  await expect(cell("ty", "dayPnl")).toHaveText("+62,500")
+  await expect(footer.locator("[data-col='dayPnl']")).toHaveText("+75,000")
+})
