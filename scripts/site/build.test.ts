@@ -10,6 +10,8 @@ import {
   docPages,
   docsNav,
   escapeHtml,
+  groupOf,
+  GROUPS,
   FAVICON,
   firstParagraph,
   installationSection,
@@ -314,7 +316,7 @@ describe("the search index", () => {
           { id: "fixes", heading: "Fixes", parent: "0.1.5 (date)", text: "x < y" },
         ],
       },
-      { path: "/docs/format/", title: "format", group: "Components", text: "Prices in 32nds. formatPrice(99.5)", sections: [] },
+      { path: "/docs/format/", title: "format", group: "Utilities", text: "Prices in 32nds. formatPrice(99.5)", sections: [] },
     ])
   })
 
@@ -394,19 +396,37 @@ describe("the docs pages", async () => {
     expect(byPath.has("docs/data-grid/index.html")).toBe(true)
   })
 
-  it("walks the site's pages, then the contract, then the items in registry order", () => {
+  it("walks the site's pages, then the contract, then the items kind by kind, each kind in registry order", () => {
     const itemSlugs = registry.items.map((item) => item.name).filter((name) => docSlugs.has(name))
     expect(tagDocs.filter((doc) => doc.item).map((doc) => doc.slug)).toEqual(itemSlugs)
-    expect(docs.map((doc) => doc.slug)).toEqual([...START_PAGES, "contract", ...itemSlugs])
+    const byGroup = GROUPS.flatMap((group) => registry.items.filter((item) => docSlugs.has(item.name) && groupOf(item) === group).map((item) => item.name))
+    expect(docs.map((doc) => doc.slug)).toEqual([...START_PAGES, "contract", ...byGroup])
+    // The registry lists the utilities first; the pages put the components first and never mix the kinds.
+    expect(byGroup).not.toEqual(itemSlugs)
+    expect(docs.filter((doc) => doc.item).map((doc) => groupOf(doc.item))).toEqual([
+      ...Array(10).fill("Components"),
+      "Hooks",
+      "Utilities",
+      "Utilities",
+      "Themes",
+      "Themes",
+    ])
     expect(docs[0]?.path).toBe("/docs/")
     expect(docs[1]?.path).toBe("/docs/installation/")
   })
 
-  it("groups the sidebar into Get Started and Components, marks the current page, and links every other page", () => {
+  it("groups the sidebar by kind, marks the current page, and links every other page", () => {
     const nav = docsNav(docs, "format")
     expect(nav).toContain('<h2>Get Started</h2>\n<ul>\n<li><a href="/docs/">Introduction</a></li>\n<li><a href="/docs/installation/">Installation</a></li>')
     expect(nav).toContain('<li><a href="/docs/changelog/">Changelog</a></li>\n<li><a href="/docs/contract/">The item contract</a></li>\n</ul>')
-    expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/format/" aria-current="page">format</a></li>')
+    // A utility is not a component: format sits under Utilities, use-hotkeys under Hooks, the themes under Themes, and only the ui items and the block under Components.
+    expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/flash-cell/">flash-cell</a></li>')
+    expect(nav).toContain('<li><a href="/docs/workspace/">workspace</a></li>\n<li><a href="/docs/ticket/">ticket</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">use-hotkeys</a></li>\n</ul>')
+    expect(nav).toContain('<h2>Utilities</h2>\n<ul>\n<li><a href="/docs/format/" aria-current="page">format</a></li>\n<li><a href="/docs/row-store/">row-store</a></li>\n</ul>')
+    expect(nav).toContain('<h2><a href="/docs/theming/#themes">Themes</a></h2>\n<ul>\n<li><a href="/docs/tradecn-terminal/">tradecn-terminal</a></li>\n<li><a href="/docs/tradecn-terminal-classic/">tradecn-terminal-classic</a></li>\n</ul>')
+    expect(nav.match(/<h2>/g)).toHaveLength(5)
+    // A tag without a kind shows no heading for it.
+    expect(docsNav(docs.filter((doc) => groupOf(doc.item) !== "Hooks"), null)).not.toContain("Hooks")
     const format = at("docs/format/index.html")
     for (const doc of docs) expect(format).toContain(`href="${doc.path}"`)
     expect(at("docs/index.html")).toContain('<a href="/docs/" aria-current="page">Introduction</a>')
@@ -462,13 +482,18 @@ describe("the docs pages", async () => {
     expect(install).toContain(`@tradecn/${registry.items.at(-1)?.name}\n</code>`)
   })
 
-  it("indexes every item on the Components page as a card linking its page", () => {
+  it("indexes the components on the Components page as cards linking their pages, and nothing of another kind", () => {
     const components = at("docs/components/index.html")
     expect(components).toContain('<h1 id="components">')
     expect(components).toContain('<div class="cards">')
     for (const item of registry.items) {
-      expect(components).toContain(`<a class="card" href="/docs/${item.name}/"><span class="card-title"><code>${item.name}</code><span class="kind">${item.type.replace("registry:", "")}</span></span>`)
+      const card = `<a class="card" href="/docs/${item.name}/"><span class="card-title"><code>${item.name}</code><span class="kind">${item.type.replace("registry:", "")}</span></span>`
+      if (groupOf(item) === "Components") expect(components).toContain(card)
+      else expect(components, item.name).not.toContain(card)
     }
+    expect(components.match(/<a class="card"/g)).toHaveLength(10)
+    expect(components).toContain('<span class="kind">block</span>')
+    expect(components).not.toContain('<span class="kind">lib</span>')
     expect(components).not.toContain("<iframe")
   })
 
@@ -613,7 +638,11 @@ describe("the docs pages", async () => {
   it("indexes every page for the search, with the doc's own headings and none the builder adds", () => {
     const index = searchIndex(docs)
     expect(index.map((page) => page.path)).toEqual(docs.map((doc) => doc.path))
-    expect(index.map((page) => page.group)).toEqual(docs.map((doc) => (doc.item ? "Components" : "Get Started")))
+    expect(index.map((page) => page.group)).toEqual(docs.map((doc) => groupOf(doc.item)))
+    expect(index.find((page) => page.path === "/docs/use-hotkeys/")?.group).toBe("Hooks")
+    expect(index.find((page) => page.path === "/docs/row-store/")?.group).toBe("Utilities")
+    expect(index.find((page) => page.path === "/docs/tradecn-terminal/")?.group).toBe("Themes")
+    expect(index.find((page) => page.path === "/docs/ticket/")?.group).toBe("Components")
     const intro = index.find((page) => page.path === "/docs/")!
     expect(intro.title).toBe("Introduction")
     expect(intro.text).toMatch(/^Trading-terminal components you install with shadcn add\. The source lands in your repo and it's yours\./)
