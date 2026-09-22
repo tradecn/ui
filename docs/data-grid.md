@@ -1,6 +1,6 @@
 # data-grid
 
-A virtualized grid fed by a row store one row at a time: a delta re-renders one row, and nothing else runs.
+A virtualized, editable grid backed by a row store, with sorting, selection, and per-cell flashes.
 
 ## Usage
 
@@ -11,16 +11,17 @@ import { createRowStore } from "@/lib/row-store"
 
 ```tsx
 const store = createRowStore<Rfq>({ getRowId: (r) => r.id, lane: "ordered" })
+const columns: ColumnDef<Rfq>[] = [
+  { key: "client", header: "Client", width: 140, frozen: "left", sortable: true, accessor: (r) => r.client },
+  { key: "px", header: "Price", width: 100, numeric: true, accessor: (r) => r.px, format: (v) => ust.price(v as number) },
+  { key: "timeLeft", header: "Time", width: 80, numeric: true, accessor: (r) => r.secondsLeft },
+]
 
 <DataGrid
   store={store}
   preset="rfq"
   label="Open RFQs"
-  columns={[
-    { key: "client", header: "Client", width: 140, frozen: "left", sortable: true, accessor: (r) => r.client },
-    { key: "px", header: "Price", width: 100, numeric: true, accessor: (r) => r.px, format: (v) => ust.price(v as number) },
-    { key: "timeLeft", header: "Time", width: 80, numeric: true, accessor: (r) => r.secondsLeft },
-  ]}
+  columns={columns}
   onRowActivate={(rfq) => openTicket(rfq)}
   renderContextMenu={(rows) => <ContextMenuItem onClick={() => quote(rows)}>Quote</ContextMenuItem>}
 />
@@ -28,48 +29,197 @@ const store = createRowStore<Rfq>({ getRowId: (r) => r.id, lane: "ordered" })
 
 ## API Reference
 
-### How it stays inside the frame
+### Props
 
-Rows subscribe to their own store entry through `useRow`. A delta to one row re-renders that row and nothing else; the header, the body, and the other rows do not run. A batch that touches two thousand rows is one commit over the rows that changed. Numeric cells flash by direction through one shared flash memory keyed by row and column, so a row that scrolls out of view and back resumes its flash where it was. The flash draws from the `up`, `down`, and `flat` tokens, and the rule tones below from those plus `stale` and `expiring`, all added to your stylesheet if you do not have them.
+`T` is your row type; `RowId` is a string. Give the grid a container with a height. Keep unchanged `columns`, `filter`, `sort`, and rule lists stable between renders to avoid rebuilding the grid's view.
 
-A `numeric` column is right-aligned and set in lining, tabular figures in the numeric family, `--tradecn-font-numeric`, and its cells carry `data-numeric`. Give a column of fraction quotes `font: "mono"` so `99-16+` over `99-17` keeps its dash and its tail in one place; [`typography.md`](typography.md) says why, and `numericFontClass` in [`format`](format.md) makes the same choice from a convention.
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `store` | `RowStore<T>` | Required | Rows from [`row-store`](row-store.md). |
+| `columns` | `ColumnDef<T>[]` | Required | Column definitions; see below. |
+| `label` | `string` | Required | Accessible name of the grid. |
+| `preset` | `DataGridPreset` | `"blotter"` | Defaults from the preset table. |
+| `view` | `RowView<T>` | Internally owned view | Supply your own membership, order, and reorder hold. |
+| `filter` | `(row: T) => boolean` | None | Filter the internally owned view. |
+| `rules` | `GridRules` | None | Cell and row tones, filters, and sort rules. |
+| `rowHeight` | `number` | Preset | Fixed row height in px. |
+| `overscan` | `number` | `8` | Extra rows rendered beyond the viewport. |
+| `rowEnter` | `Partial<RowEnterBehavior>` | Preset | Override `highlight`, `pinViewport`, or `followTail` booleans. |
+| `reorderHoldMs` | `number` | Preset | Delay in ms before the internally owned view reorders after interaction. |
+| `announceRowCount` | `"off" \| "debounced"` | Preset | Enable the polite row-count announcement. |
+| `selectionMode` | `"none" \| "single" \| "multi"` | Preset | Selection behavior. |
+| `selectionColumn` | `boolean` | `false` | Show checkboxes in multi-select mode. |
+| `flashWindowMs` | `number` | `900` | Cell flash duration in ms. |
+| `footer` | `Record<string, (rows: T[]) => string>` | None | Totals keyed by column key. |
+| `onEdit` | `(change: EditChange<T>) => void \| Promise<unknown>` | None | Handle commits; enables columns with `edit`. |
+| `onRowActivate` | `(row: T, id: RowId) => void` | None | Handle Enter or a double click when it does not edit a cell. |
+| `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Menu items for the selection or targeted row. |
+| `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Row classes, state, tone, and accessible description. |
+| `emptyState` | `ReactNode` | `"No rows"` | Empty-view content. |
+| `className` | `string` | None | Classes on the grid root. |
+| `initialRect` | `{ width: number; height: number }` | None | Viewport size in px before measurement, for tests or server rendering. |
 
-Rows have a fixed height (from the preset, or `rowHeight`) and are positioned by TanStack Virtual. That is a requirement, not a limit: it is what makes `pinViewport` exact. When rows arrive above the first visible row, the grid moves `scrollTop` by exactly that many row heights and the trader's view does not jump.
+`RowDecoration` accepts optional string fields: `className`, `data-state`, `data-rule`, `data-tone`, and `aria-description`.
+
+### State and callbacks
+
+Omit a state prop to let the grid manage it. Pass it to control that state, and apply changes from its callback. Callbacks also work with internal state.
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `columnState` | `ColumnState` | `{ order: [], widths: {}, hidden: [] }` | Column keys in order, widths in px by key, and hidden keys. |
+| `onColumnStateChange` | `(state: ColumnState) => void` | None | Receive column changes and resets. |
+| `sort` | `SortState` | `null` | `{ key: string, dir: "asc" \| "desc" }` or no header sort. |
+| `onSortChange` | `(sort: SortState) => void` | None | Receive header sort changes. |
+| `selection` | `ReadonlySet<RowId>` | Empty set | Selected rows. |
+| `onSelectionChange` | `(selection: ReadonlySet<RowId>) => void` | None | Receive selection changes. |
+| `focusedRowId` | `RowId \| null` | `null` | Focused row. |
+| `onFocusedRowChange` | `(id: RowId \| null) => void` | None | Receive row focus changes. |
+
+### Columns
+
+Each `ColumnDef<T>` describes one column. Frozen columns stay on the left, before the other columns regardless of `columnState.order`.
+
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `key` | `string` | Required | Column identity for state, rules, and edits. |
+| `header` | `ReactNode` | Required | Header content. |
+| `width` | `number` | Required | Initial width in px. |
+| `accessor` | `(row: T) => unknown` | Required | Value used for display, sorting, rules, and flash direction. |
+| `minWidth` | `number` | `48` | Minimum width in px. |
+| `align` | `"left" \| "right" \| "center"` | Right if numeric, otherwise left | Text alignment. |
+| `frozen` | `"left"` | None | Keep the column visible during horizontal scrolling. |
+| `sortable` | `boolean` | `false` | Enable header sort controls. |
+| `hidden` | `boolean` | `false` | Hide the column regardless of column state. |
+| `format` | `(value: unknown, row: T) => string` | `String(value)`; nullish values use `NULL_TOKEN` | Display text. |
+| `cell` | `(ctx: { row: T; value: unknown; rowId: RowId; edit?: CellEditHandle }) => ReactNode` | Formatted text | Custom content; flashes still follow the accessor. |
+| `numeric` | `boolean` | `false` | Numeric typography, alignment, and default flashing. |
+| `font` | `"numeric" \| "mono"` | `"numeric"` | Font family for numeric cells. |
+| `flash` | `false \| "fill" \| "ring"` | Preset for numeric columns; otherwise `false` | Override or disable cell flashes. |
+| `parse` | `(text: string) => unknown` | Number if numeric; otherwise text | Read values in grid rules. Separate from `edit.parse`. |
+| `edit` | `CellEdit<T>` | None | Editing behavior; also requires the grid's `onEdit`. |
+
+Numeric cells carry `data-numeric` and use lining, tabular figures in `--tradecn-font-numeric`. Use `font: "mono"` for fraction quotes such as `99-16+` so their punctuation aligns too. [`typography`](typography.md) explains the choice; `numericFontClass` in [`format`](format.md) selects it from an instrument convention.
 
 ### Presets
 
-`blotter` (24px, multi-select, fill flash, hold 750 ms, new rows highlighted and pinned), `watchlist` (22px, single-select, fill), `rfq` (26px, single-select, ring flash, hold 1 s, new rows highlighted and pinned, row count announced), `option-chain` (20px, no selection, ring), `tape` (22px, single-select, fill, new rows highlighted, the viewport follows the tail, row count announced), `parameters` (24px, single-select, ring, no hold, the viewport pinned). Every preset value is a prop you can override. [`watchlist`](watchlist.md), [`blotter`](blotter.md), and [`parameter-grid`](parameter-grid.md) are items built on three of them.
+| Preset | Height (px) | Selection | Flash | Hold (ms) | Highlight arrivals | Viewport | Announce count |
+|---|---|---|---|---|---|---|---|
+| `blotter` | 24 | Multi | Fill | 750 | Yes | Pin | Yes |
+| `watchlist` | 22 | Single | Fill | 0 | No | Unpinned | No |
+| `rfq` | 26 | Single | Ring | 1,000 | Yes | Pin | Yes |
+| `option-chain` | 20 | None | Ring | 0 | No | Unpinned | No |
+| `tape` | 22 | Single | Fill | 0 | Yes | Follow tail | Yes |
+| `parameters` | 24 | Single | Ring | 0 | No | Pin | No |
+
+Override behavior with the corresponding props and each column's `flash`; override the presets' `text-xs` size through `className`. [`watchlist`](watchlist.md), [`blotter`](blotter.md), and [`parameter-grid`](parameter-grid.md) build on these presets.
+
+### How it stays inside the frame
+
+Rows subscribe individually through `useRow`. A value update that leaves the view's membership and order unchanged re-renders the affected visible row without re-rendering the other rows. React batches notifications from one `applyDeltas` call. Sorting, filtering, and footer totals can also do work for that batch.
+
+TanStack Virtual positions fixed-height rows. With `pinViewport`, arrivals or removals adjust `scrollTop` by the first visible row's change in index times `rowHeight`, provided that row remains in the view.
+
+Flash memory is keyed by row and column. A cell returning with the same value resumes a flash only while its window remains open. Reduced motion uses a static mark instead of animation. The install adds `up`, `down`, `flat`, `stale`, and `expiring` tokens and their soft variants if absent; flashes use the first three, and rules can use all five.
 
 ### The reorder hold
 
-With `sort` (or a `view` of your own) rows can move as values change. After any key or pointer interaction the grid calls `view.touch()`, and for `reorderHoldMs` the order freezes: new rows append, removed rows vanish, nothing moves under the cursor. When the hold lapses the grid settles to the sort. Pass your own `view` when the order is a rule you own (a desk's prioritization); the grid then leaves sorting to you.
+Grid key events outside the cell editor and pointer presses in the scroll area call `view.touch()`. During the hold, existing rows keep their relative order, new rows append, and removed or filtered-out rows leave. The view sorts again when the hold expires, even without another feed update.
+
+The `reorderHoldMs` prop configures the internally owned view. With a supplied `view`, configure its hold yourself; the grid still calls `touch()` on it.
 
 ### Following the tail
 
-An append-only feed (a trade tape, an event log) wants the other viewport rule: new rows land at the end and the view goes there. `tape` turns it on, and `rowEnter={{ followTail: true }}` does on any preset. The grid follows the tail after every commit until a key, a pointer, or a scroll away from the end stops it; from then the rows that arrive count up on a `N new` pill over the bottom edge, and pressing it, or scrolling back to the end, follows again. `pinViewport` and `followTail` are two answers to one question, so a preset sets one of them.
+Use `tape` for append-only feeds, or set `rowEnter={{ followTail: true, pinViewport: false }}` on another preset. Row-entry overrides merge with the preset, so turn pinning off explicitly when switching from it.
+
+The viewport moves to the end when following is enabled and as rows arrive. Grid keys, pointer presses in the scroll area, or scrolling away pause following. An `N new` button counts the increase in row count since the pause; click it or scroll to the end to resume. For feeds that also remove rows, this count is net growth, not total arrivals.
 
 ### Footer totals
 
-`footer={{ size: (rows) => formatQuantity(sum(rows)) }}` adds a sticky row under the body with one value per column named, given the view's rows: filtered and ordered, what is on screen. It recomputes once per applied batch (the store's meta changes once a batch), never per frame and never per row, and it does not flash. Numeric columns keep their alignment and figures in the footer. Keep the object's identity stable between renders, as with `filter`; a new object is a recompute.
+`footer={{ size: (rows) => formatQuantity(sum(rows)) }}` adds a sticky totals row. Each function receives all rows in the filtered, ordered view, including rows outside the viewport. Only displayed columns with a footer function get a value.
+
+Totals calculate on mount and subscribe to store batches. Changes to the view's ids, resolved columns, `footer` object, or store also recompute them. Keep `footer` stable between renders. Totals have no per-frame timer or flash and retain the column's numeric typography and alignment.
 
 ### Rules as data
 
-`rules` takes a `GridRules` object from [`grid-rules`](grid-rules.md), installed alongside: `columns` colors cells and rows, `filter` keeps rows, and `sort` orders them, all as plain objects a desk writes without a build. The grid wires them itself. A header sort comes first and the rules' order breaks its ties. Every filter rule has to hold, along with your own `filter`. A cell with a matched rule carries `data-rule`, `data-tone`, and the rule's words in its accessible description, and a row rule marks the row the same way, under whatever `getRowProps` says. A value in a rule is typed in the column's format and read through the column's `parse`, so give a price column `parse: (text) => parsePrice(text, convention)`. With a `view` of your own the grid ignores `rules.filter` and `rules.sort`, as it ignores `filter`, since the view's membership and order are yours; `rules.columns` still apply. Keep the object's identity stable between renders, as with `filter`: a new object is a new view.
+[`grid-rules`](grid-rules.md), installed alongside the grid, supplies `GridRules`: plain data for tones, filtering, and ordering.
+
+| Rule | Internally owned view | Supplied `view` |
+|---|---|---|
+| `rules.columns` | Color cells and rows | Color cells and rows |
+| `rules.filter` | Every rule must pass, along with `filter` | Ignored, as is `filter` |
+| `rules.sort` | Break ties after the header sort; provide the order when no header sort is set | Ignored; the view owns the order |
+
+A supplied view also ignores `sort` for ordering. Header controls can still report changes through `onSortChange` for you to apply.
+
+Rule values use the column's `parse`, for example `parse: (text) => parsePrice(text, convention)`. Matched cells and rows carry `data-rule`, `data-tone`, and an accessible description. `getRowProps` takes precedence over row decorations; a cell's rejection message takes precedence over its rule description.
 
 ### Editing in place
 
-Give a column `edit` and the grid `onEdit`, and that column's cells can be typed in. `edit` is `{ parse, format?, validate?, step?, toggle?, canEdit? }`: `parse(text, row)` reads the typed text as a value or returns `editProblem("…")` with what is wrong, `format` is the text the editor opens with (the column's `format` by default), `validate` is a check on the value before it goes, `step` is what bare Up and Down do in the editor (ten with Shift), `toggle` makes the cell a switch that Enter or Space flips without opening anything (a checkbox column), and `canEdit(row)` keeps a row's cell read-only, which the cell says with `aria-readonly`. Enter, F2, a double click, or typing opens the editor on the focused cell, with the text selected or with the character typed; Enter commits, Escape reverts, Tab and Shift+Tab commit and open the next or previous editable cell of the row. A modifier-held arrow is left to whoever listens above the grid, so a `mod+up` bound in a hotkey registry still fires from inside a cell. Focus leaving the editor commits what parses and drops what does not.
+Give the grid `onEdit` and the column a `CellEdit<T>`:
 
-An edit is a command the server answers, never a local truth. A commit hands `onEdit` a change, `{ rowId, key, value, previous, row }`, and the cell shows the committed value muted with `data-pending` until a later batch brings the row's value to it, or the promise you return resolves. A rejected promise keeps the previous value and prints the message in the cell with `data-rejected`, in destructive, until the cell is edited again. A `cell` renderer of an editable column is given `edit`, the status and a `commit(value)` of its own, so a checkbox can ask the server through the same path and disable itself while the answer is out. Nothing is written to the store here. One cell is edited at a time; multi-cell paste is not part of this version. [`parameter-grid`](parameter-grid.md) is the item built on it.
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `parse` | `(text: string, row: T) => unknown` | Required | Return a value or `editProblem("…")`. |
+| `format` | `(value: unknown, row: T) => string` | Column formatter or `String(value)`; blank for nullish values | Editor and pending text. |
+| `validate` | `(value: unknown, row: T) => EditProblem \| null \| undefined` | None | Return a problem to refuse the value. |
+| `step` | `(value: unknown, dir: 1 \| -1, big: boolean, row: T) => unknown` | None | Return the next value for Up or Down; Shift sets `big`. |
+| `toggle` | `(value: unknown, row: T) => unknown` | None | Return a value to commit without opening an editor. |
+| `canEdit` | `(row: T) => boolean` | Returns `true` | Make individual cells read-only with `false`. |
+
+Use `big` to implement a larger step, such as ten ticks with Shift; the grid does not multiply it. A cell refused by `canEdit` carries `aria-readonly="true"`. [`parameter-grid`](parameter-grid.md) builds a parameter sheet on this API.
+
+Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid input. A value equal to the store's current value sends nothing.
+
+A commit calls `onEdit` with `{ rowId, key, value, previous, row }`. The grid never writes the store. Its default renderer shows the committed text muted with `data-pending` until the store value matches it or the returned promise resolves. Resolution clears pending state and displays the current store value, which may still be the old value. Returning nothing leaves the edit pending until the store matches.
+
+A thrown error or rejection of a still-pending promise displays the store value with the error message, `data-rejected`, and destructive styling. Reopening the editor clears the error. A pending cell can also be reopened, starting from its committed text.
+
+A custom `cell` receives `edit: { status, commit(value), open() }` when editing is enabled for its column. `status` is absent or an object whose `kind` is `editing`, `pending`, or `rejected`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text.
 
 ### Identity
 
-Selection, focus, and the context menu are all row ids. Indices are derived per render. `aria-activedescendant` names the focused row; `aria-rowindex` is the view index plus two; the live region says "1,024 rows, 12 new" at most once a second.
+Selection, focus, and context-menu targets use row ids, so a reorder preserves their identity. `aria-activedescendant` names the focused row while its id is in the view; each data row's `aria-rowindex` is its zero-based view index plus two, accounting for the header.
+
+With announcements enabled, a 1,000 ms timer reports the row count through a polite live region, for example "1,024 rows, 12 new". It starts on mount and restarts when the count changes. Continuous count changes delay the announcement.
 
 ### Keyboard
 
-Up and Down move focus (Shift extends the selection in multi mode), PageUp and PageDown by a screen, Home and End to the ends. Space toggles selection, Enter activates, Escape clears, Ctrl or Cmd+A selects all. Left and Right move the focused column; Alt+Left/Right moves that column, Alt+Shift+Left/Right resizes it by 8px, Alt+S cycles its sort, Alt+H hides it. Shift+F10 or the menu key opens the context menu on the focused row. Every header has a menu (sort, move, hide, reset) and a drag handle to resize.
+With focus in the grid, outside a text editor:
+
+| Key | Action |
+|---|---|
+| Up / Down | Move row focus. |
+| PageUp / PageDown | Move row focus by a viewport. |
+| Home / End | Focus the first / last row. |
+| Shift + a row navigation key | Extend selection in multi-select mode. |
+| Left / Right | Move column focus. |
+| Space | Toggle selection in multi mode; select in single mode. On an editable toggle cell, commit its toggle instead. |
+| Enter | Edit the focused editable cell, including toggles; otherwise activate the row. |
+| F2 | Edit the focused editable cell, including toggles. |
+| Type a character other than Space | Open a text editor with that character, when the cell is editable. |
+| Escape | Clear selection. |
+| Ctrl or Cmd+A | Select all rows in the view in multi mode. |
+| Alt+Left / Right | Move the focused column. |
+| Alt+Shift+Left / Right | Resize the focused column by 8 px. |
+| Alt+S | Cycle a sortable column: ascending, descending, off. |
+| Alt+H | Hide the focused column. |
+| Shift+F10 / Menu | Open the context menu on the focused row. |
+
+Row navigation also selects the focused row in single-select mode. A double click opens an editable text cell or activates the row. Each header has sort, move, hide, and reset controls, plus a resize handle.
+
+Inside a text editor:
+
+| Key | Action |
+|---|---|
+| Enter | Commit and return focus to the grid. |
+| Escape | Discard the edit and return focus to the grid. |
+| Tab / Shift+Tab | Commit and open the next / previous editable text cell in the row, skipping toggles. At either end, return focus to the grid. |
+| Up / Down | Call `step` with direction `1` / `-1`. Shift sets `big: true`. |
+| Ctrl, Cmd, or Alt + Up / Down | Leave the event to listeners above the grid, such as a hotkey registry. |
+
+Opening an editor selects its text unless you opened it by typing a character.
 
 ### What it does not do
 
-Fetching, grouping, tree rows, multi-cell paste, variable row height, local storage. Column state comes back through `onColumnStateChange` for you to keep, rules go in as data, and an edit goes out as a command; the grid does not know where any of them lives.
+The grid does not fetch data, group rows, render trees, paste multiple cells, support variable row heights, or persist state. Feed the store and save state through the callbacks; edits remain commands for your application to handle.
