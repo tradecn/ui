@@ -1,6 +1,6 @@
 # useHotkeys
 
-A hotkey registry: bindings declared once as data, one keydown listener, and scopes read from the DOM so a panel's keys beat global ones.
+Declare keyboard shortcuts once, attach handlers where they're used, and let the focused panel's bindings take priority.
 
 ## Usage
 
@@ -26,33 +26,86 @@ useHotkey("go.blotter", () => navigate("/blotter"))
 
 ## API Reference
 
-A binding is data: an id, keys, a scope, a description. You declare it once. The same list then runs the dispatcher, fills a command palette's shortcut column, and draws a help overlay, so a remap changes all three at once. Handlers attach separately and live as long as the component that owns them.
+Bindings are data; handlers attach separately. The same list can feed the dispatcher, a command palette's shortcut column, and a help overlay, keeping them in sync after a remap.
 
-Keys are modifiers and one key joined by `+`, and a chord is steps separated by a space: `"mod+k"`, `"shift+/"`, `"?"`, `"alt+up"`, `"g b"`. `mod` is ⌘ on a Mac and Ctrl elsewhere. Write the plus key as `plus`. A shifted symbol works either way you write it, and `alt+k` still matches on a Mac, where Option turns the character into `˚`.
+### Bindings
+
+| `HotkeyBinding` field | Type | Default | Purpose |
+|---|---|---|---|
+| `id` | `string` | Required | Nonempty identifier; registering it again replaces the binding. |
+| `keys` | `string` | Required | Shortcut or chord; `""` leaves it unbound. |
+| `scope` | `HotkeyScopeName` | Required | `"global"`, `"editing"`, or `"panel:<id>"`. |
+| `description` | `string` | Required | Text for help and settings. |
+| `group` | `string` | Unset | Grouping metadata for help and settings displays. |
+| `when` | `() => boolean` | No condition | Checked at keydown; `false` skips this binding. |
+| `repeat` | `boolean` | `false` | Accept repeated keydowns while a key is held. |
+| `preventDefault` | `boolean` | `true` | Prevent the browser's default when the handler runs. Chord prefixes always prevent it. |
+
+Join modifiers and one key with `+`; separate chord steps with spaces: `"mod+k"`, `"shift+/"`, `"?"`, `"alt+up"`, `"g b"`. `mod` is ⌘ on a Mac and Ctrl elsewhere. Use `plus` for the plus key. `"?"` and `"shift+/"` both match a shifted question mark; `"alt+k"` matches Option+K even when it produces `˚`.
+
+### React API
+
+`HotkeysProvider` supplies the registry and attaches its listener. Keep `bindings` stable, such as a module constant: changing the array removes the previous declarations and registers the new ones. Unmounting removes those declarations and detaches the listener.
+
+| Provider prop | Type | Default | Purpose |
+|---|---|---|---|
+| `registry` | `HotkeyRegistry` | Created internally | Supply a registry configured or loaded before rendering. |
+| `bindings` | `readonly HotkeyBinding[]` | Unset | Declare these bindings while mounted. |
+| `target` | `HotkeyTarget` | `document` | Event target to listen on, such as a popout's document. |
+| `children` | `ReactNode` | Unset | Content that uses the registry. |
+
+| Hook | Result or behavior |
+|---|---|
+| `useHotkeys()` | Nearest provider's `HotkeyRegistry`; throws without a provider. |
+| `useMaybeHotkeys()` | Same registry, or `null` without a provider. |
+| `useHotkey(id: string, handler: HotkeyHandler, options?)` | Attach the latest `(event: KeyboardEvent) => void` handler while mounted. `options.enabled` is a boolean, default `true`; `false` detaches the handler but keeps the binding listed. |
+| `useHotkeyList()` | Live `readonly HotkeyEntry[]`, including normalized `keys`, normalized `defaultKeys`, and `remapped` when they differ. |
+| `usePendingChord()` | Normalized steps typed so far, or `null`, for a status-bar hint. |
+
+All hooks except `useMaybeHotkeys` require a provider.
 
 ### Scopes
 
-Scope is where the key came from. The chain runs from the event target outward through every `[data-hotkey-scope]` ancestor, then `editing`, then `global`. The innermost binding wins, and a binding whose `when()` is false steps aside for the next one out.
+The dispatcher reads `[data-hotkey-scope]` ancestors from the event target outward, then adds `editing` and `global` outside dialogs. The innermost eligible binding wins. A false `when()` or missing handler lets another binding answer.
 
-- `global` runs anywhere except while you type.
-- `editing` runs anywhere, inputs included. It is the opt-in for keys that are safe mid-word: `mod+k`, `mod+enter`, never a bare letter.
-- `panel:<id>` runs with focus inside `<HotkeyScope scope="panel:<id>">`. The scope element takes focus on click, so clicking a panel is enough to aim the keyboard at it.
+| Event context | Eligible scopes |
+|---|---|
+| Ordinary content | Enclosing scopes, then `editing` and `global`. |
+| Text input, textarea, select, contenteditable, or `role="textbox"` | Only `editing`. Non-text inputs such as checkboxes do not count as typing. |
+| Inside `role="menu"`, `menubar`, or `listbox` | None; the widget owns its keys. |
+| Inside `role="dialog"` or `alertdialog` | Only scopes declared on or within the nearest dialog, still subject to the input and menu rules. |
 
-Three places are protected. Inside a text input, textarea, select, or contenteditable, only `editing` bindings run (a checkbox is not typing). Inside a menu, menubar, or listbox nothing runs, because those own their arrows and letters. A dialog is a wall: with focus inside `role="dialog"` or `alertdialog`, only scopes declared inside that dialog are active, so `x` cannot cancel an order under a confirmation. A ticket in a dialog wraps itself in `<HotkeyScope scope="editing">` and keeps its keys.
+Use `editing` for shortcuts safe while typing, such as `mod+k` and `mod+enter`; avoid bare letters. A ticket inside a dialog can declare `<HotkeyScope scope="editing">` to keep its shortcuts available.
 
-Two instances of one panel share a binding. `useHotkey` called inside a `HotkeyScope` of the binding's own scope answers only for events from that element, so the book with focus is the book that cancels. Called anywhere else it answers for every match.
+`HotkeyScope` requires `scope: HotkeyScopeName` and accepts div props except `ref`, including `children`, `className`, and `style`. It marks the div with `data-hotkey-scope` and defaults `tabIndex` to `-1`, making the panel surface focusable on click.
+
+For two instances of one panel, put each handler beneath its own `HotkeyScope`. If the nearest scope matches the binding's scope, `useHotkey` answers only for events inside that element. Without a matching nearest scope, the handler has no element restriction. The most recently attached eligible handler wins; a handler supplied to `register` is the fallback.
 
 ### Chords
 
-`"g b"` waits one second for the `b` (`chordTimeoutMs`). Escape cancels and is swallowed. A key that does not continue the chord drops it and is read on its own, so `g` then `mod+k` still opens the palette. A chord that starts in a panel outranks a finished global binding on the same first key. `usePendingChord()` gives the steps typed so far for a status-bar hint.
+`"g b"` waits 1,000 ms for `b`. Set `chordTimeoutMs` when creating the registry to change the wait between steps. A chord starting in a nearer scope outranks a completed binding farther out; at the same scope, the completed binding wins immediately.
+
+Already-prevented events, IME composition, and ignored keys such as bare modifiers leave a pending chord untouched. Other keydowns from a menu clear it without consuming the key. Escape elsewhere cancels it and is consumed.
+
+A key that does not continue the chord clears it and is tried on its own, so `g` then `mod+k` can still open the palette. An unmatched repeated keydown can also clear the chord. Scope and handler eligibility are checked again for each step.
 
 ### Conflicts
 
-`register` and `remap` return the conflicts the binding takes part in, and `conflicts()` returns all of them: `duplicate` for the same keys where both can fire, `prefix` when one binding is the start of another's chord and would always win, `shadow` when a panel binding hides a global or editing one while focus is in that panel. A shadow is often what you meant; it is reported so a settings screen can say so. Two different panels never conflict.
+`register` and `remap` return the changed binding's conflicts. `conflicts()` returns all of them. Each result has `kind`, the normalized contested `keys` (the shorter sequence for a prefix), and the two binding `ids`.
+
+| Kind | Reported overlap |
+|---|---|
+| `duplicate` | Same keys in the same scope, or between `global` and `editing`. |
+| `prefix` | One sequence starts another in the same scope, or between `global` and `editing`. |
+| `shadow` | A panel and a global or editing binding share keys or a chord prefix. |
+
+These reports compare declarations, regardless of handlers or `when()`. They do not reject a binding or guarantee which one will run. A shadow may be intentional. Unbound bindings and pairs with different panel scope names are excluded, even when those panels are nested.
 
 ### Remapping
 
-`remap(id, keys)` overrides a binding, `remap(id, "")` unbinds it, `reset(id?)` goes back. Persistence is yours: `onChange` fires with the full override map after a remap or reset, and `load(overrides)` puts it back at startup, before or after the bindings are declared. An override that no longer parses falls back to the default instead of throwing. `keysFromEvent(event)` turns a keydown into the string `remap` takes, for a "press the new shortcut" field. The playground scene has one.
+Persistence is yours. `onChange` receives the full override map after `remap` or `reset`; `load` restores it without calling `onChange`. Overrides can load before or after their bindings. An override that fails to parse falls back to the binding's default keys.
+
+For the plus key, strings such as `"ctrl++"` returned by normalization or capture cannot be parsed again. If a binding defaults to `"x"`, `remap(id, "ctrl+plus")` stores that invalid form and falls back to `"x"`.
 
 ```ts
 const hotkeys = createHotkeyRegistry()
@@ -62,12 +115,44 @@ hotkeys.onChange((overrides) => localStorage.setItem("hotkeys", JSON.stringify(o
 <HotkeysProvider registry={hotkeys} bindings={BINDINGS}>
 ```
 
+| Registry method | Result or behavior |
+|---|---|
+| `remap(id: string, keys: string)` | Override a declared binding; `""` unbinds it, and its default keys remove the override. Returns `HotkeyConflict[]`; throws for unknown ids or keys that do not parse. |
+| `reset(id?: string)` | Remove one override, or all when omitted. |
+| `load(overrides: HotkeyOverrides)` | Replace all overrides. `HotkeyOverrides` is `Record<string, string>`, keyed by binding id. |
+| `overrides()` | Return the current override map. |
+| `onChange(callback)` | Subscribe with `(overrides: HotkeyOverrides) => void`; returns an unsubscribe function. |
+
+`keysFromEvent(event: KeyboardEvent)` captures one step for a shortcut field, or returns `null` for ignored keys such as bare modifiers. The playground includes a capture field; [HotkeyEditor](hotkey-editor.md) provides a settings screen.
+
 ### The rest
 
-`useHotkeyList()` is the live list, each entry with `keys` in force, `defaultKeys`, and `remapped`. `formatKeys("mod+shift+k")` is `[["⇧", "⌘", "K"]]` on a Mac and `[["Ctrl", "Shift", "K"]]` elsewhere, one array per chord step, shaped for shadcn's `kbd` if you have it. `matchesKeys(event, keys)` is for a component that has to answer a binding itself, behind a wall the dispatcher will not cross. `attach(target)` listens on another document, which is how a popout window gets the same keys; attaching one target twice adds one listener.
+`createHotkeyRegistry(options?)` accepts `chordTimeoutMs` (number, default `1000`) and `platform` (`"mac"` or `"other"`, default `detectPlatform()`). The selected platform is available as `registry.platform`.
 
-The dispatcher stays out of events that already had `preventDefault` called, so a grid or a combobox that handled the key keeps it. It ignores IME composition and key repeat, unless a binding sets `repeat`. It calls `preventDefault` on a match unless the binding says otherwise. A binding with no handler attached consumes nothing.
+| Registry method | Result or behavior |
+|---|---|
+| `register(binding: HotkeyBinding, handler?: HotkeyHandler)` | Declare or replace a binding; return its `HotkeyConflict[]`. |
+| `unregister(id: string)` | Remove a declaration. |
+| `bind(id: string, handler: HotkeyHandler, within?: HandlerScope \| null)` | Attach a handler before or after declaration; return a detach function. `within` optionally supplies `{ scope: string, element: () => Element \| null }` for the element restriction described above. |
+| `list()` | Current `readonly HotkeyEntry[]`, also read by `useHotkeyList`. |
+| `conflicts()` | All reported `HotkeyConflict[]`. |
+| `pending()` | Normalized pending chord, or `null`. |
+| `subscribe(callback: () => void)` | Subscribe to list or pending-chord changes; return an unsubscribe function. |
+| `attach(target?: HotkeyTarget)` | Listen for `keydown`; return a detach function. `HotkeyTarget` supplies `addEventListener` and `removeEventListener`. Defaults to `document`, or does nothing when no document exists. |
+| `handle(event: KeyboardEvent)` | Dispatch a forwarded event; return `true` when consumed. |
+
+Attaching the same target more than once adds one listener; it stays until every attachment is detached. Use another document as the target to share bindings with a popout window.
+
+| Key helper | Result |
+|---|---|
+| `normalizeKeys(keys: string, platform?)` | Resolve `mod`, fold aliases, and order modifiers; throw for keys that do not parse. |
+| `formatKeys(keys: string, platform?)` | `string[][]`, one key-cap array per chord step, suitable for shadcn's `kbd`. |
+| `matchesKeys(event: KeyboardEvent, keys: string, platform?)` | Whether a single-step shortcut matches; chords return `false`. This helper does not apply the dispatcher's scope or event guards. |
+
+Each optional helper `platform` is `"mac"` or `"other"` and defaults to `detectPlatform()`. For example, `formatKeys("mod+shift+k")` returns `[["⇧", "⌘", "K"]]` on a Mac and `[["Ctrl", "Shift", "K"]]` elsewhere. Use `matchesKeys` when a component handles a shortcut itself inside a protected context.
+
+The dispatcher ignores events already prevented, IME composition, and keys such as bare modifiers. Bindings run on repeated keydowns only with `repeat: true`. A binding without an eligible handler consumes nothing.
 
 ### What it does not do
 
-`keyup`, a settings screen, or storage. It does not guess at keyboard layouts: it matches the character the key produced, and reads the physical key only when Shift or Option changed that character.
+No `keyup` handling or storage. Matching uses the character produced, with a physical-key fallback when Shift or Option changes it to a symbol; that fallback is disabled for AltGr. It does not infer keyboard layouts.
