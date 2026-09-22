@@ -96,7 +96,7 @@ export function RfqTicketScene() {
           </Button>
         </div>
         <div className="w-[26rem]">
-          <RfqTicket key={venue.inquiry.id} inquiry={venue.inquiry} actions={actions} acknowledged={venue.quoteId} onDraftChange={setDraft} autoFocus />
+          <RfqTicket key={venue.inquiry.id} inquiry={venue.inquiry} actions={actions} acknowledged={venue.quoteId} onDraftChange={setDraft} quickSizes={[1_000_000, 2_000_000, 10_000_000]} autoFocus />
         </div>
         <p className="text-muted-foreground" data-rfq-draft>
           {draft ? describeQuote(draft, venue.inquiry) : " "}

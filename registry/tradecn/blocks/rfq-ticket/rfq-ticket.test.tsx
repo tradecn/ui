@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { RFQ_TICKET_BINDINGS, RfqTicket, checkQuote, describeQuote, formatSize, quoteDistance, quotedSides, type RfqAction, type RfqInquiry, type RfqQuoteDraft, type RfqTicketProps } from "@/registry/tradecn/blocks/rfq-ticket/rfq-ticket"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
@@ -26,7 +26,7 @@ const inquiry = (over: Partial<RfqInquiry> = {}): RfqInquiry => ({
   allowedActions: ["quote", "pass"],
   ...over,
 })
-const draftOf = (over: Partial<RfqQuoteDraft> = {}): RfqQuoteDraft => ({ inquiryId: "Q-1", bid: null, ask: null, ...over })
+const draftOf = (over: Partial<RfqQuoteDraft> = {}): RfqQuoteDraft => ({ inquiryId: "Q-1", bid: null, ask: null, quantity: 5_000_000, ...over })
 
 function mount(props: Partial<RfqTicketProps> = {}, registry: HotkeyRegistry | null = createHotkeyRegistry({ platform: "other" })) {
   const quote = vi.fn()
@@ -323,5 +323,40 @@ describe("limits", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
     expect(quote).toHaveBeenCalledTimes(1)
     expect(document.querySelector("[data-rfq-limits]")).toBeNull()
+  })
+})
+
+describe("quick sizes", () => {
+  it("quotes for a quick size: the inquiry's own size leads the row, a press or a key picks one of yours, and the draft carries it", () => {
+    const { onDraftChange, quote } = mount({ quickSizes: [1_000_000, 2_000_000] })
+    const row = screen.getByRole("group", { name: "For" })
+    expect(within(row).getAllByRole("button").map((b) => b.textContent)).toEqual(["5mm", "1mm", "2mm"])
+    expect(within(row).getByRole("button", { name: "For 5mm" })).toHaveAttribute("aria-pressed", "true")
+    fireEvent.click(within(row).getByRole("button", { name: "For 2mm" }))
+    expect(lastDraft(onDraftChange).quantity).toBe(2_000_000)
+    expect(within(row).getByRole("button", { name: "For 2mm" })).toHaveAttribute("aria-pressed", "true")
+    expect(within(row).getByRole("button", { name: "For 5mm" })).toHaveAttribute("aria-pressed", "false")
+    // mod+1 from inside a field: the first of yours, not the inquiry's.
+    fireEvent.keyDown(field("Offer"), { key: "1", ctrlKey: true })
+    expect(lastDraft(onDraftChange).quantity).toBe(1_000_000)
+    // Back to the full size, and the size rides in the sent draft and in the words.
+    fireEvent.click(within(row).getByRole("button", { name: "For 5mm" }))
+    fireEvent.click(within(row).getByRole("button", { name: "For 2mm" }))
+    type(field("Offer"), "99-16+")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).toHaveBeenCalledWith(draftOf({ ask: 99.515625, quantity: 2_000_000 }), inquiry())
+    expect(describeQuote(draftOf({ ask: 99.515625, quantity: 2_000_000 }), inquiry())).toContain("2mm")
+    expect(describeQuote(draftOf({ ask: 99.515625 }), inquiry())).toContain("5mm")
+    expect(RFQ_TICKET_BINDINGS.filter((b) => b.id.startsWith("rfq.size-")).map((b) => b.keys)).toEqual(["mod+1", "mod+2", "mod+3", "mod+4", "mod+5", "mod+6", "mod+7", "mod+8", "mod+9"])
+  })
+
+  it("draws no row without quickSizes, and the draft carries the inquiry's size", () => {
+    const { onDraftChange } = mount()
+    expect(screen.queryByRole("group", { name: "For" })).toBeNull()
+    type(field("Offer"), "99-16+")
+    expect(lastDraft(onDraftChange)).toEqual(draftOf({ ask: 99.515625 }))
+    // A key for a size that is not there does nothing.
+    fireEvent.keyDown(field("Offer"), { key: "1", ctrlKey: true })
+    expect(lastDraft(onDraftChange).quantity).toBe(5_000_000)
   })
 })

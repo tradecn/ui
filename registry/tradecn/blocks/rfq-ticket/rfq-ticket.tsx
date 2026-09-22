@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
-import { formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
@@ -94,6 +94,8 @@ export interface RfqQuoteDraft {
   inquiryId: string
   bid: number | null
   ask: number | null
+  /** The size the quote is for: the inquiry's, unless a quick size was taken. */
+  quantity?: number
 }
 
 export interface RfqAction {
@@ -111,6 +113,8 @@ export interface RfqAction {
 }
 
 export interface RfqTicketLabels {
+  /** The quick-size row's word: the size the quote is for. */
+  quoteFor: string
   ticket: string
   client: string
   buys: string
@@ -134,6 +138,7 @@ export interface RfqTicketLabels {
 }
 
 export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
+  quoteFor: "For",
   ticket: "Inquiry",
   client: "A client",
   buys: "buys",
@@ -155,12 +160,16 @@ export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
   anyway: "{action} anyway?",
 }
 
+/** `mod+1` to `mod+9`: the quick sizes, in order. */
+export const QUICK_SIZE_KEYS: readonly string[] = ["mod+1", "mod+2", "mod+3", "mod+4", "mod+5", "mod+6", "mod+7", "mod+8", "mod+9"]
+
 /** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket when you have not. */
 export const RFQ_TICKET_BINDINGS: readonly HotkeyBinding[] = [
   { id: "rfq.send", keys: "mod+enter", scope: "editing", description: "Send the quote", group: "Inquiry" },
   { id: "rfq.tick-up", keys: "mod+up", scope: "editing", description: "Level up one tick", group: "Inquiry" },
   { id: "rfq.tick-down", keys: "mod+down", scope: "editing", description: "Level down one tick", group: "Inquiry" },
   { id: "rfq.suggested", keys: "mod+shift+a", scope: "editing", description: "Take the suggested levels", group: "Inquiry" },
+  ...QUICK_SIZE_KEYS.map((keys, i) => ({ id: `rfq.size-${i + 1}`, keys, scope: "editing" as const, description: `Quote for quick size ${i + 1}`, group: "Inquiry" })),
 ]
 
 /** The sides the dealer quotes: a client who buys gets an offer, one who sells gets a bid, a market gets both. */
@@ -191,7 +200,7 @@ export function checkQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: Rf
 /** "Offer 5mm T 4 1/8 05/15/34 @ 99-16+", "Bid 5mm … @ 99-15+", or "99-15+ / 99-16 for 5mm …" for a market. */
 export function describeQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: RfqTicketLabels = DEFAULT_RFQ_TICKET_LABELS): string {
   const { convention } = inquiry.instrument
-  const what = `${formatSize(inquiry.quantity, convention)} ${inquiry.instrument.description ?? inquiry.instrument.symbol}`
+  const what = `${formatSize(draft.quantity ?? inquiry.quantity, convention)} ${inquiry.instrument.description ?? inquiry.instrument.symbol}`
   const level = (v: number | null) => (v === null ? "" : ` @ ${formatQuote(v, convention)}`)
   if (inquiry.side === "buy") return `${labels.ask} ${what}${level(draft.ask)}`
   if (inquiry.side === "sell") return `${labels.bid} ${what}${level(draft.bid)}`
@@ -257,27 +266,29 @@ export interface RfqTicketProps {
   hotkeys?: boolean
   /** The desk's lines, from `limits`: a block shows under its field and holds the actions that send a quote; a confirm makes the action ask again. Each level is checked against the inquiry's market. */
   limits?: Limits
+  /** Sizes the quote may be for besides the inquiry's, as buttons and `mod+1` to `mod+9`, printed in the convention's unit. */
+  quickSizes?: readonly number[]
   labels?: Partial<RfqTicketLabels>
   className?: string
 }
 
 const TONE_CLASS = { up: "text-up", down: "text-down", flat: "text-muted-foreground" } as const
 
-export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, acknowledged, autoFocus = false, disabled = false, hotkeys: declareHotkeys = true, limits, labels: labelsProp, className }: RfqTicketProps) {
+export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, acknowledged, autoFocus = false, disabled = false, hotkeys: declareHotkeys = true, limits, quickSizes, labels: labelsProp, className }: RfqTicketProps) {
   const labels = { ...DEFAULT_RFQ_TICKET_LABELS, ...labelsProp }
   const id = useId()
   const { convention } = inquiry.instrument
   const sides = quotedSides(inquiry.side)
-  const [draft, setDraft] = useState<RfqQuoteDraft>(() => ({ inquiryId: inquiry.id, bid: level(defaultDraft?.bid), ask: level(defaultDraft?.ask) }))
+  const [draft, setDraft] = useState<RfqQuoteDraft>(() => ({ inquiryId: inquiry.id, bid: level(defaultDraft?.bid), ask: level(defaultDraft?.ask), quantity: inquiry.quantity }))
   const [problems, setProblems] = useState<RfqQuoteProblems>({})
   // The action a limit asked again about; the next click on it sends. Any change to a level withdraws the question.
   const [confirming, setConfirming] = useState<string | null>(null)
 
   const box = useRef<HTMLDivElement>(null)
   const inputs = { bid: useRef<HTMLInputElement>(null), ask: useRef<HTMLInputElement>(null) }
-  const latest = useRef({ onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming })
+  const latest = useRef({ onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes })
   useEffect(() => {
-    latest.current = { onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming }
+    latest.current = { onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes }
   })
 
   // The draft is told after it changed, never on the first render.
@@ -300,6 +311,16 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const primary = allowed.find((action) => action.primary) ?? allowed.find((action) => action.needsQuote !== false) ?? allowed[0]
   // The fields are live while some allowed action would send what is in them.
   const quoting = !disabled && allowed.some((action) => action.needsQuote !== false)
+
+  /** The size the quote is for: the inquiry's own, or the n-th quick size (from 1). */
+  function setQuantity(quantity: number) {
+    setDraft((d) => (d.quantity === quantity ? d : { ...d, quantity }))
+    setConfirming(null)
+  }
+  function quick(n: number) {
+    const size = latest.current.quickSizes?.[n - 1]
+    if (size !== undefined && !latest.current.disabled) setQuantity(size)
+  }
 
   function setLevel(side: QuoteSide, value: number | null) {
     setDraft((d) => (d[side] === value ? d : { ...d, [side]: value }))
@@ -375,7 +396,9 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   // Keys: declared once per registry, bound to this ticket's box so another ticket's keys stay its own.
   const registry = useMaybeHotkeys()
-  const handlers = useRef({ send: () => {}, up: () => {}, down: () => {}, suggested: () => {} })
+  const handlers = useRef({ send: () => {}, up: () => {}, down: () => {}, suggested: () => {}, quick: (n: number) => {
+      void n
+    } })
   useEffect(() => {
     handlers.current = {
       send: () => {
@@ -387,6 +410,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       up: () => step(focusedSide(), 1),
       down: () => step(focusedSide(), -1),
       suggested: takeSuggested,
+      quick,
     }
   })
   useEffect(() => {
@@ -402,6 +426,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       registry.bind("rfq.tick-up", guard(() => handlers.current.up()), within),
       registry.bind("rfq.tick-down", guard(() => handlers.current.down()), within),
       registry.bind("rfq.suggested", guard(() => handlers.current.suggested()), within),
+      ...QUICK_SIZE_KEYS.map((_, i) => registry.bind(`rfq.size-${i + 1}`, guard(() => handlers.current.quick(i + 1)), within)),
     ]
     return () => {
       for (const u of unbind) u()
@@ -522,6 +547,17 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             )
           })}
         </div>
+
+        {quickSizes && quickSizes.length > 0 && (
+          <div role="group" aria-label={labels.quoteFor} data-rfq-quick-sizes="" className="flex flex-wrap items-center gap-1">
+            <span className="text-muted-foreground">{labels.quoteFor}</span>
+            {[inquiry.quantity, ...quickSizes.filter((size) => size !== inquiry.quantity)].map((size) => (
+              <Button key={size} type="button" variant="outline" size="sm" className={cn("h-6 px-1.5 text-xs aria-pressed:bg-accent aria-pressed:text-accent-foreground dark:aria-pressed:bg-accent dark:aria-pressed:text-accent-foreground", NUMERIC_CLASS)} disabled={!quoting} aria-pressed={(draft.quantity ?? inquiry.quantity) === size} aria-label={`${labels.quoteFor} ${formatSize(size, convention)}`} data-quick-size={size} onClick={() => setQuantity(size)}>
+                {formatSize(size, convention)}
+              </Button>
+            ))}
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-2" data-rfq-actions={allowed.length}>
           {hasSuggested && (

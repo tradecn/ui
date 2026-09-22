@@ -64,7 +64,7 @@ export default function RfqTicketDemo() {
     <HotkeysProvider bindings={[]}>
       <div className="space-y-3 font-(family-name:--tradecn-font-mono) text-xs">
         <div className="w-[26rem] max-w-full">
-          <RfqTicket key={inquiry.id} inquiry={inquiry} actions={actions} acknowledged={quoteId} />
+          <RfqTicket key={inquiry.id} inquiry={inquiry} actions={actions} acknowledged={quoteId} quickSizes={[1_000_000, 2_000_000, 10_000_000]} />
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => next("buy")}>

@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { checkDraft, describeDraft, parseQuantity, Ticket, TICKET_BINDINGS, type TicketDraft, type TicketInstrument, type TicketProps } from "@/registry/tradecn/blocks/ticket/ticket"
+import { formatQuickSize, checkDraft, describeDraft, parseQuantity, Ticket, TICKET_BINDINGS, type TicketDraft, type TicketInstrument, type TicketProps } from "@/registry/tradecn/blocks/ticket/ticket"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 
@@ -390,5 +390,41 @@ describe("limits", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Send/ }))
     expect(run).toHaveBeenCalledTimes(1)
     expect(document.querySelector("[data-ticket-limits]")).toBeNull()
+  })
+})
+
+describe("quick sizes", () => {
+  it("puts a size in the quantity from a press or a key, printed in the convention's unit, and marks the one in force", () => {
+    const { onDraftChange } = mount({ quickSizes: [1, 5, 10] })
+    const row = screen.getByRole("group", { name: "Quick sizes" })
+    expect(within(row).getAllByRole("button").map((b) => b.textContent)).toEqual(["1", "5", "10"])
+    fireEvent.click(within(row).getByRole("button", { name: "Quantity 5" }))
+    expect(quantity()).toHaveValue("5")
+    expect(lastDraft(onDraftChange).quantity).toBe(5)
+    expect(within(row).getByRole("button", { name: "Quantity 5" })).toHaveAttribute("aria-pressed", "true")
+    expect(within(row).getByRole("button", { name: "Quantity 1" })).toHaveAttribute("aria-pressed", "false")
+    // mod+3 from inside the price field.
+    fireEvent.keyDown(price(), { key: "3", ctrlKey: true })
+    expect(quantity()).toHaveValue("10")
+    expect(lastDraft(onDraftChange).quantity).toBe(10)
+    // A key for a size that is not there does nothing.
+    fireEvent.keyDown(price(), { key: "4", ctrlKey: true })
+    expect(lastDraft(onDraftChange).quantity).toBe(10)
+    // Typing another quantity takes the mark off.
+    type(quantity(), "7")
+    expect(within(row).getByRole("button", { name: "Quantity 10" })).toHaveAttribute("aria-pressed", "false")
+    expect(TICKET_BINDINGS.filter((b) => b.id.startsWith("ticket.size-")).map((b) => b.keys)).toEqual(["mod+1", "mod+2", "mod+3", "mod+4", "mod+5", "mod+6", "mod+7", "mod+8", "mod+9"])
+  })
+
+  it("prints millions when the convention quotes notional, and draws no row without quickSizes", () => {
+    const notional: TicketInstrument = { symbol: "T10", convention: { ...ZN.convention, quantityUnit: "notional" } }
+    const { view } = mount({ instrument: notional, quickSizes: [1_000_000, 5_000_000] })
+    const row = screen.getByRole("group", { name: "Quick sizes" })
+    expect(within(row).getAllByRole("button").map((b) => b.textContent)).toEqual(["1mm", "5mm"])
+    expect(formatQuickSize(2_500_000, notional.convention)).toBe("2.5mm")
+    expect(formatQuickSize(250, ZN.convention)).toBe("250")
+    view.unmount()
+    mount()
+    expect(screen.queryByRole("group", { name: "Quick sizes" })).toBeNull()
   })
 })
