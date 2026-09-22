@@ -1,6 +1,7 @@
 import { cn } from "cn"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Input } from "@/components/ui/input"
+import { useView } from "@/registry/tradecn/hooks/use-row-store"
 import { NULL_TOKEN, formatNotional, formatPrice, formatQuantity } from "@/registry/tradecn/lib/format"
 import { compileComparator, compileFilter, type GridRules, type RuleColumn } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
@@ -153,17 +154,17 @@ export function useRfqStackView<T extends RfqStackRow>(store: RowStore<T>, optio
   const { comparator, threshold = null, filter, reorderHoldMs = 1000, rules, columns } = options
   const ruleFilter = rules?.filter
   const ruleSort = rules?.sort
-  const view = useMemo(() => {
+  const viewOptions = useMemo(() => {
     const ruleColumns = (columns ?? (defaultRuleColumns ??= rfqStackColumns())) as readonly RuleColumn<T>[]
     const byThreshold = rfqThresholdFilter<T>(threshold)
     const byRules = ruleFilter?.length ? compileFilter(ruleFilter, ruleColumns) : null
     const bySort = ruleSort?.length ? compileComparator(ruleSort, ruleColumns) : undefined
     const passes = (row: T) => byThreshold(row) && (byRules ? byRules(row) : true) && (filter ? filter(row) : true)
     const order = comparator && bySort ? stackOrder(comparator, bySort) : (comparator ?? bySort)
-    return store.createView({ comparator: order, filter: passes, reorderHoldMs })
-  }, [store, comparator, threshold, filter, reorderHoldMs, ruleFilter, ruleSort, columns])
-  useEffect(() => () => view.dispose(), [view])
-  return view
+    return { comparator: order, filter: passes, reorderHoldMs }
+  }, [comparator, threshold, filter, reorderHoldMs, ruleFilter, ruleSort, columns])
+  // Owned through useView, which survives StrictMode's mount rehearsal; a memo's view did not.
+  return useView(store, viewOptions)!
 }
 
 export interface RfqStackProps<T extends RfqStackRow = RfqStackRow> extends Omit<DataGridProps<T>, "columns" | "preset" | "label" | "renderContextMenu">, RfqStackColumnOptions<T> {

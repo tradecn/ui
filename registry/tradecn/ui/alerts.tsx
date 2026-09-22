@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { useRow, useRowIds } from "@/registry/tradecn/hooks/use-row-store"
+import { useRow, useRowIds, useView } from "@/registry/tradecn/hooks/use-row-store"
 import { byNewest, type Alert, type AlertStore, type AlertTone } from "@/registry/tradecn/lib/alert-store"
 import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
@@ -83,11 +83,11 @@ function fill(template: string, n: number): string {
   return template.replace("{n}", n.toLocaleString())
 }
 
-/** A view of the store newest first, remade when the store changes and disposed after. */
+const NEWEST_FIRST = { comparator: byNewest }
+
+/** A view of the store newest first, owned by the component through `useView`, remade when the store changes and disposed after. */
 export function useAlertView(alerts: AlertStore): RowView<Alert> {
-  const view = useMemo(() => alerts.store.createView({ comparator: byNewest }), [alerts])
-  useEffect(() => () => view.dispose(), [view])
-  return view
+  return useView(alerts.store, NEWEST_FIRST)!
 }
 
 /** Time, severity, title, message, count. Spread them into your own list to add, drop, or reorder. */

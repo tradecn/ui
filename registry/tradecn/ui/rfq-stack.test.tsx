@@ -1,4 +1,5 @@
 import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react"
+import { StrictMode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useActiveInquiry } from "@/registry/tradecn/hooks/use-active-inquiry"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
@@ -235,5 +236,16 @@ describe("useRfqStackView with rules", () => {
     expect(rowOf("q2")).toHaveAttribute("data-rule", "big")
     expect(rowOf("q2")).toHaveAttribute("aria-description", "Large")
     expect(rowOf("q1")).not.toHaveAttribute("data-rule")
+  })
+})
+
+describe("useRfqStackView under StrictMode", () => {
+  it("keeps following the store after the mount rehearsal", () => {
+    const store = createRowStore<RfqStackRow>({ getRowId: (r) => r.id, lane: "ordered" })
+    const { result } = renderHook(() => useRfqStackView(store, { comparator: bySize, threshold: 5_000_000 }), { wrapper: StrictMode })
+    expect(result.current.getIds()).toEqual([])
+    act(() => store.applyDeltas({ upsert: [q1, q2, q3] }))
+    expect(result.current.getIds()).toEqual(["q2", "q1"])
+    expect(result.current.isDisposed()).toBe(false)
   })
 })

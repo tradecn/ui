@@ -1,4 +1,5 @@
 import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react"
+import { StrictMode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createAlertStore, type Alert } from "@/registry/tradecn/lib/alert-store"
 import { ALERT_TONE_BAR, AlertList, Alerts, alertColumns, useToastBridge } from "@/registry/tradecn/ui/alerts"
@@ -257,3 +258,17 @@ describe("useToastBridge", () => {
 // Keep the type in use so a change to Alert's shape is caught here too.
 const _shape: Alert = { id: "x", at: 0, seq: 1, severity: "s", title: "t", count: 1 }
 void _shape
+
+describe("under StrictMode", () => {
+  it("the strip keeps following the store after the mount rehearsal", () => {
+    const alerts = createAlertStore()
+    render(
+      <StrictMode>
+        <Alerts alerts={alerts} />
+      </StrictMode>,
+    )
+    expect(screen.getByText("No notices.")).toBeInTheDocument()
+    act(() => alerts.push({ severity: "info", title: "Later" }))
+    expect(document.querySelector("li[data-alert-id]")).toHaveTextContent("Later")
+  })
+})

@@ -19,7 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { createFlashMemory, playFlash, useFlash, type FlashMemory } from "@/registry/tradecn/hooks/use-flash"
-import { useRow, useRowIds } from "@/registry/tradecn/hooks/use-row-store"
+import { useRow, useRowIds, useView } from "@/registry/tradecn/hooks/use-row-store"
 import { MONO_NUMERIC_CLASS, NULL_TOKEN, NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
 import { applyRules, compareDirected, compareValues, compileComparator, compileFilter, type AppliedRules, type GridRules, type RuleDecoration } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
@@ -425,8 +425,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     return (row: T) => ownFilter(row) && byRules(row)
   }, [ownFilter, ruleFilter, columns])
   const rules = useMemo(() => (ruleColumns?.length ? applyRules(ruleColumns, columns) : null), [ruleColumns, columns])
-  const ownView = useMemo(() => (props.view ? null : store.createView({ comparator, filter, reorderHoldMs })), [props.view, store, comparator, filter, reorderHoldMs])
-  useEffect(() => () => ownView?.dispose(), [ownView])
+  const ownOptions = useMemo(() => (props.view ? null : { comparator, filter, reorderHoldMs }), [props.view, comparator, filter, reorderHoldMs])
+  const ownView = useView(store, ownOptions)
   const view = props.view ?? ownView!
   const ids = useRowIds(view)
   const indexOf = useMemo(() => new Map(ids.map((id, i) => [id, i] as const)), [ids])
