@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.0](https://github.com/tradecn/ui/compare/v1.0.0...v1.1.0) (2026-09-22)
+
+
+### Features
+
+* **alerts:** a strip of notices over a store that folds repeats ([#63](https://github.com/tradecn/ui/issues/63)) ([6e3adb2](https://github.com/tradecn/ui/commit/6e3adb257c40519b52e1a16fe73e7aeff7b15a40))
+* **column-chooser:** a dialog over one grid's columns ([#60](https://github.com/tradecn/ui/issues/60)) ([60197ff](https://github.com/tradecn/ui/commit/60197ff10c3f10ecc22d6fc79cbe5b7836c5c9fd))
+* **data-grid:** footer totals, a tape preset, and parking in the stack ([#69](https://github.com/tradecn/ui/issues/69)) ([2a6a44d](https://github.com/tradecn/ui/commit/2a6a44d17b3cb8db325c3adc0e15ad1f132df5d8))
+* **grid-rules:** rules as data, and a rules prop on the grid ([#58](https://github.com/tradecn/ui/issues/58)) ([969a888](https://github.com/tradecn/ui/commit/969a8888b69832e629aeaba980201911d0d1774a))
+* **limits:** fat-finger checks as data, and both tickets take them ([#66](https://github.com/tradecn/ui/issues/66)) ([716a60f](https://github.com/tradecn/ui/commit/716a60ff53b182654b5b13ca5cd0add970ba7cc3))
+* **preferences:** the envelope a desk's settings travel in ([#62](https://github.com/tradecn/ui/issues/62)) ([e3d3e12](https://github.com/tradecn/ui/commit/e3d3e12f4906dd28f8770de681752dffc04e238d))
+* **rules-editor:** the editor over one grid's rules ([#61](https://github.com/tradecn/ui/issues/61)) ([6889595](https://github.com/tradecn/ui/commit/6889595bf3a25fd9896236b98d5ceb524abd79b6))
+* **session-calendar:** sessions, holidays, and early closes in the venue's zone ([#65](https://github.com/tradecn/ui/issues/65)) ([3f90537](https://github.com/tradecn/ui/commit/3f90537ea1d5e9b381aa88d310cdc9d08d16b864))
+* **status-bar:** the strip at the bottom of every terminal ([#64](https://github.com/tradecn/ui/issues/64)) ([8f0f7fa](https://github.com/tradecn/ui/commit/8f0f7faf46d8abc3da0e9fe6e8f0de35fb09c25f))
+
+
+### Bug Fixes
+
+* **row-store:** a view survives StrictMode's mount rehearsal ([#67](https://github.com/tradecn/ui/issues/67)) ([e2ffbeb](https://github.com/tradecn/ui/commit/e2ffbeb9c9b24834bd42faa477583dbf6e98d978))
+
 ## [1.0.0](https://github.com/tradecn/ui/compare/v0.3.0...v1.0.0) (2026-09-22)
 
 
