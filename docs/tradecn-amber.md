@@ -12,6 +12,10 @@ npx shadcn@latest add tradecn/ui/tradecn-amber --diff
 
 ## API Reference
 
+### The default theme
+
+This is the theme tradecn.dev wears and the one to start from: the terminal look with a day side. The items' own tokens are not this theme's, though. A project that installs items and no theme gets `tradecn-slate`'s marks, green for up, because that is the habit a screen without a theme is read with; installing amber is what moves up to blue.
+
 ### This one overwrites
 
 Like every theme it replaces shadcn's variables and sets every tradecn token, the typography tokens at their defaults included. It leaves `--font-sans` alone, so your app keeps its type, and it has two palettes: `light` and `dark` differ. Review it with `--diff` first, and restore your stylesheet from version control to go back.

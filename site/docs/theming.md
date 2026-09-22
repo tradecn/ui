@@ -10,7 +10,7 @@ An item adds the tokens its files use to your stylesheet on install, in `:root` 
 
 ## Themes
 
-Themes are `cssVars` and the typography base, no files. Each one overwrites every variable, so `--diff` it first. Every theme has a light side and a dark side, switched by your `dark` class. [Color](color.md) has the research behind the choices and a demo that runs every pair through the three kinds of color blindness.
+Themes are `cssVars` and the typography base, no files. Each one overwrites every variable, so `--diff` it first. Every theme has a light side and a dark side, switched by your `dark` class. `tradecn-amber` is the default: the one this site wears and the first to try. The items' own marks are `tradecn-slate`'s, so a project that installs no theme keeps green for up; amber is what moves up to blue. [Color](color.md) has the research behind the choices and a demo that runs every pair through the three kinds of color blindness.
 
 {{themes}}
 

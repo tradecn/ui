@@ -20,15 +20,15 @@ For a quantity rather than a category, a heat map or a depth ladder, use a perce
 
 | Theme | Surfaces | Primary | Up | Down | For |
 |---|---|---|---|---|---|
-| [`tradecn-slate`](tradecn-slate.md) | Cool near-neutral, two sides | Blue | Bluish green | Vermilion | The default when the desk expects green for up |
+| [`tradecn-amber`](tradecn-amber.md) | Warm paper by day, near-black by night | Amber | Blue | Vermilion | The default: the terminal look with a day side, and the strongest separation under every kind of color blindness |
+| [`tradecn-slate`](tradecn-slate.md) | Cool near-neutral, two sides | Blue | Bluish green | Vermilion | When the desk expects green for up |
 | [`tradecn-slate-east`](tradecn-slate-east.md) | Slate | Blue | Vermilion | Bluish green | Screens for China, Japan, and Taiwan |
-| [`tradecn-amber`](tradecn-amber.md) | Warm paper by day, near-black by night | Amber | Blue | Vermilion | The strongest separation under every kind of color blindness |
 
 Every one has a light side and a dark side, sets every token in both, and appends the typography base. A theme is the only kind of item that overwrites your variables, so `--diff` it first. Two earlier themes, a black terminal with a monospace stack and its green-and-red variant, were removed at 1.0 because the research on this page argues against both: one palette for both modes, a direction pair at equal lightness, and in the variant the one hue pair the common color blindness cannot split.
 
 ## The direction pair
 
-The default pair, in the items' own tokens and in slate, is Okabe and Ito's bluish green for up and vermilion for down. Amber uses their blue for up instead: blue and vermilion stay furthest apart under protanopia, deuteranopia, and tritanopia, and they differ most in lightness, so the pair reads in grayscale too. East is slate's pair the other way around.
+The pair in the items' own tokens, and in slate, is Okabe and Ito's bluish green for up and vermilion for down. Amber uses their blue for up instead: blue and vermilion stay furthest apart under protanopia, deuteranopia, and tritanopia, and they differ most in lightness, so the pair reads in grayscale too. East is slate's pair the other way around. So the two halves of "default" differ on purpose: amber is the default theme, the one tradecn.dev wears and the first to install, while a project that installs items and no theme keeps green for up, because that is the habit such a screen is read with, and taking amber is what moves up to blue.
 
 In every theme, and in the items' own defaults, the two colors of a pair are set a step apart in lightness as well as hue, a grayscale ratio of at least 1.3 to 1 that a test holds them to, and both clear 4.5 to 1 on the page and on a card. And in every component, direction never rides on the hue alone: a signed number prints its sign, a flash cell carries `data-direction`, a sparkline says its direction in words to a screen reader, a ticket's side button says Buy or Sell. That is rule 15 of [the item contract](contract.md), and a test lists every file that colors by direction and the other channel it uses. The demo above runs each theme's pair through the three kinds of color blindness and through grayscale, so you can see what survives.
 

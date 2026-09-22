@@ -65,8 +65,8 @@ const MARKS = ["primary", "up", "down", "stale", "link-1", "link-2", "link-3", "
 const SURFACES = ["background", "card"]
 
 describe("the themes", () => {
-  it("are the three two-sided ones", () => {
-    expect(themes.map((theme) => theme.name)).toEqual(["tradecn-slate", "tradecn-slate-east", "tradecn-amber"])
+  it("are the three two-sided ones, amber first as the default", () => {
+    expect(themes.map((theme) => theme.name)).toEqual(["tradecn-amber", "tradecn-slate", "tradecn-slate-east"])
   })
 
   for (const theme of themes) {

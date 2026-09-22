@@ -26,9 +26,9 @@ To go back, restore your stylesheet from version control. A theme is only values
 
 `up` is the bluish green and `down` the vermilion of Okabe and Ito's colorblind-safe palette, pulled down for white and up for near-black so both clear 4.5 to 1 on the page and on a card. The two are set a step apart in lightness as well as hue (a grayscale ratio of 1.5 to 1 in light and 1.7 to 1 in dark, measured), so the pair still reads in a grayscale print and under the two common kinds of red-green color blindness. If the desk wants red for up, that is [`tradecn-slate-east`](tradecn-slate-east.md). `flat` follows your muted foreground, `panel-active` follows `primary`, `panel-drag-target` follows `ring`, and `panel-error` follows `destructive`.
 
-### The defaults are this theme's light marks
+### The items' light marks are this theme's
 
-The light values every item installs on its own (`--up`, `--down`, `--stale`, `--expiring`, `--panel-sync`, and the four `--link-*`) are this theme's light marks, so a project with no theme reads them at the same contrast on white. Installing slate over them changes the surfaces and the primary, not the light marks. Items never overwrite a variable you already have, so a project that installed an item before 1.0 keeps its older light values until it removes them and runs the item again, or takes a theme.
+[`tradecn-amber`](tradecn-amber.md) is the default theme, but the light values every item installs on its own (`--up`, `--down`, `--stale`, `--expiring`, `--panel-sync`, and the four `--link-*`) are slate's light marks, so a project with no theme reads them at the same contrast on white and keeps green for up. Installing slate over them changes the surfaces and the primary, not the light marks. Items never overwrite a variable you already have, so a project that installed an item before 1.0 keeps its older light values until it removes them and runs the item again, or takes a theme.
 
 ### The colors are checked
 

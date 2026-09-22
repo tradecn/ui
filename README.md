@@ -52,9 +52,9 @@ You already have shadcn's menus and tooltips. This adds what a trading screen ne
 | [`blotter`](docs/blotter.md) | The grid with a blotter's columns. The status is the server's word, never worked out. Cancel only shows for orders the server says can be cancelled, the button says how many, and it asks again when you click. |
 | [`workspace`](docs/workspace.md) | Panels that dock, tab, float, and pop out, on dockview. Every one keeps its keys. The layout is yours to save, and it says in the payload what it left out. |
 | [`ticket`](docs/ticket.md) | An order ticket, the registry's first block. Types `99-16+` and steps by the tick. The buttons are the actions the server allowed and nothing else; the status is the server's word. It sends nothing: it hands you a checked draft. |
-| [`tradecn-slate`](docs/tradecn-slate.md) | A theme, not a component, and the one kind of item that overwrites your variables, so `--diff` it first. A real light side and a real dark side: cool neutrals, a blue primary, the colorblind-safe bluish green and vermilion for up and down. Every color checked at 4.5:1 on its surface, both modes. The items' own light marks are this theme's. |
+| [`tradecn-amber`](docs/tradecn-amber.md) | The default theme, and a theme is the one kind of item that overwrites your variables, so `--diff` it first. Amber, both sides: warm paper by day, near-black by night, and blue and vermilion for direction, the pair that stays apart under every kind of color blindness. It's what tradecn.dev wears. |
+| [`tradecn-slate`](docs/tradecn-slate.md) | A real light side and a real dark side: cool neutrals, a blue primary, the colorblind-safe bluish green and vermilion for up and down. Every color checked at 4.5:1 on its surface, both modes. The items' own light marks are this theme's, so a project with no theme keeps green for up. |
 | [`tradecn-slate-east`](docs/tradecn-slate-east.md) | Slate with red for up and green for down, the way screens in China, Japan, and Taiwan show it. Four tokens differ. |
-| [`tradecn-amber`](docs/tradecn-amber.md) | Amber, both sides. Warm paper by day, near-black by night, and blue and vermilion for direction: the pair that stays apart under every kind of color blindness. It's what tradecn.dev wears. |
 
 ## It rides shadcn
 
