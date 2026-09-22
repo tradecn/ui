@@ -103,13 +103,15 @@ function copyButton(button) {
 const SEARCH_INDEX = "/search.json"
 const MAC = /mac|iphone|ipad|ipod/i.test(navigator.userAgentData?.platform ?? navigator.platform ?? "")
 const MAX_HITS = 20
+/** What the results call a page: the sidebar's name for it, or its title on an index written before there was one. */
+const nameOf = (page) => page.label ?? page.title
 
-/** How well the words fit one hit: 0 when a word fits nowhere. The title counts most, then the heading, then the text. */
-function scoreOf(words, title, heading, text) {
+/** How well the words fit one hit: 0 when a word fits nowhere. The page's names count most, then the heading, then the text. */
+function scoreOf(words, names, heading, text) {
   let score = 0
   for (const word of words) {
-    if (title.startsWith(word)) score += 5
-    else if (title.includes(word)) score += 4
+    if (names.some((name) => name.startsWith(word))) score += 5
+    else if (names.some((name) => name.includes(word))) score += 4
     else if (heading.startsWith(word)) score += 4
     else if (heading.includes(word)) score += 3
     else if (text.includes(word)) score += 1
@@ -127,15 +129,16 @@ function findHits(pages, query) {
       hits.push({ page, order, score: 0, href: page.path })
       return
     }
-    const title = page.title.toLowerCase()
-    const pageScore = scoreOf(words, title, "", page.text.toLowerCase())
+    // A page answers to its title (`data-grid`) and to the name the sidebar shows (`Data Grid`), when they differ.
+    const names = [...new Set([page.title, nameOf(page)])].map((name) => name.toLowerCase())
+    const pageScore = scoreOf(words, names, "", page.text.toLowerCase())
     if (pageScore) hits.push({ page, order, score: pageScore, href: page.path, text: page.text })
     for (const section of page.sections) {
       const heading = section.heading.toLowerCase()
       const text = section.text.toLowerCase()
       // A section answers for a word in its own heading or text. A word that fits only the page's title is the page's hit, or every section would repeat it.
       if (!words.some((word) => heading.includes(word) || text.includes(word))) continue
-      const score = scoreOf(words, title, heading, text)
+      const score = scoreOf(words, names, heading, text)
       if (score) hits.push({ page, order, score, section, href: `${page.path}#${section.id}`, text: section.text })
     }
   })
@@ -258,7 +261,7 @@ function search() {
         current = key
         group = element("div", { role: "group", "aria-labelledby": `search-page-${index}` })
         const label = element("div", { id: `search-page-${index}` }, "search-page")
-        label.append(byPage ? hit.page.title : hit.page.group)
+        label.append(byPage ? nameOf(hit.page) : hit.page.group)
         if (byPage) {
           const kind = element("span", {}, "kind")
           kind.textContent = hit.page.group
@@ -275,7 +278,7 @@ function search() {
         parent.textContent = `${hit.section.parent} › `
         heading.append(parent)
       }
-      heading.append(marked(hit.section ? hit.section.heading : hit.page.title, words))
+      heading.append(marked(hit.section ? hit.section.heading : nameOf(hit.page), words))
       option.append(heading)
       if (hit.text) {
         const snippet = element("span", {}, "search-snippet")

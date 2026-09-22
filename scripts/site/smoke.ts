@@ -336,7 +336,7 @@ for (const item of items) {
     if (!expected.includes("Hooks") || !expected.includes("Utilities")) failures.push(`search: the index has no Hooks or Utilities group (${expected.join(", ")})`)
     // A query groups its hits by page, the page named over them.
     await page.keyboard.type("flash")
-    await page.waitForFunction(() => document.querySelector("dialog.search .search-page")?.textContent?.startsWith("flash-cell"), undefined, { timeout: 5_000 })
+    await page.waitForFunction(() => document.querySelector("dialog.search .search-page")?.textContent?.startsWith("Flash Cell"), undefined, { timeout: 5_000 })
     await page.fill("dialog.search input", "")
     // Text that is on one item's page finds that page's heading.
     await page.keyboard.type("32nds")

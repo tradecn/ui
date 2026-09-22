@@ -208,7 +208,7 @@ describe("a theme on the site", () => {
 })
 
 describe("the preview card", () => {
-  const doc: Doc = { slug: "flash-cell", path: "/docs/flash-cell/", label: "flash-cell", source: "flash-cell.md", title: "flash-cell", description: "", html: "<h1 id=\"flash-cell\">flash-cell</h1>\n<p>What it is.</p>\n<pre><code>usage</code></pre>\n", item: registry.items.find((item) => item.name === "flash-cell") }
+  const doc: Doc = { slug: "flash-cell", path: "/docs/flash-cell/", label: "Flash Cell", source: "flash-cell.md", title: "flash-cell", description: "", html: "<h1 id=\"flash-cell\">flash-cell</h1>\n<p>What it is.</p>\n<pre><code>usage</code></pre>\n", item: registry.items.find((item) => item.name === "flash-cell") }
   const demo = { name: "flash-cell", source: 'import { FlashCell } from "@/registry/tradecn/ui/flash-cell"\n<b>', code: 'import { FlashCell } from "@/components/ui/flash-cell"\n<b>' }
 
   it("frames the item's embed page and shows its source, escaped, under Code", () => {
