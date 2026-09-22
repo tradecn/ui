@@ -7,7 +7,7 @@
       "name": "format",
       "type": "registry:lib",
       "title": "Format",
-      "description": "Number formatting for trading screens: tick-derived precision, 32nds and 64ths with + halves, yields, basis points, DV01, compact notional, signed values, one null sentinel.",
+      "description": "Number formatting for trading screens: tick-derived precision, 32nds and 64ths with + halves, yields, basis points, DV01, compact notional and millions, coupons in eighths, maturities, ticks between two prices, a quote basis per instrument (price, yield, discount, spread) with its own step, signed values, one null sentinel.",
       "registryDependencies": [],
       "files": [
         {

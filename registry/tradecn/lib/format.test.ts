@@ -3,21 +3,32 @@ import fc from "fast-check"
 import { describe, expect, it, vi } from "vitest"
 import {
   NULL_TOKEN,
+  QUOTE_BASIS_LABELS,
   createInstrumentFormatter,
+  daysToMaturity,
   decimalsFromTick,
   formatBps,
+  formatCoupon,
   formatDv01,
   formatFraction,
+  formatMaturity,
   formatNotional,
   formatPercent,
   formatPrice,
   formatQuantity,
+  formatQuote,
   formatSigned,
+  formatTicks,
   formatYield,
   numberFormat,
   parsePrice,
+  parseQuote,
+  quoteStepOf,
   roundToTick,
   stepByTick,
+  stepQuote,
+  ticksBetween,
+  type InstrumentConvention,
   type PriceConvention,
 } from "@/registry/tradecn/lib/format"
 
@@ -168,6 +179,11 @@ describe("null sentinel", () => {
     (v) => formatSigned(v),
     (v) => formatPercent(v),
     (v) => formatQuantity(v),
+    (v) => formatQuote(v, { price: T32, tick: 1 / 64, quoteBasis: "yield" }),
+    (v) => formatCoupon(v),
+    (v) => formatTicks(v),
+    (v) => formatNotional(v, { unit: "mm" }),
+    (v) => formatMaturity(v),
   ]
   it.each([null, undefined, NaN, Infinity, -Infinity])("every formatter returns the sentinel for %s", (v) => {
     for (const fn of fns) expect(fn(v as number)).toBe(NULL_TOKEN)
@@ -182,6 +198,114 @@ describe("instrument formatter", () => {
     expect(ust.parsePrice("99-17")).toBe(99.53125)
     expect(ust.yield(4.25)).toBe("4.250%")
     expect(ust.quantity(5000000)).toBe("5,000,000")
+    expect(ust.basis).toBe("price")
+    expect(ust.quoteStep).toBe(1 / 64)
+    expect(ust.quote(99.515625)).toBe("99-16+")
+    expect(ust.parseQuote("99-17")).toBe(99.53125)
+    expect(ust.stepQuote(99.5, 1)).toBe(99.515625)
+  })
+})
+
+describe("the quote basis", () => {
+  const note: InstrumentConvention = { price: T32, tick: 1 / 64 }
+  const bill: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.0005, quoteBasis: "discount" }
+  const onYield: InstrumentConvention = { price: T32, tick: 1 / 64, quoteBasis: "yield", quoteDecimals: 4, quoteStep: 0.0005 }
+  const credit: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.001, quoteBasis: "spread" }
+  it("is price unless said, and each basis has a step and decimals of its own", () => {
+    expect(quoteStepOf(note)).toBe(1 / 64)
+    expect(quoteStepOf(bill)).toBe(0.001)
+    expect(quoteStepOf(onYield)).toBe(0.0005)
+    expect(quoteStepOf(credit)).toBe(0.1)
+    expect(Object.keys(QUOTE_BASIS_LABELS).sort()).toEqual(["discount", "price", "spread", "yield"])
+  })
+  it("prints and reads a quote in its basis, with no unit", () => {
+    expect(formatQuote(99.515625, note)).toBe("99-16+")
+    expect(parseQuote("99-16+", note)).toBe(99.515625)
+    expect(formatQuote(4.2531, bill)).toBe("4.253")
+    expect(parseQuote("4.2531", bill)).toBe(4.253)
+    expect(parseQuote(" 4,253.2 ", bill)).toBe(4253.2)
+    expect(formatQuote(4.25275, onYield)).toBe("4.2530")
+    expect(parseQuote("4.2527", onYield)).toBe(4.2525)
+    expect(formatQuote(12.55, credit)).toBe("12.6")
+    expect(parseQuote("12.55", credit)).toBe(12.6)
+    expect(formatQuote(-0.5, credit)).toBe(`${MINUS}0.5`)
+    expect(parseQuote("abc", credit)).toBeNull()
+    expect(parseQuote("", bill)).toBeNull()
+    expect(parseQuote("4-16", bill)).toBeNull()
+  })
+  it("steps in its basis", () => {
+    expect(stepQuote(99.5, note, 1)).toBe(99.515625)
+    expect(stepQuote(4.253, bill, -3)).toBe(4.25)
+    expect(stepQuote(12.6, credit, 4)).toBe(13)
+  })
+  it("reads back what it printed on the basis grid", () => {
+    fc.assert(fc.property(fc.integer({ min: 0, max: 20_000 }), (n) => parseQuote(formatQuote(n / 1000, bill), bill) === n / 1000))
+    fc.assert(fc.property(fc.integer({ min: -5000, max: 5000 }), (n) => parseQuote(formatQuote(n / 10, credit), credit) === n / 10))
+  })
+})
+
+describe("coupons, maturities, ticks, and millions", () => {
+  it.each([
+    [4.125, "4 1/8"],
+    [4.25, "4 1/4"],
+    [4.375, "4 3/8"],
+    [4.5, "4 1/2"],
+    [4.75, "4 3/4"],
+    [4.875, "4 7/8"],
+    [4, "4"],
+    [0, "0"],
+    [0.125, "1/8"],
+    [4.1, "4.1"],
+    [4.1234, "4.123"],
+    [-4.125, `${MINUS}4 1/8`],
+  ])("coupon %d prints as %s", (v, s) => {
+    expect(formatCoupon(v)).toBe(s)
+  })
+  it("prints a coupon as a decimal when asked", () => {
+    expect(formatCoupon(4.125, { style: "decimal" })).toBe("4.125%")
+    expect(formatCoupon(4.125, { style: "decimal", decimals: 2 })).toBe("4.13%")
+  })
+  it("prints a maturity in UTC, two-digit year by default", () => {
+    expect(formatMaturity("2034-05-15")).toBe("05/15/34")
+    expect(formatMaturity("2034-05-15", { year: "numeric" })).toBe("05/15/2034")
+    expect(formatMaturity(Date.UTC(2034, 4, 15))).toBe("05/15/34")
+    expect(formatMaturity(new Date(Date.UTC(2034, 4, 15, 23, 59)))).toBe("05/15/34")
+    expect(formatMaturity("2034-05-15", { locale: "de-DE" })).toMatch(/15\.05\.34/)
+    expect(formatMaturity("nope")).toBe(NULL_TOKEN)
+    expect(formatMaturity(null)).toBe(NULL_TOKEN)
+  })
+  it("counts whole days to a maturity", () => {
+    const today = Date.UTC(2026, 8, 21, 15)
+    expect(daysToMaturity("2026-12-24", today)).toBe(94)
+    expect(daysToMaturity("2026-09-21", today)).toBe(0)
+    expect(daysToMaturity("2026-09-20", today)).toBe(-1)
+    expect(daysToMaturity("2027-09-21", today)).toBe(365)
+    expect(daysToMaturity("nope", today)).toBeNull()
+    expect(daysToMaturity(null, today)).toBeNull()
+  })
+  it("counts ticks between two prices to the nearest eighth", () => {
+    expect(ticksBetween(99.53125, 99.515625, 1 / 64)).toBe(1)
+    expect(ticksBetween(99.5, 99.515625, 1 / 64)).toBe(-1)
+    expect(ticksBetween(100.0012, 100, 0.001)).toBe(1.25)
+    expect(ticksBetween(100, 100, 0.001)).toBe(0)
+    expect(ticksBetween(100, 100, 0)).toBeNaN()
+    expect(ticksBetween(NaN, 100, 0.001)).toBeNaN()
+  })
+  it("prints ticks signed, trimmed, with a unit when given", () => {
+    expect(formatTicks(1)).toBe("+1")
+    expect(formatTicks(-0.5)).toBe(`${MINUS}0.5`)
+    expect(formatTicks(0)).toBe("0")
+    expect(formatTicks(1.25)).toBe("+1.25")
+    expect(formatTicks(1, { signed: false })).toBe("1")
+    expect(formatTicks(2, { unit: "ticks" })).toBe("+2 ticks")
+  })
+  it("prints millions as the desk says them", () => {
+    expect(formatNotional(5e6, { unit: "mm" })).toBe("5mm")
+    expect(formatNotional(50_000, { unit: "mm" })).toBe("0.05mm")
+    expect(formatNotional(2.5e6, { unit: "mm" })).toBe("2.5mm")
+    expect(formatNotional(1.25e9, { unit: "mm" })).toBe("1,250mm")
+    expect(formatNotional(-5e6, { unit: "mm" })).toBe(`${MINUS}5mm`)
+    expect(formatNotional(1.25e6, { unit: "mm", decimals: 1 })).toBe("1.3mm")
   })
 })
 

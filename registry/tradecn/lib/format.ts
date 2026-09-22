@@ -23,12 +23,21 @@ export type PriceConvention =
    */
   | { kind: "fraction"; denominator: 32 | 64; half: "+" | "5"; eighths?: boolean }
 
+/** What a quote is typed and read in. Bills quote on discount, most bonds on price, some on yield, credit often on a spread in basis points. */
+export type QuoteBasis = "price" | "yield" | "discount" | "spread"
+
 export interface InstrumentConvention {
   price: PriceConvention
   /** Smallest price increment, used for stepping and rounding. */
   tick: number
   yieldDecimals?: number
   quantityUnit?: "notional" | "contracts"
+  /** Default price. */
+  quoteBasis?: QuoteBasis
+  /** What a quote steps by in its basis. Default: the tick for price, 0.001 for yield and discount, 0.1 for spread. */
+  quoteStep?: number
+  /** Decimals for a yield, discount, or spread quote. Default 3, 3, and 1. Price quotes follow their convention. */
+  quoteDecimals?: number
 }
 
 function isNil(v: Nullable): v is null | undefined {
@@ -177,10 +186,11 @@ export function formatDv01(v: Nullable, o: { currency?: string; compact?: boolea
   return typographicMinus(numberFormat(o.locale, { style: "currency", currency, currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 }).format(v))
 }
 
-/** 1250000 as "1.25M" (compact) or "1,250,000.00". Suffixes K, M, B, T. */
-export function formatNotional(v: Nullable, o: { compact?: boolean; decimals?: number } & Locale = {}): string {
+/** 1250000 as "1.25M" (compact), "1.25mm" (unit "mm", the desk's word for millions, never scaled further), or "1,250,000.00". Compact suffixes K, M, B, T. */
+export function formatNotional(v: Nullable, o: { compact?: boolean; decimals?: number; unit?: "mm" } & Locale = {}): string {
   if (isNil(v)) return NULL_TOKEN
   const decimals = o.decimals ?? 2
+  if (o.unit === "mm") return typographicMinus(numberFormat(o.locale, { minimumFractionDigits: 0, maximumFractionDigits: decimals }).format(v / 1e6)) + "mm"
   if (!o.compact) return typographicMinus(fixed(v, decimals, o.locale))
   const abs = Math.abs(v)
   const [divisor, suffix] = abs >= 1e12 ? [1e12, "T"] : abs >= 1e9 ? [1e9, "B"] : abs >= 1e6 ? [1e6, "M"] : abs >= 1e3 ? [1e3, "K"] : [1, ""]
@@ -206,14 +216,129 @@ export function formatQuantity(v: Nullable, l?: Locale): string {
   return typographicMinus(fixed(Math.round(v), 0, l?.locale))
 }
 
-/** Bind a convention once per instrument; a grid column calls `formatters[row.instrumentId].price(v)`. */
+/**
+ * A coupon the way a run prints it: 4.125 as "4 1/8", 4.5 as "4 1/2", 4 as "4", 0 as "0" (coupons step in eighths).
+ * One off the eighths grid prints as a plain decimal, "4.1". `style: "decimal"` prints "4.125%".
+ */
+export function formatCoupon(v: Nullable, o: { style?: "fraction" | "decimal"; decimals?: number } & Locale = {}): string {
+  if (isNil(v)) return NULL_TOKEN
+  if (o.style === "decimal") return typographicMinus(fixed(v, o.decimals ?? 3, o.locale)) + "%"
+  const eighths = Math.round(Math.abs(v) * 8)
+  if (Math.abs(eighths / 8 - Math.abs(v)) > 1e-9) return typographicMinus(numberFormat(o.locale, { minimumFractionDigits: 0, maximumFractionDigits: o.decimals ?? 3 }).format(v))
+  const whole = Math.floor(eighths / 8)
+  const rem = eighths % 8
+  const fraction = rem === 0 ? "" : rem % 4 === 0 ? "1/2" : rem % 2 === 0 ? `${rem / 2}/4` : `${rem}/8`
+  const body = fraction ? (whole ? `${whole} ${fraction}` : fraction) : String(whole)
+  return `${v < 0 && eighths > 0 ? MINUS : ""}${body}`
+}
+
+/** A date as an instant, a millisecond count, or a string `Date` can read. A date-only string ("2034-05-15") is that day in UTC. */
+export type DateLike = Date | number | string
+
+function toDate(d: DateLike | null | undefined): Date | null {
+  if (d === null || d === undefined) return null
+  const date = d instanceof Date ? d : new Date(d)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+const dateFormatters = new Map<string, Intl.DateTimeFormat>()
+
+/**
+ * A maturity as a run prints it: "05/15/34", or "05/15/2034" with `year: "numeric"`. Read in UTC, so a
+ * date-only string prints as that day wherever the screen is.
+ */
+export function formatMaturity(d: DateLike | null | undefined, o: { year?: "2-digit" | "numeric" } & Locale = {}): string {
+  const date = toDate(d)
+  if (!date) return NULL_TOKEN
+  const key = `${o.locale ?? "en-US"}|${o.year ?? "2-digit"}`
+  let f = dateFormatters.get(key)
+  if (!f) {
+    f = new Intl.DateTimeFormat(o.locale ?? "en-US", { month: "2-digit", day: "2-digit", year: o.year ?? "2-digit", timeZone: "UTC" })
+    dateFormatters.set(key, f)
+  }
+  return f.format(date)
+}
+
+/** Whole UTC days from `now` (the moment, by default) to a maturity. Negative once it has passed; null when the date does not read. */
+export function daysToMaturity(d: DateLike | null | undefined, now: DateLike = Date.now()): number | null {
+  const maturity = toDate(d)
+  const from = toDate(now)
+  if (!maturity || !from) return null
+  const day = (x: Date) => Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate())
+  return Math.round((day(maturity) - day(from)) / 86_400_000)
+}
+
+/** How many ticks `a` is from `b`, signed, to the nearest eighth of a tick: 99-17 against 99-16+ on a 1/64 tick is 1. NaN when a side is not a number or the tick is not positive. */
+export function ticksBetween(a: number, b: number, tick: number): number {
+  if (!Number.isFinite(a) || !Number.isFinite(b) || !(tick > 0)) return NaN
+  return Math.round(((a - b) / tick) * 8) / 8
+}
+
+/** A count of ticks: "+1", "−0.5", "0", up to three decimals and no trailing zeros. Signed unless told otherwise; `unit` adds a word. */
+export function formatTicks(v: Nullable, o: { signed?: boolean; unit?: string } & Locale = {}): string {
+  if (isNil(v)) return NULL_TOKEN
+  const body = typographicMinus(numberFormat(o.locale, { minimumFractionDigits: 0, maximumFractionDigits: 3, signDisplay: o.signed === false ? "auto" : "exceptZero" }).format(v))
+  return o.unit ? `${body} ${o.unit}` : body
+}
+
+/** The word for a quote field's label, per basis. */
+export const QUOTE_BASIS_LABELS: Record<QuoteBasis, string> = { price: "Price", yield: "Yield", discount: "Discount", spread: "Spread" }
+
+const QUOTE_DEFAULTS: Record<Exclude<QuoteBasis, "price">, { step: number; decimals: number }> = {
+  yield: { step: 0.001, decimals: 3 },
+  discount: { step: 0.001, decimals: 3 },
+  spread: { step: 0.1, decimals: 1 },
+}
+
+export function quoteBasisOf(c: InstrumentConvention): QuoteBasis {
+  return c.quoteBasis ?? "price"
+}
+
+/** What a quote steps by in its basis: the tick for a price, else `quoteStep` or the basis default. */
+export function quoteStepOf(c: InstrumentConvention): number {
+  const basis = quoteBasisOf(c)
+  return basis === "price" ? c.tick : (c.quoteStep ?? QUOTE_DEFAULTS[basis].step)
+}
+
+function quoteDecimalsOf(c: InstrumentConvention): number {
+  const basis = quoteBasisOf(c)
+  return basis === "price" ? 0 : (c.quoteDecimals ?? QUOTE_DEFAULTS[basis].decimals)
+}
+
+/** A quote in the instrument's basis: a price by its convention, else a fixed decimal with the basis's decimals and no unit, since the field's label says the basis. */
+export function formatQuote(v: Nullable, c: InstrumentConvention, l?: Locale): string {
+  if (isNil(v)) return NULL_TOKEN
+  if (quoteBasisOf(c) === "price") return formatPrice(v, c.price, l)
+  return typographicMinus(fixed(roundToTick(v, quoteStepOf(c)), quoteDecimalsOf(c), l?.locale))
+}
+
+/** Inverse of formatQuote for a quote field. A price takes its notation or a decimal; the others take a decimal and snap to the quote step. Null when the text is not a quote. */
+export function parseQuote(s: string, c: InstrumentConvention): number | null {
+  if (quoteBasisOf(c) === "price") return parsePrice(s, c.price)
+  const text = s.trim().replace(/−/g, "-").replace(/,/g, "")
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) return null
+  const n = Number(text)
+  return Number.isFinite(n) ? roundToTick(n, quoteStepOf(c)) : null
+}
+
+/** Move a quote by `steps` of its step, from the nearest grid value. */
+export function stepQuote(v: number, c: InstrumentConvention, steps: number): number {
+  return stepByTick(v, quoteStepOf(c), steps)
+}
+
+/** Bind a convention once per instrument; a grid column calls `formatters[row.instrumentId].price(v)`, a quote field its `quote`, `parseQuote`, and `stepQuote`. */
 export function createInstrumentFormatter(c: InstrumentConvention, l?: Locale) {
   return {
     tick: c.tick,
+    basis: quoteBasisOf(c),
+    quoteStep: quoteStepOf(c),
     price: (v: Nullable) => formatPrice(v, c.price, l),
     yield: (v: Nullable) => formatYield(v, { decimals: c.yieldDecimals ?? 3, locale: l?.locale }),
     step: (v: number, steps: number) => stepByTick(v, c.tick, steps),
     parsePrice: (s: string) => parsePrice(s, c.price),
     quantity: (v: Nullable) => formatQuantity(v, l),
+    quote: (v: Nullable) => formatQuote(v, c, l),
+    parseQuote: (s: string) => parseQuote(s, c),
+    stepQuote: (v: number, steps: number) => stepQuote(v, c, steps),
   }
 }
