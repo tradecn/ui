@@ -326,3 +326,76 @@ describe("under StrictMode", () => {
     expect(screen.getAllByRole("row")[1]).toHaveAttribute("data-row-id", "r9")
   })
 })
+
+describe("footer totals and the tape", () => {
+  it("totals the view's rows in a sticky row, in the column's figures, once per applied batch", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(10, store)
+    const total = vi.fn((rows: Quote[]) => rows.reduce((s, r) => s + r.px, 0).toFixed(2))
+    const footer = { px: total }
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} footer={footer} filter={(r) => r.px < 105} />)
+    const grid = screen.getByRole("grid")
+    // Five rows pass the filter, plus the header and the footer.
+    expect(grid).toHaveAttribute("aria-rowcount", "7")
+    const row = grid.querySelector("[data-grid-footer]")!
+    expect(row).toHaveAttribute("role", "row")
+    expect(row).toHaveAttribute("aria-rowindex", "7")
+    const cell = row.querySelector("[data-col='px']")!
+    expect(cell).toHaveTextContent("510.00")
+    expect(cell).toHaveAttribute("data-numeric")
+    expect(cell.className).toContain("justify-end")
+    expect(row.querySelector("[data-col='sym']")).toHaveTextContent("")
+    expect(total).toHaveBeenCalledTimes(1)
+    // One batch touching three rows is one recompute, over the rows the view shows: r0 leaves the filter.
+    act(() =>
+      store.applyDeltas({
+        patch: [
+          { id: "r0", fields: { px: 200 } },
+          { id: "r1", fields: { px: 101.5 } },
+          { id: "r2", fields: { px: 102.5 } },
+        ],
+      }),
+    )
+    expect(total).toHaveBeenCalledTimes(2)
+    expect(cell).toHaveTextContent("411.00")
+    expect(grid).toHaveAttribute("aria-rowcount", "6")
+  })
+
+  it("a tape follows the tail and counts arrivals on a pill after a touch, and the pill returns to the tail", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(5, store)
+    render(<DataGrid store={store} columns={columns} label="Tape" preset="tape" rowHeight={ROW_HEIGHT} initialRect={RECT} />)
+    const grid = screen.getByRole("grid")
+    expect(grid).toHaveAttribute("data-preset", "tape")
+    expect(DATA_GRID_PRESETS.tape.rowEnter).toEqual({ highlight: true, pinViewport: false, followTail: true })
+    // Rows arriving while following: no pill.
+    act(() => store.applyDeltas({ upsert: [{ id: "r5", sym: "S0005", px: 105, qty: 50 }] }))
+    expect(grid.querySelector("[data-grid-behind]")).toBeNull()
+    // A pointer on a row stops the following; the arrivals from then on count.
+    fireEvent.pointerDown(screen.getAllByRole("row")[1]!)
+    act(() =>
+      store.applyDeltas({
+        upsert: [
+          { id: "r6", sym: "S0006", px: 106, qty: 60 },
+          { id: "r7", sym: "S0007", px: 107, qty: 70 },
+        ],
+      }),
+    )
+    const pill = grid.querySelector("[data-grid-behind]")!
+    expect(pill).toHaveTextContent("2 new")
+    expect(pill).toHaveAttribute("data-grid-behind", "2")
+    fireEvent.click(pill)
+    expect(grid.querySelector("[data-grid-behind]")).toBeNull()
+    // A key stops it too.
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    act(() => store.applyDeltas({ upsert: [{ id: "r8", sym: "S0008", px: 108, qty: 80 }] }))
+    expect(grid.querySelector("[data-grid-behind]")).toHaveTextContent("1 new")
+    // Another preset never shows it.
+    const other = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(2, other)
+    const { container } = render(<DataGrid store={other} columns={columns} label="Blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} />)
+    fireEvent.pointerDown(container.querySelector("[data-row-id='r0']")!)
+    act(() => other.applyDeltas({ upsert: [{ id: "r9", sym: "S0009", px: 109, qty: 90 }] }))
+    expect(container.querySelector("[data-grid-behind]")).toBeNull()
+  })
+})

@@ -173,6 +173,8 @@ export interface RfqStackProps<T extends RfqStackRow = RfqStackRow> extends Omit
   label?: string
   /** The inquiry in the ticket. Its row is marked. */
   activeId?: RowId | null
+  /** Inquiries set aside, from `useActiveInquiry`'s `parked`. Their rows are muted and wear `data-state="parked"`. */
+  parkedIds?: ReadonlySet<RowId>
   /** Enter or a double click on a row: the trader wants this one in the ticket. */
   onActivate?: (id: RowId, row: T) => void
   /** Hide auto-quoted inquiries under this size. Controlled with `onThresholdChange`. Applied by the grid's own view; with a `view` of yours, build it with `useRfqStackView` and the threshold is in it. */
@@ -235,6 +237,7 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
   clock,
   label = "Inquiries",
   activeId = null,
+  parkedIds,
   onActivate,
   threshold: thresholdProp,
   defaultThreshold = null,
@@ -285,9 +288,16 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
     (row: T, id: RowId) => {
       const own = latest.current.getRowProps?.(row, id)
       const active = id === activeId
-      return { ...own, "data-state": active ? "active" : own?.["data-state"], className: cn(active && "bg-primary/10 shadow-[inset_2px_0_0_var(--primary)]", own?.className) }
+      // Set aside: muted, named to a screen reader, still in its place in the order. The active mark wins.
+      const parked = !active && parkedIds?.has(id) === true
+      return {
+        ...own,
+        "data-state": active ? "active" : parked ? "parked" : own?.["data-state"],
+        "aria-description": parked ? (own?.["aria-description"] ?? "Parked") : own?.["aria-description"],
+        className: cn(active && "bg-primary/10 shadow-[inset_2px_0_0_var(--primary)]", parked && "text-muted-foreground", own?.className),
+      }
     },
-    [activeId],
+    [activeId, parkedIds],
   )
   const hasOwnMenu = Boolean(renderContextMenu)
   const menu = useCallback((rows: T[], ids: RowId[]) => latest.current.renderContextMenu?.(rows, ids), [])

@@ -20,11 +20,19 @@ export function RfqStackScene() {
   const view = useRfqStackView(store, { comparator: bySize, threshold })
   const active = useActiveInquiry(view, { isEnded: (row) => row.status === "Expired" || row.status === "Done" })
   return (
-    <div className="flex h-56 w-[44rem] flex-col gap-1" data-rfq-active={active.activeId ?? ""}>
-      <RfqStack store={store} view={view} activeId={active.activeId} onActivate={active.setActive} threshold={threshold} onThresholdChange={setThreshold} />
-      <button type="button" onClick={() => store.applyDeltas({ patch: [{ id: "q2", fields: { status: "Done" } }] })}>
-        venue ends q2
-      </button>
+    <div className="flex h-56 w-[44rem] flex-col gap-1" data-rfq-active={active.activeId ?? ""} data-rfq-parked={[...active.parked].join(" ")}>
+      <RfqStack store={store} view={view} activeId={active.activeId} parkedIds={active.parked} onActivate={active.setActive} threshold={threshold} onThresholdChange={setThreshold} />
+      <div className="flex gap-2">
+        <button type="button" onClick={() => store.applyDeltas({ patch: [{ id: "q2", fields: { status: "Done" } }] })}>
+          venue ends q2
+        </button>
+        <button type="button" onClick={() => active.park("q1")}>
+          park q1
+        </button>
+        <button type="button" onClick={() => active.unpark("q1")}>
+          unpark q1
+        </button>
+      </div>
     </div>
   )
 }

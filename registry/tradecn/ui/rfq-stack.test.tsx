@@ -249,3 +249,47 @@ describe("useRfqStackView under StrictMode", () => {
     expect(result.current.isDisposed()).toBe(false)
   })
 })
+
+describe("parking", () => {
+  const ended = (row: RfqStackRow) => row.status === "Done" || row.status === "Expired"
+
+  it("a parked inquiry is never the next one, parking the active one hands the ticket on, picking one brings it back, and it leaves the set with its row", () => {
+    const store = seeded()
+    const view = store.createView({ comparator: bySize })
+    const { result } = renderHook(() => useActiveInquiry(view, { isEnded: ended }))
+    expect(result.current.activeId).toBe("q2")
+    act(() => result.current.park("q2"))
+    expect(result.current.activeId).toBe("q1")
+    expect([...result.current.parked]).toEqual(["q2"])
+    // The server ends the active one: the next open one is q3, not the parked q2 ahead of it.
+    act(() => store.applyDeltas({ patch: [{ id: "q1", fields: { status: "Done" } }] }))
+    expect(result.current.activeId).toBe("q3")
+    // Let back in line, it waits its turn.
+    act(() => result.current.unpark("q2"))
+    expect(result.current.activeId).toBe("q3")
+    expect(result.current.parked.size).toBe(0)
+    // Picking a parked one is the trader's word: it is active and parked no more.
+    act(() => result.current.park("q2"))
+    act(() => result.current.setActive("q2"))
+    expect(result.current.activeId).toBe("q2")
+    expect(result.current.parked.has("q2")).toBe(false)
+    // next() skips a parked row as well.
+    act(() => result.current.park("q4"))
+    act(() => result.current.next())
+    expect(result.current.activeId).toBe("q3")
+    // A parked row that leaves the store leaves the set.
+    act(() => store.applyDeltas({ remove: ["q4"] }))
+    expect(result.current.parked.size).toBe(0)
+    view.dispose()
+  })
+
+  it("the stack mutes a parked row, marks it, and says so; the active mark wins", () => {
+    render(<Harness store={seeded()} activeId="q2" parkedIds={new Set(["q1", "q2"])} />)
+    expect(rowOf("q1").dataset.state).toBe("parked")
+    expect(rowOf("q1").getAttribute("aria-description")).toBe("Parked")
+    expect(rowOf("q1").className).toContain("text-muted-foreground")
+    expect(rowOf("q2").dataset.state).toBe("active")
+    expect(rowOf("q2").className).not.toContain("text-muted-foreground")
+    expect(rowOf("q3").dataset.state).toBeUndefined()
+  })
+})

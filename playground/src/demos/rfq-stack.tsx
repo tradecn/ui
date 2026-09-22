@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { ContextMenuItem } from "@/components/ui/context-menu"
 import { useActiveInquiry } from "@/registry/tradecn/hooks/use-active-inquiry"
 import { createInstrumentFormatter, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
@@ -65,9 +66,22 @@ export default function RfqStackDemo() {
   return (
     <div className="space-y-2 font-(family-name:--tradecn-font-mono) text-xs">
       <div className="h-80">
-        <RfqStack store={store} view={view} activeId={active.activeId} onActivate={active.setActive} threshold={threshold} onThresholdChange={setThreshold} price={(v) => ust.price(v)} />
+        <RfqStack
+          store={store}
+          view={view}
+          activeId={active.activeId}
+          parkedIds={active.parked}
+          onActivate={active.setActive}
+          threshold={threshold}
+          onThresholdChange={setThreshold}
+          price={(v) => ust.price(v)}
+          // Park from the menu: the inquiry stays in its place, muted, and is never the next one until it is let back.
+          renderContextMenu={(_, ids) =>
+            ids.every((id) => active.parked.has(id)) ? <ContextMenuItem onClick={() => ids.forEach(active.unpark)}>Unpark</ContextMenuItem> : <ContextMenuItem onClick={() => ids.forEach(active.park)}>Park</ContextMenuItem>
+          }
+        />
       </div>
-      <p className="text-muted-foreground">{active.row ? `In the ticket: ${active.row.id}, ${active.row.client} ${active.row.side === "buy" ? "buys" : "sells"} ${active.row.instrument}. It stays until you act or the venue ends it.` : "No open inquiry."} Enter or a double click picks another; the threshold hides the small auto-quoted ones.</p>
+      <p className="text-muted-foreground">{active.row ? `In the ticket: ${active.row.id}, ${active.row.client} ${active.row.side === "buy" ? "buys" : "sells"} ${active.row.instrument}. It stays until you act or the venue ends it.` : "No open inquiry."} Enter or a double click picks another; right-click parks one; the threshold hides the small auto-quoted ones.</p>
     </div>
   )
 }

@@ -14,12 +14,13 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
+  type UIEvent,
 } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { createFlashMemory, playFlash, useFlash, type FlashMemory } from "@/registry/tradecn/hooks/use-flash"
-import { useRow, useRowIds, useView } from "@/registry/tradecn/hooks/use-row-store"
+import { useRow, useRowIds, useStoreMeta, useView } from "@/registry/tradecn/hooks/use-row-store"
 import { MONO_NUMERIC_CLASS, NULL_TOKEN, NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
 import { applyRules, compareDirected, compareValues, compileComparator, compileFilter, type AppliedRules, type GridRules, type RuleDecoration } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
@@ -68,13 +69,19 @@ export interface ColumnState {
 
 export type SortState = { key: string; dir: "asc" | "desc" } | null
 export type SelectionMode = "none" | "single" | "multi"
-export type DataGridPreset = "blotter" | "watchlist" | "rfq" | "option-chain"
+export type DataGridPreset = "blotter" | "watchlist" | "rfq" | "option-chain" | "tape"
 
 export interface RowEnterBehavior {
   /** Highlight rows as they arrive. */
   highlight: boolean
   /** Keep the first visible row where it is when rows arrive above it. */
   pinViewport: boolean
+  /**
+   * Follow the tail: the viewport goes to the end as rows arrive there, until a key, a pointer, or a
+   * scroll away from the end stops it. A "N new" pill then counts the arrivals and returns to the end.
+   * What the `tape` preset does; off elsewhere.
+   */
+  followTail?: boolean
 }
 
 export interface DataGridPresetConfig {
@@ -92,6 +99,7 @@ export const DATA_GRID_PRESETS: Record<DataGridPreset, DataGridPresetConfig> = {
   watchlist: { rowHeight: 22, fontClass: "text-xs", reorderHoldMs: 0, flash: "fill", selectionMode: "single", rowEnter: { highlight: false, pinViewport: false }, announceRowCount: "off" },
   rfq: { rowHeight: 26, fontClass: "text-xs", reorderHoldMs: 1000, flash: "ring", selectionMode: "single", rowEnter: { highlight: true, pinViewport: true }, announceRowCount: "debounced" },
   "option-chain": { rowHeight: 20, fontClass: "text-xs", reorderHoldMs: 0, flash: "ring", selectionMode: "none", rowEnter: { highlight: false, pinViewport: false }, announceRowCount: "off" },
+  tape: { rowHeight: 22, fontClass: "text-xs", reorderHoldMs: 0, flash: "fill", selectionMode: "single", rowEnter: { highlight: true, pinViewport: false, followTail: true }, announceRowCount: "debounced" },
 }
 
 export const EMPTY_COLUMN_STATE: ColumnState = { order: [], widths: {}, hidden: [] }
@@ -134,6 +142,12 @@ export interface DataGridProps<T> {
    * Keep the object's identity stable between renders, as with `filter`.
    */
   rules?: GridRules
+  /**
+   * Totals: a sticky row under the body with one value per column named here, given the view's rows
+   * (filtered and ordered, what is on screen). Recomputed once per applied batch, never per frame, and
+   * never flashed. Keep the object's identity stable between renders, as with `filter`.
+   */
+  footer?: Record<string, (rows: T[]) => string>
   flashWindowMs?: number
   className?: string
   /** Viewport size before layout is measured (tests, server rendering). */
@@ -382,6 +396,64 @@ function RowInner<T>(p: RowProps<T>) {
 }
 const Row = memo(RowInner) as typeof RowInner
 
+interface FooterProps<T> {
+  store: RowStore<T>
+  ids: readonly RowId[]
+  columns: Resolved<T>[]
+  template: string
+  lefts: (number | undefined)[]
+  width: number
+  height: number
+  footer: Record<string, (rows: T[]) => string>
+  selectionColumn: boolean
+  rowIndex: number
+}
+
+// The totals row. Its own component on the store's meta, which changes once per applied batch: the
+// view's rows are read once and each column's function runs once, at the feed's pace and never per
+// frame or per row. Nothing here flashes.
+function FooterInner<T>(p: FooterProps<T>) {
+  const meta = useStoreMeta(p.store)
+  const values = useMemo(() => {
+    void meta.version
+    const rows: T[] = []
+    for (const id of p.ids) {
+      const row = p.store.getRow(id)
+      if (row !== undefined) rows.push(row)
+    }
+    const out = new Map<string, string>()
+    for (const col of p.columns) {
+      const total = p.footer[col.key]
+      if (total) out.set(col.key, total(rows))
+    }
+    return out
+  }, [meta.version, p.ids, p.columns, p.footer, p.store])
+  return (
+    <div role="row" aria-rowindex={p.rowIndex} data-grid-footer="" className="sticky bottom-0 z-20 mt-auto grid border-t border-border bg-background font-medium" style={{ gridTemplateColumns: p.template, width: p.width, height: p.height }}>
+      {p.selectionColumn && <div role="gridcell" aria-colindex={1} className="sticky left-0 z-10 bg-background" />}
+      {p.columns.map((col, i) => {
+        const left = p.lefts[i]
+        const text = values.get(col.key)
+        return (
+          <div
+            key={col.key}
+            role="gridcell"
+            aria-colindex={i + (p.selectionColumn ? 1 : 0) + 1}
+            data-col={col.key}
+            data-numeric={col.numeric ? "" : undefined}
+            title={text}
+            className={cn("flex h-full min-w-0 items-center truncate px-2", alignClass(col), col.numeric && cn("justify-end", col.font === "mono" ? MONO_NUMERIC_CLASS : NUMERIC_CLASS), col.align === "center" && "justify-center", left !== undefined && "sticky z-10 bg-background")}
+            style={left !== undefined ? { left } : undefined}
+          >
+            <span className="truncate">{text}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+const FooterRow = memo(FooterInner) as typeof FooterInner
+
 export function DataGrid<T>(props: DataGridProps<T>) {
   const {
     store,
@@ -392,6 +464,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     getRowProps,
     onRowActivate,
     renderContextMenu,
+    footer,
     initialRect,
     overscan = 8,
   } = props
@@ -458,7 +531,19 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const uid = useId()
   const domId = (id: RowId) => `${uid}-${id}`
 
-  // Rows arriving: highlight, pin the viewport, announce. Rows leaving: forget their flashes.
+  // A tape follows its tail: new rows land at the end and the viewport goes there after every commit,
+  // until a key, a pointer, or a scroll away from the end stops it. Then the arrivals count up on a
+  // pill, and pressing it, or scrolling back to the end, follows again. Both are state set from
+  // handlers, so the effect below only reads them.
+  const followTail = Boolean(rowEnter.followTail)
+  const [following, setFollowing] = useState(true)
+  const [anchor, setAnchor] = useState(0)
+  const behind = followTail && !following ? Math.max(0, ids.length - anchor) : 0
+  useLayoutEffect(() => {
+    if (followTail && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [followTail])
+
+  // Rows arriving: highlight, pin the viewport or follow the tail, announce. Rows leaving: forget their flashes.
   const entered = useRef(new Set<RowId>()).current
   const prevIdsRef = useRef<readonly RowId[]>(ids)
   const newSinceAnnounce = useRef(0)
@@ -483,10 +568,31 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const nextIndex = firstId !== undefined ? indexOf.get(firstId) : undefined
       if (nextIndex !== undefined && nextIndex !== firstIndex) el.scrollTop += (nextIndex - firstIndex) * rowHeight
     }
+    if (arrived.length && followTail && following && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     if (arrived.length && rowEnter.highlight) for (const id of arrived) entered.add(id)
     newSinceAnnounce.current += arrived.length
     prevIdsRef.current = ids
-  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, rowEnter.highlight, entered, memory])
+  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, rowEnter.highlight, followTail, following, entered, memory])
+
+  const stopFollowing = () => {
+    if (!followTail || !following) return
+    setFollowing(false)
+    setAnchor(ids.length)
+  }
+  const toTail = () => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+    setFollowing(true)
+  }
+  const onScroll = followTail
+    ? (e: UIEvent<HTMLDivElement>) => {
+        const el = e.currentTarget
+        const atTail = el.scrollTop + el.clientHeight >= el.scrollHeight - 1
+        if (atTail === following) return
+        if (atTail) setFollowing(true)
+        else stopFollowing()
+      }
+    : undefined
 
   const [announcement, setAnnouncement] = useState("")
   useEffect(() => {
@@ -577,6 +683,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     view.touch()
+    stopFollowing()
     const fi = focusedRowId !== null ? (indexOf.get(focusedRowId) ?? -1) : -1
     const ci = focusedColKey !== null ? resolved.findIndex((c) => c.key === focusedColKey) : -1
     const mod = e.metaKey || e.ctrlKey
@@ -680,6 +787,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   const onRowPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     view.touch()
+    stopFollowing()
     const rowEl = (e.target as HTMLElement).closest<HTMLElement>("[data-row-id]")
     const id = rowEl?.dataset.rowId
     if (!id) return
@@ -711,7 +819,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       onPointerDownCapture={onRowPointerDown}
       onDoubleClick={onRowDoubleClick}
       onContextMenuCapture={renderContextMenu ? onContextMenuCapture : undefined}
+      onScroll={onScroll}
     >
+      {/* At least the viewport tall, so a footer sits at the bottom edge when the rows do not reach it. */}
+      <div className="flex min-h-full flex-col">
       <div
         role="row"
         aria-rowindex={1}
@@ -742,7 +853,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       {ids.length === 0 ? (
         <div className="p-4 text-muted-foreground">{emptyState ?? "No rows"}</div>
       ) : (
-        <div role="rowgroup" className="relative" style={{ height: virtualizer.getTotalSize(), width: totalWidth }}>
+        <div role="rowgroup" className="relative shrink-0" style={{ height: virtualizer.getTotalSize(), width: totalWidth }}>
           {items.map((v) => {
             const id = ids[v.index]!
             return (
@@ -775,6 +886,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
           })}
         </div>
       )}
+      {footer && <FooterRow store={store} ids={ids} columns={resolved} template={template} lefts={lefts} width={totalWidth} height={rowHeight} footer={footer} selectionColumn={selectionColumn} rowIndex={ids.length + 2} />}
+      </div>
     </div>
   )
 
@@ -785,12 +898,12 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       data-preset={props.preset ?? "blotter"}
       tabIndex={0}
       aria-label={label}
-      aria-rowcount={ids.length + 1}
+      aria-rowcount={ids.length + (footer ? 2 : 1)}
       aria-colcount={resolved.length + (selectionColumn ? 1 : 0)}
       aria-multiselectable={selectionMode === "multi" || undefined}
       aria-activedescendant={focusedRowId !== null && indexOf.has(focusedRowId) ? domId(focusedRowId) : undefined}
       onKeyDown={onKeyDown}
-      className={cn("flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", preset.fontClass, className)}
+      className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", preset.fontClass, className)}
       style={{ lineHeight: `${rowHeight}px` } as CSSProperties}
     >
       {renderContextMenu ? (
@@ -800,6 +913,17 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         </ContextMenu>
       ) : (
         body
+      )}
+      {behind > 0 && (
+        <button
+          type="button"
+          data-grid-behind={behind}
+          onClick={toTail}
+          className="absolute left-1/2 z-30 -translate-x-1/2 rounded-full bg-primary px-2.5 py-0.5 text-primary-foreground shadow-sm hover:bg-primary/90"
+          style={{ bottom: (footer ? rowHeight : 0) + 8 }}
+        >
+          {behind.toLocaleString()} new
+        </button>
       )}
       {announceRowCount !== "off" && (
         <div aria-live="polite" className="sr-only">
