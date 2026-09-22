@@ -40,6 +40,7 @@ function Desk({ instrument, reference, open }: { instrument: TicketInstrument; r
       <Ticket
         instrument={instrument}
         reference={reference}
+        quickSizes={[1, 5, 10, 25, 50]}
         accounts={[
           { id: "A-1", label: "A-1" },
           { id: "A-2", label: "A-2" },

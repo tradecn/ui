@@ -40,6 +40,7 @@ export default function TicketDemo() {
           <Ticket
             instrument={ZN}
             reference={{ bid: 99.484375, ask: 99.5, last: 99.5 }}
+            quickSizes={[1, 5, 10, 25]}
             accounts={[
               { id: "A-1", label: "A-1" },
               { id: "A-2", label: "A-2" },

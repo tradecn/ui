@@ -939,7 +939,7 @@
       "name": "ticket",
       "type": "registry:block",
       "title": "Ticket",
-      "description": "An order ticket that types a price the way the instrument quotes it (99-16+), steps it by the tick with the arrows and the buttons, and hands a checked draft to the action you named. Buttons are the actions the server allowed and nothing else; the status is the server word, printed as it is; an acknowledgement rings the ticket once in primary. Its keys work while you type in it, and inside a dialog.",
+      "description": "An order ticket that types a price the way the instrument quotes it (99-16+), steps it by the tick with the arrows and the buttons, and hands a checked draft to the action you named. Buttons are the actions the server allowed and nothing else; the status is the server word, printed as it is; an acknowledgement rings the ticket once in primary. Quick sizes as buttons under the quantity and on mod+1 to mod+9. Its keys work while you type in it, and inside a dialog.",
       "dependencies": [
         "cn@^0.3.0"
       ],
@@ -985,7 +985,7 @@
       "categories": [
         "ticket"
       ],
-      "docs": "The registry first block: ticket.tsx goes to your components alias, not components/ui. Installs quote-field, format, use-flash, and the hotkey registry alongside, composes your button, button-group, field, input, input-group, kbd, and native-select, and adds the up and down tokens. Inside a HotkeysProvider it declares ticket.send (mod+enter), ticket.flip, ticket.tick-up, and ticket.tick-down as editing bindings unless you did.",
+      "docs": "The registry first block: ticket.tsx goes to your components alias, not components/ui. Installs quote-field, format, use-flash, and the hotkey registry alongside, composes your button, button-group, field, input, input-group, kbd, and native-select, and adds the up and down tokens. Inside a HotkeysProvider it declares ticket.send (mod+enter), ticket.flip, ticket.tick-up, ticket.tick-down, and ticket.size-1 to ticket.size-9 (mod+1 to mod+9, the quick sizes) as editing bindings unless you did.",
       "meta": {
         "components": [
           {
@@ -1168,7 +1168,7 @@
       "name": "rfq-ticket",
       "type": "registry:block",
       "title": "RFQ Ticket",
-      "description": "A dealer's ticket for a request for quote: the inquiry as it came (who, which way, how much, in what, with the venue's words on it), the market beside it, the levels already quoted, the auto price when there is one, a countdown to its end, and the fields to type a level in the instrument's own basis. The buttons are the actions the server allowed, checked again as the click lands; the status is the venue's word, printed as it is. One ticket is one inquiry, so a new one never lands in a ticket being worked.",
+      "description": "A dealer's ticket for a request for quote: the inquiry as it came (who, which way, how much, in what, with the venue's words on it), the market beside it, the levels already quoted, the auto price when there is one, a countdown to its end, and the fields to type a level in the instrument's own basis. The buttons are the actions the server allowed, checked again as the click lands; the status is the venue's word, printed as it is. One ticket is one inquiry, so a new one never lands in a ticket being worked. Quick sizes, the inquiry's own first, as buttons and mod+1 to mod+9, and the draft carries the size the quote is for.",
       "dependencies": [
         "cn@^0.3.0"
       ],

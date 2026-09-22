@@ -360,7 +360,8 @@ test("a ticket types a price in 32nds, steps it, sends from a key, and shows onl
   const state = scene.locator("[data-ticket-sent]")
   const ticket = scene.getByRole("group", { name: "Order ticket ZN" })
   const price = ticket.getByLabel("Price", { exact: true })
-  const quantity = ticket.getByLabel("Quantity")
+  // Exact: the quick-size buttons are named "Quantity 1" and so on, and getByLabel matches a substring by default.
+  const quantity = ticket.getByLabel("Quantity", { exact: true })
   await expect(ticket).toBeVisible()
   // The notation, in and out, through the consumer's input-group.
   await price.click()
@@ -401,6 +402,13 @@ test("a ticket types a price in 32nds, steps it, sends from a key, and shows onl
   await scene.getByRole("button", { name: "acknowledge" }).click()
   await expect(ticket.locator("[data-ticket-status]")).toHaveText("Acknowledged")
   await expect(ticket.locator("[data-direction='flat']")).toHaveCount(1)
+  // Quick sizes: a press puts the size in the field and wears the mark; mod+1 from inside the price field puts the first.
+  await ticket.getByRole("button", { name: "Quantity 10" }).click()
+  await expect(quantity).toHaveValue("10")
+  await expect(ticket.getByRole("button", { name: "Quantity 10" })).toHaveAttribute("aria-pressed", "true")
+  await price.click()
+  await page.keyboard.press("ControlOrMeta+1")
+  await expect(quantity).toHaveValue("1")
   // The desk's lines: 20 is past the ask-again line, so the key asks once and the second press sends; 60 is past the block, so the button goes and the field says why.
   await quantity.fill("20")
   await page.keyboard.press("ControlOrMeta+Enter")
@@ -518,8 +526,13 @@ test("an rfq ticket shows the inquiry, quotes against the market, sends from a k
   await expect(state).toHaveAttribute("data-rfq-sent", "[]")
   await offer.fill("99-16+")
   await expect(ticket.getByRole("button", { name: "Quote anyway?" })).toHaveCount(0)
+  // Quick sizes: the inquiry's own 5mm leads the row and is in force; mod+2 quotes for the second of the desk's, and the sent draft carries it.
+  await expect(ticket.getByRole("group", { name: "For" }).getByRole("button")).toHaveText(["5mm", "1mm", "2mm"])
+  await expect(ticket.getByRole("button", { name: "For 5mm" })).toHaveAttribute("aria-pressed", "true")
+  await page.keyboard.press("ControlOrMeta+2")
+  await expect(ticket.getByRole("button", { name: "For 2mm" })).toHaveAttribute("aria-pressed", "true")
   await page.keyboard.press("ControlOrMeta+Enter")
-  await expect.poll(async () => JSON.parse((await state.getAttribute("data-rfq-sent")) ?? "[]")).toEqual([{ inquiryId: "Q-7", bid: null, ask: 99.515625 }])
+  await expect.poll(async () => JSON.parse((await state.getAttribute("data-rfq-sent")) ?? "[]")).toEqual([{ inquiryId: "Q-7", bid: null, ask: 99.515625, quantity: 2_000_000 }])
   // The venue takes it: its word for the status, the quoted level, one ring on the box.
   await scene.getByRole("button", { name: "venue takes it" }).click()
   await expect(ticket.locator("[data-rfq-status]")).toHaveText("Quoted")

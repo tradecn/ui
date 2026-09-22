@@ -8,7 +8,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
-import { NUMERIC_CLASS, formatPrice, formatQuantity, numericFontClass, stepByTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, formatNotional, formatPrice, formatQuantity, numericFontClass, stepByTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
@@ -74,6 +74,8 @@ export interface TicketLabels {
   buy: string
   sell: string
   quantity: string
+  /** The quick-size row's name. */
+  quickSizes: string
   price: string
   type: string
   tif: string
@@ -94,6 +96,7 @@ export const DEFAULT_TICKET_LABELS: TicketLabels = {
   buy: "Buy",
   sell: "Sell",
   quantity: "Quantity",
+  quickSizes: "Quick sizes",
   price: "Price",
   type: "Type",
   tif: "Time in force",
@@ -119,13 +122,22 @@ export const DEFAULT_TIME_IN_FORCES: readonly TicketOption[] = [
   { id: "ioc", label: "IOC" },
 ]
 
+/** `mod+1` to `mod+9`: the quick sizes, in order. */
+export const QUICK_SIZE_KEYS: readonly string[] = ["mod+1", "mod+2", "mod+3", "mod+4", "mod+5", "mod+6", "mod+7", "mod+8", "mod+9"]
+
 /** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket when you have not. */
 export const TICKET_BINDINGS: readonly HotkeyBinding[] = [
   { id: "ticket.send", keys: "mod+enter", scope: "editing", description: "Send the ticket", group: "Ticket" },
   { id: "ticket.flip", keys: "mod+shift+x", scope: "editing", description: "Flip buy and sell", group: "Ticket" },
   { id: "ticket.tick-up", keys: "mod+up", scope: "editing", description: "Price up one tick", group: "Ticket" },
   { id: "ticket.tick-down", keys: "mod+down", scope: "editing", description: "Price down one tick", group: "Ticket" },
+  ...QUICK_SIZE_KEYS.map((keys, i) => ({ id: `ticket.size-${i + 1}`, keys, scope: "editing" as const, description: `Quick size ${i + 1}`, group: "Ticket" })),
 ]
+
+/** A quick size the way the desk says it: millions of notional when the convention quotes notional, a count otherwise. */
+export function formatQuickSize(size: number, convention: InstrumentConvention): string {
+  return convention.quantityUnit === "notional" ? formatNotional(size, { unit: "mm" }) : formatQuantity(size)
+}
 
 export interface TicketProps {
   instrument: TicketInstrument
@@ -144,6 +156,8 @@ export interface TicketProps {
   allowedActions?: readonly string[]
   /** The desk's lines, from `limits`: a block shows under its field and holds the actions that send the draft; a confirm makes the action ask again. Checked against `reference` as the market. */
   limits?: Limits
+  /** Sizes a press or `mod+1` to `mod+9` puts in the quantity, as buttons under the field, printed in the convention's unit. */
+  quickSizes?: readonly number[]
   /** The server's word for where the order stands. Printed as it is. */
   status?: string
   /** What the server said about it, a rejection reason for one. Printed as it is. */
@@ -230,6 +244,7 @@ export function Ticket({
   actions,
   allowedActions,
   limits,
+  quickSizes,
   status,
   message,
   acknowledged,
@@ -266,9 +281,9 @@ export function Ticket({
 
   const box = useRef<HTMLDivElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
-  const latest = useRef({ onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming })
+  const latest = useRef({ onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming, quickSizes })
   useEffect(() => {
-    latest.current = { onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming }
+    latest.current = { onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming, quickSizes }
   })
 
   // The draft is told after it changed, never on the first render.
@@ -313,6 +328,14 @@ export function Ticket({
     const next = Math.max(0, Math.round((from + steps * quantityStep) / quantityStep) * quantityStep)
     update({ quantity: next })
     setQuantityText(formatQuantity(next))
+  }
+
+  /** The n-th quick size (from 1) into the quantity, when there is one. */
+  function quick(n: number) {
+    const size = latest.current.quickSizes?.[n - 1]
+    if (size === undefined || latest.current.disabled) return
+    update({ quantity: size })
+    setQuantityText(formatQuantity(size))
   }
 
   function onQuantityChange(text: string) {
@@ -361,7 +384,9 @@ export function Ticket({
 
   // Keys: declared once per registry, bound to this ticket's box so another ticket's keys stay its own.
   const registry = useMaybeHotkeys()
-  const handlers = useRef({ send: () => {}, flip: () => {}, up: () => {}, down: () => {} })
+  const handlers = useRef({ send: () => {}, flip: () => {}, up: () => {}, down: () => {}, quick: (n: number) => {
+      void n
+    } })
   useEffect(() => {
     handlers.current = {
       send: () => {
@@ -373,6 +398,7 @@ export function Ticket({
       flip: () => update({ side: draft.side === "buy" ? "sell" : "buy" }),
       up: () => stepPrice(1),
       down: () => stepPrice(-1),
+      quick,
     }
   })
   useEffect(() => {
@@ -388,6 +414,7 @@ export function Ticket({
       registry.bind("ticket.flip", guard(() => handlers.current.flip()), within),
       registry.bind("ticket.tick-up", guard(() => handlers.current.up()), within),
       registry.bind("ticket.tick-down", guard(() => handlers.current.down()), within),
+      ...QUICK_SIZE_KEYS.map((_, i) => registry.bind(`ticket.size-${i + 1}`, guard(() => handlers.current.quick(i + 1)), within)),
     ]
     return () => {
       for (const u of unbind) u()
@@ -454,6 +481,15 @@ export function Ticket({
             <FieldLabel htmlFor={`${id}-quantity`}>{labels.quantity}</FieldLabel>
             <Input id={`${id}-quantity`} value={quantityText} inputMode="decimal" autoComplete="off" spellCheck={false} disabled={disabled} aria-invalid={shownProblems.quantity ? true : undefined} data-numeric="" className={cn("h-7 text-xs md:text-xs", NUMERIC_CLASS)} onChange={(event) => onQuantityChange(event.target.value)} onBlur={onQuantityBlur} onKeyDown={stepper(stepQuantity)} />
             {shownProblems.quantity && <FieldError>{shownProblems.quantity}</FieldError>}
+            {quickSizes && quickSizes.length > 0 && (
+              <div role="group" aria-label={labels.quickSizes} data-ticket-quick-sizes="" className="flex flex-wrap gap-1">
+                {quickSizes.map((size, i) => (
+                  <Button key={size} type="button" variant="outline" size="sm" className={cn("h-6 px-1.5 text-xs aria-pressed:bg-accent aria-pressed:text-accent-foreground dark:aria-pressed:bg-accent dark:aria-pressed:text-accent-foreground", NUMERIC_CLASS)} disabled={disabled} aria-pressed={draft.quantity === size} aria-label={`${labels.quantity} ${formatQuickSize(size, convention)}`} data-quick-size={size} onClick={() => quick(i + 1)}>
+                    {formatQuickSize(size, convention)}
+                  </Button>
+                ))}
+              </div>
+            )}
           </Field>
           <QuoteField
             id={`${id}-price`}

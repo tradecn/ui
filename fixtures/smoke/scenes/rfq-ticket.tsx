@@ -28,6 +28,7 @@ export function RfqTicketScene() {
         <RfqTicket
           inquiry={inquiry}
           limits={{ maxDistance: { ticks: 4, level: "confirm" } }}
+          quickSizes={[1_000_000, 2_000_000]}
           actions={[
             { id: "quote", label: "Quote", primary: true, run: (draft) => setSent((s) => [...s, draft]) },
             { id: "pass", label: "Pass", needsQuote: false, destructive: true, run: () => setInquiry((q) => ({ ...q, status: "Passed", allowedActions: [] })) },

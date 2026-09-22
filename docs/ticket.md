@@ -42,7 +42,7 @@ It does not send anything, and it does not decide anything about the order after
 
 ### Keys
 
-Four `editing` bindings, so they work while you type in the ticket and nowhere else: `ticket.send` on `mod+enter` runs the primary action (the one marked `primary`, or the first allowed), `ticket.flip` on `mod+shift+x` swaps buy and sell, and `ticket.tick-up` and `ticket.tick-down` on `mod+up` and `mod+down` step the price from any field. Inside a `HotkeysProvider` the ticket declares them when you have not; several tickets share one declaration and the last one to leave takes it back. Spread `TICKET_BINDINGS` into your own list to change the keys or the wording, or remap them like any binding. The primary button shows the send keys from the registry, so a remap shows.
+Four `editing` bindings, so they work while you type in the ticket and nowhere else: `ticket.send` on `mod+enter` runs the primary action (the one marked `primary`, or the first allowed), `ticket.flip` on `mod+shift+x` swaps buy and sell, and `ticket.tick-up` and `ticket.tick-down` on `mod+up` and `mod+down` step the price from any field; with `quickSizes`, `ticket.size-1` to `ticket.size-9` on `mod+1` to `mod+9` put a quick size in the quantity. Inside a `HotkeysProvider` the ticket declares them when you have not; several tickets share one declaration and the last one to leave takes it back. Spread `TICKET_BINDINGS` into your own list to change the keys or the wording, or remap them like any binding. The primary button shows the send keys from the registry, so a remap shows.
 
 The ticket is a `HotkeyScope` of its own, and its handlers are bound to its box, so two tickets side by side each answer for themselves. A dialog is a wall, and a ticket inside one keeps its keys because its scope is inside the wall: `mod+enter` sends, and a global `x` cannot reach a blotter behind it.
 
@@ -57,6 +57,10 @@ Plain Enter does nothing. There is no `<form>` here on purpose: an implicit subm
 ### Limits
 
 `limits` is a [`limits`](limits.md) table, the desk's lines as data: a size to ask again past and a size to stop at, a distance from the market in ticks, the sides the book takes, and rules of your own. A block shows under its field as the ticket's own problems do, and holds every action that sends the draft (an action with `checked: false`, a cancel, still runs). A confirm turns the primary action into a two-step: the button says `Send anyway?`, the reason is said under the actions, and the next click on the same action sends; any change to the draft withdraws the question. Both run live and again as the click lands, against `reference` as the market: a buyer's price is measured against the offer, a seller's against the bid. A side with no field of its own is said on the same line under the actions.
+
+### Quick sizes
+
+`quickSizes` puts a row of sizes under the quantity field, printed in the convention's unit (a count, or millions of notional when the convention quotes notional), and a press puts that size in the field; the pressed one says so with `aria-pressed`. `mod+1` to `mod+9` do the same from any field, as `ticket.size-1` to `ticket.size-9` in `TICKET_BINDINGS`, declared beside the four above so you can remap or drop them like any binding. The sizes are the desk's; the ticket adds nothing to the list.
 
 ### Labels
 

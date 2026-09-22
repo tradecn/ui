@@ -33,7 +33,7 @@ The client's `side` decides the fields: a client who buys gets one `Offer`, one 
 
 Each field is a [`quote-field`](quote-field.md) in the instrument's convention, so a note takes `99-16+` and a bill on discount takes `4.253`, and each steps by the instrument's own step with the arrows and its buttons. A blank field steps from the market's same side, then the suggested level, then the market's mid. Under each field the ticket says how far the typed level sits from the market's same side, in ticks for a price and basis points otherwise, `+1 vs market`; `quoteDistance(level, market, convention)` is that measure as a pure function. When the server suggests levels, one button and one key fill the fields with them; the ticket never sends them on its own.
 
-`onDraftChange` fires with the `RfqQuoteDraft` (the inquiry id, a bid, an offer) after each change and not on the first render. `defaultDraft` is where the fields start. `checkQuote` and `describeQuote` are exported for a confirmation, a palette row, or a test: the check wants a level on every side the client asked for and refuses a market whose bid is above its offer.
+`onDraftChange` fires with the `RfqQuoteDraft` (the inquiry id, a bid, an offer, and the size the quote is for) after each change and not on the first render. `defaultDraft` is where the fields start. `checkQuote` and `describeQuote` are exported for a confirmation, a palette row, or a test: the check wants a level on every side the client asked for and refuses a market whose bid is above its offer.
 
 ### The actions are the server's
 
@@ -50,6 +50,10 @@ Four `editing` bindings, declared by the ticket when you have not: `rfq.send` on
 ### Limits
 
 `limits` is a [`limits`](limits.md) table, the desk's lines as data. Each level is measured against the inquiry's market on its own side, a bid against the bid and an offer against the offer, in ticks for an instrument quoted on price and basis points for the rest; `sides` names what the book may take, and for a quote a bid is a buy and an offer a sell. A block shows under its field as the ticket's own problems do and holds every action that needs a quote; a pass still runs. A confirm turns the primary action into a two-step: the button says `Quote anyway?`, the reason is said under the actions, and the next click on the same action sends; a new level withdraws the question. Both run live and again as the click lands.
+
+### Quick sizes
+
+A dealer may quote for less than the client asked, where the venue takes it. `quickSizes` puts a row under the fields, `For 5mm 1mm 2mm`, the inquiry's own size first and then yours, printed in the convention's unit; a press makes the quote for that size and the draft carries it as `quantity`, which `describeQuote` reads. `mod+1` to `mod+9` pick yours in order, as `rfq.size-1` to `rfq.size-9` in `RFQ_TICKET_BINDINGS`, declared beside the four above. Without `quickSizes` the draft's `quantity` is the inquiry's, and nothing is drawn.
 
 ### Labels
 
