@@ -6,7 +6,7 @@ The seam between your feed and the components: one delta batch per frame in, one
 
 ```ts
 import { createFrameBatcher, createRowStore } from "@/lib/row-store"
-import { useRow, useRowIds, useStoreMeta } from "@/hooks/use-row-store"
+import { useRow, useRowIds, useStoreMeta, useView } from "@/hooks/use-row-store"
 ```
 
 ```ts
@@ -30,7 +30,7 @@ Two kinds of consumer:
 
 ### Views
 
-`store.createView({ comparator, filter, reorderHoldMs })` is a sorted, filtered id list a grid renders from. `useRowIds(view)` gives the ids; they are a stable array until the order actually changes. `reorderHoldMs` is the rule that keeps rows from moving under the cursor: after `view.touch()` (the grid calls it on every key and pointer interaction) the order is frozen for that long. New rows append, removed rows vanish, nothing moves. When the hold lapses the view settles to the comparator's order, even on a quiet feed. The comparator is where a desk's prioritization rule plugs in.
+`store.createView({ comparator, filter, reorderHoldMs })` is a sorted, filtered id list a grid renders from. `useRowIds(view)` gives the ids; they are a stable array until the order actually changes. `reorderHoldMs` is the rule that keeps rows from moving under the cursor: after `view.touch()` (the grid calls it on every key and pointer interaction) the order is frozen for that long. New rows append, removed rows vanish, nothing moves. When the hold lapses the view settles to the comparator's order, even on a quiet feed. The comparator is where a desk's prioritization rule plugs in. A component that owns its view takes it from `useView(store, options)`, which makes the view for the options given, remakes it for new ones (keep the object's identity stable with a `useMemo`), disposes it on the way out, and survives StrictMode's mount rehearsal in development, where a view made in a memo and disposed in an effect's cleanup would stop following the store. `view.isDisposed()` says whether a view still does.
 
 ### Meta
 

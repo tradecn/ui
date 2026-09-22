@@ -71,6 +71,8 @@ export interface RowView<T> {
   /** True while a hold is in force. */
   isHeld(): boolean
   dispose(): void
+  /** True after `dispose`: the view no longer follows the store. */
+  isDisposed(): boolean
 }
 
 export interface RowStore<T> {
@@ -243,6 +245,7 @@ class ViewImpl<T> implements RowView<T> {
   private readonly listeners = new Set<Listener>()
   private holdUntil = 0
   private timer: ReturnType<typeof setTimeout> | null = null
+  private disposed = false
   private readonly now: () => number
   readonly store: RowStore<T>
   private readonly opts: ViewOptions<T>
@@ -284,9 +287,15 @@ class ViewImpl<T> implements RowView<T> {
   }
 
   dispose() {
+    if (this.disposed) return
+    this.disposed = true
     if (this.timer) clearTimeout(this.timer)
     this.listeners.clear()
     this.onDispose()
+  }
+
+  isDisposed() {
+    return this.disposed
   }
 
   /** Called by the store inside applyDeltas, before row listeners fire. */

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
+import { StrictMode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatPrice, parsePrice } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
@@ -307,5 +308,21 @@ describe("helpers", () => {
   })
   it("presets are complete", () => {
     for (const p of Object.values(DATA_GRID_PRESETS)) expect(p.rowHeight).toBeGreaterThan(0)
+  })
+})
+
+describe("under StrictMode", () => {
+  it("keeps following the store after the mount rehearsal: rows that arrive later appear, in order", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    render(
+      <StrictMode>
+        <DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} />
+      </StrictMode>,
+    )
+    expect(screen.getByRole("grid")).toHaveAttribute("aria-rowcount", "4")
+    act(() => store.applyDeltas({ upsert: [{ id: "r9", sym: "S9", px: 50, qty: 1 }] }))
+    expect(screen.getByRole("grid")).toHaveAttribute("aria-rowcount", "5")
+    expect(screen.getAllByRole("row")[1]).toHaveAttribute("data-row-id", "r9")
   })
 })

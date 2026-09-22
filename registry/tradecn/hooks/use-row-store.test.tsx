@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react"
-import { memo, type FC } from "react"
+import { memo, StrictMode, type FC } from "react"
 import { describe, expect, it } from "vitest"
-import { useRow, useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
+import { useRow, useRowIds, useStoreMeta, useView } from "@/registry/tradecn/hooks/use-row-store"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 
 interface Quote {
@@ -83,5 +83,51 @@ describe("use-row-store", () => {
     act(() => store.applyDeltas({ upsert: [{ id: "c", px: 3 }] }))
     expect(screen.getByTestId("ids")).toHaveTextContent("b,c,a")
     expect(screen.getByTestId("meta")).toHaveTextContent("2:3:ordered")
+  })
+})
+
+describe("useView", () => {
+  it("survives StrictMode's mount rehearsal and keeps following the store, remakes for new options, and gives null for none", () => {
+    const store = createRowStore<Quote>({ getRowId: (q) => q.id })
+    store.applyDeltas({ upsert: [{ id: "a", px: 1 }] })
+    const byPx = { comparator: (x: Quote, y: Quote) => x.px - y.px }
+    const byPxDesc = { comparator: (x: Quote, y: Quote) => y.px - x.px }
+    function Probe({ options }: { options: typeof byPx | null }) {
+      const view = useView(store, options)
+      const ids = useRowIds(view ?? store)
+      return <output data-view={view ? "yes" : "no"}>{ids.join(",")}</output>
+    }
+    const { rerender, unmount } = render(
+      <StrictMode>
+        <Probe options={byPx} />
+      </StrictMode>,
+    )
+    expect(screen.getByRole("status")).toHaveTextContent("a")
+    // StrictMode mounted, unmounted, and mounted again before this: a view made in a memo and disposed in
+    // the cleanup would be dead now, and the new row would never reach the component.
+    act(() => store.applyDeltas({ upsert: [{ id: "b", px: 0 }] }))
+    expect(screen.getByRole("status")).toHaveTextContent("b,a")
+    rerender(
+      <StrictMode>
+        <Probe options={byPxDesc} />
+      </StrictMode>,
+    )
+    expect(screen.getByRole("status")).toHaveTextContent("a,b")
+    act(() => store.applyDeltas({ upsert: [{ id: "c", px: 5 }] }))
+    expect(screen.getByRole("status")).toHaveTextContent("c,a,b")
+    rerender(
+      <StrictMode>
+        <Probe options={null} />
+      </StrictMode>,
+    )
+    expect(screen.getByRole("status")).toHaveAttribute("data-view", "no")
+    expect(screen.getByRole("status")).toHaveTextContent("a,b,c")
+    unmount()
+    // A view says when it is done, and disposing twice is nothing.
+    const view = store.createView({})
+    expect(view.isDisposed()).toBe(false)
+    view.dispose()
+    expect(view.isDisposed()).toBe(true)
+    view.dispose()
   })
 })
