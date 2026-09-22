@@ -118,7 +118,8 @@ article p, article li { line-height: 1.65; }
 article ul, article ol { padding-left: 1.4rem; }
 article li { margin: .35rem 0; }
 article li::marker { color: var(--muted-foreground); }
-article code { padding: .1em .35em; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); font-size: .95em; }
+/* Inline code can break inside a long token (a registry URL is 40 characters of mono), so a phone never scrolls the page sideways; a pre never wraps, so its blocks still scroll in their own box. */
+article code { padding: .1em .35em; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); font-size: .95em; overflow-wrap: anywhere; }
 article pre { margin: 0; padding: .9rem 2.75rem .9rem 1rem; overflow: auto; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); line-height: 1.5; }
 article pre code { padding: 0; background: none; border: 0; font-size: 1em; }
 article blockquote { margin: 1rem 0; padding: 0 1rem; border-left: 2px solid var(--primary); color: var(--muted-foreground); }
