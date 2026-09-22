@@ -20,6 +20,7 @@ const CHANNELS: Array<{ file: string; channel: string; proof: RegExp }> = [
   { file: "ui/status-bar.tsx", channel: "the environment badge is the word itself, PRODUCTION or UAT, and the tone colors that word", proof: /data-status-environment=\{environment\.label\}/ },
   { file: "ui/sparkline.tsx", channel: "data-direction on the root and the direction in the words a screen reader hears", proof: /data-direction=\{tone\}/ },
   { file: "ui/blotter.tsx", channel: "the side column's text is the word Buy or Sell", proof: /row\.side/ },
+  { file: "ui/depth-ladder.tsx", channel: "the columns are headed Bid and Ask, every size cell carries data-side, and a staged side reaches the consumer as the word buy or sell", proof: /data-side=\{p\.side\}/ },
   { file: "ui/feed-health.tsx", channel: "the dot is aria-hidden; the tier badge and the label carry the state in words", proof: /aria-hidden/ },
   { file: "blocks/ticket/ticket.tsx", channel: "the pressed side button says Buy or Sell, and aria-pressed says which", proof: /aria-pressed/ },
   { file: "blocks/rfq-ticket/rfq-ticket.tsx", channel: "a toned context value prints the consumer's text beside its label; the tone is a hint on it", proof: /TONE_CLASS\[item\.tone\]/ },

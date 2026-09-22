@@ -7,6 +7,7 @@ import { ColumnChooserScene } from "./column-chooser"
 import { CommandPaletteScene } from "./command-palette"
 import { CountdownScene } from "./countdown"
 import { DataGridScene } from "./data-grid"
+import { DepthLadderScene } from "./depth-ladder"
 import { FeedHealthScene } from "./feed-health"
 import { FlashCellScene } from "./flash-cell"
 import { FormatScene } from "./format"
@@ -71,6 +72,7 @@ export const items: Record<string, ItemScene> = {
   "audit-trail": { title: "audit-trail", Scene: AuditTrailScene },
   "layout-manager": { title: "layout-manager", Scene: LayoutManagerScene },
   "instrument-search": { title: "instrument-search", Scene: InstrumentSearchScene },
+  "depth-ladder": { title: "depth-ladder", Scene: DepthLadderScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   preferences: { title: "preferences", Scene: PreferencesScene },
   "alert-store": { title: "alert-store", Scene: AlertStoreScene },

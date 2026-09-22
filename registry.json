@@ -2612,6 +2612,102 @@
       }
     },
     {
+      "name": "depth-ladder",
+      "type": "registry:ui",
+      "title": "Depth Ladder",
+      "description": "A price ladder around the market: one rung per tick over a range of prices, the bid size to the left of the price and the ask size to its right, the desk's own resting size marked on its rung, and one flash per level change. Levels come from a row store keyed by tick index, so a change at one price wakes one rung. The mid stays in the middle until a key, a pointer, or a scroll touches the ladder; then the prices hold still and Recenter or Home puts the mid back. A click in the bid column stages a buy at that price and a click in the ask column a sell, handed to the consumer through onStage; the ladder sends nothing.",
+      "dependencies": [
+        "cn@^0.3.0",
+        "@tanstack/react-virtual@^3.14.13"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/depth-ladder.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "grid",
+        "ticket"
+      ],
+      "docs": "Installs the row store, format, and the flash hook alongside, adds @tanstack/react-virtual and the up, down, and flat tokens the two size columns and the flashes use, and composes no shadcn component. Key the store by tick index with levelId; the ladder prints prices through the convention you pass and sends nothing itself: onStage hands you the price and the side.",
+      "meta": {
+        "components": [
+          {
+            "title": "DepthLadder",
+            "description": "The ladder: bid sizes, prices, ask sizes, the mid in the middle, one flash per level change."
+          },
+          {
+            "title": "levelId",
+            "description": "The row id of a level: its tick index as a string."
+          },
+          {
+            "title": "tickIndexOf",
+            "description": "A price as a count of ticks from zero, rounded to the grid."
+          },
+          {
+            "title": "priceAtTick",
+            "description": "The price at a tick index, cleaned of float noise."
+          },
+          {
+            "title": "DEFAULT_DEPTH_LADDER_LABELS",
+            "description": "Every word the ladder says."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.46 0.19 40)",
+          "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.52 0.13 165)",
+          "up-soft": "oklch(0.52 0.13 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.66 0.19 40)",
+          "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
       "name": "grid-rules",
       "type": "registry:lib",
       "title": "Grid Rules",

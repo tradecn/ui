@@ -783,7 +783,7 @@ describe("the docs pages", async () => {
     expect(docs.find((doc) => doc.slug === "use-hotkeys")?.label).toBe("useHotkeys")
     expect(docs.filter((doc) => groupOf(doc.item) === "Utilities").map((doc) => doc.slug)).toEqual(["alert-store", "format", "grid-rules", "limits", "preferences", "row-store", "session-calendar"])
     expect(docs.filter((doc) => doc.item).map((doc) => groupOf(doc.item))).toEqual([
-      ...Array(25).fill("Components"),
+      ...Array(26).fill("Components"),
       "Hooks",
       "Utilities",
       "Utilities",
@@ -806,7 +806,7 @@ describe("the docs pages", async () => {
     expect(nav).toContain('<li><a href="/docs/changelog/">Changelog</a></li>\n<li><a href="/docs/color/">Color</a></li>\n<li><a href="/docs/contract/">The item contract</a></li>\n<li><a href="/docs/typography/">Typography</a></li>\n</ul>')
     // A utility is not a component: format sits under Utilities, use-hotkeys under Hooks, the themes under Themes, and only the ui items and the blocks under Components.
     // Each kind is alphabetical by the item's registry title and printed as that title: Data Grid, not data-grid; RFQ Stack before Rules Editor; a hook by its exported name, useHotkeys.
-    expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/alerts/">Alerts</a></li>\n<li><a href="/docs/audit-trail/">Audit Trail</a></li>\n<li><a href="/docs/blotter/">Blotter</a></li>\n<li><a href="/docs/column-chooser/">Column Chooser</a></li>\n<li><a href="/docs/command-palette/">Command Palette</a></li>\n<li><a href="/docs/countdown/">Countdown</a></li>\n<li><a href="/docs/data-grid/">Data Grid</a></li>\n<li><a href="/docs/feed-health/">Feed Health</a></li>\n<li><a href="/docs/flash-cell/">Flash Cell</a></li>\n<li><a href="/docs/hotkey-editor/">Hotkey Editor</a></li>\n<li><a href="/docs/instrument-search/">Instrument Search</a></li>\n<li><a href="/docs/layout-manager/">Layout Manager</a></li>\n<li><a href="/docs/panel/">Panel</a></li>\n<li><a href="/docs/parameter-grid/">Parameter Grid</a></li>\n<li><a href="/docs/perf-monitor/">Perf Monitor</a></li>\n<li><a href="/docs/positions/">Positions</a></li>\n<li><a href="/docs/quote-field/">Quote Field</a></li>\n<li><a href="/docs/rfq-stack/">RFQ Stack</a></li>\n<li><a href="/docs/rfq-ticket/">RFQ Ticket</a></li>\n<li><a href="/docs/rules-editor/">Rules Editor</a></li>\n<li><a href="/docs/sparkline/">Sparkline</a></li>\n<li><a href="/docs/status-bar/">Status Bar</a></li>\n<li><a href="/docs/ticket/">Ticket</a></li>\n<li><a href="/docs/watchlist/">Watchlist</a></li>\n<li><a href="/docs/workspace/">Workspace</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">useHotkeys</a></li>\n</ul>')
+    expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/alerts/">Alerts</a></li>\n<li><a href="/docs/audit-trail/">Audit Trail</a></li>\n<li><a href="/docs/blotter/">Blotter</a></li>\n<li><a href="/docs/column-chooser/">Column Chooser</a></li>\n<li><a href="/docs/command-palette/">Command Palette</a></li>\n<li><a href="/docs/countdown/">Countdown</a></li>\n<li><a href="/docs/data-grid/">Data Grid</a></li>\n<li><a href="/docs/depth-ladder/">Depth Ladder</a></li>\n<li><a href="/docs/feed-health/">Feed Health</a></li>\n<li><a href="/docs/flash-cell/">Flash Cell</a></li>\n<li><a href="/docs/hotkey-editor/">Hotkey Editor</a></li>\n<li><a href="/docs/instrument-search/">Instrument Search</a></li>\n<li><a href="/docs/layout-manager/">Layout Manager</a></li>\n<li><a href="/docs/panel/">Panel</a></li>\n<li><a href="/docs/parameter-grid/">Parameter Grid</a></li>\n<li><a href="/docs/perf-monitor/">Perf Monitor</a></li>\n<li><a href="/docs/positions/">Positions</a></li>\n<li><a href="/docs/quote-field/">Quote Field</a></li>\n<li><a href="/docs/rfq-stack/">RFQ Stack</a></li>\n<li><a href="/docs/rfq-ticket/">RFQ Ticket</a></li>\n<li><a href="/docs/rules-editor/">Rules Editor</a></li>\n<li><a href="/docs/sparkline/">Sparkline</a></li>\n<li><a href="/docs/status-bar/">Status Bar</a></li>\n<li><a href="/docs/ticket/">Ticket</a></li>\n<li><a href="/docs/watchlist/">Watchlist</a></li>\n<li><a href="/docs/workspace/">Workspace</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">useHotkeys</a></li>\n</ul>')
     expect(nav).toContain('<h2>Utilities</h2>\n<ul>\n<li><a href="/docs/alert-store/">Alert Store</a></li>\n<li><a href="/docs/format/" aria-current="page">Format</a></li>\n<li><a href="/docs/grid-rules/">Grid Rules</a></li>\n<li><a href="/docs/limits/">Limits</a></li>\n<li><a href="/docs/preferences/">Preferences</a></li>\n<li><a href="/docs/row-store/">Row Store</a></li>\n<li><a href="/docs/session-calendar/">Session Calendar</a></li>\n</ul>')
     // Amber is the default theme and first by name too; a theme is listed by its title, without the tradecn- prefix.
     expect(nav).toContain('<h2><a href="/docs/theming/#themes">Themes</a></h2>\n<ul>\n<li><a href="/docs/tradecn-amber/">Amber</a></li>\n<li><a href="/docs/tradecn-slate/">Slate</a></li>\n<li><a href="/docs/tradecn-slate-east/">Slate East</a></li>\n</ul>')
@@ -847,7 +847,7 @@ describe("the docs pages", async () => {
     const grid = at("docs/data-grid/index.html")
     expect(grid).toContain('<aside class="toc" aria-label="On this page">\n<h2>On this page</h2>\n<ul>\n<li><a href="#installation">Installation</a></li>\n<li><a href="#usage">Usage</a></li>\n<li><a href="#api-reference">API Reference</a>\n<ul>')
     expect(grid).toContain('<nav class="arrows" aria-label="Previous and next">\n<a rel="prev" href="/docs/countdown/" aria-label="Previous: Countdown">')
-    expect(grid).toContain('<a rel="next" href="/docs/feed-health/" aria-label="Next: Feed Health">')
+    expect(grid).toContain('<a rel="next" href="/docs/depth-ladder/" aria-label="Next: Depth Ladder">')
     expect(grid.indexOf('<nav class="arrows"')).toBeLessThan(grid.indexOf("<h1 "))
     const intro = at("docs/index.html")
     expect(intro).toContain('<nav class="arrows" aria-label="Previous and next">\n<span aria-hidden="true">')
@@ -899,7 +899,7 @@ describe("the docs pages", async () => {
     }
     // Names alone, shadcn's page: no kind, no description, no code, nothing but the title in each row.
     const rows = list.trimEnd().split("\n").slice(1)
-    expect(rows).toHaveLength(25)
+    expect(rows).toHaveLength(26)
     for (const row of rows) expect(row).toMatch(/^<li><a href="\/docs\/[\w-]+\/">[^<]+<\/a><\/li>$/)
     expect(list).toContain('<li><a href="/docs/rfq-stack/">RFQ Stack</a></li>')
     expect(list).toContain('<li><a href="/docs/ticket/">Ticket</a></li>')
