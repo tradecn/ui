@@ -1,53 +1,170 @@
 # rfq-stack
 
-The stack of open inquiries: the data grid in its RFQ preset, with an inquiry's columns, a countdown in every row, a threshold that hides the small auto-quoted ones, and a mark on the one in the ticket.
+`RfqStack` displays inquiries with market prices, time left, and a mark on the inquiry in the ticket. It adds inquiry columns and an optional auto-quote threshold to the data grid's `rfq` preset.
 
 ## Usage
 
+Share one view between the stack and `useActiveInquiry` so automatic selection follows the displayed order and filters.
+
 ```tsx
+import { useState } from "react"
 import { RfqStack, bySize, byTimeLeft, stackOrder, useRfqStackView, type RfqStackRow } from "@/components/ui/rfq-stack"
 import { useActiveInquiry } from "@/hooks/use-active-inquiry"
 import { createRowStore } from "@/lib/row-store"
-```
 
-```tsx
 const ORDER = stackOrder<RfqStackRow>(bySize, byTimeLeft)
 
-const [threshold, setThreshold] = useState<number | null>(5_000_000)
-const view = useRfqStackView(store, { comparator: ORDER, threshold })
-const active = useActiveInquiry(view, { isEnded: (row) => row.status !== "Open" && row.status !== "Quoted" })
+function InquiryStack() {
+  const [store] = useState(() => createRowStore<RfqStackRow>({ getRowId: (row) => row.id, lane: "ordered" }))
+  const [threshold, setThreshold] = useState<number | null>(5_000_000)
+  const view = useRfqStackView(store, { comparator: ORDER, threshold })
+  const active = useActiveInquiry(view, { isEnded: (row) => row.status !== "Open" && row.status !== "Quoted" })
 
-<RfqStack store={store} view={view} activeId={active.activeId} onActivate={active.setActive} threshold={threshold} onThresholdChange={setThreshold} price={(v, row) => conventions[row.instrument].price(v)} />
+  return (
+    <RfqStack
+      store={store}
+      view={view}
+      activeId={active.activeId}
+      parkedIds={active.parked}
+      onActivate={active.setActive}
+      threshold={threshold}
+      onThresholdChange={setThreshold}
+    />
+  )
+}
 ```
+
+Give the stack a parent with a fixed height and populate the store from your feed with `store.applyDeltas`. This example orders by size, largest first, then earliest expiry. Use your venue's statuses in `isEnded`.
 
 ## API Reference
 
-It is the data grid in its `rfq` preset (26 px rows, single select, ring flash, a one-second reorder hold, new rows highlighted and the viewport pinned when they arrive above you) with a set of columns and three things an inquiry stack needs. Every `DataGrid` prop passes through except `preset`. Sorting, the hold, column state, and the keyboard are [`data-grid`](data-grid.md)'s. If you already installed `data-grid`, `countdown`, `blotter`, or `watchlist`, the shared files are byte-identical and nothing of yours changes.
+`T` extends `RfqStackRow`. The stack fixes `preset="rfq"`: 26 px rows, single selection, ring flashes for numeric cells, a 1000 ms reorder hold, arrival highlighting, and viewport pinning. Other [`data-grid`](data-grid.md) props remain available, including overrides for row height, selection, arrival behavior, and the hold. Column state and keyboard behavior belong to the grid.
+
+`data-grid`, `countdown`, `blotter`, and `watchlist` share the same source files with this item at a given registry version. Locally edited or older installed files may differ.
+
+### Props
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `store` | `RowStore<T>` | Required | Inquiry data. |
+| `view` | `RowView<T>` | Grid creates a view | Supplies the displayed order and filters. |
+| `columns` | `ColumnDef<T>[]` | `rfqStackColumns()` | Replace, add, remove, or reorder columns. |
+| `label` | `string` | `"Inquiries"` | Accessible grid name. |
+| `activeId` | `RowId \| null` | `null` | Marks the inquiry in the ticket. |
+| `parkedIds` | `ReadonlySet<RowId>` | None | Mutes parked rows. |
+| `onActivate` | `(id: RowId, row: T) => void` | None | Requests a row for the ticket. |
+| `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Supplies right-click actions. |
+| `className` | `string` | None | Styles the stack wrapper. |
+
+Column-formatting and threshold props are listed below. Remaining props use `DataGridProps<T>`, except `preset`. `onRowActivate(row, id)` also runs after `onActivate(id, row)`; note the reversed arguments. Enter or a row double-click activates a row unless grid editing handles that interaction.
 
 ### The columns
 
-`rfqStackColumns({ price, time })` returns time, client (with the tier beside it), instrument, side, size, bid, ask, status, time left, and an auto mark. It is a plain list: spread it into your own to add a column, drop one, or reorder. `price` gets the row, because instruments print differently. The size prints as millions of notional, or as a count when the row's `quantityUnit` is `contracts`. The side is the client's, as a word. The status is the server's word and flashes flat when it changes. The time left is a compact [`countdown`](countdown.md) per row on one shared clock; its column sorts by the moment the inquiry ends, which never moves, so a stack sorted by time left never needs a clock to stay sorted. Rows are virtualized, so a thousand open inquiries are one screenful of countdowns.
+`rfqStackColumns(options?)` returns time, client with tier, instrument, side, size, bid, ask, status, time left, and auto, in that order. Spread or filter this list to customize it. `RfqStack` accepts the same options when `columns` is omitted:
+
+| Option | Type | Default | Purpose |
+|---|---|---|---|
+| `price` | `(value: number, row: T) => string` | Two decimals | Formats bid and ask by instrument. |
+| `time` | `(ms: number) => string` | Local 24-hour time with seconds | Formats arrival time. |
+| `thresholds` | `CountdownThresholds` | `{ soonMs: 10_000 }` | Countdown's provisional warning threshold, in milliseconds. |
+| `clock` | `Clock` | `sharedClock()` | Countdown clock; the default ticks once a second. |
+
+For instrument-specific prices, pass your formatter map: `price={(value, row) => conventions[row.instrument].price(value)}`. With custom `columns`, pass these options to `rfqStackColumns` yourself.
+
+| `RfqStackRow` field | Type | Required / default | Meaning |
+|---|---|---|---|
+| `id` | `string` | Required | Inquiry identity. |
+| `receivedAt`, `expiresAt` | `number` | Required | Arrival and deadline, in milliseconds since the epoch. |
+| `instrument` | `string` | Required | Instrument label. |
+| `side` | `"buy" \| "sell" \| "two-way"` | Required | Client's side, displayed as `BUY`, `SELL`, or `2-WAY`. |
+| `quantity` | `number` | Required | Raw notional or contract count. |
+| `quantityUnit` | `"notional" \| "contracts"` | Notional | Controls size formatting. |
+| `status` | `string` | Required | Venue status, printed unchanged. |
+| `client` | `string` | `–` | Client label. |
+| `tier` | `string` | Omitted | Optional label beside the client. |
+| `bid`, `ask` | `number \| null` | `–` | Market prices; missing values use the null token. |
+| `auto` | `boolean` | `false` | Shows the auto mark and makes the row subject to the threshold. |
+
+`formatStackSize(row)` prints millions of notional (`5_000_000` → `5mm`) or a contract count. Status changes use a flat fill flash. Side is shown as text, so color is not needed to read it.
+
+Time left uses a compact [`countdown`](countdown.md), without a bar or tier announcements, labeled `Time left ${row.id}`. It sorts by `expiresAt`, so ticking needs no re-sort. Virtualization mounts countdowns only for visible rows and overscan.
 
 ### The order is yours
 
-A desk sorts its stack by size, by client, by what is about to expire, or by a rule of its own. Pass `sort` for one column, or a `view` whose comparator is the rule. `useRfqStackView(store, { comparator, threshold, filter })` builds that view with the threshold and your filter folded in, and is what to hand both the stack and `useActiveInquiry`, so the ticket's next inquiry is one that is on the screen; it is remade when an option changes and the one before is disposed. `byTimeLeft`, `bySize`, and `byArrival` are ready comparators and `stackOrder(a, b, c)` chains them: the first that tells two inquiries apart decides. Keep a comparator's identity stable, a module constant, or the view is remade every render. The grid holds the order still for `reorderHoldMs` after any key or pointer, so nothing moves under a hand, and settles when the hand is gone. Without `sort` or `view` the stack is in arrival order. `useRfqStackView` also takes `rules`, the same [`grid-rules`](grid-rules.md) object the stack is given: their filter is folded in with the threshold and their sort breaks the comparator's ties, or is the order when there is no comparator, because the grid ignores both on a view of yours. Pass `columns` with it when the rules name columns that are not `rfqStackColumns()`.
+Pass `sort` for a column order or `view` for a custom comparator. Without a sort, sort rules, or custom view, rows follow store order: insertion order unless the feed supplies an explicit order.
+
+| Comparator | Order |
+|---|---|
+| `byTimeLeft` | Earliest `expiresAt` first. |
+| `bySize` | Largest `quantity` first. |
+| `byArrival` | Newest `receivedAt` first. |
+| `stackOrder(...comparators)` | First nonzero comparison wins. |
+
+`useRfqStackView(store, options?)` creates a view for the stack and active-inquiry hook to share:
+
+| Option | Type | Default | Purpose |
+|---|---|---|---|
+| `comparator` | `(a: T, b: T) => number` | Store order | Primary order; rules supply it when omitted. |
+| `threshold` | `number \| null` | `null` | Auto-quote minimum in raw quantity units. |
+| `filter` | `(row: T) => boolean` | All rows | Additional filter. |
+| `reorderHoldMs` | `number` | `1000` | Hold duration after grid interaction. |
+| `rules` | `GridRules` | None | Combines rule filters with the threshold and filter; rule sort breaks comparator ties. |
+| `columns` | `readonly RuleColumn<T>[]` | `rfqStackColumns()` | Column definitions used by rules. |
+
+Pass the same [`grid-rules`](grid-rules.md) object to the hook and stack. A supplied view owns filtering, sorting, and its hold; the grid ignores its own `filter`, `sort`, `rules.filter`, and `rules.sort` for that view. Rule colors still apply. Supply `columns` to the hook when rules refer to custom columns.
+
+Keep comparator, filter, rule arrays, and columns stable, using module constants or `useMemo`. Changing the store or a view option replaces the view and disposes the old one; unmounting disposes it too.
 
 ### The threshold
 
-An auto-quoter answers most inquiries and a trader wants to see only the ones worth a look. `threshold` hides auto-quoted rows (`auto: true`) under that size; a row a person has to answer always shows. Controlled with `onThresholdChange`, or uncontrolled from `defaultThreshold`; the field above the grid reads millions of notional (`thresholdUnit="contracts"` reads a count) and is shown whenever a threshold prop is given. Without a `view` the grid's own view applies it, with your `filter`. With a `view` of yours the grid shows exactly that view, so build it with `useRfqStackView` and pass the same `threshold` to both; the field then only reports. `rfqThresholdFilter(minQuantity)` is the rule as a function. Where the threshold is kept, per trader, is yours: a panel's state, for one.
+The threshold hides only auto-quoted rows with `quantity` below it. Equality passes. Non-auto rows pass this filter but may still be hidden by other filters. `rfqThresholdFilter(minQuantity)` exports this predicate; `null`, `undefined`, zero, and negative values disable it.
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `threshold` | `number \| null` | Internal state | Controlled minimum in raw quantity units. |
+| `defaultThreshold` | `number \| null` | `null` | Initial uncontrolled minimum. |
+| `onThresholdChange` | `(threshold: number \| null) => void` | None | Reports field edits; update a controlled threshold here. |
+| `thresholdField` | `boolean` | Automatic | Shows or hides the field. |
+| `thresholdUnit` | `"mm" \| "contracts"` | `"mm"` | Field scale: millions or a count. |
+| `thresholdLabel` | `string` | `"Hide auto under"` | Visible and accessible field label. |
+
+By default, the field appears when `threshold` is supplied (including `null`), `defaultThreshold` is non-null, or `onThresholdChange` is supplied. `defaultThreshold={null}` alone does not show it. Blank, nonnumeric, nonfinite, or nonpositive field input reports `null`.
+
+The field's `5` means `5_000_000` in `mm` mode and `5` in contracts mode. This scale does not convert row quantities: use compatible units across the stack.
+
+Without a supplied view, the grid applies the threshold with your filters. With one, control the threshold and pass it to both `useRfqStackView` and `RfqStack`, as in Usage. The field then reports edits; the hook applies them. Persist the threshold in your app or panel state.
 
 ### The active inquiry
 
-`useActiveInquiry(source, { isEnded, onChange })` is the rule a stack and a ticket agree on. The active inquiry stays active until the trader acts on it or the server says it is over, and only then does the next open inquiry in the stack's order take its place. An inquiry arriving never changes it, wherever it lands in the order. `isEnded` reads the server's word on a row (expired, done, done away, passed: whatever the venue says), so the hook never decides an inquiry is over by itself. `setActive(id)` is the trader picking one; `next()` is the trader done with one, moving to the next open inquiry before the server has spoken. `activeId` is null when nothing on the stack is open.
+`useActiveInquiry(source, options)` accepts a `RowStore<T>` or `RowView<T>`:
 
-Pass `activeId` to the stack and its row wears the mark (`data-state="active"`, a bar on the left). `onActivate` fires on Enter or a double click, the moment a trader asks for a row in the ticket. Mount the ticket with `key={active.activeId}` and the two agree.
+| Option | Type | Default | Purpose |
+|---|---|---|---|
+| `isEnded` | `(row: T) => boolean` | Required | Reads the venue's status to decide whether an inquiry is over. |
+| `onChange` | `(id: RowId \| null, row: T \| null) => void` | None | Reports the initial choice, including `null`, and later active-id changes. Updates that leave the active id unchanged do not trigger it. |
 
-`park(id)` sets an inquiry aside: it stays on the stack in its place in the order and still ends on the server's word, but it is never the next one, and parking the active one hands the ticket to the next open inquiry. `unpark(id)` lets it back in line, and picking a parked one with `setActive` does the same, since picking it is the trader's word. `parked` is the set; pass it to the stack as `parkedIds` and those rows are muted, wear `data-state="parked"`, and say `Parked` to a screen reader. The server never hears of a park. A parked inquiry whose row leaves the store leaves the set with it.
+The hook chooses the first non-ended, unparked row in source order. It keeps that inquiry through arrivals and reordering until it ends, leaves the store, is parked, or the trader chooses another. Filtering it out of a view does not clear the active choice. Countdown expiry alone has no effect.
 
-### Arrival never moves anything
+| Return value | Type | Behavior |
+|---|---|---|
+| `activeId`, `row` | `RowId \| null`, `T \| null` | Current inquiry, or `null` when no eligible inquiry remains. |
+| `setActive` | `(id: RowId \| null) => void` | Picks an existing non-ended row and unparks it. `null`, missing, or ended ids fall back to automatic selection. |
+| `next` | `() => void` | Selects the first eligible row other than the current one, even before the server ends it. Keeps the current inquiry if no alternative exists. |
+| `park`, `unpark` | `(id: RowId) => void` | Excludes or restores a row for automatic selection. |
+| `parked` | `ReadonlySet<RowId>` | Local parked ids, for the stack's `parkedIds` prop. |
 
-A new inquiry never moves the viewport (the preset pins it, so rows arriving above shift the scroll by exactly their height), never moves focus (focus is a row id), never moves the active mark, and never moves the order while a hand is on the grid. That is the stack's whole promise, and every part of it is held by identity, not by position.
+Pass `activeId` to mark the row with `data-state="active"` and a left bar. Key the ticket by `active.activeId` so its draft belongs to that inquiry.
+
+Parking keeps the row in the stack and skips it during automatic selection; parking the active inquiry advances the ticket. Unparking restores eligibility without replacing another active inquiry. Parked rows are muted, use `data-state="parked"`, and have an accessible description of `Parked` unless `getRowProps` supplies one. The active mark takes precedence. Parking sends nothing to the server. The hook prunes removed rows from the parked set when it next renders.
+
+<a id="arrival-never-moves-anything"></a>
+
+### Arrival and reorder behavior
+
+With preset defaults, arrivals preserve the first visible row by adjusting scroll position by the inserted rows' height. Focus and the active mark follow row ids. Viewport pinning requires that the previous first visible row still exists; `rowEnter.pinViewport: false` disables it.
+
+Grid key presses outside an editor and pointer-downs in the body start or extend the reorder hold. Existing rows keep their relative order while held; new rows append, while removed or filtered-out rows disappear. The view settles to its current sort when the hold expires, even without another feed update. This does not prevent movement caused by removals or by the eventual re-sort. Set `reorderHoldMs` on the view when supplying your own.
 
 ### What it does not do
 
-Fetch, sort by a rule it invents, decide that an inquiry is over, or keep the threshold anywhere. It has no actions of its own: a quote, a pass, a stop belong to the ticket, where the levels are.
+Your app fetches data, defines the ordering and end statuses, and persists the threshold. Quote, pass, and stop actions belong to the ticket; the stack provides activation and your context-menu items.
