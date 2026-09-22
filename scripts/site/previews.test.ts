@@ -94,6 +94,17 @@ describe("the embed build", () => {
     expect(await readEmbed(join(tmpdir(), "no-such-embed"))).toBeNull()
   })
 
+  it("moves the bundle, the mode script, and the favicon under the base on a release's own tree", async () => {
+    const previews: Previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()) }
+    const values = templateValues(registry, version, registry, new Set(), previews, { base: "/v9.9.9" })
+    const [page] = previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE))
+    expect(page?.html).toContain('<script type="module" src="/v9.9.9/preview/assets/embed-abc.js"></script>')
+    expect(page?.html).toContain('<link rel="stylesheet" href="/v9.9.9/preview/assets/embed-def.css">')
+    expect(page?.html).toContain('<script src="/v9.9.9/theme.js"></script>')
+    expect(page?.html).toContain('<link rel="icon" href="/v9.9.9/favicon.svg"')
+    expect(page?.html).not.toMatch(/ (href|src)="\/(?!v9\.9\.9\/)/)
+  })
+
   it("names the entry's script and stylesheets as site paths", async () => {
     const embed = await readEmbed(fakeEmbed())
     expect(embed?.script).toBe("/preview/assets/embed-abc.js")

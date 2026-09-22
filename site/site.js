@@ -11,6 +11,12 @@
 // The stylesheet hides the copy buttons and the package-manager tabs until this runs: without a script they would do nothing.
 document.documentElement.classList.add("js")
 
+// Which release this page describes, and where its tree is served from: "" at the root, which is the latest
+// release's, or "/v1.2.0" on a release's own tree. Every site path this script builds goes under the base; the
+// registry and the list of releases stay at the root, since there is one of each.
+const VERSION = document.documentElement.dataset.version ?? ""
+const BASE = document.documentElement.dataset.base ?? ""
+
 // pnpm, npm, yarn, or bun: the last one picked, in this browser. The pages' CSS shows the matching command.
 const MANAGER_KEY = "tradecn-pm"
 const MANAGERS = ["pnpm", "npm", "yarn", "bun"]
@@ -94,12 +100,65 @@ function copyButton(button) {
   })
 }
 
+// The version menu. First among the header's links, it lists every release with pages, from /versions.json
+// at the root (never this tree's own copy: a page on an older tree learns about the releases after it from
+// there), newest first, this page's selected. A pick goes to this same page under that release, or to that
+// release's docs when the page is not there (an item that came later), or to its opening page; a HEAD says
+// which exists. The latest release lives at the root and every other under /vX.Y.Z/.
+const VERSIONS_INDEX = "/versions.json"
+
+/** This page's path within its tree: what it is at the root, and what it would be under any release. */
+const pagePath = () => (BASE && location.pathname.startsWith(`${BASE}/`) ? location.pathname.slice(BASE.length) : location.pathname)
+
+/** Go to `version`'s tree, which is the root for the latest: this page there, else its docs, else its opening page. */
+async function goToVersion(version, latest) {
+  const root = version === latest ? "" : `/${version}`
+  // Already reading this release where it lives.
+  if (root === BASE) return
+  const path = pagePath()
+  for (const candidate of [path, "/docs/", "/"]) {
+    const url = `${root}${candidate}`
+    try {
+      const response = await fetch(url, { method: "HEAD" })
+      if (response.ok) {
+        location.assign(candidate === path ? `${url}${location.hash}` : url)
+        return
+      }
+    } catch {
+      // The network failed this one; the next may answer, and the last is taken on faith.
+    }
+  }
+  location.assign(`${root}/`)
+}
+
+function versions() {
+  const select = document.querySelector(".version-select")
+  if (!select || !VERSION) return
+  // Until the list arrives the menu holds the releases the page was built with, the newest of them first.
+  let latest = select.options[0]?.value ?? VERSION
+  fetch(VERSIONS_INDEX)
+    .then((response) => (response.ok ? response.json() : Promise.reject(new Error(`${VERSIONS_INDEX} answered ${response.status}`))))
+    .then((index) => {
+      const listed = Array.isArray(index.versions) ? index.versions.filter((version) => typeof version === "string") : []
+      // A list without this release (its tree is being published) leaves the menu as built.
+      if (!listed.includes(VERSION)) return
+      latest = typeof index.latest === "string" ? index.latest : listed[0]
+      select.replaceChildren(...listed.map((version) => new Option(version, version, false, version === VERSION)))
+    })
+    .catch(() => {
+      // The list did not load: the menu keeps the releases it was built with.
+    })
+  select.addEventListener("change", () => {
+    goToVersion(select.value, latest)
+  })
+}
+
 // The search. The button in the header and mod+k open a native dialog over every page's title, headings,
-// and text, from /search.json, which the builder writes and this fetches the first time the search
-// opens. Every word of the query has to land somewhere: the page's title beats a heading, which beats
-// the text under it, and a page's hits stay together under its name. Enter goes to the highlighted hit.
-// Keys pressed inside a preview iframe stay in that document, so a demo's mod+k opens the demo's own
-// palette and never this, and this never opens from inside a demo.
+// and text, from /search.json, which the builder writes beside the pages of every tree and this fetches
+// the first time the search opens. Every word of the query has to land somewhere: the page's title beats
+// a heading, which beats the text under it, and a page's hits stay together under its name. Enter goes to
+// the highlighted hit. Keys pressed inside a preview iframe stay in that document, so a demo's mod+k opens
+// the demo's own palette and never this, and this never opens from inside a demo.
 const SEARCH_INDEX = "/search.json"
 const MAC = /mac|iphone|ipad|ipod/i.test(navigator.userAgentData?.platform ?? navigator.platform ?? "")
 const MAX_HITS = 20
@@ -125,21 +184,22 @@ function findHits(pages, query) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
   const hits = []
   pages.forEach((page, order) => {
+    // The index names a page by its path within the tree; the link is that path under this tree's base.
     if (!words.length) {
-      hits.push({ page, order, score: 0, href: page.path })
+      hits.push({ page, order, score: 0, href: `${BASE}${page.path}` })
       return
     }
     // A page answers to its title (`data-grid`) and to the name the sidebar shows (`Data Grid`), when they differ.
     const names = [...new Set([page.title, nameOf(page)])].map((name) => name.toLowerCase())
     const pageScore = scoreOf(words, names, "", page.text.toLowerCase())
-    if (pageScore) hits.push({ page, order, score: pageScore, href: page.path, text: page.text })
+    if (pageScore) hits.push({ page, order, score: pageScore, href: `${BASE}${page.path}`, text: page.text })
     for (const section of page.sections) {
       const heading = section.heading.toLowerCase()
       const text = section.text.toLowerCase()
       // A section answers for a word in its own heading or text. A word that fits only the page's title is the page's hit, or every section would repeat it.
       if (!words.some((word) => heading.includes(word) || text.includes(word))) continue
       const score = scoreOf(words, names, heading, text)
-      if (score) hits.push({ page, order, score, section, href: `${page.path}#${section.id}`, text: section.text })
+      if (score) hits.push({ page, order, score, section, href: `${BASE}${page.path}#${section.id}`, text: section.text })
     }
   })
   const best = new Map()
@@ -198,9 +258,9 @@ function search() {
   let active = 0
 
   const load = () => {
-    loading ??= fetch(SEARCH_INDEX)
+    loading ??= fetch(BASE + SEARCH_INDEX)
       .then((response) => {
-        if (!response.ok) throw new Error(`${SEARCH_INDEX} answered ${response.status}`)
+        if (!response.ok) throw new Error(`${BASE}${SEARCH_INDEX} answered ${response.status}`)
         return response.json()
       })
       .then((index) => {
@@ -351,6 +411,7 @@ function search() {
 }
 
 addEventListener("DOMContentLoaded", () => {
+  versions()
   search()
   // Tabbed cards: the preview's Preview / Code and the Installation's Command / Manual. The card's bar is its
   // own first child tablist; a package-manager bar inside one of its panels is wired separately below.

@@ -18,7 +18,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { chromium, type Page } from "@playwright/test"
-import { FONT_PACKAGES, HEADERS_FILE, PREVIEW_PATH, SEARCH_INDEX, SITE_SCRIPT, THEME_ITEM } from "./build"
+import { compareTags, FONT_PACKAGES, HEADERS_FILE, PREVIEW_PATH, SEARCH_INDEX, SITE_SCRIPT, THEME_ITEM, VERSIONS_INDEX } from "./build"
 import type { SearchPage } from "./build"
 
 const { values: args } = parseArgs({
@@ -42,7 +42,8 @@ function serve() {
     async fetch(request) {
       let pathname = new URL(request.url).pathname
       if (pathname.endsWith("/")) pathname += "index.html"
-      else if (pathname.lastIndexOf(".") <= pathname.lastIndexOf("/")) pathname += "/index.html"
+      // A file has an extension that starts with a letter; a dot before a digit is a release, /v1.2.0, a route.
+      else if (!/\.[a-z][a-z0-9]*$/i.test(pathname.slice(pathname.lastIndexOf("/")))) pathname += "/index.html"
       const file = Bun.file(path.join(dist, pathname))
       // A missing key is the 404 page at a 404 status, as the distribution's error responses serve it.
       if (!(await file.exists())) return new Response(Bun.file(path.join(dist, "404.html")), { status: 404, headers })
@@ -395,6 +396,87 @@ for (const item of items) {
     console.log(`ok  search: ${pages.length} pages indexed, the button, mod+k, a heading hit, Enter, and the preview kept its own keys`)
   } catch (error) {
     failures.push(`search: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
+// The version menu. First among the header's links, before the search: every release with pages, from /versions.json
+// at the root, newest first, this page's selected. A release's own tree lives under /vX.Y.Z/ with every path under
+// it (its pages, its previews, its search); the root is the latest's. A pick goes to the same page under that
+// release, the latest's at the root, or to its docs when the page is not there, which a HEAD that answers 404 finds
+// out; Chromium logs that answer as a console error, and that one line is expected here.
+{
+  const page = await context.newPage()
+  page.on("pageerror", (error) => failures.push(`versions: page error: ${error.message}`))
+  page.on("console", (message) => {
+    if (message.type() === "error" && !/status of 404/.test(message.text())) failures.push(`versions: console error: ${message.text()}`)
+  })
+  const select = page.locator(".site-header .version-select")
+  const versionOf = (p: Page) => p.evaluate(() => document.documentElement.dataset.version ?? "")
+  const baseOf = (p: Page) => p.evaluate(() => document.documentElement.dataset.base ?? "")
+  try {
+    const listing = await page.request.get(`${base}/${VERSIONS_INDEX}`)
+    if (!listing.ok()) failures.push(`versions: /${VERSIONS_INDEX} answered ${listing.status()}`)
+    const { latest, versions } = (await listing.json()) as { latest: string; versions: string[] }
+    if (!versions.length || versions[0] !== latest) failures.push(`versions: the list is ${versions.join(", ")} with ${latest} as the latest`)
+    if ([...versions].sort(compareTags).join() !== versions.join()) failures.push(`versions: the list is not newest first: ${versions.join(", ")}`)
+    await page.goto(`${base}/docs/`, { waitUntil: "load" })
+    const current = await versionOf(page)
+    if (current !== latest) failures.push(`versions: the root's pages are ${current}, the list's latest is ${latest}`)
+    if ((await baseOf(page)) !== "") failures.push(`versions: the root's pages say their base is "${await baseOf(page)}"`)
+    const first = await page.locator(".site-header nav.side > *").evaluateAll((els) => els.slice(0, 2).map((el) => el.className))
+    if (first.join(",") !== "version-pick,search-button") failures.push(`versions: the header's links start ${first.join(", ")}, not the version menu then the search`)
+    if (!(await select.isVisible())) failures.push("versions: no version menu in the header")
+    await page.waitForFunction((count) => document.querySelectorAll(".version-select option").length === count, versions.length, { timeout: 5_000 })
+    const options = await select.locator("option").evaluateAll((els) => els.map((el) => (el as HTMLOptionElement).value))
+    if (options.join() !== versions.join()) failures.push(`versions: the menu lists ${options.join(", ")}, the list ${versions.join(", ")}`)
+    if ((await select.inputValue()) !== current) failures.push(`versions: the menu shows ${await select.inputValue()} on ${current}'s pages`)
+    // The latest release's own tree: the same page under /<tag>/, every path under it, the preview up, its search finding its own pages, canonical at the root.
+    const tree = `/${current}`
+    const item = itemPreviews[0]!
+    const own = await page.goto(`${base}${tree}/docs/${item}/`, { waitUntil: "load" })
+    if (!own?.ok()) failures.push(`versions: ${tree}/docs/${item}/ answered ${own?.status()}`)
+    if ((await baseOf(page)) !== tree) failures.push(`versions: the tree's page says its base is "${await baseOf(page)}"`)
+    if ((await versionOf(page)) !== current) failures.push(`versions: the tree's page is ${await versionOf(page)}'s`)
+    if ((await select.inputValue()) !== current) failures.push(`versions: the tree's menu shows ${await select.inputValue()}`)
+    const outside = await page.evaluate(
+      (prefix) =>
+        [...document.querySelectorAll("a[href^='/'], link[href^='/'], script[src^='/'], iframe[src^='/']")]
+          .map((el) => el.getAttribute("href") ?? el.getAttribute("src") ?? "")
+          .filter((path) => !path.startsWith(`${prefix}/`) && !path.startsWith("/r/")),
+      tree,
+    )
+    if (outside.length) failures.push(`versions: ${tree}'s page reaches outside its tree: ${[...new Set(outside)].slice(0, 5).join(", ")}`)
+    const canonical = await page.locator("link[rel='canonical']").getAttribute("href")
+    if (canonical !== `https://tradecn.dev/docs/${item}/`) failures.push(`versions: the tree's page is canonical at ${canonical}, not the root's`)
+    await page.waitForFunction((name) => parseFloat((document.querySelector(`.preview[data-preview='${name}'] iframe`) as HTMLIFrameElement | null)?.style.height ?? "0") > 40, item, { timeout: 15_000 })
+    await page.locator(".site-header .search-button").click()
+    const hit = page.locator("dialog.search [role='option']").first()
+    await hit.waitFor({ timeout: 10_000 })
+    if (!(await hit.getAttribute("href"))?.startsWith(`${tree}/docs/`)) failures.push(`versions: the tree's search links ${await hit.getAttribute("href")}, outside its tree`)
+    await page.keyboard.press("Escape")
+    // The tree's root answers with and without the slash: a dot before a digit is a release, not a file.
+    for (const route of [`${tree}/`, tree]) {
+      const answer = await page.request.get(`${base}${route}`)
+      if (!answer.ok()) failures.push(`versions: ${route} answered ${answer.status()}`)
+    }
+    // Picking the latest from its own tree goes to the same page where it lives, at the root.
+    await select.selectOption(latest)
+    await page.waitForURL(`${base}/docs/${item}/`, { timeout: 10_000 })
+    await page.waitForLoadState("load")
+    // Picking an older release from the root goes under its tree: this page there, or its docs when the page came later.
+    const older = versions.find((version) => version !== latest)
+    if (older) {
+      await select.selectOption(older)
+      await page.waitForURL((url) => url.pathname.startsWith(`/${older}/docs/`), { timeout: 10_000 })
+      await page.waitForLoadState("load")
+      if ((await versionOf(page)) !== older) failures.push(`versions: after picking ${older} the page is ${await versionOf(page)}'s`)
+      if ((await select.inputValue()) !== older) failures.push(`versions: after picking ${older} the menu shows ${await select.inputValue()}`)
+    }
+    console.log(`ok  versions: ${versions.length} release(s) on the menu${older ? `, ${older} reached from the root` : ""}, ${current}'s own tree with its preview and search, and the latest back at the root`)
+  } catch (error) {
+    failures.push(`versions: ${firstLine(error)}`)
   } finally {
     await page.close()
   }

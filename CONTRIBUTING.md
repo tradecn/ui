@@ -45,7 +45,7 @@ A release pull request is opened by a bot with the workflow token, and GitHub st
 
 ## What releases
 
-release-please watches `main`. When a releasing commit lands it opens a release pull request with the changelog and the new `version.txt`. Merging that pull request tags `vX.Y.Z`, and the same run publishes `/r/vX.Y.Z/` on tradecn.dev and moves the latest pointer if the tag is the highest one.
+release-please watches `main`. When a releasing commit lands it opens a release pull request with the changelog and the new `version.txt`. Merging that pull request tags `vX.Y.Z`, and the same run publishes `/r/vX.Y.Z/` and the release's own pages at `/vX.Y.Z/` on tradecn.dev, and moves the latest pointer and the root's pages if the tag is the highest one.
 
 Commits that only touch `site/`, `infra/`, `.github/`, `playground/`, `fixtures/`, `bench/`, `assets/`, `scripts/ci/`, `scripts/infra/`, or `scripts/site/` never release, whatever their type.
 

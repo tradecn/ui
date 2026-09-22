@@ -78,6 +78,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run --cwd playground build:embed
       - run: bun scripts/site/build.ts
+      - run: bun scripts/site/build.ts --base "/v$(cat version.txt)" --out "site/dist/v$(cat version.txt)"
       - run: bunx playwright install --with-deps chromium
       - run: bun scripts/site/smoke.ts
 

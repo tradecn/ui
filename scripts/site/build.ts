@@ -3,10 +3,14 @@
 // and one embedded preview per item.
 //   bun scripts/site/build.ts [--registry registry.json] [--version version.txt] [--docs docs] [--changelog CHANGELOG.md]
 //                             [--theme registry.json] [--demos playground/src/demos] [--embed playground/dist/embed] [--out site/dist]
+//                             [--base /v1.2.0] [--versions v1.2.0,v1.1.0]
 // The pages say what a release ships, so the release job points --registry, --version, --docs, --changelog, --demos,
 // and --embed at the tag's checkout while the templates in site/, the site's own pages, this script, and the palette
 // come from main. The palette is main's because a tag from before the theme existed has none to give. A tag from
 // before the previews existed has no embed build, and its pages go out without them.
+// Every release keeps its pages: the root is the latest release's tree, and each release has its own under /vX.Y.Z/,
+// built from the same inputs with --base, which moves every path the pages write under it. --versions names every
+// release with a tree, for the header's menu and the root's versions.json.
 // The pages have a light and a dark mode, both sides of the amber theme: warm paper by day, near-black by night, set
 // in the two faces its typography tokens name. site/theme.js puts the mode on <html>, from the reader's choice or the system,
 // and the theme beside it: the header's menu offers every theme in the registry, and a page carries each one's palette.
@@ -181,6 +185,50 @@ export function themePicker(themes: RegistryItem[]): string {
   return `<span class="theme-pick"><select class="theme-select" aria-label="Theme">${options}</select>${CHEVRON_ICON}</span>`
 }
 
+/** A release tag as the site names one: `v` and three numbers. */
+const RELEASE_TAG = /^v\d+\.\d+\.\d+$/
+
+/** Newest first, by the numbers: `v1.2.0` before `v1.1.0` before `v0.9.9`. */
+export function compareTags(a: string, b: string): number {
+  const x = a.slice(1).split(".").map(Number)
+  const y = b.slice(1).split(".").map(Number)
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return (y[i] ?? 0) - (x[i] ?? 0)
+  return 0
+}
+
+/**
+ * The releases the header's menu lists, newest first, with `tag` among them whatever the list said: every release
+ * with pages, as the release job reads them off the bucket, or this tag alone for a local build.
+ */
+export function versionList(tag: string, versions: readonly string[] = []): string[] {
+  for (const version of [tag, ...versions]) if (!RELEASE_TAG.test(version)) throw new Error(`"${version}" is not a release tag`)
+  return [...new Set([tag, ...versions])].sort(compareTags)
+}
+
+/** The file at the root that names every release with pages, newest first; site.js fills the menu from it on every tree. */
+export const VERSIONS_INDEX = "versions.json"
+export const versionsIndex = (versions: readonly string[]) => JSON.stringify({ latest: versions[0], versions })
+
+/**
+ * The version menu, first among the header's links: a native select of every release with pages, newest first,
+ * this page's release selected. site.js refreshes the list from /versions.json at the root, so a page on an older
+ * tree offers the releases that came after it, and a pick goes to the same page under the chosen release. Without
+ * a script it is the tag alone: the one option showing, which is what the header used to print.
+ */
+export function versionPicker(tag: string, versions: readonly string[] = [tag]): string {
+  const options = versions.map((version) => `<option value="${escapeHtml(version)}"${version === tag ? " selected" : ""}>${escapeHtml(version)}</option>`).join("")
+  return `<span class="version-pick"><select class="version-select" aria-label="Version">${options}</select>${CHEVRON_ICON}</span>`
+}
+
+/**
+ * Where a tree is served from: `/v1.2.0` for a release's own tree, empty for the root. One segment, no trailing
+ * slash, so `${base}/docs/` is a path either way.
+ */
+export function siteBase(base = ""): string {
+  if (base && !/^\/[A-Za-z0-9][\w.-]*$/.test(base)) throw new Error(`--base ${base} is not one path segment like /v1.2.0`)
+  return base
+}
+
 /**
  * The search dialog, on the opening page and every docs page, closed until the button or mod+k opens it.
  * A native dialog: the browser gives it the top layer, the backdrop, Escape, and focus back to the button.
@@ -196,11 +244,12 @@ export function searchDialog(): string {
 }
 
 /**
- * The header on every page: the mark, the three sections with the registry file after them, the search, the GitHub
- * mark, the tag, the theme menu, and the mode button. `current` marks the section a page is in, `page` that it is the
- * section's own page, and `picker` is `themePicker()` of the themes the page carries, left of the mode button.
+ * The header on every page: the mark, the three sections with the registry file after them, then the version menu,
+ * the search, the GitHub mark, the theme menu, and the mode button. `versions` is `versionPicker()` of the releases
+ * the page knows and `themes` is `themePicker()` of the themes it carries; `current` marks the section a page is in,
+ * `page` that it is the section's own page.
  */
-export function siteHeader(tag: string, current: Section | null = null, page = false, picker = ""): string {
+export function siteHeader(versions: string, current: Section | null = null, page = false, themes = ""): string {
   const link = (section: Section, href: string, text: string) =>
     `<a href="${href}"${section === current ? ` aria-current="${page ? "page" : "true"}"` : ""}>${text}</a>`
   return [
@@ -208,7 +257,7 @@ export function siteHeader(tag: string, current: Section | null = null, page = f
     `<div class="wrap">`,
     `<a class="name" href="/">${MARK}<span>tradecn<span class="slash">/</span>ui</span></a>`,
     `<nav aria-label="Sections">${link("docs", "/docs/", "Docs")}${link("components", "/docs/components/", "Components")}${link("changelog", "/docs/changelog/", "Changelog")}<a href="/r/registry.json">registry.json</a></nav>`,
-    `<nav class="side" aria-label="Links">${SEARCH_BUTTON}${GITHUB_LINK}<span class="tag">${escapeHtml(tag)}</span>${picker}${MODE_BUTTON}</nav>`,
+    `<nav class="side" aria-label="Links">${versions}${SEARCH_BUTTON}${GITHUB_LINK}${themes}${MODE_BUTTON}</nav>`,
     `</div>`,
     `</header>`,
   ].join("\n")
@@ -254,6 +303,14 @@ export function pageFonts(theme: RegistryItem): { fontSans: string; fontMono: st
   return { fontSans, fontMono }
 }
 
+/** Which tree a build is and what it knows of the others. */
+export type SiteOptions = {
+  /** Every release with pages; this build's tag is added when missing. The header's menu lists them and the root's versions.json names them. */
+  versions?: readonly string[]
+  /** Where this tree is served from, `/v1.2.0` for a release's own tree, empty for the root. Every site path the pages write moves under it. */
+  base?: string
+}
+
 /** Every value the landing templates may use. Items and version come from `registry`, the palette from `themeSource`, the showcase from `previews`. */
 export function templateValues(
   registry: Registry,
@@ -261,8 +318,11 @@ export function templateValues(
   themeSource: Registry = registry,
   docSlugs: ReadonlySet<string> = new Set(),
   previews: Previews = NO_PREVIEWS,
+  options: SiteOptions = {},
 ): Record<string, string> {
   const tag = `v${version}`
+  const base = siteBase(options.base)
+  const versions = versionPicker(tag, versionList(tag, options.versions))
   const themes = siteThemes(themeSource)
   const theme = themes[0]!
   const palette = pagePalette(theme)
@@ -271,13 +331,15 @@ export function templateValues(
   return {
     version,
     tag,
+    base,
     palette,
     themePalettes: themePalettes(themes),
     themesMeta: themesMeta(themes),
+    versionPicker: versions,
     themePicker: picker,
     fontSans,
     fontMono,
-    header: siteHeader(tag, null, false, picker),
+    header: siteHeader(versions, null, false, picker),
     search: searchDialog(),
     showcase: showcase(registry, tag, docSlugs, previews),
     itemCount: String(registry.items.length),
@@ -286,13 +348,30 @@ export function templateValues(
   }
 }
 
-/** Fill `{{key}}` placeholders. A key the builder does not set is an error, not an empty string. */
+/**
+ * Fill `{{key}}` placeholders. A key the builder does not set is an error, not an empty string. On a release's own
+ * tree (`values.base`), every path the page writes from the site's root then moves under the base: a link, a frame,
+ * a script, a stylesheet, the favicon. The registry stays where it is, since `/r/` is one place and not a page.
+ */
 export function render(template: string, values: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
+  const filled = template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
     const value = values[key]
     if (value === undefined) throw new Error(`template uses {{${key}}}, which the builder does not set`)
     return value
   })
+  return values.base ? rebase(filled, values.base) : filled
+}
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+/**
+ * Every `href` and `src` from the site's root moved under `base`, the registry's excepted, and one already under
+ * the base left alone: a site page's placeholders are filled before marked runs and the finished page is rendered
+ * again, so the pass has to be safe to repeat. Code is escaped, so a path inside a sample is never touched.
+ */
+export function rebase(html: string, base: string): string {
+  const under = new RegExp(`(\\s(?:href|src)=")/(?!/|r/|${escapeRegExp(base.slice(1))}(?:/|"))`, "g")
+  return html.replace(under, `$1${base}/`)
 }
 
 /** The package managers the install blocks offer, in the order shadcn's own site lists them, each with its runner and its add. npm's forms are the ones every doc writes. */
@@ -361,7 +440,8 @@ export function renderPage(template: string, values: Record<string, string>): st
   return tables(codeBlocks(render(template, values)))
 }
 
-export const PAGES = ["index.html", "404.html"] as const
+export const NOT_FOUND_PAGE = "404.html"
+export const PAGES = ["index.html", NOT_FOUND_PAGE] as const
 export const FAVICON = "favicon.svg"
 /** The pages' script, a file so the site's Content-Security-Policy keeps script-src to 'self'. */
 export const SITE_SCRIPT = "site.js"
@@ -922,7 +1002,7 @@ export function sectionOf(doc: Doc): Section {
  * down the right.
  */
 export function docPages(docs: Doc[], values: Record<string, string>, template: string, previews: Previews = NO_PREVIEWS, sources: Sources = new Map()): Array<{ path: string; html: string }> {
-  const { tag = "", repoUrl, themePicker: picker = "" } = values
+  const { tag = "", repoUrl, versionPicker: versions = "", themePicker: picker = "" } = values
   return docs.map((doc, index) => {
     const demo = previews.embed ? previews.demos.get(doc.slug) : undefined
     const foot = doc.file ? `<p class="foot">This page is <code>${escapeHtml(doc.file)}</code> at <a href="${repoUrl}/blob/${tag}/${escapeHtml(doc.file)}">${tag}</a>.</p>` : ""
@@ -938,7 +1018,7 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
         title: escapeHtml(doc.title),
         description: escapeHtml(doc.description),
         path: doc.path,
-        header: siteHeader(tag, section, !doc.item && (section !== "docs" || doc.slug === "index"), picker),
+        header: siteHeader(versions, section, !doc.item && (section !== "docs" || doc.slug === "index"), picker),
         nav: docsNav(docs, doc.slug),
         toc: toc(body),
         content,
@@ -1008,26 +1088,34 @@ async function main() {
       demos: { type: "string", default: "playground/src/demos" },
       embed: { type: "string", default: "playground/dist/embed" },
       out: { type: "string", default: "site/dist" },
+      base: { type: "string", default: "" },
+      versions: { type: "string", default: "" },
     },
   })
   const registry = JSON.parse(await readFile(resolve(args.registry), "utf8")) as Registry
   const themeSource = JSON.parse(await readFile(resolve(args.theme), "utf8")) as Registry
   const version = (await readFile(resolve(args.version), "utf8")).trim()
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`${args.version} holds "${version}", which is not a version`)
+  const base = siteBase(args.base)
+  const versions = versionList(`v${version}`, args.versions.split(",").map((tag) => tag.trim()).filter(Boolean))
   const tagDocs = await readDocs(resolve(args.docs), registry)
   const docSlugs = new Set(tagDocs.map((doc) => doc.slug))
   const previews: Previews = { demos: await readDemos(resolve(args.demos)), embed: await readEmbed(resolve(args.embed)) }
-  const values = templateValues(registry, version, themeSource, docSlugs, previews)
+  const values = templateValues(registry, version, themeSource, docSlugs, previews, { versions, base })
   const site = await readSitePages(join(root, "site", SITE_DOCS), sitePageValues(registry, values, docSlugs, await readChangelog(resolve(args.changelog))))
   const docs = siteDocs(site, tagDocs)
   // The files the Manual tab shows live beside the registry.json they are listed in: the tag's checkout in the release job.
   const sources = await readSources(registry, dirname(resolve(args.registry)))
   const out = resolve(args.out)
   await mkdir(out, { recursive: true })
-  for (const page of PAGES) {
+  // Three things live at the root alone: the 404 page, which the distribution serves for every missing key wherever
+  // it is; the popout page, which dockview opens at the root; and the list of releases, which every tree's menu reads.
+  const atRoot = !base
+  for (const page of atRoot ? PAGES : PAGES.filter((page) => page !== NOT_FOUND_PAGE)) {
     const template = await readFile(join(root, "site", page), "utf8")
     await writeFile(join(out, page), renderPage(template, values))
   }
+  if (atRoot) await writeFile(join(out, VERSIONS_INDEX), versionsIndex(versions))
   // The amber mark: readable on a dark tab strip, and the same file the README shows in dark mode.
   await writeFile(join(out, FAVICON), await readFile(join(root, "assets", "logo-dark.svg")))
   await cp(join(root, "site", SITE_SCRIPT), join(out, SITE_SCRIPT))
@@ -1051,14 +1139,14 @@ async function main() {
   const pages = previewPages(registry, themeSource, previews, values, await readFile(join(root, "site", PREVIEW_TEMPLATE), "utf8"), docSlugs)
   if (previews.embed) {
     await cp(join(previews.embed.dir, "assets"), join(out, PREVIEW_PATH, "assets"), { recursive: true })
-    await cp(join(previews.embed.dir, POPOUT), join(out, POPOUT))
+    if (atRoot) await cp(join(previews.embed.dir, POPOUT), join(out, POPOUT))
     for (const page of pages) {
       await mkdir(join(out, dirname(page.path)), { recursive: true })
       await writeFile(join(out, page.path), page.html)
     }
   }
   const previewNote = previews.embed ? `${pages.length} previews` : "no previews (no embed build)"
-  console.log(`site: ${registry.items.length} items, ${docs.length} docs pages, ${previewNote}, ${SEARCH_INDEX} at v${version} -> ${out}`)
+  console.log(`site: ${registry.items.length} items, ${docs.length} docs pages, ${previewNote}, ${SEARCH_INDEX} at v${version}${base ? ` under ${base}` : ""} -> ${out}`)
 }
 
 if (import.meta.main) await main()
