@@ -16,7 +16,7 @@ function BookContent({ title }: { title: string }) {
       <PanelHeader>
         <PanelTitle>{title}</PanelTitle>
         <PanelActions>
-          <button type="button" className="rounded px-1 hover:bg-muted" onClick={refresh}>Refresh</button>
+          <button type="button" aria-label={`Refresh ${title}`} className="rounded px-1 hover:bg-muted" onClick={refresh}>Refresh</button>
         </PanelActions>
       </PanelHeader>
       <PanelContent className="p-3 text-sm">

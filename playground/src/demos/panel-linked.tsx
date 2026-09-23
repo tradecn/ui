@@ -10,8 +10,8 @@ function Book({ title, group, symbol }: { title: string; group: LinkGroup; symbo
     <Panel kind="book" className="h-36 w-56 max-w-full">
       <PanelHeader>
         <PanelTitle>{title}</PanelTitle>
-        <SymbolTag value={link.symbol} onCommit={link.setSymbol} validate={(value) => SYMBOLS.has(value)} />
-        <LinkGroupDot group={link.group} onGroupChange={link.setGroup} />
+        <SymbolTag label={`${title} symbol`} value={link.symbol} onCommit={link.setSymbol} validate={(value) => SYMBOLS.has(value)} />
+        <LinkGroupDot group={link.group} onGroupChange={link.setGroup} aria-label={`${title}, ${link.group === null ? "not linked" : `link group ${link.group}`}, change`} />
       </PanelHeader>
       <PanelContent className="p-3 text-sm">Following {link.symbol}.</PanelContent>
     </Panel>
