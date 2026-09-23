@@ -10,15 +10,15 @@ const instruments: SpreadInstrument[] = [
   { id: "10Y", label: "10Y", convention: T32 },
 ]
 
-export default function SpreadMatrixDemo() {
+export default function SpreadMatrixYieldsDemo() {
   const [store] = useState(() => {
-    const store = createRowStore<{ id: string; price: number }>({ getRowId: (quote) => quote.id })
+    const store = createRowStore<{ id: string; yield: number }>({ getRowId: (quote) => quote.id })
     store.applyDeltas({ upsert: [
-      { id: "2Y", price: 100.25 },
-      { id: "5Y", price: 99.75 },
-      { id: "10Y", price: 99.515625 },
+      { id: "2Y", yield: 4.25 },
+      { id: "5Y", yield: 4.125 },
+      { id: "10Y", yield: 4.375 },
     ] })
     return store
   })
-  return <SpreadMatrix store={store} instruments={instruments} label="Price spreads" className="w-fit max-w-full" />
+  return <SpreadMatrix store={store} instruments={instruments} basis="bps" label="Yield spreads" className="w-fit max-w-full" />
 }
