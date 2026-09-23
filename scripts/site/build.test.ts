@@ -57,6 +57,7 @@ import {
   tables,
   templateValues,
   textOf,
+  unescapeHtml,
   THEME_ITEM,
   themePalettes,
   themePicker,
@@ -548,26 +549,46 @@ describe("the version menu and a release's own tree", () => {
   })
 })
 
+/** A block's text as a browser reads it: the spans gone, the entities decoded. */
+const written = (html: string) => unescapeHtml(html.replace(/<[^>]+>/g, ""))
+
 describe("code blocks", () => {
-  it("give every block a copy button and leave the block itself alone", () => {
-    const html = codeBlocks('<p>x</p>\n<pre><code class="language-tsx">a &lt; b\n</code></pre>\n')
-    expect(html).toContain('<p>x</p>\n<div class="code"><pre><code class="language-tsx">a &lt; b\n</code></pre><button type="button" class="copy" aria-label="Copy">')
+  it("give every block a copy button and leave a block with no language as it was", () => {
+    const html = codeBlocks("<p>x</p>\n<pre><code>a &lt; b\n</code></pre>\n")
+    expect(html).toContain('<p>x</p>\n<div class="code"><pre><code>a &lt; b\n</code></pre><button type="button" class="copy" aria-label="Copy">')
     expect(html).not.toContain("managers")
     // Only a line that starts with npx is a command.
     expect(codeBlocks("<pre><code>run npx foo</code></pre>")).not.toContain("managers")
   })
 
-  it("offer a command under pnpm, npm, yarn, and bun, changing only the lines that start with npx", () => {
+  it("color a block in a language the site highlights, each token in a light-dark() of the two themes, and keep its text as written", () => {
+    const html = codeBlocks('<p>x</p>\n<pre><code class="language-tsx">const a = &quot;x &lt; y&quot; // z\n</code></pre>\n')
+    // The block's own tags stand as they were, around the colored lines.
+    expect(html).toContain('<p>x</p>\n<div class="code"><pre><code class="language-tsx"><span class="line">')
+    expect(html).toContain('<span class="line"></span></code></pre><button type="button" class="copy" aria-label="Copy">')
+    expect(html).toContain('<span style="color:light-dark(#d73a49,#f97583)">const</span>')
+    expect(html).toContain('<span style="color:light-dark(#032f62,#9ecbff)">&quot;x &lt; y&quot;</span>')
+    expect(html).toContain('<span style="color:#6a737d">// z</span>')
+    // The foreground is the page's: no span carries it.
+    expect(html).not.toMatch(/#24292e|#e1e4e8/)
+    expect(written(html)).toBe('x\nconst a = "x < y" // z\n\n')
+    // A language the site does not highlight stays as it was, class and all.
+    expect(codeBlocks('<pre><code class="language-text">a &lt; b</code></pre>')).toContain('<div class="code"><pre><code class="language-text">a &lt; b</code></pre><button')
+  })
+
+  it("offer a command under pnpm, npm, yarn, and bun, changing only the lines that start with npx, each colored", () => {
     const html = codeBlocks('<pre><code class="language-bash">npx shadcn@latest add tradecn/ui/panel --diff   # look first\nnpx shadcn@latest add tradecn/ui/panel\n</code></pre>')
     expect(html).toContain('<div class="managers" role="tablist" aria-label="Package manager">')
     expect(html).toContain('<button type="button" role="tab" id="pm-1-npm" aria-controls="pm-1-npm-code" aria-selected="true" data-pm="npm">npm</button>')
     expect(html).toContain('<button type="button" role="tab" id="pm-1-bun" aria-controls="pm-1-bun-code" aria-selected="false" data-pm="bun">bun</button>')
-    expect(html).toContain(
-      '<pre id="pm-1-pnpm-code" role="tabpanel" aria-labelledby="pm-1-pnpm" data-pm="pnpm"><code class="language-bash">pnpm dlx shadcn@latest add tradecn/ui/panel --diff   # look first\npnpm dlx shadcn@latest add tradecn/ui/panel\n</code></pre>',
-    )
-    expect(html).toContain('data-pm="npm"><code class="language-bash">npx shadcn@latest add tradecn/ui/panel --diff')
-    expect(html).toContain("yarn dlx shadcn@latest add tradecn/ui/panel --diff")
-    expect(html).toContain("bunx --bun shadcn@latest add tradecn/ui/panel --diff")
+    const panel = (name: string) => written(html.match(new RegExp(`<pre id="pm-1-${name}-code" role="tabpanel" aria-labelledby="pm-1-${name}" data-pm="${name}"><code class="language-bash">([\\s\\S]*?)</code></pre>`))?.[1] ?? "")
+    expect(panel("pnpm")).toBe("pnpm dlx shadcn@latest add tradecn/ui/panel --diff   # look first\npnpm dlx shadcn@latest add tradecn/ui/panel\n")
+    expect(panel("npm")).toMatch(/^npx shadcn@latest add tradecn\/ui\/panel --diff/)
+    expect(panel("yarn")).toContain("yarn dlx shadcn@latest add tradecn/ui/panel --diff")
+    expect(panel("bun")).toContain("bunx --bun shadcn@latest add tradecn/ui/panel --diff")
+    // Every manager's runner is colored as a command, and the comment as a comment.
+    for (const runner of ["npx", "pnpm", "yarn", "bunx"]) expect(html).toContain(`<span style="color:light-dark(#6f42c1,#b392f0)">${runner}</span>`)
+    expect(html.match(/<span style="color:#6a737d"># look first<\/span>/g)).toHaveLength(4)
     expect(["pnpm", "npm", "yarn", "bun"].map((name) => html.indexOf(`id="pm-1-${name}"`))).toEqual([...html.matchAll(/id="pm-1-\w+"/g)].map((match) => match.index))
     expect(html.match(/class="copy"/g)).toHaveLength(1)
   })
@@ -896,18 +917,20 @@ describe("the docs pages", async () => {
 
   it("shows both install forms on the Installation page under pnpm, npm, yarn, and bun, with the CLI's {name} placeholder intact", () => {
     const install = at("docs/installation/index.html")
+    // The commands and the JSON are colored, so the words are read through the spans.
+    const words = textOf(install)
     for (const run of ["npx", "pnpm dlx", "yarn dlx", "bunx --bun"]) {
-      expect(install).toContain(`${run} shadcn@latest add tradecn/ui/data-grid#${tag}`)
-      expect(install).toContain(`${run} shadcn@latest add @tradecn/data-grid`)
-      expect(install).toContain(`${run} shadcn@latest add tradecn/ui/data-grid#${tag} --diff`)
-      expect(install).toContain(`${run} shadcn@latest add @tradecn/format @tradecn/row-store `)
+      expect(words).toContain(`${run} shadcn@latest add tradecn/ui/data-grid#${tag}`)
+      expect(words).toContain(`${run} shadcn@latest add @tradecn/data-grid`)
+      expect(words).toContain(`${run} shadcn@latest add tradecn/ui/data-grid#${tag} --diff`)
+      expect(words).toContain(`${run} shadcn@latest add @tradecn/format @tradecn/row-store `)
     }
-    expect(install).toContain(`&quot;@tradecn&quot;: &quot;https://tradecn.dev/r/{name}.json&quot;`)
+    expect(words).toContain(`"@tradecn": "https://tradecn.dev/r/{name}.json"`)
     expect(install).toContain(`https://tradecn.dev/r/${tag}/{name}.json`)
     // The GitHub form, the namespace add, the two update commands, and every item at once; the JSON block gets a button and no tabs.
     expect(install.match(/<div class="code command">/g)).toHaveLength(4)
     expect(install.match(/class="copy"/g)).toHaveLength(5)
-    expect(install).toContain(`@tradecn/${registry.items.at(-1)?.name}\n</code>`)
+    expect(written(install)).toContain(`@tradecn/${registry.items.at(-1)?.name}\n`)
   })
 
   it("indexes the components on the Components page as a list of titles linking their pages, and nothing of another kind", () => {
@@ -1048,16 +1071,16 @@ describe("the docs pages", async () => {
     expect(grid).toContain('<div class="tabs" data-tabs>')
     expect(grid).toContain('role="tab" id="installation-tab-command" aria-selected="true" aria-controls="installation-command"')
     expect(grid).toContain('<div id="installation-manual" role="tabpanel" aria-labelledby="installation-tab-manual" hidden>')
-    for (const run of ["npx", "pnpm dlx", "yarn dlx", "bunx --bun"]) expect(grid).toContain(`${run} shadcn@latest add tradecn/ui/data-grid#${tag}`)
+    for (const run of ["npx", "pnpm dlx", "yarn dlx", "bunx --bun"]) expect(textOf(grid)).toContain(`${run} shadcn@latest add tradecn/ui/data-grid#${tag}`)
     expect(grid).not.toContain("@tradecn/data-grid")
   })
 
   it("spells the install out under Manual: packages, built-ins, every file at its path with a consumer's imports, and the CSS", () => {
     const grid = at("docs/data-grid/index.html")
     expect(grid).toContain("<p>Install the dependencies:</p>")
-    for (const add of ["npm install", "pnpm add", "yarn add", "bun add"]) expect(grid).toContain(`${add} cn @tanstack/react-virtual`)
+    for (const add of ["npm install", "pnpm add", "yarn add", "bun add"]) expect(textOf(grid)).toContain(`${add} cn @tanstack/react-virtual`)
     expect(grid).toContain("<p>Add the shadcn components it composes:</p>")
-    expect(grid).toContain("pnpm dlx shadcn@latest add checkbox context-menu dropdown-menu")
+    expect(textOf(grid)).toContain("pnpm dlx shadcn@latest add checkbox context-menu dropdown-menu")
     expect(grid).toContain("<p>Copy the files into your project:</p>")
     for (const path of ["components/ui/data-grid.tsx", "hooks/use-flash.ts", "hooks/use-row-store.ts", "lib/row-store.ts", "lib/format.ts"]) {
       expect(grid).toContain(`<p class="file"><code>${path}</code></p>`)
@@ -1066,21 +1089,22 @@ describe("the docs pages", async () => {
     expect(grid).toContain("@/hooks/use-row-store")
     expect(grid).not.toContain("@/registry/")
     expect(grid).toContain("<p>Add the tokens to your stylesheet:</p>")
-    expect(grid).toMatch(/<code class="language-css">:root \{\n {2}--(up|down|flat)/)
-    expect(grid).toContain("  --up: ")
+    expect(grid).toMatch(/<code class="language-css"><span class="line"><span style="color:light-dark\([^)]+\)">:root<\/span>/)
+    expect(textOf(grid)).toMatch(/:root \{ --(up|down|flat)/)
+    expect(textOf(grid)).toContain(" --up: ")
     const ticket = at("docs/ticket/index.html")
     expect(ticket).toContain('<p class="file"><code>components/ticket.tsx</code></p>')
     const workspace = at("docs/workspace/index.html")
     expect(workspace).toContain("<p>Append this to your stylesheet:</p>")
-    expect(workspace).toContain("@layer components {\n  .dockview-theme-tradecn {\n    --dv-")
+    expect(textOf(workspace)).toContain("@layer components { .dockview-theme-tradecn { --dv-")
     const format = at("docs/format/index.html")
     expect(format).not.toContain("Install the dependencies")
     expect(format).not.toContain("Add the shadcn components")
     expect(format).toContain('<p class="file"><code>lib/format.ts</code></p>')
     const theme = at("docs/tradecn-slate/index.html")
     expect(theme).toContain("<p>Replace the variables in your stylesheet with these:</p>")
-    expect(theme).toContain(":root {\n  --accent:")
-    expect(theme).toContain(".dark {\n  --accent:")
+    expect(textOf(theme)).toContain(":root { --accent:")
+    expect(textOf(theme)).toContain(".dark { --accent:")
     expect(theme).not.toContain("Copy the files")
     const contract = at("docs/contract/index.html")
     expect(contract).not.toContain('id="installation"')
