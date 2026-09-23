@@ -50,15 +50,15 @@ Update ALPHA applies one patch; BETA's snapshot stays unchanged. `useRowIds` sub
 
 ## Applying a batch
 
-Apply feed batch inserts GAMMA, patches ALPHA, removes BETA, and reports producer metadata in one call. The row count stays at two. Finish replay applies only metadata: it clears the gap and advances the sequence while retaining the cumulative drop count.
+This example uses the coalesced lane, where a producer can discard superseded ticks. The Apply feed batch button inserts GAMMA, patches ALPHA, removes BETA, and reports three dropped ticks in one call. The row count stays at two. The Report two more drops button applies only metadata: the cumulative drop count reaches five, and the rows stay unchanged.
 
-The seed is batch 1, the mixed update is batch 2, and the metadata-only update is batch 3. Reset creates a fresh store so the rows and metadata can be inspected again from the start. A producer supplies drop and gap information; the store does not detect missing feed messages.
+The seed is batch 1, the mixed update is batch 2, and the metadata-only update is batch 3. Reset creates a fresh store so the rows and metadata can be inspected again from the start. The producer supplies the drop counts; the store does not detect drops. Feeds that must preserve every event use the ordered lane and report sequence and gap metadata instead; see [feed-health](feed-health.md).
 
 <!-- demo: row-store-deltas -->
 
 ## Batching individual messages
 
-Use `createFrameBatcher` when messages arrive one at a time. Queue three messages sends two price patches around a size patch. The next animation frame applies one batch: the later price wins, and the size field is retained. The first burst produces a price of `100.03` and size `200`.
+Use `createFrameBatcher` when messages arrive one at a time. The Queue three messages button sends two price patches around a size patch. The next animation frame applies one batch: the later price wins, and the size field is retained. The first burst produces a price of `100.03` and size `200`.
 
 Messages received counts every queued message; Batches applied excludes the seed. Multiple bursts before the same frame share one batch. Queue then cancel discards the queued batch without changing the store. The next burst continues the sample feed's prices, so canceled values are skipped. Cleanup also calls `cancel()` on unmount. Call `flush()` when queued work must apply immediately; an already-batched feed should call `applyDeltas` directly.
 
