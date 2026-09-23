@@ -116,7 +116,7 @@ export default function QuotePanelDemo() {
     return () => clearInterval(timer)
   }, [server])
   return (
-    <div className="flex flex-col gap-2 text-xs">
+    <div className="w-full flex flex-col gap-2 text-xs">
       <div className="h-56">
         <QuotePanel store={store} convention={T32} actions={actions} limits={LIMITS} onEdit={server.edit} onPullAll={(rows) => rows.forEach((row) => server.pull(row.id))} />
       </div>

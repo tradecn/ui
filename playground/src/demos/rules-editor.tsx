@@ -46,7 +46,7 @@ export default function RulesEditorDemo() {
   })
   const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: {}, hidden: [] })
   return (
-    <div className="flex flex-col gap-3 font-(family-name:--tradecn-font-mono) text-xs">
+    <div className="w-full flex flex-col gap-3 font-(family-name:--tradecn-font-mono) text-xs">
       <RulesEditor columns={columns} rules={rules} onRulesChange={setRules} store={store} columnState={columnState} onColumnStateChange={setColumnState} />
       <div className="h-48">
         <DataGrid store={store} columns={columns} preset="rfq" label="Open RFQs" rules={rules} columnState={columnState} onColumnStateChange={setColumnState} />

@@ -15,7 +15,7 @@ export default function CountdownCompactDemo() {
   })
   const renew = (id: string) => setInquiries((rows) => rows.map((row) => (row.id === id ? { ...row, expiresAt: Date.now() + 60_000 } : row)))
   return (
-    <ul role="list" aria-label="Inquiries" className="mx-auto w-48 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
+    <ul role="list" aria-label="Inquiries" className="w-48 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
       {inquiries.map((inquiry) => (
         <li key={inquiry.id} className="flex items-baseline justify-between border-b py-1 last:border-0">
           <span>{inquiry.id}</span>

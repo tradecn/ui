@@ -24,7 +24,7 @@ export default function SessionGuardDemo() {
       }, 1000),
     )
   return (
-    <div className="flex min-h-72 flex-col gap-3 text-xs">
+    <div className="w-full flex min-h-72 flex-col gap-3 text-xs">
       <SessionGuard expiresAt={expiresAt} warnMs={60_000} onReauthenticate={reauthenticate}>
         <p className="text-sm text-muted-foreground">Your desk would put its sign-in here: a password, a token prompt, or one button to the identity provider.</p>
       </SessionGuard>

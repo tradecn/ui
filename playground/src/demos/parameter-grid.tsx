@@ -56,7 +56,7 @@ export default function ParameterGridDemo() {
       }, 400)
     })
   return (
-    <div className="flex h-72 flex-col gap-2 font-(family-name:--tradecn-font-mono) text-xs">
+    <div className="w-full flex h-72 flex-col gap-2 font-(family-name:--tradecn-font-mono) text-xs">
       <p className="text-muted-foreground">Double-click a value or press Enter on it to type; the arrows step. The box asks the server. A width over 8 is refused, and the last row allows nothing.</p>
       <div className="min-h-0 flex-1">
         <ParameterGrid store={store} parameters={PARAMETERS} onEdit={onEdit} changedSince={openedAt} />

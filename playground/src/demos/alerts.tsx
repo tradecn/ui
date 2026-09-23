@@ -20,7 +20,7 @@ export default function AlertsDemo() {
   const [acted, setActed] = useState("")
   useToastBridge(alerts, (alert: Alert) => setToasted((list) => [`${alert.severity}: ${alert.title}`, ...list].slice(0, 3)))
   return (
-    <div className="grid gap-3 font-(family-name:--tradecn-font-mono) text-xs sm:grid-cols-[1fr_16rem]">
+    <div className="w-full grid gap-3 font-(family-name:--tradecn-font-mono) text-xs sm:grid-cols-[1fr_16rem]">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap gap-1">
           <Button type="button" variant="outline" size="sm" onClick={() => alerts.push({ key: "md:slow", severity: "warning", tone: "stale", title: "Market data slow", message: `${(1 + Math.random() * 3).toFixed(1)} s behind`, allowedActions: ["reconnect"] })}>

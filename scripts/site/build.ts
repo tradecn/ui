@@ -807,8 +807,30 @@ export function siteDocs(site: Doc[], tagDocs: Doc[]): Doc[] {
 export type Demo = { name: string; source: string; code: string }
 /** The embed build: the entry's script and stylesheets as site paths, and the directory to copy. */
 export type Embed = { dir: string; script: string; styles: string[] }
-export type Previews = { demos: Map<string, Demo>; embed: Embed | null }
+/**
+ * The frame contract a tag's demos were written to, from `frame.json` beside them. `centered`: the frame centers
+ * a demo on both axes, a demo that wants the frame's width says `w-full` on its root, and its controls sit first in
+ * a `data-demo-controls` element the frame pins in a bar. A tag without the file predates that, and its demos are
+ * stretched as the card did then. The template is main's on every republish, so the contract travels with the
+ * tag's assets and not with the template.
+ */
+export type Frame = "centered" | "stretch"
+export const FRAME_FILE = "frame.json"
+export type Previews = { demos: Map<string, Demo>; embed: Embed | null; frame?: Frame }
 const NO_PREVIEWS: Previews = { demos: new Map(), embed: null }
+
+/** The frame contract the demos in `dir` were written to: what `frame.json` names, or `stretch` for a tag without one. */
+export async function readFrame(dir: string): Promise<Frame> {
+  let text: string
+  try {
+    text = await readFile(join(dir, FRAME_FILE), "utf8")
+  } catch {
+    return "stretch"
+  }
+  const frame = (JSON.parse(text) as { frame?: unknown }).frame
+  if (frame !== "centered" && frame !== "stretch") throw new Error(`${join(dir, FRAME_FILE)} names a frame contract "${String(frame)}"; it is "centered" or "stretch"`)
+  return frame
+}
 
 /**
  * A demo imports the registry source live, `@/registry/tradecn/ui/x`; a consumer has the same file at
@@ -1229,8 +1251,8 @@ export function previewPages(registry: Registry, themeSource: Registry, previews
         html: render(template, {
           ...values,
           item: escapeHtml(demo.name),
-          // A card's frame centers the demo with room around it; the desk fills its frame on the opening page.
-          frame: demo.name === DESK_DEMO ? "desk" : "card",
+          // A card's frame centers a demo written to the contract and stretches one from a tag before it; the desk fills its frame.
+          frame: demo.name === DESK_DEMO ? "desk" : previews.frame === "centered" ? "card" : "stretch",
           darkPalette: fullPalette(theme ?? site, "dark"),
           lightPalette: fullPalette(theme ?? site, "light"),
           themePalettes: theme ? "" : others,
@@ -1279,7 +1301,8 @@ async function main() {
   const versions = versionList(`v${version}`, args.versions.split(",").map((tag) => tag.trim()).filter(Boolean))
   const tagDocs = await readDocs(resolve(args.docs), registry)
   const docSlugs = new Set(tagDocs.map((doc) => doc.slug))
-  const previews: Previews = { demos: await readDemos(resolve(args.demos)), embed: await readEmbed(resolve(args.embed)) }
+  const demosDir = resolve(args.demos)
+  const previews: Previews = { demos: await readDemos(demosDir), embed: await readEmbed(resolve(args.embed)), frame: await readFrame(demosDir) }
   const values = templateValues(registry, version, themeSource, docSlugs, previews, { versions, base })
   const site = await readSitePages(join(root, "site", SITE_DOCS), sitePageValues(registry, values, docSlugs, await readChangelog(resolve(args.changelog))))
   const docs = siteDocs(site, tagDocs)

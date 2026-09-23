@@ -51,7 +51,7 @@ export default function BlotterDemo() {
     [store],
   )
   return (
-    <div className="space-y-2 font-(family-name:--tradecn-font-mono) text-xs">
+    <div className="w-full space-y-2 font-(family-name:--tradecn-font-mono) text-xs">
       <div className="h-72">
         <Blotter
           store={store}

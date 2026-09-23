@@ -58,7 +58,7 @@ export default function GridRulesDemo() {
   // A new object only when a part is switched: the grid remakes its view on the object's identity.
   const rules = useMemo<GridRules>(() => ({ columns: on.columns ? RULES.columns : undefined, filter: on.filter ? RULES.filter : undefined, sort: on.sort ? RULES.sort : undefined }), [on])
   return (
-    <div className="grid gap-3 font-(family-name:--tradecn-font-mono) text-xs sm:grid-cols-[1fr_14rem]">
+    <div className="w-full grid gap-3 font-(family-name:--tradecn-font-mono) text-xs sm:grid-cols-[1fr_14rem]">
       <div className="flex h-64 flex-col gap-2">
         <div className="flex gap-3 text-muted-foreground">
           {(["columns", "filter", "sort"] as const).map((part) => (
