@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.4](https://github.com/tradecn/ui/compare/v1.4.3...v1.4.4) (2026-09-23)
+
+
+### Documentation
+
+* **data-grid:** add shared preview alignment controls ([#164](https://github.com/tradecn/ui/issues/164)) ([f3e3a92](https://github.com/tradecn/ui/commit/f3e3a92ace5637624cbd422885c634e6382bdb16))
+
 ## [1.4.3](https://github.com/tradecn/ui/compare/v1.4.2...v1.4.3) (2026-09-23)
 
 
