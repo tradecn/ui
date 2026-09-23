@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/tradecn/ui/compare/v1.3.2...v1.4.0) (2026-09-23)
+
+
+### Features
+
+* **price-chart:** an intraday chart on uPlot ([#127](https://github.com/tradecn/ui/issues/127)) ([5228d5c](https://github.com/tradecn/ui/commit/5228d5c2f5657a2bc416f5113a3c7939a090faba))
+
+
+### Documentation
+
+* **spread-matrix:** clarify spread calculations and flashes ([#134](https://github.com/tradecn/ui/issues/134)) ([f858572](https://github.com/tradecn/ui/commit/f858572384b6a2cea1d360de35f8063aba3a79f8))
+
 ## [1.3.2](https://github.com/tradecn/ui/compare/v1.3.1...v1.3.2) (2026-09-23)
 
 
