@@ -489,17 +489,19 @@ export function highlighted(escaped: string, language: string | undefined): stri
 
 /**
  * Every code block on a page gets its colors and a copy button, and a block with a line that starts with `npx`
- * or `npm install` becomes an install block: the same command under pnpm, npm, yarn, and bun, one of them
- * showing. Which one is the page's `data-pm`, which site.js sets from the reader's last choice before the body
- * parses, and the tabs follow it. The last pass over a page, on its HTML, because the blocks come from four
- * places: the templates, marked, the preview card, and the Installation section.
+ * or `npm install` becomes an install block, if it is bash or has no language (a source in another language, or a
+ * Manual block, whose pre carries the id its Expand controls, is never one): the same command under pnpm, npm,
+ * yarn, and bun, one of them showing. Which one is the page's `data-pm`, which site.js sets from the reader's last
+ * choice before the body parses, and the tabs follow it. The last pass over a page, on its HTML, because the blocks
+ * come from four places: the templates, marked, the preview card, and the Installation section.
  */
 export function codeBlocks(html: string): string {
   let blocks = 0
   return html.replace(/<pre( [^>]*)?><code( class="language-([\w-]+)")?>([\s\S]*?)<\/code><\/pre>/g, (_block: string, pre: string | undefined, attributes: string | undefined, language: string | undefined, code: string) => {
     const colored = (text: string) => highlighted(text, language) ?? text
-    // The pre keeps its attributes: the id a Manual block's Expand controls. A command's panels have ids of their own.
-    if (!COMMAND_LINE.test(code)) return `<div class="code"><pre${pre ?? ""}><code${attributes ?? ""}>${colored(code)}</code></pre>${COPY_BUTTON}</div>`
+    // A block with attributes is a Manual block, whose pre keeps the id its Expand controls, and a block in a language
+    // other than bash is a source: neither becomes a command, whatever its lines start with.
+    if (pre || (language && language !== "bash") || !COMMAND_LINE.test(code)) return `<div class="code"><pre${pre ?? ""}><code${attributes ?? ""}>${colored(code)}</code></pre>${COPY_BUTTON}</div>`
     const id = `pm-${++blocks}`
     const tabs = PACKAGE_MANAGERS.map(
       ({ name }) =>

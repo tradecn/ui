@@ -576,6 +576,11 @@ describe("code blocks", () => {
     expect(codeBlocks('<pre><code class="language-text">a &lt; b</code></pre>')).toContain('<div class="code"><pre><code class="language-text">a &lt; b</code></pre><button')
     // A pre keeps its attributes: the id a Manual block's Expand controls.
     expect(codeBlocks('<pre id="installation-manual-1"><code class="language-json">{}</code></pre>')).toContain('<div class="code"><pre id="installation-manual-1"><code class="language-json"><span class="line">')
+    // Neither a Manual block nor a source in a language other than bash becomes a command, whatever its lines start with; the id stays.
+    const manual = codeBlocks('<pre id="installation-manual-2"><code class="language-ts">const install = `\nnpx shadcn@latest add x\n`\n</code></pre>')
+    expect(manual).toContain('<div class="code"><pre id="installation-manual-2"><code class="language-ts">')
+    expect(manual).not.toContain("managers")
+    expect(codeBlocks('<pre><code class="language-tsx">// run\nnpm install cn\n</code></pre>')).not.toContain("managers")
   })
 
   it("number a colored block's lines in the stylesheet, down a gutter the copy button never reads, and leave a command and a text tree alone", () => {
