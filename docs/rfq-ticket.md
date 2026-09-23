@@ -5,21 +5,67 @@ A client inquiry with market and quoted levels, a countdown, and quote fields in
 ## Usage
 
 ```tsx
-import { RfqTicket, type RfqAction, type RfqInquiry } from "@/components/rfq-ticket"
+import { useState } from "react"
+import { RfqTicket, describeQuote, type RfqAction, type RfqInquiry } from "@/components/rfq-ticket"
+
+function InquiryTicket() {
+  const [inquiry] = useState<RfqInquiry>(() => {
+    const now = Date.now()
+    return {
+      id: "Q-1",
+      instrument: { symbol: "T10", description: "10Y Treasury", convention: { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 } },
+      client: { name: "ALPHA" },
+      side: "buy",
+      quantity: 5_000_000,
+      receivedAt: now,
+      expiresAt: now + 60_000,
+      market: { bid: 99.5, ask: 99.515625 },
+      status: "Open",
+      allowedActions: ["quote"],
+    }
+  })
+  const [request, setRequest] = useState("None")
+  const actions: RfqAction[] = [
+    { id: "quote", label: "Quote", run: (draft, inquiry) => setRequest(describeQuote(draft, inquiry)) },
+  ]
+  return (
+    <div className="w-[26rem] max-w-full space-y-2 text-xs lining-nums tabular-nums">
+      <RfqTicket key={inquiry.id} inquiry={inquiry} actions={actions} />
+      <p role="status" className="text-muted-foreground">Last request: {request}</p>
+    </div>
+  )
+}
 ```
 
-```tsx
-const ACTIONS: RfqAction[] = [
-  { id: "quote", label: "Quote", run: (draft, inquiry) => api.quote(inquiry.id, draft), primary: true },
-  { id: "quote-auto", label: "Quote auto", needsQuote: false, run: (_, inquiry) => api.quoteAuto(inquiry.id) },
-  { id: "stop-auto", label: "Stop auto", needsQuote: false, run: (_, inquiry) => api.stopAuto(inquiry.id) },
-  { id: "pass", label: "Pass", needsQuote: false, destructive: true, run: (_, inquiry) => api.pass(inquiry.id) },
-]
+A buyer needs your offer. Enter `99-16+` or step from the market with the arrow keys, then choose Quote. The ticket checks the required level before calling the action. This example prints the request; connect `run` to your transport to send it.
 
-<RfqTicket key={active.id} inquiry={active} actions={ACTIONS} acknowledged={active.quoteId} />
-```
+Keep `key={inquiry.id}` so a new inquiry starts with its own draft. The countdown stops at zero, but status and permissions remain as supplied. Your app updates them from the venue. Shortcuts require a [`HotkeysProvider`](use-hotkeys.md), shown below.
 
-`active` is your `RfqInquiry` with a server quote id added for acknowledgement. Keep `key={active.id}` so each inquiry gets its own draft. Add a [`HotkeysProvider`](use-hotkeys.md) around the ticket to enable shortcuts.
+## Buyer, seller, and two-way inquiries
+
+The client's side determines your fields: an offer for a buyer, a bid for a seller, or both for a two-way inquiry. Change the client side to load a different keyed inquiry and clear the previous draft. The market stays the same so the field choice is easy to compare.
+
+Both sides are required for a two-way quote. Enter a bid above the offer to see the crossed-quote check; the request caption changes only after a valid Quote action.
+
+<!-- demo: rfq-ticket-sides -->
+
+## Suggested levels and shortcuts
+
+The Auto button copies suggested levels into the draft without sending. Choose a quick size, then Quote; the request caption includes that quantity. The venue supplies the allowed sizes, which can include more than the original inquiry's size. This example also shows client details, venue tags, settlement, and preformatted risk context.
+
+Inside a quote field, use `mod+shift+a` for suggestions, `mod+up` or `mod+down` to step the focused level, `mod+1` or `mod+2` for the first two quick sizes, and `mod+enter` to quote. `mod` is Command on Mac and Control elsewhere. `HotkeysProvider` enables these bindings and the send hint; plain Enter sends nothing.
+
+<!-- demo: rfq-ticket-shortcuts -->
+
+## Server responses
+
+The controls above the ticket stand in for venue messages. Quote enters Sending; Acknowledge quote supplies the live levels and changes `acknowledged` to flash the ticket. Report done away supplies the terminal status and removes allowed actions. These transitions wait for you so each state remains inspectable.
+
+Quote auto uses a fixed server price without reading or validating the fields. Pass needs no quote either and is available while waiting or quoted. Pass, Expire inquiry, and Next inquiry discard the pending request, so an acknowledgement cannot revive an ended inquiry or land on the next one. Next inquiry also resets the keyed draft and countdown. There are no delayed callbacks.
+
+Let the timer reach zero to see that it leaves actions unchanged, then use Expire inquiry to supply the venue's end status. The ticket displays the status and permissions it receives; it does not infer either from the clock.
+
+<!-- demo: rfq-ticket-server -->
 
 ## API Reference
 
