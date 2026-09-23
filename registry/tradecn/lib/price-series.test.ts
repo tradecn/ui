@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
-import { barId, barStart, columnsOf, directionBetween, foldTick, foldTicks, formatChange, priceDecimals, priceIncrements, priceStep, summarize, sameSummary, timeFormatter, type Bar } from "@/registry/tradecn/lib/price-series"
+import { barId, barStart, columnsOf, directionBetween, foldTick, foldTicks, formatChange, priceDecimals, priceIncrements, priceStep, summarize, timeFormatter, type Bar } from "@/registry/tradecn/lib/price-series"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
@@ -103,11 +103,6 @@ describe("the summary", () => {
     expect(empty.count).toBe(0)
     expect(empty.last).toBeNull()
     expect(empty.direction).toBe("flat")
-  })
-
-  it("knows when two summaries print the same", () => {
-    expect(sameSummary(summarize(columns), summarize(columns))).toBe(true)
-    expect(sameSummary(summarize(columns), summarize(columns, 102))).toBe(false)
   })
 })
 

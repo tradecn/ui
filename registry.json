@@ -2281,7 +2281,7 @@
           },
           {
             "title": "formatPosition",
-            "description": "The position signed in its unit: +5mm, −120."
+            "description": "The position signed in its unit: +5mm, \u2212120."
           },
           {
             "title": "positionSide",
@@ -3038,6 +3038,10 @@
         {
           "path": "registry/tradecn/lib/price-series.ts",
           "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
         },
         {
           "path": "registry/tradecn/hooks/use-flash.ts",

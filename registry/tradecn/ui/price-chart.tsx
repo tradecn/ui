@@ -3,6 +3,7 @@ import { cn } from "cn"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent } from "react"
 import uPlot from "uplot"
 import { directionClass, type Direction } from "@/registry/tradecn/hooks/use-flash"
+import { useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
 import { formatPercent, formatPrice, formatQuantity, NUMERIC_CLASS, numericFontClass, type InstrumentConvention, type PriceConvention } from "@/registry/tradecn/lib/format"
 import { columnsOf, EMPTY_COLUMNS, formatChange, priceIncrements, priceOf, summarize, timeFormatter, type Bar, type BarColumns, type SeriesSummary } from "@/registry/tradecn/lib/price-series"
 import type { RowStore } from "@/registry/tradecn/lib/row-store"
@@ -15,6 +16,9 @@ import type { RowStore } from "@/registry/tradecn/lib/row-store"
 // again when the class on <html> changes (a mode or a theme), and every stroke is a function uPlot asks at
 // draw time. The chart itself is an owned object: made in an effect once its box has a size and the store
 // has a bar, fed by setData once per applied batch, destroyed on the way out, never remade per update.
+// The store is read the way the grid's footer reads it, through useStoreMeta and a memo keyed on the batch
+// version, so the header commits in the same microtask flush as every other item on the screen; a plain
+// state set from the subscription would land a scheduler task later, which the bench caught.
 // Direction never rides on hue alone (contract rule 15): the last price prints its change with a sign, the
 // root carries data-direction, and the accessible name says the direction in a word.
 
@@ -375,8 +379,14 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
 
   const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
-  const [columns, setColumns] = useState<BarColumns>(EMPTY_COLUMNS)
   const [cursor, setCursorState] = useState<number | null>(null)
+  // The store's columns, once per applied batch: the meta's version is the one dependency, so the memo reruns on
+  // a batch and on nothing else, and a batch with no bar change gives the same columns back.
+  const meta = useStoreMeta(store)
+  const columns = useMemo(() => {
+    void meta.version
+    return columnsOf(store)
+  }, [store, meta.version])
   const summary = useMemo(() => summarize(columns, ref), [columns, ref])
 
   const plot = useRef<uPlot | null>(null)
@@ -386,16 +396,22 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const onCursorRef = useRef(onCursor)
   const cursorFromPlot = useRef(false)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     overlaysRef.current = overlayList
     conventionRef.current = convention
     onCursorRef.current = onCursor
   })
-  useEffect(() => {
+  useLayoutEffect(() => {
     live.current.summary = summary
     live.current.baseline = ref
     plot.current?.redraw(false, false)
   }, [summary, ref])
+  // The plot takes the columns before the browser paints, so the picture and the header move in one frame.
+  useLayoutEffect(() => {
+    live.current.columns = columns
+    plot.current?.setData(alignedData(columns, kind, overlaysRef.current), true)
+    // overlayKey stands for the overlays' structure; their functions are read through the ref.
+  }, [columns, kind, overlayKey])
 
   // The box's size, from a ResizeObserver; nothing is drawn before the first measurement.
   useLayoutEffect(() => {
@@ -407,19 +423,6 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
     observer.observe(plotEl)
     return () => observer.disconnect()
   }, [plotEl])
-
-  // The store's columns, once per applied batch: the plot gets them through setData and the readout through state.
-  useEffect(() => {
-    const rebuild = () => {
-      const next = columnsOf(store)
-      live.current.columns = next
-      setColumns(next)
-      plot.current?.setData(alignedData(next, kind, overlaysRef.current), true)
-    }
-    rebuild()
-    return store.subscribeMeta(rebuild)
-    // overlayKey stands for the overlays' structure; their functions are read through the ref.
-  }, [store, kind, overlayKey])
 
   // The plot: made once the box has a size and the store a bar, remade for a new kind, zone, or convention, never per update.
   const ready = size !== null && columns.bars.length > 0

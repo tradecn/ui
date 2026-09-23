@@ -143,11 +143,6 @@ export function summarize(columns: BarColumns, baseline?: number | null): Series
   return { count: n, first, last, low, high, reference, change, changePct: reference === 0 ? null : (change / Math.abs(reference)) * 100, direction: directionBetween(reference, last.close) }
 }
 
-/** Whether two summaries would print the same, so a redraw that changed nothing on screen skips a render. */
-export function sameSummary(a: SeriesSummary, b: SeriesSummary): boolean {
-  return a.count === b.count && a.last === b.last && a.first === b.first && a.low === b.low && a.high === b.high && a.reference === b.reference
-}
-
 /** The price convention of either shape: an instrument's, or a bare one. */
 export function priceOf(convention: PriceConvention | InstrumentConvention): PriceConvention {
   return "price" in convention ? convention.price : convention
