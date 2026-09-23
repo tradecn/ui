@@ -16,7 +16,7 @@ Pass timestamps in milliseconds since the epoch.
 
 ## Compact
 
-Set `compact` for the digits alone, inline and without the bar, and `announce={false}` when the grid or stack around them does the speaking.
+Set `compact` for the digits alone, inline and without the bar. Give each its own `label`, since the row's name is not part of the timer's, and `announce={false}` when the grid or stack around them does the speaking.
 
 <!-- demo: countdown-compact -->
 

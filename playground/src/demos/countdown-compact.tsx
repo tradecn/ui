@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 
-// Three inquiries with the time each has left, the way a stack lists them: the digits alone, no bar, and
-// quiet, since the stack speaks for its rows.
+// Three inquiries with the time each has left, the way a stack lists them: the digits alone, no bar, each
+// timer named for its row, and quiet, since the stack speaks for its rows.
 export default function CountdownCompactDemo() {
   const [now] = useState(() => Date.now())
   const inquiries = [
@@ -15,7 +15,7 @@ export default function CountdownCompactDemo() {
       {inquiries.map((inquiry) => (
         <li key={inquiry.id} className="flex items-baseline justify-between border-b py-1 last:border-0">
           <span>{inquiry.id}</span>
-          <Countdown expiresAt={inquiry.expiresAt} compact announce={false} />
+          <Countdown expiresAt={inquiry.expiresAt} compact announce={false} label={`Time left ${inquiry.id}`} />
         </li>
       ))}
     </ul>
