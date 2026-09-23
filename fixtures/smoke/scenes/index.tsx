@@ -20,6 +20,7 @@ import { PanelScene } from "./panel"
 import { ParameterGridScene } from "./parameter-grid"
 import { PerfMonitorScene } from "./perf-monitor"
 import { PositionsScene } from "./positions"
+import { PriceChartScene } from "./price-chart"
 import { PreferencesScene } from "./preferences"
 import { QuoteFieldScene } from "./quote-field"
 import { QuotePanelScene } from "./quote-panel"
@@ -77,6 +78,7 @@ export const scenes: SmokeScene[] = [
   { name: "spread-matrix", Scene: SpreadMatrixScene },
   { name: "quote-panel", Scene: QuotePanelScene },
   { name: "session-guard", Scene: SessionGuardScene },
+  { name: "price-chart", Scene: PriceChartScene },
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
   { name: "alert-store", Scene: AlertStoreScene },
@@ -84,4 +86,4 @@ export const scenes: SmokeScene[] = [
   { name: "limits", Scene: LimitsScene },
   { name: "window-set", Scene: WindowSetScene },
 ]
-export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "expiring", "expiring-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4"]
+export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "expiring", "expiring-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4", "chart-1", "chart-2", "chart-3", "chart-4", "chart-5", "chart-6", "chart-7", "chart-8"]

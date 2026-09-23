@@ -8,7 +8,8 @@ import { ROOT, readRegistry } from "./lib/registry"
 // is listed here with the other channel it carries the direction in, and the test fails on a file that colors
 // by direction and is not in the table, so a new use has to say what else it does. docs/color.md has the why.
 
-const DIRECTION_COLOR = /(?<![\w-])(?:[\w-]+:)*(?:text|bg|border|stroke|fill)-(?:up|down)(?:-soft)?(?![\w-])/
+// A utility class, or the token itself read for a canvas or an inline style: `--up`, `var(--down-soft)`.
+const DIRECTION_COLOR = /(?<![\w-])(?:[\w-]+:)*(?:text|bg|border|stroke|fill)-(?:up|down)(?:-soft)?(?![\w-])|--(?:up|down)(?:-soft)?(?![\w-])/
 
 /** File under registry/tradecn, the channel besides color, and a string the file must contain to prove it. */
 const CHANNELS: Array<{ file: string; channel: string; proof: RegExp }> = [
@@ -19,6 +20,7 @@ const CHANNELS: Array<{ file: string; channel: string; proof: RegExp }> = [
   { file: "ui/alerts.tsx", channel: "the severity word is always printed beside the bar, in the badge and in the grid's column; the tone colors a word that is there", proof: /data-alert-severity/ },
   { file: "ui/status-bar.tsx", channel: "the environment badge is the word itself, PRODUCTION or UAT, and the tone colors that word", proof: /data-status-environment=\{environment\.label\}/ },
   { file: "ui/sparkline.tsx", channel: "data-direction on the root and the direction in the words a screen reader hears", proof: /data-direction=\{tone\}/ },
+  { file: "ui/price-chart.tsx", channel: "the last price prints its change with a sign in the header, the root carries data-direction, and the plot's accessible name says the direction in a word; the canvas takes the same tokens", proof: /data-direction=\{direction\}/ },
   { file: "ui/blotter.tsx", channel: "the side column's text is the word Buy or Sell", proof: /row\.side/ },
   { file: "ui/depth-ladder.tsx", channel: "the columns are headed Bid and Ask, every size cell carries data-side, and a staged side reaches the consumer as the word buy or sell", proof: /data-side=\{p\.side\}/ },
   { file: "ui/spread-matrix.tsx", channel: "the flash writes data-direction for its window, and the spread it colors is printed with its sign through formatTicks or a signed formatBps", proof: /data-\[direction=/ },

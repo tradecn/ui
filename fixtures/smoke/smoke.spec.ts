@@ -1508,3 +1508,84 @@ test("a window set restores main first, hears the shell's own close, and snapsho
   await scene.getByRole("button", { name: "snapshot" }).click()
   await expect(snapshot).toHaveText("|0")
 })
+
+// A price chart is a canvas, so the fixture is where its picture is proven: the page's tokens reach the paint
+// (the tag at the last price is a solid box of the direction's color, found among the pixels), the readout
+// prints the last with its sign, the keys and the pointer both move the crosshair, a tick into the open bar
+// turns the chart down and repaints the tag, a later tick opens a bar, and the overlays are named beside
+// swatches in the chart tokens the consumer's Tailwind compiled from the installed file.
+test("a price chart paints in the page's tokens, prints the last with its sign, walks the bars with the keys and the pointer, follows a tick into the open bar, and names its overlays", async ({ page }) => {
+  const errors: string[] = []
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
+  page.on("pageerror", (e) => errors.push(e.message))
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='price-chart']")
+  const chart = scene.locator("[data-slot='tradecn-price-chart']")
+  const plot = chart.getByRole("slider")
+  const readout = chart.locator("[data-chart-readout]")
+  await expect(chart).toHaveAttribute("data-direction", "up")
+  await expect(chart.locator("[data-chart-last]")).toHaveText("110-18")
+  await expect(chart.locator("[data-chart-change]")).toHaveText("+0-02 (+0.06%)")
+  await expect(plot).toHaveAccessibleName("ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars")
+  await expect(chart.locator(".uplot canvas")).toHaveCount(1)
+  // How many pixels of the chart's canvas are exactly a token's color, the token painted through a second canvas so both went through the same conversion.
+  const pixelsOf = (token: string) =>
+    chart.evaluate((root, token) => {
+      const canvas = root.querySelector("canvas")!
+      const swatch = document.createElement("canvas")
+      swatch.width = swatch.height = 1
+      const ref = swatch.getContext("2d")!
+      const probe = document.createElement("i")
+      probe.style.color = `var(--${token})`
+      document.body.append(probe)
+      ref.fillStyle = getComputedStyle(probe).color
+      probe.remove()
+      ref.fillRect(0, 0, 1, 1)
+      const [r, g, b] = ref.getImageData(0, 0, 1, 1).data
+      const { data } = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height)
+      let n = 0
+      for (let i = 0; i < data.length; i += 4) if (data[i] === r && data[i + 1] === g && data[i + 2] === b && data[i + 3] === 255) n++
+      return n
+    }, token)
+  await expect.poll(() => pixelsOf("up"), { message: "the tag at the last price is painted with the up token" }).toBeGreaterThan(200)
+  expect(await pixelsOf("down")).toBe(0)
+  // The keys walk the bars from the last one, in New York time; Escape puts the crosshair away.
+  await plot.focus()
+  await expect(plot).toHaveAttribute("aria-valuenow", "2")
+  await expect(readout).toHaveText("09:32:00 110-18 V 30")
+  await page.keyboard.press("ArrowLeft")
+  await expect(plot).toHaveAttribute("aria-valuenow", "1")
+  await expect(readout).toHaveText("09:31:00 110-16 V 20")
+  await page.keyboard.press("Escape")
+  await expect(readout).toHaveText("")
+  // The pointer near the left edge of the plot lands on the first bar; leaving takes the crosshair with it.
+  const box = (await plot.boundingBox())!
+  await page.mouse.move(box.x + 12, box.y + box.height / 2)
+  await expect(readout).toHaveText("09:30:00 110-17 V 10")
+  await page.mouse.move(0, 0)
+  await expect(readout).toHaveText("")
+  // A tick under the first open folds into the open bar: the last, the sign, the direction, and the tag all turn.
+  await scene.getByRole("button", { name: "tick down", exact: true }).click()
+  await expect(chart.locator("[data-chart-last]")).toHaveText("110-15+")
+  await expect(chart.locator("[data-chart-change]")).toHaveText("−0-00+ (−0.01%)")
+  await expect(chart).toHaveAttribute("data-direction", "down")
+  await expect.poll(() => pixelsOf("down"), { message: "the tag repaints with the down token" }).toBeGreaterThan(200)
+  await expect(plot).toHaveAttribute("aria-valuemax", "2")
+  // A tick in the next minute opens a fourth bar.
+  await scene.getByRole("button", { name: "new bar", exact: true }).click()
+  await expect(plot).toHaveAttribute("aria-valuemax", "3")
+  await expect(chart.locator("[data-chart-last]")).toHaveText("110-20")
+  // The overlay is named, and its swatch wears the first chart token, a utility the consumer's Tailwind compiled from the installed file.
+  const legend = chart.getByRole("list", { name: "Overlays" })
+  await expect(legend.getByRole("listitem")).toHaveText(["3-bar average"])
+  const swatch = await legend.locator("span").first().evaluate((el) => {
+    const probe = document.createElement("i")
+    probe.style.color = "var(--chart-1)"
+    document.body.append(probe)
+    const out = { swatch: getComputedStyle(el).backgroundColor, token: getComputedStyle(probe).color }
+    probe.remove()
+    return out
+  })
+  expect(swatch.swatch, "bg-chart-1 resolves to the token").toBe(swatch.token)
+  expect(errors).toEqual([])
+})

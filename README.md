@@ -79,7 +79,7 @@ npx shadcn@latest add tooltip --diff                       # a shadcn change und
 
 ## Dependencies
 
-`cn`, `@tanstack/react-virtual` under the grids, `dockview-react` under the workspace (it brings `dockview` and `dockview-core`, same repo, nothing else). That's the list, and an item only pulls in the part it uses. It's short on purpose: some of you ship into places where every package is a form to fill out.
+`cn`, `@tanstack/react-virtual` under the grids, `dockview-react` under the workspace (it brings `dockview` and `dockview-core`, same repo, nothing else), and `uplot` under the chart (MIT, a canvas, nothing under it). That's the list, and an item only pulls in the part it uses. It's short on purpose: some of you ship into places where every package is a form to fill out.
 
 No icon library either. shadcn picks a different one per base, so the grid draws its own three dots.
 

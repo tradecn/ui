@@ -2,6 +2,14 @@
    This is what the shadcn CLI writes into a consumer's stylesheet when it installs a tradecn item. */
 
 :root {
+  --chart-1: oklch(0.56 0.15 65);
+  --chart-2: oklch(0.52 0.12 230);
+  --chart-3: oklch(0.52 0.13 165);
+  --chart-4: oklch(0.55 0.13 95);
+  --chart-5: oklch(0.5 0.14 250);
+  --chart-6: oklch(0.5 0.18 40);
+  --chart-7: oklch(0.52 0.15 345);
+  --chart-8: var(--color-foreground);
   --down: oklch(0.46 0.19 40);
   --down-soft: oklch(0.46 0.19 40 / 18%);
   --expiring: oklch(0.53 0.2 350);
@@ -38,6 +46,14 @@
 }
 
 .dark {
+  --chart-1: oklch(0.8 0.15 70);
+  --chart-2: oklch(0.78 0.11 230);
+  --chart-3: oklch(0.74 0.15 165);
+  --chart-4: oklch(0.88 0.15 100);
+  --chart-5: oklch(0.72 0.12 250);
+  --chart-6: oklch(0.7 0.18 40);
+  --chart-7: oklch(0.76 0.13 345);
+  --chart-8: var(--color-foreground);
   --down: oklch(0.66 0.19 40);
   --down-soft: oklch(0.66 0.19 40 / 18%);
   --expiring: oklch(0.74 0.17 350);
@@ -74,6 +90,14 @@
 }
 
 @theme inline {
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
   --color-down: var(--down);
   --color-down-soft: var(--down-soft);
   --color-expiring: var(--expiring);

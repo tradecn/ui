@@ -3021,6 +3021,109 @@
       }
     },
     {
+      "name": "price-chart",
+      "type": "registry:ui",
+      "title": "Price Chart",
+      "description": "An intraday chart on uPlot: a line through the closes or a candle per bar, over a store of bars keyed by their start time, with a crosshair the pointer and the arrow keys both move, the time axis in the venue's zone, the last price printed with its sign and its change, and overlays named in a legend and drawn in the chart tokens. Every color is read from your own tokens when the chart mounts and again when the mode changes, so the canvas wears the theme the page wears. A frame of ticks folds into the open bar through the store, and the chart reads its columns once per applied batch.",
+      "dependencies": [
+        "cn@^0.3.0",
+        "uplot@^1.6.32"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/price-chart.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/lib/price-series.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "watchlist"
+      ],
+      "docs": "Adds uplot, MIT, a canvas chart with no dependencies of its own and 52 KB minified: a tick chart wants a canvas that redraws in one call per frame and a candle series, and neither is in shadcn's chart wrapper, which draws through Recharts in SVG. Installs the row store, format, the flash hook, and price-series alongside, adds the direction tokens and the eight chart tokens (an install leaves the five your project already has alone), and composes no shadcn component. Key the store by barId(time), feed it with foldTicks or whole bars, and pass the instrument's convention; the chart reads your tokens off the page and sends nothing.",
+      "meta": {
+        "components": [
+          {
+            "title": "PriceChart",
+            "description": "The chart: a line or candles over the store's bars, the readout, the crosshair, the legend."
+          },
+          {
+            "title": "CHART_TOKEN_CLASS",
+            "description": "The eight chart tokens as utilities, in Okabe and Ito's order."
+          },
+          {
+            "title": "DEFAULT_PRICE_CHART_LABELS",
+            "description": "Every word the chart says."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "chart-1": "oklch(0.56 0.15 65)",
+          "chart-2": "oklch(0.52 0.12 230)",
+          "chart-3": "oklch(0.52 0.13 165)",
+          "chart-4": "oklch(0.55 0.13 95)",
+          "chart-5": "oklch(0.5 0.14 250)",
+          "chart-6": "oklch(0.5 0.18 40)",
+          "chart-7": "oklch(0.52 0.15 345)",
+          "chart-8": "var(--color-foreground)",
+          "down": "oklch(0.46 0.19 40)",
+          "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.52 0.13 165)",
+          "up-soft": "oklch(0.52 0.13 165 / 18%)"
+        },
+        "dark": {
+          "chart-1": "oklch(0.8 0.15 70)",
+          "chart-2": "oklch(0.78 0.11 230)",
+          "chart-3": "oklch(0.74 0.15 165)",
+          "chart-4": "oklch(0.88 0.15 100)",
+          "chart-5": "oklch(0.72 0.12 250)",
+          "chart-6": "oklch(0.7 0.18 40)",
+          "chart-7": "oklch(0.76 0.13 345)",
+          "chart-8": "var(--color-foreground)",
+          "down": "oklch(0.66 0.19 40)",
+          "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
       "name": "grid-rules",
       "type": "registry:lib",
       "title": "Grid Rules",
@@ -3243,6 +3346,9 @@
           "chart-3": "oklch(0.52 0.13 165)",
           "chart-4": "oklch(0.5 0.15 330)",
           "chart-5": "oklch(0.55 0.12 90)",
+          "chart-6": "oklch(0.52 0.12 225)",
+          "chart-7": "oklch(0.5 0.18 40)",
+          "chart-8": "var(--color-foreground)",
           "destructive": "oklch(0.53 0.22 27)",
           "down": "oklch(0.56 0.19 45)",
           "down-soft": "oklch(0.56 0.19 45 / 18%)",
@@ -3310,6 +3416,9 @@
           "chart-3": "oklch(0.74 0.15 165)",
           "chart-4": "oklch(0.74 0.15 330)",
           "chart-5": "oklch(0.85 0.15 95)",
+          "chart-6": "oklch(0.78 0.11 225)",
+          "chart-7": "oklch(0.7 0.18 40)",
+          "chart-8": "var(--color-foreground)",
           "destructive": "oklch(0.66 0.22 25)",
           "down": "oklch(0.78 0.18 45)",
           "down-soft": "oklch(0.78 0.18 45 / 18%)",
@@ -3404,6 +3513,9 @@
           "chart-3": "oklch(0.52 0.13 165)",
           "chart-4": "oklch(0.5 0.15 330)",
           "chart-5": "oklch(0.58 0.12 90)",
+          "chart-6": "oklch(0.52 0.12 225)",
+          "chart-7": "oklch(0.5 0.18 40)",
+          "chart-8": "var(--color-foreground)",
           "destructive": "oklch(0.53 0.22 27)",
           "down": "oklch(0.46 0.19 40)",
           "down-soft": "oklch(0.46 0.19 40 / 18%)",
@@ -3471,6 +3583,9 @@
           "chart-3": "oklch(0.74 0.15 165)",
           "chart-4": "oklch(0.74 0.15 330)",
           "chart-5": "oklch(0.85 0.13 90)",
+          "chart-6": "oklch(0.78 0.11 225)",
+          "chart-7": "oklch(0.7 0.18 40)",
+          "chart-8": "var(--color-foreground)",
           "destructive": "oklch(0.7 0.19 22)",
           "down": "oklch(0.66 0.19 40)",
           "down-soft": "oklch(0.66 0.19 40 / 18%)",
@@ -3565,6 +3680,9 @@
           "chart-3": "oklch(0.52 0.13 165)",
           "chart-4": "oklch(0.5 0.15 330)",
           "chart-5": "oklch(0.58 0.12 90)",
+          "chart-6": "oklch(0.52 0.12 225)",
+          "chart-7": "oklch(0.5 0.18 40)",
+          "chart-8": "var(--color-foreground)",
           "destructive": "oklch(0.53 0.22 27)",
           "down": "oklch(0.52 0.13 165)",
           "down-soft": "oklch(0.52 0.13 165 / 18%)",
@@ -3632,6 +3750,9 @@
           "chart-3": "oklch(0.74 0.15 165)",
           "chart-4": "oklch(0.74 0.15 330)",
           "chart-5": "oklch(0.85 0.13 90)",
+          "chart-6": "oklch(0.78 0.11 225)",
+          "chart-7": "oklch(0.7 0.18 40)",
+          "chart-8": "var(--color-foreground)",
           "destructive": "oklch(0.7 0.19 22)",
           "down": "oklch(0.77 0.14 165)",
           "down-soft": "oklch(0.77 0.14 165 / 18%)",

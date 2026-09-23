@@ -18,6 +18,7 @@ import { formatKeys, type HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
 import type { Limits } from "@/registry/tradecn/lib/limits"
 import type { LinkGroup } from "@/registry/tradecn/lib/link-group"
 import { createPreferences, type Preferences } from "@/registry/tradecn/lib/preferences"
+import { barId, foldTicks, type Bar } from "@/registry/tradecn/lib/price-series"
 import { createRowStore, type RowId, type RowStore, type RowView } from "@/registry/tradecn/lib/row-store"
 import { createSessionCalendar } from "@/registry/tradecn/lib/session-calendar"
 import { WINDOW_SET_SLOT, mainWindow, readWindowSet, windowSetOf, writeWindowSet } from "@/registry/tradecn/lib/window-set"
@@ -39,6 +40,7 @@ import { LinkGroupDot, PanelActions, PanelContent, PanelHeader, PanelTitle, Symb
 import { ParameterGrid, type ParameterDef, type ParameterRow } from "@/registry/tradecn/ui/parameter-grid"
 import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
 import { Positions, type PositionRow } from "@/registry/tradecn/ui/positions"
+import { PriceChart } from "@/registry/tradecn/ui/price-chart"
 import { RfqStack, bySize, byTimeLeft, rfqStackColumns, stackOrder, useRfqStackView, type RfqStackRow } from "@/registry/tradecn/ui/rfq-stack"
 import { RulesEditor } from "@/registry/tradecn/ui/rules-editor"
 import { Sparkline } from "@/registry/tradecn/ui/sparkline"
@@ -240,6 +242,8 @@ interface Desk {
   watch(symbol: string): void
   /** A symbol's book, levels keyed by tick: made the first time a ladder asks, fed by the venue from then on. */
   book(symbol: string): RowStore<DepthLevel>
+  /** A symbol's one-minute bars: three hours of history the first time a chart asks, then every print the venue makes. */
+  bars(symbol: string): RowStore<Bar>
   /** The ladder's click: the order ticket starts again from this price and side, and takes the focus. */
   stage(symbol: string, stage: LadderStage): void
   send(draft: TicketDraft, instrument: TicketInstrument): string
@@ -618,6 +622,35 @@ function createDesk(): Desk {
     heard("rfq")
   }
 
+  // The bars, one store per symbol, made when a chart first asks: three hours of one-minute history walked back
+  // from the quote's last on the tick grid, then every print the venue makes folded into the open bar.
+  const barStores = new Map<string, RowStore<Bar>>()
+  const BAR_MS = 60_000
+  const barsOf = (symbol: string): RowStore<Bar> => {
+    const made = barStores.get(symbol)
+    if (made) return made
+    const store = createRowStore<Bar>({ getRowId: (b) => barId(b.time), lane: "ordered" })
+    const f = futureOf(symbol)
+    const tick = f.convention.tick
+    let px = quotes.getRow(symbol)?.last ?? f.px
+    const end = Math.floor(Date.now() / BAR_MS) * BAR_MS
+    const bars: Bar[] = []
+    for (let i = 0; i < 180; i++) {
+      const close = px
+      let high = close
+      let low = close
+      for (let t = 0; t < 6; t++) {
+        px = roundToTick(px + (Math.random() < 0.5 ? -1 : 1) * tick * (Math.random() < 0.7 ? 1 : 2), tick)
+        high = Math.max(high, px)
+        low = Math.min(low, px)
+      }
+      bars.push({ time: end - i * BAR_MS, open: px, high, low, close, volume: lotOf(symbol) * (20 + Math.round(Math.random() * 200)) })
+    }
+    store.applyDeltas({ upsert: bars.reverse() })
+    barStores.set(symbol, store)
+    return store
+  }
+
   const start = () => {
     let beat = 0
     const timer = setInterval(() => {
@@ -635,6 +668,10 @@ function createDesk(): Desk {
       if (moved.length) {
         quotes.applyDeltas({ patch: moved })
         heard("md")
+        for (const m of moved) {
+          const bars = barStores.get(m.id)
+          if (bars) bars.applyDeltas(foldTicks(bars, [{ at, price: m.fields.last, size: lotOf(m.id) * (1 + Math.floor(Math.random() * 8)) }], BAR_MS))
+        }
         positions.applyDeltas({
           patch: positions.getIds().flatMap((id) => {
             const p = positions.getRow(id)
@@ -718,7 +755,7 @@ function createDesk(): Desk {
     }),
   })
 
-  return { quotes, inquiries, orders, events, prints, positions, sheet, markets, feeds, staged, alerts, actions, attach, api, watch, book: bookOf, stage, send, cancel, quote, pass, setQuote, quoteAction, pullQuotes, reconnect, start }
+  return { quotes, inquiries, orders, events, prints, positions, sheet, markets, feeds, staged, alerts, actions, attach, api, watch, book: bookOf, bars: barsOf, stage, send, cancel, quote, pass, setQuote, quoteAction, pullQuotes, reconnect, start }
 }
 
 // What the panels read the desk through.
@@ -1070,6 +1107,7 @@ function ChartPanel() {
   const link = useLinkGroup({ source: panel.id, defaultGroup: (panel.state.group as LinkGroup | undefined) ?? 1, defaultSymbol: DEFAULT_SYMBOL, onGroupChange: (group) => panel.setState({ group }) })
   const future = futureOf(link.symbol)
   const market = useRow(desk.quotes, future.symbol)
+  const bars = useMemo(() => desk.bars(future.symbol), [desk, future.symbol])
   const commit = (symbol: string | null) => {
     if (symbol) desk.watch(symbol)
     link.setSymbol(symbol)
@@ -1097,8 +1135,8 @@ function ChartPanel() {
           </Button>
         </PanelActions>
       </PanelHeader>
-      <PanelContent className="p-2">
-        {market ? <Sparkline values={market.closes} baseline={market.close} label={`${future.symbol} today`} format={(value) => price(value, future.symbol)} interactive className="h-full w-full" /> : <p className="text-muted-foreground">{future.symbol} is not on the watchlist yet.</p>}
+      <PanelContent className="p-1">
+        <PriceChart store={bars} convention={future.convention} label={`${future.symbol}, today`} zone="America/Chicago" baseline={market?.close ?? null} className="h-full" />
       </PanelContent>
     </>
   )
