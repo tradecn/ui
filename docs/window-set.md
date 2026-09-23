@@ -1,6 +1,6 @@
 # window-set
 
-Which windows a desk has, which layout each shows, and where each sits, as data with its boundaries, and a controller that drives your shell's own calls to open a window, close one, hear one close, and read the bounds back.
+Describe a desk's windows, layouts, and geometry as data, then open and close them through your shell's adapter. The controller tracks the windows it opens; your application owns native integration and persistence.
 
 ## Usage
 
@@ -9,11 +9,11 @@ import { createWindowSet, readWindowSet, windowSetOf, writeWindowSet, type Windo
 ```
 
 ```tsx
-// Your shell behind four functions: a Tauri WebviewWindow, an Electron BrowserWindow through a preload bridge.
+// Application-owned shell service; open and close confirm native completion.
 const adapter: WindowAdapter = {
-  open: (id, url) => shell.openWindow(id, url),
+  open: (id, url, record) => shell.openWindow(id, url, record),
   close: (id) => shell.closeWindow(id),
-  onClosed: (cb) => shell.onWindowClosed(cb),
+  onClosed: (cb) => shell.onWindowClosed(cb), // Returns unsubscribe synchronously.
   bounds: (id) => shell.windowBounds(id),
 }
 const windows = createWindowSet(adapter)
@@ -21,82 +21,123 @@ const windows = createWindowSet(adapter)
 // On launch: the stored set, or a first desk of one window.
 await windows.restore(readWindowSet(prefs) ?? windowSetOf([{ id: "main", layoutId: "desk", main: true }]))
 
-// On quit: what is open now, and where the shell says it sits.
+// Before closing windows: snapshot, then durably save through your storage service.
 prefs = writeWindowSet(prefs, await windows.snapshot())
+await persistPreferences(prefs)
 ```
 
-Every window loads the same app and reads `?window=<id>&layout=<layoutId>` to know which it is and which layout to mount. [Desktop shells](shells.md) puts the whole shape in one place, with a recipe for a Rust-hosted shell and a Node-hosted one.
+Create one controller in the desk's owner and await one startup restore. It starts empty and does not discover native windows. Make the adapter's `open` idempotent so it can adopt an existing initial window. Before a quit snapshot, stop new operations and wait for pending ones to finish; persist before destroying any windows.
+
+Every window loads the app and reads `?window=<id>&layout=<layoutId>` to choose its identity and layout. [Desktop shells](shells.md) covers owner placement, initial-window adoption, entry URLs, geometry, and close/quit coordination for Tauri and Electron. The `shell`, `prefs`, and `persistPreferences` above belong to your application.
 
 ## API Reference
 
-For a shell whose windows are separate JavaScript contexts, [`workspace`](workspace.md) says: one `Workspace` per window, its layout saved under the window's id. This lib is the record of those windows and the driver that opens them. It imports no shell package, touches no storage, and holds no layout: layouts live wherever you keep them, keyed by `layoutId`, in a [`layout-manager`](layout-manager.md) template or a file.
+For separate JavaScript contexts, mount one [`Workspace`](workspace.md) per window. Keep layouts under each `layoutId`, in a [`layout-manager`](layout-manager.md) template or your own storage. This library imports no shell package and stores no layouts.
 
 ### The set
 
-| Field | Type | Purpose |
+`WindowSet` fields are all required:
+
+| Field | Type | Value or purpose |
 |---|---|---|
-| `version` | `1` | The shape's version. |
-| `kind` | `"tradecn-window-set"` | What the payload is, so a layout or a preferences envelope is never mistaken for one. |
-| `windows` | `WindowRecord[]` | The windows, in the order they open after the main one. |
-| `boundaries` | `WindowSetBoundaries` | What the writer put in and what it kept out. |
+| `version` | `1` | `WINDOW_SET_VERSION`. |
+| `kind` | `"tradecn-window-set"` | `WINDOW_SET_KIND`; distinguishes a set from a layout or preferences envelope. |
+| `windows` | `WindowRecord[]` | Records in restore order, except that the main record goes first. |
+| `boundaries` | `WindowSetBoundaries` | Ownership metadata, defaulting to `WINDOW_SET_BOUNDARIES` in the helpers. |
 
 Each `WindowRecord`:
 
 | Field | Type | Required | Purpose |
 |---|---|---|---|
-| `id` | `string` | Yes | The shell's name for the window: a Tauri label, an Electron window's key in your own map. |
-| `layoutId` | `string` | Yes | The layout this window shows, keyed however you keep layouts. |
-| `bounds` | `{ x, y, width, height }` | No | Where the window sits, in the shell's pixels. Kept only when whole and the size is positive. |
-| `display` | `string` | No | The display it sits on, as the shell names it. |
-| `main` | `boolean` | No | The window that opens first and whose close ends the desk. One at most; the first keeps it. |
+| `id` | `string` | Yes | The shell's window name, such as a Tauri label or a key in your Electron window map. |
+| `layoutId` | `string` | Yes | The key used to load this window's layout. |
+| `bounds` | `WindowBounds` | No | Saved geometry in the units and frame convention your adapter uses. |
+| `display` | `string` | No | Application metadata naming the display; the controller does not discover or move displays. |
+| `main` | `boolean` | No | Selects the first record to restore. Closing it does not automatically close the desk. |
 
-`windowSetOf(records, boundaries?)` makes a set: duplicate ids are dropped after the first, every `main` but the first is cleared, and the records are copied. `mainWindow(set)` is the main record, else the first.
+`WindowBounds` has four required numbers. Choose physical or logical pixels, and outer or content size, consistently between the adapter's reads and writes; see the shell recipes above.
+
+| Field | Type | Purpose |
+|---|---|---|
+| `x`, `y` | `number` | Window position. Negative coordinates are allowed by the parser. |
+| `width`, `height` | `number` | Window size. The parser requires both to be positive. |
+
+`windowSetOf` keeps the first record for each id and the first retained `main: true` marker. It shallow-copies records, leaving nested bounds shared, and does not validate typed inputs. `mainWindow` returns the marked record, otherwise the first, or `undefined` for an empty set.
 
 ### Boundaries
 
-`WINDOW_SET_BOUNDARIES` says, in the language [`preferences`](preferences.md) and the workspace layout use, what a set carries and for whom:
+`WindowSetBoundary` is `"template" | "user" | "session"`. `WindowSetBoundaries` has these three required, readonly arrays of strings; `WINDOW_SET_BOUNDARIES` supplies their defaults:
 
-| Boundary | In it | Meaning |
+| Boundary | Default entries | Intended ownership |
 |---|---|---|
-| `template` | `window-ids`, `layout-ids`, `main-window` | Travels as a desk template: which windows, showing which layouts. |
-| `user` | `bounds`, `display` | The person's own: where each window sits, on which screen. |
-| `session` | `open-state`, `focus` | Stored by nobody. What is open comes from the shell every launch. |
+| `template` | `window-ids`, `layout-ids`, `main-window` | The desk's window and layout identities. |
+| `user` | `bounds`, `display` | The person's geometry and screens. |
+| `session` | `open-state`, `focus` | Live state, rebuilt during use rather than persisted as fields. |
 
-A set travels in a preferences slot: `readWindowSet(prefs, slot?)` and `writeWindowSet(prefs, set, slot?)` read and write `WINDOW_SET_SLOT`, `windows`, at version 1. Name the slot under the envelope's `template` boundary to hand a desk's windows to a colleague, or leave it under `user` to keep the positions to yourself.
+These labels do not remove fields. [`preferences`](preferences.md) exports whole slots: marking the `windows` slot as `template` also exports any saved `bounds` and `display`. Remove those fields from a copy before writing a shareable template. An unclassified preferences slot defaults to `user`.
+
+`readWindowSet` and `writeWindowSet` use `WINDOW_SET_SLOT` (`"windows"`) unless given another slot name. Writing puts the set in a version 1 slot without changing the envelope's boundary assignment or saving it to storage.
 
 ### Parsing
 
-`parseWindowSet(value)` takes an object or JSON text on no trust: a malformed record is dropped and the rest kept, boundaries that are not lists of words fall back to this lib's, and anything that is not a set at version 1 is null. `parseWindowRecord(value)` is the same for one record.
+Use parsers for untrusted values. `parseWindowRecord` accepts an object with nonblank string `id` and `layoutId`, preserving their original spelling and whitespace. It keeps only complete, finite bounds with positive width and height; fractional values are valid. Invalid bounds are omitted without dropping the record. It keeps a nonempty string `display` and only `main: true`, and drops unknown fields. It does not parse JSON text on its own.
+
+`parseWindowSet` accepts an object or JSON text with kind `"tradecn-window-set"`, version `1`, and a `windows` array. It drops invalid records, normalizes duplicates and main markers, and returns `null` for an invalid envelope or invalid JSON. Boundaries must supply all three arrays of strings; otherwise the entire boundary value falls back to `WINDOW_SET_BOUNDARIES`. Empty arrays and empty strings in those arrays are accepted.
+
+| Helper | Inputs and defaults | Returns |
+|---|---|---|
+| `windowSetOf(windows?, boundaries?)` | `windows: readonly WindowRecord[] = []`; `boundaries: WindowSetBoundaries = WINDOW_SET_BOUNDARIES` | `WindowSet`; normalizes trusted records. |
+| `mainWindow(set)` | `set: WindowSet` | `WindowRecord \| undefined`. |
+| `parseWindowRecord(value)` | `value: unknown` | `WindowRecord \| null`. |
+| `parseWindowSet(value)` | `value: unknown` | `WindowSet \| null`. |
+| `readWindowSet(prefs, slot?)` | `prefs: Preferences`; `slot: string = WINDOW_SET_SLOT` | `WindowSet \| null`; parses the slot's value, or returns `null` if absent or invalid. |
+| `writeWindowSet(prefs, set, slot?)` | `prefs: Preferences`; `set: WindowSet`; `slot: string = WINDOW_SET_SLOT` | `Preferences`; writes a JSON copy of the set into the slot. |
+| `defaultWindowUrl(record)` | `record: WindowRecord` | `string`; the current `location.pathname` plus `?window=<id>&layout=<layoutId>`, with both values URL-encoded. Without a pathname, returns the query alone. |
 
 ### The adapter
 
-| Function | Purpose |
-|---|---|
-| `open(id, url, record)` | Open a window with this id at this url. Resolve when it exists. |
-| `close(id)` | Close it. |
-| `onClosed(cb)` | Hear the shell close a window on its own, by the person or the system; return what stops listening. |
-| `bounds(id)` | Optional. Where the window is now, for a snapshot; null leaves the record's own bounds in place. |
+Supply a `WindowAdapter` to `createWindowSet`. Only `bounds` is optional.
 
-Each may return a promise. The url is `defaultWindowUrl(record)`, the document's own path with `?window=<id>&layout=<layoutId>`, unless the controller is given a `url` function.
+| Method | Inputs | Returns | Contract |
+|---|---|---|---|
+| `open(id, url, record)` | `id: string`; `url: string`; `record: WindowRecord` | `void \| Promise<void>` | Adopt or create the window and apply its record. Complete after successful native setup; reject failures. |
+| `close(id)` | `id: string` | `void \| Promise<void>` | Complete after confirmed closure. Reject cancellation so the controller can keep tracking the window. |
+| `onClosed(cb)` | `cb: (id: string) => void` | `() => void` | Subscribe to completed native closures and return unsubscribe synchronously. |
+| `bounds(id)` | `id: string` | `WindowBounds \| null \| undefined \| Promise<WindowBounds \| null \| undefined>` | Read current geometry for a snapshot; `null` or `undefined` keeps the saved bounds. |
+
+Prepare any asynchronous native event registration before constructing the controller. A close request alone does not fulfill `close`: once it resolves, the controller removes the record even if the native window still exists. Forward completed native closures through `onClosed`, including ones the controller did not request.
+
+The default URL is a path and query, not an absolute shell entry URL. Supply `options.url` or resolve the record to your shell's entry point in `open`. The controller passes geometry and display metadata to the adapter; it does not position windows itself.
 
 ### The controller
 
-`createWindowSet(adapter, { url?, boundaries? })` returns:
+`createWindowSet(adapter: WindowAdapter, options?: WindowSetOptions)` returns a `WindowSetController`. Options default to `{}`:
 
-| Method | Returns | Purpose |
-|---|---|---|
-| `restore(set)` | `Promise<WindowRecord[]>` | Open every window of the set that is not open, the main one first. Resolves to the records it opened. |
-| `open(record)` | `Promise<boolean>` | Open one. False when it was open already. |
-| `close(id)` | `Promise<boolean>` | Close one through the shell. False when it was not open. |
-| `closeAll()` | `Promise<void>` | Close every open window. |
-| `windows()` | `readonly WindowRecord[]` | The open windows, in the order they opened. |
-| `isOpen(id)` | `boolean` | Whether the shell has this window. |
-| `snapshot()` | `Promise<WindowSet>` | The open windows, each with the bounds the shell reports now. |
-| `subscribe(cb)` | `() => void` | Hear a window open or close. |
-| `dispose()` | `void` | Stop listening to the shell. Closes nothing. |
+| Option | Type | Default | Purpose |
+|---|---|---|---|
+| `url` | `(record: WindowRecord) => string` | `defaultWindowUrl` | Build the URL passed to `adapter.open`. |
+| `boundaries` | `WindowSetBoundaries` | `WINDOW_SET_BOUNDARIES` | Metadata for snapshots. `restore` does not adopt the restored set's boundaries. |
 
-A close the shell makes on its own, the person pressing a window's X, reaches the set through `onClosed` and leaves it the same way a `close` does, once. Make the controller once per app, not per render: it holds the shell's listener.
+| Method | Inputs | Returns | Behavior |
+|---|---|---|---|
+| `restore(set)` | `set: WindowSet` | `Promise<WindowRecord[]>` | Try the main record first, then the rest in order, awaiting each open it starts. Returns the input records it opened; skips tracked ids and ids already opening. |
+| `open(record)` | `record: WindowRecord` | `Promise<boolean>` | `true` after successful adapter completion; `false` if the id is tracked or already opening. |
+| `close(id)` | `id: string` | `Promise<boolean>` | `true` after adapter completion; `false` if the id is untracked or already closing. |
+| `closeAll()` | None | `Promise<void>` | Close the currently tracked ids sequentially, in their insertion order. |
+| `windows()` | None | `readonly WindowRecord[]` | A new array of tracked records, in successful-open order. The records themselves are shared. |
+| `isOpen(id)` | `id: string` | `boolean` | Whether this controller tracks the id; does not query the shell. |
+| `snapshot()` | None | `Promise<WindowSet>` | Read bounds sequentially for tracked records and build a normalized set using the controller's boundaries. |
+| `subscribe(cb)` | `cb: () => void` | `() => void` | Listen for tracked opens and closes; returns unsubscribe. No initial callback. |
+| `dispose()` | None | `void` | Unsubscribe from the shell and clear current subscribers. Does not close windows or clear records. |
+
+A pending open is not yet tracked, so `isOpen` is false and `close` returns false for that id. Duplicate opens and closes return false without waiting for the original operation. Concurrent restores can therefore open a secondary while another restore is still opening main. Coordinate startup, snapshots, and shutdown in the owner; the controller does not serialize all operations or expose a separate readiness signal.
+
+An `adapter.open` failure rejects without adding the record; an `adapter.close` failure leaves it tracked unless a native close notification already removed it. `restore` and `closeAll` stop at the first rejection without rolling back earlier successes. A rejected bounds read rejects `snapshot`; bounds returned successfully are trusted without parser validation.
+
+Subscriber callbacks run synchronously. A throw stops later callbacks and can reject `open` or `close` after its tracked state has changed.
+
+Native closure and requested-close completion notify only when they remove a tracked record. Wait for a pending close to finish before reopening its id: the old close can otherwise remove the new record. `dispose` leaves pending operations running and methods callable, so finish operations before disposing and stop using that controller afterward.
 
 ### What it does not do
 
-It does not open windows, position them, or know a shell. It does not hold layouts, only their ids, and it does not decide what a window shows: mount a `Workspace` in each window and load the layout the query names.
+Native discovery, window creation and positioning, main-window shutdown policy, layout loading, and durable storage belong to the application. The controller calls your adapter and tracks the results. Mount a `Workspace` in each window and load the layout identified by its record or query.
