@@ -5,25 +5,58 @@ A price ladder centered on the market: bid and ask sizes per tick, the desk's ow
 ## Usage
 
 ```tsx
-import { DepthLadder, levelId, tickIndexOf, type DepthLevel } from "@/components/ui/depth-ladder"
-import type { InstrumentConvention } from "@/lib/format"
+import { useState } from "react"
+import { createInstrumentFormatter, type InstrumentConvention } from "@/lib/format"
 import { createRowStore } from "@/lib/row-store"
-```
+import { DepthLadder, levelId, tickIndexOf, type DepthLevel, type LadderStage } from "@/components/ui/depth-ladder"
 
-```tsx
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
-const book = createRowStore<DepthLevel>({ getRowId: (level) => levelId(level.tick) })
+const format = createInstrumentFormatter(ZN)
+const mid = 110.5
+const tick = tickIndexOf(mid, ZN.tick)
 
-// once per frame, from your book feed
-book.applyDeltas({
-  upsert: [{ tick: tickIndexOf(110.484375, ZN.tick), bidSize: 220, myBid: 25 }],
-  remove: [levelId(tickIndexOf(110.46875, ZN.tick))],
-})
-
-<DepthLadder store={book} convention={ZN} mid={market.mid} label="ZN ladder" onStage={({ price, side }) => ticket.stage({ price, side })} />
+function Ladder() {
+  const [store] = useState(() => {
+    const store = createRowStore<DepthLevel>({ getRowId: (level) => levelId(level.tick) })
+    store.applyDeltas({ upsert: [
+      { tick: tick - 2, bidSize: 300, myBid: 25 },
+      { tick: tick - 1, bidSize: 220 },
+      { tick: tick + 1, askSize: 180 },
+      { tick: tick + 2, askSize: 320, myAsk: 15 },
+    ] })
+    return store
+  })
+  const [staged, setStaged] = useState<LadderStage | null>(null)
+  return (
+    <div className="w-72 max-w-full space-y-2 text-xs lining-nums tabular-nums">
+      <div className="h-56">
+        <DepthLadder store={store} convention={ZN} mid={mid} label="ZN ladder" depth={4} onStage={setStaged} />
+      </div>
+      <p role="status" className="text-muted-foreground">{staged ? `Staged: ${staged.side} at ${format.price(staged.price)}.` : "Nothing staged."}</p>
+    </div>
+  )
+}
 ```
 
-Key levels by tick index, not by price: `tickIndexOf` rounds a price to the grid, and `levelId` is the row id the store and the ladder agree on.
+Key levels by tick index, not by price: `tickIndexOf` rounds a price to the grid, and `levelId` is the row id the store and ladder agree on. The four levels surround an empty mid rung. The chips mark the desk's own sizes, 25 on the bid and 15 on the ask.
+
+Click a bid cell to stage a buy or an ask cell to stage a sell. Empty size cells work too. For keyboard use, focus the ladder, choose a rung and size column with the arrows, then press Enter. The caption shows the callback's price and side; your application decides what to do with them.
+
+## Book updates
+
+The Apply next book update button walks through four batches: increase a bid size and decrease an ask size, change only the desk's own sizes, add a level, then remove a level. The caption names each result. Market-size changes flash; own-size-only changes do not. Adding or removing a level changes its size cells while its price rung remains.
+
+The last state stays visible. Restore book replaces the original levels and removes the added one so the sequence can run again. It restores the data without changing the ladder's focus or following state. These buttons stand in for batches from a coalesced book feed; they do not run a publisher or aggregate orders.
+
+<!-- demo: depth-ladder-updates -->
+
+## Following the market
+
+Move the market up or down four ticks while the ladder is untouched: the mid stays centered, and the bid and ask move with it. The controls bound this sample to eight ticks either side of its starting mid, and each snapshot replaces the previous book's two levels.
+
+Click a price cell, scroll, or use an arrow key to stop following, then move the market again. The visible prices stay put while the mid moves. Press Recenter, or focus the ladder and press Home, to center on the current market and resume following. The mid caption shows the market even when its rung is out of view. Recenter changes the viewport; it does not move the keyboard's focused tick.
+
+<!-- demo: depth-ladder-following -->
 
 ## API Reference
 
