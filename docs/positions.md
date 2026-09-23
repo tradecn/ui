@@ -5,24 +5,49 @@ A positions grid with signed quantities, average and mark prices, day and total 
 ## Usage
 
 ```tsx
-import { Positions, positionsColumns, type PositionRow } from "@/components/ui/positions"
-import { formatDv01 } from "@/lib/format"
+import { useState } from "react"
 import { createRowStore } from "@/lib/row-store"
+import { Positions, type PositionRow } from "@/components/ui/positions"
+
+const rows: PositionRow[] = [
+  { id: "T2", book: "Cash", instrument: "T 2Y", position: 50_000_000, average: 100.25, mark: 100.28125, dayPnl: 15_625, totalPnl: 62_000, risk: 21_500 },
+  { id: "T10", book: "Cash", instrument: "T 10Y", position: -25_000_000, average: 99.5, mark: 99.515625, dayPnl: -3_906, totalPnl: -12_000, risk: -21_000 },
+  { id: "T30", book: "Cash", instrument: "T 30Y", position: 0, average: null, mark: 98.75, dayPnl: 0, totalPnl: null, risk: null },
+]
+
+function CashPositions() {
+  const [store] = useState(() => {
+    const store = createRowStore<PositionRow>({ getRowId: (row) => row.id })
+    store.applyDeltas({ upsert: rows })
+    return store
+  })
+  return <div className="h-48 w-fit max-w-full"><Positions store={store} label="Cash positions" riskHeader="DV01" /></div>
+}
 ```
 
-```tsx
-const store = createRowStore<PositionRow>({ getRowId: (p) => p.id })
-const price = (value: number, row: PositionRow) => conventions[row.instrument].price(value)
-const pnl = (value: number) => formatDv01(value, { compact: true })
+The three rows show long, short and flat positions in one book. Without `quantityUnit`, quantities print as notional amounts in millions. Missing optional values use `–`. The footer counts the positions and sums their supplied P&L and risk, omitting missing values; it does not sum quantities across instruments.
 
-<Positions
-  store={store}
-  riskHeader="DV01"
-  price={price}
-  pnl={pnl}
-  sort={{ key: "risk", dir: "desc" }}
-/>
-```
+Every value is a fixed server snapshot. The grid displays these numbers and totals them; it does not calculate P&L from average prices, marks or quantities.
+
+## Formats and units
+
+Set `quantityUnit="contracts"` for a contract count and leave it omitted for notional amounts. This example prints TY as `+120` and the cash position as `−25mm`. A stable `price` callback chooses fractional prices for T 10Y and three decimal places for TY. The shared money formatter prints compact P&L and DV01 for both cells and totals; it retains negative signs.
+
+<!-- demo: positions-formats -->
+
+## Separate books
+
+Give each book its own store and named grid to keep selection, sorting and totals separate. These two books each contain one position, so each footer belongs only to that book. `Book` seeds its store once from its initial rows; subsequent data belongs in store batches.
+
+<!-- demo: positions-books -->
+
+## Server updates
+
+The Apply next server batch button first changes only the cash note's mark. P&L and risk stay unchanged. The second batch supplies new P&L and risk values; those cells and their totals update. Changed cells flash, while totals do not. The sample values are explicit server outputs, not a valuation model.
+
+The final state stays visible until Restore book replaces the original rows. Selection, sorting and column settings stay as you left them. There is no background publisher. Scroll the grid horizontally on a narrow screen to inspect the mark, P&L and risk columns.
+
+<!-- demo: positions-updates -->
 
 ## API Reference
 
@@ -109,7 +134,7 @@ Custom `totals` replaces the default map. Each function receives the view's rows
 
 ### One grid per book
 
-For several books, render one `Positions` per book with a separate store or filtered view and its own totals, as the demo does. The grid has fixed-height rows for viewport pinning and does not group or nest positions.
+For several books, render one `Positions` per book with a separate store or filtered view and its own totals, as the [separate-books example](#separate-books) does. The grid has fixed-height rows for viewport pinning and does not group or nest positions.
 
 ### What it does not do
 
