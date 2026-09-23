@@ -28,6 +28,7 @@ import { RowStoreScene } from "./row-store"
 import { RulesEditorScene } from "./rules-editor"
 import { SessionCalendarScene } from "./session-calendar"
 import { SparklineScene } from "./sparkline"
+import { SpreadMatrixScene } from "./spread-matrix"
 import { StatusBarScene } from "./status-bar"
 import { TicketScene } from "./ticket"
 import { TradecnSlateScene } from "./tradecn-slate"
@@ -73,6 +74,7 @@ export const items: Record<string, ItemScene> = {
   "layout-manager": { title: "layout-manager", Scene: LayoutManagerScene },
   "instrument-search": { title: "instrument-search", Scene: InstrumentSearchScene },
   "depth-ladder": { title: "depth-ladder", Scene: DepthLadderScene },
+  "spread-matrix": { title: "spread-matrix", Scene: SpreadMatrixScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   preferences: { title: "preferences", Scene: PreferencesScene },
   "alert-store": { title: "alert-store", Scene: AlertStoreScene },

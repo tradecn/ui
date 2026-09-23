@@ -40,6 +40,7 @@ import { Positions, type PositionRow } from "@/registry/tradecn/ui/positions"
 import { RfqStack, bySize, byTimeLeft, rfqStackColumns, stackOrder, useRfqStackView, type RfqStackRow } from "@/registry/tradecn/ui/rfq-stack"
 import { RulesEditor } from "@/registry/tradecn/ui/rules-editor"
 import { Sparkline } from "@/registry/tradecn/ui/sparkline"
+import { SpreadMatrix, type SpreadInstrument, type SpreadStructure } from "@/registry/tradecn/ui/spread-matrix"
 import { StatusBar } from "@/registry/tradecn/ui/status-bar"
 import { Watchlist, watchlistColumns, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
 import { Workspace, useWorkspacePanel, type WorkspaceApi } from "@/registry/tradecn/ui/workspace"
@@ -1086,7 +1087,32 @@ function FramesPanel() {
   )
 }
 
-const PANELS = { watchlist: WatchlistPanel, positions: PositionsPanel, stack: StackPanel, quote: QuotePanel, order: OrderPanel, blotter: BlotterPanel, audit: AuditPanel, parameters: ParametersPanel, chart: ChartPanel, ladder: LadderPanel, tape: TapePanel, frames: FramesPanel }
+// The spreads between the Treasury contracts, each cell the row less the column in the row's ticks, and the desk's
+// structures under them, over the quotes the watchlist reads: a contract that moves flashes the cells it is part of.
+const CURVE: SpreadInstrument[] = ["ZT", "ZF", "ZN", "ZB"].map((symbol) => ({ id: symbol, label: symbol, convention: FUTURES[symbol]!.convention }))
+const STRUCTURES: SpreadStructure[] = [
+  { id: "ZT/ZN", label: "2s10s", legs: ["ZT", "ZN"] },
+  { id: "ZF/ZB", label: "5s30s", legs: ["ZF", "ZB"] },
+  { id: "ZT/ZF/ZN", label: "2s5s10s", legs: ["ZT", "ZF", "ZN"] },
+]
+const lastOf = (quote: Quote) => quote.last ?? quote.close
+function SpreadsPanel() {
+  const desk = useDesk()
+  return (
+    <>
+      <PanelHeader>
+        <PanelTitle>Spreads</PanelTitle>
+        <span className="truncate text-muted-foreground">Row less column, in the row's ticks</span>
+      </PanelHeader>
+      <PanelContent className="flex flex-col gap-2 overflow-auto p-2">
+        <SpreadMatrix store={desk.quotes} instruments={CURVE} value={lastOf} label="Treasury futures spreads" className="w-fit" />
+        <SpreadMatrix store={desk.quotes} instruments={CURVE} structures={STRUCTURES} value={lastOf} label="Treasury futures structures" className="w-fit" />
+      </PanelContent>
+    </>
+  )
+}
+
+const PANELS = { watchlist: WatchlistPanel, positions: PositionsPanel, stack: StackPanel, quote: QuotePanel, order: OrderPanel, blotter: BlotterPanel, audit: AuditPanel, parameters: ParametersPanel, chart: ChartPanel, ladder: LadderPanel, spreads: SpreadsPanel, tape: TapePanel, frames: FramesPanel }
 
 // The layout: three columns, the market on the left, the inquiries and the orders in the middle, the tickets and
 // the chart on the right, tabs where two panels share a place. Ids are fixed so the go keys can name them.
@@ -1097,6 +1123,7 @@ function seed(api: WorkspaceApi) {
   api.addPanel({ kind: "quote", id: "quote-1", title: "Quote", position: { reference: "order-1", direction: "within" }, focus: false })
   api.addPanel({ kind: "positions", id: "positions-1", title: "Positions", position: { reference: "watchlist-1", direction: "below" }, focus: false })
   api.addPanel({ kind: "ladder", id: "ladder-1", title: "Ladder", state: { group: 1 }, position: { reference: "positions-1", direction: "below" }, focus: false })
+  api.addPanel({ kind: "spreads", id: "spreads-1", title: "Spreads", position: { reference: "ladder-1", direction: "within" }, focus: false })
   api.addPanel({ kind: "blotter", id: "blotter-1", title: "Blotter", position: { reference: "stack-1", direction: "below" }, focus: false })
   api.addPanel({ kind: "audit", id: "audit-1", title: "Audit trail", position: { reference: "blotter-1", direction: "within" }, focus: false })
   api.addPanel({ kind: "parameters", id: "parameters-1", title: "Quoter", position: { reference: "blotter-1", direction: "within" }, focus: false })
@@ -1104,7 +1131,7 @@ function seed(api: WorkspaceApi) {
   api.addPanel({ kind: "frames", id: "frames-1", title: "Frames", position: { reference: "tape-1", direction: "within" }, focus: false })
   api.addPanel({ kind: "chart", id: "chart-1", title: "Chart", state: { group: 1 }, position: { reference: "tape-1", direction: "within" }, focus: false })
   // The tab in front of each group, and the columns' widths; dockview's own API, for what the workspace's does not cover.
-  for (const id of ["quote-1", "blotter-1", "chart-1", "stack-1"]) api.dockview.getPanel(id)?.api.setActive()
+  for (const id of ["quote-1", "blotter-1", "chart-1", "ladder-1", "stack-1"]) api.dockview.getPanel(id)?.api.setActive()
   api.dockview.getPanel("watchlist-1")?.api.setSize({ width: 320 })
   api.dockview.getPanel("order-1")?.api.setSize({ width: 360, height: 400 })
 }
@@ -1143,6 +1170,7 @@ function Toolbar() {
       focus("blotter", "Go to the blotter", "go.blotter"),
       focus("chart", "Go to the chart", "go.chart"),
       focus("ladder", "Go to the ladder"),
+      focus("spreads", "Go to the spreads"),
       focus("positions", "Go to the positions"),
       focus("audit", "Go to the audit trail"),
       focus("parameters", "Go to the quoter"),
