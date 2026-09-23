@@ -28,6 +28,7 @@ import { RowStoreScene } from "./row-store"
 import { RulesEditorScene } from "./rules-editor"
 import { SessionCalendarScene } from "./session-calendar"
 import { SparklineScene } from "./sparkline"
+import { SpreadMatrixScene } from "./spread-matrix"
 import { StatusBarScene } from "./status-bar"
 import { TicketScene } from "./ticket"
 import { UseHotkeysScene } from "./use-hotkeys"
@@ -70,6 +71,7 @@ export const scenes: SmokeScene[] = [
   { name: "layout-manager", Scene: LayoutManagerScene },
   { name: "instrument-search", Scene: InstrumentSearchScene },
   { name: "depth-ladder", Scene: DepthLadderScene },
+  { name: "spread-matrix", Scene: SpreadMatrixScene },
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
   { name: "alert-store", Scene: AlertStoreScene },

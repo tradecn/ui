@@ -2708,6 +2708,105 @@
       }
     },
     {
+      "name": "spread-matrix",
+      "type": "registry:ui",
+      "title": "Spread Matrix",
+      "description": "Instruments down the side and across the top, each cell the spread of the row over the column, in ticks of the row's price or in basis points of yield, printed with its sign and flashing by the direction it moved. Every row reads its own quote and every cell its column's, so a quote that moves wakes the cells it is part of and nothing else. Given a list of structures, curves and butterflies as two or three weighted legs, the table lists those as rows instead of the full matrix. It reads quotes and prints spreads; it stages and sends nothing.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/spread-matrix.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "grid",
+        "watchlist"
+      ],
+      "docs": "Installs the row store, format, and the flash hook alongside, adds the up, down, and flat tokens the flashes use, and composes no shadcn component. Key the store by instrument id; each cell is the row less the column in the row's ticks or in basis points, with its sign, and the matrix sends nothing.",
+      "meta": {
+        "components": [
+          {
+            "title": "SpreadMatrix",
+            "description": "The table: instruments as rows and columns, or structures as rows, each cell a signed spread that flashes as it moves."
+          },
+          {
+            "title": "spreadBetween",
+            "description": "One value less another in ticks of a tick or in basis points; null when a side is missing."
+          },
+          {
+            "title": "structureSpread",
+            "description": "A structure's spread: its legs' values weighted and summed, in the basis."
+          },
+          {
+            "title": "formatSpread",
+            "description": "A spread with its sign and no unit."
+          },
+          {
+            "title": "defaultWeights",
+            "description": "The weights a curve or a butterfly takes when none are given."
+          },
+          {
+            "title": "DEFAULT_SPREAD_MATRIX_LABELS",
+            "description": "Every word the table says."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.46 0.19 40)",
+          "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.52 0.13 165)",
+          "up-soft": "oklch(0.52 0.13 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.66 0.19 40)",
+          "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
       "name": "grid-rules",
       "type": "registry:lib",
       "title": "Grid Rules",

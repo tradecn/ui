@@ -1310,3 +1310,57 @@ test("a depth ladder centers on the mid, prints prices in 32nds, marks the desk'
   await expect(ladder).toHaveAttribute("data-following", "true")
   await expect.poll(() => offCenter(6371)).toBeLessThan(22)
 })
+
+// The installed matrix over three notes: headers with the unit, each cell the row less the column with its sign in
+// the row's own tick, the diagonal blank, the structures under it in basis points, one note's move reaching the
+// four cells and the two structures it is part of and flashing each by direction (the fill painted with the soft
+// token, since motion is reduced here), and the basis flipping every cell to basis points.
+test("a spread matrix prints signed spreads in the row's ticks, flashes the cells a moved quote is part of, lists structures, and flips its basis", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" })
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='spread-matrix']")
+  const matrix = scene.getByRole("table", { name: "Curve spreads" })
+  const structures = scene.getByRole("table", { name: "Curve structures" })
+  const cell = (row: string, column: string) => matrix.locator(`td[data-row='${row}'][data-column='${column}']`)
+  const spread = (id: string) => structures.locator(`tr[data-structure='${id}'] td[data-spread]`)
+  await expect(matrix.getByRole("columnheader")).toHaveText(["Instrument (ticks)", "2Y", "5Y", "10Y"])
+  await expect(matrix.getByRole("rowheader")).toHaveText(["2Y", "5Y", "10Y"])
+  // 5Y at 99-24 over 10Y at 99-16+ is 15 ticks of 1/64; 2Y counts its half point over 5Y in its own 1/128ths.
+  await expect(cell("5Y", "10Y")).toHaveText("+15")
+  await expect(cell("10Y", "5Y")).toHaveText("−15")
+  await expect(cell("2Y", "5Y")).toHaveText("+64")
+  await expect(cell("5Y", "2Y")).toHaveText("−32")
+  await expect(cell("5Y", "5Y")).toHaveAttribute("data-diagonal", "")
+  await expect(cell("5Y", "5Y")).toHaveText("")
+  await expect(structures.getByRole("columnheader")).toHaveText(["Structure", "Legs", "Spread (bp)"])
+  await expect(spread("2s10s")).toHaveText("+12.5")
+  await expect(spread("2s5s10s")).toHaveText("−37.5")
+  await expect(structures.locator("tr[data-structure='2s10s'] td[data-legs]")).toHaveText("2Y / 10Y")
+  // 10Y cheapens two ticks and a basis point: its row and its column reprint and flash; a cell it is not part of does neither.
+  await scene.getByRole("button", { name: "10Y cheapens" }).click()
+  await expect(cell("5Y", "10Y")).toHaveText("+17")
+  await expect(cell("5Y", "10Y")).toHaveAttribute("data-direction", "up")
+  const painted = await page.evaluate(() => {
+    const el = document.querySelector("section[data-scene='spread-matrix'] td[data-row='5Y'][data-column='10Y']")!
+    const probe = document.createElement("i")
+    probe.style.backgroundColor = "var(--up-soft)"
+    document.body.append(probe)
+    const out = { color: getComputedStyle(el).backgroundColor, up: getComputedStyle(probe).backgroundColor }
+    probe.remove()
+    return out
+  })
+  expect(painted.color, "a rising spread is filled with the up-soft token").toBe(painted.up)
+  await expect(cell("10Y", "5Y")).toHaveText("−17")
+  await expect(cell("10Y", "5Y")).toHaveAttribute("data-direction", "down")
+  await expect(cell("2Y", "10Y")).toHaveText("+98")
+  await expect(cell("2Y", "5Y")).toHaveText("+64")
+  await expect(cell("2Y", "5Y")).not.toHaveAttribute("data-direction")
+  await expect(spread("2s10s")).toHaveText("+13.5")
+  await expect(spread("2s10s")).toHaveAttribute("data-direction", "up")
+  await expect(spread("2s5s10s")).toHaveText("−38.5")
+  // The basis flips: the unit moves in the corner header and every cell reprints from the yields.
+  await scene.getByRole("button", { name: "basis flips" }).click()
+  await expect(matrix.getByRole("columnheader").first()).toHaveText("Instrument (bp)")
+  await expect(cell("10Y", "2Y")).toHaveText("+13.5")
+  await expect(cell("5Y", "2Y")).toHaveText("−12.5")
+})
