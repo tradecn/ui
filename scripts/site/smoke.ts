@@ -247,9 +247,15 @@ for (const item of items) {
     if (!(await previewCode.isVisible())) failures.push(`${item}: View Code shows no code`)
     const code = await previewCode.innerText()
     if (code.includes("@/registry/")) failures.push(`${item}: the source shows a playground import, not the consumer's`)
-    // The source's lines are numbered: the code is a grid of lines, each counted down the gutter.
-    const numbered = await previewCode.evaluate((el) => getComputedStyle(el).display === "grid" && getComputedStyle(el.querySelector(".line")!, "::before").counterIncrement === "line 1")
-    if (!numbered) failures.push(`${item}: the source's lines are not numbered`)
+    // The source's lines are numbered: the code is a grid with one row per line, each counted down the gutter. The
+    // newlines between the spans are whitespace-only text, which a grid does not render as items, so no blank row
+    // stands between two lines and none trails the last; the final empty span, a source's closing newline, is hidden.
+    const grid = await previewCode.evaluate((el) => {
+      const lines = [...el.querySelectorAll(":scope > .line")].filter((line) => getComputedStyle(line).display !== "none")
+      return { display: getComputedStyle(el).display, rows: getComputedStyle(el).gridTemplateRows.split(" ").filter(Boolean).length, lines: lines.length, counted: lines.every((line) => getComputedStyle(line, "::before").counterIncrement === "line 1") }
+    })
+    if (grid.display !== "grid" || !grid.counted) failures.push(`${item}: the source's lines are not numbered`)
+    if (grid.rows !== grid.lines) failures.push(`${item}: the source has ${grid.lines} lines on ${grid.rows} grid rows`)
     // Its copy button puts that source on the clipboard, without the trailing newline and without the numbers.
     const source = await previewCode.evaluate((el) => el.textContent ?? "")
     await card.locator(".preview-code .copy").click()
