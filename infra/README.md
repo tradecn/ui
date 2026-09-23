@@ -7,7 +7,7 @@ One private S3 bucket behind CloudFront, defined in `lib/tradecn-site-stack.ts` 
 - `https://tradecn.dev/r/{name}.json` and `/r/registry.json` are the latest release. They carry a five-minute cache and are invalidated when a release lands.
 - `https://tradecn.dev/r/vX.Y.Z/{name}.json` is that release, unchanged, for as long as the domain exists. It carries a one-year immutable cache. Pin a namespace to it: `"@tradecn": "https://tradecn.dev/r/v0.1.2/{name}.json"`.
 - `https://tradecn.dev/` and `/docs/` are the latest release's pages. `https://tradecn.dev/vX.Y.Z/` is that release's own pages, the same tree with every path under it (`/vX.Y.Z/docs/<name>/`, `/vX.Y.Z/preview/<name>/`), for every release published since the trees began; the header's menu lists them from `/versions.json` at the root (`{ "latest": "vX.Y.Z", "versions": [...] }`, newest first, a five-minute cache).
-- `www.tradecn.dev` redirects to the apex. A missing item is a 404, never a page with status 200.
+- `www.tradecn.dev` redirects to the apex. A missing item is a 404, never a page with status 200. `/robots.txt` keeps every path open and names `/sitemap.xml`, which lists the opening page and every docs page at the root, each at the address it names as its canonical; the previews and the 404 page carry `noindex`, and a release's own tree canonicalizes to the root's pages, so neither is listed.
 - The apex carries one TXT record, and every TXT value for the domain lives in it (`APEX_TXT_VALUES` in the stack). Today that is the Google Search Console verification token.
 
 ## What deploys when

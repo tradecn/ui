@@ -540,6 +540,20 @@ export const MODE_SCRIPT = "theme.js"
 export const SITE_STYLES = "site.css"
 /** The search index: every page's title, headings, and text, which site.js fetches the first time the search opens. */
 export const SEARCH_INDEX = "search.json"
+/**
+ * The two files a crawler reads first, at the root alone. robots.txt keeps every path open and names the sitemap;
+ * the sitemap lists every page there is to index, the opening page and the docs pages, each at the address it
+ * names as its canonical. The previews and the 404 page carry noindex and are not listed; a release's own tree
+ * canonicalizes to the root's pages and writes neither file. Nothing is disallowed: a crawler has to fetch a
+ * preview to render the page that frames it, and to read the noindex on it.
+ */
+export const ROBOTS_FILE = "robots.txt"
+export const SITEMAP_FILE = "sitemap.xml"
+export const robotsTxt = () => `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/${SITEMAP_FILE}\n`
+export function sitemap(docs: readonly Doc[]): string {
+  const urls = ["/", ...docs.map((doc) => doc.path)].map((path) => `  <url><loc>${escapeHtml(`${SITE_URL}${path}`)}</loc></url>`)
+  return ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">', ...urls, "</urlset>", ""].join("\n")
+}
 /** The headers every response carries; the stack and the smoke both read this file. */
 export const HEADERS_FILE = "headers.json"
 export const DOCS_TEMPLATE = "docs.html"
@@ -1351,14 +1365,17 @@ async function main() {
   const sources = await readSources(registry, dirname(resolve(args.registry)))
   const out = resolve(args.out)
   await mkdir(out, { recursive: true })
-  // Three things live at the root alone: the 404 page, which the distribution serves for every missing key wherever
-  // it is; the popout page, which dockview opens at the root; and the list of releases, which every tree's menu reads.
+  // Five things live at the root alone: the 404 page, which the distribution serves for every missing key wherever
+  // it is; the popout page, which dockview opens at the root; the list of releases, which every tree's menu reads;
+  // and the crawlers' two files, robots.txt and the sitemap, since a release's own pages canonicalize to the root's.
   const atRoot = !base
   for (const page of atRoot ? PAGES : PAGES.filter((page) => page !== NOT_FOUND_PAGE)) {
     const template = await readFile(join(root, "site", page), "utf8")
     await writeFile(join(out, page), renderPage(template, values))
   }
   if (atRoot) await writeFile(join(out, VERSIONS_INDEX), versionsIndex(versions))
+  if (atRoot) await writeFile(join(out, ROBOTS_FILE), robotsTxt())
+  if (atRoot) await writeFile(join(out, SITEMAP_FILE), sitemap(docs))
   // The amber mark: readable on a dark tab strip, and the same file the README shows in dark mode.
   await writeFile(join(out, FAVICON), await readFile(join(root, "assets", "logo-dark.svg")))
   await cp(join(root, "site", SITE_SCRIPT), join(out, SITE_SCRIPT))
