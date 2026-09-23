@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { formatPrice, roundToTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { barId, foldTicks, type Bar, type PriceTick } from "@/registry/tradecn/lib/price-series"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, DATA_GRID_PRESETS, type ColumnDef, type DataGridPreset } from "@/registry/tradecn/ui/data-grid"
+import { PriceChart, type PriceChartKind } from "@/registry/tradecn/ui/price-chart"
 import { RfqStack, bySize, byTimeLeft, stackOrder, useRfqStackView, type RfqStackRow } from "@/registry/tradecn/ui/rfq-stack"
 
-// The browser bench. Two scenarios. `updates` drives the grid the way a per-frame core would: one
+// The browser bench. Three scenarios. `updates` drives the grid the way a per-frame core would: one
 // applyDeltas per animation frame with `updates` random cell patches, for `seconds`. `arrivals` is
 // the burst at the close: a stack of open inquiries sorted by size then time left, a focused row and
 // an active inquiry set mid-screen, then `arrivals` new inquiries spread over `burstMs`, with
 // countdown cells in every visible row; it also checks that the focused row, the active inquiry, and
-// the first visible row never move. Both record frame-to-frame time from rAF, long tasks from
-// PerformanceObserver, and script time per frame. Results go on window.__tradecnBench for
-// scripts/bench.ts to read. Nothing here writes a file.
+// the first visible row never move. `chart` is the tick chart under a feed: `bars` one-second bars of
+// history, then `updates` ticks a frame folded into the open bar through the store, the canvas redrawn
+// once per batch; it checks after every commit that the price the header prints is the last tick
+// folded. All three record frame-to-frame time from rAF, long tasks from PerformanceObserver, and
+// script time per frame. Results go on window.__tradecnBench for scripts/bench.ts to read. Nothing
+// here writes a file.
 
-export type BenchScenario = "updates" | "arrivals"
+export type BenchScenario = "updates" | "arrivals" | "chart"
 
 export interface BenchParams {
   scenario: BenchScenario
@@ -28,6 +34,9 @@ export interface BenchParams {
   /** Arrivals scenario: how many new inquiries, over how long, from the end of the warm-up. */
   arrivals: number
   burstMs: number
+  /** Chart scenario: bars of history under the ticks, and a line or candles. */
+  bars: number
+  kind: PriceChartKind
 }
 
 export interface BenchInvariants {
@@ -63,6 +72,15 @@ export interface BenchResult {
   userAgent: string
   /** Arrivals scenario only. */
   invariants?: BenchInvariants
+  /** Chart scenario only. */
+  chart?: BenchChart
+}
+
+export interface BenchChart {
+  /** How many ticks were folded into the store. */
+  ticks: number
+  /** After every frame's commit, the header printed the last tick folded. */
+  lastHeld: boolean
 }
 
 declare global {
@@ -84,17 +102,19 @@ function readParams(): BenchParams {
   }
   const preset = (q.get("preset") ?? "rfq") as DataGridPreset
   return {
-    scenario: q.get("scenario") === "arrivals" ? "arrivals" : "updates",
+    scenario: q.get("scenario") === "arrivals" ? "arrivals" : q.get("scenario") === "chart" ? "chart" : "updates",
     rows: n("rows", 1000),
     visible: n("visible", 60),
     cols: n("cols", 12),
-    updates: n("updates", 2000),
+    updates: n("updates", q.get("scenario") === "chart" ? 50 : 2000),
     seconds: n("seconds", 10),
     preset: preset in DATA_GRID_PRESETS ? preset : "rfq",
     hold: Number(q.get("hold") ?? 0),
     warmupMs: Number(q.get("warmupMs") ?? 1000),
     arrivals: n("arrivals", 2000),
     burstMs: n("burstMs", 2000),
+    bars: n("bars", 5000),
+    kind: q.get("kind") === "candles" ? "candles" : "line",
   }
 }
 
@@ -208,6 +228,7 @@ function Summary({ result }: { result: BenchResult | null }) {
     <span data-testid="result" className="ml-auto">
       frames {result.frames} p50 {result.p50.toFixed(2)} p99 {result.p99.toFixed(2)} max {result.max.toFixed(2)} dropped {result.droppedFrames} long {result.longTasks} cells/frame {result.cellsPaintedPerFrame.toFixed(0)} script p50 {result.scriptP50.toFixed(2)} p99 {result.scriptP99.toFixed(2)}
       {result.invariants && ` held ${result.invariants.focusedHeld && result.invariants.activeHeld && result.invariants.firstVisibleHeld ? "yes" : "NO"} arrived ${result.invariants.arrived}`}
+      {result.chart && ` ticks ${result.chart.ticks} last held ${result.chart.lastHeld ? "yes" : "NO"}`}
     </span>
   ) : (
     <span className="ml-auto text-muted-foreground">running</span>
@@ -369,7 +390,73 @@ function ArrivalsBench({ params }: { params: BenchParams }) {
   )
 }
 
+const T32: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
+const BAR_MS = 1000
+
+function ChartBench({ params }: { params: BenchParams }) {
+  // A lazy state, not a memo: the seed reads the clock, which the compiler's purity rule keeps out of a memo.
+  const [{ store, last }] = useState(() => {
+    const s = createRowStore<Bar>({ getRowId: (b) => barId(b.time), lane: "ordered" })
+    const start = Math.floor(Date.now() / BAR_MS) * BAR_MS - params.bars * BAR_MS
+    let px = 110.5
+    const bars: Bar[] = []
+    for (let i = 0; i < params.bars; i++) {
+      const open = px
+      let high = open
+      let low = open
+      for (let t = 0; t < 4; t++) {
+        px = roundToTick(px + (rand() < 0.5 ? -1 : 1) * T32.tick, T32.tick)
+        high = Math.max(high, px)
+        low = Math.min(low, px)
+      }
+      bars.push({ time: start + i * BAR_MS, open, high, low, close: px, volume: 10 })
+    }
+    s.applyDeltas({ upsert: bars })
+    return { store: s, last: px }
+  })
+  const held = useRef({ ticks: 0, lastHeld: true, price: last })
+
+  const result = useFrameRun(
+    params,
+    () => {
+      const h = held.current
+      const now = Date.now()
+      const ticks: PriceTick[] = []
+      for (let i = 0; i < params.updates; i++) {
+        h.price = roundToTick(h.price + (rand() < 0.5 ? -1 : 1) * T32.tick, T32.tick)
+        ticks.push({ at: now + i, price: h.price, size: 1 })
+      }
+      store.applyDeltas(foldTicks(store, ticks, BAR_MS))
+      h.ticks += ticks.length
+      // What must hold, read after React's commit: the price the header prints is the last tick folded.
+      const expected = formatPrice(h.price, T32.price)
+      queueMicrotask(() => {
+        const printed = document.querySelector("[data-slot='tradecn-price-chart'] [data-chart-last]")?.textContent
+        if (printed !== expected) h.lastHeld = false
+      })
+      return ticks.length
+    },
+    () => ({ chart: { ticks: held.current.ticks, lastHeld: held.current.lastHeld } }),
+    [store, params],
+  )
+  return (
+    <main className="flex h-screen flex-col gap-2 p-3 font-(family-name:--tradecn-font-mono) text-xs">
+      <div className="flex items-center gap-4">
+        <h1 className="text-sm font-semibold">bench: chart</h1>
+        <span className="text-muted-foreground">
+          {params.bars} bars of history, {params.updates} ticks/frame into the open bar, {params.seconds}s, {params.kind}
+        </span>
+        <Summary result={result} />
+      </div>
+      <div style={{ height: 420, width: 1100 }}>
+        <PriceChart store={store} convention={T32} kind={params.kind} label="Bench" zone="America/Chicago" className="h-full" />
+      </div>
+    </main>
+  )
+}
+
 export function BenchPage() {
   const params = useMemo(() => readParams(), [])
+  if (params.scenario === "chart") return <ChartBench params={params} />
   return params.scenario === "arrivals" ? <ArrivalsBench params={params} /> : <UpdatesBench params={params} />
 }

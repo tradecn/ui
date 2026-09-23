@@ -1,8 +1,8 @@
 // Run the browser bench against a production build of the playground and print the numbers.
-//   bun scripts/bench.ts [--machine "<name>"] [--scenario updates|arrivals] [--rows N] [--visible N] [--cols N] [--updates N] [--arrivals N] [--burst-ms MS] [--seconds N] [--warmup-ms MS] [--preset rfq] [--hold MS] [--no-build]
+//   bun scripts/bench.ts [--machine "<name>"] [--scenario updates|arrivals|chart] [--rows N] [--visible N] [--cols N] [--updates N] [--arrivals N] [--burst-ms MS] [--bars N] [--kind line|candles] [--seconds N] [--warmup-ms MS] [--preset rfq] [--hold MS] [--no-build]
 // Without --machine nothing is written. With it, results land in bench/results/<machine>/<date>.json and,
-// if bench/thresholds/<machine>.json (or <machine>.arrivals.json for the arrivals scenario) exists, the run
-// fails when it misses a threshold written before the run.
+// if bench/thresholds/<machine>.json (or <machine>.arrivals.json, <machine>.chart.json for those scenarios)
+// exists, the run fails when it misses a threshold written before the run.
 import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { chromium } from "@playwright/test"
@@ -32,6 +32,7 @@ interface BenchResult {
   scriptMax: number
   userAgent: string
   invariants?: BenchInvariants
+  chart?: { ticks: number; lastHeld: boolean }
 }
 type BenchWindow = Window & { __tradecnBench?: BenchResult }
 
@@ -39,13 +40,16 @@ interface Thresholds {
   machine: string
   writtenOn: string
   /** `updates` when left out: the first files predate the scenarios. */
-  scenario?: "updates" | "arrivals"
+  scenario?: "updates" | "arrivals" | "chart"
   rows: number
   visible: number
   columns: number
+  /** Patches a frame for `updates`; ticks a frame for `chart`. */
   updatesPerFrame?: number
   arrivals?: number
   burstMs?: number
+  /** Chart: bars of history under the ticks. */
+  bars?: number
   seconds: number
   /** Frame p99 under vsync is quantized to the display interval, so a limit here says only whether a frame was missed. The first m5-max file used it; later files gate script time instead. */
   p99FrameMs?: number
@@ -53,7 +57,7 @@ interface Thresholds {
   scriptP99Ms?: number
   droppedFramesAllowed: number
   longTasksAllowed: number
-  /** Arrivals: the focused row, the active inquiry, and the first visible row must never move. */
+  /** Arrivals: the focused row, the active inquiry, and the first visible row must never move. Chart: the header prints the last tick after every commit. */
   invariantsHeld?: boolean
   /** The file this one replaced. A superseded file is kept beside it, unedited, as the record. */
   supersedes?: string
@@ -65,15 +69,17 @@ const opt = (name: string): string | undefined => {
   return i >= 0 ? args[i + 1] : undefined
 }
 const machine = opt("machine")
-const scenario = opt("scenario") === "arrivals" ? "arrivals" : "updates"
+const scenario = opt("scenario") === "arrivals" ? "arrivals" : opt("scenario") === "chart" ? "chart" : "updates"
 const params = {
   scenario,
   rows: Number(opt("rows") ?? 1000),
   visible: Number(opt("visible") ?? 60),
   cols: Number(opt("cols") ?? (scenario === "arrivals" ? 10 : 12)),
-  updates: Number(opt("updates") ?? 2000),
+  updates: Number(opt("updates") ?? (scenario === "chart" ? 50 : 2000)),
   arrivals: Number(opt("arrivals") ?? 2000),
   burstMs: Number(opt("burst-ms") ?? 2000),
+  bars: Number(opt("bars") ?? 5000),
+  kind: opt("kind") === "candles" ? "candles" : "line",
   seconds: Number(opt("seconds") ?? 10),
   preset: opt("preset") ?? "rfq",
   hold: Number(opt("hold") ?? 0),
@@ -109,7 +115,7 @@ try {
     ["mean ms", result.mean.toFixed(2)],
     [`dropped (>${result.droppedThresholdMs.toFixed(1)} ms)`, String(result.droppedFrames)],
     ["long tasks", String(result.longTasks)],
-    [scenario === "arrivals" ? "arrivals / frame" : "cells painted / frame", result.cellsPaintedPerFrame.toFixed(scenario === "arrivals" ? 1 : 0)],
+    [scenario === "arrivals" ? "arrivals / frame" : scenario === "chart" ? "ticks / frame" : "cells painted / frame", result.cellsPaintedPerFrame.toFixed(scenario === "arrivals" ? 1 : 0)],
     ["script p50 ms", result.scriptP50.toFixed(2)],
     ["script p99 ms", result.scriptP99.toFixed(2)],
     ["script max ms", result.scriptMax.toFixed(2)],
@@ -120,7 +126,16 @@ try {
     rows.push(["active inquiry held", result.invariants.activeHeld ? "yes" : "NO"])
     rows.push(["first visible held", result.invariants.firstVisibleHeld ? "yes" : "NO"])
   }
-  const shape = scenario === "arrivals" ? `${params.rows} open inquiries, ${params.visible} visible, ${params.arrivals} arriving over ${params.burstMs} ms, ${params.seconds}s, preset rfq` : `${params.rows} rows, ${params.visible} visible, ${params.cols} cols, ${params.updates} patches/frame, ${params.seconds}s, preset ${params.preset}`
+  if (result.chart) {
+    rows.push(["ticks folded", String(result.chart.ticks)])
+    rows.push(["last price held", result.chart.lastHeld ? "yes" : "NO"])
+  }
+  const shape =
+    scenario === "arrivals"
+      ? `${params.rows} open inquiries, ${params.visible} visible, ${params.arrivals} arriving over ${params.burstMs} ms, ${params.seconds}s, preset rfq`
+      : scenario === "chart"
+        ? `${params.bars} bars of history, ${params.updates} ticks/frame into the open bar, ${params.seconds}s, ${params.kind}`
+        : `${params.rows} rows, ${params.visible} visible, ${params.cols} cols, ${params.updates} patches/frame, ${params.seconds}s, preset ${params.preset}`
   console.log(`\nbench ${scenario}: ${shape}`)
   for (const [k, v] of rows) console.log(`  ${k.padEnd(22)} ${v}`)
   if (result.droppedAt.length) console.log("  dropped at             " + result.droppedAt.slice(0, 12).map((d) => `#${d.frame} ${d.ms.toFixed(1)}ms (script ${d.scriptMs.toFixed(1)})`).join(", "))
@@ -142,20 +157,20 @@ function record(result: BenchResult): number {
   const time = now.toISOString().slice(11, 16).replace(":", "")
   const dir = path.join(ROOT, "bench/results", machine)
   mkdirSync(dir, { recursive: true })
-  const load = scenario === "arrivals" ? `a${params.arrivals}-${params.burstMs}ms` : `u${params.updates}`
-  const file = path.join(dir, `${date}T${time}-${scenario === "arrivals" ? "arrivals" : params.preset}-${params.rows}x${params.cols}-${load}.json`)
+  const load = scenario === "arrivals" ? `a${params.arrivals}-${params.burstMs}ms` : scenario === "chart" ? `t${params.updates}` : `u${params.updates}`
+  const shapeName = scenario === "arrivals" ? `arrivals-${params.rows}x${params.cols}` : scenario === "chart" ? `chart-${params.kind}-${params.bars}` : `${params.preset}-${params.rows}x${params.cols}`
+  const file = path.join(dir, `${date}T${time}-${shapeName}-${load}.json`)
   writeFileSync(file, JSON.stringify({ machine, date, ...result, userAgent: result.userAgent }, null, 2) + "\n")
   console.log(`\nwrote ${path.relative(ROOT, file)}`)
 
-  const thresholdsFile = path.join(ROOT, "bench/thresholds", scenario === "arrivals" ? `${machine}.arrivals.json` : `${machine}.json`)
+  const thresholdsFile = path.join(ROOT, "bench/thresholds", scenario === "updates" ? `${machine}.json` : `${machine}.${scenario}.json`)
   if (existsSync(thresholdsFile)) {
     const t = readJson<Thresholds>(thresholdsFile)
     const applies =
       (t.scenario ?? "updates") === scenario &&
-      t.rows === params.rows &&
-      t.visible === params.visible &&
-      t.columns === params.cols &&
-      (scenario === "arrivals" ? t.arrivals === params.arrivals && t.burstMs === params.burstMs : t.updatesPerFrame === params.updates)
+      (scenario === "chart"
+        ? t.bars === params.bars && t.updatesPerFrame === params.updates
+        : t.rows === params.rows && t.visible === params.visible && t.columns === params.cols && (scenario === "arrivals" ? t.arrivals === params.arrivals && t.burstMs === params.burstMs : t.updatesPerFrame === params.updates))
     if (!applies) {
       console.log(`thresholds in ${path.relative(ROOT, thresholdsFile)} are for a different shape; not compared`)
     } else {
@@ -165,6 +180,7 @@ function record(result: BenchResult): number {
       if (result.droppedFrames > t.droppedFramesAllowed) fails.push(`dropped ${result.droppedFrames} > ${t.droppedFramesAllowed}`)
       if (result.longTasks > t.longTasksAllowed) fails.push(`long tasks ${result.longTasks} > ${t.longTasksAllowed}`)
       if (t.invariantsHeld && result.invariants && !(result.invariants.focusedHeld && result.invariants.activeHeld && result.invariants.firstVisibleHeld)) fails.push("an id moved: focused, active, or first visible")
+      if (t.invariantsHeld && result.chart && !result.chart.lastHeld) fails.push("the header fell behind the store: the last price printed was not the last tick folded")
       if (fails.length) {
         console.error(`\nthresholds (written ${t.writtenOn}) missed:\n  ` + fails.join("\n  "))
         return 1

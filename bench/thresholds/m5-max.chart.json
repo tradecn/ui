@@ -1,0 +1,16 @@
+{
+  "$comment": "Written 2026-09-22 before the first chart run on this machine, never edited to pass. The tick chart under a feed: five thousand one-second bars of history, fifty ticks a frame (three thousand a second) folded into the open bar through the store, the canvas redrawn once per applied batch, the header held to the last tick after every commit. The gate is script time per frame at p99, no dropped frames, no long tasks, and the header never behind. Script time here includes uPlot's redraw of every bar, since setData runs inside the store's notification; rasterization is the frame's. If it misses, this file stays as the record and a later file with its own date takes over.",
+  "machine": "Apple M5 Max, 128 GB, macOS 27.0, Playwright Chromium headless",
+  "writtenOn": "2026-09-22",
+  "scenario": "chart",
+  "rows": 0,
+  "visible": 0,
+  "columns": 0,
+  "bars": 5000,
+  "updatesPerFrame": 50,
+  "seconds": 10,
+  "scriptP99Ms": 8,
+  "droppedFramesAllowed": 0,
+  "longTasksAllowed": 0,
+  "invariantsHeld": true
+}
