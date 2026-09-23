@@ -5,35 +5,59 @@ An intraday chart of one instrument: a line or candles over a store of bars, a c
 ## Usage
 
 ```tsx
-import { PriceChart } from "@/components/ui/price-chart"
-import { barId, foldTicks, type Bar } from "@/lib/price-series"
+import { useState } from "react"
 import type { InstrumentConvention } from "@/lib/format"
+import { barId, type Bar } from "@/lib/price-series"
 import { createRowStore } from "@/lib/row-store"
-```
+import { PriceChart } from "@/components/ui/price-chart"
 
-```tsx
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
-const bars = createRowStore<Bar>({ getRowId: (bar) => barId(bar.time), lane: "ordered" })
+const start = Date.parse("2026-09-22T14:00:00Z")
+const minute = 60_000
+const bars: Bar[] = [
+  { time: start, open: 110.5, high: 110.53125, low: 110.484375, close: 110.515625, volume: 200 },
+  { time: start + minute, open: 110.515625, high: 110.53125, low: 110.46875, close: 110.484375, volume: 100 },
+  { time: start + 2 * minute, open: 110.484375, high: 110.546875, low: 110.484375, close: 110.53125, volume: 300 },
+  { time: start + 3 * minute, open: 110.53125, high: 110.5625, low: 110.515625, close: 110.546875, volume: 200 },
+  { time: start + 4 * minute, open: 110.546875, high: 110.546875, low: 110.5, close: 110.515625, volume: 400 },
+  { time: start + 5 * minute, open: 110.515625, high: 110.578125, low: 110.515625, close: 110.5625, volume: 100 },
+]
 
-// once per frame, from your trade feed: the ticks fold into the open one-minute bar
-bars.applyDeltas(foldTicks(bars, ticks, 60_000))
-
-<PriceChart store={bars} convention={ZN} label="ZN, today" zone="America/Chicago" baseline={previousClose} />
+function SampleChart() {
+  const [store] = useState(() => {
+    const store = createRowStore<Bar>({ getRowId: (bar) => barId(bar.time), lane: "ordered" })
+    store.applyDeltas({ upsert: bars })
+    return store
+  })
+  return <div className="w-xl max-w-full"><PriceChart store={store} convention={ZN} label="ZN sample, one-minute bars" zone="America/Chicago" baseline={110.5} className="h-72" /></div>
+}
 ```
 
-Keep the store stable across renders. Key bars by their start time with `barId`, and let `foldTicks` open and extend them: a frame of prints becomes one upsert per bar touched. A late print updates its existing bar; a print for a missing historical bar inserts it, and the chart sorts the bars for display. To load a `Bar[]` named `wholeBars`, use `bars.applyDeltas({ upsert: wholeBars })`.
+This fixed sample contains six one-minute bars from September 22, 2026, starting at 09:00 in Chicago. The line joins their closes; `baseline` is the sample previous close. Move the pointer over the plot, or focus it and use the arrow keys, to inspect a bar's close and volume. Home and End reach the first and last bars.
+
+Keep the store stable across renders and key each bar by its start time with `barId`. This example loads complete bars with `upsert`; the [incoming-ticks example](#incoming-ticks) shows how a feed can build them.
 
 ## Candles
 
-Set `kind="candles"` for a candle per bar: the body from the open to the close, the wick from the low to the high. Each candle's color compares its own close with its open. The readout under the crosshair prints all four, and the volume when the bars carry one.
+Set `kind="candles"` for a candle per bar: the body from open to close, the wick from low to high. These six fixed ES bars span five-minute intervals and include rising, falling and unchanged closes relative to their opens. Each candle's color compares its own close with its open. The crosshair readout prints all four prices and volume.
 
 <!-- demo: price-chart-candles -->
 
 ## Overlays
 
-`overlays` draws lines over the bars, one value per bar from a function of the bars, each in a chart token and named in a legend under the plot, because a color alone says nothing about what a line is.
+`overlays` supplies one value per bar, with a label and a chart token for each line. This example reuses the opening chart's six bars. The three-bar close average leaves the first two values missing until there is enough history. Bar VWAP weights each bar's typical price, `(high + low + close) / 3`, by its volume; it covers this sample only, rather than a full trading session or every individual trade.
+
+Keep overlay functions pure and their definitions stable. The legend names both lines so color is not their only identifier.
 
 <!-- demo: price-chart-overlays -->
+
+## Incoming ticks
+
+The Apply next tick batch button stands in for a batch from a trade feed. `foldTicks` builds five-minute bars and returns deltas to apply to the store. The first batch opens and extends one bar, then opens the next. The second batch extends that second bar. The third contains a late print for the first bar: its low and volume change, while its close stays at the later print's price. Focus the plot and press Home to inspect that corrected bar.
+
+The last state remains visible, with at most two bars. Clear bars returns to the empty chart so you can replay the batches. There is no background publisher. In a feed integration, call the same fold/apply pair for each received batch and choose a retention policy for old bars. A print for a missing historical bar inserts it; the chart sorts bars for display.
+
+<!-- demo: price-chart-ticks -->
 
 ## API Reference
 
