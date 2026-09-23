@@ -332,7 +332,8 @@ describe("the preview card", () => {
     expect(withPreview("<pre>x</pre>\n", "<div>P</div>")).toBe("<div>P</div>\n<pre>x</pre>\n")
   })
 
-  it("is on every item page and on no other page, and only when the tag has an embed build", async () => {
+  // Every page, with every Manual tab's source and every demo colored: seconds here, and more on a small runner.
+  it("is on every item page and on no other page, and only when the tag has an embed build", { timeout: 30_000 }, async () => {
     const tagDocs = await readDocs(resolve(root, "docs"), registry)
     const docSlugs = new Set(tagDocs.map((doc) => doc.slug))
     const values = templateValues(registry, version, registry, docSlugs)

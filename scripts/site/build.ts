@@ -14,11 +14,14 @@
 // The pages have a light and a dark mode, both sides of the amber theme: warm paper by day, near-black by night, set
 // in the two faces its typography tokens name. site/theme.js puts the mode on <html>, from the reader's choice or the system,
 // and the theme beside it: the header's menu offers every theme in the registry, and a page carries each one's palette.
+// Code blocks are colored by shiki (highlight.ts) in GitHub's light and dark themes, shadcn's pair, each token's color a
+// light-dark() of the two so it follows the mode the way the palette does.
 import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { parseArgs } from "node:util"
 import { Marked } from "marked"
 import { isColorValue } from "../lib/registry"
+import { highlightLines } from "./highlight"
 
 export const SITE_URL = "https://tradecn.dev"
 export const REPO_URL = "https://github.com/tradecn/ui"
@@ -81,6 +84,13 @@ const ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;
 
 export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => ENTITIES[c] ?? c)
+}
+
+const CHARACTERS: Record<string, string> = Object.fromEntries(Object.entries(ENTITIES).map(([character, entity]) => [entity, character]))
+
+/** `escapeHtml` undone: a code block's text as it was written, read back from the page it was escaped into. marked writes the same five entities. */
+export function unescapeHtml(text: string): string {
+  return text.replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => CHARACTERS[entity] ?? entity)
 }
 
 /** An item's kind as the pages print it: `ui`, `hook`, `lib`, `block`, `theme`. */
@@ -466,16 +476,29 @@ const LEFT_ICON = icon('<path d="M15 6l-6 6 6 6"/>', "left-icon")
 const RIGHT_ICON = icon('<path d="M9 6l6 6-6 6"/>', "right-icon")
 
 /**
- * Every code block on a page gets a copy button, and a block with a line that starts with `npx` or `npm install`
- * becomes an install block: the same command under pnpm, npm, yarn, and bun, one of them showing. Which one is
- * the page's `data-pm`, which site.js sets from the reader's last choice before the body parses, and the tabs
- * follow it. The last pass over a page, on its HTML, because the blocks come from four places: the templates,
- * marked, the preview card, and the Installation section.
+ * A block's text in its colors: each token the themes color in a span whose `color` is a `light-dark()` of the
+ * light theme's and the dark theme's, so it follows the mode the way the palette does, on the lines shiki splits
+ * the source into. Text the themes leave in their foreground gets no span and wears the block's own color. The
+ * text stays the block's, escaped the same, so a copy or a search reads what was written. `undefined` for a block
+ * with no language or one the site does not highlight, which stays as it was.
+ */
+export function highlighted(escaped: string, language: string | undefined): string | undefined {
+  const lines = language ? highlightLines(unescapeHtml(escaped), language) : undefined
+  return lines?.map((line) => `<span class="line">${line.map((token) => (token.style ? `<span style="${token.style}">${escapeHtml(token.text)}</span>` : escapeHtml(token.text))).join("")}</span>`).join("\n")
+}
+
+/**
+ * Every code block on a page gets its colors and a copy button, and a block with a line that starts with `npx`
+ * or `npm install` becomes an install block: the same command under pnpm, npm, yarn, and bun, one of them
+ * showing. Which one is the page's `data-pm`, which site.js sets from the reader's last choice before the body
+ * parses, and the tabs follow it. The last pass over a page, on its HTML, because the blocks come from four
+ * places: the templates, marked, the preview card, and the Installation section.
  */
 export function codeBlocks(html: string): string {
   let blocks = 0
-  return html.replace(/<pre><code( class="language-[\w-]+")?>([\s\S]*?)<\/code><\/pre>/g, (block: string, attributes: string | undefined, code: string) => {
-    if (!COMMAND_LINE.test(code)) return `<div class="code">${block}${COPY_BUTTON}</div>`
+  return html.replace(/<pre><code( class="language-([\w-]+)")?>([\s\S]*?)<\/code><\/pre>/g, (_block: string, attributes: string | undefined, language: string | undefined, code: string) => {
+    const colored = (text: string) => highlighted(text, language) ?? text
+    if (!COMMAND_LINE.test(code)) return `<div class="code"><pre><code${attributes ?? ""}>${colored(code)}</code></pre>${COPY_BUTTON}</div>`
     const id = `pm-${++blocks}`
     const tabs = PACKAGE_MANAGERS.map(
       ({ name }) =>
@@ -483,7 +506,7 @@ export function codeBlocks(html: string): string {
     ).join("")
     const panels = PACKAGE_MANAGERS.map(
       (manager) =>
-        `<pre id="${id}-${manager.name}-code" role="tabpanel" aria-labelledby="${id}-${manager.name}" data-pm="${manager.name}"><code${attributes ?? ""}>${commandFor(code, manager)}</code></pre>`,
+        `<pre id="${id}-${manager.name}-code" role="tabpanel" aria-labelledby="${id}-${manager.name}" data-pm="${manager.name}"><code${attributes ?? ""}>${colored(commandFor(code, manager))}</code></pre>`,
     ).join("\n")
     return `<div class="code command">\n<div class="managers" role="tablist" aria-label="Package manager">${PROMPT_ICON}${tabs}</div>\n${panels}\n${COPY_BUTTON}\n</div>`
   })
@@ -498,7 +521,7 @@ export function tables(html: string): string {
   return html.replace(/<table\b[\s\S]*?<\/table>/g, (table) => `<div class="table">${table}</div>`)
 }
 
-/** A page: the template filled, then every code block given its copy button and, for a command, its package-manager tabs, and every table its scroll wrapper. */
+/** A page: the template filled, then every code block given its colors and its copy button and, for a command, its package-manager tabs, and every table its scroll wrapper. */
 export function renderPage(template: string, values: Record<string, string>): string {
   return tables(codeBlocks(render(template, values)))
 }
