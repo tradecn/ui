@@ -57,11 +57,11 @@ function fakeEmbed(): string {
 }
 
 describe("the demo source shown under Code", () => {
-  it("opts resizable grids into preview-owned alignment without adding controls to copied source", async () => {
+  it("opts table previews into shared alignment without adding controls to copied source", async () => {
     const dir = resolve(root, "playground/src/demos")
     const { alignable } = JSON.parse(readFileSync(join(dir, FRAME_FILE), "utf8")) as { alignable: string[] }
     const demos = await readDemos(dir)
-    expect(alignable).toEqual(["data-grid", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "quote-panel", "quote-panel-pending", "quote-panel-actions", "quote-panel-limits", "rfq-stack", "rfq-stack-threshold", "rfq-stack-parking", "rfq-stack-updates"])
+    expect(alignable).toEqual(["data-grid", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "quote-panel", "quote-panel-pending", "quote-panel-actions", "quote-panel-limits", "rfq-stack", "rfq-stack-threshold", "rfq-stack-parking", "rfq-stack-updates", "row-store", "row-store-deltas", "row-store-batching", "row-store-views"])
     for (const name of alignable) {
       expect(demos.has(name), name).toBe(true)
       expect(demos.get(name)!.code).not.toMatch(/PreviewAlignment|preview-alignment|data-preview-align/)
