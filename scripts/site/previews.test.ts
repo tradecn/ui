@@ -105,7 +105,7 @@ describe("the demo source shown under Code", () => {
         placed.set(name, doc.source)
       }
     }
-    expect([...placed.keys()].sort()).toEqual(["command-palette-go-bar", "command-palette-scoped-actions", "command-palette-shared-recents", "command-palette-symbols", "countdown-compact", "countdown-expired", "countdown-thresholds", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "panel-hotkeys", "panel-linked", "panel-popout", "panel-states", "price-chart-candles", "price-chart-overlays", "quote-panel-actions", "quote-panel-limits", "quote-panel-pending", "workspace-keyboard", "workspace-linked-panels", "workspace-panel-actions", "workspace-saved-layout"])
+    expect([...placed.keys()].sort()).toEqual(["command-palette-go-bar", "command-palette-scoped-actions", "command-palette-shared-recents", "command-palette-symbols", "countdown-compact", "countdown-expired", "countdown-thresholds", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "panel-hotkeys", "panel-linked", "panel-popout", "panel-states", "price-chart-candles", "price-chart-overlays", "quote-panel-actions", "quote-panel-limits", "quote-panel-pending", "use-hotkeys-chords", "use-hotkeys-editing", "use-hotkeys-remapping", "use-hotkeys-scopes", "workspace-keyboard", "workspace-linked-panels", "workspace-panel-actions", "workspace-saved-layout"])
     expect(demos.has("typography")).toBe(true)
     expect(demos.has(DESK_DEMO)).toBe(true)
     for (const demo of demos.values()) {
@@ -187,7 +187,7 @@ describe("a theme on the site", () => {
     // With every demo the docs frame, the variants the pages place get pages of their own too, wearing the site's palette like any item's.
     const framed = framedDemos(docs)
     const variants = [...framed].filter((name) => !docSlugs.has(name)).sort()
-    expect(variants).toEqual(["command-palette-go-bar", "command-palette-scoped-actions", "command-palette-shared-recents", "command-palette-symbols", "countdown-compact", "countdown-expired", "countdown-thresholds", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "panel-hotkeys", "panel-linked", "panel-popout", "panel-states", "price-chart-candles", "price-chart-overlays", "quote-panel-actions", "quote-panel-limits", "quote-panel-pending", "workspace-keyboard", "workspace-linked-panels", "workspace-panel-actions", "workspace-saved-layout"])
+    expect(variants).toEqual(["command-palette-go-bar", "command-palette-scoped-actions", "command-palette-shared-recents", "command-palette-symbols", "countdown-compact", "countdown-expired", "countdown-thresholds", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "panel-hotkeys", "panel-linked", "panel-popout", "panel-states", "price-chart-candles", "price-chart-overlays", "quote-panel-actions", "quote-panel-limits", "quote-panel-pending", "use-hotkeys-chords", "use-hotkeys-editing", "use-hotkeys-remapping", "use-hotkeys-scopes", "workspace-keyboard", "workspace-linked-panels", "workspace-panel-actions", "workspace-saved-layout"])
     const withVariants = new Map(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE), framed).map((page) => [page.path, page.html]))
     expect(withVariants.size).toBe(pages.size + variants.length)
     expect(withVariants.get("preview/countdown-compact/index.html")).toContain('<div id="root" data-item="countdown-compact"')
