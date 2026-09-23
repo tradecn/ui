@@ -8,33 +8,63 @@ Share one view between the stack and `useActiveInquiry` so automatic selection f
 
 ```tsx
 import { useState } from "react"
-import { RfqStack, bySize, byTimeLeft, stackOrder, useRfqStackView, type RfqStackRow } from "@/components/ui/rfq-stack"
 import { useActiveInquiry } from "@/hooks/use-active-inquiry"
 import { createRowStore } from "@/lib/row-store"
+import { RfqStack, bySize, byTimeLeft, stackOrder, useRfqStackView, type RfqStackRow } from "@/components/ui/rfq-stack"
 
-const ORDER = stackOrder<RfqStackRow>(bySize, byTimeLeft)
+const order = stackOrder<RfqStackRow>(bySize, byTimeLeft)
 
 function InquiryStack() {
-  const [store] = useState(() => createRowStore<RfqStackRow>({ getRowId: (row) => row.id, lane: "ordered" }))
-  const [threshold, setThreshold] = useState<number | null>(5_000_000)
-  const view = useRfqStackView(store, { comparator: ORDER, threshold })
+  const [store] = useState(() => {
+    const store = createRowStore<RfqStackRow>({ getRowId: (row) => row.id, lane: "ordered" })
+    const now = Date.now()
+    store.applyDeltas({ upsert: [
+      { id: "Q-1", receivedAt: now, expiresAt: now + 60_000, client: "ALPHA", tier: "Tier 1", instrument: "ACME 4.5 2030", side: "buy", quantity: 10_000_000, bid: 99.5, ask: 99.55, status: "Open" },
+      { id: "Q-2", receivedAt: now, expiresAt: now + 45_000, client: "BETA", instrument: "ACME 4.5 2030", side: "sell", quantity: 5_000_000, bid: 99.5, ask: 99.55, status: "Quoted", auto: true },
+      { id: "Q-3", receivedAt: now, expiresAt: now + 30_000, client: "GAMMA", instrument: "ACME 4.5 2030", side: "two-way", quantity: 5_000_000, bid: 99.5, ask: 99.55, status: "Open" },
+    ] })
+    return store
+  })
+  const view = useRfqStackView(store, { comparator: order })
   const active = useActiveInquiry(view, { isEnded: (row) => row.status !== "Open" && row.status !== "Quoted" })
-
   return (
-    <RfqStack
-      store={store}
-      view={view}
-      activeId={active.activeId}
-      parkedIds={active.parked}
-      onActivate={active.setActive}
-      threshold={threshold}
-      onThresholdChange={setThreshold}
-    />
+    <div className="w-fit max-w-full space-y-2 text-xs lining-nums tabular-nums">
+      <div className="h-40">
+        <RfqStack store={store} view={view} activeId={active.activeId} onActivate={active.setActive} label="Client inquiries" />
+      </div>
+      <p className="text-muted-foreground">Active inquiry: {active.activeId ?? "None"}</p>
+    </div>
   )
 }
 ```
 
-Give the stack a parent with a fixed height and populate the store from your feed with `store.applyDeltas`. This example orders by size, largest first, then earliest expiry. Use your venue's statuses in `isEnded`.
+The store starts with three inquiries, ordered by size and then earliest expiry. Use your venue's statuses in `isEnded`. Focus the grid and use the arrow keys, then Enter, or double-click a row to activate it. The caption shows the active id; your app can use `active.row` to populate a ticket.
+
+Give the stack a parent with a fixed height. The preview's alignment buttons apply across examples and remember your choice; left alignment keeps the edge still while you resize columns. These sample inquiries stay open or quoted when their countdown reaches zero. Your feed supplies the status that ends them.
+
+## Auto-quote threshold
+
+The threshold hides small auto-quoted inquiries. At `5` mm, ALPHA's 5mm auto quote passes, BETA's 2mm auto quote is hidden, and GAMMA's 1mm manual inquiry stays visible. Clear the field to show all three. With a shared view, pass the controlled threshold to both the view hook and the stack.
+
+Raise the field to `6` to hide ALPHA too. Its Q-1 inquiry remains active: filtering changes what is displayed, not which inquiry is in the ticket. Activate another row to change that choice.
+
+<!-- demo: rfq-stack-threshold -->
+
+## Parking an inquiry
+
+Park an inquiry to skip it during automatic selection without removing it from the stack. Right-click a row, or focus it with the arrow keys and press Shift+F10, to open its menu. Parking the active inquiry advances to the next eligible row; the caption lists parked ids, and parked rows carry an accessible description.
+
+Unparking makes a row eligible again without replacing the current active inquiry. Activating a parked row with Enter or a double-click also unparks it. Parking is local state and sends nothing to the venue.
+
+<!-- demo: rfq-stack-parking -->
+
+## Feed updates
+
+Step through three feed messages: a larger Q-3 inquiry arrives with a market-price update for Q-1, the venue marks Q-1 expired, then Q-1 is removed. Q-1 stays active through the arrival; the venue's expiry advances to the next eligible inquiry in displayed order unless you have already chosen another inquiry. Prices use Treasury fractions through the installed formatter.
+
+The 15-second countdowns stop at zero without changing venue status. Let them run out to inspect that state, then receive the expiry message. Each button applies one store delta; there is no background publisher. Restart restores the two original inquiries and their timers. Reordering still follows the [hold rules below](#arrival-never-moves-anything).
+
+<!-- demo: rfq-stack-updates -->
 
 ## API Reference
 
@@ -132,7 +162,7 @@ By default, the field appears when `threshold` is supplied (including `null`), `
 
 The field's `5` means `5_000_000` in `mm` mode and `5` in contracts mode. This scale does not convert row quantities: use compatible units across the stack.
 
-Without a supplied view, the grid applies the threshold with your filters. With one, control the threshold and pass it to both `useRfqStackView` and `RfqStack`, as in Usage. The field then reports edits; the hook applies them. Persist the threshold in your app or panel state.
+Without a supplied view, the grid applies the threshold with your filters. With one, control the threshold and pass it to both `useRfqStackView` and `RfqStack`, as in [Auto-quote threshold](#auto-quote-threshold). The field then reports edits; the hook applies them. Persist the threshold in your app or panel state.
 
 ### The active inquiry
 
