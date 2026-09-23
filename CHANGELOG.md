@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.4.1](https://github.com/tradecn/ui/compare/v1.4.0...v1.4.1) (2026-09-23)
+
+
+### Documentation
+
+* **alert-store:** clarify notice fields and store behavior ([#143](https://github.com/tradecn/ui/issues/143)) ([ada2f0e](https://github.com/tradecn/ui/commit/ada2f0ed48e69d93e56d23e76681f6eb14bc2411))
+* **blotter:** clarify props and action behavior ([#145](https://github.com/tradecn/ui/issues/145)) ([16bd9d8](https://github.com/tradecn/ui/commit/16bd9d8968bc93937686f4a7f68b5629c8071758))
+* **column-chooser:** clarify props and column state ([#140](https://github.com/tradecn/ui/issues/140)) ([8e5d2da](https://github.com/tradecn/ui/commit/8e5d2daa34935e40bd0882f36d4de9da25c9c386))
+* **depth-ladder:** clarify size and interaction behavior ([#151](https://github.com/tradecn/ui/issues/151)) ([2749e28](https://github.com/tradecn/ui/commit/2749e285338d77f990fd4f9b3bc5c2abc0a4b588))
+* **feed-health:** clarify feed inputs and lifecycle ([#142](https://github.com/tradecn/ui/issues/142)) ([65d4bd4](https://github.com/tradecn/ui/commit/65d4bd4a3179919b21ad1b8974f26d255a23452c))
+* **flash-cell:** clarify props and flash behavior ([#150](https://github.com/tradecn/ui/issues/150)) ([b8e46ca](https://github.com/tradecn/ui/commit/b8e46cad2accd2e0a26c4bad379fe5cd5bd935b7))
+* **hotkey-editor:** clarify shortcut editing reference ([#147](https://github.com/tradecn/ui/issues/147)) ([432bd64](https://github.com/tradecn/ui/commit/432bd64f997d1291135470e851b442ba9e7050e3))
+* **layout-manager:** clarify template workflows and storage ([#139](https://github.com/tradecn/ui/issues/139)) ([98f02a3](https://github.com/tradecn/ui/commit/98f02a334de4317c53a2293f93a4ae5811a1ec24))
+* **perf-monitor:** clarify sampling and report fields ([#141](https://github.com/tradecn/ui/issues/141)) ([2fc7c60](https://github.com/tradecn/ui/commit/2fc7c600bf039fa4058a2d431c25429f2db17f05))
+* **price-chart:** clarify data and update behavior ([#152](https://github.com/tradecn/ui/issues/152)) ([c71654e](https://github.com/tradecn/ui/commit/c71654e1804d5a5c740e6edda6b3c444234b01a1))
+* **quote-field:** clarify props and editing behavior ([#146](https://github.com/tradecn/ui/issues/146)) ([b8fcb64](https://github.com/tradecn/ui/commit/b8fcb64506e5d00e9590f7558462eb4362590b33))
+* **repo:** clarify color research and theme checks ([#156](https://github.com/tradecn/ui/issues/156)) ([c5fc7a4](https://github.com/tradecn/ui/commit/c5fc7a42470b399d884d44aae2f800bf7886bee1))
+* **rules-editor:** clarify controls and rule behavior ([#138](https://github.com/tradecn/ui/issues/138)) ([3cde29c](https://github.com/tradecn/ui/commit/3cde29c0d8fe48c017b8176ffe2e6ec37ce6d3bc))
+* **session-guard:** clarify phase and reauthentication behavior ([#135](https://github.com/tradecn/ui/issues/135)) ([f2a296a](https://github.com/tradecn/ui/commit/f2a296ad1095cac9cf952823e63f2b088a9287d5))
+* **sparkline:** clarify props and rendering behavior ([#148](https://github.com/tradecn/ui/issues/148)) ([59e4619](https://github.com/tradecn/ui/commit/59e4619f0529e66d1ec811235d6ce67ec8c472e2))
+* **status-bar:** clarify props and clock behavior ([#149](https://github.com/tradecn/ui/issues/149)) ([5d2d53a](https://github.com/tradecn/ui/commit/5d2d53abd5c27e496ba1ad859a01bb6f3e03a4a7))
+* **tradecn-amber:** correct palette and contrast guidance ([#153](https://github.com/tradecn/ui/issues/153)) ([a0ef980](https://github.com/tradecn/ui/commit/a0ef9804b9b8f3804f7d13bd7704753a151489f4))
+* **tradecn-slate-east:** clarify palette and color conventions ([#155](https://github.com/tradecn/ui/issues/155)) ([1fb449e](https://github.com/tradecn/ui/commit/1fb449eef1502f03a457c523bc13c1404e129bd0))
+* **tradecn-slate:** clarify palette and contrast guidance ([#154](https://github.com/tradecn/ui/issues/154)) ([e488b5c](https://github.com/tradecn/ui/commit/e488b5cc74149d2b42d6bcde64c9e135cd2f3551))
+* **watchlist:** clarify props and add and removal behavior ([#144](https://github.com/tradecn/ui/issues/144)) ([8b973c6](https://github.com/tradecn/ui/commit/8b973c6b08336b9298dcf128c283e150cac1f349))
+
 ## [1.4.0](https://github.com/tradecn/ui/compare/v1.3.2...v1.4.0) (2026-09-23)
 
 
