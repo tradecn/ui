@@ -653,6 +653,7 @@ describe("the search index", () => {
   it("reads rendered HTML as the words on the page", () => {
     expect(textOf('<p>Install with <code>shadcn add</code>.</p>\n<ul>\n<li>a &lt; b &amp;&amp; c &gt; d</li>\n<li>Tom &amp; Jerry&#39;s &quot;x&quot; &#x27;y&#x27;</li>\n</ul>')).toBe("Install with shadcn add. a < b && c > d Tom & Jerry's \"x\" 'y'")
     expect(textOf('<a href="/docs/x/">x</a>, <a href="#y">y</a><br>z')).toBe("x, y z")
+    expect(textOf('<p>A sized grid.</p><pre><code class="language-tsx">return &lt;div className=&quot;h-40&quot;&gt;&lt;DataGrid /&gt;&lt;/div&gt;</code></pre>')).toBe('A sized grid. return <div className="h-40"><DataGrid /></div>')
     expect(textOf("&unknown;")).toBe("&unknown;")
   })
 
@@ -869,7 +870,7 @@ describe("the docs pages", async () => {
 
   it("gives every page its headings down the right and the arrows beside its title", () => {
     const grid = at("docs/data-grid/index.html")
-    expect(grid).toContain('<aside class="toc" aria-label="On this page">\n<h2>On this page</h2>\n<ul>\n<li><a href="#installation">Installation</a></li>\n<li><a href="#usage">Usage</a></li>\n<li><a href="#api-reference">API Reference</a>\n<ul>')
+    expect(grid).toContain('<aside class="toc" aria-label="On this page">\n<h2>On this page</h2>\n<ul>\n<li><a href="#installation">Installation</a></li>\n<li><a href="#usage">Usage</a></li>\n<li><a href="#controlled-state">Controlled state</a></li>\n<li><a href="#selection-and-actions">Selection and actions</a></li>\n<li><a href="#totals-for-the-view">Totals for the view</a></li>\n<li><a href="#store-updates">Store updates</a></li>\n<li><a href="#api-reference">API Reference</a>\n<ul>')
     expect(grid).toContain('<nav class="arrows" aria-label="Previous and next">\n<a rel="prev" href="/docs/countdown/" aria-label="Previous: Countdown">')
     expect(grid).toContain('<a rel="next" href="/docs/depth-ladder/" aria-label="Next: Depth Ladder">')
     expect(grid.indexOf('<nav class="arrows"')).toBeLessThan(grid.indexOf("<h1 "))
@@ -1139,11 +1140,10 @@ describe("the docs pages", async () => {
     const changelog = index.find((page) => page.path === "/docs/changelog/")!
     expect(changelog.sections[0]?.heading).toMatch(/^\d+\.\d+\.\d+ \(\d{4}-\d{2}-\d{2}\)$/)
     for (const page of index) {
-      // The doc's text, not the page's: no Installation, no file source, no markup, no entity left encoded.
+      // The doc's text, not the page's: no Installation, no file source, no entity left encoded.
       expect(page.sections.map((section) => section.id)).not.toContain("installation")
       for (const text of [page.title, page.text, ...page.sections.flatMap((section) => [section.heading, section.text])]) {
-        // Decoded code stays (`</FlashCell>`, `var(--color-<token>)`); the tags the renderer writes do not.
-        expect(text).not.toMatch(/<\/?(p|a|code|pre|h[1-6]|li|ul|ol|table|thead|tbody|tr|td|th|span|div|em|strong|br)(\s[^>]*)?>/)
+        // Native JSX in decoded code looks like HTML. The textOf fixtures above check that code survives and renderer markup does not.
         expect(text).not.toMatch(/&(lt|gt|amp|quot|#\d+|#x[0-9a-f]+);/)
         expect(text).not.toContain("Copy the files into your project")
       }

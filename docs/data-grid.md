@@ -4,28 +4,68 @@ A virtualized, editable grid backed by a row store, with sorting, selection, and
 
 ## Usage
 
-```tsx
-import { DataGrid, type ColumnDef } from "@/components/ui/data-grid"
-import { createRowStore } from "@/lib/row-store"
-```
+Seed a stable store, define its columns, and give the grid an accessible name and a container with a height. Sizes below are notionals; prices print in 32nds.
 
 ```tsx
-const store = createRowStore<Rfq>({ getRowId: (r) => r.id, lane: "ordered" })
-const columns: ColumnDef<Rfq>[] = [
-  { key: "client", header: "Client", width: 140, frozen: "left", sortable: true, accessor: (r) => r.client },
-  { key: "px", header: "Price", width: 100, numeric: true, accessor: (r) => r.px, format: (v) => ust.price(v as number) },
-  { key: "timeLeft", header: "Time", width: 80, numeric: true, accessor: (r) => r.secondsLeft },
+import { useState } from "react"
+import { createInstrumentFormatter, formatNotional } from "@/lib/format"
+import { createRowStore } from "@/lib/row-store"
+import { DataGrid, type ColumnDef } from "@/components/ui/data-grid"
+
+interface Inquiry {
+  id: string
+  client: string
+  size: number
+  price: number
+}
+
+const rows: Inquiry[] = [
+  { id: "Q-1", client: "ALPHA", size: 5_000_000, price: 99.5 },
+  { id: "Q-2", client: "BETA", size: 10_000_000, price: 99.515625 },
+  { id: "Q-3", client: "GAMMA", size: 15_000_000, price: 99.53125 },
+]
+const note = createInstrumentFormatter({ price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 })
+const columns: ColumnDef<Inquiry>[] = [
+  { key: "client", header: "Client", width: 140, accessor: (row) => row.client },
+  { key: "size", header: "Size", width: 100, numeric: true, accessor: (row) => row.size, format: (value) => formatNotional(value as number, { unit: "mm" }) },
+  { key: "price", header: "Price", width: 100, numeric: true, font: "mono", accessor: (row) => row.price, format: (value) => note.price(value as number) },
 ]
 
-<DataGrid
-  store={store}
-  preset="rfq"
-  label="Open RFQs"
-  columns={columns}
-  onRowActivate={(rfq) => openTicket(rfq)}
-  renderContextMenu={(rows) => <ContextMenuItem onClick={() => quote(rows)}>Quote</ContextMenuItem>}
-/>
+export default function DataGridDemo() {
+  const [store] = useState(() => {
+    const store = createRowStore<Inquiry>({ getRowId: (row) => row.id })
+    store.applyDeltas({ upsert: rows })
+    return store
+  })
+  return <div className="h-40 w-full"><DataGrid store={store} columns={columns} preset="rfq" label="Open inquiries" /></div>
+}
 ```
+
+## Controlled state
+
+Control `sort` and `columnState` when your application needs to keep or restore the view. Click a header to sort; drag its edge to resize, or open its menu to move or hide a column. Client stays frozen on the left. Reset view restores both state values.
+
+<!-- demo: data-grid-controlled -->
+
+## Selection and actions
+
+Set `selectionMode="multi"` to extend the RFQ preset's single selection. Use the checkboxes, Shift for a range, or Command/Ctrl to toggle rows. Right-click a selected row, or press Shift+F10 from it, to act on the selection; an unselected row targets just itself. Enter or a double-click activates a row. This example prints the requested action below the grid; your handler opens a ticket or sends a command.
+
+<!-- demo: data-grid-selection -->
+
+## Totals for the view
+
+Each `footer` function receives all rows in the filtered view, including rows outside the viewport. Filter out the smallest inquiry to see the count fall from three to two and the size total from 30mm to 25mm. Keep the footer functions and filter stable between renders.
+
+<!-- demo: data-grid-totals -->
+
+## Store updates
+
+Pass feed batches to `store.applyDeltas`: `patch` changes existing rows, `remove` drops expired inquiries, and `upsert` adds arrivals. Receive a batch below to step through these changes with twelve rows. The button supplies sample feed data; no clock or connection runs in the background. Prices move by one tick, with the signed change beside them.
+
+Scroll down before receiving a batch to see the RFQ preset keep the first visible row in place when an earlier row leaves. A feed that already batches can call `applyDeltas` directly; use [`createFrameBatcher`](row-store.md#api-reference) when messages arrive individually, and cancel it when the feed disconnects.
+
+<!-- demo: data-grid-updates -->
 
 ## API Reference
 
