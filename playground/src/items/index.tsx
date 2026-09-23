@@ -38,6 +38,7 @@ import { TradecnSlateEastScene } from "./tradecn-slate-east"
 import { TradecnAmberScene } from "./tradecn-amber"
 import { UseHotkeysScene } from "./use-hotkeys"
 import { WatchlistScene } from "./watchlist"
+import { WindowSetScene } from "./window-set"
 import { WorkspaceScene } from "./workspace"
 
 export interface ItemScene {
@@ -84,6 +85,7 @@ export const items: Record<string, ItemScene> = {
   "alert-store": { title: "alert-store", Scene: AlertStoreScene },
   "session-calendar": { title: "session-calendar", Scene: SessionCalendarScene },
   limits: { title: "limits", Scene: LimitsScene },
+  "window-set": { title: "window-set", Scene: WindowSetScene },
   "tradecn-slate": { title: "tradecn-slate", Scene: TradecnSlateScene },
   "tradecn-slate-east": { title: "tradecn-slate-east", Scene: TradecnSlateEastScene },
   "tradecn-amber": { title: "tradecn-amber", Scene: TradecnAmberScene },

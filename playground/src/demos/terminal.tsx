@@ -20,6 +20,7 @@ import type { LinkGroup } from "@/registry/tradecn/lib/link-group"
 import { createPreferences, type Preferences } from "@/registry/tradecn/lib/preferences"
 import { createRowStore, type RowId, type RowStore, type RowView } from "@/registry/tradecn/lib/row-store"
 import { createSessionCalendar } from "@/registry/tradecn/lib/session-calendar"
+import { WINDOW_SET_SLOT, mainWindow, readWindowSet, windowSetOf, writeWindowSet } from "@/registry/tradecn/lib/window-set"
 import type { WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
 import { Alerts, type AlertAction } from "@/registry/tradecn/ui/alerts"
 import { AuditTrail, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
@@ -1360,10 +1361,13 @@ function Dialogs({ dialog, setDialog, layout }: { dialog: DeskDialog | null; set
   const desk = useDesk()
   const stack = useStack()
   const link = useLinkGroup({ source: "find", defaultGroup: 1 })
-  // The saved layouts travel in a preferences envelope; a real desk stores that envelope wherever it stores the rest.
-  const [prefs, setPrefs] = useState<Preferences>(() => createPreferences({ template: ["layouts"] }))
+  // The saved layouts travel in a preferences envelope, and so does the window set a shell would restore: this desk
+  // as one main window on the active template. A real desk stores that envelope wherever it stores the rest.
+  const [prefs, setPrefs] = useState<Preferences>(() => writeWindowSet(createPreferences({ template: ["layouts", WINDOW_SET_SLOT] }), windowSetOf([{ id: "main", layoutId: "desk", main: true }])))
   const [activeId, setActiveId] = useState<string | null>(null)
   const templates = readLayoutTemplates(prefs)
+  const windowSet = readWindowSet(prefs)
+  const main = windowSet ? mainWindow(windowSet) : undefined
   const close = () => setDialog(null)
   const onOpenChange = (open: boolean) => {
     if (!open) close()
@@ -1402,6 +1406,7 @@ function Dialogs({ dialog, setDialog, layout }: { dialog: DeskDialog | null; set
             onLoad={(next, template) => {
               desk.api()?.load(next)
               setActiveId(template.id)
+              setPrefs((p) => writeWindowSet(p, windowSetOf([{ id: "main", layoutId: template.id, main: true }])))
               close()
             }}
             onReset={() => {
@@ -1410,10 +1415,16 @@ function Dialogs({ dialog, setDialog, layout }: { dialog: DeskDialog | null; set
               api.clear()
               seed(api)
               setActiveId(null)
+              setPrefs((p) => writeWindowSet(p, windowSetOf([{ id: "main", layoutId: "desk", main: true }])))
               close()
             }}
             onExport={(text) => void navigator.clipboard?.writeText(text)}
           />
+          {main && (
+            <p data-desk-windows={main.layoutId} className="text-muted-foreground">
+              In a shell this desk is one window set: <span className="text-foreground">{main.id}</span> showing <span className="text-foreground">{main.layoutId}</span>, restored on launch and snapshotted on quit.
+            </p>
+          )}
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === "keys"} onOpenChange={onOpenChange}>

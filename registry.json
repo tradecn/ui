@@ -3162,6 +3162,64 @@
       }
     },
     {
+      "name": "window-set",
+      "type": "registry:lib",
+      "title": "Window Set",
+      "description": "For shells whose windows are separate JavaScript contexts: the set of windows a desk has, which layout each shows, and where each sits, as data with its boundaries, and a controller that drives the consumer's adapter over the shell's own calls: open a window, close one, hear one close, ask where one is. restore() on launch opens the main window first and the rest after it; a snapshot reads the bounds back. No shell package is imported.",
+      "dependencies": [],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/lib/window-set.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/preferences.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "layout"
+      ],
+      "docs": "Installs the preferences envelope alongside, so the set can travel in a slot. Write the adapter over your shell (a Tauri WebviewWindow, an Electron BrowserWindow through a preload bridge) and call restore() with the stored set on launch; docs/shells.md has the whole shape and a recipe for each.",
+      "meta": {
+        "components": [
+          {
+            "title": "createWindowSet",
+            "description": "The controller over your adapter: restore, open, close, snapshot, and a subscription to the open set."
+          },
+          {
+            "title": "parseWindowSet",
+            "description": "A stored set, as an object or JSON text, taken on no trust."
+          },
+          {
+            "title": "windowSetOf",
+            "description": "A set from records: one main at most, no duplicate ids."
+          },
+          {
+            "title": "mainWindow",
+            "description": "The window that opens first and whose close ends the desk."
+          },
+          {
+            "title": "readWindowSet",
+            "description": "The set kept in a preferences slot."
+          },
+          {
+            "title": "writeWindowSet",
+            "description": "The envelope with the set written to its slot."
+          },
+          {
+            "title": "defaultWindowUrl",
+            "description": "The document's own path with the window and layout ids in the query."
+          },
+          {
+            "title": "WINDOW_SET_BOUNDARIES",
+            "description": "What a set carries as a template, per person, and never."
+          }
+        ]
+      }
+    },
+    {
       "name": "tradecn-amber",
       "type": "registry:theme",
       "title": "Amber",

@@ -1485,3 +1485,26 @@ test("a session guard warns with a countdown, walls the desk at expiry without u
   await expect(status).toHaveAttribute("data-session-status", "live")
   await expect(guard.getByRole("status")).toHaveCount(0)
 })
+
+// The installed window set over a pretend shell in the scene: restore opens the main window first and the blotters after
+// it, a snapshot carries the bounds the shell reports and parses back as a set, a close through the set and one the
+// shell made on its own both leave it, and an empty set snapshots as nothing.
+test("a window set restores main first, hears the shell's own close, and snapshots the bounds back", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='window-set']")
+  const open = scene.locator("[data-window-open]")
+  const snapshot = scene.locator("[data-window-snapshot]")
+  await expect(open).toHaveText("")
+  await scene.getByRole("button", { name: "restore" }).click()
+  await expect(open).toHaveText("main,blotters")
+  await scene.getByRole("button", { name: "restore" }).click()
+  await expect(open).toHaveText("main,blotters")
+  await scene.getByRole("button", { name: "snapshot" }).click()
+  await expect(snapshot).toHaveText("main@40,20 blotters@1600,0|2")
+  await scene.getByRole("button", { name: "close blotters" }).click()
+  await expect(open).toHaveText("main")
+  await scene.getByRole("button", { name: "shell closes main" }).click()
+  await expect(open).toHaveText("")
+  await scene.getByRole("button", { name: "snapshot" }).click()
+  await expect(snapshot).toHaveText("|0")
+})
