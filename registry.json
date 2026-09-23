@@ -2928,6 +2928,99 @@
       }
     },
     {
+      "name": "session-guard",
+      "type": "registry:ui",
+      "title": "Session Guard",
+      "description": "A session ends and the trader must not lose a half-typed ticket. The guard reads when the session expires and does three things with it: in the warning window a banner with a countdown and a button that asks for more time; at expiry a dialog that is a hotkey wall, blocking every action underneath and unmounting nothing, so drafts and layouts stay; and a readout of the phase for the status bar. It holds no token and knows no protocol: the consumer's sign-in is the dialog's children, and onReauthenticate is how it is asked.",
+      "dependencies": [
+        "cn@^0.3.0"
+      ],
+      "registryDependencies": [
+        "button",
+        "dialog"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/ui/session-guard.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/ui/countdown.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-clock.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/clock.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "chrome"
+      ],
+      "docs": "Installs the countdown, the shared clock, and format alongside, adds the expiring tokens the banner and the readout use, and composes the consumer's button and dialog. Pass when the session ends and your sign-in as the children; the guard closes when expiresAt moves, never on its own.",
+      "meta": {
+        "components": [
+          {
+            "title": "SessionGuard",
+            "description": "The banner in the warning window and the wall at expiry, over one number: when the session ends."
+          },
+          {
+            "title": "SessionStatus",
+            "description": "The phase and the time left for a status bar."
+          },
+          {
+            "title": "useSessionStatus",
+            "description": "The phase, the time left, and the end, ticking on the shared clock."
+          },
+          {
+            "title": "sessionStatus",
+            "description": "The phase rule as a pure function of the end, the moment, and the warning window."
+          },
+          {
+            "title": "DEFAULT_SESSION_GUARD_LABELS",
+            "description": "Every word the guard says."
+          },
+          {
+            "title": "DEFAULT_WARN_MS",
+            "description": "Two minutes: how long before the end the banner shows."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "expiring": "oklch(0.53 0.2 350)",
+          "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif"
+        },
+        "dark": {
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
       "name": "grid-rules",
       "type": "registry:lib",
       "title": "Grid Rules",

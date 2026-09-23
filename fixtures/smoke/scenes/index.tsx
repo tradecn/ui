@@ -28,6 +28,7 @@ import { RfqTicketScene } from "./rfq-ticket"
 import { RowStoreScene } from "./row-store"
 import { RulesEditorScene } from "./rules-editor"
 import { SessionCalendarScene } from "./session-calendar"
+import { SessionGuardScene } from "./session-guard"
 import { SparklineScene } from "./sparkline"
 import { SpreadMatrixScene } from "./spread-matrix"
 import { StatusBarScene } from "./status-bar"
@@ -74,6 +75,7 @@ export const scenes: SmokeScene[] = [
   { name: "depth-ladder", Scene: DepthLadderScene },
   { name: "spread-matrix", Scene: SpreadMatrixScene },
   { name: "quote-panel", Scene: QuotePanelScene },
+  { name: "session-guard", Scene: SessionGuardScene },
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
   { name: "alert-store", Scene: AlertStoreScene },

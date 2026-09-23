@@ -41,6 +41,7 @@ import { Positions, type PositionRow } from "@/registry/tradecn/ui/positions"
 import { RfqStack, bySize, byTimeLeft, rfqStackColumns, stackOrder, useRfqStackView, type RfqStackRow } from "@/registry/tradecn/ui/rfq-stack"
 import { RulesEditor } from "@/registry/tradecn/ui/rules-editor"
 import { Sparkline } from "@/registry/tradecn/ui/sparkline"
+import { SessionGuard, SessionStatus } from "@/registry/tradecn/ui/session-guard"
 import { SpreadMatrix, type SpreadInstrument, type SpreadStructure } from "@/registry/tradecn/ui/spread-matrix"
 import { StatusBar } from "@/registry/tradecn/ui/status-bar"
 import { Watchlist, watchlistColumns, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
@@ -1470,7 +1471,7 @@ function Session() {
   )
 }
 
-function Foot() {
+function Foot({ sessionEndsAt }: { sessionEndsAt: number }) {
   return (
     <StatusBar
       environment={{ label: "SANDBOX", tone: "primary" }}
@@ -1482,14 +1483,27 @@ function Foot() {
           <Session />
         </>
       }
+      right={<SessionStatus expiresAt={sessionEndsAt} />}
     />
   )
 }
+
+// The sign-in the desk pretends to have: twenty minutes a session, two of warning, and a renewal that lands after a
+// moment. The guard walls the desk at the end and unmounts nothing, so a half-typed ticket is still there after it.
+const SESSION_MS = 20 * 60_000
 
 export default function TerminalDemo() {
   const [desk] = useState(createDesk)
   const [layout, setLayout] = useState<WorkspaceLayout | null>(null)
   const [dialog, setDialog] = useState<DeskDialog | null>(null)
+  const [sessionEndsAt, setSessionEndsAt] = useState(() => Date.now() + SESSION_MS)
+  const renew = () =>
+    new Promise<boolean>((resolve) =>
+      setTimeout(() => {
+        setSessionEndsAt(Date.now() + SESSION_MS)
+        resolve(true)
+      }, 600),
+    )
   useEffect(() => desk.start(), [desk])
   const alertActions = useMemo<AlertAction[]>(
     () => [
@@ -1513,9 +1527,12 @@ export default function TerminalDemo() {
             <StackProvider>
               <div data-desk className="flex h-[48rem] min-w-[56rem] flex-col overflow-hidden rounded-md border border-border bg-background font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
                 <Toolbar />
+                <SessionGuard expiresAt={sessionEndsAt} onReauthenticate={renew} className="border-b border-border px-2 py-1">
+                  <p className="text-muted-foreground">A desk's sign-in goes here: a password, a token prompt, or one button to the identity provider. Nothing on the desk has moved.</p>
+                </SessionGuard>
                 <Alerts alerts={desk.alerts} visible={1} ttlMs={12_000} assertive={["critical"]} actions={alertActions} className="border-b border-border px-2 py-1" />
                 <Workspace className="min-h-0 flex-1" panels={PANELS} seed={seed} onLayoutChange={setLayout} onReady={desk.attach} watermark="No panels. Open Layouts and reset the desk." />
-                <Foot />
+                <Foot sessionEndsAt={sessionEndsAt} />
                 <Dialogs dialog={dialog} setDialog={setDialog} layout={layout} />
               </div>
             </StackProvider>
