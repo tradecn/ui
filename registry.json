@@ -2807,6 +2807,127 @@
       }
     },
     {
+      "name": "quote-panel",
+      "type": "registry:block",
+      "title": "Quote Panel",
+      "description": "A market maker's two-way panel: one row per instrument with the market's bid and ask, the desk's bid and ask, the skew and the width, a size per side, the server's status word, and the actions the server allows on the row. Every level, size, skew, and width is typed in place through the grid's editing contract, so an edit is a command the server answers and the cell shows it as pending until the row comes back with it; the limits table runs on every edit, a block refusing the value and a confirm asking once. Pull all asks again. Everything the panel shows is the server's.",
+      "dependencies": [
+        "cn@^0.3.0",
+        "@tanstack/react-virtual@^3.14.13"
+      ],
+      "registryDependencies": [
+        "button",
+        "checkbox",
+        "context-menu",
+        "dropdown-menu"
+      ],
+      "files": [
+        {
+          "path": "registry/tradecn/blocks/quote-panel/quote-panel.tsx",
+          "type": "registry:block"
+        },
+        {
+          "path": "registry/tradecn/ui/data-grid.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-flash.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/hooks/use-row-store.ts",
+          "type": "registry:hook"
+        },
+        {
+          "path": "registry/tradecn/lib/row-store.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/grid-rules.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/limits.ts",
+          "type": "registry:lib"
+        }
+      ],
+      "categories": [
+        "grid",
+        "ticket"
+      ],
+      "docs": "Installs the data grid, the row store, format, grid rules, the limits table, and the flash hook alongside, adds @tanstack/react-virtual and the grid's tokens, and composes the consumer's button plus the grid's checkbox, context-menu, and dropdown-menu. The rows are the server's: an edit is a request sent through onEdit, a button is an action the row's allowedActions names, and the status word moves only when the server's next batch says so.",
+      "meta": {
+        "components": [
+          {
+            "title": "QuotePanel",
+            "description": "The two-way panel: the grid in its parameters preset with the quote columns and Pull all over it."
+          },
+          {
+            "title": "quotePanelColumns",
+            "description": "Instrument, status, the market's two-way, the desk's, skew, width, the sizes, and the actions, to spread into a list of your own."
+          },
+          {
+            "title": "quoteEdit",
+            "description": "One field's editing contract: its notation, its step, the crossed check, and the limits."
+          },
+          {
+            "title": "allowsQuoteAction",
+            "description": "True when the row's allowedActions names the id."
+          },
+          {
+            "title": "DEFAULT_QUOTE_PANEL_LABELS",
+            "description": "Every word the panel says."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "down": "oklch(0.46 0.19 40)",
+          "down-soft": "oklch(0.46 0.19 40 / 18%)",
+          "expiring": "oklch(0.53 0.2 350)",
+          "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.55 0 0 / 14%)",
+          "stale": "oklch(0.52 0.13 75)",
+          "stale-soft": "oklch(0.52 0.13 75 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.52 0.13 165)",
+          "up-soft": "oklch(0.52 0.13 165 / 18%)"
+        },
+        "dark": {
+          "down": "oklch(0.66 0.19 40)",
+          "down-soft": "oklch(0.66 0.19 40 / 18%)",
+          "expiring": "oklch(0.74 0.17 350)",
+          "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
+          "flat": "var(--color-muted-foreground)",
+          "flat-soft": "oklch(0.7 0 0 / 14%)",
+          "stale": "oklch(0.8 0.15 80)",
+          "stale-soft": "oklch(0.8 0.15 80 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
+          "up": "oklch(0.74 0.15 165)",
+          "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
+        }
+      }
+    },
+    {
       "name": "grid-rules",
       "type": "registry:lib",
       "title": "Grid Rules",

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { QuotePanel as TwoWayPanel, type QuoteAction, type QuoteRow } from "@/registry/tradecn/blocks/quote-panel/quote-panel"
 import { RfqTicket, type RfqAction, type RfqInquiry, type RfqLevels } from "@/registry/tradecn/blocks/rfq-ticket/rfq-ticket"
 import { Ticket, type TicketAction, type TicketDraft, type TicketInstrument } from "@/registry/tradecn/blocks/ticket/ticket"
 import { useActiveInquiry, type ActiveInquiry } from "@/registry/tradecn/hooks/use-active-inquiry"
@@ -45,7 +46,7 @@ import { StatusBar } from "@/registry/tradecn/ui/status-bar"
 import { Watchlist, watchlistColumns, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
 import { Workspace, useWorkspacePanel, type WorkspaceApi } from "@/registry/tradecn/ui/workspace"
 
-// One desk, every item. A workspace of twelve panels over one pretend venue and one pretend server, which decide
+// One desk, every item. A workspace of fourteen panels over one pretend venue and one pretend server, which decide
 // every status and every allowed action the way real ones do; the components print the words and offer what
 // they are allowed. tradecn.dev frames this at /preview/terminal/ on its opening page, and a test in scripts/site
 // holds it to the whole registry, so a new item joins this desk before it ships.
@@ -142,6 +143,8 @@ interface Sheet extends ParameterRow {
 // The fat-finger lines both tickets check a draft against: ask again past the first, stop at the second.
 const ORDER_LIMITS: Limits = { maxQuantity: { confirm: 50, block: 500 }, minQuantity: 1, maxDistance: { ticks: 8 } }
 const RFQ_LIMITS: Limits = { maxQuantity: { confirm: 25_000_000, block: 100_000_000 }, maxDistance: { ticks: 6 } }
+// What the server allows on a two-way in each of its states, by id: the quote panel shows these as the row's buttons.
+const QUOTE_ALLOWED: Record<string, readonly string[]> = { Quoting: ["edit", "pause", "pull"], Paused: ["edit", "resume", "pull"], Pulled: ["edit", "resume"] }
 
 // Rules as data for the stack: a large inquiry tints its row, a top-tier client its cell. The Rules dialog edits them.
 const STACK_RULES: GridRules = {
@@ -221,6 +224,8 @@ interface Desk {
   prints: RowStore<Print>
   positions: RowStore<PositionRow>
   sheet: RowStore<Sheet>
+  /** The desk's two-way in the notes: the market, the desk's levels at the quoter's skew and width, the server's status word. */
+  markets: RowStore<QuoteRow>
   feeds: RowStore<FeedDescriptor>
   /** One row, "order": the price and side the ladder last staged, for the order ticket to start from. */
   staged: RowStore<Staged>
@@ -239,6 +244,11 @@ interface Desk {
   cancel(ids: readonly RowId[]): void
   quote(id: string, levels: RfqLevels): void
   pass(id: string): void
+  /** A level, size, skew, or width typed on the quote panel: the server writes it back, or refuses it. */
+  setQuote(change: EditChange<QuoteRow>): Promise<void>
+  /** Pause, resume, or pull one two-way; the server's word and its allowed actions follow. */
+  quoteAction(id: string, action: string): void
+  pullQuotes(rows: readonly QuoteRow[]): void
   reconnect(): void
   /** Starts the venue and the server; returns what stops them. */
   start(): () => void
@@ -372,6 +382,68 @@ function createDesk(): Desk {
     upsert: NOTES.map((note, i) => ({ id: note.id, name: note.name, enabled: i !== 3, allowedActions: ["toggle", "edit"], skew: 0, width: 1 + i * 0.5, maxSize: [10, 10, 5, 2][i]!, updatedAt: now - (i + 1) * 3_600_000, updatedBy: "desk" })),
     meta: { producedAt: now },
   })
+  // The desk's two-way in the notes, at the quoter's skew and width around the market's mid. The 30-year is paused.
+  const twoWay = (row: QuoteRow): Pick<QuoteRow, "bid" | "ask"> => {
+    if (row.marketBid === null || row.marketBid === undefined || row.marketAsk === null || row.marketAsk === undefined) return { bid: null, ask: null }
+    const mid = (row.marketBid + row.marketAsk) / 2 + (row.skew ?? 0) * T32.tick
+    const half = ((row.width ?? 2) / 2) * T32.tick
+    return { bid: roundToTick(mid - half, T32.tick), ask: roundToTick(mid + half, T32.tick) }
+  }
+  const markets = createRowStore<QuoteRow>({ getRowId: (q) => q.id })
+  markets.applyDeltas({
+    upsert: NOTES.map((note, i) => {
+      const s = sheet.getRow(note.id)!
+      const status = i === 3 ? "Paused" : "Quoting"
+      const row: QuoteRow = { id: note.id, instrument: note.name, status, marketBid: roundToTick(note.px - T32.tick, T32.tick), marketAsk: note.px, skew: s.skew, width: s.width, bidSize: s.maxSize * 1_000_000, askSize: s.maxSize * 1_000_000, allowedActions: QUOTE_ALLOWED[status], updatedAt: now }
+      return { ...row, ...twoWay(row) }
+    }),
+  })
+  const quoteField = (key: string, value: unknown): Partial<QuoteRow> => {
+    const n = typeof value === "number" ? value : null
+    switch (key) {
+      case "bid":
+        return { bid: n }
+      case "ask":
+        return { ask: n }
+      case "skew":
+        return { skew: n }
+      case "width":
+        return { width: n }
+      case "bidSize":
+        return { bidSize: n }
+      case "askSize":
+        return { askSize: n }
+      default:
+        return {}
+    }
+  }
+  // The server answers a quote command 300 ms later: a typed value is written back (the quoter's sheet keeps the same
+  // skew and width, and a Quoting two-way is re-struck), a width over 8 is refused, and an action moves the status word.
+  const setQuote = (change: EditChange<QuoteRow>) =>
+    new Promise<void>((resolve, reject) =>
+      setTimeout(() => {
+        if (change.key === "width" && typeof change.value === "number" && change.value > 8) return reject(new Error("Risk declined a width over 8"))
+        const row = markets.getRow(change.rowId)
+        if (!row) return resolve()
+        const typed = quoteField(change.key, change.value)
+        const at = Date.now()
+        markets.applyDeltas({ patch: [{ id: row.id, fields: { ...typed, ...(row.status === "Quoting" && (change.key === "skew" || change.key === "width") ? twoWay({ ...row, ...typed }) : {}), updatedAt: at } }] })
+        if (typeof change.value === "number" && (change.key === "skew" || change.key === "width")) sheet.applyDeltas({ patch: [{ id: row.id, fields: { ...(change.key === "skew" ? { skew: change.value } : { width: change.value }), updatedAt: at, updatedBy: "you" } }], meta: { producedAt: at } })
+        resolve()
+      }, 300),
+    )
+  const quoteAction = (id: string, action: string) => {
+    setTimeout(() => {
+      const row = markets.getRow(id)
+      if (!row) return
+      const status = action === "pause" ? "Paused" : action === "resume" ? "Quoting" : action === "pull" ? "Pulled" : row.status
+      const levels = status === "Quoting" ? twoWay({ ...row, status }) : status === "Pulled" ? { bid: null, ask: null } : {}
+      markets.applyDeltas({ patch: [{ id, fields: { status, allowedActions: QUOTE_ALLOWED[status], ...levels, updatedAt: Date.now() } }] })
+    }, 300)
+  }
+  const pullQuotes = (rows: readonly QuoteRow[]) => {
+    for (const row of rows) quoteAction(row.id, "pull")
+  }
   const feeds = createRowStore<FeedDescriptor>({ getRowId: (f) => f.id })
   feeds.applyDeltas({
     upsert: [
@@ -574,6 +646,15 @@ function createDesk(): Desk {
       // The books: rebuilt around a quote that moved, stirred where it did not.
       const movedIds = new Set(moved.map((m) => m.id))
       for (const symbol of books.keys()) (movedIds.has(symbol) ? rebuildBook : stirBook)(symbol)
+      // The notes' market: one note moves a tick every third beat, and a Quoting two-way follows it.
+      if (beat % 3 === 0) {
+        const row = markets.getRow(pick(markets.getIds()))
+        if (row && row.marketBid !== null && row.marketBid !== undefined && row.marketAsk !== null && row.marketAsk !== undefined) {
+          const by = (Math.random() < 0.5 ? -1 : 1) * T32.tick
+          const struck = { ...row, marketBid: roundToTick(row.marketBid + by, T32.tick), marketAsk: roundToTick(row.marketAsk + by, T32.tick) }
+          markets.applyDeltas({ patch: [{ id: row.id, fields: { marketBid: struck.marketBid, marketAsk: struck.marketAsk, ...(row.status === "Quoting" ? twoWay(struck) : {}) } }] })
+        }
+      }
       // The tape: a print every other beat, at the bid or the ask.
       if (beat % 2 === 0) {
         const id = pick(quotes.getIds())
@@ -635,7 +716,7 @@ function createDesk(): Desk {
     }),
   })
 
-  return { quotes, inquiries, orders, events, prints, positions, sheet, feeds, staged, alerts, actions, attach, api, watch, book: bookOf, stage, send, cancel, quote, pass, reconnect, start }
+  return { quotes, inquiries, orders, events, prints, positions, sheet, markets, feeds, staged, alerts, actions, attach, api, watch, book: bookOf, stage, send, cancel, quote, pass, setQuote, quoteAction, pullQuotes, reconnect, start }
 }
 
 // What the panels read the desk through.
@@ -1112,7 +1193,33 @@ function SpreadsPanel() {
   )
 }
 
-const PANELS = { watchlist: WatchlistPanel, positions: PositionsPanel, stack: StackPanel, quote: QuotePanel, order: OrderPanel, blotter: BlotterPanel, audit: AuditPanel, parameters: ParametersPanel, chart: ChartPanel, ladder: LadderPanel, spreads: SpreadsPanel, tape: TapePanel, frames: FramesPanel }
+// The desk's two-way in the notes over the pretend server: a typed level, size, skew, or width is a command it answers
+// 300 ms later, the buttons are the actions it allows on the row, and the quoter's sheet keeps the same skew and width.
+const QUOTE_LIMITS: Limits = { maxDistance: { ticks: 6, level: "confirm" }, maxQuantity: { confirm: 25_000_000, block: 100_000_000 } }
+function QuotesPanel() {
+  const desk = useDesk()
+  const actions = useMemo<QuoteAction[]>(
+    () => [
+      { id: "pause", label: "Pause", run: (row) => desk.quoteAction(row.id, "pause") },
+      { id: "resume", label: "Resume", run: (row) => desk.quoteAction(row.id, "resume") },
+      { id: "pull", label: "Pull", destructive: true, run: (row) => desk.quoteAction(row.id, "pull") },
+    ],
+    [desk],
+  )
+  return (
+    <>
+      <PanelHeader>
+        <PanelTitle>Quotes</PanelTitle>
+        <span className="truncate text-muted-foreground">The desk's two-way in the notes; type a level to move it</span>
+      </PanelHeader>
+      <PanelContent>
+        <TwoWayPanel store={desk.markets} convention={T32} actions={actions} limits={QUOTE_LIMITS} onEdit={desk.setQuote} onPullAll={desk.pullQuotes} />
+      </PanelContent>
+    </>
+  )
+}
+
+const PANELS = { watchlist: WatchlistPanel, positions: PositionsPanel, stack: StackPanel, quote: QuotePanel, order: OrderPanel, blotter: BlotterPanel, audit: AuditPanel, parameters: ParametersPanel, quotes: QuotesPanel, chart: ChartPanel, ladder: LadderPanel, spreads: SpreadsPanel, tape: TapePanel, frames: FramesPanel }
 
 // The layout: three columns, the market on the left, the inquiries and the orders in the middle, the tickets and
 // the chart on the right, tabs where two panels share a place. Ids are fixed so the go keys can name them.
@@ -1127,6 +1234,7 @@ function seed(api: WorkspaceApi) {
   api.addPanel({ kind: "blotter", id: "blotter-1", title: "Blotter", position: { reference: "stack-1", direction: "below" }, focus: false })
   api.addPanel({ kind: "audit", id: "audit-1", title: "Audit trail", position: { reference: "blotter-1", direction: "within" }, focus: false })
   api.addPanel({ kind: "parameters", id: "parameters-1", title: "Quoter", position: { reference: "blotter-1", direction: "within" }, focus: false })
+  api.addPanel({ kind: "quotes", id: "quotes-1", title: "Quotes", position: { reference: "blotter-1", direction: "within" }, focus: false })
   api.addPanel({ kind: "tape", id: "tape-1", title: "Tape", position: { reference: "order-1", direction: "below" }, focus: false })
   api.addPanel({ kind: "frames", id: "frames-1", title: "Frames", position: { reference: "tape-1", direction: "within" }, focus: false })
   api.addPanel({ kind: "chart", id: "chart-1", title: "Chart", state: { group: 1 }, position: { reference: "tape-1", direction: "within" }, focus: false })
@@ -1171,6 +1279,7 @@ function Toolbar() {
       focus("chart", "Go to the chart", "go.chart"),
       focus("ladder", "Go to the ladder"),
       focus("spreads", "Go to the spreads"),
+      focus("quotes", "Go to the quotes"),
       focus("positions", "Go to the positions"),
       focus("audit", "Go to the audit trail"),
       focus("parameters", "Go to the quoter"),

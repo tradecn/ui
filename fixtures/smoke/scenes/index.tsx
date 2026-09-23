@@ -22,6 +22,7 @@ import { PerfMonitorScene } from "./perf-monitor"
 import { PositionsScene } from "./positions"
 import { PreferencesScene } from "./preferences"
 import { QuoteFieldScene } from "./quote-field"
+import { QuotePanelScene } from "./quote-panel"
 import { RfqStackScene } from "./rfq-stack"
 import { RfqTicketScene } from "./rfq-ticket"
 import { RowStoreScene } from "./row-store"
@@ -72,6 +73,7 @@ export const scenes: SmokeScene[] = [
   { name: "instrument-search", Scene: InstrumentSearchScene },
   { name: "depth-ladder", Scene: DepthLadderScene },
   { name: "spread-matrix", Scene: SpreadMatrixScene },
+  { name: "quote-panel", Scene: QuotePanelScene },
   { name: "grid-rules", Scene: GridRulesScene },
   { name: "preferences", Scene: PreferencesScene },
   { name: "alert-store", Scene: AlertStoreScene },

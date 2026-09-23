@@ -22,6 +22,7 @@ import { PerfMonitorScene } from "./perf-monitor"
 import { PositionsScene } from "./positions"
 import { PreferencesScene } from "./preferences"
 import { QuoteFieldScene } from "./quote-field"
+import { QuotePanelScene } from "./quote-panel"
 import { RfqStackScene } from "./rfq-stack"
 import { RfqTicketScene } from "./rfq-ticket"
 import { RowStoreScene } from "./row-store"
@@ -75,6 +76,7 @@ export const items: Record<string, ItemScene> = {
   "instrument-search": { title: "instrument-search", Scene: InstrumentSearchScene },
   "depth-ladder": { title: "depth-ladder", Scene: DepthLadderScene },
   "spread-matrix": { title: "spread-matrix", Scene: SpreadMatrixScene },
+  "quote-panel": { title: "quote-panel", Scene: QuotePanelScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   preferences: { title: "preferences", Scene: PreferencesScene },
   "alert-store": { title: "alert-store", Scene: AlertStoreScene },
