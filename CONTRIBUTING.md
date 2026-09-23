@@ -41,7 +41,7 @@ The body is the commit message, and release-please reads it too.
 
 `CI passed` is the one to watch, and the one the `main` ruleset requires. It goes green when every `ci` job is green and the title and body pass as they read at that moment. A title fixed after the run stays red there until the job reruns: Re-run failed jobs on the `ci` run, and it reads the pull request again. Enable auto-merge on a pull request and it merges the moment `CI passed` reports.
 
-A release pull request is opened by a bot with the workflow token, and GitHub starts no workflow on one. It gets `CI passed` from the `release-please` run instead, after every push to `main`: the commits it releases were each checked on their own pull request, and the release commit changes only the changelog, `version.txt`, the README's tag lines, and the manifest. Merging it is still a deliberate act. The same skip means a pull request that touches only those release files gets no `ci` run at all, so make such a change alongside something else.
+A release pull request is opened by release-please with the release App's token, so it is the App's pull request and `ci` and `pull-request` run on it as on any other. GitHub holds the workflow runs of a pull request that `github-actions[bot]` opened until someone with write access approves them, which is why the App opens it and not the workflow token. Merging it is still a deliberate act.
 
 ## What releases
 

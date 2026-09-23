@@ -80,13 +80,17 @@ describe("the check in the workflows", () => {
     expect(read(".github/workflows/infra.yml")).not.toMatch(/^ {2}pull_request:$/m)
   })
 
-  it("is written on a release pull request by the release-please run, under the same name", () => {
+  it("comes from ci on a release pull request too, which release-please opens with the App's token", () => {
     const release = read(".github/workflows/release-please.yml")
-    const job = jobsOf(release).get("release-check") ?? ""
-    expect(job).toContain("needs: release-please")
-    expect(job).toContain("checks: write")
-    expect(job).toContain("bash scripts/ci/release-check.sh")
-    expect(read("scripts/ci/release-check.sh")).toContain(`name="${CHECK_NAME}"`)
+    const job = jobsOf(release).get("release-please") ?? ""
+    expect(job).toContain("uses: actions/create-github-app-token@")
+    expect(job).toContain("client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}")
+    expect(job).toContain("private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}")
+    expect(job).toContain("token: ${{ steps.app.outputs.token }}")
+    expect(jobsOf(release).has("release-check")).toBe(false)
+    for (const workflow of [".github/workflows/ci.yml", ".github/workflows/pull-request.yml"]) {
+      expect(read(workflow)).not.toContain("paths-ignore")
+    }
   })
 })
 
