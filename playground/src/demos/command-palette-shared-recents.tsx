@@ -2,7 +2,7 @@ import { useState } from "react"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
 import { CommandPalette, createActionRegistry } from "@/registry/tradecn/ui/command-palette"
 
-export default function CommandPaletteDemo() {
+export default function CommandPaletteSharedRecentsDemo() {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState("None")
   const [actions] = useState(() => {
@@ -15,8 +15,9 @@ export default function CommandPaletteDemo() {
   })
   return (
     <HotkeysProvider>
-      <div className="flex min-h-80 w-fit max-w-full flex-col justify-center gap-3 text-sm">
-        <button type="button" className="self-start rounded border border-border px-3 py-2 hover:bg-muted" onClick={() => setOpen(true)}>Open commands</button>
+      <div className="min-h-80 w-md max-w-full space-y-3 text-sm">
+        <CommandPalette variant="go-bar" actions={actions} />
+        <button type="button" className="rounded border border-border px-3 py-2 hover:bg-muted" onClick={() => setOpen(true)}>Open dialog</button>
         <p role="status">Selected: {selected}</p>
         <CommandPalette actions={actions} open={open} onOpenChange={setOpen} />
       </div>
