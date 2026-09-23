@@ -17,6 +17,8 @@ import {
   readDemos,
   readDocs,
   readEmbed,
+  readFrame,
+  FRAME_FILE,
   readSitePages,
   readSources,
   SITE_DOCS,
@@ -112,7 +114,7 @@ describe("the embed build", () => {
   })
 
   it("moves the bundle, the mode script, and the favicon under the base on a release's own tree", async () => {
-    const previews: Previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()) }
+    const previews: Previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()), frame: await readFrame(resolve(root, "playground/src/demos")) }
     const values = templateValues(registry, version, registry, new Set(), previews, { base: "/v9.9.9" })
     const [page] = previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE))
     expect(page?.html).toContain('<script type="module" src="/v9.9.9/preview/assets/embed-abc.js"></script>')
@@ -163,7 +165,7 @@ describe("a theme on the site", () => {
   it("wears its own palette on its own preview page in both modes; every other page wears the site theme's two sides and carries every other theme's, keyed on the choice", async () => {
     const docs = await readDocs(resolve(root, "docs"), registry)
     const values = templateValues(registry, version, registry, new Set(docs.map((doc) => doc.slug)))
-    const previews: Previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()) }
+    const previews: Previews = { demos: await readDemos(resolve(root, "playground/src/demos")), embed: await readEmbed(fakeEmbed()), frame: await readFrame(resolve(root, "playground/src/demos")) }
     const docSlugs = new Set(docs.map((doc) => doc.slug))
     const pages = new Map(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE), docSlugs).map((page) => [page.path, page.html]))
     // One page per item, one per docs page with a demo of its own (Typography, Color), and one for the desk, all of which wear the site's palette like any item's.
@@ -245,6 +247,25 @@ describe("a theme on the site", () => {
   it("writes no preview pages without an embed build", async () => {
     const values = templateValues(registry, version)
     expect(previewPages(registry, registry, { demos: new Map(), embed: null }, values, template(PREVIEW_TEMPLATE))).toEqual([])
+  })
+
+  it("reads the frame contract from frame.json beside the demos, and stretches the demos of a tag from before it", async () => {
+    const demosDir = resolve(root, "playground/src/demos")
+    const demos = await readDemos(demosDir)
+    const embed = await readEmbed(fakeEmbed())
+    const values = templateValues(registry, version)
+    // This checkout's demos are written to the centering contract, and say so.
+    expect(await readFrame(demosDir)).toBe("centered")
+    // A tag with no marker predates the contract: its demos set no w-full and know no bar, so its frames stretch, as the card did then.
+    expect(await readFrame(join(tmpdir(), "no-such-demos"))).toBe("stretch")
+    const old = new Map(previewPages(registry, registry, { demos, embed }, values, template(PREVIEW_TEMPLATE)).map((page) => [page.path, page.html]))
+    expect(old.get("preview/format/index.html")).toContain('<div id="root" data-item="format" data-frame="stretch">')
+    expect(old.get(`preview/${DESK_DEMO}/index.html`)).toContain(`<div id="root" data-item="${DESK_DEMO}" data-frame="desk">`)
+    for (const [path, html] of old) expect(html, path).toMatch(/ data-frame="(stretch|desk)">/)
+    // A marker naming anything else is an error, not a guess.
+    const dir = mkdtempSync(join(tmpdir(), "tradecn-frame-"))
+    writeFileSync(join(dir, FRAME_FILE), JSON.stringify({ frame: "sideways" }))
+    await expect(readFrame(dir)).rejects.toThrow(/sideways/)
   })
 })
 
@@ -381,6 +402,7 @@ describe("the preview card", () => {
     expect(preview).toContain('#root[data-frame="card"] { box-sizing: border-box; min-height: 14rem; display: flex; flex-direction: column; padding: 1.5rem 1rem; }')
     expect(preview).toContain('#root[data-frame="card"] > * { max-width: 100%; margin: auto; }')
     expect(preview).toContain('#root[data-frame="card"] > [data-demo-controls] { order: -1; align-self: stretch; max-width: none; margin: -1.5rem -1rem 1.5rem;')
+    expect(preview).toContain('#root[data-frame="stretch"] { box-sizing: border-box; min-height: 14rem; display: flex; flex-direction: column; justify-content: center; padding: 1.5rem 1rem; }')
     expect(preview).toContain('#root[data-frame="desk"] {')
     const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
     expect(script).toContain('document.querySelectorAll(".view-code")')

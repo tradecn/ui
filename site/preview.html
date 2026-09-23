@@ -35,6 +35,10 @@ body { margin: 0; }
 #root[data-frame="card"] { box-sizing: border-box; min-height: 14rem; display: flex; flex-direction: column; padding: 1.5rem 1rem; }
 #root[data-frame="card"] > * { max-width: 100%; margin: auto; }
 #root[data-frame="card"] > [data-demo-controls] { order: -1; align-self: stretch; max-width: none; margin: -1.5rem -1rem 1.5rem; padding: .5rem .75rem; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; border-bottom: 1px solid var(--border); }
+/* A tag from before the centering contract, with no frame.json beside its demos: they set no w-full and know no
+   controls bar, so the frame stretches them as the card did then, centered on the height alone. */
+#root[data-frame="stretch"] { box-sizing: border-box; min-height: 14rem; display: flex; flex-direction: column; justify-content: center; padding: 1.5rem 1rem; }
+#root[data-frame="stretch"] > * { max-width: 100%; }
 #root[data-frame="desk"] { padding: 1rem; }
 </style>
 </head>
