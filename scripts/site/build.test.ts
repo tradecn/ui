@@ -21,6 +21,7 @@ import {
   FONT_PACKAGES,
   FONT_WEIGHTS,
   fontFiles,
+  framedIn,
   FONTS_PATH,
   FONTS_STYLES,
   GITHUB_LINK,
@@ -686,6 +687,28 @@ describe("the search index", () => {
     ])
   })
 
+  it("names the variant demos a page places, and the line placing one is no word on the page", () => {
+    const placed: Doc = {
+      slug: "countdown",
+      path: "/docs/countdown/",
+      label: "Countdown",
+      source: "countdown.md",
+      title: "Countdown",
+      description: "",
+      html: '<h1 id="countdown"><a href="#countdown">Countdown</a></h1>\n<p>Time left.</p>\n<h2 id="compact"><a href="#compact">Compact</a></h2>\n<p>Digits alone.</p>\n<!-- demo: countdown-compact --><h2 id="api-reference"><a href="#api-reference">API Reference</a></h2>\n',
+      item: registry.items.find((item) => item.name === "countdown"),
+    }
+    const [entry] = searchIndex([placed])
+    expect(entry?.demos).toEqual(["countdown-compact"])
+    expect(entry?.sections).toEqual([
+      { id: "compact", heading: "Compact", text: "Digits alone." },
+      { id: "api-reference", heading: "API Reference", text: "" },
+    ])
+    expect(framedIn(placed.html)).toEqual(["countdown-compact"])
+    // A page that places none carries no list, so the index grows only where a page has variants.
+    expect(JSON.stringify(searchIndex([{ ...placed, html: placed.html.replace(/<!--.*?-->/, "") }]))).not.toContain("demos")
+  })
+
   it("is written beside the pages, fetched by the script, allowed by the policy, and invalidated by the release", () => {
     const build = readFileSync(resolve(root, "scripts/site/build.ts"), "utf8")
     expect(build).toContain("await writeFile(join(out, SEARCH_INDEX), JSON.stringify(searchIndex(docs)))")
@@ -983,7 +1006,8 @@ describe("the docs pages", async () => {
     expect(items.find((doc) => doc.slug === "format")?.title).toBe("format")
   })
 
-  it("keeps every item doc in the page's shape: the title, one paragraph, then Usage first and API Reference last", () => {
+  it("keeps every item doc in the page's shape: the title, one paragraph, then Usage first, each variant in a section of its own, and API Reference last", () => {
+    const fixed = ["Usage", "Composition", "API Reference"]
     for (const doc of items) {
       const markdown = readFileSync(resolve(root, "docs", doc.source), "utf8")
       const [intro = "", ...sections] = markdown.split(/^## /m)
@@ -995,7 +1019,23 @@ describe("the docs pages", async () => {
       expect(headings[0], doc.source).toBe("Usage")
       expect(headings.at(-1), doc.source).toBe("API Reference")
       expect(headings, doc.source).not.toContain("Installation")
+      // A variant: a section of its own between Usage and API Reference, headed by what the variant is, prose that says
+      // so, and last the line placing its demo, named <item>-<variant>. The code is the demo's, so the section has none.
+      for (const [index, section] of sections.entries()) {
+        const heading = headings[index] ?? ""
+        const blocks = section.split(/\n{2,}/).map((text) => text.trim()).filter(Boolean)
+        const lines = blocks.filter((block) => /^<!--\s*demo:/.test(block))
+        if (!lines.length) continue
+        expect(fixed, `${doc.source}: ${heading} places a demo, and a variant has a section of its own`).not.toContain(heading)
+        expect(lines, `${doc.source}: ${heading} places one demo`).toHaveLength(1)
+        expect(lines[0], `${doc.source}: ${heading} places a demo named for the item`).toMatch(new RegExp(`^<!-- demo: ${doc.slug}-[a-z0-9-]+ -->$`))
+        expect(blocks.at(-1), `${doc.source}: ${heading} ends with the line placing its demo`).toBe(lines[0])
+        expect(blocks.length, `${doc.source}: ${heading} says what the variant is before placing its demo`).toBeGreaterThanOrEqual(3)
+        for (const block of blocks.slice(1, -1)) expect(block, `${doc.source}: ${heading} explains in prose; the code is the demo's`).not.toMatch(/^(```|\|)/)
+      }
     }
+    // The page this shape was drawn on places its variants this way.
+    expect(readFileSync(resolve(root, "docs", "countdown.md"), "utf8")).toMatch(/\n## Compact\n\n[^\n]+\n\n<!-- demo: countdown-compact -->\n\n## Thresholds\n/)
   })
 
   it("puts Installation after the opening paragraph and before Usage, with Command and Manual tabs", () => {
