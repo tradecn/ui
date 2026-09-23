@@ -4,32 +4,59 @@ Edit a market maker's bid, ask, skew, width, and sizes beside the market's two-w
 
 ## Usage
 
+Seed a stable store and include `"edit"` in each editable row's `allowedActions`. Double-click a value or press Enter on its cell to edit; Enter commits and Escape cancels. Prices use 32nds, skew and width use quote steps, and sizes use whole units. Scroll horizontally to reach the remaining columns.
+
+This example writes each edit straight back to the store. In an application, send the command to your server and apply its response; the server decides any related changes to bid, ask, skew, or width. The panel never derives those values or writes the store itself.
+
 ```tsx
-import { QuotePanel, type QuoteAction, type QuoteRow } from "@/components/quote-panel"
+import { useState } from "react"
+import { QuotePanel, type QuoteRow } from "@/components/quote-panel"
 import type { InstrumentConvention } from "@/lib/format"
-import type { Limits } from "@/lib/limits"
 import { createRowStore } from "@/lib/row-store"
-```
 
-```tsx
-const T32: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
-const quotes = createRowStore<QuoteRow>({ getRowId: (q) => q.id })
-const ACTIONS: QuoteAction[] = [
-  { id: "pause", label: "Pause", run: (row) => api.pause(row.id) },
-  { id: "resume", label: "Resume", run: (row) => api.resume(row.id) },
-  { id: "pull", label: "Pull", destructive: true, run: (row) => api.pull(row.id) },
+const convention: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
+const quotes: QuoteRow[] = [
+  { id: "2Y", instrument: "2Y Treasury", status: "Quoting", marketBid: 100.234375, marketAsk: 100.25, bid: 100.21875, ask: 100.265625, skew: 0, width: 3, bidSize: 5_000_000, askSize: 5_000_000, allowedActions: ["edit"] },
+  { id: "10Y", instrument: "10Y Treasury", status: "Quoting", marketBid: 99.515625, marketAsk: 99.53125, bid: 99.5, ask: 99.5625, skew: 0.5, width: 4, bidSize: 10_000_000, askSize: 10_000_000, allowedActions: ["edit"] },
 ]
-const LIMITS: Limits = { maxDistance: { ticks: 4, level: "confirm" }, maxQuantity: { confirm: 50_000_000, block: 100_000_000 } }
 
-<QuotePanel
-  store={quotes}
-  convention={T32}
-  actions={ACTIONS}
-  limits={LIMITS}
-  onEdit={(change) => api.setQuote(change.rowId, change.key, change.value)}
-  onPullAll={(rows) => api.pull(rows.map((r) => r.id))}
-/>
+export default function QuotePanelDemo() {
+  const [store] = useState(() => {
+    const store = createRowStore<QuoteRow>({ getRowId: (row) => row.id })
+    store.applyDeltas({ upsert: quotes })
+    return store
+  })
+  return (
+    <div className="h-40 w-fit max-w-full">
+      <QuotePanel store={store} convention={convention} onEdit={({ rowId, key, value }) => {
+        store.applyDeltas({ patch: [{ id: rowId, fields: { [key]: value } }] })
+      }} />
+    </div>
+  )
+}
 ```
+
+## Pending and rejected edits
+
+Return a promise from `onEdit` when the server can reject a command. This example waits one second before writing the accepted value and resolving. Set Width to `5` to see it pending, then to `9` to see a rejection: the cell returns to the stored value and shows the error. Reopen the cell to clear the error and try again. The delay is sample server behavior; outstanding timers are cleared on unmount.
+
+<!-- demo: quote-panel-pending -->
+
+## Allowed actions
+
+The server's `allowedActions` controls both editing and which row buttons appear. Pause keeps the levels, Pull clears them and removes edit permission, and Resume restores a two-way from the market. These handlers write the status and permissions back to the store so the result stays visible. The unrelated columns start hidden so the row actions stay in view.
+
+Pull all asks for a second press, then receives every row that allows `"pull"`, including rows outside a filter or selection. After all rows are pulled, it is disabled; Resume makes a row eligible again. Escape or another click inside the panel cancels the question.
+
+<!-- demo: quote-panel-actions -->
+
+## Confirming and blocking edits
+
+Pass `limits` to check a value before `onEdit` runs. Try Bid `100-04`: it is seven ticks below the market bid, past the four-tick limit, so the editor asks for confirmation. Press Enter again to send it. A crossed quote is refused before limits are checked.
+
+In Bid size, `60000000` asks for confirmation above 50 million; `150000000` is blocked above 100 million. Skew, width, and blank values bypass these limits. The [Limits reference](#limits) explains how the panel remembers unanswered confirmations.
+
+<!-- demo: quote-panel-limits -->
 
 ## API Reference
 
@@ -129,7 +156,7 @@ Pull all appears when `onPullAll` is given. The first press changes its label to
 
 The panel does not expose its private `asked` set or accept it as a prop. When calling either helper yourself with confirm limits, create a stable set and pass it to every helper that should share confirmation memory. Without it, every confirming validation asks again. Keep the set across renders; clear or replace it when your application needs to discard unanswered questions.
 
-For example, inside your component, using `T32` and `LIMITS` from Usage:
+For example, inside your component, with a stable `convention` and `limits` as in [Confirming and blocking edits](#confirming-and-blocking-edits):
 
 ```tsx
 import { useMemo, useState } from "react"
@@ -138,7 +165,7 @@ import { quotePanelColumns, type QuoteRow } from "@/components/quote-panel"
 // Inside the component:
 const [asked] = useState(() => new Set<string>())
 const columns = useMemo(
-  () => quotePanelColumns<QuoteRow>({ convention: T32, limits: LIMITS, asked }),
+  () => quotePanelColumns<QuoteRow>({ convention, limits, asked }),
   [asked],
 )
 // Pass columns={columns} to QuotePanel.

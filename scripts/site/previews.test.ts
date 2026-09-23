@@ -57,11 +57,11 @@ function fakeEmbed(): string {
 }
 
 describe("the demo source shown under Code", () => {
-  it("opts DataGrid into preview-owned alignment without adding controls to copied source", async () => {
+  it("opts resizable grids into preview-owned alignment without adding controls to copied source", async () => {
     const dir = resolve(root, "playground/src/demos")
     const { alignable } = JSON.parse(readFileSync(join(dir, FRAME_FILE), "utf8")) as { alignable: string[] }
     const demos = await readDemos(dir)
-    expect(alignable).toEqual(["data-grid", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates"])
+    expect(alignable).toEqual(["data-grid", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "quote-panel", "quote-panel-pending", "quote-panel-actions", "quote-panel-limits"])
     for (const name of alignable) {
       expect(demos.has(name), name).toBe(true)
       expect(demos.get(name)!.code).not.toMatch(/PreviewAlignment|preview-alignment|data-preview-align/)
@@ -105,7 +105,7 @@ describe("the demo source shown under Code", () => {
         placed.set(name, doc.source)
       }
     }
-    expect([...placed.keys()].sort()).toEqual(["countdown-compact", "countdown-expired", "countdown-thresholds", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "price-chart-candles", "price-chart-overlays"])
+    expect([...placed.keys()].sort()).toEqual(["countdown-compact", "countdown-expired", "countdown-thresholds", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "price-chart-candles", "price-chart-overlays", "quote-panel-actions", "quote-panel-limits", "quote-panel-pending"])
     expect(demos.has("typography")).toBe(true)
     expect(demos.has(DESK_DEMO)).toBe(true)
     for (const demo of demos.values()) {
@@ -187,7 +187,7 @@ describe("a theme on the site", () => {
     // With every demo the docs frame, the variants the pages place get pages of their own too, wearing the site's palette like any item's.
     const framed = framedDemos(docs)
     const variants = [...framed].filter((name) => !docSlugs.has(name)).sort()
-    expect(variants).toEqual(["countdown-compact", "countdown-expired", "countdown-thresholds", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "price-chart-candles", "price-chart-overlays"])
+    expect(variants).toEqual(["countdown-compact", "countdown-expired", "countdown-thresholds", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "price-chart-candles", "price-chart-overlays", "quote-panel-actions", "quote-panel-limits", "quote-panel-pending"])
     const withVariants = new Map(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE), framed).map((page) => [page.path, page.html]))
     expect(withVariants.size).toBe(pages.size + variants.length)
     expect(withVariants.get("preview/countdown-compact/index.html")).toContain('<div id="root" data-item="countdown-compact"')
