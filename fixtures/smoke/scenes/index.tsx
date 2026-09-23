@@ -35,6 +35,7 @@ import { StatusBarScene } from "./status-bar"
 import { TicketScene } from "./ticket"
 import { UseHotkeysScene } from "./use-hotkeys"
 import { WatchlistScene } from "./watchlist"
+import { WindowSetScene } from "./window-set"
 import { WorkspaceScene } from "./workspace"
 
 export interface SmokeScene {
@@ -81,5 +82,6 @@ export const scenes: SmokeScene[] = [
   { name: "alert-store", Scene: AlertStoreScene },
   { name: "session-calendar", Scene: SessionCalendarScene },
   { name: "limits", Scene: LimitsScene },
+  { name: "window-set", Scene: WindowSetScene },
 ]
 export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "expiring", "expiring-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4"]
