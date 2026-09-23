@@ -574,6 +574,8 @@ describe("code blocks", () => {
     expect(written(html)).toBe('x\nconst a = "x < y" // z\n\n')
     // A language the site does not highlight stays as it was, class and all.
     expect(codeBlocks('<pre><code class="language-text">a &lt; b</code></pre>')).toContain('<div class="code"><pre><code class="language-text">a &lt; b</code></pre><button')
+    // A pre keeps its attributes: the id a Manual block's Expand controls.
+    expect(codeBlocks('<pre id="installation-manual-1"><code class="language-json">{}</code></pre>')).toContain('<div class="code"><pre id="installation-manual-1"><code class="language-json"><span class="line">')
   })
 
   it("number a colored block's lines in the stylesheet, down a gutter the copy button never reads, and leave a command and a text tree alone", () => {
@@ -586,6 +588,21 @@ describe("code blocks", () => {
     expect(styles).toContain(".code:not(.command) .line:last-child:empty { display: none; }")
     // A text tree has no .line spans to count, so its connectors stay on plain lines.
     expect(codeBlocks('<pre><code class="language-text">Panel\n├── PanelHeader\n</code></pre>')).not.toContain('class="line"')
+  })
+
+  it("open a source only so far in the stylesheet: the preview's scrolls inside the card, and a Manual block clips to its first lines until Expand shows the whole", () => {
+    const styles = readFileSync(resolve(root, "site", SITE_STYLES), "utf8")
+    // The preview's opened source is a scroller of shadcn's height, not the whole file down the page; collapsed, it has no scrollbar of its own.
+    expect(styles).toContain(".preview-code pre { border: 0; border-radius: 0; background: none; max-height: 18rem; }")
+    expect(styles).toContain(".preview-code[data-collapsed] pre { overflow: hidden; }")
+    // A Manual block clips while collapsed, unless it fits whole; opened, nothing caps it. The old cap on every block under the tabs is gone.
+    expect(styles).toContain(".source[data-collapsed]:not([data-fits]) pre { max-height: 16rem; overflow: hidden; }")
+    expect(styles).toContain(".source:not([data-collapsed]) .expand-foot, .source[data-fits] .expand, .source[data-fits] .expand-foot { display: none; }")
+    expect(styles).not.toContain(".tabs pre")
+    // Without the script the buttons are not there and a block scrolls inside itself, the preview's too.
+    expect(styles).toContain("html:not(.js) .expand, html:not(.js) .expand-foot { display: none; }")
+    expect(styles).toContain("html:not(.js) .source[data-collapsed] pre { max-height: 24rem; overflow: auto; }")
+    expect(styles).toContain("html:not(.js) .preview-code[data-collapsed] pre { overflow: auto; }")
   })
 
   it("offer a command under pnpm, npm, yarn, and bun, changing only the lines that start with npx, each colored", () => {
@@ -1097,6 +1114,14 @@ describe("the docs pages", async () => {
     for (const path of ["components/ui/data-grid.tsx", "hooks/use-flash.ts", "hooks/use-row-store.ts", "lib/row-store.ts", "lib/format.ts"]) {
       expect(grid).toContain(`<p class="file"><code>${path}</code></p>`)
     }
+    // Each file and each stylesheet block opens from its first lines: the pre carries the id Expand controls, and the
+    // fade is a second Expand the Tab key and a screen reader skip. The commands stay bare.
+    expect(grid).toContain('<p class="file"><code>components/ui/data-grid.tsx</code></p>\n<div class="source" data-collapsed>\n<div class="code"><pre id="installation-manual-1"><code class="language-tsx">')
+    expect(grid).toContain('<button type="button" class="expand" aria-expanded="false" aria-controls="installation-manual-1">Expand</button>\n<button type="button" class="expand-foot" tabindex="-1" aria-hidden="true">Expand</button>\n</div>')
+    expect(grid.match(/<div class="source" data-collapsed>/g)).toHaveLength(8)
+    expect(grid).toContain('<p>Add the tokens to your stylesheet:</p>\n<div class="source" data-collapsed>\n<div class="code"><pre id="installation-manual-7"><code class="language-css">')
+    expect(grid).toContain('<p>Append this to your stylesheet:</p>\n<div class="source" data-collapsed>\n<div class="code"><pre id="installation-manual-8"><code class="language-css">')
+    expect(grid).not.toMatch(/<div class="source" data-collapsed>\n<div class="code command">/)
     expect(grid).toContain('<code class="language-tsx">')
     expect(grid).toContain("@/hooks/use-row-store")
     expect(grid).not.toContain("@/registry/")

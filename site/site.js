@@ -457,31 +457,56 @@ function search() {
 }
 
 /**
- * A preview card's source: collapsed, the first lines show under a fade and the body is inert, so a screen reader
- * and the Tab key meet the button and not a page of code; View Code opens it, Collapse closes it again.
+ * A source that opens: the preview card's, under View Code, and a Manual block's, under Expand. Collapsed, the first
+ * lines show under a fade and the code is inert, so a screen reader and the Tab key meet the button and not a page of
+ * code; open, the button reads Collapse and closes it again. The pane is the button's collapsed ancestor, found before
+ * anything opens it. A Manual block has two things more. Its fade is a second button that opens it, for the mouse; the
+ * Tab key and the accessibility tree skip it, since Expand already stands for it. And a block short enough to show
+ * whole while collapsed has nothing to expand: measured against the clip once the Manual panel opens and lays it out
+ * (hidden, it has no height), it drops its clip and its buttons, and its code stays reachable. Its lines stand as tall
+ * whatever font draws them, so the measure holds.
  */
-function viewCode(button) {
-  const pane = button.closest(".preview-code")
+function collapsible(button) {
+  const pane = button.closest("[data-collapsed]")
   const body = document.getElementById(button.getAttribute("aria-controls"))
   if (!pane || !body) return
-  const set = (open, pressed) => {
+  const closed = button.textContent
+  let open = false
+  let fits = false
+  const apply = () => {
     pane.toggleAttribute("data-collapsed", !open)
+    pane.toggleAttribute("data-fits", fits)
     button.setAttribute("aria-expanded", String(open))
-    button.textContent = open ? "Collapse" : "View Code"
-    body.inert = !open
-    // Opened by a press, the source takes focus: the button has moved to the foot of the code, so from here the
-    // next Tab meets the copy button and then Collapse, in reading order, instead of skipping past both.
-    if (open && pressed) body.focus({ preventScroll: true })
+    button.textContent = open ? "Collapse" : closed
+    body.inert = !open && !fits
   }
-  set(false, false)
-  button.addEventListener("click", () => set(pane.hasAttribute("data-collapsed"), true))
+  const set = (to) => {
+    open = to
+    apply()
+    // Opened by a press, the focus has somewhere to be. The preview's source takes it, since its button has moved from
+    // over the code to the foot of it: from there the next Tab meets the copy button and then Collapse, in reading
+    // order, instead of skipping past both. The Manual's Expand keeps it, reading Collapse now, also after a press on
+    // the fade, which is gone.
+    if (open) (button.classList.contains("view-code") ? body : button).focus({ preventScroll: true })
+  }
+  apply()
+  button.addEventListener("click", () => set(!open))
+  for (const foot of pane.querySelectorAll(".expand-foot")) foot.addEventListener("click", () => set(true))
+  if (pane.classList.contains("source")) {
+    new ResizeObserver(() => {
+      if (!open && !fits && body.clientHeight && body.scrollHeight <= body.clientHeight) {
+        fits = true
+        apply()
+      }
+    }).observe(body)
+  }
 }
 
 addEventListener("DOMContentLoaded", () => {
   menu()
   versions()
   search()
-  for (const button of document.querySelectorAll(".view-code")) viewCode(button)
+  for (const button of document.querySelectorAll(".view-code, .expand")) collapsible(button)
   // Tabbed cards: the Installation's Command / Manual. The card's bar is its own first child tablist; a
   // package-manager bar inside one of its panels is wired separately below.
   for (const card of document.querySelectorAll("[data-tabs]")) {

@@ -496,9 +496,10 @@ export function highlighted(escaped: string, language: string | undefined): stri
  */
 export function codeBlocks(html: string): string {
   let blocks = 0
-  return html.replace(/<pre><code( class="language-([\w-]+)")?>([\s\S]*?)<\/code><\/pre>/g, (_block: string, attributes: string | undefined, language: string | undefined, code: string) => {
+  return html.replace(/<pre( [^>]*)?><code( class="language-([\w-]+)")?>([\s\S]*?)<\/code><\/pre>/g, (_block: string, pre: string | undefined, attributes: string | undefined, language: string | undefined, code: string) => {
     const colored = (text: string) => highlighted(text, language) ?? text
-    if (!COMMAND_LINE.test(code)) return `<div class="code"><pre><code${attributes ?? ""}>${colored(code)}</code></pre>${COPY_BUTTON}</div>`
+    // The pre keeps its attributes: the id a Manual block's Expand controls. A command's panels have ids of their own.
+    if (!COMMAND_LINE.test(code)) return `<div class="code"><pre${pre ?? ""}><code${attributes ?? ""}>${colored(code)}</code></pre>${COPY_BUTTON}</div>`
     const id = `pm-${++blocks}`
     const tabs = PACKAGE_MANAGERS.map(
       ({ name }) =>
@@ -931,9 +932,9 @@ export function previewThemePalettes(themes: RegistryItem[]): string {
 /**
  * The card on an item's page, for the item's own demo at the top or a variant's where the doc places it: the demo
  * running in a frame with room around it (the embed page centers it and keeps the frame at least the card's height),
- * and its source under the frame, the first lines showing under a fade until View Code opens the rest, shadcn's
- * shape. The iframe is sized by the message the embed posts; `site.js` wires the button and keeps the collapsed
- * source inert. A theme's own card shows its stylesheet, not a demo's source.
+ * and its source under the frame, the first lines showing under a fade until View Code opens the rest, which scrolls
+ * inside the card, shadcn's shape. The iframe is sized by the message the embed posts; `site.js` wires the button and
+ * keeps the collapsed source inert. A theme's own card shows its stylesheet, not a demo's source.
  */
 export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
   const name = demo.name
@@ -1037,10 +1038,25 @@ export function registryCss(css: Record<string, unknown>, depth = 0): string {
 /**
  * The Installation section of an item's page, in shadcn's shape. Command is `shadcn add` with the tag pinned, under
  * the reader's package manager. Manual is the same install by hand: the packages, the shadcn built-ins the item
- * composes, every file at the path it lands on with a consumer's imports, and the CSS the command appends.
+ * composes, every file at the path it lands on with a consumer's imports, and the CSS the command appends, the files
+ * and the CSS each collapsed to their first lines until Expand opens the whole.
  */
 export function installationSection(item: RegistryItem, tag: string, sources: Sources): string {
   const bash = (code: string) => `<pre><code class="language-bash">${escapeHtml(code)}</code></pre>`
+  // A block to copy from, a file or the stylesheet, shadcn's shape: collapsed to its first lines under a fade until
+  // Expand opens the whole of it, however long. site.js wires the buttons (the second is the fade, for the mouse),
+  // keeps the collapsed code inert, and takes the buttons off a block that already shows whole.
+  let blocks = 0
+  const expandable = (language: string, code: string) => {
+    const id = `installation-manual-${++blocks}`
+    return [
+      `<div class="source" data-collapsed>`,
+      `<pre id="${id}"><code class="language-${language}">${escapeHtml(code)}</code></pre>`,
+      `<button type="button" class="expand" aria-expanded="false" aria-controls="${id}">Expand</button>`,
+      `<button type="button" class="expand-foot" tabindex="-1" aria-hidden="true">Expand</button>`,
+      `</div>`,
+    ].join("\n")
+  }
   const manual: string[] = []
   const packages = (item.dependencies ?? []).map(packageName)
   if (packages.length) manual.push(`<p>Install the dependencies:</p>`, bash(`npm install ${packages.join(" ")}`))
@@ -1052,13 +1068,13 @@ export function installationSection(item: RegistryItem, tag: string, sources: So
     const source = sources.get(file.path)
     if (source === undefined) throw new Error(`${item.name} installs ${file.path}, which the checkout does not have`)
     const language = file.path.endsWith(".tsx") ? "tsx" : "ts"
-    manual.push(`<p class="file"><code>${escapeHtml(consumerPath(file))}</code></p>`, `<pre><code class="language-${language}">${escapeHtml(source)}</code></pre>`)
+    manual.push(`<p class="file"><code>${escapeHtml(consumerPath(file))}</code></p>`, expandable(language, source))
   }
   if (item.cssVars) {
     const theme = item.type === "registry:theme"
-    manual.push(`<p>${theme ? "Replace the variables in your stylesheet with these:" : "Add the tokens to your stylesheet:"}</p>`, `<pre><code class="language-css">${escapeHtml(themeCss(item))}</code></pre>`)
+    manual.push(`<p>${theme ? "Replace the variables in your stylesheet with these:" : "Add the tokens to your stylesheet:"}</p>`, expandable("css", themeCss(item)))
   }
-  if (item.css) manual.push(`<p>Append this to your stylesheet:</p>`, `<pre><code class="language-css">${escapeHtml(registryCss(item.css))}</code></pre>`)
+  if (item.css) manual.push(`<p>Append this to your stylesheet:</p>`, expandable("css", registryCss(item.css)))
   return [
     `<h2 id="installation"><a href="#installation">Installation</a></h2>`,
     `<div class="tabs" data-tabs>`,
