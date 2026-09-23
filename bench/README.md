@@ -38,3 +38,16 @@ Same machine, headless Chromium. The `arrivals` scenario (`just bench --scenario
 Every frame was one vsync. The script p50 is the quiet eight seconds; the p99 and the max are what a frame with about seventeen arrivals cost, and it stayed under half a frame. The threshold was written before the run, in `thresholds/m5-max.arrivals.json`: script p99 at most 8 ms, no dropped frames, no long tasks, the three ids held. Met on the first run; the result is `results/m5-max/2026-09-22T1621-arrivals-1000x10-a2000-2000ms.json`.
 
 A second rig, a WebView2 run on the Windows machine, is the next data point, not a verdict, and waits on time on that machine.
+
+## Apple M5 Max, 2026-09-23: the tick chart
+
+Same machine, headless Chromium. The `chart` scenario (`just bench --scenario chart`): `price-chart` over five thousand one-second bars of history, then fifty ticks a frame, three thousand a second, folded into the open bar through the store with `foldTicks`, one `applyDeltas` a frame, the canvas redrawn once per batch by uPlot. After every frame's commit the run reads the price the header prints and compares it with the last tick folded, because a chart whose picture is a frame ahead of its own readout is lying to one of them. Script time here includes uPlot's redraw of every bar, since `setData` runs on the store's batch; rasterization is the frame's. Milliseconds.
+
+| Run | Ticks per frame | Frames | Dropped | Long tasks | Frame p99 | Script p50 | Script p99 | Script max | Ticks folded | Header held |
+|---|---|---|---|---|---|---|---|---|---|---|
+| First | 50 | 602 | 0 | 0 | 16.8 | 0.4 | 0.6 | 0.7 | 33,100 | no |
+| Second | 50 | 601 | 0 | 0 | 16.8 | 0.3 | 0.5 | 0.6 | 33,100 | yes |
+
+The first run missed on the one thing that was not a number: the header. The chart's first cut kept its columns in a plain React state set from the store's subscription, and React commits such a state a scheduler task later than a `useSyncExternalStore` update, so when the run read the DOM after the store's microtask the header still printed the previous tick. Every other item reads its store through `useSyncExternalStore` and commits in that microtask; the chart now does too (`useStoreMeta` and a memo keyed on the batch version, the canvas fed in a layout effect before paint), and the second run, same shape, held. The threshold was written before the first run, in `thresholds/m5-max.chart.json`: script p99 at most 8 ms, no dropped frames, no long tasks, the header never behind. The first result stays as the record at `results/m5-max/2026-09-23T0330-chart-line-5000-t50.json`; the second is `results/m5-max/2026-09-23T0402-chart-line-5000-t50.json`.
+
+Under a millisecond of script for five thousand bars redrawn sixty times a second is the number uPlot was chosen for. The candle kind (`--kind candles`) draws through a hook with a `fillRect` per bar instead of a path and has not been measured yet.
