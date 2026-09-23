@@ -14,24 +14,40 @@ npx shadcn@latest add tradecn/ui/tradecn-amber --diff
 
 ### The default theme
 
-This is the theme tradecn.dev wears and the one to start from: the terminal look with a day side. The items' own tokens are not this theme's, though. A project that installs items and no theme gets `tradecn-slate`'s marks, green for up, because that is the habit a screen without a theme is read with; installing amber is what moves up to blue.
+Amber is tradecn.dev's default theme: the terminal look with a day side. Installing components without a theme keeps green for up. Those items use slate's light marks and dark marks tuned for shadcn's dark surfaces; installing amber moves up to blue.
 
 ### This one overwrites
 
-Like every theme it replaces shadcn's variables and sets every tradecn token, the typography tokens at their defaults included. It leaves `--font-sans` alone, so your app keeps its type, and it has two palettes: `light` and `dark` differ. Review it with `--diff` first, and restore your stylesheet from version control to go back.
+Like every tradecn theme, it replaces shadcn's palette variables, all eight `--chart-*` colors, sidebar colors, and `--radius`, and sets every tradecn token in both modes. It leaves your app's `--font-sans` alone but resets tradecn's typography tokens to their defaults, including any custom `--tradecn-font-*` stacks.
+
+It also adds the numeric variant on `:root` and the numeric hooks, plus the hyperlegible font remap described in [Typography](typography.md). Restore your stylesheet from version control to undo the installation.
 
 ### Two sides
 
-Light is warm paper (`oklch(0.99 0.004 85)`) with near-black text and an amber primary at 5.1 to 1 on the page, the amber tradecn.dev reads in by day. Dark is the same amber on a near-black (`oklch(0.14 0.005 85)`) rather than pure black, the palette tradecn.dev reads in by night. The lighter floor is a design preference for long sessions, not a measured finding: a little light in the background takes the edge off bright text for readers who see it bloom.
+Light uses warm paper with near-black text. Dark uses near-black surfaces with lighter text and marks. The near-black background is a design preference for long sessions, not a measured legibility benefit.
+
+| Token | Light | Dark |
+|---|---|---|
+| `--background` | `oklch(0.99 0.004 85)` | `oklch(0.14 0.005 85)` |
+| `--foreground` | `oklch(0.2 0.01 85)` | `oklch(0.94 0.03 85)` |
+| `--primary` | `oklch(0.54 0.12 65)` | `oklch(0.78 0.16 70)` |
+| `--up` | `oklch(0.45 0.13 245)` | `oklch(0.66 0.12 240)` |
+| `--down` | `oklch(0.56 0.19 45)` | `oklch(0.78 0.18 45)` |
 
 ### Blue for up
 
-`up` is Okabe and Ito's blue (`oklch(0.5 0.13 245)` in light, `oklch(0.74 0.12 240)` in dark) and `down` their vermilion. Of the pairs in that palette, blue and vermilion are the two that stay furthest apart under protanopia, deuteranopia, and tritanopia alike, and here they are set a step apart in lightness as well (a grayscale ratio of 1.45 to 1 in light and 1.4 to 1 in dark, measured), so the pair survives a grayscale print. It is also a departure from what most Western traders expect, which is why [`tradecn-slate`](tradecn-slate.md) keeps green for up; the research supports this pair, the habit supports that one, and the choice is the desk's. `stale` and `primary` sit near each other in hue here; the badge's word carries the difference. `flat` follows your muted foreground, `panel-active` follows `primary`, `panel-drag-target` follows `ring`, and `panel-error` follows `destructive`.
+Amber adapts the blue and vermilion from [Okabe and Ito's palette](https://jfly.uni-koeln.de/color/) for its two backgrounds. Their guidance combines color with labels, shapes, or patterns. Choose [`tradecn-slate`](tradecn-slate.md) when the desk expects green for up.
+
+The repository's luminance calculation gives the direction pair a grayscale ratio of 1.45 to 1 in light and 1.33 to 1 in dark. Tests require at least 1.3 to 1. Both gaps are below the 3 to 1 threshold for lightness as an additional visual distinction in [WCAG's use-of-color guidance](https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html), so keep direction visible in signs or labels.
+
+`stale` and `primary` sit near each other in hue here; the badge's word carries the difference. `flat` follows your muted foreground, `panel-active` follows `primary`, `panel-drag-target` follows `ring`, and `panel-error` follows `destructive`.
 
 ### The colors are checked
 
-A test converts each `oklch()` value to WCAG relative luminance and fails under 4.5 to 1 for every foreground on its surface and every meaning-bearing color on the background and on a card, in both modes. The tightest pair here is the amber primary on a light card at 4.8 to 1. The browser matrix installs it alone into each of the three consumers and reads each color back out of the page.
+The contrast tests require 4.5 to 1 for the declared text/surface pairs and for `primary`, `up`, `down`, `stale`, `expiring`, `link-1` through `link-4`, `panel-sync`, `destructive`, and `ring` on the background and card, in both modes. They also check foreground text over the soft tints. These checks do not cover every component state or chart color.
+
+The calculated light primary contrast is 5.1 to 1 on the page and 4.8 to 1 on a card. The tightest checked pair is `down` on the light card at 4.6 to 1. The browser matrix installs each theme separately into three consumers and reads every theme color back from the page in both modes.
 
 ### What it does not do
 
-Change a component, load a font, or switch at runtime. It is values in your stylesheet, and the `dark` class is the only switch it knows.
+The theme installs no components, font files, or runtime switcher. Your app controls the `dark` class to select between the installed palettes.
