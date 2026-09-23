@@ -5,41 +5,55 @@ Compare instruments in a matrix of row-minus-column spreads, or list curves and 
 ## Usage
 
 ```tsx
-import { SpreadMatrix, type SpreadInstrument, type SpreadStructure } from "@/components/ui/spread-matrix"
+import { useState } from "react"
 import type { InstrumentConvention } from "@/lib/format"
 import { createRowStore } from "@/lib/row-store"
-```
+import { SpreadMatrix, type SpreadInstrument } from "@/components/ui/spread-matrix"
 
-```tsx
 const T32: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
-const curve: SpreadInstrument[] = [
-  { id: "2Y", label: "2Y", convention: T32 },
+const instruments: SpreadInstrument[] = [
+  { id: "2Y", label: "2Y", convention: { ...T32, tick: 1 / 128 } },
   { id: "5Y", label: "5Y", convention: T32 },
   { id: "10Y", label: "10Y", convention: T32 },
 ]
-const structures: SpreadStructure[] = [
-  { id: "2s10s", label: "2s10s", legs: ["2Y", "10Y"] },
-  { id: "2s5s10s", label: "2s5s10s", legs: ["2Y", "5Y", "10Y"] },
-]
-const quotes = createRowStore<{ id: string; price: number; yield: number }>({ getRowId: (q) => q.id })
-quotes.applyDeltas({ upsert: [
-  { id: "2Y", price: 100.25, yield: 4.25 },
-  { id: "5Y", price: 99.75, yield: 4.125 },
-  { id: "10Y", price: 99.5, yield: 4.375 },
-] })
 
-// Once per frame, patch existing quotes from your feed.
-quotes.applyDeltas({ patch: [{ id: "10Y", fields: { price: 99.515625, yield: 4.375 } }] })
-
-function CurveSpreads() {
-  return <>
-    <SpreadMatrix store={quotes} instruments={curve} label="Curve spreads" />
-    <SpreadMatrix store={quotes} instruments={curve} structures={structures} basis="bps" label="Curve structures" />
-  </>
+function PriceSpreads() {
+  const [store] = useState(() => {
+    const store = createRowStore<{ id: string; price: number }>({ getRowId: (quote) => quote.id })
+    store.applyDeltas({ upsert: [
+      { id: "2Y", price: 100.25 },
+      { id: "5Y", price: 99.75 },
+      { id: "10Y", price: 99.515625 },
+    ] })
+    return store
+  })
+  return <SpreadMatrix store={store} instruments={instruments} label="Price spreads" className="w-fit max-w-full" />
 }
 ```
 
-The first table is the full matrix in ticks; the second lists the two structures in basis points. Both read the same [row store](row-store.md). Seed quotes with `upsert` before patching them: patches for unknown ids are ignored.
+Each cell is the row price minus the column price, counted in the row's tick. The 5Y row under 10Y reads `+15`; the reverse reads `−15`. The 2Y uses a smaller tick, 1/128 instead of 1/64: its spread over 5Y is `+64`, while 5Y over 2Y is `−32`. Matching row and column ids stay blank.
+
+The quotes live in a [row store](row-store.md). Seed them with `upsert` before patching: patches for unknown ids are ignored.
+
+## Yield basis
+
+Set `basis="bps"` to compare yields instead of prices. Supply yields in percent: `4.25` means 4.25%, not 0.0425. The 10Y yield is 12.5 basis points above 2Y, so the 10Y row under 2Y reads `+12.5`. Instrument ticks do not affect this basis.
+
+<!-- demo: spread-matrix-yields -->
+
+## Curves and butterflies
+
+Pass `structures` to list selected combinations instead of every pair. The default curve weights are `[-1, 1]`: 2s10s is 10Y minus 2Y, the opposite order from the matrix's row-minus-column rule. The butterfly weights are `[-1, 2, -1]`: twice 5Y minus 2Y and 10Y. These yields produce `+12.5` bp and `−37.5` bp respectively. Supply `weights` for another combination; in ticks mode, `tick` can override the first leg's tick.
+
+<!-- demo: spread-matrix-structures -->
+
+## Quote updates
+
+The Lower 5Y by one tick button patches its price down by 1/64. The two spreads in its row fall and flash down; the two in its column rise and flash up. The 2Y row counts that change as two of its smaller ticks. Other pairs and the blank diagonal stay quiet. Signs describe the resulting spreads, not the direction of their latest movement.
+
+The changed quotes stay visible after the flashes end. Restore quotes returns to the original prices and lets you repeat the update. These controls stand in for feed batches; there is no background publisher.
+
+<!-- demo: spread-matrix-updates -->
 
 ## API Reference
 

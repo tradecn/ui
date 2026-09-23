@@ -1,4 +1,4 @@
 {
   "frame": "centered",
-  "alignable": ["data-grid", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "quote-panel", "quote-panel-pending", "quote-panel-actions", "quote-panel-limits", "rfq-stack", "rfq-stack-threshold", "rfq-stack-parking", "rfq-stack-updates", "row-store", "row-store-deltas", "row-store-batching", "row-store-views", "depth-ladder", "depth-ladder-updates", "depth-ladder-following"]
+  "alignable": ["data-grid", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates", "quote-panel", "quote-panel-pending", "quote-panel-actions", "quote-panel-limits", "rfq-stack", "rfq-stack-threshold", "rfq-stack-parking", "rfq-stack-updates", "row-store", "row-store-deltas", "row-store-batching", "row-store-views", "depth-ladder", "depth-ladder-updates", "depth-ladder-following", "spread-matrix", "spread-matrix-yields", "spread-matrix-structures", "spread-matrix-updates"]
 }
