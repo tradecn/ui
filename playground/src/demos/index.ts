@@ -4,7 +4,8 @@ import type { ComponentType } from "react"
 // of an item worth a block of its own on the page is a demo of its own, <item>-<variant>.tsx, placed where
 // the item's doc says `<!-- demo: <item>-<variant> -->`. tradecn.dev embeds each one at /preview/<name>/ and
 // shows its source under the Code tab, so a demo is written to be read as well as run, and kept small enough
-// to paste whole. Anything shared lives under demos/shared/, which the glob skips.
+// to paste whole; where it repeats a control, each copy carries its own accessible name (a `label` per row),
+// since a screen reader walks them as a list. Anything shared lives under demos/shared/, which the glob skips.
 type Loader = () => Promise<{ default: ComponentType }>
 
 const modules = import.meta.glob<{ default: ComponentType }>("./*.tsx")
