@@ -235,7 +235,11 @@ describe("a theme on the site", () => {
       // The palettes come after the bundle's stylesheet, so they win the cascade.
       expect(html.indexOf("embed-def.css")).toBeLessThan(html.indexOf("--background:"))
     }
-    expect(formatPage).toContain('<div id="root" data-item="format"')
+    expect(formatPage).toContain('<div id="root" data-item="format" data-frame="card">')
+    // The desk fills its frame on the opening page; every other demo is centered in a card's frame.
+    expect(pages.get(`preview/${DESK_DEMO}/index.html`)).toContain(`<div id="root" data-item="${DESK_DEMO}" data-frame="desk">`)
+    expect(slatePage).toContain('data-frame="card"')
+    for (const [path, html] of pages) expect(html, path).toMatch(/ data-frame="(card|desk)">/)
   })
 
   it("writes no preview pages without an embed build", async () => {
@@ -248,15 +252,18 @@ describe("the preview card", () => {
   const doc: Doc = { slug: "flash-cell", path: "/docs/flash-cell/", label: "Flash Cell", source: "flash-cell.md", title: "flash-cell", description: "", html: "<h1 id=\"flash-cell\">flash-cell</h1>\n<p>What it is.</p>\n<pre><code>usage</code></pre>\n", item: registry.items.find((item) => item.name === "flash-cell") }
   const demo = { name: "flash-cell", source: 'import { FlashCell } from "@/registry/tradecn/ui/flash-cell"\n<b>', code: 'import { FlashCell } from "@/components/ui/flash-cell"\n<b>' }
 
-  it("frames the item's embed page and shows its source, escaped, under Code", () => {
+  it("frames the item's embed page and puts its source, escaped, under the frame behind View Code", () => {
     const block = previewBlock(doc, demo, "v9.9.9")
-    expect(block).toContain('<iframe src="/preview/flash-cell/" title="flash-cell, live" loading="lazy" data-preview="flash-cell">')
-    expect(block).toContain('<a class="preview-open" href="/preview/flash-cell/" target="_blank" rel="noopener">')
-    expect(block).toContain('<code class="language-tsx">import { FlashCell } from &quot;@/components/ui/flash-cell&quot;\n&lt;b&gt;</code>')
+    expect(block).toContain('<div class="preview" data-preview="flash-cell">')
+    expect(block).toContain('<div class="preview-live">\n<iframe src="/preview/flash-cell/" title="flash-cell, live" loading="lazy" data-preview="flash-cell"></iframe>\n</div>')
+    expect(block).toContain('<div class="preview-code" data-collapsed>\n<div class="preview-code-body" id="preview-flash-cell-source" tabindex="-1">\n<pre><code class="language-tsx">import { FlashCell } from &quot;@/components/ui/flash-cell&quot;\n&lt;b&gt;</code></pre>')
     expect(block).toContain("https://github.com/tradecn/ui/blob/v9.9.9/playground/src/demos/flash-cell.tsx")
-    expect(block).toContain('<div class="preview" data-preview="flash-cell" data-tabs>')
-    expect(block).toContain('role="tab" id="preview-flash-cell-tab-live" aria-selected="true" aria-controls="preview-flash-cell-live"')
-    expect(block).toContain('id="preview-flash-cell-code" role="tabpanel" aria-labelledby="preview-flash-cell-tab-code" hidden')
+    expect(block).toContain('<button type="button" class="view-code" aria-expanded="false" aria-controls="preview-flash-cell-source">View Code</button>')
+    // No tabs and no link out: the frame is the demo, and the source's own line names the file at the tag.
+    expect(block).not.toContain('role="tab')
+    expect(block).not.toContain("Open in a new tab")
+    // The code comes before its source line, so the collapsed peek is code and not a path.
+    expect(block.indexOf("<pre>")).toBeLessThan(block.indexOf('<p class="preview-source">'))
   })
 
   it("shows a theme's stylesheet under Code, not the sample's source", () => {
@@ -269,9 +276,9 @@ describe("the preview card", () => {
 
   it("frames a variant's own embed page under the variant's name, with the variant's own file under Code", () => {
     const block = previewBlock(doc, { name: "flash-cell-quiet", source: "x", code: "quiet" }, "v9.9.9")
-    expect(block).toContain('<div class="preview" data-preview="flash-cell-quiet" data-tabs>')
+    expect(block).toContain('<div class="preview" data-preview="flash-cell-quiet">')
     expect(block).toContain('<iframe src="/preview/flash-cell-quiet/" title="flash-cell-quiet, live" loading="lazy" data-preview="flash-cell-quiet">')
-    expect(block).toContain('role="tab" id="preview-flash-cell-quiet-tab-code" aria-selected="false" aria-controls="preview-flash-cell-quiet-code"')
+    expect(block).toContain('aria-controls="preview-flash-cell-quiet-source">View Code</button>')
     expect(block).toContain("<code>playground/src/demos/flash-cell-quiet.tsx</code>, at <a href=\"https://github.com/tradecn/ui/blob/v9.9.9/playground/src/demos/flash-cell-quiet.tsx\">v9.9.9</a>")
     expect(block).toContain('<code class="language-tsx">quiet</code>')
     // Only a theme's own demo shows the stylesheet; a variant placed on a theme's page would show its source like any other.
@@ -285,7 +292,7 @@ describe("the preview card", () => {
     const embed = { dir: "", script: "/preview/assets/e.js", styles: [] }
     const html = withDemos(placed, { demos, embed }, "v9.9.9")
     // The card takes the line's place, as marked leaves it: its own block, right before the next heading.
-    expect(html).toContain('<p>No flash.</p>\n<div class="preview" data-preview="flash-cell-quiet" data-tabs>')
+    expect(html).toContain('<p>No flash.</p>\n<div class="preview" data-preview="flash-cell-quiet">')
     expect(html).toMatch(/<\/div>\n<h2 id="api-reference">/)
     expect(html).not.toContain("<!--")
     expect(framedIn(placed.html)).toEqual(["flash-cell-quiet"])
@@ -316,9 +323,9 @@ describe("the preview card", () => {
       const html = withEmbed.get(`${doc.path.slice(1)}index.html`) ?? ""
       if (doc.item) {
         expect(html).toContain(`<iframe src="/preview/${doc.slug}/"`)
-        // The card sits between the opening paragraph and Installation, and its Code tab's source is a code block like any other: wrapped, with its copy button.
+        // The card sits between the opening paragraph and Installation, and the source under its frame is a code block like any other: wrapped, with its copy button.
         expect(html.indexOf('<div class="preview"')).toBeLessThan(html.indexOf('<h2 id="installation">'))
-        expect(html).toMatch(/class="preview-code" id="preview-[\w-]+-code"[\s\S]*?<div class="code"><pre><code class="language-(tsx|css)">[\s\S]*?<\/pre><button type="button" class="copy"/)
+        expect(html).toMatch(/class="preview-code" data-collapsed>\n<div class="preview-code-body" id="preview-[\w-]+-source" tabindex="-1">\n<div class="code"><pre><code class="language-(tsx|css)">[\s\S]*?<\/pre><button type="button" class="copy"/)
       } else if (demos.has(doc.slug)) {
         // A doc with a demo of its own (Typography) gets the card and no Installation.
         expect(html).toContain(`<iframe src="/preview/${doc.slug}/"`)
@@ -336,7 +343,7 @@ describe("the preview card", () => {
       return index
     }
     for (const name of ["countdown-compact", "countdown-thresholds", "countdown-expired"]) {
-      const card = at(`<div class="preview" data-preview="${name}" data-tabs>`)
+      const card = at(`<div class="preview" data-preview="${name}">`)
       expect(card).toBeGreaterThan(at('<h2 id="usage">'))
       expect(card).toBeLessThan(at('<h2 id="api-reference">'))
       expect(countdown).toContain(`<iframe src="/preview/${name}/" title="${name}, live" loading="lazy" data-preview="${name}">`)
@@ -356,14 +363,29 @@ describe("the preview card", () => {
     }
   })
 
-  it("has the tab and height plumbing in the site script, and the layout in the stylesheet", () => {
+  it("has the View Code and height plumbing in the site script, and the layout in the stylesheet", () => {
     const docs = template(DOCS_TEMPLATE)
     expect(docs).toContain('<script src="/site.js"></script>')
     expect(docs).toContain('<link rel="stylesheet" href="/site.css">')
     const styles = readFileSync(resolve(root, "site", SITE_STYLES), "utf8")
     expect(styles).toContain("article > :not(.preview) { max-width: 72ch; }")
     expect(styles).toContain(".showcase iframe {")
+    // Collapsed, the source shows its first lines and hides its copy button; without a script it is simply open.
+    expect(styles).toContain(".preview-code[data-collapsed] .preview-code-body { max-height: 8rem; overflow: hidden;")
+    expect(styles).toContain(".preview-code[data-collapsed] .copy, .preview-code[data-collapsed] .preview-source { display: none; }")
+    expect(styles).toContain("html:not(.js) .view-code { display: none; }")
+    // The embed page centers a card's demo in at least the card's height, and lets the desk fill its frame.
+    const preview = template(PREVIEW_TEMPLATE)
+    expect(preview).toContain('<div id="root" data-item="{{item}}" data-frame="{{frame}}">')
+    // Centered on the height, stretched on the width: a demo with no width of its own takes the frame's, and one narrower than the frame centers itself.
+    expect(preview).toContain('#root[data-frame="card"] { box-sizing: border-box; min-height: 22rem; display: flex; flex-direction: column; justify-content: center;')
+    expect(preview).not.toContain("align-items: center")
+    expect(preview).toContain('#root[data-frame="desk"] {')
     const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
+    expect(script).toContain('document.querySelectorAll(".view-code")')
+    expect(script).toContain("body.inert = !open")
+    expect(script).toContain("if (open && pressed) body.focus({ preventScroll: true })")
+    expect(script).toContain('button.textContent = open ? "Collapse" : "View Code"')
     expect(script).toContain('event.data.type !== "tradecn-preview"')
     expect(script).toContain("event.origin !== location.origin")
     // Every preview frame, the docs page's card and the opening page's showcase alike, is sized and asked.

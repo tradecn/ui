@@ -884,8 +884,11 @@ export function previewThemePalettes(themes: RegistryItem[]): string {
 }
 
 /**
- * The Preview / Code card on an item's page, for the item's own demo at the top or a variant's where the doc places it.
- * The iframe is sized by the message the embed posts. A theme's own card shows its stylesheet, not a demo's source.
+ * The card on an item's page, for the item's own demo at the top or a variant's where the doc places it: the demo
+ * running in a frame with room around it (the embed page centers it and keeps the frame at least the card's height),
+ * and its source under the frame, the first lines showing under a fade until View Code opens the rest, shadcn's
+ * shape. The iframe is sized by the message the embed posts; `site.js` wires the button and keeps the collapsed
+ * source inert. A theme's own card shows its stylesheet, not a demo's source.
  */
 export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
   const name = demo.name
@@ -893,21 +896,19 @@ export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
   const code = theme && doc.item ? [themeCss(doc.item), doc.item.css ? registryCss(doc.item.css) : ""].filter(Boolean).join("\n\n") : demo.code
   const language = theme ? "css" : "tsx"
   const codeSource = theme ? `what <code>${escapeHtml(name)}</code> writes into your stylesheet` : `<code>playground/src/demos/${escapeHtml(name)}.tsx</code>`
-  // Ids carry the demo's name, so a page could hold more than one card.
+  // Ids carry the demo's name, so a page holds a card per variant beside the item's own.
   const id = `preview-${escapeHtml(name)}`
   return [
-    `<div class="preview" data-preview="${escapeHtml(name)}" data-tabs>`,
-    `<div class="preview-bar" role="tablist" aria-label="${escapeHtml(name)} preview">`,
-    `<button type="button" role="tab" id="${id}-tab-live" aria-selected="true" aria-controls="${id}-live">Preview</button>`,
-    `<button type="button" role="tab" id="${id}-tab-code" aria-selected="false" aria-controls="${id}-code">Code</button>`,
-    `<a class="preview-open" href="/${PREVIEW_PATH}/${escapeHtml(name)}/" target="_blank" rel="noopener">Open in a new tab</a>`,
-    `</div>`,
-    `<div class="preview-live" id="${id}-live" role="tabpanel" aria-labelledby="${id}-tab-live">`,
+    `<div class="preview" data-preview="${escapeHtml(name)}">`,
+    `<div class="preview-live">`,
     `<iframe src="/${PREVIEW_PATH}/${escapeHtml(name)}/" title="${escapeHtml(name)}, live" loading="lazy" data-preview="${escapeHtml(name)}"></iframe>`,
     `</div>`,
-    `<div class="preview-code" id="${id}-code" role="tabpanel" aria-labelledby="${id}-tab-code" hidden>`,
-    `<p class="preview-source">${codeSource}, at <a href="${REPO_URL}/blob/${tag}/playground/src/demos/${escapeHtml(name)}.tsx">${tag}</a>.</p>`,
+    `<div class="preview-code" data-collapsed>`,
+    `<div class="preview-code-body" id="${id}-source" tabindex="-1">`,
     `<pre><code class="language-${language}">${escapeHtml(code)}</code></pre>`,
+    `<p class="preview-source">${codeSource}, at <a href="${REPO_URL}/blob/${tag}/playground/src/demos/${escapeHtml(name)}.tsx">${tag}</a>.</p>`,
+    `</div>`,
+    `<button type="button" class="view-code" aria-expanded="false" aria-controls="${id}-source">View Code</button>`,
     `</div>`,
     `</div>`,
   ].join("\n")
@@ -1228,6 +1229,8 @@ export function previewPages(registry: Registry, themeSource: Registry, previews
         html: render(template, {
           ...values,
           item: escapeHtml(demo.name),
+          // A card's frame centers the demo with room around it; the desk fills its frame on the opening page.
+          frame: demo.name === DESK_DEMO ? "desk" : "card",
           darkPalette: fullPalette(theme ?? site, "dark"),
           lightPalette: fullPalette(theme ?? site, "light"),
           themePalettes: theme ? "" : others,

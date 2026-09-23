@@ -456,12 +456,34 @@ function search() {
   })
 }
 
+/**
+ * A preview card's source: collapsed, the first lines show under a fade and the body is inert, so a screen reader
+ * and the Tab key meet the button and not a page of code; View Code opens it, Collapse closes it again.
+ */
+function viewCode(button) {
+  const pane = button.closest(".preview-code")
+  const body = document.getElementById(button.getAttribute("aria-controls"))
+  if (!pane || !body) return
+  const set = (open, pressed) => {
+    pane.toggleAttribute("data-collapsed", !open)
+    button.setAttribute("aria-expanded", String(open))
+    button.textContent = open ? "Collapse" : "View Code"
+    body.inert = !open
+    // Opened by a press, the source takes focus: the button has moved to the foot of the code, so from here the
+    // next Tab meets the copy button and then Collapse, in reading order, instead of skipping past both.
+    if (open && pressed) body.focus({ preventScroll: true })
+  }
+  set(false, false)
+  button.addEventListener("click", () => set(pane.hasAttribute("data-collapsed"), true))
+}
+
 addEventListener("DOMContentLoaded", () => {
   menu()
   versions()
   search()
-  // Tabbed cards: the preview's Preview / Code and the Installation's Command / Manual. The card's bar is its
-  // own first child tablist; a package-manager bar inside one of its panels is wired separately below.
+  for (const button of document.querySelectorAll(".view-code")) viewCode(button)
+  // Tabbed cards: the Installation's Command / Manual. The card's bar is its own first child tablist; a
+  // package-manager bar inside one of its panels is wired separately below.
   for (const card of document.querySelectorAll("[data-tabs]")) {
     const list = card.querySelector(":scope > [role='tablist']")
     if (!list) continue
