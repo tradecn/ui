@@ -37,7 +37,7 @@ export default function DataGridUpdatesDemo() {
         <button type="button" className="rounded border px-2 py-1" onClick={receive}>Receive a batch</button>
         <span>Batches received: {received}</span>
       </div>
-      <div className="h-56 w-full">
+      <div className="h-56 w-fit max-w-full">
         <DataGrid store={store} columns={columns} preset="rfq" label="Updating inquiries" />
       </div>
     </>

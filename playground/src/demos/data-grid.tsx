@@ -28,5 +28,5 @@ export default function DataGridDemo() {
     store.applyDeltas({ upsert: rows })
     return store
   })
-  return <div className="h-40 w-full"><DataGrid store={store} columns={columns} preset="rfq" label="Open inquiries" /></div>
+  return <div className="h-40 w-fit max-w-full"><DataGrid store={store} columns={columns} preset="rfq" label="Open inquiries" /></div>
 }

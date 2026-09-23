@@ -31,7 +31,7 @@ export default function DataGridTotalsDemo() {
       <div data-demo-controls className="text-xs lining-nums tabular-nums">
         <label className="flex items-center gap-2"><input type="checkbox" checked={largeOnly} onChange={(event) => setLargeOnly(event.target.checked)} />Only sizes of at least 10mm</label>
       </div>
-      <div className="h-48 w-full">
+      <div className="h-48 w-fit max-w-full">
         <DataGrid store={store} columns={columns} preset="rfq" label="Inquiry totals" filter={largeOnly ? largeInquiry : undefined} footer={footer} />
       </div>
     </>
