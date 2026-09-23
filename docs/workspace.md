@@ -5,26 +5,37 @@ Dock, tab, float, and pop out panels with dockview. Each panel keeps its kind, t
 ## Usage
 
 ```tsx
-import { Workspace, useWorkspacePanel } from "@/components/ui/workspace"
-import { LinkGroupDot, PanelActions, PanelContent, PanelHeader, SymbolTag } from "@/components/ui/panel"
+import { PanelContent } from "@/components/ui/panel"
+import { Workspace } from "@/components/ui/workspace"
+
+function Orders() {
+  return <PanelContent className="p-3">No open orders.</PanelContent>
+}
+
+function Positions() {
+  return <PanelContent className="p-3">No positions.</PanelContent>
+}
+
+const PANELS = { orders: Orders, positions: Positions }
+
+export default function WorkspaceDemo() {
+  return (
+    <Workspace
+      className="h-64 rounded-md border border-border"
+      panels={PANELS}
+      watermark="No panels."
+      seed={(api) => {
+        const orders = api.addPanel({ kind: "orders", title: "Orders" })
+        api.addPanel({ kind: "positions", title: "Positions", position: { reference: orders, direction: "right" } })
+      }}
+    />
+  )
+}
 ```
 
-```tsx
-const PANELS = { book: Book, chart: Chart }
+Drag either tab beside the other panel to split the space, or onto its tab strip to combine them. The close button removes a panel.
 
-<Workspace
-  className="h-screen"
-  panels={PANELS}
-  defaultLayout={localStorage.getItem("layout")}
-  onLayoutChange={(layout) => localStorage.setItem("layout", JSON.stringify(layout))}
-  seed={(api) => {
-    const book = api.addPanel({ kind: "book", state: { symbol: "ZN" } })
-    api.addPanel({ kind: "chart", position: { reference: book, direction: "right" } })
-  }}
-/>
-```
-
-Keep `panels` stable with a module constant or `useMemo`; replacing it re-renders every panel. The example reads browser storage, so run it on the client. `workspace.tsx` imports dockview's stylesheet.
+Keep `panels` stable with a module constant or `useMemo`; replacing it re-renders every panel. Give the workspace a height and let it fill the available width. `workspace.tsx` imports dockview's stylesheet.
 
 ## Composition
 
@@ -39,6 +50,38 @@ Workspace
 ```
 
 `Workspace` supplies the `Panel` wrapper. Your registered component renders its header and content and calls `useWorkspacePanel()` for state and actions.
+
+## Saved layouts
+
+Use `defaultLayout` to restore the dock arrangement and each panel's JSON state. Here, changing a starting symbol, moving a tab, or closing a panel saves to browser storage. Wait for the save count to increase, then reload the page to restore it. Reset layout puts both panels and their initial symbols back.
+
+This example reads `localStorage`, so mount it on the client. The save callback runs after changes settle; see [Saving is yours](#saving-is-yours) for debounce and page-close limits.
+
+<!-- demo: workspace-saved-layout -->
+
+## Linked panels
+
+Put panels in the same link group to share a symbol. Edit either symbol to `ZN`, `ZB`, or `ES` and press Enter; both panels follow. Shift-click a group numbered 1 to unlink that panel, then change its symbol independently.
+
+`useWorkspacePanel` supplies each panel's identity and starting state. `useLinkGroup` handles live updates and writes symbol and group changes back to that state. `transport={null}` keeps this example's links within its provider; omit it to use the default cross-window channel.
+
+<!-- demo: workspace-linked-panels -->
+
+## Keyboard actions
+
+Click a tab to focus its panel. Press `r` to increment that panel's refresh-request counter, `]` or `[` to focus the next or previous panel, `n` then `q` to add one, and `w` to close the active panel. Refresh is a local counter here; a real handler would request quotes from your feed.
+
+Declare bindings on `HotkeysProvider`, then attach handlers with `useHotkey`. Workspace supplies each panel's `panel:quotes` scope, so the two instances share a binding without sharing its handler. The global handlers use the API received by `onReady`.
+
+<!-- demo: workspace-keyboard -->
+
+## Panel actions
+
+Float moves a panel over the dock. Pop out moves it into a separate window; closing that window returns it. Maximize / restore expands a docked group and puts it back. Type a note before moving a panel to see its React state survive; Reset layout creates fresh panels.
+
+Serve an empty same-origin `/popout.html` page, such as `public/popout.html` in Vite, before using Pop out. The preview supplies this file. See [Floating, popout, maximize](#floating-popout-maximize) for window, styling, and restoration limits.
+
+<!-- demo: workspace-panel-actions -->
 
 ## API Reference
 
@@ -76,39 +119,7 @@ Each panel is a `region` named by its title, with hotkey scope `panel:<kind>` an
 | `float` | `(box?: WorkspaceBox) => void` | Moves this panel into a floating group. |
 | `popout` | `() => Promise<boolean>` | Opens a popout; see the window requirements below. |
 
-For linked symbols and panel hotkeys, mount `LinkGroupProvider` and `HotkeysProvider` above the workspace (see [`panel`](panel.md) and [`use-hotkeys`](use-hotkeys.md)):
-
-```tsx
-import { Button } from "@/components/ui/button"
-import { useHotkey } from "@/hooks/use-hotkeys"
-import { useLinkGroup } from "@/hooks/use-link-group"
-import type { LinkGroup } from "@/lib/link-group"
-
-function Book() {
-  const panel = useWorkspacePanel()
-  const link = useLinkGroup({
-    source: panel.id,
-    defaultGroup: (panel.state.group as LinkGroup) ?? null,
-    defaultSymbol: (panel.state.symbol as string) ?? null,
-    onGroupChange: (group) => panel.setState({ group }),
-    onSymbolChange: (symbol) => panel.setState({ symbol }),
-  })
-  useHotkey("book.cancel", cancelSelected)
-  return (
-    <>
-      <PanelHeader>
-        <SymbolTag value={link.symbol} onCommit={link.setSymbol} />
-        <LinkGroupDot group={link.group} onGroupChange={link.setGroup} />
-        <PanelActions>
-          <Button size="icon-xs" variant="ghost" onClick={() => panel.float()}>float</Button>
-          <Button size="icon-xs" variant="ghost" onClick={() => panel.popout()}>pop out</Button>
-        </PanelActions>
-      </PanelHeader>
-      <PanelContent>{/* rows for link.symbol */}</PanelContent>
-    </>
-  )
-}
-```
+Mount `LinkGroupProvider` for [linked symbols](#linked-panels) and `HotkeysProvider` for [keyboard actions](#keyboard-actions). Neither provider is needed for basic docking. See [`panel`](panel.md) for header composition and [`use-hotkeys`](use-hotkeys.md) for binding behavior.
 
 Drag panels by their tabs. `PanelHeader` holds controls but is not a workspace drag handle. Tabs show the title and a close button. No tab context menu is enabled; use your shadcn `context-menu` or configure dockview's own menu through `api.dockview`.
 
@@ -136,7 +147,7 @@ Keep small settings in `state`: a symbol, link group, or view option. `Workspace
 
 Runtime values are cleaned through JSON serialization. Function-valued object properties disappear, dates become strings, and an unserializable object becomes `{}`. These non-JSON values are outside the declared input type.
 
-In the example, `useLinkGroup` treats the restored symbol as a seed. A real group write, including one from another window, takes precedence.
+In [Linked panels](#linked-panels), `useLinkGroup` treats the starting symbol as a seed. A real group write, including one from another window, takes precedence.
 
 ### The layout, and what it leaves out
 

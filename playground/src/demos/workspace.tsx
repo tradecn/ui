@@ -1,151 +1,26 @@
-import { useMemo, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { HotkeysProvider, useHotkey } from "@/registry/tradecn/hooks/use-hotkeys"
-import { LinkGroupProvider, useLinkGroup } from "@/registry/tradecn/hooks/use-link-group"
-import type { HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
-import type { LinkGroup } from "@/registry/tradecn/lib/link-group"
-import type { WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
-import { LinkGroupDot, PanelActions, PanelContent, PanelHeader, SymbolTag } from "@/registry/tradecn/ui/panel"
-import { Sparkline } from "@/registry/tradecn/ui/sparkline"
-import { Workspace, useWorkspacePanel, type WorkspaceApi } from "@/registry/tradecn/ui/workspace"
+import { PanelContent } from "@/registry/tradecn/ui/panel"
+import { Workspace } from "@/registry/tradecn/ui/workspace"
 
-const BINDINGS: HotkeyBinding[] = [
-  { id: "workspace.next", keys: "]", scope: "global", description: "Next panel" },
-  { id: "workspace.previous", keys: "[", scope: "global", description: "Previous panel" },
-  { id: "workspace.book", keys: "n b", scope: "global", description: "New book" },
-  { id: "workspace.chart", keys: "n c", scope: "global", description: "New chart" },
-  { id: "workspace.close", keys: "w", scope: "global", description: "Close the active panel" },
-  { id: "book.next", keys: "j", scope: "panel:book", description: "Next order", repeat: true },
-  { id: "book.cancel", keys: "x", scope: "panel:book", description: "Cancel the selected order" },
-]
-
-const KNOWN = new Set(["ZN", "ZB", "ZF", "ZT", "ES", "NQ", "CL", "GC"])
-const ORDERS = ["BUY 5mm 99-16+", "SELL 2mm 99-17", "BUY 10mm 99-15+"]
-
-// A made-up price path per symbol, the same one every time.
-function series(symbol: string): number[] {
-  const seed = [...symbol].reduce((n, c) => n + c.charCodeAt(0), 0)
-  const out: number[] = []
-  let px = 100
-  for (let i = 0; i < 60; i++) out.push((px += Math.sin(i / 4 + seed) * 0.4 + Math.cos(i / 9 + seed) * 0.2))
-  return out
+function Orders() {
+  return <PanelContent className="p-3">No open orders.</PanelContent>
 }
 
-function Actions() {
-  const panel = useWorkspacePanel()
-  return (
-    <PanelActions>
-      <Button size="sm" variant="ghost" className="h-5 px-1.5 text-xs" onClick={() => panel.float()} disabled={panel.location !== "grid"}>
-        float
-      </Button>
-      <Button size="sm" variant="ghost" className="h-5 px-1.5 text-xs" onClick={() => panel.popout()} disabled={panel.location === "popout"}>
-        pop out
-      </Button>
-      <Button size="sm" variant="ghost" className="h-5 px-1.5 text-xs" onClick={panel.toggleMaximize}>
-        max
-      </Button>
-    </PanelActions>
-  )
+function Positions() {
+  return <PanelContent className="p-3">No positions.</PanelContent>
 }
 
-// A panel's symbol and link group live in its state, so they ride along in the saved layout.
-function Book() {
-  const panel = useWorkspacePanel()
-  const link = useLinkGroup({
-    source: panel.id,
-    defaultGroup: (panel.state.group as LinkGroup | undefined) ?? null,
-    defaultSymbol: (panel.state.symbol as string | undefined) ?? "ZN",
-    onGroupChange: (group) => panel.setState({ group }),
-    onSymbolChange: (symbol) => panel.setState({ symbol }),
-  })
-  const [orders, setOrders] = useState(ORDERS)
-  const [selected, setSelected] = useState(0)
-  useHotkey("book.next", () => setSelected((i) => (orders.length ? (i + 1) % orders.length : 0)))
-  useHotkey("book.cancel", () => {
-    setOrders((list) => list.filter((_, i) => i !== selected))
-    setSelected((i) => Math.max(0, Math.min(i, orders.length - 2)))
-  })
-  return (
-    <>
-      <PanelHeader>
-        <SymbolTag value={link.symbol} onCommit={link.setSymbol} validate={(s) => KNOWN.has(s)} />
-        <LinkGroupDot group={link.group} onGroupChange={link.setGroup} />
-        <Actions />
-      </PanelHeader>
-      <PanelContent className="p-2">
-        <ul>
-          {orders.map((order, i) => (
-            <li key={order} className={i === selected ? "bg-muted px-1" : "px-1"}>
-              {link.symbol} {order}
-            </li>
-          ))}
-          {!orders.length && <li className="text-muted-foreground">empty</li>}
-        </ul>
-      </PanelContent>
-    </>
-  )
-}
-
-function Chart() {
-  const panel = useWorkspacePanel()
-  const link = useLinkGroup({
-    source: panel.id,
-    defaultGroup: (panel.state.group as LinkGroup | undefined) ?? null,
-    defaultSymbol: (panel.state.symbol as string | undefined) ?? "ZN",
-    onGroupChange: (group) => panel.setState({ group }),
-    onSymbolChange: (symbol) => panel.setState({ symbol }),
-  })
-  const values = useMemo(() => series(link.symbol ?? ""), [link.symbol])
-  return (
-    <>
-      <PanelHeader>
-        <SymbolTag value={link.symbol} onCommit={link.setSymbol} validate={(s) => KNOWN.has(s)} />
-        <LinkGroupDot group={link.group} onGroupChange={link.setGroup} />
-        <Actions />
-      </PanelHeader>
-      <PanelContent className="p-2">
-        <Sparkline values={values} label={link.symbol ?? "chart"} className="h-full w-full" interactive />
-      </PanelContent>
-    </>
-  )
-}
-
-const PANELS = { book: Book, chart: Chart }
-
-function Keys({ api }: { api: WorkspaceApi | null }) {
-  useHotkey("workspace.next", () => api?.focusNext())
-  useHotkey("workspace.previous", () => api?.focusNext(-1))
-  useHotkey("workspace.book", () => api?.addPanel({ kind: "book", title: "Order book" }))
-  useHotkey("workspace.chart", () => api?.addPanel({ kind: "chart", title: "Chart" }))
-  useHotkey("workspace.close", () => {
-    const id = api?.activePanel()
-    if (id) api?.closePanel(id)
-  })
-  return null
-}
-
-function seed(api: WorkspaceApi) {
-  api.addPanel({ kind: "book", title: "Order book", state: { symbol: "ZN", group: 1 } })
-  api.addPanel({ kind: "chart", title: "Chart", state: { symbol: "ZN", group: 1 }, position: { reference: "book-1", direction: "right" } })
-  api.addPanel({ kind: "book", title: "Order book", state: { symbol: "ES" }, position: { reference: "book-1", direction: "below" } })
-}
+const PANELS = { orders: Orders, positions: Positions }
 
 export default function WorkspaceDemo() {
-  const [api, setApi] = useState<WorkspaceApi | null>(null)
-  // The consumer owns persistence. Here the layout is kept in memory; yours goes to storage or a server.
-  const [saved, setSaved] = useState<WorkspaceLayout | null>(null)
   return (
-    <HotkeysProvider bindings={BINDINGS}>
-      <LinkGroupProvider>
-        <Keys api={api} />
-        <div className="flex h-[28rem] flex-col gap-2 font-(family-name:--tradecn-font-mono) text-xs">
-          <p className="text-muted-foreground">
-            Drag tabs to dock them, Shift+drag to float. <kbd>]</kbd> and <kbd>[</kbd> move between panels, <kbd>n b</kbd> and <kbd>n c</kbd> open a book or a chart, <kbd>w</kbd> closes the active one, <kbd>j</kbd> and <kbd>x</kbd> act on the book with focus.
-            {saved ? ` Layout saved: ${Object.keys(saved.panels).length} panels, ${JSON.stringify(saved).length} bytes.` : ""}
-          </p>
-          <Workspace className="min-h-0 flex-1 rounded-md border border-border" panels={PANELS} seed={seed} onLayoutChange={setSaved} onReady={setApi} watermark="No panels. Press n b for a book." />
-        </div>
-      </LinkGroupProvider>
-    </HotkeysProvider>
+    <Workspace
+      className="h-64 rounded-md border border-border"
+      panels={PANELS}
+      watermark="No panels."
+      seed={(api) => {
+        const orders = api.addPanel({ kind: "orders", title: "Orders" })
+        api.addPanel({ kind: "positions", title: "Positions", position: { reference: orders, direction: "right" } })
+      }}
+    />
   )
 }
