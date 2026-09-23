@@ -10,7 +10,7 @@ Trading-terminal components you install with `shadcn add`. The source lands in y
 <!-- x-release-please-start-version -->
 
 ```bash
-npx shadcn@latest add tradecn/ui/data-grid#v1.4.2
+npx shadcn@latest add tradecn/ui/data-grid#v1.4.3
 ```
 
 <!-- x-release-please-end -->
@@ -29,7 +29,7 @@ npx shadcn@latest add @tradecn/data-grid
 
 <!-- x-release-please-start-version -->
 
-That URL is the latest release. Put the tag in it to pin: `https://tradecn.dev/r/v1.4.2/{name}.json`. Same files either way.
+That URL is the latest release. Put the tag in it to pin: `https://tradecn.dev/r/v1.4.3/{name}.json`. Same files either way.
 
 <!-- x-release-please-end -->
 
@@ -71,7 +71,7 @@ Two commands. Neither touches the other's files. Put the tag you're moving to in
 <!-- x-release-please-start-version -->
 
 ```bash
-npx shadcn@latest add tradecn/ui/data-grid#v1.4.2 --diff   # a tradecn change
+npx shadcn@latest add tradecn/ui/data-grid#v1.4.3 --diff   # a tradecn change
 npx shadcn@latest add tooltip --diff                       # a shadcn change underneath
 ```
 

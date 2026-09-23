@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/tradecn/ui/compare/v1.4.2...v1.4.3) (2026-09-23)
+
+
+### Documentation
+
+* **data-grid:** center the documentation previews ([#161](https://github.com/tradecn/ui/issues/161)) ([8c0e95f](https://github.com/tradecn/ui/commit/8c0e95f27e21f58724f97cd1ce971147ffb3539d))
+
 ## [1.4.2](https://github.com/tradecn/ui/compare/v1.4.1...v1.4.2) (2026-09-23)
 
 
