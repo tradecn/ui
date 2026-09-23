@@ -5,7 +5,7 @@ import uPlot from "uplot"
 import { directionClass, type Direction } from "@/registry/tradecn/hooks/use-flash"
 import { useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
 import { formatPercent, formatPrice, formatQuantity, NUMERIC_CLASS, numericFontClass, type InstrumentConvention, type PriceConvention } from "@/registry/tradecn/lib/format"
-import { columnsOf, EMPTY_COLUMNS, formatChange, priceIncrements, priceOf, summarize, timeFormatter, type Bar, type BarColumns, type SeriesSummary } from "@/registry/tradecn/lib/price-series"
+import { columnsOf, dayFormatter, EMPTY_COLUMNS, formatChange, priceIncrements, priceOf, summarize, timeFormatter, type Bar, type BarColumns, type SeriesSummary } from "@/registry/tradecn/lib/price-series"
 import type { RowStore } from "@/registry/tradecn/lib/row-store"
 
 // An intraday price chart on uPlot: a line or candles over a store of bars, a crosshair the pointer and the
@@ -211,6 +211,7 @@ function plotOptions(a: PlotArgs): uPlot.Options {
     width: a.width,
     height: a.height,
     ms: 1,
+    // The option wants a timestamp-to-Date function, and uPlot.tzDate(date, zone) returns the Date read in that zone; with ms: 1 the timestamp is milliseconds.
     ...(a.zone ? { tzDate: (ts: number) => uPlot.tzDate(new Date(ts), a.zone!) } : {}),
     legend: { show: false },
     select: { show: false, left: 0, top: 0, width: 0, height: 0 },
@@ -353,21 +354,6 @@ function drawTag(u: uPlot, text: string, y: number, fill: string, palette: Palet
 
 const clamp = (n: number, max: number) => Math.max(0, Math.min(max, n))
 const DAY_MS = 86_400_000
-const dayFormats = new Map<string, Intl.DateTimeFormat>()
-/** The month and day in the zone, for an axis whose range runs past one day. */
-function dayFormatter(zone: string | undefined): (ms: number) => string {
-  const key = zone ?? ""
-  let format = dayFormats.get(key)
-  if (!format) {
-    try {
-      format = new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", timeZone: zone })
-    } catch {
-      format = new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit" })
-    }
-    dayFormats.set(key, format)
-  }
-  return (ms) => format.format(ms)
-}
 
 export function PriceChart({ store, convention, label, kind = "line", baseline = null, zone, locale, overlays, crosshair = true, lastLine = true, height, labels: labelsProp, onCursor, className, style, ...props }: PriceChartProps) {
   const labels = { ...DEFAULT_PRICE_CHART_LABELS, ...labelsProp }
@@ -380,6 +366,8 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [cursor, setCursorState] = useState<number | null>(null)
+  // Bumped when the page's mono stack changes (the accessibility remap): the axis font is fixed at construction, so the plot is remade.
+  const [fontEpoch, setFontEpoch] = useState(0)
   // The store's columns, once per applied batch: the meta's version is the one dependency, so the memo reruns on
   // a batch and on nothing else, and a batch with no bar change gives the same columns back.
   const meta = useStoreMeta(store)
@@ -395,6 +383,15 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const conventionRef = useRef(convention)
   const onCursorRef = useRef(onCursor)
   const cursorFromPlot = useRef(false)
+  /** Moves the crosshair and tells the consumer, from a key, the focus, or the plot's own pointer; never on mount. */
+  const moveCursor = (index: number | null, fromPlot: boolean) => {
+    cursorFromPlot.current = fromPlot
+    setCursorState((previous) => {
+      if (previous === index) return previous
+      onCursorRef.current?.(index === null ? null : (live.current.columns.bars[index] ?? null))
+      return index
+    })
+  }
 
   useLayoutEffect(() => {
     overlaysRef.current = overlayList
@@ -441,29 +438,33 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
         convention: conventionRef.current,
         overlays: overlaysRef.current,
         live: () => live.current,
-        onCursor: (index) => {
-          cursorFromPlot.current = true
-          setCursorState(index)
-        },
+        onCursor: (index) => moveCursor(index, true),
       }),
       alignedData(live.current.columns, kind, overlaysRef.current),
       plotEl,
     )
     plot.current = u
-    // A mode or a theme is a class on <html>; the tokens are read again and the picture redrawn.
+    // A mode or a theme is a class on <html> and the accessibility remap a data attribute; the tokens are read again
+    // and the picture redrawn, or, when the font stack itself changed, the plot remade with the new axis font.
     const observer = new MutationObserver(() => {
-      live.current.palette = readPalette(plotEl)
-      styleCursor(u, live.current.palette)
+      const next = readPalette(plotEl)
+      const fontChanged = next.font !== live.current.palette.font
+      live.current.palette = next
+      if (fontChanged) {
+        setFontEpoch((n) => n + 1)
+        return
+      }
+      styleCursor(u, next)
       u.redraw(false, false)
     })
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme", "data-accessibility"] })
     return () => {
       observer.disconnect()
       u.destroy()
       plot.current = null
     }
     // conventionKey and overlayKey stand for the objects' structure; the objects themselves are read through refs, so an inline one does not remake the plot every render.
-  }, [plotEl, ready, kind, crosshair, lastLine, zone, conventionKey, overlayKey])
+  }, [plotEl, ready, kind, crosshair, lastLine, zone, conventionKey, overlayKey, fontEpoch])
 
   useEffect(() => {
     if (size && plot.current) plot.current.setSize(size)
@@ -471,7 +472,6 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
 
   // The keyboard's cursor reaches the plot; the pointer's came from it and stays where the hand put it.
   useEffect(() => {
-    onCursorRef.current?.(cursor === null ? null : (live.current.columns.bars[cursor] ?? null))
     const u = plot.current
     if (!u) return
     if (cursorFromPlot.current) {
@@ -497,12 +497,12 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.defaultPrevented || !interactive || event.metaKey || event.ctrlKey || event.altKey) return
     const from = cursor === null ? count - 1 : clamp(cursor, count - 1)
-    const to = { ArrowLeft: from - 1, ArrowRight: from + 1, PageDown: from - 10, PageUp: from + 10, Home: 0, End: count - 1 }[event.key]
+    // The slider pattern's two pairs: Right and Up go forward a bar, Left and Down back one.
+    const to = { ArrowLeft: from - 1, ArrowDown: from - 1, ArrowRight: from + 1, ArrowUp: from + 1, PageDown: from - 10, PageUp: from + 10, Home: 0, End: count - 1 }[event.key]
     if (to === undefined && event.key !== "Escape") return
     // Claimed, so a hotkey registry or a panel further out leaves the key alone.
     event.preventDefault()
-    cursorFromPlot.current = false
-    setCursorState(to === undefined ? null : clamp(to, count - 1))
+    moveCursor(to === undefined ? null : clamp(to, count - 1), false)
   }
 
   return (
@@ -537,15 +537,9 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
         {...(interactive ? { tabIndex: 0, "aria-orientation": "horizontal" as const, "aria-valuemin": 0, "aria-valuemax": count - 1, "aria-valuenow": cursor === null ? count - 1 : clamp(cursor, count - 1), "aria-valuetext": readout || sentence } : {})}
         onKeyDown={onKeyDown}
         onFocus={() => {
-          if (interactive && cursor === null) {
-            cursorFromPlot.current = false
-            setCursorState(count - 1)
-          }
+          if (interactive && cursor === null) moveCursor(count - 1, false)
         }}
-        onBlur={() => {
-          cursorFromPlot.current = false
-          setCursorState(null)
-        }}
+        onBlur={() => moveCursor(null, false)}
         data-chart-plot=""
         className={cn("relative min-h-0 flex-1 overflow-hidden rounded-sm outline-none", interactive && "cursor-crosshair focus-visible:ring-2 focus-visible:ring-ring/50")}
       >

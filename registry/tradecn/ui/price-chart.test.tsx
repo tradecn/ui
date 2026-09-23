@@ -100,6 +100,28 @@ describe("PriceChart", () => {
     expect(plot).toHaveAttribute("aria-valuenow", "1")
     const other = fireEvent.keyDown(plot, { key: "a" })
     expect(other).toBe(true)
+    // The slider's second pair: Down back one, Up forward one.
+    fireEvent.keyDown(plot, { key: "ArrowDown" })
+    expect(plot).toHaveAttribute("aria-valuenow", "0")
+    fireEvent.keyDown(plot, { key: "ArrowUp" })
+    expect(plot).toHaveAttribute("aria-valuenow", "1")
+  })
+
+  it("keeps the consumer's own handlers on the root, where they see every key after the plot", () => {
+    const keys: [string, boolean][] = []
+    const onFocus = vi.fn()
+    render(<PriceChart store={seeded()} convention={ZN} label="ZN" onKeyDown={(event) => keys.push([event.key, event.defaultPrevented])} onFocus={onFocus} />)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    fireEvent.keyDown(plot, { key: "ArrowLeft" })
+    fireEvent.keyDown(plot, { key: "a" })
+    // A claimed key arrives with its default prevented, an unclaimed one clean; the focus reaches the root's handler too.
+    expect(keys).toEqual([
+      ["ArrowLeft", true],
+      ["a", false],
+    ])
+    expect(onFocus).toHaveBeenCalled()
+    expect(plot).toHaveAttribute("aria-valuenow", "1")
   })
 
   it("tells the consumer which bar the cursor is on, and null when it leaves", () => {

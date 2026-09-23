@@ -18,6 +18,13 @@ export interface Bar {
   close: number
   /** Size traded in the bar; null or absent when the feed has none. */
   volume?: number | null
+  /**
+   * When the earliest and the latest prints folded into the bar happened. `foldTick` writes them, so a print
+   * that arrives late corrects the high, the low, and the volume, and moves the open or the close only when it
+   * is the earliest or the latest print the bar has seen. A bar that came in whole has neither and keeps its open.
+   */
+  firstAt?: number
+  lastAt?: number
 }
 
 export interface PriceTick {
@@ -36,23 +43,39 @@ export function barStart(at: number, intervalMs: number): number {
   return Math.floor(at / intervalMs) * intervalMs
 }
 
-/** A tick folded into the bar it belongs to: a new bar when none is open at its start, else that bar with a new high, low, close, and volume. */
+/**
+ * A tick folded into the bar it belongs to: a new bar when none is open at its start, else that bar with the
+ * high, the low, and the volume extended, the close moved if the tick is the latest the bar has seen, and the
+ * open moved if it is the earliest. So a late print corrects the bar and never rewrites its close.
+ */
 export function foldTick(bar: Bar | undefined, tick: PriceTick, intervalMs: number): Bar {
   const time = barStart(tick.at, intervalMs)
   const size = typeof tick.size === "number" && Number.isFinite(tick.size) ? tick.size : null
-  if (!bar || bar.time !== time) return { time, open: tick.price, high: tick.price, low: tick.price, close: tick.price, volume: size }
+  if (!bar || bar.time !== time) return { time, open: tick.price, high: tick.price, low: tick.price, close: tick.price, volume: size, firstAt: tick.at, lastAt: tick.at }
   const volume = size === null ? (bar.volume ?? null) : (bar.volume ?? 0) + size
-  return { time, open: bar.open, high: Math.max(bar.high, tick.price), low: Math.min(bar.low, tick.price), close: tick.price, volume }
+  const earliest = bar.firstAt !== undefined && tick.at < bar.firstAt
+  const latest = bar.lastAt === undefined || tick.at >= bar.lastAt
+  return {
+    ...bar,
+    open: earliest ? tick.price : bar.open,
+    high: Math.max(bar.high, tick.price),
+    low: Math.min(bar.low, tick.price),
+    close: latest ? tick.price : bar.close,
+    volume,
+    ...(bar.firstAt !== undefined ? { firstAt: Math.min(bar.firstAt, tick.at) } : {}),
+    lastAt: bar.lastAt === undefined ? tick.at : Math.max(bar.lastAt, tick.at),
+  }
 }
 
 /**
  * The batch that folds a frame's ticks into a store of bars: one upsert per bar touched, each bar read from the
- * store first so the fold continues where the last batch left it. Apply it with `applyDeltas`.
+ * store first so the fold continues where the last batch left it. The ticks are folded in time order whatever
+ * order they arrived in, so a shuffled frame folds as it happened. Apply it with `applyDeltas`.
  */
 export function foldTicks(store: RowStore<Bar>, ticks: readonly PriceTick[], intervalMs: number): DeltaBatch<Bar> {
   const bars = new Map<number, Bar>()
-  for (const tick of ticks) {
-    if (!Number.isFinite(tick.price) || !Number.isFinite(tick.at)) continue
+  const ordered = ticks.filter((tick) => Number.isFinite(tick.price) && Number.isFinite(tick.at)).sort((a, b) => a.at - b.at)
+  for (const tick of ordered) {
     const time = barStart(tick.at, intervalMs)
     bars.set(time, foldTick(bars.get(time) ?? store.getRow(barId(time)), tick, intervalMs))
   }
@@ -197,22 +220,33 @@ export function formatChange(change: Nullable, convention: PriceConvention | Ins
 }
 
 const timeFormats = new Map<string, Intl.DateTimeFormat>()
+const dayFormats = new Map<string, Intl.DateTimeFormat>()
+
+/** A formatter for a zone, cached by its options, falling back to the runtime's zone for one the runtime does not know. */
+function zonedFormat(cache: Map<string, Intl.DateTimeFormat>, key: string, locale: string | undefined, options: Intl.DateTimeFormatOptions, zone: string | undefined): Intl.DateTimeFormat {
+  let format = cache.get(key)
+  if (!format) {
+    try {
+      format = new Intl.DateTimeFormat(locale ?? "en-US", { ...options, timeZone: zone })
+    } catch {
+      format = new Intl.DateTimeFormat(locale ?? "en-US", options)
+    }
+    cache.set(key, format)
+  }
+  return format
+}
 
 /**
  * A clock reading in a zone, `14:32:05`, in the 24-hour cycle whatever the locale's habit. A zone the runtime
  * does not know falls back to the runtime's own zone rather than throwing, since a chart must still draw.
  */
 export function timeFormatter(zone?: string, locale?: string, seconds = true): (ms: number) => string {
-  const key = `${zone ?? ""}|${locale ?? ""}|${seconds ? "s" : "m"}`
-  let format = timeFormats.get(key)
-  if (!format) {
-    const options: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}), hourCycle: "h23" }
-    try {
-      format = new Intl.DateTimeFormat(locale ?? "en-US", { ...options, timeZone: zone })
-    } catch {
-      format = new Intl.DateTimeFormat(locale ?? "en-US", options)
-    }
-    timeFormats.set(key, format)
-  }
+  const format = zonedFormat(timeFormats, `${zone ?? ""}|${locale ?? ""}|${seconds ? "s" : "m"}`, locale, { hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}), hourCycle: "h23" }, zone)
+  return (ms) => format.format(ms)
+}
+
+/** The month and day in the zone, `01/15`, for an axis whose range runs past one day. Same fallback as `timeFormatter`. */
+export function dayFormatter(zone?: string, locale?: string): (ms: number) => string {
+  const format = zonedFormat(dayFormats, `${zone ?? ""}|${locale ?? ""}`, locale, { month: "2-digit", day: "2-digit" }, zone)
   return (ms) => format.format(ms)
 }

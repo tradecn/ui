@@ -37,7 +37,7 @@ Set `kind="candles"` for a candle per bar: the body from the open to the close i
 
 ## API Reference
 
-The chart is uPlot on a canvas, made once its box has a size and the store a bar, fed once per applied batch through the store's meta subscription, and destroyed on unmount. Every color is read from your tokens when it mounts and again when the class on `<html>` changes, so the picture follows your mode and your theme.
+The chart is uPlot on a canvas, made once its box has a size and the store a bar, fed once per applied batch off the store's meta, and destroyed on unmount. Every color is read from your tokens when it mounts and again when `<html>`'s `class`, `style`, `data-theme`, or `data-accessibility` changes, so the picture follows your mode, your theme, and the hyperlegible remap; a change of font stack remakes the plot, since the axis font is fixed when it is made.
 
 ### Props
 
@@ -65,6 +65,7 @@ The chart is uPlot on a canvas, made once its box has a size and the store a bar
 | `time` | `number` | Yes | When the bar opened, ms since the epoch; the row id is `barId(time)`. |
 | `open` / `high` / `low` / `close` | `number` | Yes | The bar's prices. A bar with a value that is not a number is skipped. |
 | `volume` | `number \| null` | No | Size traded in the bar; printed in the readout when present. |
+| `firstAt` / `lastAt` | `number` | No | When the earliest and the latest prints folded into the bar happened. `foldTick` writes them; a bar you pass whole has neither. |
 
 The helpers are in `price-series.ts`, with no React in it, so a feed layer or a worker can fold bars without the component:
 
@@ -80,7 +81,7 @@ The helpers are in `price-series.ts`, with no React in it, so a feed layer or a 
 | `formatChange(change, convention)` | A change with its sign in the convention: `+0-02+`, `−0.50`. |
 | `timeFormatter(zone, locale?, seconds?)` | A clock reading in the zone, 24-hour. An unknown zone falls back to the runtime's instead of throwing. |
 
-The store's order is trusted while it is by time, which a feed that appends is; a backfill that arrived out of order is sorted once, in `columnsOf`.
+`foldTicks` sorts a frame's ticks by time before folding, so a shuffled frame folds as it happened. A print that arrives after later ones corrects its bar's high, low, and volume, and moves the open or the close only when it is the earliest or the latest print the bar has seen; a bar that came in whole keeps its open. The store's order is trusted while it is by time, which a feed that appends is; a backfill that arrived out of order is sorted once, in `columnsOf`.
 
 ### Overlays
 
@@ -106,13 +107,14 @@ With the crosshair on, the plot is a `slider` over the bars. Tab to it and the c
 
 | Key | Action |
 |---|---|
-| Left / Right | Move one bar. |
+| Left / Down | Back one bar. |
+| Right / Up | Forward one bar. |
 | PageDown / PageUp | Move ten bars. |
 | Home / End | The first and the last bar. |
 | Escape | Put the crosshair away. Leaving does too. |
 | Ctrl, Cmd, or Alt with any key | Left to listeners above the chart, such as a hotkey registry. |
 
-The pointer moves the crosshair too, and the readout and `onCursor` follow whichever moved it last.
+The pointer moves the crosshair too, and the readout and `onCursor` follow whichever moved it last. Your own `onKeyDown`, `onFocus`, and the rest go on the root, around the plot, and see every key after it: a claimed key arrives with `defaultPrevented` set, every other key clean.
 
 ### Marks
 
@@ -139,7 +141,7 @@ The pointer moves the crosshair too, and the readout and `onCursor` follow which
 
 ### Tokens
 
-The install adds `up`, `down`, and `flat` with their soft variants if you do not have them, and the chart tokens `chart-1` to `chart-8`. The first five are shadcn's own and an install leaves yours alone; the last three are added so the eight of Okabe and Ito are there for the overlays, and every theme sets all eight. The axis and the tag are canvas text in your `--tradecn-font-mono` stack, tabular by construction, since a canvas has no numeric variant.
+The install adds `up`, `down`, and `flat` with their soft variants if you do not have them, and the chart tokens `chart-1` to `chart-8`. The items' own values follow Okabe and Ito's order, orange, sky blue, bluish green, yellow, blue, vermilion, reddish purple, and your foreground for black; a shadcn project already carries the first five in shadcn's palette, which an install leaves alone, and every theme sets all eight in its own palette, so an overlay's color is whatever your palette says at that slot, and the legend is what names it. The axis and the tag are canvas text in your `--tradecn-font-mono` stack, tabular by construction, since a canvas has no numeric variant.
 
 ### What it does not do
 

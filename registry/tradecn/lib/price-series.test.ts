@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
-import { barId, barStart, columnsOf, directionBetween, foldTick, foldTicks, formatChange, priceDecimals, priceIncrements, priceStep, summarize, timeFormatter, type Bar } from "@/registry/tradecn/lib/price-series"
+import { barId, barStart, columnsOf, dayFormatter, directionBetween, foldTick, foldTicks, formatChange, priceDecimals, priceIncrements, priceStep, summarize, timeFormatter, type Bar } from "@/registry/tradecn/lib/price-series"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
@@ -17,12 +17,34 @@ describe("bars from ticks", () => {
 
   it("opens a bar on the first tick and folds the next ticks into its high, low, close, and volume", () => {
     const first = foldTick(undefined, { at: 10, price: 100, size: 5 }, MINUTE)
-    expect(first).toEqual({ time: 0, open: 100, high: 100, low: 100, close: 100, volume: 5 })
+    expect(first).toEqual({ time: 0, open: 100, high: 100, low: 100, close: 100, volume: 5, firstAt: 10, lastAt: 10 })
     const second = foldTick(first, { at: 20, price: 101, size: 2 }, MINUTE)
     const third = foldTick(second, { at: 30, price: 99.5 }, MINUTE)
-    expect(third).toEqual({ time: 0, open: 100, high: 101, low: 99.5, close: 99.5, volume: 7 })
+    expect(third).toEqual({ time: 0, open: 100, high: 101, low: 99.5, close: 99.5, volume: 7, firstAt: 10, lastAt: 30 })
     // A tick in the next interval opens a new bar and leaves the old one alone.
-    expect(foldTick(third, { at: MINUTE + 1, price: 99 }, MINUTE)).toEqual({ time: MINUTE, open: 99, high: 99, low: 99, close: 99, volume: null })
+    expect(foldTick(third, { at: MINUTE + 1, price: 99 }, MINUTE)).toEqual({ time: MINUTE, open: 99, high: 99, low: 99, close: 99, volume: null, firstAt: MINUTE + 1, lastAt: MINUTE + 1 })
+  })
+
+  it("lets a late print correct the high, the low, and the volume without moving the close, and an earlier one move the open", () => {
+    const bar = foldTick(foldTick(undefined, { at: 20, price: 100, size: 1 }, MINUTE), { at: 40, price: 101, size: 1 }, MINUTE)
+    // Printed at 30, arrived after 40: the low and the volume take it, the close stays at 101.
+    const late = foldTick(bar, { at: 30, price: 99, size: 1 }, MINUTE)
+    expect(late).toEqual({ time: 0, open: 100, high: 101, low: 99, close: 101, volume: 3, firstAt: 20, lastAt: 40 })
+    // Printed at 10, before the bar's first print: it is the open now.
+    const earlier = foldTick(late, { at: 10, price: 100.5 }, MINUTE)
+    expect(earlier.open).toBe(100.5)
+    expect(earlier.firstAt).toBe(10)
+    expect(earlier.close).toBe(101)
+    // A tick at the same instant as the last is the latest.
+    expect(foldTick(earlier, { at: 40, price: 102 }, MINUTE).close).toBe(102)
+  })
+
+  it("keeps a whole bar's open, and lets its first tick move the close", () => {
+    const whole: Bar = { time: 0, open: 50, high: 51, low: 49, close: 50.5, volume: 100 }
+    const folded = foldTick(whole, { at: 5, price: 52, size: 1 }, MINUTE)
+    expect(folded).toEqual({ time: 0, open: 50, high: 52, low: 49, close: 52, volume: 101, lastAt: 5 })
+    // A tick earlier than that first one does not touch the open: the bar's open was the feed's word.
+    expect(foldTick(folded, { at: 1, price: 48 }, MINUTE)).toEqual({ time: 0, open: 50, high: 52, low: 48, close: 52, volume: 101, lastAt: 5 })
   })
 
   it("keeps volume null while no tick has a size", () => {
@@ -35,14 +57,21 @@ describe("bars from ticks", () => {
   it("folds a frame of ticks into one upsert per bar, continuing the bar the store already holds", () => {
     const store = bars()
     store.applyDeltas(foldTicks(store, [{ at: 5, price: 100, size: 1 }, { at: 6, price: 102, size: 1 }], MINUTE))
-    expect(store.getRow("0")).toEqual({ time: 0, open: 100, high: 102, low: 100, close: 102, volume: 2 })
+    expect(store.getRow("0")).toEqual({ time: 0, open: 100, high: 102, low: 100, close: 102, volume: 2, firstAt: 5, lastAt: 6 })
     const batch = foldTicks(store, [{ at: 7, price: 99, size: 1 }, { at: MINUTE + 1, price: 98 }, { at: MINUTE + 2, price: 98.5 }, { at: 8, price: Number.NaN }], MINUTE)
     expect(batch.upsert).toEqual([
-      { time: 0, open: 100, high: 102, low: 99, close: 99, volume: 3 },
-      { time: MINUTE, open: 98, high: 98.5, low: 98, close: 98.5, volume: null },
+      { time: 0, open: 100, high: 102, low: 99, close: 99, volume: 3, firstAt: 5, lastAt: 7 },
+      { time: MINUTE, open: 98, high: 98.5, low: 98, close: 98.5, volume: null, firstAt: MINUTE + 1, lastAt: MINUTE + 2 },
     ])
     store.applyDeltas(batch)
     expect(store.getIds()).toEqual(["0", String(MINUTE)])
+  })
+
+  it("folds a shuffled frame as it happened", () => {
+    const inOrder = foldTicks(bars(), [{ at: 1, price: 10 }, { at: 2, price: 12 }, { at: 3, price: 11 }], MINUTE)
+    const shuffled = foldTicks(bars(), [{ at: 3, price: 11 }, { at: 1, price: 10 }, { at: 2, price: 12 }], MINUTE)
+    expect(shuffled).toEqual(inOrder)
+    expect(shuffled.upsert?.[0]).toEqual({ time: 0, open: 10, high: 12, low: 10, close: 11, volume: null, firstAt: 1, lastAt: 3 })
   })
 })
 
@@ -147,5 +176,13 @@ describe("the clock reading", () => {
   it("falls back to the runtime's zone for one it does not know instead of throwing", () => {
     expect(() => timeFormatter("Mars/Olympus")(noon)).not.toThrow()
     expect(timeFormatter("Mars/Olympus")(noon)).toMatch(/^\d\d:\d\d:\d\d$/)
+    expect(dayFormatter("Mars/Olympus")(noon)).toMatch(/^\d\d\/\d\d$/)
+  })
+
+  it("prints the day in the zone for an axis that runs past one", () => {
+    // 21:00 in Tokyo is still the 15th; 07:00 in New York is too, but 03:00 UTC on the 16th is the 15th in Chicago.
+    expect(dayFormatter("Asia/Tokyo")(noon)).toBe("01/15")
+    expect(dayFormatter("America/Chicago")(Date.UTC(2026, 0, 16, 3))).toBe("01/15")
+    expect(dayFormatter("Etc/UTC")(Date.UTC(2026, 0, 16, 3))).toBe("01/16")
   })
 })
