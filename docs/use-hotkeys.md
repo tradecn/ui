@@ -5,24 +5,66 @@ Declare keyboard shortcuts once, attach handlers where they're used, and let the
 ## Usage
 
 ```tsx
+import { useState } from "react"
 import { HotkeysProvider, useHotkey } from "@/hooks/use-hotkeys"
 import type { HotkeyBinding } from "@/lib/hotkeys"
-```
 
-```tsx
 const BINDINGS: HotkeyBinding[] = [
-  { id: "palette.open", keys: "mod+k", scope: "editing", description: "Open the command palette" },
-  { id: "go.blotter", keys: "g b", scope: "global", description: "Go to the blotter" },
-  { id: "book.cancel", keys: "x", scope: "panel:book", description: "Cancel the selected order" },
+  { id: "counter.increment", keys: "i", scope: "global", description: "Increment counter" },
 ]
 
-<HotkeysProvider bindings={BINDINGS}>
-  <App />
-</HotkeysProvider>
+function Counter() {
+  const [count, setCount] = useState(0)
+  const increment = () => setCount((value) => value + 1)
+  useHotkey("counter.increment", increment)
+  return (
+    <div className="w-fit max-w-full space-y-3 text-sm">
+      <button type="button" className="rounded border border-border px-3 py-2 hover:bg-muted" onClick={increment}>Increment</button>
+      <p role="status" className="lining-nums tabular-nums">Count: {count}</p>
+    </div>
+  )
+}
 
-// in a component
-useHotkey("go.blotter", () => navigate("/blotter"))
+export default function UseHotkeysDemo() {
+  return <HotkeysProvider bindings={BINDINGS}><Counter /></HotkeysProvider>
+}
 ```
+
+Click Increment, or focus it with Tab and press `i`. A binding declares the key, scope, and description; `useHotkey` supplies its handler beneath `HotkeysProvider`. Keep the binding array stable. This global shortcut stays out of text fields.
+
+The previews have their own documents. Focus a control inside a preview before trying its keys.
+
+## Scoped shortcuts
+
+Click Refresh in one book, then press `r`. Only that book's counter changes. Tab to the other book's button to move the shortcut with focus. `repeat: true` lets a held `r` keep refreshing; bindings ignore repeated keydowns by default.
+
+Both books share one declaration. Each `Book` calls `useHotkey` beneath its own `HotkeyScope`, so the handler belongs to that instance. Calling the hook in a component that returns the scope would register it outside that scope. The counters stand in for refresh requests.
+
+<!-- demo: use-hotkeys-scopes -->
+
+## While typing
+
+Type `r` in the Note field: it stays in the text, and the global refresh count stays unchanged. Press `mod+enter` there to request a save: ⌘+Enter on a Mac, Ctrl+Enter elsewhere. Move focus to Refresh and `r` works again.
+
+The save binding uses the `editing` scope, which runs both inside and outside text fields. Use it for shortcuts safe while typing; keep bare letters out of it. These handlers count requests; they do not persist the note.
+
+<!-- demo: use-hotkeys-editing -->
+
+## Chord sequences
+
+Focus either button, then press `g` followed by `b` for the blotter or `w` for the watchlist. `usePendingChord` shows the prefix while it waits. The default timeout is one second between steps; Escape cancels, and an unrelated key clears the prefix and is tried on its own.
+
+The buttons provide the same actions without a shortcut. This example changes a view label; replace the handlers with your application's navigation.
+
+<!-- demo: use-hotkeys-chords -->
+
+## Live shortcut list
+
+Choose `U`, then focus Increment and press `u`. The old `i` binding no longer runs. Unbound disables the shortcut while leaving the button usable; Reset shortcut restores `I` without resetting the counter.
+
+`useHotkeyList` supplies the current keys, and `formatKeys` turns them into display labels. Remapping changes the existing declaration, so the display and handler stay in sync. This preview keeps overrides in memory; [Remapping](#remapping) covers persistence and the settings editor.
+
+<!-- demo: use-hotkeys-remapping -->
 
 ## API Reference
 
@@ -107,13 +149,7 @@ Persistence is yours. `onChange` receives the full override map after `remap` or
 
 For the plus key, strings such as `"ctrl++"` returned by normalization or capture cannot be parsed again. If a binding defaults to `"x"`, `remap(id, "ctrl+plus")` stores that invalid form and falls back to `"x"`.
 
-```ts
-const hotkeys = createHotkeyRegistry()
-hotkeys.load(JSON.parse(localStorage.getItem("hotkeys") ?? "{}"))
-hotkeys.onChange((overrides) => localStorage.setItem("hotkeys", JSON.stringify(overrides)))
-
-<HotkeysProvider registry={hotkeys} bindings={BINDINGS}>
-```
+For persistence, create a registry once, restore saved overrides with `load`, and pass it to `HotkeysProvider`. Subscribe to `onChange` to save the override map, for example as JSON in `localStorage`; unsubscribe when the owner unmounts. Handle missing or invalid stored data in the application. The [live shortcut list](#live-shortcut-list) shows `remap` and `reset` without storage.
 
 | Registry method | Result or behavior |
 |---|---|
