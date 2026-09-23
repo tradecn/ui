@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
-// Open the built site in a browser and check every preview: the docs page frames it, the embed page
+// Open the built site in a browser and check every preview: the docs page frames it (an item's or a doc's own
+// at the top of its page, a variant's in its own section of the page that places it), the embed page
 // mounts it, every number in it is set in lining tabular figures (contract rule 14), the iframe takes the
 // height it reports, and nothing errors on the way. Then the opening
 // page: the two ways in, the header's GitHub mark linking the repository, and every item running in the showcase at the height it reported. Then the
@@ -80,11 +81,25 @@ const browser = await chromium.launch()
 // The copy buttons write the clipboard; the check reads it back.
 const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, permissions: ["clipboard-read", "clipboard-write"] })
 
-// The search index says which group each page is in. A preview whose page is under Get Started is a doc's
-// own demo (the Typography page's), not an item's: it has no Installation and is not in the showcase.
-const pageGroups = new Map<string, string>(((await (await context.request.get(`${base}/${SEARCH_INDEX}`)).json()) as SearchPage[]).map((entry) => [entry.path, entry.group]))
-const isItem = (name: string) => pageGroups.get(`/docs/${name}/`) !== "Get Started"
+// The search index says which group each page is in, and which variant demos each page places. A preview whose
+// page is under Get Started is a doc's own demo (the Typography page's), not an item's: it has no Installation and
+// is not in the showcase. A variant's preview (countdown-compact) has no page of its own: its card stands on the
+// page that places it, in a section of that page, and the index says which page that is.
+const searchPages = (await (await context.request.get(`${base}/${SEARCH_INDEX}`)).json()) as SearchPage[]
+const pageGroups = new Map<string, string>(searchPages.map((entry) => [entry.path, entry.group]))
+const placedOn = new Map<string, string>(searchPages.flatMap((entry) => (entry.demos ?? []).map((demo) => [demo, entry.path] as const)))
+type Kind = "item" | "doc" | "variant" | "stray"
+const kindOf = (name: string): Kind => {
+  const group = pageGroups.get(`/docs/${name}/`)
+  if (group) return group === "Get Started" ? "doc" : "item"
+  return placedOn.has(name) ? "variant" : "stray"
+}
+/** The page whose card frames a preview: its own page for an item or a doc, the page that places it for a variant. */
+const pageOf = (name: string) => placedOn.get(name) ?? `/docs/${name}/`
+const isItem = (name: string) => kindOf(name) === "item"
 const itemPreviews = items.filter(isItem)
+/** The previews with a page of their own, an item's or a doc's: what the sidebar, the Components index, and the search index list. */
+const paged = items.filter((name) => kindOf(name) !== "variant")
 if (!itemPreviews.length) {
   console.error(`none of ${items.join(", ")} is an item's preview`)
   process.exit(1)
@@ -136,7 +151,12 @@ const frameHeight = (page: Page, item: string) => page.evaluate((name) => parseF
 for (const item of items) {
   const page = await context.newPage()
   watch(page, item)
+  const kind = kindOf(item)
   try {
+    if (kind === "stray") {
+      failures.push(`${item}: no page frames this preview: it is no item's, no doc's own, and no page places it as a variant`)
+      continue
+    }
     // The embed page on its own: the demo mounts and reports a height.
     const response = await page.goto(`${base}/${PREVIEW_PATH}/${item}/`, { waitUntil: "load" })
     if (!response?.ok()) failures.push(`${item}: /${PREVIEW_PATH}/${item}/ answered ${response?.status()}`)
@@ -148,28 +168,46 @@ for (const item of items) {
     const font = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--tradecn-font-mono").trim())
     if (!font) failures.push(`${item}: the embed page has no --tradecn-font-mono; the typography tokens did not reach it`)
     for (const problem of await numericProblems(page)) failures.push(`${item}: ${problem}`)
-    // The docs page frames it, and the height message arrives.
-    await page.goto(`${base}/docs/${item}/`, { waitUntil: "load" })
-    const frame = page.locator(`.preview[data-preview='${item}'] iframe`)
+    // The page that frames it does, and the height message arrives: an item's or a doc's own page, or the page a variant is placed on.
+    const where = pageOf(item)
+    await page.goto(`${base}${where}`, { waitUntil: "load" })
+    // One card per preview; a page with variants has several, so everything below is read from this one.
+    const card = page.locator(`.preview[data-preview='${item}']`)
+    const frame = card.locator("iframe")
     await frame.waitFor({ timeout: 15_000 })
     // A demo is taller than the root's padding alone; the height has to be the demo's, not the empty page's.
     await page.waitForFunction((name) => parseFloat((document.querySelector(`.preview[data-preview='${name}'] iframe`) as HTMLIFrameElement | null)?.style.height ?? "0") > 40, item, { timeout: 15_000 })
     const height = await frame.evaluate((el) => parseFloat((el as HTMLIFrameElement).style.height))
     // The page's own headings are down the right, Installation first on an item's page, and the arrows sit beside the title.
-    if (isItem(item) && !(await page.locator(".toc a[href='#installation']").count())) failures.push(`${item}: the page lists no Installation under On this page`)
-    if (!isItem(item) && (await page.locator("#installation").count())) failures.push(`${item}: a doc's page grew an Installation section`)
+    if (kind === "item" && !(await page.locator(".toc a[href='#installation']").count())) failures.push(`${item}: the page lists no Installation under On this page`)
+    if (kind === "doc" && (await page.locator("#installation").count())) failures.push(`${item}: a doc's page grew an Installation section`)
     if (!(await page.locator(".arrows a[rel='prev'], .arrows a[rel='next']").count())) failures.push(`${item}: no arrows beside the title`)
     // The Code tab shows something, and swapping tabs works without a framework.
-    await page.getByRole("tab", { name: "Code" }).click()
-    const previewCode = page.locator(".preview-code pre code")
+    await card.getByRole("tab", { name: "Code" }).click()
+    const previewCode = card.locator(".preview-code pre code")
     if (!(await previewCode.isVisible())) failures.push(`${item}: the Code tab shows no code`)
     const code = await previewCode.innerText()
     if (code.includes("@/registry/")) failures.push(`${item}: the Code tab shows a playground import, not the consumer's`)
     // Its copy button puts that source on the clipboard, without the trailing newline.
     const source = await previewCode.evaluate((el) => el.textContent ?? "")
-    await page.locator(".preview-code .copy").click()
+    await card.locator(".preview-code .copy").click()
     if ((await clipboard(page)) !== source.trimEnd()) failures.push(`${item}: the Code tab's copy button copied something else`)
-    if (!isItem(item)) {
+    if (kind === "variant") {
+      // A variant's card stands in a section of its own, after Usage and before API Reference, where the doc placed it.
+      const placement = await page.evaluate((name) => {
+        const own = document.querySelector(`.preview[data-preview='${name}']`)
+        const usage = document.getElementById("usage")
+        const api = document.getElementById("api-reference")
+        if (!own || !usage || !api) return "on a page with no Usage or API Reference"
+        const afterUsage = usage.compareDocumentPosition(own) & Node.DOCUMENT_POSITION_FOLLOWING
+        const beforeApi = own.compareDocumentPosition(api) & Node.DOCUMENT_POSITION_FOLLOWING
+        return afterUsage && beforeApi ? "" : "outside the stretch between Usage and API Reference"
+      }, item)
+      if (placement) failures.push(`${item}: the variant's card is ${placement}`)
+      console.log(`ok  ${item.padEnd(26)} ${Math.round(height)}px (a variant on ${where})`)
+      continue
+    }
+    if (kind === "doc") {
       console.log(`ok  ${item.padEnd(26)} ${Math.round(height)}px (a doc's demo)`)
       continue
     }
@@ -297,7 +335,7 @@ for (const item of items) {
     const groups = [...new Set(groupOf.values())]
     if (!groups.includes("Components") || groups.length < 3) failures.push(`docs: the index groups the pages as ${groups.join(", ")}`)
     await page.goto(`${base}/docs/components/`, { waitUntil: "load" })
-    for (const item of items) {
+    for (const item of paged) {
       const link = page.locator(`.item-list a[href='/docs/${item}/']`)
       const count = await link.count()
       const group = groupOf.get(`/docs/${item}/`)
@@ -314,7 +352,7 @@ for (const item of items) {
     // The docs groups alone: the sidebar also holds the phone menu's part, hidden here, with a heading of its own.
     const headings = await page.locator(".docs-nav h2").evaluateAll((els) => els.map((el) => el.textContent ?? ""))
     if (headings.join(",") !== groups.join(",")) failures.push(`docs: the sidebar is grouped as ${headings.join(", ")}, the index as ${groups.join(", ")}`)
-    for (const item of items) {
+    for (const item of paged) {
       const heading = await page.locator(`.docs-nav ul:has(a[href='/docs/${item}/'])`).locator("xpath=preceding-sibling::h2[1]").textContent()
       if (heading !== groupOf.get(`/docs/${item}/`)) failures.push(`docs: ${item} is listed under ${heading}, the index says ${groupOf.get(`/docs/${item}/`)}`)
     }
@@ -348,7 +386,7 @@ for (const item of items) {
     const index = await page.request.get(`${base}/${SEARCH_INDEX}`)
     if (!index.ok()) failures.push(`search: /${SEARCH_INDEX} answered ${index.status()}`)
     const pages = (await index.json()) as SearchPage[]
-    if (pages.length < items.length + 5) failures.push(`search: the index has ${pages.length} pages for ${items.length} items and the site's own pages`)
+    if (pages.length < paged.length + 5) failures.push(`search: the index has ${pages.length} pages for ${paged.length} previews with pages and the site's own pages`)
     await page.goto(`${base}/`, { waitUntil: "load" })
     const button = page.locator(".site-header .search-button")
     if (!(await button.isVisible())) failures.push("search: no search button in the header")

@@ -799,8 +799,10 @@ export function siteDocs(site: Doc[], tagDocs: Doc[]): Doc[] {
   return [...site, ...tagDocs.filter((doc) => !doc.item), ...GROUPS.flatMap((group) => tagDocs.filter((doc) => doc.item && groupOf(doc.item) === group).sort(byLabel))]
 }
 
-// The previews. A demo is playground/src/demos/<item>.tsx; the embed build is that app's dist/embed,
-// a Vite manifest over one entry with a chunk per demo. The pages need both, or neither.
+// The previews. A demo is playground/src/demos/<item>.tsx, and a variant of an item is a demo of its own,
+// playground/src/demos/<item>-<variant>.tsx, placed where the item's doc says `<!-- demo: <item>-<variant> -->`;
+// the embed build is that app's dist/embed, a Vite manifest over one entry with a chunk per demo. The pages
+// need both, or neither.
 
 export type Demo = { name: string; source: string; code: string }
 /** The embed build: the entry's script and stylesheets as site paths, and the directory to copy. */
@@ -881,10 +883,13 @@ export function previewThemePalettes(themes: RegistryItem[]): string {
     .join("\n")
 }
 
-/** The Preview / Code card on an item's page. The iframe is sized by the message the embed posts. */
+/**
+ * The Preview / Code card on an item's page, for the item's own demo at the top or a variant's where the doc places it.
+ * The iframe is sized by the message the embed posts. A theme's own card shows its stylesheet, not a demo's source.
+ */
 export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
-  const name = doc.slug
-  const theme = doc.item?.type === "registry:theme"
+  const name = demo.name
+  const theme = doc.item?.type === "registry:theme" && demo.name === doc.slug
   const code = theme && doc.item ? [themeCss(doc.item), doc.item.css ? registryCss(doc.item.css) : ""].filter(Boolean).join("\n\n") : demo.code
   const language = theme ? "css" : "tsx"
   const codeSource = theme ? `what <code>${escapeHtml(name)}</code> writes into your stylesheet` : `<code>playground/src/demos/${escapeHtml(name)}.tsx</code>`
@@ -914,6 +919,38 @@ export function withPreview(html: string, block: string): string {
   const p = html.indexOf("</p>\n", h1 < 0 ? 0 : h1)
   const at = p < 0 ? (h1 < 0 ? 0 : h1 + "</h1>\n".length) : p + "</p>\n".length
   return `${html.slice(0, at)}${block}\n${html.slice(at)}`
+}
+
+// A variant. shadcn's pages give each major variant a heading, a sentence, and a block of its own to copy from,
+// and so do ours: the doc heads a section `## <Variant>` between Usage and API Reference, says what the variant is,
+// and ends the section with the line `<!-- demo: <item>-<variant> -->`. That demo is a file of its own in
+// playground/src/demos, so it is small enough to paste whole. On GitHub the line is invisible and the section is its
+// text; here it is the same card the item's own demo gets at the top.
+
+/** The line a doc places a variant's demo with, as marked leaves it: its own block, so it is never inside a paragraph. */
+const DEMO_LINE = /<!--\s*demo:\s*([\w-]+)\s*-->\n?/g
+
+/** The demos a doc places by name, in page order, besides the one named for the doc itself. */
+export function framedIn(html: string): string[] {
+  return [...html.matchAll(DEMO_LINE)].map((match) => match[1] ?? "")
+}
+
+/** Every demo the docs frame: each page's own, named for it, and every variant a page places. What `previewPages` writes a page for. */
+export function framedDemos(docs: Doc[]): Set<string> {
+  return new Set(docs.flatMap((doc) => [doc.slug, ...framedIn(doc.html)]))
+}
+
+/**
+ * The doc's HTML with each `<!-- demo: x -->` replaced by the card for that demo. Without an embed build the line
+ * is dropped, as the card at the top is left out; with one, a doc that names a demo the playground lacks is an error.
+ */
+export function withDemos(doc: Doc, previews: Previews, tag: string): string {
+  return doc.html.replace(DEMO_LINE, (_line, name: string) => {
+    if (!previews.embed) return ""
+    const demo = previews.demos.get(name)
+    if (!demo) throw new Error(`docs/${doc.source} frames a demo named ${name}, and playground/src/demos/${name}.tsx does not exist`)
+    return `${previewBlock(doc, demo, tag)}\n`
+  })
 }
 
 // The Installation section. Command is what the Installation page says: `shadcn add` with the tag pinned. Manual
@@ -1052,9 +1089,10 @@ export type SearchSection = { id: string; heading: string; parent?: string; text
 /**
  * A page in the search index: where it is, the item's name for an item page (`data-grid`, what `shadcn add` takes),
  * its title (the doc's own heading, `DataGrid`), the name the sidebar shows (`Data Grid`), which sidebar group it is
- * in, its opening text, and every h2 and h3 with the text under it. A query answers to all three names.
+ * in, its opening text, and every h2 and h3 with the text under it. A query answers to all three names. `demos`
+ * names the variant demos the page frames, when it frames any: what tells a preview's page from its name alone.
  */
-export type SearchPage = { path: string; name?: string; title: string; label: string; group: Group; text: string; sections: SearchSection[] }
+export type SearchPage = { path: string; name?: string; title: string; label: string; group: Group; text: string; sections: SearchSection[]; demos?: string[] }
 
 /**
  * The search index, from the docs in nav order. It reads each doc's own HTML, so the generated parts of an item's
@@ -1073,7 +1111,8 @@ export function searchIndex(docs: Doc[]): SearchPage[] {
       const text = textOf(doc.html.slice(match.index + whole.length, headings[index + 1]?.index ?? doc.html.length))
       return level === "3" && parent ? { id, heading, parent, text } : { id, heading, text }
     })
-    return { path: doc.path, name: doc.item?.name, title: doc.title, label: doc.label, group: groupOf(doc.item), text: textOf(intro), sections }
+    const demos = framedIn(doc.html)
+    return { path: doc.path, name: doc.item?.name, title: doc.title, label: doc.label, group: groupOf(doc.item), text: textOf(intro), sections, demos: demos.length ? demos : undefined }
   })
 }
 
@@ -1139,7 +1178,9 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
     const foot = doc.file ? `<p class="foot">This page is <code>${escapeHtml(doc.file)}</code> at <a href="${repoUrl}/blob/${tag}/${escapeHtml(doc.file)}">${tag}</a>.</p>` : ""
     if (doc.item && doc.html.includes('id="installation"')) throw new Error(`docs/${doc.source} has its own Installation heading, and the builder adds one`)
     const lead = [demo ? previewBlock(doc, demo, tag) : "", doc.item ? installationSection(doc.item, tag, sources) : ""].filter(Boolean).join("\n")
-    const body = [lead ? withPreview(doc.html, lead) : doc.html, doc.item ? builtOn(doc.item) : ""].filter(Boolean).join("\n")
+    // The variants' cards stand where the doc placed them, each in its own section.
+    const html = withDemos(doc, previews, tag)
+    const body = [lead ? withPreview(html, lead) : html, doc.item ? builtOn(doc.item) : ""].filter(Boolean).join("\n")
     const content = [arrows(docs, index), body, pager(docs, index)].join("\n")
     const section = sectionOf(doc)
     // The section's own page: the index, the Components page, the changelog. An item's page is in its section, not the section itself.
@@ -1166,18 +1207,19 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
  * One page per demo at /preview/<item>/, around the embed bundle, with a palette for each mode. A theme's page
  * wears that theme in both, whatever the reader chose in the header; every other page wears the site's theme, from
  * `themeSource`, both whole sides, and carries every other theme's sides keyed on the choice, so a demo looks like
- * the docs page that frames it.
+ * the docs page that frames it. `framed` names the demos the docs frame besides the items' own (`framedDemos`): a
+ * page's own demo, the Typography page's, and every variant a page places.
  */
-export function previewPages(registry: Registry, themeSource: Registry, previews: Previews, values: Record<string, string>, template: string, docSlugs: ReadonlySet<string> = new Set()): Array<{ path: string; html: string }> {
+export function previewPages(registry: Registry, themeSource: Registry, previews: Previews, values: Record<string, string>, template: string, framed: ReadonlySet<string> = new Set()): Array<{ path: string; html: string }> {
   const { embed } = previews
   if (!embed) return []
   const themes = siteThemes(themeSource)
   const site = themes[0]!
   const others = previewThemePalettes(themes)
   const styles = embed.styles.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")
-  // A demo is an item's, a doc's own (the Typography page has one), or the desk's; a stray demo that is none of those gets no page.
+  // A demo is an item's, one the docs frame (a page's own, or a variant a page places), or the desk's; a stray demo that is none of those gets no page.
   return [...previews.demos.values()]
-    .filter((demo) => demo.name === DESK_DEMO || registry.items.some((item) => item.name === demo.name) || docSlugs.has(demo.name))
+    .filter((demo) => demo.name === DESK_DEMO || registry.items.some((item) => item.name === demo.name) || framed.has(demo.name))
     .map((demo) => {
       const item = registry.items.find((entry) => entry.name === demo.name)
       const theme = item?.type === "registry:theme" ? item : null
@@ -1270,7 +1312,7 @@ async function main() {
     await writeFile(join(out, page.path), page.html)
   }
   await writeFile(join(out, SEARCH_INDEX), JSON.stringify(searchIndex(docs)))
-  const pages = previewPages(registry, themeSource, previews, values, await readFile(join(root, "site", PREVIEW_TEMPLATE), "utf8"), docSlugs)
+  const pages = previewPages(registry, themeSource, previews, values, await readFile(join(root, "site", PREVIEW_TEMPLATE), "utf8"), framedDemos(tagDocs))
   if (previews.embed) {
     await cp(join(previews.embed.dir, "assets"), join(out, PREVIEW_PATH, "assets"), { recursive: true })
     if (atRoot) await cp(join(previews.embed.dir, POPOUT), join(out, POPOUT))

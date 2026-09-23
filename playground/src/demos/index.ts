@@ -1,8 +1,10 @@
 import type { ComponentType } from "react"
 
-// One demo per item, the file named for the item: playground/src/demos/<item>.tsx, default export.
-// tradecn.dev embeds each one at /preview/<item>/ and shows its source under the Code tab, so a demo
-// is written to be read as well as run. Anything shared lives under demos/shared/, which the glob skips.
+// One demo per item, the file named for the item: playground/src/demos/<item>.tsx, default export. A variant
+// of an item worth a block of its own on the page is a demo of its own, <item>-<variant>.tsx, placed where
+// the item's doc says `<!-- demo: <item>-<variant> -->`. tradecn.dev embeds each one at /preview/<name>/ and
+// shows its source under the Code tab, so a demo is written to be read as well as run, and kept small enough
+// to paste whole. Anything shared lives under demos/shared/, which the glob skips.
 type Loader = () => Promise<{ default: ComponentType }>
 
 const modules = import.meta.glob<{ default: ComponentType }>("./*.tsx")

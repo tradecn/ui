@@ -103,6 +103,6 @@ A laptop in headless Chromium is not your users' machine. `just bench --machine 
 
 ## Working on it
 
-`bun install`, then `just dev` for the playground and `just check` for everything CI runs. Each item has a demo in `playground/src/demos/`; it's the one tradecn.dev shows, so a new item ships with one. `terminal.tsx` there is the desk on the front page, one workspace with every item on it, and a test holds it to the registry, so a new item joins the desk too. Pull request titles pick the next tag; [`CONTRIBUTING.md`](CONTRIBUTING.md) has the table.
+`bun install`, then `just dev` for the playground and `just check` for everything CI runs. Each item has a demo in `playground/src/demos/`; it's the one tradecn.dev shows, so a new item ships with one. A variant worth a block of its own on the page is a demo of its own, `<item>-<variant>.tsx`, placed where the item's doc says `<!-- demo: <item>-<variant> -->` under a heading of its own. `terminal.tsx` there is the desk on the front page, one workspace with every item on it, and a test holds it to the registry, so a new item joins the desk too. Pull request titles pick the next tag; [`CONTRIBUTING.md`](CONTRIBUTING.md) has the table.
 
 MIT. I'm John Carmack (the Rust and TypeScript one, not the Doom one).

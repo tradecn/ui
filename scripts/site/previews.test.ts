@@ -7,6 +7,8 @@ import {
   DESK_DEMO,
   DOCS_TEMPLATE,
   docPages,
+  framedDemos,
+  framedIn,
   fullPalette,
   PREVIEW_TEMPLATE,
   previewBlock,
@@ -27,6 +29,7 @@ import {
   themeCss,
   THEMES_META,
   themesMeta,
+  withDemos,
   withPreview,
 } from "./build"
 import type { Doc, Previews, Registry } from "./build"
@@ -71,13 +74,25 @@ describe("the demo source shown under Code", () => {
     ])
   })
 
-  it("has one demo per item, and a demo only for an item or a docs page of the same name, the desk aside", async () => {
+  it("has one demo per item, and a demo only for an item, a docs page of the same name, a variant a doc places, or the desk", async () => {
     const demos = await readDemos(resolve(root, "playground/src/demos"))
     const items = registry.items.map((item) => item.name)
     for (const name of items) expect(demos.has(name), `${name} has a demo`).toBe(true)
-    // The Typography page has a demo of its own, and the opening page frames the desk; a demo that is none of those would embed nowhere.
-    const docs = new Set((await readDocs(resolve(root, "docs"), registry)).map((doc) => doc.slug))
-    for (const name of demos.keys()) expect(items.includes(name) || docs.has(name) || name === DESK_DEMO, `${name} is an item, a docs page, or the desk`).toBe(true)
+    // The Typography page has a demo of its own, a doc places its variants' demos, and the opening page frames the desk; a demo that is none of those would embed nowhere.
+    const docs = await readDocs(resolve(root, "docs"), registry)
+    const framed = framedDemos(docs)
+    for (const name of demos.keys()) expect(items.includes(name) || framed.has(name) || name === DESK_DEMO, `${name} is an item, a docs page, a variant a doc places, or the desk`).toBe(true)
+    // A variant a doc places is a demo that exists, named for the doc's own item as <item>-<variant>, and placed by that one doc.
+    const placed = new Map<string, string>()
+    for (const doc of docs) {
+      for (const name of framedIn(doc.html)) {
+        expect(demos.has(name), `${doc.source} places ${name}, and playground/src/demos has no such demo`).toBe(true)
+        expect(name.startsWith(`${doc.slug}-`), `${doc.source} places ${name}, which is not named ${doc.slug}-<variant>`).toBe(true)
+        expect(placed.get(name), `${name} is placed by both ${placed.get(name)} and ${doc.source}`).toBeUndefined()
+        placed.set(name, doc.source)
+      }
+    }
+    expect([...placed.keys()].sort()).toEqual(["countdown-compact", "countdown-expired", "countdown-thresholds"])
     expect(demos.has("typography")).toBe(true)
     expect(demos.has(DESK_DEMO)).toBe(true)
     for (const demo of demos.values()) {
@@ -156,6 +171,14 @@ describe("a theme on the site", () => {
     expect(docDemos.sort()).toEqual(["color", "typography"])
     expect(pages.size).toBe(registry.items.length + docDemos.length + 1)
     expect(pages.has(`preview/${DESK_DEMO}/index.html`)).toBe(true)
+    // With every demo the docs frame, the variants the pages place get pages of their own too, wearing the site's palette like any item's.
+    const framed = framedDemos(docs)
+    const variants = [...framed].filter((name) => !docSlugs.has(name)).sort()
+    expect(variants).toEqual(["countdown-compact", "countdown-expired", "countdown-thresholds"])
+    const withVariants = new Map(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE), framed).map((page) => [page.path, page.html]))
+    expect(withVariants.size).toBe(pages.size + variants.length)
+    expect(withVariants.get("preview/countdown-compact/index.html")).toContain('<div id="root" data-item="countdown-compact"')
+    expect(withVariants.get("preview/countdown-compact/index.html")).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${theme.cssVars?.dark?.accent};`)
     const typographyPage = pages.get("preview/typography/index.html") ?? ""
     expect(typographyPage).toContain('<div id="root" data-item="typography"')
     expect(typographyPage).toContain(`:root.dark {\n  color-scheme: dark;\n  --accent: ${theme.cssVars?.dark?.accent};`)
@@ -244,6 +267,37 @@ describe("the preview card", () => {
     expect(block).not.toContain("FlashCell")
   })
 
+  it("frames a variant's own embed page under the variant's name, with the variant's own file under Code", () => {
+    const block = previewBlock(doc, { name: "flash-cell-quiet", source: "x", code: "quiet" }, "v9.9.9")
+    expect(block).toContain('<div class="preview" data-preview="flash-cell-quiet" data-tabs>')
+    expect(block).toContain('<iframe src="/preview/flash-cell-quiet/" title="flash-cell-quiet, live" loading="lazy" data-preview="flash-cell-quiet">')
+    expect(block).toContain('role="tab" id="preview-flash-cell-quiet-tab-code" aria-selected="false" aria-controls="preview-flash-cell-quiet-code"')
+    expect(block).toContain("<code>playground/src/demos/flash-cell-quiet.tsx</code>, at <a href=\"https://github.com/tradecn/ui/blob/v9.9.9/playground/src/demos/flash-cell-quiet.tsx\">v9.9.9</a>")
+    expect(block).toContain('<code class="language-tsx">quiet</code>')
+    // Only a theme's own demo shows the stylesheet; a variant placed on a theme's page would show its source like any other.
+    const theme = registry.items.find((item) => item.name === THEME_ITEM)!
+    expect(previewBlock({ ...doc, slug: theme.name, item: theme }, { name: `${theme.name}-x`, source: "x", code: "tsx here" }, "v9.9.9")).toContain('<code class="language-tsx">tsx here</code>')
+  })
+
+  it("stands where the doc places a variant, in that doc's own HTML, and only when the tag has an embed build", () => {
+    const placed: Doc = { ...doc, html: '<h1 id="flash-cell">flash-cell</h1>\n<p>What it is.</p>\n<h2 id="quiet">Quiet</h2>\n<p>No flash.</p>\n<!-- demo: flash-cell-quiet --><h2 id="api-reference">API Reference</h2>\n' }
+    const demos = new Map([["flash-cell-quiet", { name: "flash-cell-quiet", source: "s", code: "c" }]])
+    const embed = { dir: "", script: "/preview/assets/e.js", styles: [] }
+    const html = withDemos(placed, { demos, embed }, "v9.9.9")
+    // The card takes the line's place, as marked leaves it: its own block, right before the next heading.
+    expect(html).toContain('<p>No flash.</p>\n<div class="preview" data-preview="flash-cell-quiet" data-tabs>')
+    expect(html).toMatch(/<\/div>\n<h2 id="api-reference">/)
+    expect(html).not.toContain("<!--")
+    expect(framedIn(placed.html)).toEqual(["flash-cell-quiet"])
+    expect(framedIn("<!--demo:a-b-->\n<p>x</p>\n<!-- demo: a-c -->")).toEqual(["a-b", "a-c"])
+    expect(framedIn(doc.html)).toEqual([])
+    expect(framedDemos([placed, { ...doc, slug: "typography", html: "" }])).toEqual(new Set(["flash-cell", "flash-cell-quiet", "typography"]))
+    // Without an embed the line goes and nothing stands in for it, as the top card is left out; with one, a demo the playground lacks is an error.
+    expect(withDemos(placed, { demos: new Map(), embed: null }, "v9.9.9")).toBe('<h1 id="flash-cell">flash-cell</h1>\n<p>What it is.</p>\n<h2 id="quiet">Quiet</h2>\n<p>No flash.</p>\n<h2 id="api-reference">API Reference</h2>\n')
+    expect(() => withDemos(placed, { demos: new Map(), embed }, "v9.9.9")).toThrow(/flash-cell\.md frames a demo named flash-cell-quiet, and playground\/src\/demos\/flash-cell-quiet\.tsx does not exist/)
+    expect(withDemos(doc, { demos, embed }, "v9.9.9")).toBe(doc.html)
+  })
+
   it("lands after the first paragraph, or after the title, or at the top", () => {
     expect(withPreview("<h1>t</h1>\n<p>one</p>\n<p>two</p>\n", "<div>P</div>")).toBe("<h1>t</h1>\n<p>one</p>\n<div>P</div>\n<p>two</p>\n")
     expect(withPreview("<h1>t</h1>\n<pre>x</pre>\n", "<div>P</div>")).toBe("<h1>t</h1>\n<div>P</div>\n<pre>x</pre>\n")
@@ -274,8 +328,32 @@ describe("the preview card", () => {
     }
     expect(withEmbed.get("docs/index.html")).not.toContain("<iframe")
     expect(withEmbed.get("docs/components/index.html")).not.toContain("<iframe")
+    // The countdown page places three variants, each card in its own section between Usage and API Reference, each framing its own page and naming its own file.
+    const countdown = withEmbed.get("docs/countdown/index.html") ?? ""
+    const at = (text: string) => {
+      const index = countdown.indexOf(text)
+      expect(index, `${text} on the countdown page`).toBeGreaterThan(-1)
+      return index
+    }
+    for (const name of ["countdown-compact", "countdown-thresholds", "countdown-expired"]) {
+      const card = at(`<div class="preview" data-preview="${name}" data-tabs>`)
+      expect(card).toBeGreaterThan(at('<h2 id="usage">'))
+      expect(card).toBeLessThan(at('<h2 id="api-reference">'))
+      expect(countdown).toContain(`<iframe src="/preview/${name}/" title="${name}, live" loading="lazy" data-preview="${name}">`)
+      expect(countdown).toContain(`<code>playground/src/demos/${name}.tsx</code>`)
+    }
+    expect(at('data-preview="countdown-compact"')).toBeGreaterThan(at('<h2 id="compact">'))
+    expect(at('data-preview="countdown-compact"')).toBeLessThan(at('<h2 id="thresholds">'))
+    expect(at('data-preview="countdown-thresholds"')).toBeLessThan(at('<h2 id="expired">'))
+    expect(at('data-preview="countdown-expired"')).toBeLessThan(at('<h2 id="api-reference">'))
+    expect(countdown).not.toContain("<!-- demo:")
+    // The item's own card stays first, at the top.
+    expect(at('data-preview="countdown"')).toBeLessThan(at('<h2 id="installation">'))
     const without = docPages(docs, values, template(DOCS_TEMPLATE), { demos, embed: null }, sources)
-    for (const page of without) expect(page.html).not.toContain("<iframe")
+    for (const page of without) {
+      expect(page.html).not.toContain("<iframe")
+      expect(page.html).not.toContain("<!-- demo:")
+    }
   })
 
   it("has the tab and height plumbing in the site script, and the layout in the stylesheet", () => {
