@@ -203,12 +203,20 @@ export function createWindowSet(adapter: WindowAdapter, options: WindowSetOption
   const stop = adapter.onClosed((id) => {
     if (open.delete(id)) notify()
   })
+  // Ids with a call to the shell in flight, so two opens or two closes of one window at once make one call.
+  const opening = new Set<string>()
+  const closing = new Set<string>()
   const controller: WindowSetController = {
     async open(record) {
-      if (open.has(record.id)) return false
-      const copy: WindowRecord = { ...record }
-      await adapter.open(copy.id, url(copy), copy)
-      open.set(copy.id, copy)
+      if (open.has(record.id) || opening.has(record.id)) return false
+      opening.add(record.id)
+      try {
+        const copy: WindowRecord = { ...record }
+        await adapter.open(copy.id, url(copy), copy)
+        open.set(copy.id, copy)
+      } finally {
+        opening.delete(record.id)
+      }
       notify()
       return true
     },
@@ -220,8 +228,13 @@ export function createWindowSet(adapter: WindowAdapter, options: WindowSetOption
       return opened
     },
     async close(id) {
-      if (!open.has(id)) return false
-      await adapter.close(id)
+      if (!open.has(id) || closing.has(id)) return false
+      closing.add(id)
+      try {
+        await adapter.close(id)
+      } finally {
+        closing.delete(id)
+      }
       if (open.delete(id)) notify()
       return true
     },

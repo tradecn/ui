@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { createWindowSet, windowSetOf, type WindowAdapter, type WindowRecord, type WindowSet } from "@/registry/tradecn/lib/window-set"
 
@@ -44,8 +44,12 @@ export default function WindowSetDemo() {
     }
     return { adapter, closeFromShell }
   })
-  // One controller for the page's life; the shell dies with the page, so nothing disposes it.
+  // One controller for the page's life; the shell dies with the page, so nothing disposes it. On launch the desk is
+  // restored, the way a shell's main window restores the stored set; opening is idempotent, so a second mount opens nothing twice.
   const [windows] = useState(() => createWindowSet(shell.adapter, { url: (w) => `tradecn://desk/?window=${w.id}&layout=${w.layoutId}` }))
+  useEffect(() => {
+    void windows.restore(DESK)
+  }, [windows])
   return (
     <div className="flex flex-col gap-3 text-xs">
       <div className="flex flex-wrap items-center gap-2">
@@ -75,7 +79,7 @@ export default function WindowSetDemo() {
             <span className="text-muted-foreground">layout {card.record.layoutId}</span>
           </div>
         ))}
-        {cards.length === 0 && <p className="col-span-3 self-center text-muted-foreground">No windows open. Restore the desk to open the three, main first.</p>}
+        {cards.length === 0 && <p className="col-span-3 self-center text-muted-foreground">No windows open. Restore the desk to open the three again, main first.</p>}
       </div>
       {snapshot && <pre className="max-h-48 overflow-auto rounded-md border border-border bg-muted/40 p-2 text-[length:var(--tradecn-text-size-grid-min)]">{snapshot}</pre>}
     </div>

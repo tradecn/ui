@@ -165,4 +165,31 @@ describe("the controller", () => {
     expect(set.isOpen("main")).toBe(true)
     expect(shell.adapter.close).not.toHaveBeenCalled()
   })
+
+  it("makes one call to the shell when two restores, or two closes, of the same window run at once", async () => {
+    // A shell that answers a tick later, so the second call arrives while the first is still out; React's StrictMode
+    // rehearsal runs a mount effect twice this way.
+    const shell = fakeShell()
+    const slow: WindowAdapter = {
+      ...shell.adapter,
+      open: vi.fn(async (id: string) => {
+        await Promise.resolve()
+        shell.windows.set(id, "")
+      }),
+      close: vi.fn(async (id: string) => {
+        await Promise.resolve()
+        shell.windows.delete(id)
+      }),
+    }
+    const set = createWindowSet(slow)
+    const desk = windowSetOf([MAIN, SIDE])
+    const [first, second] = await Promise.all([set.restore(desk), set.restore(desk)])
+    expect(slow.open).toHaveBeenCalledTimes(2)
+    expect([...first, ...second].map((w) => w.id).sort()).toEqual(["main", "side"])
+    expect(set.windows().map((w) => w.id)).toEqual(["main", "side"])
+    const closes = await Promise.all([set.close("main"), set.close("main")])
+    expect(slow.close).toHaveBeenCalledTimes(1)
+    expect(closes.sort()).toEqual([false, true])
+    expect(set.isOpen("main")).toBe(false)
+  })
 })
