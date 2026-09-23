@@ -1,12 +1,16 @@
 # StatusBar
 
-The strip at the bottom of every terminal: which environment this is, what time it is where the markets are, who is signed in, and your own readouts in the slots between.
+Show the environment, market clocks, signed-in user, and your own readouts in a terminal's bottom bar.
 
 ## Usage
 
 ```tsx
+import { FeedHealth } from "@/components/ui/feed-health"
+import { PerfMonitor } from "@/components/ui/perf-monitor"
 import { StatusBar } from "@/components/ui/status-bar"
 ```
+
+The application supplies `feeds` and `session.user`, a string to display. Install `feed-health` and `perf-monitor` separately for these slots.
 
 ```tsx
 <StatusBar
@@ -20,30 +24,90 @@ import { StatusBar } from "@/components/ui/status-bar"
 
 ## Composition
 
-One row, in this order: the environment badge, your `left`, your `center` (which takes the room), the clocks, the user, your `right`. A slot left out takes no space. The bar imports none of the items that usually sit in it, so its install stays small and what sits in it is your choice; the demo puts [`feed-health`](feed-health.md) and [`perf-monitor`](perf-monitor.md) in their compact forms there.
+The order is environment badge, `left`, `center`, clocks, user, `right`. The bar wraps onto more lines when space runs out. The center wrapper always remains as a flexible spacer, even without content. The left and right wrappers disappear only when their props are `undefined`; passing `null` or `false` leaves an empty wrapper.
+
+The bar imports none of the items in its slots. The example puts [`feed-health`](feed-health.md) and [`perf-monitor`](perf-monitor.md) there in their compact forms.
 
 ## API Reference
 
+### StatusBar props
+
+All props are optional. `StatusBarProps` accepts the following inputs; it does not forward arbitrary HTML attributes or accept a `children` prop.
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `environment` | `StatusBarEnvironment` | Omitted | Environment badge, first on the bar. |
+| `clocks` | `StatusBarClock[]` | Omitted | Clock readouts in array order; an empty array hides the group. |
+| `user` | `string` | Omitted | Signed-in user text; an empty string hides it. |
+| `left` | `ReactNode` | `undefined` | Content before the center spacer. |
+| `center` | `ReactNode` | `undefined` | Centered content in the flexible spacer. |
+| `right` | `ReactNode` | `undefined` | Content after the user. |
+| `clock` | `Clock` | Shared one-second clock | Time source for every clock readout. |
+| `labels` | `Partial<StatusBarLabels>` | `DEFAULT_STATUS_BAR_LABELS` | Overrides for the built-in labels. |
+| `className` | `string` | Omitted | Classes merged onto the root. |
+
+The root is a `div` with `role="group"`, named by `labels.title`, and `data-slot="tradecn-status-bar"`. It does not create a live region or announce each clock tick.
+
 ### The environment is a safety feature
 
-`environment` is `{ label, tone }`: the word (`PRODUCTION`, `UAT`, `DEV`) printed as it is, first on the bar, in a badge painted by its tone. The word is what says which screen this is; the tone is the hint that makes production read at a glance from across a desk. The tones are the token names, `up`, `down`, `flat`, `stale`, `expiring`, `primary`, and `destructive`, and `STATUS_TONE_CLASS` has the class for each. The root carries `data-environment` for a stylesheet or a test.
+The word identifies the environment; its tone helps production stand out at a glance. `StatusBarEnvironment` has two fields:
+
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `label` | `string` | Required | Text printed as given, such as `PRODUCTION`, `UAT`, or `DEV`. |
+| `tone` | `StatusTone` | Omitted | Badge colors; no status-tone classes are added when omitted. |
+
+`StatusTone` is `"up" | "down" | "flat" | "stale" | "expiring" | "primary" | "destructive"`. `STATUS_TONE_CLASS: Record<StatusTone, string>` exports the text and background classes for each tone.
+
+The badge uses the outline variant, with `labels.environment` in its `title` and a screen-reader prefix such as `Environment: `. The root carries `data-environment`; the badge carries `data-status-environment` and, when supplied, `data-tone`.
 
 ### The clocks
 
-`clocks` is a list of `{ label, zone, seconds, hourCycle }`: a word and an IANA zone, seconds on by default, a 24-hour clock by default. Every readout ticks on the shared one-second clock from [`countdown`](countdown.md)'s `lib/clock.ts`, so three clocks cost one timer, and a `clock` of your own replaces it. The time is a `<time>` in lining, tabular figures with the instant in `dateTime`, and the zone is the readout's `title`. A zone the runtime does not know prints the null token instead of throwing; `formatClock` and `clockFormat` are the functions underneath.
+Each entry is a `StatusBarClock`:
+
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `label` | `string` | Required | Visible label beside the time, such as `New York`. |
+| `zone` | `string` | Required | IANA time zone, such as `America/New_York`. |
+| `seconds` | `boolean` | `true` | Include seconds in the displayed time. |
+| `hourCycle` | `"h23" \| "h12"` | `"h23"` | Use a 24-hour or 12-hour clock. |
+
+Every readout subscribes to the shared one-second clock from [`countdown`](countdown.md)'s `lib/clock.ts`, so three clocks use one timer. The timer runs while it has subscribers. Setting `seconds: false` on a clock entry changes formatting, not the tick rate. No clock readouts means no subscriptions from the bar.
+
+The `clock` prop replaces that source. Its `Clock` interface has `now(): number`, returning the last tick's epoch milliseconds, and `subscribe(callback: () => void): () => void`, returning an unsubscribe function. Keep `now()` stable between ticks and supply a valid timestamp within JavaScript's date range.
+
+The nonempty clocks group is named by `labels.clocks`. Each time uses a `<time>` element with lining, tabular figures and the instant's ISO timestamp in `dateTime`; its wrapper's `title` contains the zone. Formatting uses the runtime's default locale. An unknown zone prints `NULL_TOKEN` (`–`). Keep each label/zone pair unique: the pair is the readout's React key.
+
+#### Clock helpers
+
+Both helpers are exported from `@/components/ui/status-bar`.
+
+| Helper | Returns | Behavior |
+|---|---|---|
+| `clockFormat(zone: string, seconds = true, hourCycle: "h23" \| "h12" = "h23")` | `Intl.DateTimeFormat \| null` | Caches the formatter by zone, seconds, and hour cycle. Caches `null` if formatter construction fails, including an unknown zone. |
+| `formatClock(ms: number, clock: StatusBarClock)` | `string` | Formats epoch milliseconds using the entry's zone and options; `label` does not affect the result. Returns `NULL_TOKEN` when no formatter is available. |
+
+The unknown-zone fallback does not validate timestamps. `formatClock` can throw for an invalid timestamp with a valid zone, and a readout's ISO `dateTime` requires a valid timestamp regardless of zone.
 
 ### The user
 
-`user` is a string, printed as given, with `Signed in as` for a screen reader and in the `title`. Who is signed in comes from your session; the bar has no idea.
+`user` is printed as given, with `labels.user` as a screen-reader prefix and in the `title`, for example `Signed in as jdoe`. The value comes from your session; the bar performs no session lookup.
 
 ### Labels
 
-Every word is in `labels`, a partial of `DEFAULT_STATUS_BAR_LABELS`: the bar's name, the environment word a screen reader hears before the badge, the user's prefix, and the clocks group's name.
+`labels` overrides these fields of `StatusBarLabels`. Omitted fields retain their values from `DEFAULT_STATUS_BAR_LABELS`; environment, clock, user, and slot content come from their own props.
+
+| Field | Type | Default | Used for |
+|---|---|---|---|
+| `title` | `string` | `"Status"` | Bar's accessible name. |
+| `environment` | `string` | `"Environment"` | Badge's title and screen-reader prefix. |
+| `user` | `string` | `"Signed in as"` | User's title and screen-reader prefix. |
+| `clocks` | `string` | `"Clocks"` | Clocks group's accessible name. |
 
 ### What it does not do
 
-It reads no feed, counts no frame, and knows no session: those are the items you put in its slots. It fixes nothing to the window either; place it where your layout's bottom is.
+Your application owns environment, session, and feed state; the bar displays the props you supply. Items in its slots own their own behavior. It reads no feed and counts no frames. It does not fix itself to the window; place it at the bottom of your layout.
 
 ### Tokens
 
-The install adds the `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants, if you do not have them; the environment badge draws from them.
+The install adds the `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants if you do not already have them. The environment badge uses those pairs; `primary` and `destructive` use the corresponding shadcn tokens with a translucent background.
