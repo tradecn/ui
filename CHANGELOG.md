@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.6](https://github.com/tradecn/ui/compare/v1.4.5...v1.4.6) (2026-09-23)
+
+
+### Documentation
+
+* **command-palette:** simplify the documentation examples ([#171](https://github.com/tradecn/ui/issues/171)) ([ac59f25](https://github.com/tradecn/ui/commit/ac59f25b0bde7c19628ad8e2a551e44fd64e45e0))
+* **workspace:** simplify the documentation examples ([#169](https://github.com/tradecn/ui/issues/169)) ([eee0a72](https://github.com/tradecn/ui/commit/eee0a72eafc9f2cca2677165ed177c34c1ecb4dd))
+
 ## [1.4.5](https://github.com/tradecn/ui/compare/v1.4.4...v1.4.5) (2026-09-23)
 
 
