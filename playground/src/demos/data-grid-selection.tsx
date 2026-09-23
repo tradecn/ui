@@ -24,7 +24,7 @@ export default function DataGridSelectionDemo() {
   const [selection, setSelection] = useState<ReadonlySet<string>>(new Set())
   const [action, setAction] = useState("No action yet.")
   return (
-    <div className="w-full space-y-2 text-xs lining-nums tabular-nums">
+    <div className="w-fit max-w-full space-y-2 text-xs lining-nums tabular-nums">
       <div className="h-48">
         <DataGrid
           store={store} columns={columns} preset="rfq" label="Select inquiries"

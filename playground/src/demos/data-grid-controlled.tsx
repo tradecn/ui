@@ -31,7 +31,7 @@ export default function DataGridControlledDemo() {
         <button type="button" className="rounded border px-2 py-1" onClick={() => { setSort(initialSort); setColumnState(initialColumns) }}>Reset view</button>
         <span>{sort ? `Sort: ${sort.key} ${sort.dir}` : "No sort"} · {columnState.hidden.length} hidden</span>
       </div>
-      <div className="h-48 w-full">
+      <div className="h-48 w-fit max-w-full">
         <DataGrid store={store} columns={columns} preset="rfq" label="Inquiries with controlled columns" sort={sort} onSortChange={setSort} columnState={columnState} onColumnStateChange={setColumnState} />
       </div>
     </>
