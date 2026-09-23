@@ -1,10 +1,12 @@
 # ColumnChooser
 
-The dialog over one grid's columns: show and hide, reorder by drag or by keyboard, reset a width, find one, all through the grid's own column state.
+Show, hide, reorder, and find one grid's columns, or reset their widths, through the grid's own column state. Use the dialog or embed the inline panel.
 
 ## Usage
 
 ```tsx
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
 import { ColumnChooser } from "@/components/ui/column-chooser"
 import { DataGrid, type ColumnState } from "@/components/ui/data-grid"
 ```
@@ -20,42 +22,76 @@ const [open, setOpen] = useState(false)
 
 ## Composition
 
-`ColumnChooser` is the panel in your `dialog`, under a title and a line of description, closing on Escape and on the overlay. `ColumnChooserPanel` is the same list with no dialog around it, for a sheet, a settings page, or a tab of your own; [`rules-editor`](rules-editor.md) puts it in one. Both take the same props. Give either the grid's `columns`, its `columnState`, and its `onColumnStateChange`, the three the grid already has, and the two agree on every change.
+`ColumnChooser` wraps the panel in your shadcn dialog with a title and description. Pass `open` and accept `onOpenChange` to handle dismissal by Escape or the overlay.
+
+`ColumnChooserPanel` embeds the same list in a sheet, settings page, or tab; [`rules-editor`](rules-editor.md) uses it for its Columns tab. It needs no dialog state. Share `columns`, `columnState`, and `onColumnStateChange` with the grid.
 
 ## API Reference
 
+### Props
+
+Both components use `ColumnChooserPanelProps<T>`, where `T` is the grid's row type. `ColumnChooserProps<T>` adds the dialog inputs below.
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `columns` | `ColumnDef<T>[]` | Required | Column definitions shared with the grid. |
+| `columnState` | `ColumnState` | Required | Controlled order, width overrides, and hidden keys. |
+| `onColumnStateChange` | `(state: ColumnState) => void` | Required | Receives edits; accept them into `columnState`. |
+| `rules` | `ColumnRule[]` | Omitted | Highlight rules shown beside their columns. |
+| `labels` | `Partial<ColumnChooserLabels>` | `DEFAULT_COLUMN_CHOOSER_LABELS` | Overrides the chooser's labels. |
+| `className` | `string` | Omitted | Dialog content classes for `ColumnChooser`; outer group classes for `ColumnChooserPanel`. |
+
+Additional inputs required by `ColumnChooser`:
+
+| Prop | Type | Purpose |
+|---|---|---|
+| `open` | `boolean` | Controlled dialog visibility. |
+| `onOpenChange` | `(open: boolean) => void` | Receives dialog visibility changes. |
+
 ### The grid's state is the only state
 
-The chooser keeps nothing. Every row is derived from `columns` and `columnState` on each render, `chooserRows(columns, columnState, rules)`, in the order the grid shows them: frozen columns first, then the rest by the state's `order`, a hidden column in its place so it comes back where it was. Every change is a new `ColumnState` handed to `onColumnStateChange`, the same call the grid's own header menus make, so the grid and the chooser can never disagree, and where the state lives, a panel's state, a preferences envelope, a file, stays yours. A column hidden in its definition (`hidden: true` on the `ColumnDef`) is not listed. That is a decision in code, not one for this surface.
+The chooser emits `ColumnState` edits without applying or persisting them itself. Accept each edit into the state shared with the grid. It keeps only transient search and drag state. Replace changed objects and arrays: rows are memoized by `columns`, `columnState`, and `rules` references.
+
+`chooserRows(columns, columnState, rules)` lists frozen columns first, then the rest, ordered by `columnState.order` within each group. Unlisted keys follow in definition order. Columns hidden through state keep their places; columns with `hidden: true` in their definition are excluded and cannot be shown here.
+
+Search matches the column's name or key by case-insensitive substring, ignoring surrounding query spaces. A nonblank string header supplies the name; otherwise the key does. Search filters the list without changing column state.
 
 ### Show and hide
 
-Each row is a checkbox named `Show <column>`. Unchecking writes the key into `hidden`; checking takes it out. The count of hidden columns is printed above the list, and `Reset all` hands the grid the empty state, order, widths, and hidden alike, as the header menu's `Reset columns` does. It is disabled while the state is already the default, `isDefaultColumnState`.
+Each row has a `Show <column>` checkbox. `setColumnVisible` adds an unchecked column's key to `hidden` or removes a checked one's key. The count above the list includes state-hidden columns even when search excludes them; definition-hidden columns do not count.
+
+`Reset all` emits `EMPTY_COLUMN_STATE`: `{ order: [], widths: {}, hidden: [] }`, the same reset as the grid header's `Reset columns`. It is disabled when `isDefaultColumnState` finds all three fields empty.
 
 ### Reorder
 
-Drag a row onto another and it takes that place, the rest shifting to make room. With a row focused, Alt and an arrow key move it one place, and each row has `Move up` and `Move down` for a pointer or a screen reader. A frozen column stays on its side of the line: the grid leads with frozen columns whatever the order says, so a move across the line would change nothing and the chooser refuses it, and the buttons at the ends of a side are disabled. The whole order is written on every move, `moveColumnTo` and `moveColumnBy`, so nothing depends on what the state held before.
+Drag a row onto another to take its place, shifting the rows between them. Alt+Up/Down on a focused row moves it one place; each row also has `Move up` and `Move down` buttons.
+
+`moveColumnTo` and `moveColumnBy` refuse moves across the frozen boundary. Move buttons are disabled at either end of each group. Moves use the full chooser order, including state-hidden columns and search-excluded rows, and write that order to the new state. A refused move emits no change.
 
 ### Widths
 
-Each row prints the width in force, the state's if it has one, else the column's own, in the numeric class. Where the state holds a width, `Reset width` appears and forgets it, `resetColumnWidth`, so the column's own width is in force again. There is no width field: the grid's header is where a column is sized, by drag or by Alt+Shift with an arrow.
+Each row prints `columnState.widths[key] ?? column.width` in pixels using the numeric class. The chooser does not clamp that value; the grid renders at least `column.minWidth ?? 48` pixels.
+
+`Reset width` appears when the state holds an override. It calls `resetColumnWidth` to remove that key, restoring the definition's width subject to the grid's minimum. Resize in the grid by dragging the header handle or pressing Alt+Shift+Left/Right with a column focused; the chooser has no width field.
 
 ### Rules in words
 
-Pass `rules`, the `columns` list of a [`grid-rules`](grid-rules.md) object, and each rule is said beside the column it names, as its label or as `describeRule`'s words, painted in its tone. A trader reading the chooser learns which columns carry a highlight without the color, and which highlight a hidden column would show if it were shown.
+Pass the `columns` list from [`grid-rules`](grid-rules.md) as `rules`. Each matching column gets a badge in the rule's tone, using its trimmed, nonblank label or `describeRule` text. The tooltip always uses `describeRule`. Badges also appear on state-hidden columns so their configured highlights can be read without relying on color.
 
 ### A dialog is a wall
 
-Focus inside the dialog runs only the scopes declared inside it, as every dialog does under [`use-hotkeys`](use-hotkeys.md). Typing a column's name into the search box cannot fire a grid's single-key bindings underneath.
+With [`use-hotkeys`](use-hotkeys.md), focus inside a dialog reaches only scopes declared inside that dialog. Typing in its search box does not fire the grid's single-key bindings underneath. The inline panel has no dialog boundary of its own.
 
 ### Labels
 
-Every word is in `labels`, a partial of `DEFAULT_COLUMN_CHOOSER_LABELS`: the title, the description, the search box, the `Show` prefix, the `frozen` and `hidden` words, the width and its reset, the moves, `Reset all`, the empty line, and the drag hint. The panel is a `group` named by the title; each row is named by its column.
+`labels` overrides the title, description, search box, `Show` prefix, `frozen` and `hidden` words, width label and reset, move buttons, `Reset all`, empty message, and drag hint. The default title is `Columns`, search is `Find a column`, and empty message is `No column matches.` The panel is a `group` named by the title; each row is named by its column.
+
+The `px` suffix and move-arrow symbols are fixed. Any close-button text comes from your shadcn dialog, not these labels.
 
 ### What it does not do
 
-It does not add a column, size one, or keep the state anywhere. Which columns exist is the `columns` list; how wide one is set is the grid's header; where the state goes is yours.
+Column definitions, resizing, and persistence belong to the caller and grid. The chooser only edits the supplied column state.
 
 ### Tokens
 
-The install adds the grid's tokens, `up`, `down`, `flat`, `stale`, and `expiring` with their soft variants, if you do not have them; the rule badges draw from them.
+The install adds the grid's `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants if missing. Rule badges use them; `primary` and `destructive` use the host theme's tokens.
