@@ -27,10 +27,17 @@
 }
 {{themePalettes}}
 body { margin: 0; }
+/* A card's frame: the demo centered with room around it, in at least the card's own height, so a small demo
+   does not sit in a corner of a frame the page sized to it; a taller demo grows the frame, since the height the
+   embed reports is this element's. Column flex, so a demo that renders several roots stacks them, a full-width
+   one stays full width, and a narrow one is centered. The desk on the opening page fills its frame. */
+#root[data-frame="card"] { box-sizing: border-box; min-height: 22rem; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem 1rem; }
+#root[data-frame="card"] > * { max-width: 100%; }
+#root[data-frame="desk"] { padding: 1rem; }
 </style>
 </head>
 <body>
-<div id="root" data-item="{{item}}" class="p-4"></div>
+<div id="root" data-item="{{item}}" data-frame="{{frame}}"></div>
 <script type="module" src="{{script}}"></script>
 </body>
 </html>

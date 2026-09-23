@@ -182,16 +182,26 @@ for (const item of items) {
     if (kind === "item" && !(await page.locator(".toc a[href='#installation']").count())) failures.push(`${item}: the page lists no Installation under On this page`)
     if (kind === "doc" && (await page.locator("#installation").count())) failures.push(`${item}: a doc's page grew an Installation section`)
     if (!(await page.locator(".arrows a[rel='prev'], .arrows a[rel='next']").count())) failures.push(`${item}: no arrows beside the title`)
-    // The Code tab shows something, and swapping tabs works without a framework.
-    await card.getByRole("tab", { name: "Code" }).click()
+    // The source sits under the frame: collapsed and inert until View Code opens it, Collapse closes it again, and no link leads out of the card.
+    const view = card.locator(".view-code")
+    const body = card.locator(".preview-code-body")
+    const inert = () => body.evaluate((el) => (el as HTMLElement).inert)
+    if ((await view.innerText()) !== "View Code" || (await view.getAttribute("aria-expanded")) !== "false") failures.push(`${item}: the source's button reads "${await view.innerText()}" before it was pressed`)
+    if (!(await inert())) failures.push(`${item}: the collapsed source is reachable`)
+    if (await card.locator(".preview-code .copy").isVisible()) failures.push(`${item}: the copy button shows while the source is collapsed`)
+    if (await card.locator("a.preview-open, [role='tab']").count()) failures.push(`${item}: the card still has tabs or a link out`)
+    await view.click()
+    if ((await view.getAttribute("aria-expanded")) !== "true" || (await view.innerText()) !== "Collapse") failures.push(`${item}: View Code did not open the source`)
     const previewCode = card.locator(".preview-code pre code")
-    if (!(await previewCode.isVisible())) failures.push(`${item}: the Code tab shows no code`)
+    if (!(await previewCode.isVisible())) failures.push(`${item}: View Code shows no code`)
     const code = await previewCode.innerText()
-    if (code.includes("@/registry/")) failures.push(`${item}: the Code tab shows a playground import, not the consumer's`)
+    if (code.includes("@/registry/")) failures.push(`${item}: the source shows a playground import, not the consumer's`)
     // Its copy button puts that source on the clipboard, without the trailing newline.
     const source = await previewCode.evaluate((el) => el.textContent ?? "")
     await card.locator(".preview-code .copy").click()
-    if ((await clipboard(page)) !== source.trimEnd()) failures.push(`${item}: the Code tab's copy button copied something else`)
+    if ((await clipboard(page)) !== source.trimEnd()) failures.push(`${item}: the source's copy button copied something else`)
+    await view.click()
+    if (!(await inert()) || (await view.innerText()) !== "View Code") failures.push(`${item}: Collapse did not close the source`)
     if (kind === "variant") {
       // A variant's card stands in a section of its own, after Usage and before API Reference, where the doc placed it.
       const placement = await page.evaluate((name) => {
