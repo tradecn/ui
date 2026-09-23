@@ -16,19 +16,19 @@ Pass timestamps in milliseconds since the epoch.
 
 ## Compact
 
-Set `compact` for the digits alone, inline and without the bar. Give each its own `label`, since the row's name is not part of the timer's, and `announce={false}` when the grid or stack around them does the speaking.
+Set `compact` for the digits alone, inline and without the bar, and give each its own `label`, since the row's name is not part of the timer's. In a grid or stack that does the speaking, pass `announce={false}` too. When a row runs out here, the demo hands it a fresh deadline.
 
 <!-- demo: countdown-compact -->
 
 ## Thresholds
 
-`thresholds.soonMs` sets how far out the `soon` tier begins, when the digits and the bar turn `expiring`. The same deadline under the default and under a desk that counts the last five minutes as soon.
+`thresholds.soonMs` sets how far out the `soon` tier begins, when the digits and the bar turn `expiring`. The same deadline under the default and under a desk that counts the last thirty seconds as soon; the demo starts it over at zero.
 
 <!-- demo: countdown-thresholds -->
 
 ## Expired
 
-A countdown mounted past its deadline reads `0:00`, holds an empty bar, and calls `onExpire` once. Whether the inquiry is over is the server's to say.
+A countdown mounted past its deadline reads `0:00`, holds an empty bar, and calls `onExpire` once; the demo counts the calls. It is a display event, not a verdict ([what it does not do](#what-it-does-not-do)).
 
 <!-- demo: countdown-expired -->
 
