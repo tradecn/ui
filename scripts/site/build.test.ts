@@ -1148,7 +1148,8 @@ describe("the docs pages", async () => {
         expect(text).not.toContain("Copy the files into your project")
       }
     }
-    // Fetched once when the search opens. Twenty-one pages were 97 KB; wave 5 crossed 200 KB at 29 items, so the guard is against a runaway, not a budget.
-    expect(JSON.stringify(index).length).toBeLessThan(400_000)
+    // Fetched once when the search opens. Fifty-one pages now approach 400k characters as API references grow.
+    // Leave room for complete references; this catches runaway output, not ordinary documentation growth.
+    expect(JSON.stringify(index).length).toBeLessThan(800_000)
   })
 })
