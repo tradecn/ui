@@ -45,6 +45,8 @@ export default function DataGridDemo() {
 
 Control `sort` and `columnState` when your application needs to keep or restore the view. Click a header to sort; drag its edge to resize, or open its menu to move or hide a column. Client stays frozen on the left. Reset view restores both state values.
 
+Choose left alignment in the preview toolbar to keep the grid's left edge fixed while resizing. The choice applies to previews across the site and is saved in this browser.
+
 <!-- demo: data-grid-controlled -->
 
 ## Selection and actions

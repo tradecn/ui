@@ -1,1 +1,4 @@
-{ "frame": "centered" }
+{
+  "frame": "centered",
+  "alignable": ["data-grid", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates"]
+}
