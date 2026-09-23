@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/tradecn/ui/compare/v1.3.0...v1.3.1) (2026-09-23)
+
+
+### Documentation
+
+* **countdown:** the variants keep running, and say less twice ([#123](https://github.com/tradecn/ui/issues/123)) ([b9cd36c](https://github.com/tradecn/ui/commit/b9cd36cd874ae6215223b89973ae2ac93966c659))
+* **repo:** correct desktop shell recipes ([#124](https://github.com/tradecn/ui/issues/124)) ([7325b05](https://github.com/tradecn/ui/commit/7325b05636fbac64a576c7c92848a5a8634524b8))
+
 ## [1.3.0](https://github.com/tradecn/ui/compare/v1.2.1...v1.3.0) (2026-09-23)
 
 
