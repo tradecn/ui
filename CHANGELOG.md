@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.3.0](https://github.com/tradecn/ui/compare/v1.2.1...v1.3.0) (2026-09-23)
+
+
+### Features
+
+* **depth-ladder:** a price ladder that follows the mid until touched ([#106](https://github.com/tradecn/ui/issues/106)) ([5be7272](https://github.com/tradecn/ui/commit/5be7272b29eb24d981c96233b980908a1f414ef0))
+* **quote-panel:** a market maker's two-way panel over the editing contract ([#117](https://github.com/tradecn/ui/issues/117)) ([44abf58](https://github.com/tradecn/ui/commit/44abf58095e9d964285f1c404b3dd689b6dce68b))
+* **session-guard:** a banner before the end, a wall at it, and nothing underneath unmounts ([#119](https://github.com/tradecn/ui/issues/119)) ([06b5cf4](https://github.com/tradecn/ui/commit/06b5cf4d8be9e66b6673f97c09bff54c1456a48f))
+* **spread-matrix:** instruments as rows and columns, each cell a signed spread ([#115](https://github.com/tradecn/ui/issues/115)) ([5427e81](https://github.com/tradecn/ui/commit/5427e8161eaf29e08ff438c17cb7fd500f2b86ab))
+* **window-set:** the windows a desk has, as data and a driver over the shell, with the shells page ([#121](https://github.com/tradecn/ui/issues/121)) ([d09a4c5](https://github.com/tradecn/ui/commit/d09a4c5d8442c2e83cff37b889438d5b7a5251cb))
+
+
+### Documentation
+
+* **alerts:** simplify the component reference ([#120](https://github.com/tradecn/ui/issues/120)) ([1035ac2](https://github.com/tradecn/ui/commit/1035ac2234f29b22c941bf3d95886a229595bc74))
+* **audit-trail:** simplify the API reference ([#111](https://github.com/tradecn/ui/issues/111)) ([8801fe2](https://github.com/tradecn/ui/commit/8801fe2e1d40d072a207647d9176c731cb059ce2))
+* **countdown:** each variant gets a block of its own ([#116](https://github.com/tradecn/ui/issues/116)) ([f2354d0](https://github.com/tradecn/ui/commit/f2354d02b5c03c56dc0615fe01c331fa1c04c826))
+* **countdown:** name each compact timer for its row ([#118](https://github.com/tradecn/ui/issues/118)) ([260f204](https://github.com/tradecn/ui/commit/260f204f2432a62fc2f2ba06dfc6904547da8897))
+* **instrument-search:** simplify API reference ([#113](https://github.com/tradecn/ui/issues/113)) ([8749105](https://github.com/tradecn/ui/commit/8749105f6dd15f8cf051c2ffb92d748dd3e0914d))
+* **limits:** simplify API reference ([#114](https://github.com/tradecn/ui/issues/114)) ([b440c75](https://github.com/tradecn/ui/commit/b440c7560788457d7557dd8843f3bb307b6d8261))
+* **positions:** simplify the API reference ([#112](https://github.com/tradecn/ui/issues/112)) ([67c6bd0](https://github.com/tradecn/ui/commit/67c6bd0e57d4baa2c4d8148821dee073f89e8fc9))
+* **session-calendar:** clarify options and calendar behavior ([#122](https://github.com/tradecn/ui/issues/122)) ([5b4ff51](https://github.com/tradecn/ui/commit/5b4ff51638e4163879b4dc284076ae95763a4424))
+* **typography:** simplify font setup and guidance ([#108](https://github.com/tradecn/ui/issues/108)) ([e59da09](https://github.com/tradecn/ui/commit/e59da0924024cc4e6dc376c63e321895a2c40f11))
+
 ## [1.2.1](https://github.com/tradecn/ui/compare/v1.2.0...v1.2.1) (2026-09-22)
 
 
