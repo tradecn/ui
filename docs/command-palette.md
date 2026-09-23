@@ -5,27 +5,68 @@ Search registered actions and symbols in a dialog or inline command line, with s
 ## Usage
 
 ```tsx
-import { CommandPalette, createActionRegistry } from "@/components/ui/command-palette"
+import { useState } from "react"
 import { HotkeysProvider } from "@/hooks/use-hotkeys"
+import { CommandPalette, createActionRegistry } from "@/components/ui/command-palette"
+
+export default function CommandPaletteDemo() {
+  const [open, setOpen] = useState(false)
+  const [selected, setSelected] = useState("None")
+  const [actions] = useState(() => {
+    const registry = createActionRegistry()
+    registry.register([
+      { id: "orders", title: "Show orders", run: () => setSelected("Show orders") },
+      { id: "positions", title: "Show positions", run: () => setSelected("Show positions") },
+    ])
+    return registry
+  })
+  return (
+    <HotkeysProvider>
+      <div className="flex min-h-80 w-fit max-w-full flex-col justify-center gap-3 text-sm">
+        <button type="button" className="self-start rounded border border-border px-3 py-2 hover:bg-muted" onClick={() => setOpen(true)}>Open commands</button>
+        <p role="status">Selected: {selected}</p>
+        <CommandPalette actions={actions} open={open} onOpenChange={setOpen} />
+      </div>
+    </HotkeysProvider>
+  )
+}
 ```
 
-```tsx
-const actions = createActionRegistry()
-actions.register([
-  { id: "go.blotter", title: "Go to blotter", group: "Go", bindingId: "go.blotter", run: () => navigate("/blotter") },
-  { id: "ticket.buy", title: "New buy ticket", group: "Trade", run: openBuy, secondary: { title: "Sell instead", run: openSell } },
-  { id: "book.cancel", title: "Cancel selected order", scope: "panel:book", bindingId: "book.cancel", run: cancelSelected },
-])
+Open the dialog and choose an action. The caption shows which callback ran; replace those callbacks with navigation or another application action. `HotkeysProvider` also enables the default opening shortcut: ⌘K on macOS, Ctrl+K elsewhere. Focus the preview before trying it here.
 
-<HotkeysProvider bindings={BINDINGS}>
-  <CommandPalette
-    actions={actions}
-    symbols={{ search: (q, signal) => api.search(q, { signal }), minLength: 1, debounceMs: 150 }}
-    onSymbolSelect={(s) => load(s.symbol)}
-    symbolSecondary={{ title: "Load and watch", run: (s) => { load(s.symbol); watch(s.symbol) } }}
-  />
-</HotkeysProvider>
-```
+Keep the action registry stable for the lifetime of the view. This example creates and populates its own registry in a lazy state initializer; [scoped actions](#scoped-and-secondary-actions) show registration with unmount cleanup.
+
+## Inline commands
+
+Use `variant="go-bar"` for an always-visible command line. Focus it, or press `/` while focus is in this preview and outside a text field. Type `AAPL` to see its functions, then `AAPL G` to narrow to the price chart command. Enter selects it; Escape clears and blurs the input.
+
+The grammar accepts `AAPL`, `MSFT`, or `ZN`, followed by `DES` or `GP`. It reports the selected command below the input. These rows come from `goBarGrammar`, so they do not require asynchronous symbol search or enter recents.
+
+<!-- demo: command-palette-go-bar -->
+
+## Symbol search
+
+Supply a `SymbolSearchAdapter` for asynchronous lookup. Here, two or more letters search three local symbols after a short delay, making the searching state visible. Try `AA`, `MS`, or `ZN`. Changing the query cancels the pending lookup; the adapter clears its timer when aborted.
+
+Enter selects the highlighted symbol. Shift+Enter, or clicking its Watch hint, requests watching it instead. The caption shows which callback ran. Replace the delayed local lookup with your symbol service and pass the supplied abort signal to the request.
+
+<!-- demo: command-palette-symbols -->
+
+## Scoped and secondary actions
+
+Open global commands to see Show help. Open book commands to also see Refresh book, because that button sits inside the book's hotkey scope. The palette captures the scope before taking focus. Enter on Refresh book increments its counter; Shift+Enter, or clicking Reset, resets it instead.
+
+With focus on the book's button and the palette closed, press `r` to run the same refresh handler directly. The row gets its shortcut from `bindingId`. `Book` runs beneath `HotkeyScope`, and its effect returns the action registry's cleanup so unmounting removes the action.
+
+<!-- demo: command-palette-scoped-actions -->
+
+## Shared recents
+
+Pass the same action registry to both presentations to share actions and recent selections. Choose Show positions in the inline command line, then open the dialog: it appears under Recent. Select Show orders in the dialog and reopen the inline list to see the change there too.
+
+This example keeps recents in memory for its lifetime. [Recents](#recents) describes the save and restore APIs for application-owned persistence.
+
+<!-- demo: command-palette-shared-recents -->
 
 ## API Reference
 
@@ -139,17 +180,7 @@ Both variants use the same action, search, and recent APIs.
 | Selection | Clears the query and requests closure | Also blurs the input |
 | Escape | Requests closure | Clears the query, requests closure, and blurs the input |
 
-`goBarGrammar` receives trimmed, nonempty input and returns command rows before registered actions and symbol results. It runs synchronously in either variant. The first row is initially selected; Enter runs the highlighted row. Supply your own grammar:
-
-```ts
-const grammar = (input: string): PaletteAction[] => {
-  const [symbol, fn = ""] = input.toUpperCase().split(/\s+/)
-  if (!isSymbol(symbol)) return []
-  return FUNCTIONS.filter((f) => f.code.startsWith(fn)).map((f) => ({ id: `${symbol}.${f.code}`, title: `${symbol} ${f.code}`, subtitle: f.title, run: () => open(symbol, f.code) }))
-}
-```
-
-Pass this as `goBarGrammar={grammar}`. `AAPL` offers every function, `AAPL G` narrows to `AAPL GP`, and Enter runs it without waiting for symbol search.
+`goBarGrammar` receives trimmed, nonempty input and returns command rows before registered actions and symbol results. It runs synchronously in either variant. The first row is initially selected; Enter runs the highlighted row. See [Inline commands](#inline-commands) for a complete grammar. `AAPL` offers every function in that example, `AAPL G` narrows to `AAPL GP`, and Enter runs it without waiting for symbol search.
 
 ### The rest
 
