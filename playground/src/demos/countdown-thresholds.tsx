@@ -11,7 +11,7 @@ function useDeadline(seconds: number) {
 export default function CountdownThresholdsDemo() {
   const deadline = useDeadline(45)
   return (
-    <div className="flex flex-wrap justify-center gap-8 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
+    <div className="flex flex-wrap gap-8 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
       <div className="space-y-1">
         <Countdown expiresAt={deadline.end} startsAt={deadline.start} label="Inquiry, soon at ten seconds" className="text-xl" onExpire={deadline.restart} />
         <p className="text-muted-foreground">soon at ten seconds, the default</p>

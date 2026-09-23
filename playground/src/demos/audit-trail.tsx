@@ -34,7 +34,7 @@ export default function AuditTrailDemo() {
     return () => clearInterval(t)
   }, [store])
   return (
-    <div className="flex h-72 flex-col gap-2 font-(family-name:--tradecn-font-mono) text-xs">
+    <div className="w-full flex h-72 flex-col gap-2 font-(family-name:--tradecn-font-mono) text-xs">
       <p className="text-muted-foreground">Click an event for what it changed; select two for what changed between them. Export hands you the CSV.</p>
       <div className="min-h-0 flex-1">
         <AuditTrail store={store} value={value} onExport={setCsv} />

@@ -18,12 +18,13 @@ function useDeadline(seconds: number) {
   }
 }
 
+// The buttons drive the deadline and are the demo's, not the countdown's: the preview frame sets them in a bar
+// along its top edge, apart from the component, and on a page of your own they are two plain buttons.
 export default function CountdownDemo() {
   const inquiry = useDeadline(30)
   return (
-    <div className="flex flex-wrap items-end justify-center gap-6 font-(family-name:--tradecn-font-mono) text-xs">
-      <Countdown expiresAt={inquiry.end} startsAt={inquiry.start} label="Inquiry" className="text-xl" />
-      <div className="flex gap-2">
+    <>
+      <div data-demo-controls className="flex gap-2 font-(family-name:--tradecn-font-mono) text-xs">
         <Button size="sm" variant="outline" onClick={() => inquiry.extend(15)}>
           Extend by 15 s
         </Button>
@@ -31,6 +32,7 @@ export default function CountdownDemo() {
           Start again
         </Button>
       </div>
-    </div>
+      <Countdown expiresAt={inquiry.end} startsAt={inquiry.start} label="Inquiry" className="font-(family-name:--tradecn-font-mono) text-xl" />
+    </>
   )
 }

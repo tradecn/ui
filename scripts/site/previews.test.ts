@@ -377,9 +377,10 @@ describe("the preview card", () => {
     // The embed page centers a card's demo in at least the card's height, and lets the desk fill its frame.
     const preview = template(PREVIEW_TEMPLATE)
     expect(preview).toContain('<div id="root" data-item="{{item}}" data-frame="{{frame}}">')
-    // Centered on the height, stretched on the width: a demo with no width of its own takes the frame's, and one narrower than the frame centers itself.
-    expect(preview).toContain('#root[data-frame="card"] { box-sizing: border-box; min-height: 22rem; display: flex; flex-direction: column; justify-content: center;')
-    expect(preview).not.toContain("align-items: center")
+    // Centered on both axes by auto margins, so a wide demo says w-full; the controls bar is pinned to the frame's top edge.
+    expect(preview).toContain('#root[data-frame="card"] { box-sizing: border-box; min-height: 14rem; display: flex; flex-direction: column; padding: 1.5rem 1rem; }')
+    expect(preview).toContain('#root[data-frame="card"] > * { max-width: 100%; margin: auto; }')
+    expect(preview).toContain('#root[data-frame="card"] > [data-demo-controls] { order: -1; align-self: stretch; max-width: none; margin: -1.5rem -1rem 1.5rem;')
     expect(preview).toContain('#root[data-frame="desk"] {')
     const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
     expect(script).toContain('document.querySelectorAll(".view-code")')

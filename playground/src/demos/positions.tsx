@@ -55,7 +55,7 @@ export default function PositionsDemo() {
   )
   useMarks(stores)
   return (
-    <div className="flex flex-col gap-4 font-(family-name:--tradecn-font-mono) text-xs">
+    <div className="w-full flex flex-col gap-4 font-(family-name:--tradecn-font-mono) text-xs">
       {Object.entries(stores).map(([book, store]) => (
         <div key={book} className="flex flex-col gap-1">
           <h2 className="font-semibold">{book}</h2>

@@ -27,13 +27,14 @@
 }
 {{themePalettes}}
 body { margin: 0; }
-/* A card's frame: the demo with room around it, in at least the card's own height, centered on that height, so a
-   small demo does not sit at the top of a frame the page sized to it; a taller demo grows the frame, since the
-   height the embed reports is this element's. Column flex with the items stretched: a demo takes the frame's
-   width, as a block would, since a grid with no width of its own would otherwise shrink to its columns; a demo
-   narrower than the frame centers itself. The desk on the opening page fills its frame. */
-#root[data-frame="card"] { box-sizing: border-box; min-height: 22rem; display: flex; flex-direction: column; justify-content: center; padding: 2.5rem 1rem; }
-#root[data-frame="card"] > * { max-width: 100%; }
+/* A card's frame, shadcn's contract: the demo is centered on both axes in at least the card's own height, and a
+   demo that wants the frame's width says so with `w-full` on its root, since a centered root shrinks to its
+   content. A demo's controls, a `data-demo-controls` element first in its fragment, sit in a bar pinned to the
+   frame's top edge, apart from the component they drive, so a reader never takes them for part of it. A taller
+   demo grows the frame, since the height the embed reports is this element's. The desk fills its frame. */
+#root[data-frame="card"] { box-sizing: border-box; min-height: 14rem; display: flex; flex-direction: column; padding: 1.5rem 1rem; }
+#root[data-frame="card"] > * { max-width: 100%; margin: auto; }
+#root[data-frame="card"] > [data-demo-controls] { order: -1; align-self: stretch; max-width: none; margin: -1.5rem -1rem 1.5rem; padding: .5rem .75rem; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; border-bottom: 1px solid var(--border); }
 #root[data-frame="desk"] { padding: 1rem; }
 </style>
 </head>

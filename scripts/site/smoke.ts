@@ -168,6 +168,17 @@ for (const item of items) {
     const font = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--tradecn-font-mono").trim())
     if (!font) failures.push(`${item}: the embed page has no --tradecn-font-mono; the typography tokens did not reach it`)
     for (const problem of await numericProblems(page)) failures.push(`${item}: ${problem}`)
+    // A demo's controls, when it has them, sit in the frame's bar: pinned to the frame's top edge, spanning its width, the component below them.
+    const bar = await page.evaluate(() => {
+      const root = document.getElementById("root")!
+      const controls = root.querySelector(":scope > [data-demo-controls]")
+      if (!controls) return null
+      const frame = root.getBoundingClientRect()
+      const box = controls.getBoundingClientRect()
+      const rest = [...root.children].filter((el) => el !== controls).map((el) => el.getBoundingClientRect().top)
+      return { top: Math.round(box.top - frame.top), width: Math.round(box.width), frame: Math.round(frame.width), below: rest.every((top) => top >= box.bottom) }
+    })
+    if (bar && (bar.top !== 0 || Math.abs(bar.width - bar.frame) > 1 || !bar.below)) failures.push(`${item}: the demo's controls bar is ${bar.top}px from the frame's top and ${bar.width}px of ${bar.frame}px wide${bar.below ? "" : ", with the demo not below it"}`)
     // The page that frames it does, and the height message arrives: an item's or a doc's own page, or the page a variant is placed on.
     const where = pageOf(item)
     await page.goto(`${base}${where}`, { waitUntil: "load" })
