@@ -578,9 +578,9 @@ describe("code blocks", () => {
 
   it("number a colored block's lines in the stylesheet, down a gutter the copy button never reads, and leave a command and a text tree alone", () => {
     const styles = readFileSync(resolve(root, "site", SITE_STYLES), "utf8")
-    // The lines are a grid, each counted by a drawn number that stays put while a long line scrolls under it, in the block's background.
+    // The lines are a grid, each counted by a drawn number that stays put while a long line scrolls under it, in the block's background; its empty alternative text keeps it from a screen reader.
     expect(styles).toContain(".code:not(.command) code:has(> .line) { display: grid; counter-reset: line; }")
-    expect(styles).toContain(".code:not(.command) .line::before { counter-increment: line; content: counter(line); display: inline-block; width: calc(1rem + 4ch); padding-right: 1.25rem; text-align: right; color: var(--muted-foreground); background: var(--card); position: sticky; left: 0; user-select: none; }")
+    expect(styles).toContain('.code:not(.command) .line::before { counter-increment: line; content: counter(line) / ""; display: inline-block; width: calc(1rem + 4ch); padding-right: 1.25rem; text-align: right; color: var(--muted-foreground); background: var(--card); position: sticky; left: 0; user-select: none; }')
     // The block's left padding moves into the gutter, and a source's final newline is not a line.
     expect(styles).toContain(".code:not(.command) pre:has(> code > .line) { padding-left: 0; }")
     expect(styles).toContain(".code:not(.command) .line:last-child:empty { display: none; }")

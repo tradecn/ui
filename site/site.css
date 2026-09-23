@@ -211,13 +211,14 @@ article hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 .copy[data-copied] .check-icon { display: block; }
 /* Line numbers, shadcn's shape: a block in a language the site colors counts its lines down a gutter that stays put while
    a long line scrolls under it, in the block's own background so the code passes behind. The number is drawn, not text, so
-   a selection or the copy button takes the code alone. The grid puts each line on a row of its own and leaves the newlines
+   a selection or the copy button takes the code alone, and its alternative text is empty, so a screen reader reads the code
+   alone too. The grid puts each line on a row of its own and leaves the newlines
    between the spans unrendered; the copy button still reads them from the text. The block's own left padding moves into
    the gutter, which is wide enough for the longest file's four digits, and a source's final newline is not a line. A
    command has no gutter, and a text tree (the composition diagrams) keeps its connectors on plain lines. */
 .code:not(.command) pre:has(> code > .line) { padding-left: 0; }
 .code:not(.command) code:has(> .line) { display: grid; counter-reset: line; }
-.code:not(.command) .line::before { counter-increment: line; content: counter(line); display: inline-block; width: calc(1rem + 4ch); padding-right: 1.25rem; text-align: right; color: var(--muted-foreground); background: var(--card); position: sticky; left: 0; user-select: none; }
+.code:not(.command) .line::before { counter-increment: line; content: counter(line) / ""; display: inline-block; width: calc(1rem + 4ch); padding-right: 1.25rem; text-align: right; color: var(--muted-foreground); background: var(--card); position: sticky; left: 0; user-select: none; }
 .code:not(.command) .line:last-child:empty { display: none; }
 .command { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
 .command pre { border: 0; border-radius: 0; background: none; }
