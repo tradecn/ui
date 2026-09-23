@@ -5,49 +5,21 @@ Frame a book, chart, or blotter with a header and hotkey scope. Add symbol editi
 ## Usage
 
 ```tsx
-import { Button } from "@/components/ui/button"
-import { LinkGroupDot, Panel, PanelActions, PanelContent, PanelHeader, PanelTitle, SymbolTag } from "@/components/ui/panel"
-import { LinkGroupProvider, useLinkGroup } from "@/hooks/use-link-group"
-import { HotkeysProvider, useHotkey } from "@/hooks/use-hotkeys"
-import type { HotkeyBinding } from "@/lib/hotkeys"
-```
+import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/ui/panel"
 
-```tsx
-const BINDINGS: HotkeyBinding[] = [
-  { id: "book.cancel", keys: "x", scope: "panel:book", description: "Cancel the selected order" },
-]
-
-function BookContent({ cancelSelected }: { cancelSelected: () => void }) {
-  useHotkey("book.cancel", cancelSelected)
-  return <PanelContent>{/* rows */}</PanelContent>
-}
-
-function Book({ id, cancelSelected, close }: { id: string; cancelSelected: () => void; close: () => void }) {
-  const link = useLinkGroup({ source: id, defaultSymbol: "ZN" })
+export default function PanelDemo() {
   return (
-    <Panel kind="book" className="h-full">
+    <Panel kind="orders" className="h-40 w-72 max-w-full">
       <PanelHeader>
-        <PanelTitle>Order book</PanelTitle>
-        <SymbolTag value={link.symbol} onCommit={link.setSymbol} />
-        <LinkGroupDot group={link.group} onGroupChange={link.setGroup} />
-        <PanelActions>
-          <Button size="icon-xs" variant="ghost" aria-label="Close order book" onClick={close}>×</Button>
-        </PanelActions>
+        <PanelTitle>Orders</PanelTitle>
       </PanelHeader>
-      <BookContent cancelSelected={cancelSelected} />
+      <PanelContent className="p-3 text-sm">No open orders.</PanelContent>
     </Panel>
   )
 }
-
-<HotkeysProvider bindings={BINDINGS}>
-  <LinkGroupProvider>
-    <Book id="book-1" cancelSelected={() => cancelSelected("book-1")} close={() => close("book-1")} />
-    <Book id="book-2" cancelSelected={() => cancelSelected("book-2")} close={() => close("book-2")} />
-  </LinkGroupProvider>
-</HotkeysProvider>
 ```
 
-Supply your own `cancelSelected(id)` and `close(id)` actions. Call `useHotkey` in a child of `Panel`, as `BookContent` does, so each book handles only its own keys. Calling it in the component that returns `Panel` puts the handler outside that panel's scope.
+Give the panel a height; `PanelContent` fills what the header leaves and scrolls overflow. `PanelTitle` also names the region for assistive technology. Basic framing needs no provider.
 
 ## Composition
 
@@ -62,6 +34,38 @@ Panel
 ```
 
 `PanelPopout` wraps the panel for a [popout](#popout). The header, title, actions, and content accept div props, including `children` and `className`. `PanelContent` fills the remaining height and scrolls overflow.
+
+## Linked symbols
+
+Book A and Book B start in group 1; Book C is unlinked. Edit either linked symbol to `ZN`, `ZB`, or `ES` and press Enter. Both linked books follow, while Book C keeps its own symbol. Invalid symbols stay open for correction; Escape cancels the edit.
+
+Click a group dot to cycle forward, or Shift-click to go back. Joining group 1 adopts its symbol; leaving keeps the symbol currently displayed. `transport={null}` isolates this preview's provider. Omit it to use the default [cross-window channel](#between-windows).
+
+<!-- demo: panel-linked -->
+
+## Scoped hotkeys
+
+Click Refresh in either book, then press `r`. Only that book's counter changes. You can also focus its button with Tab before pressing the key. The shared binding names the panel kind; each handler belongs to the instance that contains it.
+
+Call `useHotkey` in a child of `Panel`, as `BookContent` does here. Calling it in the component that returns `Panel` puts the handler outside that panel's scope. The counters stand in for refresh requests; replace the handler with your application's action.
+
+<!-- demo: panel-hotkeys -->
+
+## Border states
+
+By default, focus inside a panel activates its border. Focus the Note field to see it, or use the controls above the preview to force active or inactive. Drag target overrides active, and Error overrides both. The checkboxes can be combined to show that priority.
+
+These controls set presentation props; they do not implement dragging or an error workflow. [The header is a drag handle](#the-header-is-a-drag-handle) explains the layout integration.
+
+<!-- demo: panel-states -->
+
+## Popout panel
+
+Increment the counter, then pop it out. Its count survives the move, and `i` still increments it while focus is inside the panel. Bring it back from either window, or close the popout window itself. The panel fills the popout because it uses `h-full`.
+
+`PanelPopout` moves one portal host between documents, preserving React state and provider context. Here, `HotkeysProvider` supplies the shortcut in both windows. [Popout](#popout) covers styling, lifecycle, and portal limitations.
+
+<!-- demo: panel-popout -->
 
 ## API Reference
 
@@ -167,20 +171,7 @@ Connecting requests other windows' written symbols, excluding seeds. Concurrent 
 
 `usePopout()` and `PanelPopout` move a panel into a window of its own and back, without remounting it.
 
-```tsx
-import { PanelPopout } from "@/components/ui/panel"
-import { usePopout } from "@/hooks/use-popout"
-
-const popout = usePopout({ title: "Order book", width: 720, height: 480 })
-
-<PanelPopout popout={popout} placeholder={<Button onClick={popout.close}>Bring it back</Button>}>
-  <Book id="book-1" cancelSelected={() => cancelSelected("book-1")} close={() => close("book-1")} />
-</PanelPopout>
-
-<Button onClick={popout.open}>Pop out</Button>
-```
-
-Call the hook inside a component under the providers from Usage. `PanelPopout` accepts:
+See [Popout panel](#popout-panel) for a complete example. Call `usePopout` inside a component. Add `HotkeysProvider` for shortcuts or `LinkGroupProvider` if the panel uses linked symbols. `PanelPopout` accepts:
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
