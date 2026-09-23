@@ -1,61 +1,30 @@
-import { useEffect, useMemo, useState } from "react"
-import { formatPrice, type PriceConvention } from "@/registry/tradecn/lib/format"
+import { useState } from "react"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { Sparkline } from "@/registry/tradecn/ui/sparkline"
-import { Watchlist, watchlistColumns, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
+import { Watchlist, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
 
-interface Row extends WatchlistRow {
-  close: number
-  closes: number[]
-}
-
-const UNIVERSE: Record<string, { px: number; convention: PriceConvention }> = {
-  ZT: { px: 102.25, convention: { kind: "fraction", denominator: 32, half: "+" } },
-  ZF: { px: 106.5, convention: { kind: "fraction", denominator: 32, half: "+" } },
-  ZN: { px: 110.5, convention: { kind: "fraction", denominator: 32, half: "+" } },
-  ZB: { px: 118.75, convention: { kind: "fraction", denominator: 32, half: "+" } },
-  ES: { px: 5012.25, convention: { kind: "decimal", decimals: 2 } },
-  NQ: { px: 17650.5, convention: { kind: "decimal", decimals: 2 } },
-  CL: { px: 78.1, convention: { kind: "decimal", decimals: 2 } },
-  GC: { px: 2380.4, convention: { kind: "decimal", decimals: 1 } },
-}
-
-// Treasuries print in 32nds and the rest in decimals, through one price function.
-const price = (value: number, row: Row) => formatPrice(value, UNIVERSE[row.symbol]?.convention ?? { kind: "decimal", decimals: 2 })
-
-function seed(symbol: string): Row {
-  const px = UNIVERSE[symbol]!.px
-  return { symbol, last: px, bid: px, ask: px, change: 0, changePct: 0, volume: 0, close: px, closes: [px] }
-}
+const quotes: WatchlistRow[] = [
+  { symbol: "ES", last: 5012.25, bid: 5012, ask: 5012.5, change: -12.5, changePct: -0.25, volume: 980_000 },
+  { symbol: "CL", last: 78.1, bid: 78.09, ask: 78.11, change: 0.25, changePct: 0.32, volume: 125_000 },
+  { symbol: "GC", last: 2380.4, bid: 2380.3, ask: 2380.5, change: 0, changePct: 0, volume: 42_000 },
+]
 
 export default function WatchlistDemo() {
   const [store] = useState(() => {
-    const s = createRowStore<Row>({ getRowId: (r) => r.symbol })
-    s.applyDeltas({ upsert: ["ZN", "ZB", "ES", "CL"].map(seed) })
-    return s
+    const store = createRowStore<WatchlistRow>({ getRowId: (row) => row.symbol })
+    store.applyDeltas({ upsert: quotes.slice(0, 2) })
+    return store
   })
-  const [log, setLog] = useState("Enter or double-click a row to load it. Add one of ZT, ZF, ZN, ZB, ES, NQ, CL, GC.")
-  useEffect(() => {
-    const t = setInterval(() => {
-      const patch = store.getIds().flatMap((id) => {
-        const row = store.getRow(id)
-        if (!row || Math.random() > 0.5) return []
-        const step = row.close * 0.0004
-        const last = Number(((row.last ?? row.close) + (Math.random() - 0.5) * step).toFixed(4))
-        return [{ id, fields: { last, bid: last - step / 8, ask: last + step / 8, change: last - row.close, changePct: ((last - row.close) / row.close) * 100, volume: (row.volume ?? 0) + Math.round(Math.random() * 900), closes: [...row.closes.slice(-59), last] } }]
-      })
-      store.applyDeltas({ patch })
-    }, 400)
-    return () => clearInterval(t)
-  }, [store])
-  // Memoized: the grid keeps its rows only while the columns keep their identity.
-  const columns = useMemo(() => [...watchlistColumns<Row>({ price }), { key: "trend", header: "Trend", width: 112, flash: false as const, accessor: (r: Row) => r.closes, cell: ({ row }: { row: Row }) => <Sparkline values={row.closes} baseline={row.close} label={`${row.symbol} today`} width={96} height={16} /> }], [])
+  const [activated, setActivated] = useState<string | null>(null)
+  const add = (symbol: string) => {
+    const quote = quotes.find((row) => row.symbol === symbol)
+    if (quote) store.applyDeltas({ upsert: [quote] })
+  }
   return (
-    <div className="w-full space-y-2 font-(family-name:--tradecn-font-mono) text-xs">
-      <div className="h-64">
-        <Watchlist store={store} columns={columns} validate={(symbol) => symbol in UNIVERSE} onAdd={(symbol) => store.applyDeltas({ upsert: [seed(symbol)] })} onRemove={(symbols) => store.applyDeltas({ remove: symbols })} onRowActivate={(row) => setLog(`load ${row.symbol}`)} />
+    <div className="w-fit max-w-full space-y-2 text-xs lining-nums tabular-nums">
+      <div className="h-48">
+        <Watchlist store={store} label="Market watchlist" validate={(symbol) => quotes.some((row) => row.symbol === symbol)} onAdd={add} onRemove={(symbols) => store.applyDeltas({ remove: symbols })} onRowActivate={(row) => setActivated(row.symbol)} />
       </div>
-      <p className="text-muted-foreground">{log}</p>
+      <p role="status" className="text-muted-foreground">{activated ? `Last activated: ${activated}.` : "Nothing activated."}</p>
     </div>
   )
 }
