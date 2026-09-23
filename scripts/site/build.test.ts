@@ -29,6 +29,7 @@ import {
   MENU_ID,
   MENU_TOGGLE,
   MODE_BUTTON,
+  NOT_FOUND_PAGE,
   PAGES,
   readChangelog,
   readDemos,
@@ -41,12 +42,16 @@ import {
   render,
   renderMarkdown,
   renderPage,
+  ROBOTS_FILE,
+  robotsTxt,
   SEARCH_BUTTON,
   SEARCH_INDEX,
   searchDialog,
   searchIndex,
   SITE_DOCS,
   SITE_STYLES,
+  SITEMAP_FILE,
+  sitemap,
   siteBase,
   siteDocs,
   siteHeader,
@@ -518,9 +523,12 @@ describe("the version menu and a release's own tree", () => {
     for (const entry of searchIndex(docs)) expect(entry.path).toMatch(/^\/docs\//)
   })
 
-  it("writes versions.json at the root alone, which site.js reads from the root on every tree, and both trees are built wherever the site is", () => {
+  it("writes versions.json, robots.txt, and the sitemap at the root alone, site.js reads versions.json from the root on every tree, and both trees are built wherever the site is", () => {
     const build = readFileSync(resolve(root, "scripts/site/build.ts"), "utf8")
     expect(build).toContain("if (atRoot) await writeFile(join(out, VERSIONS_INDEX), versionsIndex(versions))")
+    // The crawlers' two files too: a release's own pages canonicalize to the root's, so its tree has nothing to list.
+    expect(build).toContain("if (atRoot) await writeFile(join(out, ROBOTS_FILE), robotsTxt())")
+    expect(build).toContain("if (atRoot) await writeFile(join(out, SITEMAP_FILE), sitemap(docs))")
     // The 404 page and the popout live at the root alone: the distribution serves the one for every missing key, dockview opens the other there.
     expect(build).toContain("PAGES.filter((page) => page !== NOT_FOUND_PAGE)")
     expect(build).toContain("if (atRoot) await cp(join(previews.embed.dir, POPOUT), join(out, POPOUT))")
@@ -842,6 +850,25 @@ describe("the docs pages", async () => {
     expect(byPath.has("docs/contract/index.html")).toBe(true)
     expect(byPath.has("docs/typography/index.html")).toBe(true)
     expect(byPath.has("docs/data-grid/index.html")).toBe(true)
+  })
+
+  it("lists every page there is to index in the sitemap, the opening page first, each at its canonical, and robots.txt names it", () => {
+    // The names a crawler looks for, at the root.
+    expect([ROBOTS_FILE, SITEMAP_FILE]).toEqual(["robots.txt", "sitemap.xml"])
+    expect(robotsTxt()).toBe(`User-agent: *\nAllow: /\n\nSitemap: https://tradecn.dev/${SITEMAP_FILE}\n`)
+    const xml = sitemap(docs)
+    expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://tradecn.dev/</loc></url>\n')).toBe(true)
+    expect(xml.endsWith("</urlset>\n")).toBe(true)
+    const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((match) => match[1])
+    expect(locs).toEqual(["https://tradecn.dev/", ...docs.map((doc) => `https://tradecn.dev${doc.path}`)])
+    expect(locs).toHaveLength(1 + pages.length)
+    // Each address is the page the build writes there, and the page names that address as its canonical.
+    expect(template(PAGES[0])).toContain('<link rel="canonical" href="{{siteUrl}}/">')
+    for (const doc of docs) expect(at(`${doc.path.slice(1)}index.html`)).toContain(`<link rel="canonical" href="https://tradecn.dev${doc.path}">`)
+    // The listed pages are indexable. The previews (the previews test) and the 404 page carry noindex and are not listed.
+    for (const page of [PAGES[0], DOCS_TEMPLATE]) expect(template(page)).not.toContain('name="robots"')
+    expect(template(NOT_FOUND_PAGE)).toContain('<meta name="robots" content="noindex">')
+    expect(xml).not.toMatch(/preview|404|popout|\/v\d/)
   })
 
   it("walks the site's pages, then the contract, then the items kind by kind, each kind alphabetical by title", () => {

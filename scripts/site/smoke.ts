@@ -12,7 +12,9 @@
 // the page follows the system until the header's button makes a choice, which every preview on the page,
 // the next page, and another tab follow, and a press goes back. Then the theme: the header's menu offers
 // every theme the site carries, and choosing one re-colors the page and its previews the same way. Then
-// the phone: the header folds into a Menu button, and the sidebar is the panel it opens over the page.
+// the phone: the header folds into a Menu button, and the sidebar is the panel it opens over the page. Then the
+// crawlers' files: robots.txt names the sitemap, every page the sitemap lists answers at its own canonical with
+// no robots meta, and a preview and a missing page carry noindex and are not listed.
 //   bun scripts/site/smoke.ts [--dist site/dist] [--base https://tradecn.dev] [--port 4174] [--headers site/headers.json]
 // Without --base it serves --dist itself, with the index.html rewrite the CloudFront function does and
 // the security headers the edge sends (--headers names another file, to prove a policy breaks the pages).
@@ -20,7 +22,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { chromium, type Page } from "@playwright/test"
-import { compareTags, DESK_DEMO, FONT_PACKAGES, HEADERS_FILE, PREVIEW_PATH, SEARCH_INDEX, SITE_SCRIPT, THEME_ITEM, VERSIONS_INDEX } from "./build"
+import { compareTags, DESK_DEMO, FONT_PACKAGES, HEADERS_FILE, PREVIEW_PATH, ROBOTS_FILE, SEARCH_INDEX, SITE_SCRIPT, SITE_URL, SITEMAP_FILE, THEME_ITEM, VERSIONS_INDEX } from "./build"
 import type { SearchPage } from "./build"
 
 const { values: args } = parseArgs({
@@ -1190,6 +1192,44 @@ if (items.includes("data-grid")) {
   }
 }
 
+// The crawlers' two files at the root. robots.txt names the sitemap, and every address the sitemap lists answers
+// with a page that names that address as its canonical and carries no robots meta; the opening page, the docs
+// index, and every page with a preview of its own are among them. A preview and a missing page carry noindex
+// and are not listed, so a crawler that finds them through the frames leaves them out and indexes the pages.
+{
+  try {
+    const robots = await context.request.get(`${base}/${ROBOTS_FILE}`)
+    if (robots.status() !== 200) failures.push(`crawlers: /${ROBOTS_FILE} answered ${robots.status()}`)
+    else if (!(await robots.text()).includes(`Sitemap: ${SITE_URL}/${SITEMAP_FILE}`)) failures.push(`crawlers: /${ROBOTS_FILE} does not name /${SITEMAP_FILE}`)
+    const response = await context.request.get(`${base}/${SITEMAP_FILE}`)
+    if (response.status() !== 200) failures.push(`crawlers: /${SITEMAP_FILE} answered ${response.status()}`)
+    const locs = [...(await response.text()).matchAll(/<loc>([^<]*)<\/loc>/g)].map((match) => match[1]!)
+    for (const route of ["/", "/docs/", ...paged.map((name) => `/docs/${name}/`)]) {
+      if (!locs.includes(`${SITE_URL}${route}`)) failures.push(`crawlers: ${route} is not in the sitemap`)
+    }
+    for (const loc of locs) {
+      if (!loc.startsWith(`${SITE_URL}/`)) {
+        failures.push(`crawlers: ${loc} is not on ${SITE_URL}`)
+        continue
+      }
+      const route = loc.slice(SITE_URL.length)
+      const listed = await context.request.get(`${base}${route}`)
+      const html = await listed.text()
+      if (listed.status() !== 200) failures.push(`crawlers: ${route} answered ${listed.status()}`)
+      if (!html.includes(`<link rel="canonical" href="${loc}">`)) failures.push(`crawlers: ${route} does not name ${loc} as its canonical`)
+      if (html.includes('name="robots"')) failures.push(`crawlers: ${route} carries a robots meta`)
+    }
+    for (const route of [`/${PREVIEW_PATH}/${itemPreviews[0]}/`, "/no-such-page/"]) {
+      const html = await (await context.request.get(`${base}${route}`)).text()
+      if (!html.includes('<meta name="robots" content="noindex">')) failures.push(`crawlers: ${route} is not noindex`)
+      if (locs.includes(`${SITE_URL}${route}`)) failures.push(`crawlers: ${route} is in the sitemap`)
+    }
+    console.log(`ok  crawlers: robots.txt names the sitemap, its ${locs.length} pages answer at their canonicals with no robots meta, a preview and a missing page are noindex and unlisted`)
+  } catch (error) {
+    failures.push(`crawlers: ${firstLine(error)}`)
+  }
+}
+
 await browser.close()
 server?.stop(true)
 if (failures.length) {
@@ -1197,4 +1237,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`  ${failure}`)
   process.exit(1)
 }
-console.log(`\n${items.length} previews, the opening page, the docs pages, the search, both modes, and the themes checked at ${base}`)
+console.log(`\n${items.length} previews, the opening page, the docs pages, the search, both modes, the themes, and the crawlers' files checked at ${base}`)
