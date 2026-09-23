@@ -417,10 +417,11 @@ describe("the preview card", () => {
     expect(preview).toContain('#root[data-frame="stretch"] { box-sizing: border-box; min-height: 14rem; display: flex; flex-direction: column; justify-content: center; padding: 1.5rem 1rem; }')
     expect(preview).toContain('#root[data-frame="desk"] {')
     const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
-    expect(script).toContain('document.querySelectorAll(".view-code")')
-    expect(script).toContain("body.inert = !open")
-    expect(script).toContain("if (open && pressed) body.focus({ preventScroll: true })")
-    expect(script).toContain('button.textContent = open ? "Collapse" : "View Code"')
+    // One wiring for the preview's View Code and the Manual's Expand: the collapsed code is inert unless the block shows whole, the button reads Collapse once open, and an opened preview's source takes the focus.
+    expect(script).toContain('document.querySelectorAll(".view-code, .expand")')
+    expect(script).toContain("body.inert = !open && !fits")
+    expect(script).toContain('if (open) (button.classList.contains("view-code") ? body : button).focus({ preventScroll: true })')
+    expect(script).toContain('button.textContent = open ? "Collapse" : closed')
     expect(script).toContain('event.data.type !== "tradecn-preview"')
     expect(script).toContain("event.origin !== location.origin")
     // Every preview frame, the docs page's card and the opening page's showcase alike, is sized and asked.

@@ -248,6 +248,9 @@ for (const item of items) {
     if (!(await inert())) failures.push(`${item}: the collapsed source is reachable`)
     if (await card.locator(".preview-code .copy").isVisible()) failures.push(`${item}: the copy button shows while the source is collapsed`)
     if (await card.locator("a.preview-open, [role='tab']").count()) failures.push(`${item}: the card still has tabs or a link out`)
+    // Collapsed, the pre has no scrollbar of its own: the body's clip shows the first lines.
+    const pre = card.locator(".preview-code pre")
+    if ((await pre.evaluate((el) => getComputedStyle(el).overflowY)) !== "hidden") failures.push(`${item}: the collapsed source's pre scrolls on its own`)
     await view.click()
     if ((await view.getAttribute("aria-expanded")) !== "true" || (await view.innerText()) !== "Collapse") failures.push(`${item}: View Code did not open the source`)
     // The opened source holds the focus, and from there the Tab order reads on inside it: the pre first when its lines
@@ -264,6 +267,17 @@ for (const item of items) {
       reached = at === "copy"
     }
     if (!reached) failures.push(`${item}: Tab from the opened source left it before reaching its copy button`)
+    // Opened, the source is a scroller of shadcn's height, not the whole file down the page: the pre stops at 18rem
+    // and, when its lines run past that, scrolls them inside itself.
+    const scroller = await pre.evaluate((el) => {
+      const style = getComputedStyle(el)
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize)
+      const cap = parseFloat(style.maxHeight)
+      const box = cap + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)
+      return { cap: cap / rem, within: el.getBoundingClientRect().height <= box + 1, overflow: style.overflowY, more: el.scrollHeight > el.clientHeight }
+    })
+    if (scroller.cap !== 18 || !scroller.within) failures.push(`${item}: the opened source runs past its height (${JSON.stringify(scroller)})`)
+    if (scroller.more && scroller.overflow !== "auto") failures.push(`${item}: the opened source has more lines than show and does not scroll`)
     const previewCode = card.locator(".preview-code pre code")
     if (!(await previewCode.isVisible())) failures.push(`${item}: View Code shows no code`)
     const code = await previewCode.innerText()
@@ -315,6 +329,46 @@ for (const item of items) {
     const manual = await page.locator("#installation-manual").innerText()
     if (manual.includes("@/registry/")) failures.push(`${item}: Manual shows a playground import, not the consumer's`)
     if (!(await page.locator("#installation-manual .code").count())) failures.push(`${item}: Manual has nothing to copy`)
+    // Each file and the stylesheet under Manual is a block that opens, shadcn's shape: collapsed to its first lines
+    // with its code inert and its copy button taking the whole of it; Expand, beside the copy button or over the fade,
+    // shows the whole block, however long, and Collapse closes it again. A block short enough to show whole has
+    // neither the clip nor the buttons, and its code is reachable. The commands are not blocks that open.
+    const blocks = page.locator("#installation-manual .source")
+    if (!(await blocks.count())) failures.push(`${item}: Manual has no block that opens`)
+    if (await page.locator("#installation-manual .source .command").count()) failures.push(`${item}: a command under Manual got an Expand`)
+    for (let i = 0; i < (await blocks.count()); i++) {
+      const block = blocks.nth(i)
+      const nth = `Manual's block ${i + 1}`
+      const sourcePre = block.locator("pre")
+      const expand = block.locator(".expand")
+      const foot = block.locator(".expand-foot")
+      const state = () =>
+        sourcePre.evaluate((el) => {
+          const style = getComputedStyle(el)
+          const rem = parseFloat(getComputedStyle(document.documentElement).fontSize)
+          return { inert: (el as HTMLElement).inert, clipped: el.scrollHeight > el.clientHeight, overflow: style.overflowY, cap: parseFloat(style.maxHeight) / rem }
+        })
+      const before = await state()
+      if (await block.evaluate((el) => el.hasAttribute("data-fits"))) {
+        if (before.inert || before.clipped || (await expand.isVisible()) || (await foot.isVisible())) failures.push(`${item}: ${nth} shows whole yet is inert or offers Expand`)
+        continue
+      }
+      if (!before.inert || !before.clipped || before.overflow !== "hidden" || before.cap !== 16) failures.push(`${item}: ${nth} is not collapsed to its first lines (${JSON.stringify(before)})`)
+      if ((await expand.innerText()) !== "Expand" || (await expand.getAttribute("aria-expanded")) !== "false" || !(await foot.isVisible())) failures.push(`${item}: ${nth} lacks its Expand buttons`)
+      if ((await foot.getAttribute("aria-hidden")) !== "true" || (await foot.getAttribute("tabindex")) !== "-1") failures.push(`${item}: the fade's Expand on ${nth} is in the Tab order or the accessibility tree`)
+      if (i === 0) {
+        // Collapsed, the copy button still takes the whole block.
+        await block.locator(".copy").click()
+        if ((await clipboard(page)) !== (await sourcePre.evaluate((el) => (el.textContent ?? "").trimEnd()))) failures.push(`${item}: ${nth}'s copy button copied less than the whole block while collapsed`)
+      }
+      // The first block opens from its fade, the rest from the button beside the copy button; the focus ends on that button either way.
+      await (i === 0 ? foot : expand).click()
+      const after = await state()
+      if (after.inert || after.clipped || (await expand.innerText()) !== "Collapse" || (await expand.getAttribute("aria-expanded")) !== "true" || (await foot.isVisible())) failures.push(`${item}: Expand did not open ${nth} whole (${JSON.stringify(after)})`)
+      if (!(await page.evaluate(() => document.activeElement?.classList.contains("expand")))) failures.push(`${item}: Expand on ${nth} left the focus elsewhere`)
+      await expand.click()
+      if (!(await state()).inert || (await expand.innerText()) !== "Expand") failures.push(`${item}: Collapse did not close ${nth}`)
+    }
     console.log(`ok  ${item.padEnd(26)} ${Math.round(height)}px`)
   } catch (error) {
     failures.push(`${item}: ${firstLine(error)}`)

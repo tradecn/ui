@@ -233,27 +233,47 @@ article hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 html:not([data-pm]) .command pre[data-pm="npm"], html[data-pm="npm"] .command pre[data-pm="npm"], html[data-pm="pnpm"] .command pre[data-pm="pnpm"], html[data-pm="yarn"] .command pre[data-pm="yarn"], html[data-pm="bun"] .command pre[data-pm="bun"] { display: block; }
 /* Without the script the tabs and the buttons would do nothing, so they are not there. */
 html:not(.js) .copy, html:not(.js) .managers { display: none; }
-/* Installation: Command / Manual as underline tabs; the Manual's sources scroll inside their blocks. */
+/* Installation: Command / Manual as underline tabs. */
 .tabs-bar { display: flex; gap: 1.25rem; margin: .75rem 0 1rem; border-bottom: 1px solid var(--border); }
 .tabs-bar [role="tab"] { font: inherit; color: var(--muted-foreground); background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: .35rem 0; cursor: pointer; }
 .tabs-bar [role="tab"][aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--foreground); }
 .tabs-bar [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.tabs pre { max-height: 24rem; }
 .file { margin: 1.25rem 0 .35rem; font-size: .85rem; color: var(--muted-foreground); }
-.file + .code { margin-top: 0; }
+.file + .source { margin-top: 0; }
 html:not(.js) .tabs-bar { display: none; }
 html:not(.js) .tabs [role="tabpanel"][hidden] { display: block; }
+/* A block to copy from under Manual, a file or the stylesheet, shadcn's shape: collapsed to its first lines under a
+   fade, Expand beside the copy button and again over the fade (a button for the mouse; the Tab key and a screen reader
+   meet the first), the code inert; opened, the whole block however long, with Collapse where Expand was. The copy
+   button takes the whole block either way. A block short enough to show whole has nothing to expand: site.js measures
+   it against the clip and marks it, and its clip and its buttons go. */
+.source { position: relative; margin: 1rem 0; }
+.source .code { margin: 0; }
+.source[data-collapsed]:not([data-fits]) pre { max-height: 16rem; overflow: hidden; }
+.expand { position: absolute; top: .45rem; right: 2.75rem; height: 1.75rem; padding: 0 .55rem; font: inherit; font-size: .85rem; color: var(--muted-foreground); background: var(--card); border: 0; border-radius: var(--radius); cursor: pointer; }
+.expand::after { content: ""; position: absolute; top: .3rem; right: -.3rem; bottom: .3rem; border-left: 1px solid var(--border); }
+.expand:hover, .expand:focus-visible { color: var(--foreground); }
+.expand:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.expand-foot { position: absolute; right: 1px; bottom: 1px; left: 1px; display: flex; align-items: center; justify-content: center; height: 5rem; font: inherit; font-size: .85rem; color: var(--muted-foreground); background: linear-gradient(to bottom, color-mix(in oklab, var(--card) 70%, transparent), var(--card)); border: 0; border-radius: 0 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px); cursor: pointer; }
+.expand-foot:hover { color: var(--foreground); }
+.source:not([data-collapsed]) .expand-foot, .source[data-fits] .expand, .source[data-fits] .expand-foot { display: none; }
+/* Without the script the buttons would do nothing, so they are not there and a block scrolls inside itself. */
+html:not(.js) .expand, html:not(.js) .expand-foot { display: none; }
+html:not(.js) .source[data-collapsed] pre { max-height: 24rem; overflow: auto; }
 /* The live preview, shadcn's shape: the item running in an iframe sized by the height it reports (the embed page
    centers the demo and keeps at least 22rem), and its source under the frame. Collapsed, the first lines show
-   through a fade with View Code over them and nothing in them reachable; opened, the whole source, its copy
-   button, and the line naming the file, with Collapse under it. */
+   through a fade with View Code over them and nothing in them reachable; opened, the source scrolling inside the card
+   at shadcn's height, its copy button, and the line naming the file, with Collapse under it. */
 .preview { margin: 1.25rem 0 2rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); overflow: hidden; }
 .preview iframe { display: block; width: 100%; height: 22rem; border: 0; background: var(--background); transition: height .15s ease; }
 .preview-code { position: relative; border-top: 1px solid var(--border); background: var(--card); }
 .preview-code .code { margin: 0; }
 /* The opened source takes focus so the Tab order reads on from it; the ring sits inside the card's edge. */
 .preview-code-body:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.preview-code pre { border: 0; border-radius: 0; background: none; }
+/* Opened, the source scrolls inside the card at shadcn's height, enough to read through and select from, rather than
+   running the page's length; collapsed, the body's clip shows the first lines and the pre has no scrollbar of its own. */
+.preview-code pre { border: 0; border-radius: 0; background: none; max-height: 18rem; }
+.preview-code[data-collapsed] pre { overflow: hidden; }
 .preview-code .preview-source { margin: 0; padding: 0 1rem .75rem; font-size: .85rem; color: var(--muted-foreground); }
 .view-code { display: block; margin: 0 auto .75rem; font: inherit; font-size: .85rem; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: var(--radius); padding: .4rem .9rem; cursor: pointer; }
 .view-code:hover { background: var(--muted); }
@@ -263,6 +283,7 @@ html:not(.js) .tabs [role="tabpanel"][hidden] { display: block; }
 .preview-code[data-collapsed] .copy, .preview-code[data-collapsed] .preview-source { display: none; }
 /* Without the script the button would do nothing, so the source is simply there. */
 html:not(.js) .preview-code[data-collapsed] .preview-code-body { max-height: none; -webkit-mask-image: none; mask-image: none; }
+html:not(.js) .preview-code[data-collapsed] pre { overflow: auto; }
 html:not(.js) .preview-code[data-collapsed] .preview-source { display: block; }
 html:not(.js) .view-code { display: none; }
 
