@@ -20,44 +20,38 @@ env:
   STACK_NAME: TradecnSiteStack
 
 jobs:
+  # The release pull request is opened and refreshed with the release App's token, not the workflow
+  # token. GitHub parks every workflow run on a pull request that github-actions[bot] opened or
+  # pushed to until someone with write access approves it, so a release pull request opened with
+  # the workflow token waited on a click before ci could start. The App is another actor: ci and
+  # pull-request run on its pull request as on any other, and the checks the ruleset requires come
+  # from there. The App holds contents, pull requests, and issues (the labels) on this repository
+  # only; the token asks for exactly those and is revoked when the job ends.
   release-please:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
+      - id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
       - id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
+          token: ${{ steps.app.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # GitHub starts no workflow on a release pull request, since a bot opened it with the workflow
-  # token, so nothing would report "CI passed" there and a ruleset that requires the check would
-  # hold the tag. This writes the check on the release pull request's head after every push to
-  # main: the commits it releases were each checked on their own pull request, and the release
-  # commit changes only the changelog, version.txt, the README's tag lines, and the manifest.
-  release-check:
-    needs: release-please
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      checks: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: bash scripts/ci/release-check.sh
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-  # tradecn.dev serves releases only. GitHub starts no workflow from a tag its own token pushed, so
-  # the publish rides in the run that made the release. /r/<tag>/ is written for every tag; the
-  # latest pointer and the landing page move only when the tag is the highest in the repo.
+  # tradecn.dev serves releases only. The publish rides in the run that made the release: this run
+  # knows the tag, and no workflow listens for one. /r/<tag>/ is written for every tag; the latest
+  # pointer and the landing page move only when the tag is the highest in the repo.
   deploy:
     needs: release-please
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.release_created == 'true') }}

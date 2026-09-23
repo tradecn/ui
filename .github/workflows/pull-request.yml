@@ -2,13 +2,8 @@ name: pull-request
 
 on:
   pull_request:
-    # `edited` is here so a corrected title or body reruns the check. Release pull requests only
-    # touch these files and are skipped for the reason ci.yml gives.
+    # `edited` is here so a corrected title or body reruns the check.
     types: [opened, edited, synchronize, reopened]
-    paths-ignore:
-      - CHANGELOG.md
-      - version.txt
-      - .release-please-manifest.json
 
 permissions:
   contents: read

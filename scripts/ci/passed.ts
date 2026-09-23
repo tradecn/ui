@@ -6,7 +6,7 @@
 //   NEEDS='{"verify":{"result":"success"}}' MAY_SKIP="github-form" bun scripts/ci/passed.ts
 // NEEDS is the workflow's `toJSON(needs)`.
 
-/** The check's name, as the ruleset requires it. ci.yml names the job this and release-check.sh writes it on a release pull request. */
+/** The check's name, as the ruleset requires it. ci.yml names the job this. */
 export const CHECK_NAME = "CI passed"
 
 export type Result = "success" | "failure" | "cancelled" | "skipped"

@@ -1,13 +1,9 @@
 name: ci
 
 on:
+  # Every pull request, the release one included: release-please opens it with the release App's
+  # token (see release-please.yml), so its runs start without approval and its checks are real.
   pull_request:
-    # Release pull requests only touch these files. They are opened by a bot, and GitHub holds a
-    # bot-opened pull request's workflows for manual approval, so skip them instead of parking a run.
-    paths-ignore:
-      - CHANGELOG.md
-      - version.txt
-      - .release-please-manifest.json
   push:
     branches: [main]
 
@@ -113,8 +109,7 @@ jobs:
 
   # The one check to require, and the one auto-merge waits on. Green only when every job above is
   # green and, on a pull request, the title and body pass scripts/ci/pull-request.ts as they read
-  # now: a title fixed after this ran stays red here until the job reruns. A release pull request
-  # gets this check from release-please.yml instead, since GitHub starts no workflow on one.
+  # now: a title fixed after this ran stays red here until the job reruns.
   passed:
     name: CI passed
     needs: [verify, consumer-matrix, site, github-form, infra]
