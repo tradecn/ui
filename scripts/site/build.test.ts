@@ -576,6 +576,18 @@ describe("code blocks", () => {
     expect(codeBlocks('<pre><code class="language-text">a &lt; b</code></pre>')).toContain('<div class="code"><pre><code class="language-text">a &lt; b</code></pre><button')
   })
 
+  it("number a colored block's lines in the stylesheet, down a gutter the copy button never reads, and leave a command and a text tree alone", () => {
+    const styles = readFileSync(resolve(root, "site", SITE_STYLES), "utf8")
+    // The lines are a grid, each counted by a drawn number that stays put while a long line scrolls under it, in the block's background; its empty alternative text keeps it from a screen reader.
+    expect(styles).toContain(".code:not(.command) code:has(> .line) { display: grid; counter-reset: line; }")
+    expect(styles).toContain('.code:not(.command) .line::before { counter-increment: line; content: counter(line) / ""; display: inline-block; width: calc(1rem + 4ch); padding-right: 1.25rem; text-align: right; color: var(--muted-foreground); background: var(--card); position: sticky; left: 0; user-select: none; }')
+    // The block's left padding moves into the gutter, and a source's final newline is not a line.
+    expect(styles).toContain(".code:not(.command) pre:has(> code > .line) { padding-left: 0; }")
+    expect(styles).toContain(".code:not(.command) .line:last-child:empty { display: none; }")
+    // A text tree has no .line spans to count, so its connectors stay on plain lines.
+    expect(codeBlocks('<pre><code class="language-text">Panel\n├── PanelHeader\n</code></pre>')).not.toContain('class="line"')
+  })
+
   it("offer a command under pnpm, npm, yarn, and bun, changing only the lines that start with npx, each colored", () => {
     const html = codeBlocks('<pre><code class="language-bash">npx shadcn@latest add tradecn/ui/panel --diff   # look first\nnpx shadcn@latest add tradecn/ui/panel\n</code></pre>')
     expect(html).toContain('<div class="managers" role="tablist" aria-label="Package manager">')
