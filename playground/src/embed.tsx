@@ -8,6 +8,8 @@ import "@fontsource/jetbrains-mono/500.css"
 import "@fontsource/jetbrains-mono/600.css"
 import "./index.css"
 import { demos } from "./demos"
+import { alignable } from "./demos/frame.json"
+import { PreviewAlignment } from "./preview-alignment"
 
 // The entry tradecn.dev embeds: one demo per page, named by the root's data-item, mounted in an
 // iframe the docs page sizes from the height this posts. The palette is the page's, written by
@@ -18,6 +20,8 @@ import { demos } from "./demos"
 const root = document.getElementById("root")
 if (!root) throw new Error("no #root to mount the demo in")
 const item = root.dataset.item ?? ""
+const canAlign = root.dataset.frame === "card" && alignable.includes(item)
+if (canAlign) root.dataset.alignControls = ""
 
 function report() {
   // The body is content-sized, so its height is the demo's. The docs page sets the iframe to it.
@@ -32,6 +36,7 @@ if (!load) {
   load().then(({ default: Demo }) => {
     createRoot(root).render(
       <StrictMode>
+        {canAlign && <PreviewAlignment />}
         <Demo />
       </StrictMode>,
     )

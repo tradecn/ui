@@ -57,6 +57,17 @@ function fakeEmbed(): string {
 }
 
 describe("the demo source shown under Code", () => {
+  it("opts DataGrid into preview-owned alignment without adding controls to copied source", async () => {
+    const dir = resolve(root, "playground/src/demos")
+    const { alignable } = JSON.parse(readFileSync(join(dir, FRAME_FILE), "utf8")) as { alignable: string[] }
+    const demos = await readDemos(dir)
+    expect(alignable).toEqual(["data-grid", "data-grid-controlled", "data-grid-selection", "data-grid-totals", "data-grid-updates"])
+    for (const name of alignable) {
+      expect(demos.has(name), name).toBe(true)
+      expect(demos.get(name)!.code).not.toMatch(/PreviewAlignment|preview-alignment|data-preview-align/)
+    }
+  })
+
   it("rewrites the playground's registry imports into the ones shadcn add writes", () => {
     const source = [
       'import { useState } from "react"',

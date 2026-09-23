@@ -168,17 +168,20 @@ for (const item of items) {
     const font = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--tradecn-font-mono").trim())
     if (!font) failures.push(`${item}: the embed page has no --tradecn-font-mono; the typography tokens did not reach it`)
     for (const problem of await numericProblems(page)) failures.push(`${item}: ${problem}`)
-    // A demo's controls, when it has them, sit in the frame's bar: pinned to the frame's top edge, spanning its width, the component below them.
+    // Controls sit at the top, above the component. An opted-in alignment group shares that row with demo controls.
     const bar = await page.evaluate(() => {
       const root = document.getElementById("root")!
-      const controls = root.querySelector(":scope > [data-demo-controls]")
-      if (!controls) return null
+      const controls = [...root.querySelectorAll(":scope > [data-demo-controls], :scope > [data-preview-controls]")]
+      if (!controls.length) return null
       const frame = root.getBoundingClientRect()
-      const box = controls.getBoundingClientRect()
-      const rest = [...root.children].filter((el) => el !== controls).map((el) => el.getBoundingClientRect().top)
-      return { top: Math.round(box.top - frame.top), width: Math.round(box.width), frame: Math.round(frame.width), below: rest.every((top) => top >= box.bottom) }
+      const boxes = controls.map((el) => el.getBoundingClientRect())
+      const rest = [...root.children].filter((el) => !controls.includes(el)).map((el) => el.getBoundingClientRect().top)
+      const bottom = Math.max(...boxes.map((box) => box.bottom))
+      const shared = root.hasAttribute("data-align-controls")
+      const fits = shared ? boxes.every((box) => box.left >= frame.left && box.right <= frame.right) && boxes.every((box, i) => boxes.every((other, j) => i === j || box.right <= other.left || box.left >= other.right)) : Math.abs(boxes[0]!.width - frame.width) <= 1
+      return { top: boxes.every((box) => Math.abs(box.top - frame.top) <= 1), fits, below: rest.every((top) => top >= bottom) }
     })
-    if (bar && (bar.top !== 0 || Math.abs(bar.width - bar.frame) > 1 || !bar.below)) failures.push(`${item}: the demo's controls bar is ${bar.top}px from the frame's top and ${bar.width}px of ${bar.frame}px wide${bar.below ? "" : ", with the demo not below it"}`)
+    if (bar && (!bar.top || !bar.fits || !bar.below)) failures.push(`${item}: controls are not at the top, overlap or exceed the frame, or overlap the demo: ${JSON.stringify(bar)}`)
     // The frame's geometry under the centering contract: every root that is not the bar is the frame's content width or
     // centered in it, and a root that says w-full is the frame's width. A tag from before the contract is stretched
     // instead and promised nothing about its roots, so a republished old tag is left alone here (the #101 rule).
@@ -190,7 +193,7 @@ for (const item of items) {
       const inner = Math.round(root.clientWidth - padLeft - parseFloat(style.paddingRight))
       const origin = root.getBoundingClientRect().left + padLeft
       return [...root.children]
-        .filter((el) => !el.hasAttribute("data-demo-controls"))
+        .filter((el) => !el.hasAttribute("data-demo-controls") && !el.hasAttribute("data-preview-controls"))
         .map((el) => {
           const box = el.getBoundingClientRect()
           const width = Math.round(box.width)
@@ -205,6 +208,24 @@ for (const item of items) {
         .filter(Boolean)
     })
     for (const problem of geometry) failures.push(`${item}: the demo root ${problem}, neither the frame's width nor centered in it`)
+    if (await page.locator("#root[data-align-controls]").count()) {
+      const group = page.getByRole("group", { name: "Preview alignment" })
+      if ((await group.getByRole("button", { pressed: true }).getAttribute("aria-label")) !== "Align all previews center") failures.push(`${item}: preview alignment does not start centered`)
+      for (const alignment of ["left", "right", "center"]) {
+        await group.getByRole("button", { name: `Align all previews ${alignment}` }).click()
+        const aligned = await page.evaluate((alignment) => {
+          const root = document.getElementById("root")!, style = getComputedStyle(root), frame = root.getBoundingClientRect()
+          const left = frame.left + parseFloat(style.paddingLeft), right = frame.right - parseFloat(style.paddingRight)
+          const target = alignment === "left" ? left : alignment === "right" ? right : (left + right) / 2
+          return [...root.children].filter((el) => !el.matches("[data-demo-controls], [data-preview-controls]")).every((el) => {
+            const box = el.getBoundingClientRect()
+            const edge = alignment === "left" ? box.left : alignment === "right" ? box.right : (box.left + box.right) / 2
+            return Math.abs(edge - target) <= 1
+          })
+        }, alignment)
+        if (!aligned || await group.getByRole("button", { pressed: true }).count() !== 1) failures.push(`${item}: ${alignment} preview alignment is incorrect`)
+      }
+    }
     // The page that frames it does, and the height message arrives: an item's or a doc's own page, or the page a variant is placed on.
     const where = pageOf(item)
     await page.goto(`${base}${where}`, { waitUntil: "load" })
@@ -299,6 +320,80 @@ for (const item of items) {
     failures.push(`${item}: ${firstLine(error)}`)
   } finally {
     await page.close()
+  }
+}
+
+// Alignment is one saved preference for every preview, including previews without their own selector.
+if (items.includes("data-grid")) {
+  const page = await context.newPage()
+  const tab = await context.newPage()
+  watch(page, "alignment")
+  watch(tab, "alignment tab")
+  try {
+    await page.goto(`${base}/docs/data-grid/`, { waitUntil: "load" })
+    for (const card of await page.locator(".preview").all()) await card.scrollIntoViewIfNeeded()
+    const gridFrame = page.frameLocator('iframe[data-preview="data-grid"]')
+    await gridFrame.getByRole("grid").waitFor()
+    // Older builds have no selector; their centered frames still follow a preference saved on a newer page.
+    if (await gridFrame.getByRole("group", { name: "Preview alignment" }).count()) {
+      const allFollow = (value: string) => page.waitForFunction((value) => {
+        const frames = [...document.querySelectorAll<HTMLIFrameElement>("iframe[data-preview]")]
+        return frames.every((frame) => {
+          const doc = frame.contentDocument
+          return doc?.documentElement.dataset.previewAlign === value && doc.querySelector(`[aria-label="Align all previews ${value}"][aria-pressed="true"]`)
+        })
+      }, value, { timeout: 10_000 })
+      await gridFrame.getByRole("button", { name: "Align all previews left" }).focus()
+      await page.keyboard.press("Space")
+      await allFollow("left")
+      if (await page.evaluate(() => localStorage.getItem("tradecn-preview-alignment")) !== "left") failures.push("alignment: the shared choice was not stored")
+
+      // Resizing used to move both edges in the centered presentation. Left alignment keeps the origin fixed.
+      const controlled = page.frameLocator('iframe[data-preview="data-grid-controlled"]')
+      const grid = controlled.getByRole("grid")
+      const before = await grid.evaluate((el) => ({ left: el.getBoundingClientRect().left, width: el.getBoundingClientRect().width }))
+      await controlled.getByRole("separator", { name: "Resize Size" }).scrollIntoViewIfNeeded()
+      const handle = (await controlled.getByRole("separator", { name: "Resize Size" }).boundingBox())!
+      await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(handle.x + handle.width / 2 + 40, handle.y + handle.height / 2)
+      await page.mouse.up()
+      const after = await grid.evaluate((el) => ({ left: el.getBoundingClientRect().left, width: el.getBoundingClientRect().width }))
+      if (Math.abs(after.left - before.left) > 1 || after.width < before.width + 39) failures.push(`alignment: resizing moved the left edge or did not widen the column: ${JSON.stringify({ before, after })}`)
+      await controlled.getByRole("button", { name: "Align all previews right" }).click()
+      await allFollow("right")
+      if (Math.abs(await grid.evaluate((el) => el.getBoundingClientRect().width) - after.width) > 1) failures.push("alignment: changing placement reset resized columns")
+
+      await tab.goto(`${base}/docs/countdown/`, { waitUntil: "load" })
+      const countdown = tab.frameLocator('iframe[data-preview="countdown"]')
+      await countdown.locator('#root[data-state="ready"]').waitFor()
+      if (await countdown.getByRole("group", { name: "Preview alignment" }).count()) failures.push("alignment: Countdown unexpectedly has alignment controls")
+      await countdown.locator('html[data-preview-align="right"]').waitFor()
+      const rightAligned = await countdown.locator("#root").evaluate((root) => {
+        const demo = root.querySelector(":scope > :not([data-demo-controls])")!
+        return Math.abs(demo.getBoundingClientRect().right - root.getBoundingClientRect().right + parseFloat(getComputedStyle(root).paddingRight)) <= 1
+      })
+      if (!rightAligned) failures.push("alignment: Countdown did not follow the saved placement")
+      await page.reload({ waitUntil: "load" })
+      for (const card of await page.locator(".preview").all()) await card.scrollIntoViewIfNeeded()
+      await allFollow("right")
+      // Another tab can clear or replace the setting; every mounted selector catches up.
+      await tab.evaluate(() => localStorage.setItem("tradecn-preview-alignment", "left"))
+      await allFollow("left")
+      await tab.evaluate(() => localStorage.setItem("tradecn-preview-alignment", "invalid"))
+      await allFollow("center")
+      await gridFrame.getByRole("button", { name: "Align all previews left" }).click()
+      await allFollow("left")
+      await tab.evaluate(() => localStorage.removeItem("tradecn-preview-alignment"))
+      await allFollow("center")
+      console.log("ok  alignment: shared selectors, keyboard, fixed-edge resize, retained columns, reload, Countdown, another tab, and invalid/cleared storage")
+    }
+  } catch (error) {
+    failures.push(`alignment: ${firstLine(error)}`)
+  } finally {
+    await page.evaluate(() => localStorage.removeItem("tradecn-preview-alignment")).catch(() => {})
+    await page.close()
+    await tab.close()
   }
 }
 
