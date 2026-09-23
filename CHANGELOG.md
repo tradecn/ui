@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.2](https://github.com/tradecn/ui/compare/v1.3.1...v1.3.2) (2026-09-23)
+
+
+### Documentation
+
+* **quote-panel:** clarify editing and custom columns ([#131](https://github.com/tradecn/ui/issues/131)) ([de1a0fa](https://github.com/tradecn/ui/commit/de1a0fa406984958a3ddfa80b6803592cc6622ef))
+* **window-set:** clarify adapter and controller contracts ([#128](https://github.com/tradecn/ui/issues/128)) ([f866e38](https://github.com/tradecn/ui/commit/f866e38d06e412f7d189fb609ee45664c8b0b6be))
+
 ## [1.3.1](https://github.com/tradecn/ui/compare/v1.3.0...v1.3.1) (2026-09-23)
 
 
