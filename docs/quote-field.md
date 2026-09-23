@@ -1,10 +1,11 @@
 # QuoteField
 
-A field that types a quote the way the instrument quotes it, steps it by the instrument's own step, and hands the number up.
+Enter a quote in the instrument's notation, step it by the convention's increment, and keep the numeric value in parent state.
 
 ## Usage
 
 ```tsx
+import { useState } from "react"
 import { QuoteField } from "@/components/ui/quote-field"
 import type { InstrumentConvention } from "@/lib/format"
 ```
@@ -12,29 +13,74 @@ import type { InstrumentConvention } from "@/lib/format"
 ```tsx
 const BILL: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.0005, quoteBasis: "discount" }
 
-const [discount, setDiscount] = useState<number | null>(null)
+function BillQuote({ composite }: { composite: { mid: number | null } }) {
+  const [discount, setDiscount] = useState<number | null>(null)
 
-<QuoteField convention={BILL} value={discount} onValueChange={setDiscount} stepFrom={composite.mid} />
+  return <QuoteField convention={BILL} value={discount} onValueChange={setDiscount} stepFrom={composite.mid} />
+}
 ```
 
 ## API Reference
 
+`QuoteFieldProps` exposes these inputs. It does not forward arbitrary input or wrapper props.
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `convention` | `InstrumentConvention` | Required | Quote basis, notation, and step |
+| `value` | `number \| null` | Required | Parent-owned quote; `null` for blank or invalid text |
+| `onValueChange` | `(value: number \| null) => void` | Required | Receives parsed edits and stepped values |
+| `stepFrom` | `number \| null` | `null` | Starting value for a step when `value` is `null` |
+| `label` | `string` | Basis label below | Visible label and word used in button names |
+| `error` | `string` | Unset | Parent validation message; takes precedence over the field's own error |
+| `invalidText` | `string` | Message using the lowercase label | Text shown after invalid input loses focus |
+| `placeholder` | `string` | `formatQuote(0, convention)` | Empty-input hint, such as `0-00` or `0.000` |
+| `id` | `string` | Generated with `useId` | Input ID associated with the label |
+| `disabled` | `boolean` | `false` | Disables the input and both step buttons |
+| `shiftMultiplier` | `number` | `10` | Multiplier for Shift+Up and Shift+Down |
+| `side` | `"bid" \| "ask"` | Unset | Root `data-side` for styling |
+| `inputRef` | `RefObject<HTMLInputElement \| null>` | Unset | Ref to the input |
+| `className` | `string` | Unset | Classes on the outer wrapper |
+
 ### The basis
 
-The convention says what a quote is: a price in the instrument's notation (`99-16+`), or a yield, a discount rate, or a spread in basis points as a plain decimal. The label is the basis word unless you give one, `Price`, `Yield`, `Discount`, `Spread`, and the root carries it as `data-basis`. The field parses through `parseQuote` and prints through `formatQuote` from [`format`](format.md), so a price takes its notation or a decimal, and the others take a decimal and snap to the quote step. Nothing here knows an instrument by name; a new kind of instrument is a new convention object.
+`convention.quoteBasis` defaults to `"price"`. Yield and discount values use percentage points; spreads use basis points. The root carries the basis as `data-basis` and the slot `data-slot="tradecn-quote-field"`.
+
+| Basis | Default label | Default step | Display precision |
+|---|---|---|---|
+| `"price"` | `Price` | `convention.tick` | From `convention.price` |
+| `"yield"` | `Yield` | `0.001` | `quoteDecimals`, default `3` |
+| `"discount"` | `Discount` | `0.001` | `quoteDecimals`, default `3` |
+| `"spread"` | `Spread` | `0.1` | `quoteDecimals`, default `1` |
+
+For non-price quotes, `quoteStep` overrides the default step. Price quotes ignore `quoteStep` and `quoteDecimals`. Set precision high enough to display the step; the bill above steps by `0.001` in discount, despite its price tick of `0.0005`.
+
+The field uses [`format`](format.md)'s `parseQuote`, `formatQuote`, and `stepQuote`. Price input accepts the instrument's notation (`99-16+`) or a decimal. Decimal price conventions round to their decimal places, tick conventions snap to their price tick, and fraction conventions accept decimal input without snapping. Other bases accept decimals, snap to the quote step, and print without a unit suffix.
+
+Parsing trims whitespace, removes commas, and accepts either minus sign; decimal input uses a point. Fraction prices use the mono font; other quotes use the numeric font. A new kind of instrument needs a new convention object, with no instrument-name lookup.
 
 ### Typing and stepping
 
-On every keystroke the text is read and `onValueChange` gets the number, or null while the text is blank or not a quote. On blur a good quote is printed back in the notation (`99.75` becomes `99-24`) and a bad one is marked, with a line under the field that names the basis, or says `invalidText`. The mark clears as soon as anything else is typed; a blank field is not wrong.
+Each text edit calls `onValueChange` with the parsed number, or `null` for blank or invalid text. Keep that value in parent state. Blur formats valid text (`99.75` becomes `99-24` for 32nds) or marks invalid text with `aria-invalid` and a message below the field. Blur does not call `onValueChange`.
 
-The arrows step by the instrument's step, `stepQuote`, and Shift steps ten (`shiftMultiplier`). The two buttons do the same, named `<label> up one tick` and `<label> down one tick`. When the field is blank a step starts from `stepFrom`, the last, a mid, whichever side there is, as you choose; with nothing to start from the arrows do nothing. An arrow with a modifier held is not the field's: it lets the key through to whoever listens above, which is how a ticket's `mod+up` reaches the hotkey registry from inside this field.
+The default message is `Not a <lowercase label> in this instrument's notation.` Typing clears the field's own error; blank text is not marked invalid. A supplied `error` remains until the parent clears it. `error=""` suppresses the field's message and invalid mark, as does `invalidText=""` when `error` is unset.
 
-The field is controlled. When you move the value, from a key, a click on a reference price, a reset, the text follows and any mark clears. When the text already reads as the value you set, because someone is typing it, the text stays as typed under the cursor and is tidied on blur.
+| Control | Behavior |
+|---|---|
+| Up / Down | Add or subtract one quote step |
+| Shift+Up / Shift+Down | Add or subtract `shiftMultiplier` steps |
+| Minus / plus buttons | Subtract or add one step, including when Shift is held |
+| Ctrl, Meta, or Alt + arrow | Leave the event to listeners above the field |
+
+The buttons are named `<label> down one tick` and `<label> up one tick`. A step uses `value ?? stepFrom`, snaps to the nearest quote grid value, then moves by the requested steps. Choose a last price, mid, or available side for `stepFrom`; it applies whenever `value` is null, including invalid text. Without either starting value, stepping does nothing, though bare and Shift arrows still prevent their default behavior.
+
+When `value` changes and differs from the parsed text, the field replaces the text and clears its own error. If the text already parses to the new value, it stays as typed until blur. Passing the same value again does not reset the text: setting an already-null value to null leaves invalid text in place. Changing only `convention` does not reformat the current text either; remount the field when you need to reset that local state.
+
+There is no separate commit or cancel operation. Enter and Escape have no field-specific handler; a ticket can handle them above the field, just as its `mod+up` can reach the hotkey registry.
 
 ### Two sides
 
-A two-sided quote is two fields. Give each a `side`, `bid` or `ask`, and it lands on the root as `data-side` for your styling; the fields share the convention and step alike. `error` prints a problem your own check found, a bid above the ask for one, over the field's own.
+Use two fields with the same convention and `side="bid"` or `side="ask"`. The side only sets `data-side`; it does not change parsing or stepping. Pass a parent validation problem, such as a bid above the ask, through `error`.
 
 ### What it does not do
 
-It does not check the quote against a market, a limit, or the other side; that is the check your ticket runs before it sends, and `error` is where you say what it found. It declares no keys. It does not send anything and knows nothing about orders or inquiries. [`ticket`](ticket.md) is built on it.
+The field checks notation only. Your ticket checks market prices, limits, and the other side before sending, and reports problems through `error`. The field registers no hotkeys, sends no orders or inquiries, and has no order state. [`ticket`](ticket.md) is built on it.
