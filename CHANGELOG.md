@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.2](https://github.com/tradecn/ui/compare/v1.4.1...v1.4.2) (2026-09-23)
+
+
+### Maintenance
+
+* **site:** color the code blocks ([#158](https://github.com/tradecn/ui/issues/158)) ([7335caa](https://github.com/tradecn/ui/commit/7335caa9656a63e7595550ceb86e8b5257e8c70e))
+
+
+### Documentation
+
+* **data-grid:** separate basic usage from focused examples ([#157](https://github.com/tradecn/ui/issues/157)) ([ffc9708](https://github.com/tradecn/ui/commit/ffc970839b966361b33f19636e5ea0e3d4d75451))
+
 ## [1.4.1](https://github.com/tradecn/ui/compare/v1.4.0...v1.4.1) (2026-09-23)
 
 
