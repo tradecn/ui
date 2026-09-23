@@ -21,7 +21,7 @@ function useDeadline(seconds: number) {
 export default function CountdownDemo() {
   const inquiry = useDeadline(30)
   return (
-    <div className="flex flex-wrap items-end gap-6 font-(family-name:--tradecn-font-mono) text-xs">
+    <div className="flex flex-wrap items-end justify-center gap-6 font-(family-name:--tradecn-font-mono) text-xs">
       <Countdown expiresAt={inquiry.end} startsAt={inquiry.start} label="Inquiry" className="text-xl" />
       <div className="flex gap-2">
         <Button size="sm" variant="outline" onClick={() => inquiry.extend(15)}>

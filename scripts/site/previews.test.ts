@@ -235,7 +235,11 @@ describe("a theme on the site", () => {
       // The palettes come after the bundle's stylesheet, so they win the cascade.
       expect(html.indexOf("embed-def.css")).toBeLessThan(html.indexOf("--background:"))
     }
-    expect(formatPage).toContain('<div id="root" data-item="format"')
+    expect(formatPage).toContain('<div id="root" data-item="format" data-frame="card">')
+    // The desk fills its frame on the opening page; every other demo is centered in a card's frame.
+    expect(pages.get(`preview/${DESK_DEMO}/index.html`)).toContain(`<div id="root" data-item="${DESK_DEMO}" data-frame="desk">`)
+    expect(slatePage).toContain('data-frame="card"')
+    for (const [path, html] of pages) expect(html, path).toMatch(/ data-frame="(card|desk)">/)
   })
 
   it("writes no preview pages without an embed build", async () => {
@@ -252,7 +256,7 @@ describe("the preview card", () => {
     const block = previewBlock(doc, demo, "v9.9.9")
     expect(block).toContain('<div class="preview" data-preview="flash-cell">')
     expect(block).toContain('<div class="preview-live">\n<iframe src="/preview/flash-cell/" title="flash-cell, live" loading="lazy" data-preview="flash-cell"></iframe>\n</div>')
-    expect(block).toContain('<div class="preview-code" data-collapsed>\n<div class="preview-code-body" id="preview-flash-cell-source">\n<pre><code class="language-tsx">import { FlashCell } from &quot;@/components/ui/flash-cell&quot;\n&lt;b&gt;</code></pre>')
+    expect(block).toContain('<div class="preview-code" data-collapsed>\n<div class="preview-code-body" id="preview-flash-cell-source" tabindex="-1">\n<pre><code class="language-tsx">import { FlashCell } from &quot;@/components/ui/flash-cell&quot;\n&lt;b&gt;</code></pre>')
     expect(block).toContain("https://github.com/tradecn/ui/blob/v9.9.9/playground/src/demos/flash-cell.tsx")
     expect(block).toContain('<button type="button" class="view-code" aria-expanded="false" aria-controls="preview-flash-cell-source">View Code</button>')
     // No tabs and no link out: the frame is the demo, and the source's own line names the file at the tag.
@@ -321,7 +325,7 @@ describe("the preview card", () => {
         expect(html).toContain(`<iframe src="/preview/${doc.slug}/"`)
         // The card sits between the opening paragraph and Installation, and the source under its frame is a code block like any other: wrapped, with its copy button.
         expect(html.indexOf('<div class="preview"')).toBeLessThan(html.indexOf('<h2 id="installation">'))
-        expect(html).toMatch(/class="preview-code" data-collapsed>\n<div class="preview-code-body" id="preview-[\w-]+-source">\n<div class="code"><pre><code class="language-(tsx|css)">[\s\S]*?<\/pre><button type="button" class="copy"/)
+        expect(html).toMatch(/class="preview-code" data-collapsed>\n<div class="preview-code-body" id="preview-[\w-]+-source" tabindex="-1">\n<div class="code"><pre><code class="language-(tsx|css)">[\s\S]*?<\/pre><button type="button" class="copy"/)
       } else if (demos.has(doc.slug)) {
         // A doc with a demo of its own (Typography) gets the card and no Installation.
         expect(html).toContain(`<iframe src="/preview/${doc.slug}/"`)
@@ -373,11 +377,14 @@ describe("the preview card", () => {
     // The embed page centers a card's demo in at least the card's height, and lets the desk fill its frame.
     const preview = template(PREVIEW_TEMPLATE)
     expect(preview).toContain('<div id="root" data-item="{{item}}" data-frame="{{frame}}">')
-    expect(preview).toContain('#root[data-frame="card"] { box-sizing: border-box; min-height: 22rem; display: flex; flex-direction: column; align-items: center; justify-content: center;')
+    // Centered on the height, stretched on the width: a demo with no width of its own takes the frame's, and one narrower than the frame centers itself.
+    expect(preview).toContain('#root[data-frame="card"] { box-sizing: border-box; min-height: 22rem; display: flex; flex-direction: column; justify-content: center;')
+    expect(preview).not.toContain("align-items: center")
     expect(preview).toContain('#root[data-frame="desk"] {')
     const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
     expect(script).toContain('document.querySelectorAll(".view-code")')
     expect(script).toContain("body.inert = !open")
+    expect(script).toContain("if (open && pressed) body.focus({ preventScroll: true })")
     expect(script).toContain('button.textContent = open ? "Collapse" : "View Code"')
     expect(script).toContain('event.data.type !== "tradecn-preview"')
     expect(script).toContain("event.origin !== location.origin")

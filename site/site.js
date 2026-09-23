@@ -464,14 +464,17 @@ function viewCode(button) {
   const pane = button.closest(".preview-code")
   const body = document.getElementById(button.getAttribute("aria-controls"))
   if (!pane || !body) return
-  const set = (open) => {
+  const set = (open, pressed) => {
     pane.toggleAttribute("data-collapsed", !open)
     button.setAttribute("aria-expanded", String(open))
     button.textContent = open ? "Collapse" : "View Code"
     body.inert = !open
+    // Opened by a press, the source takes focus: the button has moved to the foot of the code, so from here the
+    // next Tab meets the copy button and then Collapse, in reading order, instead of skipping past both.
+    if (open && pressed) body.focus({ preventScroll: true })
   }
-  set(false)
-  button.addEventListener("click", () => set(pane.hasAttribute("data-collapsed")))
+  set(false, false)
+  button.addEventListener("click", () => set(pane.hasAttribute("data-collapsed"), true))
 }
 
 addEventListener("DOMContentLoaded", () => {

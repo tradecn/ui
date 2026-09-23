@@ -904,7 +904,7 @@ export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
     `<iframe src="/${PREVIEW_PATH}/${escapeHtml(name)}/" title="${escapeHtml(name)}, live" loading="lazy" data-preview="${escapeHtml(name)}"></iframe>`,
     `</div>`,
     `<div class="preview-code" data-collapsed>`,
-    `<div class="preview-code-body" id="${id}-source">`,
+    `<div class="preview-code-body" id="${id}-source" tabindex="-1">`,
     `<pre><code class="language-${language}">${escapeHtml(code)}</code></pre>`,
     `<p class="preview-source">${codeSource}, at <a href="${REPO_URL}/blob/${tag}/playground/src/demos/${escapeHtml(name)}.tsx">${tag}</a>.</p>`,
     `</div>`,

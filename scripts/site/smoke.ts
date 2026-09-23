@@ -192,6 +192,20 @@ for (const item of items) {
     if (await card.locator("a.preview-open, [role='tab']").count()) failures.push(`${item}: the card still has tabs or a link out`)
     await view.click()
     if ((await view.getAttribute("aria-expanded")) !== "true" || (await view.innerText()) !== "Collapse") failures.push(`${item}: View Code did not open the source`)
+    // The opened source holds the focus, and from there the Tab order reads on inside it: the pre first when its lines
+    // overflow, since Chromium makes such a scroller keyboard-focusable, then the copy button, before anything outside.
+    if (!(await page.evaluate(() => document.activeElement?.classList.contains("preview-code-body")))) failures.push(`${item}: the opened source did not take focus`)
+    let reached = false
+    for (let presses = 0; presses < 3 && !reached; presses++) {
+      await page.keyboard.press("Tab")
+      const at = await page.evaluate(() => {
+        const el = document.activeElement
+        return el?.classList.contains("copy") ? "copy" : el?.closest(".preview-code-body") ? "inside" : "outside"
+      })
+      if (at === "outside") break
+      reached = at === "copy"
+    }
+    if (!reached) failures.push(`${item}: Tab from the opened source left it before reaching its copy button`)
     const previewCode = card.locator(".preview-code pre code")
     if (!(await previewCode.isVisible())) failures.push(`${item}: View Code shows no code`)
     const code = await previewCode.innerText()
