@@ -1558,9 +1558,9 @@ test("a price chart paints in the page's tokens, prints the last with its sign, 
   await expect(readout).toHaveText("09:31:00 110-16 V 20")
   await page.keyboard.press("Escape")
   await expect(readout).toHaveText("")
-  // The pointer near the left edge of the plot lands on the first bar; leaving takes the crosshair with it.
-  const box = (await plot.boundingBox())!
-  await page.mouse.move(box.x + 12, box.y + box.height / 2)
+  // The pointer just inside the plot area (uPlot's overlay, past the axis padding) lands on the first bar; leaving takes the crosshair with it.
+  const box = (await chart.locator(".u-over").boundingBox())!
+  await page.mouse.move(box.x + 4, box.y + box.height / 2)
   await expect(readout).toHaveText("09:30:00 110-17 V 10")
   await page.mouse.move(0, 0)
   await expect(readout).toHaveText("")
