@@ -5,26 +5,53 @@ A watchlist backed by a row store, with price columns, an optional add field, an
 ## Usage
 
 ```tsx
-import { Watchlist, watchlistColumns, type WatchlistRow } from "@/components/ui/watchlist"
+import { useState } from "react"
 import { createRowStore } from "@/lib/row-store"
-```
+import { Watchlist, type WatchlistRow } from "@/components/ui/watchlist"
 
-```tsx
-const store = createRowStore<WatchlistRow>({ getRowId: (r) => r.symbol })
+const quotes: WatchlistRow[] = [
+  { symbol: "ES", last: 5012.25, bid: 5012, ask: 5012.5, change: -12.5, changePct: -0.25, volume: 980_000 },
+  { symbol: "CL", last: 78.1, bid: 78.09, ask: 78.11, change: 0.25, changePct: 0.32, volume: 125_000 },
+  { symbol: "GC", last: 2380.4, bid: 2380.3, ask: 2380.5, change: 0, changePct: 0, volume: 42_000 },
+]
 
 function MyWatchlist() {
+  const [store] = useState(() => {
+    const store = createRowStore<WatchlistRow>({ getRowId: (row) => row.symbol })
+    store.applyDeltas({ upsert: quotes.slice(0, 2) })
+    return store
+  })
+  const [activated, setActivated] = useState<string | null>(null)
+  const add = (symbol: string) => {
+    const quote = quotes.find((row) => row.symbol === symbol)
+    if (quote) store.applyDeltas({ upsert: [quote] })
+  }
   return (
-    <Watchlist
-      store={store}
-      price={(value, row) => conventions[row.symbol].price(value)}
-      onAdd={(symbol) => api.watch(symbol)}
-      onRemove={(symbols) => api.unwatch(symbols)}
-      validate={(symbol) => known.has(symbol)}
-      onRowActivate={(row) => link.setSymbol(row.symbol)}
-    />
+    <div className="w-fit max-w-full space-y-2 text-xs lining-nums tabular-nums">
+      <div className="h-48">
+        <Watchlist store={store} label="Market watchlist" validate={(symbol) => quotes.some((row) => row.symbol === symbol)} onAdd={add} onRemove={(symbols) => store.applyDeltas({ remove: symbols })} onRowActivate={(row) => setActivated(row.symbol)} />
+      </div>
+      <p role="status" className="text-muted-foreground">{activated ? `Last activated: ${activated}.` : "Nothing activated."}</p>
+    </div>
   )
 }
 ```
+
+This sample accepts ES, CL and GC. Type `gc` and press Enter to add the third quote; input is trimmed and uppercased. Adding an existing symbol selects it instead of adding another row. Unknown symbols remain in the field, marked invalid. The callbacks update this local store directly; a real application would connect them to its watch subscriptions.
+
+Select a row and press Delete or Backspace to remove it, use its hover button, or choose Remove from its context menu. Add it again to restore the fixed quote. Press Enter on a focused row or double-click it to update the activation caption. The caption records the last activation, even if that symbol is later removed. It stands in for your application's navigation or linked-symbol action.
+
+## Prices by instrument
+
+Keep a stable `price` function when a list mixes price conventions. This example prints ZN in 32nds with half-ticks and ES with two decimals. Only last, bid and ask use that function; change and percentage change retain their own signed decimal formats. No add or remove controls appear because those callbacks are omitted.
+
+<!-- demo: watchlist-prices -->
+
+## Trend column
+
+Install [sparkline](sparkline.md) alongside watchlist for this example. Keep the symbol and last columns from `watchlistColumns`, then append a custom cell. Each row supplies six fixed readings and a previous close as the baseline; Watchlist does not build that history. The last price matches the final reading. Fixed chart dimensions avoid measuring each cell, and the charts stay inert so the grid keeps its keyboard controls.
+
+<!-- demo: watchlist-trends -->
 
 ## API Reference
 
@@ -72,17 +99,7 @@ Rows are keyed by `symbol`, so create the store with `getRowId: (r) => r.symbol`
 
 `watchlistColumns<T>(options?: WatchlistColumnOptions<T>): ColumnDef<T>[]` accepts an optional `price` callback with the signature above. It returns symbol (frozen left), last, bid, ask, change, change %, and volume. Spread the result into your own list to add a column, drop one, or reorder; frozen columns stay first.
 
-```tsx
-import { type ColumnDef } from "@/components/ui/data-grid"
-import { Sparkline } from "@/components/ui/sparkline"
-
-type TrendRow = WatchlistRow & { closes: number[] }
-
-const columns: ColumnDef<TrendRow>[] = [
-  ...watchlistColumns<TrendRow>({ price }),
-  { key: "trend", header: "Trend", width: 104, flash: false, accessor: (r) => r.closes, cell: ({ row }) => <Sparkline values={row.closes} label={row.symbol} width={96} height={18} /> },
-]
-```
+The [trend-column example](#trend-column) shows a complete custom-column composition and names its additional installation.
 
 `price` gets the row because instruments differ: one prints in 32nds and the next in decimals. Missing numeric values display `NULL_TOKEN` (`–`). Change and change % use their own signed, two-decimal formatters (`+0.25`, `−12.50`, `−0.25%`) and sign-based colors, with zero flat. The price callback does not format these changes. Last, bid, and ask flash on change; change, change %, and volume do not.
 
