@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.5](https://github.com/tradecn/ui/compare/v1.4.4...v1.4.5) (2026-09-23)
+
+
+### Documentation
+
+* **quote-panel:** simplify the documentation examples ([#166](https://github.com/tradecn/ui/issues/166)) ([988ca71](https://github.com/tradecn/ui/commit/988ca71113034513409dbf6c82429cbe3295ce68))
+
 ## [1.4.4](https://github.com/tradecn/ui/compare/v1.4.3...v1.4.4) (2026-09-23)
 
 
