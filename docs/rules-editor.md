@@ -1,10 +1,12 @@
 # RulesEditor
 
-The editor over one grid's rules: highlights, filters, and the sort stack as lists to add to, edit, reorder, and remove, with a live count of the rows each rule matches, and the column chooser in a fourth tab.
+Edit one grid's highlights, filters, and sort order, with live match counts and an optional Columns tab for the column chooser.
 
 ## Usage
 
 ```tsx
+import { useState } from "react"
+import { DataGrid, type ColumnState } from "@/components/ui/data-grid"
 import { RulesEditor } from "@/components/ui/rules-editor"
 import type { GridRules } from "@/lib/grid-rules"
 ```
@@ -19,38 +21,108 @@ const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths:
 
 ## Composition
 
-Four tabs, a `tablist` the arrow keys walk. Highlights is the `columns` list of a [`grid-rules`](grid-rules.md) object, Filters its `filter`, Sort its `sort`, and Columns is [`column-chooser`](column-chooser.md)'s panel over the same grid, there whenever `columnState` and `onColumnStateChange` are given. Each list is the same frame: a row per rule with a drag handle, `Move up`, `Move down`, and `Remove`, and an add button under it. `defaultTab` opens on one of them.
+The first three tabs edit [`GridRules`](grid-rules.md): Highlights edits `columns`, Filters edits `filter`, and Sort edits `sort`. Columns embeds [`ColumnChooserPanel`](column-chooser.md) when both `columnState` and `onColumnStateChange` are supplied.
+
+Left/Right wrap through tabs; Home/End select the first/last. `defaultTab` chooses the initial tab only. If Columns is selected but unavailable, Highlights is shown; Columns returns when both props return unless another tab was selected.
+
+Each rule list has draggable rows, `Move up`, `Move down`, `Remove`, and an add button. Drag onto another row to take its place, or use Alt+Up/Down on a focused row. Move buttons are disabled at the ends.
 
 ## API Reference
 
+### Props
+
+`RulesEditorProps<T>` uses the grid's row type. `RulesEditorTab` is `"highlights" | "filters" | "sort" | "columns"`.
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `columns` | `ColumnDef<T>[]` | Required | Column definitions shared with the grid. |
+| `rules` | `GridRules` | Required | Controlled rules; omitted lists appear empty. |
+| `onRulesChange` | `(rules: GridRules) => void` | Required | Receives each rule edit. |
+| `store` | `RowStore<T>` | Omitted | Rows for match counts. |
+| `columnState` | `ColumnState` | Omitted | Chooser state. |
+| `onColumnStateChange` | `(state: ColumnState) => void` | Omitted | Chooser changes; enables Columns with `columnState`. |
+| `defaultTab` | `RulesEditorTab` | `"highlights"` | Initial tab. |
+| `labels` | `Partial<RulesEditorLabels>` | `DEFAULT_RULES_EDITOR_LABELS` | Label overrides. |
+| `className` | `string` | Omitted | Outer region classes. |
+
 ### It produces rules and keeps nothing
 
-Every field shows what `rules` holds, and every edit is a new `GridRules` through `onRulesChange`, the untouched lists carried over by reference. Hand the same object to the grid's `rules` and the grid follows each keystroke; a desk that wants a save step keeps a draft between the two. Where the rules live afterwards, a preferences envelope, a file, a server, is yours, and the shape is JSON so they travel.
+Each edit emits a new `GridRules` and edited list; untouched lists and unchanged rules retain their references. Accept the result into `rules` and share it with the grid for immediate updates. For a save step, keep a draft separate from the applied rules. The JSON shape can live in a preferences envelope, file, or server.
+
+Replace changed arrays and objects: the editor and grid memoize by reference. The editor retains transient tab, drag, and comma-field state, preserving unfinished text such as `ALPHA,` while emitting parsed values.
 
 ### A rule as it is typed
 
-A row is a column picker, an op picker, and the value the op wants. The op picker narrows by the column's kind: comparisons and a range for a numeric column, text matching for the rest, from `opsFor`. Change the column and an op the new column does not offer becomes its first; change the op and a typed value stays when the new op wants the same shape (`gt` to `lt`) and goes when it does not (`gt` to `between`), through `withColumn` and `withOp`. A range has two fields, low and high. A set has one field, comma separated, read by `parseValues`. `isNull` and `notNull` have none. The value is stored as typed, in the column's own format, so a price on a 32nds column reads `100-00`; a value the column cannot read is said under the row through `ruleProblem`, and matches nothing until it is fixed.
+Each highlight or filter has column, operator, and value controls. `opsFor` offers comparisons/ranges for `column.numeric`, text matching otherwise, and equality, sets, and null checks for both.
+
+| Operators | Fields |
+|---|---|
+| `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `startsWith` | One `value` |
+| `between` | Two `values`: inclusive low/high |
+| `in` | Comma-separated `values` |
+| `isNull`, `notNull` | None |
+
+`withOp` preserves values for the same field shape (`gt` to `lt`) and clears them otherwise (`gt` to `between`). `withColumn` keeps the condition if the new column offers its operator; otherwise it selects the first operator and drops values, even if the shape is unchanged.
+
+Values stay as typed strings, read through the column's `parse` or numerically for numeric columns without a parser. A 32nds parser accepts `100-00`. The set field trims items and drops empties, with no quoting or escaping: enter `1000000`, not `1,000,000`, for one numeric member.
+
+### Errors
+
+`ruleProblem` reports missing columns/values and unreadable values below highlights and filters without blocking edits or evaluation. An unreadable single numeric value matches nothing; a mixed valid/invalid `in` set can match valid members. Empty text can match despite a missing-value message.
+
+A missing column gives an individual match count of zero, but combined filtering skips that rule. Sort rows also report missing columns, which the comparator skips.
 
 ### Highlights
 
-A highlight adds a tone, shown beside its picker in the token itself, what it paints (the cell in its column, or the row), and a label, the words a screen reader hears and the chooser prints. `Add highlight` appends one on the first column with a fresh id from `newRuleId`. The first rule in the list that matches a cell wins, so the order is the ranking, and the list reorders by drag, by Alt with an arrow on a focused row, and by the buttons.
+Highlights add a tone swatch, a target (`"cell"` by default or `"row"`), and a label for the grid's accessible description and chooser badge. Blank labels fall back to `describeRule`. Tones are `up`, `down`, `flat`, `stale`, `expiring`, `primary`, and `destructive`.
+
+`Add highlight` appends `newHighlight(columns)`. The grid evaluates cell and row rules separately: the first matching cell rule for a column wins for that cell; the first matching row rule wins for the row. Reorder to change precedence.
 
 ### Filters and the count
 
-Beside every highlight and every filter a count says how many rows in `store` it matches right now, and under the filters how many rows show under all of them together. The counts run on a throttled beat, at most four times a second however fast the feed, so a busy store does not redraw the editor every frame. Without a `store` there are no counts.
+`Add filter` appends `newFilter(columns)`. Every filter on a known column must match; filter order does not affect that requirement.
+
+With `store`, highlights and filters show independent match counts across all store rows, including hidden rows and highlights that lose precedence. The Filters total reports combined rule matches out of all store ids, excluding any separate grid filter or custom view.
+
+Counts recompute on mount and changes to their rule lists, columns, or store. Store notifications schedule updates at most once per 250 ms; edits are not throttled. Without `store`, match counts and the total disappear. Tab badges still show nonzero rule counts or `columnState.hidden.length`.
 
 ### Sort
 
-A sort key is a column and a direction. The first key that tells two rows apart decides, so the stack's order is the sort's precedence; drag or move to change it. `Add sort key` picks the first column not yet in the stack.
+Each sort key has a column and direction. The first key distinguishing two rows decides their order; reorder to change precedence. `Add sort key` appends `newSort(columns, rules.sort)`. Duplicates are allowed.
+
+For the grid's own view, the rule stack breaks header-sort ties. A caller-supplied `view` owns filtering and sorting instead.
+
+### Helpers
+
+Import these from `@/components/ui/rules-editor`. Rule types, `opsFor`, `ruleProblem`, and `describeRule` come from [`grid-rules`](grid-rules.md). Here `columns` means `readonly ColumnDef<T>[]`, `condition` means `RuleCondition`, and `op` means `RuleOp`.
+
+| Helper | Return type | Behavior |
+|---|---|---|
+| `valueShape(op)` | `"one" \| "two" \| "many" \| "none"` | Shape in the operator table. |
+| `parseValues(text: string)` | `RuleValue[]` | Comma-separated, trimmed, nonempty strings. |
+| `valuesText(values: readonly RuleValue[] \| undefined)` | `string` | Joins with `", "`; `null` becomes empty text, `undefined` gives `""`. |
+| `withOp(condition, op)` | `RuleCondition` | Copies for the same shape; otherwise returns `{ op }`. |
+| `withColumn(condition, column: ColumnDef<T> \| undefined)` | `RuleCondition` | Same condition if supported; otherwise only the first operator. |
+| `moveItem<X>(list: readonly X[], from: number, to: number)` | `X[]` | Moves by index; equal/out-of-bounds indices return an unchanged copy. |
+| `newRuleId()` | `string` | Timestamp plus module-local counter. |
+| `newHighlight(columns)` | `ColumnRule` | First column/operator, fresh id, tone `"up"`. |
+| `newFilter(columns)` | `FilterRule` | First column/operator. |
+| `newSort(columns, existing: readonly SortRule[] = [])` | `SortRule` | First unused column, or first column if exhausted; `dir: "asc"`. |
+
+With no columns, add buttons remain enabled and helpers use an empty key; highlights/filters start with `eq`.
 
 ### Labels
 
-Every word is in `labels`, a partial of `DEFAULT_RULES_EDITOR_LABELS`: the title, the four tabs, the add buttons, each field's name, the words for the cell and the row and the two directions, the count templates (`{n}` and `{m}`), the empty lines, and the drag hint. Each field is named `<field>: <rule>`, the rule by its label or by its tab and number, so a test or a screen reader finds `Value: Rich to the market`.
+`labels` covers the title, tabs, add/move/remove buttons, fields, target/direction choices, empty messages, drag hint, and counts (`{n}` matches; `{m}` total ids). The title names the outer region and tablist.
+
+Fields use `<field>: <rule>`, such as `Value: Rich to the market`. Highlights use their nonblank label or tab name and number; filters/sorts use tab name and number.
+
+Operator words use `RULE_OP_LABELS`. Tone names, errors, and the embedded chooser's labels are not overridden by `labels`.
 
 ### What it does not do
 
-It does not apply the rules, keep them, or decide a value. The grid applies them from its `rules` prop; the store's rows are what the counts read.
+The editor emits rules and evaluates counts; the grid applies the rules to its display. The caller supplies row values, accepts changes, and decides where to persist them.
 
 ### Tokens
 
-The install adds the grid's tokens, `up`, `down`, `flat`, `stale`, and `expiring` with their soft variants, if you do not have them; the tone swatches and the chooser's rule badges draw from them.
+The install adds the grid's `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants if missing. Tone swatches and chooser badges use them; `primary` and `destructive` use the host theme's tokens.
