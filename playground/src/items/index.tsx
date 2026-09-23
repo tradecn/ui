@@ -20,6 +20,7 @@ import { PanelScene } from "./panel"
 import { ParameterGridScene } from "./parameter-grid"
 import { PerfMonitorScene } from "./perf-monitor"
 import { PositionsScene } from "./positions"
+import { PriceChartScene } from "./price-chart"
 import { PreferencesScene } from "./preferences"
 import { QuoteFieldScene } from "./quote-field"
 import { QuotePanelScene } from "./quote-panel"
@@ -80,6 +81,7 @@ export const items: Record<string, ItemScene> = {
   "spread-matrix": { title: "spread-matrix", Scene: SpreadMatrixScene },
   "quote-panel": { title: "quote-panel", Scene: QuotePanelScene },
   "session-guard": { title: "session-guard", Scene: SessionGuardScene },
+  "price-chart": { title: "price-chart", Scene: PriceChartScene },
   "grid-rules": { title: "grid-rules", Scene: GridRulesScene },
   preferences: { title: "preferences", Scene: PreferencesScene },
   "alert-store": { title: "alert-store", Scene: AlertStoreScene },

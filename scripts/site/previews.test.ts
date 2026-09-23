@@ -94,7 +94,7 @@ describe("the demo source shown under Code", () => {
         placed.set(name, doc.source)
       }
     }
-    expect([...placed.keys()].sort()).toEqual(["countdown-compact", "countdown-expired", "countdown-thresholds"])
+    expect([...placed.keys()].sort()).toEqual(["countdown-compact", "countdown-expired", "countdown-thresholds", "price-chart-candles", "price-chart-overlays"])
     expect(demos.has("typography")).toBe(true)
     expect(demos.has(DESK_DEMO)).toBe(true)
     for (const demo of demos.values()) {
@@ -176,7 +176,7 @@ describe("a theme on the site", () => {
     // With every demo the docs frame, the variants the pages place get pages of their own too, wearing the site's palette like any item's.
     const framed = framedDemos(docs)
     const variants = [...framed].filter((name) => !docSlugs.has(name)).sort()
-    expect(variants).toEqual(["countdown-compact", "countdown-expired", "countdown-thresholds"])
+    expect(variants).toEqual(["countdown-compact", "countdown-expired", "countdown-thresholds", "price-chart-candles", "price-chart-overlays"])
     const withVariants = new Map(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE), framed).map((page) => [page.path, page.html]))
     expect(withVariants.size).toBe(pages.size + variants.length)
     expect(withVariants.get("preview/countdown-compact/index.html")).toContain('<div id="root" data-item="countdown-compact"')
