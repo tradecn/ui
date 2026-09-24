@@ -8,17 +8,18 @@ Enter a quote in the instrument's notation, step it by the convention's incremen
 import { useState } from "react"
 import { QuoteField } from "@/components/ui/quote-field"
 import type { InstrumentConvention } from "@/lib/format"
-```
-
-```tsx
 const BILL: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.0005, quoteBasis: "discount" }
 
-function BillQuote({ composite }: { composite: { mid: number | null } }) {
+function BillQuote() {
   const [discount, setDiscount] = useState<number | null>(null)
 
-  return <QuoteField convention={BILL} value={discount} onValueChange={setDiscount} stepFrom={composite.mid} />
+  return <QuoteField convention={BILL} value={discount} onValueChange={setDiscount} stepFrom={4.25} />
 }
 ```
+
+The bill starts blank. Its first upward step uses `4.25` as the reference and produces `4.251`; discount steps by `0.001`, independently of the price tick. Replace the sample reference with your current market value.
+
+The preview compares a note on price, a bill on discount, and credit on spread. Type `99.75` into the note and leave the field to see `99-24`. Arrows move one step, Shift+arrows move ten, and the readout shows the value held by the parent.
 
 ## API Reference
 
