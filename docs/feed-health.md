@@ -5,19 +5,44 @@ A strip that shows each feed's connection state, the age of its data, and a stal
 ## Usage
 
 ```tsx
+import { useState } from "react"
 import { FeedHealth, type FeedDescriptor } from "@/components/ui/feed-health"
+
+function MarketDataHealth() {
+  const [lastMessageAt, setLastMessageAt] = useState(Date.now)
+  const feeds: FeedDescriptor[] = [{ id: "md", label: "Market data", state: "connected", lane: "coalesced", lastMessageAt }]
+  return (
+    <>
+      <div data-demo-controls className="text-xs">
+        <button type="button" className="rounded border px-2 py-1" onClick={() => setLastMessageAt(Date.now())}>Receive a message</button>
+      </div>
+      <FeedHealth feeds={feeds} thresholds={{ agingMs: 2000, staleMs: 10_000 }} className="w-fit max-w-full flex-wrap" />
+    </>
+  )
+}
 ```
 
-```tsx
-<FeedHealth
-  thresholds={{ agingMs: 2000, staleMs: 10_000 }}
-  feeds={[
-    { id: "md", label: "Market data", state: "connected", lane: "coalesced", lastMessageAt, dropped },
-    { id: "rfq", label: "RFQ", state: "connected", lane: "ordered", lastMessageAt, seq, gap },
-    { id: "vpn", label: "VPN", state: "connecting", lane: "ordered", lastMessageAt: null },
-  ]}
-/>
-```
+The feed starts with a message timestamp. Without another message, its data becomes aging at two seconds and stale at ten seconds, on the shared clock's next tick. Receive a message supplies a new timestamp and makes it live again. The connection stays connected throughout: a connection and fresh data are separate facts.
+
+These thresholds are sample values. Agree real boundaries with the people using the data, then pass both values. The component reads descriptors from your feed integration; it does not connect or publish messages. Its shared clock starts and stops with subscribers, and a quiet example deliberately stays stale until you send another message.
+
+## Lanes and compact display
+
+Coalesced market data reports seven dropped updates. The ordered RFQ feed reports sequence 42 in its tooltip and a three-second gap while replay is in progress. Close RFQ gap removes that report; open it to restore the sample. Drops and gaps do not change either feed's live tier.
+
+This example fixes the clock at a sample instant so the readings stay comparable. Toggle Compact to hide the tier badges while keeping names, ages and lane details. Hover or focus a feed to read its tooltip. The strip wraps to fit a narrow preview.
+
+<!-- demo: feed-health-lanes -->
+
+## Actions and replies
+
+Open Actions: RFQ and choose Reconnect. The disconnected feed stays offline while the request is pending. A simulated reply arrives after 1.2 seconds, marks it connected and supplies a message timestamp. Its allowed action then becomes Resubscribe, which waits for another reply and advances the sequence without changing the connection state.
+
+The action returns a promise, so pending clears even when the reply leaves the connection state unchanged. Disconnect RFQ resets the sample for another run; it is disabled while a reply is pending. The reply timer is cleared on unmount. In an integration, return the server request's promise and update the descriptor from its response. Pending alone does not mean success; report a rejected request yourself.
+
+There is no continuing publisher here. Once connected, the data ages until another reply supplies a timestamp. Pause and resume use the same action-id and allowed-actions contract when your feed supports them.
+
+<!-- demo: feed-health-actions -->
 
 ## API Reference
 
