@@ -195,6 +195,7 @@ article hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 .table { margin: 1rem 0; overflow-x: auto; }
 .table table { margin: 0; }
 .table code { font-size: .9em; }
+.table td:first-child code { overflow-wrap: normal; }
 /* The tokens table on the Theming page: a color beside a swatch of it, on one line; a font stack wraps at its commas, or the value column would take the width and leave the items that add it one to a line. */
 .tokens td:first-child { white-space: nowrap; }
 .tokens td code, .dependencies td code { white-space: nowrap; }

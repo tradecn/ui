@@ -5,42 +5,26 @@ Compose notices from a container, list, header, body, and actions. You own the d
 ## Usage
 
 ```tsx
-import { useState } from "react"
-import { Alerts, AlertsList, AlertsEmpty, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertDismiss } from "@/components/ui/alerts"
+import { Alerts, AlertsList, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity } from "@/components/ui/alerts"
 
-const initial = [
-  { id: "fill", severity: "fill", title: "Order filled", message: "5mm UST at 99-16+" },
-  { id: "feed", severity: "info", title: "Feed connected", message: "Market data is available." },
-]
-
-function Notices() {
-  const [notices, setNotices] = useState(initial)
+function Notice() {
   return (
-    <>
-      <div data-demo-controls className="text-xs">
-        <button type="button" className="rounded border border-border px-2 py-1" onClick={() => setNotices(initial)}>Restore notices</button>
-      </div>
-      <Alerts className="w-lg max-w-full">
-        {notices.length > 0 && <AlertsList>
-          {notices.map((notice) => (
-            <AlertItem key={notice.id}>
-              <AlertHeader>
-                <AlertSeverity>{notice.severity}</AlertSeverity>
-                <AlertTitle>{notice.title}</AlertTitle>
-                <AlertDismiss aria-label={`Dismiss: ${notice.title}`} onClick={() => setNotices((rows) => rows.filter((row) => row.id !== notice.id))} />
-              </AlertHeader>
-              <AlertBody>{notice.message}</AlertBody>
-            </AlertItem>
-          ))}
-        </AlertsList>}
-        {notices.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
-      </Alerts>
-    </>
+    <Alerts className="w-lg max-w-full">
+      <AlertsList>
+        <AlertItem>
+          <AlertHeader>
+            <AlertSeverity>fill</AlertSeverity>
+            <AlertTitle>Order filled</AlertTitle>
+          </AlertHeader>
+          <AlertBody>5mm UST at 99-16+</AlertBody>
+        </AlertItem>
+      </AlertsList>
+    </Alerts>
   )
 }
 ```
 
-This example uses local state. Dismiss either notice, then choose **Restore notices** to replay. `Alerts` renders its children; it does not create notices, buttons, announcements, or a dialog.
+Compose a single notice directly in JSX. `Alerts` renders its children; it does not create notices, buttons, announcements, or a dialog.
 
 ## Composition
 
@@ -62,6 +46,12 @@ Alerts
 Map your collection into `AlertItem` children. Place, omit, or reorder the other parts as needed. `AlertBody` supports rich content and wraps by default. Use an accessible link or button for interactive content, and pair tone with a severity word or another non-color cue.
 
 For a live store, use `useRowIds(useAlertView(alerts))` to read newest-first IDs, then map them into your own row component. Call `useAlert(alerts, id)` inside that row so a notice update rerenders its subscriber. The store coalesces repeated keys and enforces its cap; see [alert-store](alert-store.md).
+
+## Local collection
+
+Map local data into notice parts and supply your own dismiss handlers. Dismiss either notice, then choose **Restore notices** to replay. When the collection is empty, render `AlertsEmpty` in place of the list. No alert store is needed.
+
+<!-- demo: alerts-collection -->
 
 ## Allowed actions and repeated notices
 
