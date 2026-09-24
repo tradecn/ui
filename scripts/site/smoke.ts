@@ -249,7 +249,7 @@ for (const item of items) {
     if ((await view.innerText()) !== "View Code" || (await view.getAttribute("aria-expanded")) !== "false") failures.push(`${item}: the source's button reads "${await view.innerText()}" before it was pressed`)
     if (!(await inert())) failures.push(`${item}: the collapsed source is reachable`)
     if (await card.locator(".preview-code .copy").isVisible()) failures.push(`${item}: the copy button shows while the source is collapsed`)
-    if (await card.locator("a.preview-open, [role='tab']").count()) failures.push(`${item}: the card still has tabs or a link out`)
+    if (await card.locator("a, [role='tab']").count()) failures.push(`${item}: the card still has tabs or a link out`)
     // Collapsed, the pre has no scrollbar of its own: the body's clip shows the first lines.
     const pre = card.locator(".preview-code pre")
     if ((await pre.evaluate((el) => getComputedStyle(el).overflowY)) !== "hidden") failures.push(`${item}: the collapsed source's pre scrolls on its own`)

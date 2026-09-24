@@ -952,12 +952,11 @@ export function previewThemePalettes(themes: RegistryItem[]): string {
  * inside the card, shadcn's shape. The iframe is sized by the message the embed posts; `site.js` wires the button and
  * keeps the collapsed source inert. A theme's own card shows its stylesheet, not a demo's source.
  */
-export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
+export function previewBlock(doc: Doc, demo: Demo): string {
   const name = demo.name
   const theme = doc.item?.type === "registry:theme" && demo.name === doc.slug
   const code = theme && doc.item ? [themeCss(doc.item), doc.item.css ? registryCss(doc.item.css) : ""].filter(Boolean).join("\n\n") : demo.code
   const language = theme ? "css" : "tsx"
-  const codeSource = theme ? `what <code>${escapeHtml(name)}</code> writes into your stylesheet` : `<code>playground/src/demos/${escapeHtml(name)}.tsx</code>`
   // Ids carry the demo's name, so a page holds a card per variant beside the item's own.
   const id = `preview-${escapeHtml(name)}`
   return [
@@ -968,7 +967,6 @@ export function previewBlock(doc: Doc, demo: Demo, tag: string): string {
     `<div class="preview-code" data-collapsed>`,
     `<div class="preview-code-body" id="${id}-source" tabindex="-1">`,
     `<pre><code class="language-${language}">${escapeHtml(code)}</code></pre>`,
-    `<p class="preview-source">${codeSource}, at <a href="${REPO_URL}/blob/${tag}/playground/src/demos/${escapeHtml(name)}.tsx">${tag}</a>.</p>`,
     `</div>`,
     `<button type="button" class="view-code" aria-expanded="false" aria-controls="${id}-source">View Code</button>`,
     `</div>`,
@@ -1007,12 +1005,12 @@ export function framedDemos(docs: Doc[]): Set<string> {
  * The doc's HTML with each `<!-- demo: x -->` replaced by the card for that demo. Without an embed build the line
  * is dropped, as the card at the top is left out; with one, a doc that names a demo the playground lacks is an error.
  */
-export function withDemos(doc: Doc, previews: Previews, tag: string): string {
+export function withDemos(doc: Doc, previews: Previews): string {
   return doc.html.replace(DEMO_LINE, (_line, name: string) => {
     if (!previews.embed) return ""
     const demo = previews.demos.get(name)
     if (!demo) throw new Error(`docs/${doc.source} frames a demo named ${name}, and playground/src/demos/${name}.tsx does not exist`)
-    return `${previewBlock(doc, demo, tag)}\n`
+    return `${previewBlock(doc, demo)}\n`
   })
 }
 
@@ -1255,9 +1253,9 @@ export function docPages(docs: Doc[], values: Record<string, string>, template: 
     const demo = previews.embed ? previews.demos.get(doc.slug) : undefined
     const foot = doc.file ? `<p class="foot">This page is <code>${escapeHtml(doc.file)}</code> at <a href="${repoUrl}/blob/${tag}/${escapeHtml(doc.file)}">${tag}</a>.</p>` : ""
     if (doc.item && doc.html.includes('id="installation"')) throw new Error(`docs/${doc.source} has its own Installation heading, and the builder adds one`)
-    const lead = [demo ? previewBlock(doc, demo, tag) : "", doc.item ? installationSection(doc.item, tag, sources) : ""].filter(Boolean).join("\n")
+    const lead = [demo ? previewBlock(doc, demo) : "", doc.item ? installationSection(doc.item, tag, sources) : ""].filter(Boolean).join("\n")
     // The variants' cards stand where the doc placed them, each in its own section.
-    const html = withDemos(doc, previews, tag)
+    const html = withDemos(doc, previews)
     const body = [lead ? withPreview(html, lead) : html, doc.item ? builtOn(doc.item) : ""].filter(Boolean).join("\n")
     const content = [arrows(docs, index), body, pager(docs, index)].join("\n")
     const section = sectionOf(doc)
