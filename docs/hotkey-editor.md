@@ -5,42 +5,33 @@ List, search, and remap the shortcuts in a hotkey registry, with grouped binding
 ## Usage
 
 ```tsx
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { HotkeyEditor } from "@/components/ui/hotkey-editor"
 import { HotkeysProvider } from "@/hooks/use-hotkeys"
-import { createHotkeyRegistry, type HotkeyBinding } from "@/lib/hotkeys"
-```
+import type { HotkeyBinding } from "@/lib/hotkeys"
 
-Create the registry during browser startup. Keep `BINDINGS` stable, such as a module constant; `download` below is your file-export function.
-
-```tsx
 const BINDINGS: HotkeyBinding[] = [
   { id: "palette.open", keys: "mod+k", scope: "editing", description: "Open the command palette", group: "General" },
   { id: "go.blotter", keys: "g b", scope: "global", description: "Go to the blotter", group: "Go" },
 ]
 
-const hotkeys = createHotkeyRegistry()
-hotkeys.load(JSON.parse(localStorage.getItem("hotkeys") ?? "{}"))
-hotkeys.onChange((overrides) => localStorage.setItem("hotkeys", JSON.stringify(overrides)))
-
 function ShortcutSettings() {
   return (
-    <HotkeysProvider registry={hotkeys} bindings={BINDINGS}>
-      <Dialog>
-        <DialogTrigger>Keyboard shortcuts</DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Keyboard shortcuts</DialogTitle>
-          </DialogHeader>
-          <HotkeyEditor onExport={(overrides) => download("hotkeys.json", overrides)} />
-        </DialogContent>
-      </Dialog>
+    <HotkeysProvider bindings={BINDINGS}>
+      <HotkeyEditor className="w-xl max-w-full" />
     </HotkeysProvider>
   )
 }
 ```
 
-Bindings declare the shortcuts; attach their handlers with [`useHotkey`](use-hotkeys.md). Reuse the application's provider when it already owns the registry.
+Keep `BINDINGS` stable, as a module constant. Bindings declare the shortcuts; attach their handlers with [`useHotkey`](use-hotkeys.md). Reuse the application's provider when it already owns the registry.
+
+The preview remaps declarations without running application commands. Try typing `g b` for “Go to the inquiries” to see a conflict with “Go to the blotter,” then reset the row. Export shows a snapshot of the override map; export again after another edit to refresh it. Reloading restores the defaults.
+
+## Composition
+
+For persistence, create a registry with `createHotkeyRegistry` from `@/lib/hotkeys` and pass it to the provider. During browser startup, read and validate your stored overrides, then call `registry.load`. Subscribe to `registry.onChange` to save remaps and resets, and call the returned unsubscribe when the owner is disposed. Imported overrides need a separate save because `load` does not call `onChange`.
+
+To place the editor in a dialog, install shadcn `dialog` separately and give it a `DialogTitle`. The editor's installation supplies the inline controls; file downloads and storage belong to your application.
 
 ## API Reference
 
