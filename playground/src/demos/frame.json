@@ -45,6 +45,7 @@
     "blotter",
     "blotter-actions",
     "blotter-reports",
-    "perf-monitor-load"
+    "perf-monitor-load",
+    "rules-editor"
   ]
 }
