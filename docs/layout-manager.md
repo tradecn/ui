@@ -5,54 +5,74 @@ Save, load, rename, duplicate, delete, import, and export named workspace layout
 ## Usage
 
 ```tsx
-import { useEffect, useRef, useState } from "react"
-import { LayoutManager, readLayoutTemplates, writeLayoutTemplates } from "@/components/ui/layout-manager"
-import { Workspace, type WorkspaceApi } from "@/components/ui/workspace"
-import { createPreferences, parsePreferences, withBoundary } from "@/lib/preferences"
-import type { WorkspaceLayout } from "@/lib/workspace-layout"
+import { useState } from "react"
+import { WORKSPACE_PERSISTENCE_BOUNDARIES, type WorkspaceLayout } from "@/lib/workspace-layout"
+import { LayoutManager, type LayoutTemplate } from "@/components/ui/layout-manager"
+
+// A snapshot captured from a workspace with one Book panel.
+const BOOK: WorkspaceLayout = {
+  version: 1,
+  kind: "tradecn-workspace",
+  dockview: {
+    grid: {
+      root: { type: "branch", data: [{ type: "leaf", data: { views: ["book-1"], activeView: "book-1", id: "1" }, size: 478 }], size: 115 },
+      width: 478, height: 115, orientation: "HORIZONTAL",
+    },
+    panels: { "book-1": { id: "book-1", contentComponent: "tradecn-panel", tabComponent: "props.defaultTabComponent", title: "Book" } },
+    activeGroup: "1",
+  },
+  panels: { "book-1": { kind: "book", title: "Book", state: { symbol: "ZN" } } },
+  boundaries: WORKSPACE_PERSISTENCE_BOUNDARIES,
+}
+
+function SavedLayouts() {
+  const [templates, setTemplates] = useState<LayoutTemplate[]>([{ id: "t-1", name: "Treasury book", layout: BOOK, savedAt: Date.parse("2026-09-22T14:00:00Z") }])
+  const [current, setCurrent] = useState(BOOK)
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [message, setMessage] = useState("Current snapshot: one ZN book.")
+
+  return (
+    <div className="w-[36rem] max-w-full space-y-3 text-xs lining-nums tabular-nums">
+      <div role="region" aria-label="Layout controls" tabIndex={0} className="overflow-x-auto">
+        <LayoutManager
+          className="min-w-96"
+          templates={templates}
+          onTemplatesChange={(next) => {
+            const previous = templates.find((template) => template.id === activeId)
+            const active = next.find((template) => template.id === activeId)
+            const layout = JSON.stringify(active?.layout)
+            if (!active || (layout !== JSON.stringify(previous?.layout) && layout !== JSON.stringify(current))) setActiveId(null)
+            setTemplates(next)
+          }}
+          current={current}
+          kinds={["book"]}
+          activeId={activeId}
+          onLoad={(layout, template) => {
+            setCurrent(layout)
+            setActiveId(template.id)
+            setMessage(`Selected ${template.name}.`)
+          }}
+        />
+      </div>
+      <p role="status" className="text-muted-foreground">{message}</p>
+    </div>
+  )
+}
 ```
 
-In a browser component, with your panel registry `PANELS`, `seed(api)`, and `download(filename, text)`:
+Start with a controlled list and the current layout. This example uses a real one-panel snapshot, so save, rename, duplicate, delete, and import work without mounting a workspace. **Load** selects a snapshot in local state and reports its name. The workspace example below restores the panels themselves.
 
-```tsx
-const [prefs, setPrefs] = useState(() => withBoundary(parsePreferences(localStorage.getItem("prefs")) ?? createPreferences(), "layouts", "template"))
-const [current, setCurrent] = useState<WorkspaceLayout | null>(null)
-const api = useRef<WorkspaceApi | null>(null)
+Give a new name to **Save current**, or use an existing name to replace that template. The loaded marker survives renames and saves of the current snapshot; replacing its layout through import clears the marker unless the JSON matches the previous or current snapshot. The opening template has a fixed sample date; new saves use the current time. At narrow widths, the manager's controls scroll horizontally.
 
-useEffect(() => localStorage.setItem("prefs", JSON.stringify(prefs)), [prefs])
+## Saving and restoring a workspace
 
-return (
-  <>
-    <Workspace
-      panels={PANELS}
-      seed={seed}
-      onReady={(a) => {
-        api.current = a
-        setCurrent(a.toLayout())
-      }}
-      onLayoutChange={setCurrent}
-    />
-    <LayoutManager
-      templates={readLayoutTemplates(prefs)}
-      onTemplatesChange={(templates) => setPrefs((previous) => writeLayoutTemplates(previous, templates))}
-      current={current}
-      kinds={Object.keys(PANELS)}
-      onLoad={(layout) => {
-        if (!api.current) return
-        api.current.load(layout)
-        setCurrent(api.current.toLayout())
-      }}
-      onReset={() => {
-        if (!api.current) return
-        api.current.clear()
-        seed(api.current)
-        setCurrent(api.current.toLayout())
-      }}
-      onExport={(text, template) => download(`${template.name}.json`, text)}
-    />
-  </>
-)
-```
+Install [`workspace`](workspace.md) as well; it supplies the Workspace and Panel components used here. Change a symbol or add the equities book, then save a named layout. Change the workspace again and load that template to restore its arrangement and panel state. **Reset to default** restores the initial ZN book and keeps the saved list.
+
+The template list is written to this browser under `tradecn-layout-manager-example`, in a preferences slot assigned to the template boundary. Reloading restores the list; choose **Load** to restore a workspace. A storage read failure or invalid preferences envelope starts an empty list with a status message. A failed write keeps edits in memory and reports that they were not saved. This is local example storage; your application chooses its own storage.
+
+**Export** shows the layout JSON in a read-only field. Copy it into **Import** and give it a name to add or replace a template; import does not load it. The example takes a fresh current snapshot on ready, load, and reset, while ordinary workspace edits arrive through `onLayoutChange`.
+
+<!-- demo: layout-manager-workspace -->
 
 ## API Reference
 
