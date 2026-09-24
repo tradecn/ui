@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.4.7](https://github.com/tradecn/ui/compare/v1.4.6...v1.4.7) (2026-09-24)
+
+
+### Documentation
+
+* **depth-ladder:** simplify the documentation examples ([#179](https://github.com/tradecn/ui/issues/179)) ([e64e854](https://github.com/tradecn/ui/commit/e64e85482e1d90f909f9804a10c16eaa5c9c318d))
+* **feed-health:** simplify the documentation examples ([#184](https://github.com/tradecn/ui/issues/184)) ([c9410af](https://github.com/tradecn/ui/commit/c9410afc61f23d8af58c81bdbd91a4a9bb543192))
+* **panel:** simplify the documentation examples ([#173](https://github.com/tradecn/ui/issues/173)) ([3e577d9](https://github.com/tradecn/ui/commit/3e577d9d4730041d9954d1e8070bdc336d07314e))
+* **positions:** simplify the documentation examples ([#182](https://github.com/tradecn/ui/issues/182)) ([c76e60d](https://github.com/tradecn/ui/commit/c76e60df45734909d5912ff7fa7505e061131f43))
+* **price-chart:** simplify the documentation examples ([#183](https://github.com/tradecn/ui/issues/183)) ([d3b22c6](https://github.com/tradecn/ui/commit/d3b22c645e3c0088b45b15daf621605e5c673a66))
+* **rfq-stack:** simplify the documentation examples ([#176](https://github.com/tradecn/ui/issues/176)) ([65657a4](https://github.com/tradecn/ui/commit/65657a4e77b4b6dd67e67b80e48554c384dea545))
+* **rfq-ticket:** simplify the documentation examples ([#177](https://github.com/tradecn/ui/issues/177)) ([47497b6](https://github.com/tradecn/ui/commit/47497b6a3fbd57ba25b1531c9299ee0b735fa21e))
+* **row-store:** simplify the documentation examples ([#178](https://github.com/tradecn/ui/issues/178)) ([2a1e492](https://github.com/tradecn/ui/commit/2a1e492d96b94b08bf262291dd7cf11667adfb19))
+* **spread-matrix:** simplify the documentation examples ([#180](https://github.com/tradecn/ui/issues/180)) ([7133d86](https://github.com/tradecn/ui/commit/7133d863c031a17664cb2f90cf480b3ed967cacf))
+* **ticket:** simplify the documentation examples ([#185](https://github.com/tradecn/ui/issues/185)) ([6fccaa0](https://github.com/tradecn/ui/commit/6fccaa0a3695d38f4ec53ec92f1c743ecbcb6ec6))
+* **use-hotkeys:** simplify the documentation examples ([#175](https://github.com/tradecn/ui/issues/175)) ([750e6bd](https://github.com/tradecn/ui/commit/750e6bdca96ec09f10ced50be0665f97d8ec8d13))
+* **watchlist:** simplify the documentation examples ([#181](https://github.com/tradecn/ui/issues/181)) ([a50f4ff](https://github.com/tradecn/ui/commit/a50f4ff92be9b5b20765421809baaf078d1969c3))
+
 ## [1.4.6](https://github.com/tradecn/ui/compare/v1.4.5...v1.4.6) (2026-09-23)
 
 
