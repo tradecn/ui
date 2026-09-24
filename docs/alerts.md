@@ -61,7 +61,7 @@ This example uses local state. Dismiss either notice, then choose **Restore noti
 
 Map your collection into `AlertItem` children. Place, omit, or reorder the other parts as needed. `AlertBody` supports rich content and wraps by default. Use an accessible link or button for interactive content, and pair tone with a severity word or another non-color cue.
 
-For a live store, use `useRowIds(useAlertView(alerts))` to read newest-first IDs, then map them into your own row component. Call `useAlert(alerts, id)` inside that row so a notice update rerenders its subscriber. The store still coalesces repeated keys and enforces its cap; see [alert-store](alert-store.md).
+For a live store, use `useRowIds(useAlertView(alerts))` to read newest-first IDs, then map them into your own row component. Call `useAlert(alerts, id)` inside that row so a notice update rerenders its subscriber. The store coalesces repeated keys and enforces its cap; see [alert-store](alert-store.md).
 
 ## Allowed actions and repeated notices
 
@@ -73,7 +73,7 @@ Choose **Receive slow feed** or **Receive rejection** to restore or repeat a not
 
 ## History in your own dialog
 
-This example displays two notices and places the rest in a caller-owned dialog. You decide the slice, overflow button, clear control, and history height. The overflow button uses `DialogTrigger` so closing the dialog returns focus to it. Install shadcn's `dialog` component separately before copying this example; it is no longer part of the Alerts installation. `AlertHistory` also works in an always-open panel with a height.
+This example displays two notices and places the rest in a caller-owned dialog. You decide the slice, overflow button, clear control, and history height. The overflow button uses `DialogTrigger` so closing the dialog returns focus to it. Install shadcn's `dialog` component separately before copying this example. `AlertHistory` also works in an always-open panel with a height.
 
 <!-- demo: alerts-history -->
 
@@ -87,35 +87,13 @@ The readout records the callback count and last title. Supply your own toast ada
 
 ## API Reference
 
-### Migrating from the assembled strip
-
-This is a breaking interface change. Replace `<Alerts alerts={store} ... />` with `<Alerts>...</Alerts>` and compose its contents. The existing alert-store interface is unchanged.
-
-| Previous interface | Replacement |
-|---|---|
-| `Alerts.alerts` | Read IDs with `useRowIds(useAlertView(store))`; subscribe to each notice with `useAlert(store, id)`. Plain arrays also work. |
-| `visible` and implicit newest-first rendering | Slice or order the IDs at the call site, then map them into your row component. |
-| `actions: AlertAction[]` | Compose `AlertAction` buttons with children, an `alert`, an `action` ID, and `onAction`. The old `AlertAction` data type is removed. |
-| `ttlMs`, `now` | Pass them to `useAlert(store, id, options)` in the displayed row. |
-| `assertive` | Pass it to one `AlertsAnnouncer`, along with the store and selected ID. |
-| `time`, repeat-count formatting | Render your own `time` or `span` wherever needed. Apply lining and tabular figures to numeric text. |
-| `labels` on the strip | Supply children and accessible names directly. |
-| Automatic dismiss, clear-all, empty state, and overflow | Compose the controls and conditional content at the call site. `AlertDismiss` needs your handler. |
-| `listColumns`, `listPreset`, implicit dialog | Pass `columns` and `preset` to `AlertHistory` in your own container. Install Dialog or Sheet separately when used. |
-| `AlertList` / `AlertListProps` | Renamed to `AlertHistory` / `AlertHistoryProps`; `AlertsList` is the new children-based list. The unused grid `actions` prop is removed. |
-| `AlertsLabels`, `DEFAULT_ALERTS_LABELS` | Replaced by `AlertHistoryLabels`, `DEFAULT_ALERT_HISTORY_LABELS` for the grid. Its `title` names the grid and `noticeTitle` names the title column. Other strip/dialog labels become your content. |
-| `data-slot="tradecn-alert-list"` | History uses `tradecn-alert-history`; the new list uses `tradecn-alerts-list`. |
-| Generated `data-alert-*`, counts, and strip controls | Add application selectors at the call site. Public pieces carry their own `data-slot`; the action, severity, and announcer markers listed below remain available. |
-
-`Alerts` no longer accepts the old `AlertsProps` interface; its props are native `div` props. Messages and titles wrap instead of truncating by default. The tone decorates the item's start border instead of inserting an internal bar. The root still uses `data-slot="tradecn-alerts"`.
-
 ### Presentation parts
 
 All presentation parts accept their underlying element's props, including `children`, `className`, events, and `ref`. The styling classes are defaults you can extend at each part. None reads an alert store or chooses content.
 
 | Part | Underlying element | Defaults and additional props |
 |---|---|---|
-| `Alerts` | `div` | `role="group"`, `aria-label="Notices"`; override to name your collection. |
+| `Alerts` | `div` | `role="group"`; defaults to `aria-label="Notices"` unless `aria-labelledby` is supplied. Set either naming prop to name your collection. |
 | `AlertsList` | `ul` | `role="list"`; supply `AlertItem` children. |
 | `AlertItem` | `li` | Optional `tone: AlertTone`; sets `data-tone` and a colored start border. |
 | `AlertHeader` | `div` | Wrapping header layout. |
@@ -208,4 +186,4 @@ Existing IDs are skipped on subscription. Newly observed IDs are forwarded oldes
 
 ### Tokens
 
-`AlertTone` accepts `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`. `ALERT_TONE_BAR` and `ALERT_TONE_TEXT` remain exported for custom decoration. Item tone colors its start border; severity tone colors its text independently, so pass the tone to both when desired. Include a non-color cue in custom compositions. The install adds the five trading tokens and their soft variants if absent; `primary` and `destructive` come from your theme.
+`AlertTone` accepts `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`. `ALERT_TONE_BAR` and `ALERT_TONE_TEXT` are exported for custom decoration. Item tone colors its start border; severity tone colors its text independently, so pass the tone to both when desired. Include a non-color cue in custom compositions. The install adds the five trading tokens and their soft variants if absent; `primary` and `destructive` come from your theme.
