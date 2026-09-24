@@ -5,22 +5,49 @@ Enter an order in the instrument's notation and pass a checked draft to an allow
 ## Usage
 
 ```tsx
-import { Ticket, type TicketInstrument } from "@/components/ticket"
-```
+import { useState } from "react"
+import { Ticket, describeDraft, type TicketInstrument } from "@/components/ticket"
 
-```tsx
 const ZN: TicketInstrument = { symbol: "ZN", convention: { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }, quantityStep: 1 }
 
-<Ticket
-  instrument={ZN}
-  reference={{ bid: quote.bid, ask: quote.ask, last: quote.last }}
-  actions={[{ id: "send", label: (d) => (d.side === "buy" ? "Buy" : "Sell"), run: (draft) => oms.send(draft), primary: true }]}
-  allowedActions={ticket.allowedActions}
-  status={ticket.status}
-  message={ticket.message}
-  acknowledged={ticket.orderId}
-/>
+function OrderEntry() {
+  const [submitted, setSubmitted] = useState("No draft submitted.")
+  return (
+    <div className="w-80 max-w-full space-y-2 text-xs lining-nums tabular-nums">
+      <Ticket
+        instrument={ZN}
+        reference={{ bid: 99.484375, ask: 99.5 }}
+        defaultDraft={{ quantity: 5, price: 99.5 }}
+        actions={[{ id: "send", label: (draft) => draft.side === "buy" ? "Submit buy" : "Submit sell", run: (draft) => setSubmitted(describeDraft(draft, ZN)) }]}
+        allowedActions={["send"]}
+      />
+      <p role="status" className="text-muted-foreground">{submitted}</p>
+    </div>
+  )
+}
 ```
+
+Enter quantity and price, choose a side, then submit the draft. This local handler displays the checked draft; it sends no order. Clear the quantity or price to see validation stop a priced submission. Choose Market to submit with a null price instead.
+
+The instrument supplies ZN's fractional notation and tick size. Click Bid or Ask to use that reference; type `99-16+` to enter a half tick. Field arrows step by one tick or quantity unit, and Shift takes ten steps. A `HotkeysProvider` is only needed for the registry shortcuts in the next example.
+
+## Shortcuts and draft changes
+
+The provider enables Ticket's editing shortcuts while focus is inside the ticket. Try mod+3 for the third quick size, mod+up to raise the price, mod+shift+x to flip the side, and mod+enter to submit. Here `mod` means Command on Mac and Ctrl elsewhere; the submit button shows the current binding. Plain Enter in a field submits nothing.
+
+Quick sizes and account choices are ordinary props. The Draft line follows `onDraftChange`; the separate submitted line changes only when the action runs. The initial draft is explicit because `onDraftChange` does not fire on mount. A Last reference supplies a starting price when the field is blank.
+
+<!-- demo: ticket-shortcuts -->
+
+## Server replies
+
+Send order records a request and removes the allowed actions. The controls above the ticket stand in for server replies: acknowledge the order to assign a sample order id and offer Cancel order, or reject it to show a reason and allow a retry. Cancel order sends another request; acknowledge the cancellation to make Send order available again.
+
+Only an order acknowledgement changes the ring token. Rejection, cancellation and Reset server leave it alone. Cancel order uses `checked: false`, so clearing a draft field cannot stop cancellation of an acknowledged order. The submitted draft is captured before any later field edits.
+
+Every state stays visible until you choose the next event. Reset server restores the initial permissions and status without discarding the fields. An integration should replace these controls with responses from its server; Ticket does not infer order state from an action callback.
+
+<!-- demo: ticket-server -->
 
 ## API Reference
 
