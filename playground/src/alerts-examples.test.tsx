@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, expect, it, vi } from "vitest"
 import * as alertStore from "@/registry/tradecn/lib/alert-store"
-import AlertsDemo from "./demos/alerts"
+import AlertsCollectionDemo from "./demos/alerts-collection"
 import AlertsActionsDemo from "./demos/alerts-actions"
 import AlertsHistoryDemo from "./demos/alerts-history"
 import AlertsBridgeDemo from "./demos/alerts-bridge"
@@ -59,8 +59,8 @@ it.each(["dismiss", "clear"])("returns focus from the history example after %s r
   expect(trigger).toHaveAccessibleName("History")
 })
 
-it("replaces the basic list with its empty state and restores the notices", () => {
-  render(<AlertsDemo />)
+it("replaces the local collection with its empty state and restores the notices", () => {
+  render(<AlertsCollectionDemo />)
   const notices = within(screen.getByRole("group", { name: "Notices" }))
   for (const button of notices.getAllByRole("button", { name: /^Dismiss:/ })) fireEvent.click(button)
   expect(notices.queryByRole("list")).toBeNull()
