@@ -5,14 +5,16 @@ Time left until a deadline, with ticking digits and a shrinking bar. Both stop a
 ## Usage
 
 ```tsx
+import { useState } from "react"
 import { Countdown } from "@/components/ui/countdown"
+
+function InquiryCountdown() {
+  const [receivedAt] = useState(() => Date.now())
+  return <Countdown expiresAt={receivedAt + 30_000} startsAt={receivedAt} label="Inquiry Q-104" />
+}
 ```
 
-```tsx
-<Countdown expiresAt={inquiry.expiresAt} startsAt={inquiry.receivedAt} label={`Inquiry ${inquiry.id}`} />
-```
-
-Pass timestamps in milliseconds since the epoch.
+This example starts a thirty-second timer on mount. In an application, pass the inquiry's received and expiry timestamps from the server, in milliseconds since the epoch. The preview's native buttons extend or restart its sample deadline; the countdown itself only displays it.
 
 ## Compact
 
