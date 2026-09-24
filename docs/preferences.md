@@ -4,25 +4,57 @@ Keep trader and desk settings in versioned JSON slots, with boundaries for desk 
 
 ## Usage
 
-```ts
-import { createPreferences, exportPreferences, importPreferences, parsePreferences, setSlot, readSlot } from "@/lib/preferences"
+```tsx
+import { useState } from "react"
+import { createPreferences, diffPreferences, readSlot, setSlot } from "@/lib/preferences"
+
+const baseline = setSlot(createPreferences(), "threshold", 5_000_000)
+
+function ThresholdPreference() {
+  const [prefs, setPrefs] = useState(baseline)
+  const threshold = readSlot<number>(prefs, "threshold") ?? 0
+  const diff = diffPreferences(baseline, prefs)
+
+  return (
+    <>
+      <div data-demo-controls className="flex flex-wrap gap-2 text-xs lining-nums tabular-nums">
+        <button type="button" className="rounded border px-2 py-1" onClick={() => setPrefs((current) => setSlot(current, "threshold", 10_000_000))}>
+          Set threshold to 10mm
+        </button>
+        <button type="button" className="rounded border px-2 py-1" onClick={() => setPrefs(baseline)}>
+          Restore baseline
+        </button>
+      </div>
+      <div className="w-72 max-w-full space-y-2 text-sm lining-nums tabular-nums">
+        <p>Threshold: {threshold.toLocaleString("en-US")}</p>
+        <p role="status" className="text-muted-foreground">
+          {diff.changed.length ? `Changed: ${diff.changed.join(", ")}` : "Matches the baseline."}
+        </p>
+      </div>
+    </>
+  )
+}
 ```
 
-```ts
-let prefs = parsePreferences(localStorage.getItem("prefs")) ?? createPreferences({ template: ["layout", "rules", "columns:blotter"], user: ["hotkeys"], session: ["threshold"] })
+`setSlot` returns an updated envelope; `readSlot` reads the value you pass to your application. This example keeps a numeric threshold and compares it with an in-memory baseline. An unlisted slot belongs to the user boundary. No storage is written.
 
-// Each item keeps its controlled prop; the consumer wires a slot to it.
-prefs = setSlot(prefs, "layout", layout)
-prefs = setSlot(prefs, "columns:blotter", columnState)
-prefs = setSlot(prefs, "hotkeys", registry.overrides())
-prefs = setSlot(prefs, "rules", rules)
-prefs = setSlot(prefs, "threshold", threshold)
-localStorage.setItem("prefs", JSON.stringify(prefs))
+For persistence, serialize the envelope with `JSON.stringify` and read it back with `parsePreferences`. Your application owns the storage calls and save timing. A parsed envelope still needs each setting's domain validation before use; the numeric slot above is created entirely within the example.
 
-download("desk.json", exportPreferences(prefs, { boundary: "template" }))
-prefs = importPreferences(prefs, await file.text(), { boundary: "template" }) ?? prefs
-const columns = readSlot<ColumnState>(prefs, "columns:blotter")
-```
+## Export boundaries
+
+A desk template carries shared settings. A personal export includes those and the user's settings; both omit session values. This example keeps one slot per boundary, with each slot's version visible. Switch the export boundary, hide quantity in the blotter, or raise the session threshold and inspect the JSON. Changing the threshold leaves either export unchanged.
+
+The JSON retains all boundary lists, so `threshold` still appears as a name under `boundaries.session`. Its value is absent from `slots`.
+
+<!-- demo: preferences-boundaries -->
+
+## Import settings
+
+Import merges allowed slots into the receiving desk. The sample personal export hides account and quantity columns and changes the send shortcut. **Import template** applies only the columns; **Import personal settings** applies the columns and shortcut. The receiving desk keeps its session threshold of 1,000,000 in both cases.
+
+Restore the receiving desk between imports to compare them. Importing a template after personal settings keeps the already-imported shortcut: slots outside that transfer stay as they are. In an application, pass the JSON text from a file or clipboard to `importPreferences`; an invalid envelope returns `null`, leaving the current state intact in this example's handler.
+
+<!-- demo: preferences-import -->
 
 ## API Reference
 
@@ -122,7 +154,7 @@ Envelope parsing checks JSON structure, not the value's domain schema. Use the o
 | Grid rules | `GridRules` |
 | Threshold | `number` |
 
-The demo carries a layout, two grids' column states, hotkey overrides, rules, and a threshold in one envelope.
+Use a separate slot name for each controlled value, such as `columns:blotter` and `columns:stack` for two grids. The boundary example needs only one grid, hotkey overrides, and a threshold to show the three categories.
 
 ### What it does not do
 
