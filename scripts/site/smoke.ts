@@ -400,11 +400,19 @@ for (const item of items) {
         await block.locator(".copy").click()
         if ((await clipboard(page)) !== (await sourcePre.evaluate((el) => (el.textContent ?? "").trimEnd()))) failures.push(`${item}: ${nth}'s copy button copied less than the whole block while collapsed`)
       }
+      // The Tab key meets the header's two buttons in the order they stand, Expand and then the copy button, collapsed or open.
+      const tabsToCopy = async () => {
+        await page.keyboard.press("Tab")
+        return block.locator(".copy").evaluate((el) => el === document.activeElement)
+      }
+      await expand.focus()
+      if (!(await tabsToCopy())) failures.push(`${item}: Tab from ${nth}'s Expand does not reach its copy button`)
       // The first block opens from its fade, the rest from the button beside the copy button; the focus ends on that button either way.
       await (i === 0 ? foot : expand).click()
       const after = await state()
       if (after.inert || after.clipped || (await expand.innerText()) !== "Collapse" || (await expand.getAttribute("aria-expanded")) !== "true" || (await foot.isVisible())) failures.push(`${item}: Expand did not open ${nth} whole (${JSON.stringify(after)})`)
       if (!(await page.evaluate(() => document.activeElement?.classList.contains("expand")))) failures.push(`${item}: Expand on ${nth} left the focus elsewhere`)
+      if (!(await tabsToCopy())) failures.push(`${item}: Tab from ${nth}'s Collapse does not reach its copy button`)
       await expand.click()
       if (!(await state()).inert || (await expand.innerText()) !== "Expand") failures.push(`${item}: Collapse did not close ${nth}`)
     }

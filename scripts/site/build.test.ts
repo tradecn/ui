@@ -582,11 +582,12 @@ describe("code blocks", () => {
     expect(written(html)).toBe('x\nconst a = "x < y" // z\n\n')
     // A language the site does not highlight stays as it was, class and all.
     expect(codeBlocks('<pre><code class="language-text">a &lt; b</code></pre>')).toContain('<div class="code"><pre><code class="language-text">a &lt; b</code></pre><button')
-    // A pre keeps its attributes: the id a Manual block's Expand controls.
-    expect(codeBlocks('<pre id="installation-manual-1"><code class="language-json">{}</code></pre>')).toContain('<div class="code"><pre id="installation-manual-1"><code class="language-json"><span class="line">')
+    // A pre keeps its attributes: the id a Manual block's Expand controls. That block's copy button stands in its
+    // header, so it comes before the code; every other block's follows it.
+    expect(codeBlocks('<pre id="installation-manual-1"><code class="language-json">{}</code></pre>')).toMatch(/^<div class="code"><button type="button" class="copy" aria-label="Copy">[^\n]*?<\/button><pre id="installation-manual-1"><code class="language-json"><span class="line">/)
     // Neither a Manual block nor a source in a language other than bash becomes a command, whatever its lines start with; the id stays.
     const manual = codeBlocks('<pre id="installation-manual-2"><code class="language-ts">const install = `\nnpx shadcn@latest add x\n`\n</code></pre>')
-    expect(manual).toContain('<div class="code"><pre id="installation-manual-2"><code class="language-ts">')
+    expect(manual).toContain('</button><pre id="installation-manual-2"><code class="language-ts">')
     expect(manual).not.toContain("managers")
     expect(codeBlocks('<pre><code class="language-tsx">// run\nnpm install cn\n</code></pre>')).not.toContain("managers")
   })
@@ -1175,13 +1176,15 @@ describe("the docs pages", async () => {
     // The stylesheet's blocks carry the CSS mark and no path: the step says where they go.
     for (const caption of captions.slice(6)) expect(caption).toMatch(/^<svg class="css-icon" [^>]*><path [^>]*\/><\/svg>$/)
     // Each file and each stylesheet block opens from its first lines: the pre carries the id Expand controls, and the
-    // fade is a second Expand the Tab key and a screen reader skip. The commands stay bare.
-    expect(grid).toContain('<span>data-grid.tsx</span></code></figcaption>\n<div class="code"><pre id="installation-manual-1"><code class="language-tsx">')
-    expect(grid).toContain('<button type="button" class="expand" aria-expanded="false" aria-controls="installation-manual-1">Expand</button>\n<button type="button" class="expand-foot" tabindex="-1" aria-hidden="true">Expand</button>\n</figure>')
+    // fade is a second Expand the Tab key and a screen reader skip. Expand and the copy button come before the code, in
+    // the order they stand in the header, so the Tab key meets them that way. The commands stay bare.
+    const opening = (n: number) => `\\n<button type="button" class="expand" aria-expanded="false" aria-controls="installation-manual-${n}">Expand</button>\\n<div class="code"><button type="button" class="copy" aria-label="Copy">[^\\n]*?</button><pre id="installation-manual-${n}">`
+    expect(grid).toMatch(new RegExp(`<span>data-grid\\.tsx</span></code></figcaption>${opening(1)}<code class="language-tsx">`))
+    expect(grid).toContain('</code></pre></div>\n<button type="button" class="expand-foot" tabindex="-1" aria-hidden="true">Expand</button>\n</figure>')
     expect(grid.match(/<figure class="source" data-collapsed>\n<figcaption>/g)).toHaveLength(8)
-    expect(grid).toMatch(/<p>Add the tokens to your stylesheet:<\/p>\n<figure class="source" data-collapsed>\n<figcaption><svg class="css-icon" [^\n]*<\/figcaption>\n<div class="code"><pre id="installation-manual-7"><code class="language-css">/)
-    expect(grid).toMatch(/<p>Append this to your stylesheet:<\/p>\n<figure class="source" data-collapsed>\n<figcaption><svg class="css-icon" [^\n]*<\/figcaption>\n<div class="code"><pre id="installation-manual-8"><code class="language-css">/)
-    expect(grid).not.toMatch(/<figure class="source" data-collapsed>\n<figcaption>[^\n]*<\/figcaption>\n<div class="code command">/)
+    expect(grid).toMatch(new RegExp(`<p>Add the tokens to your stylesheet:</p>\\n<figure class="source" data-collapsed>\\n<figcaption><svg class="css-icon" [^\\n]*</figcaption>${opening(7)}<code class="language-css">`))
+    expect(grid).toMatch(new RegExp(`<p>Append this to your stylesheet:</p>\\n<figure class="source" data-collapsed>\\n<figcaption><svg class="css-icon" [^\\n]*</figcaption>${opening(8)}<code class="language-css">`))
+    expect(grid).not.toMatch(/<figure class="source"(?:(?!<\/figure>)[\s\S])*<div class="code command">/)
     expect(grid).toContain('<code class="language-tsx">')
     expect(grid).toContain("@/hooks/use-row-store")
     expect(grid).not.toContain("@/registry/")

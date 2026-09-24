@@ -499,8 +499,9 @@ export function highlighted(escaped: string, language: string | undefined): stri
  * or `npm install` becomes an install block, if it is bash or has no language (a source in another language, or a
  * Manual block, whose pre carries the id its Expand controls, is never one): the same command under pnpm, npm,
  * yarn, and bun, one of them showing. Which one is the page's `data-pm`, which site.js sets from the reader's last
- * choice before the body parses, and the tabs follow it. The last pass over a page, on its HTML, because the blocks
- * come from four places: the templates, marked, the preview card, and the Installation section.
+ * choice before the body parses, and the tabs follow it. A Manual block's copy button stands in its header, so it
+ * comes before the code, where the Tab key meets it after Expand. The last pass over a page, on its HTML, because
+ * the blocks come from four places: the templates, marked, the preview card, and the Installation section.
  */
 export function codeBlocks(html: string): string {
   let blocks = 0
@@ -508,7 +509,8 @@ export function codeBlocks(html: string): string {
     const colored = (text: string) => highlighted(text, language) ?? text
     // A block with attributes is a Manual block, whose pre keeps the id its Expand controls, and a block in a language
     // other than bash is a source: neither becomes a command, whatever its lines start with.
-    if (pre || (language && language !== "bash") || !COMMAND_LINE.test(code)) return `<div class="code"><pre${pre ?? ""}><code${attributes ?? ""}>${colored(code)}</code></pre>${COPY_BUTTON}</div>`
+    if (pre) return `<div class="code">${COPY_BUTTON}<pre${pre}><code${attributes ?? ""}>${colored(code)}</code></pre></div>`
+    if ((language && language !== "bash") || !COMMAND_LINE.test(code)) return `<div class="code"><pre><code${attributes ?? ""}>${colored(code)}</code></pre>${COPY_BUTTON}</div>`
     const id = `pm-${++blocks}`
     const tabs = PACKAGE_MANAGERS.map(
       ({ name }) =>
@@ -1070,7 +1072,9 @@ export function installationSection(item: RegistryItem, tag: string, sources: So
   // Expand opens the whole of it, however long. site.js wires the buttons (the second is the fade, for the mouse),
   // keeps the collapsed code inert, and takes the buttons off a block that already shows whole. The path names the
   // figure; the stylesheet's has only its mark, since the step names it. A path too long for a phone's line breaks
-  // after a slash: each part holds together, so a hyphen inside a name is never where it breaks.
+  // after a slash: each part holds together, so a hyphen inside a name is never where it breaks. Expand comes before
+  // the code, and `codeBlocks` puts the copy button between them, so the Tab key meets the header's two buttons in the
+  // order they stand and then the code.
   let blocks = 0
   const pathCode = (path: string) => `<code>${path.split(/(?<=\/)/).map((part) => `<span>${escapeHtml(part)}</span>`).join("<wbr>")}</code>`
   const expandable = (language: "ts" | "tsx" | "css", code: string, path?: string) => {
@@ -1078,8 +1082,8 @@ export function installationSection(item: RegistryItem, tag: string, sources: So
     return [
       `<figure class="source" data-collapsed>`,
       `<figcaption>${language === "css" ? CSS_ICON : TS_ICON}${path ? pathCode(path) : ""}</figcaption>`,
-      `<pre id="${id}"><code class="language-${language}">${escapeHtml(code)}</code></pre>`,
       `<button type="button" class="expand" aria-expanded="false" aria-controls="${id}">Expand</button>`,
+      `<pre id="${id}"><code class="language-${language}">${escapeHtml(code)}</code></pre>`,
       `<button type="button" class="expand-foot" tabindex="-1" aria-hidden="true">Expand</button>`,
       `</figure>`,
     ].join("\n")
