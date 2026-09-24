@@ -4,25 +4,66 @@ Define grid colors, filters, and sort order as plain objects a desk can change w
 
 ## Usage
 
-```ts
-import type { GridRules } from "@/lib/grid-rules"
-```
-
 ```tsx
-const rules: GridRules = {
-  columns: [
-    { id: "rich", column: "px", when: { op: "gt", value: "100-00" }, tone: "up", label: "Rich to the market" },
-    { id: "large", column: "size", when: { op: "gte", value: "10,000,000" }, tone: "primary", target: "row", label: "Large" },
-  ],
-  filter: [{ column: "status", op: "ne", value: "Done away" }],
-  sort: [
-    { key: "size", dir: "desc" },
-    { key: "receivedAt", dir: "asc" },
-  ],
+import { applyRules, describeRule, type ColumnRule, type RuleColumn } from "@/lib/grid-rules"
+
+interface Request {
+  id: string
+  size: number
 }
 
-<DataGrid store={store} columns={columns} rules={rules} label="Open RFQs" />
+const columns: RuleColumn<Request>[] = [{ key: "size", header: "Size", numeric: true, accessor: (row) => row.size }]
+const rule: ColumnRule = { id: "large", column: "size", when: { op: "gte", value: "10,000,000" }, tone: "primary" }
+const applied = applyRules([rule], columns)
+const rows: Request[] = [{ id: "Q-1", size: 5_000_000 }, { id: "Q-2", size: 10_000_000 }]
+
+function SizeRule() {
+  return (
+    <div className="w-fit max-w-full space-y-3 text-xs lining-nums tabular-nums">
+      <p>{describeRule(rule, columns)}</p>
+      <table className="text-left">
+        <thead className="text-muted-foreground">
+          <tr><th scope="col" className="px-2 py-1 font-medium">Request</th><th scope="col" className="px-2 py-1 text-right font-medium">Size</th><th scope="col" className="px-2 py-1 font-medium">Rule</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const decoration = applied.cell("size", row)
+            return (
+              <tr key={row.id} className="border-t border-border">
+                <th scope="row" className="px-2 py-1 font-normal">{row.id}</th>
+                <td {...decoration} className={`px-2 py-1 text-right ${decoration?.className ?? ""}`}>{row.size.toLocaleString("en-US")}</td>
+                <td className="px-2 py-1">{decoration ? "Matched" : "No match"}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 ```
+
+`applyRules` compiles the rule against the column's accessor. A matching cell receives its decoration; a nonmatching cell receives `undefined`. Spread the decoration onto your cell and keep its `className` when adding your own styles. The returned attributes include the rule id, tone, and accessible description.
+
+The numeric column reads the string `10,000,000` as a number. This example uses only the GridRules library; the DataGrid composition below handles the decorations for you.
+
+## Filtering and sorting
+
+Compile a filter and comparator when you work with rows outside DataGrid. Here the filter keeps requests of at least 2,000,000. Sorting groups by status first, then orders each group from largest to smallest. Turn either control off to compare the result with the original rows and source order.
+
+The rules and columns are fixed, so their functions are compiled once. Filtering or copying produces a new array before sorting; the source rows keep their order.
+
+<!-- demo: grid-rules-filter-sort -->
+
+## DataGrid highlights
+
+Install [`data-grid`](data-grid.md) as well; it supplies the grid, row store, and format helpers used here. Pass a `GridRules` object to its `rules` prop and the grid compiles it. This example isolates highlights from filtering and sorting.
+
+The price column's parser reads rule values such as `100-00` in 32nds. Cell rules mark rich and cheap prices; row rules mark large requests and requests done away. Q-2 matches a price rule and a row rule independently. Q-3 is small enough to reach the done-away rule; if it also matched the earlier large rule, that row rule would win. Q-4 has no price, so neither price comparison matches.
+
+Toggle **Show highlights** to compare the decorations. The descriptions below the grid state each condition and its target. The preview alignment controls keep an edge fixed while resizing columns, and save that choice across examples.
+
+<!-- demo: grid-rules-data-grid -->
 
 ## API Reference
 

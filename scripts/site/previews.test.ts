@@ -98,6 +98,7 @@ describe("the demo source shown under Code", () => {
       "price-chart-overlays",
       "price-chart-ticks",
       "sparkline-interactive",
+      "grid-rules-data-grid",
     ])
     for (const name of alignable) {
       expect(demos.has(name), name).toBe(true)
@@ -158,6 +159,8 @@ describe("the demo source shown under Code", () => {
       "depth-ladder-updates",
       "feed-health-actions",
       "feed-health-lanes",
+      "grid-rules-data-grid",
+      "grid-rules-filter-sort",
       "layout-manager-workspace",
       "panel-hotkeys",
       "panel-linked",
@@ -298,6 +301,8 @@ describe("a theme on the site", () => {
       "depth-ladder-updates",
       "feed-health-actions",
       "feed-health-lanes",
+      "grid-rules-data-grid",
+      "grid-rules-filter-sort",
       "layout-manager-workspace",
       "panel-hotkeys",
       "panel-linked",
