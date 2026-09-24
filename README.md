@@ -7,6 +7,10 @@
 
 Trading-terminal components you install with `shadcn add`. The source lands in your repo and it's yours.
 
+## Install
+
+Add an item to your shadcn project, pinned to a release tag:
+
 <!-- x-release-please-start-version -->
 
 ```bash
@@ -15,7 +19,7 @@ npx shadcn@latest add tradecn/ui/data-grid#v1.4.12
 
 <!-- x-release-please-end -->
 
-Pin the tag. The tag is the version. There is no npm package.
+The tag is the version. There is no npm package.
 
 Or point a namespace at [tradecn.dev](https://tradecn.dev) in `components.json`:
 
@@ -29,44 +33,53 @@ npx shadcn@latest add @tradecn/data-grid
 
 <!-- x-release-please-start-version -->
 
-That URL is the latest release. Put the tag in it to pin: `https://tradecn.dev/r/v1.4.12/{name}.json`. Same files either way.
+The namespace URL serves the latest release. To pin it, use `https://tradecn.dev/r/v1.4.12/{name}.json`. Both install paths provide the same tradecn files at the same tag.
 
 <!-- x-release-please-end -->
 
-Every item is running at [tradecn.dev](https://tradecn.dev/docs/components/), docs beside it.
+## Components
 
-You already have shadcn's menus and tooltips. This adds what a trading screen needs on top of them: a grid that takes a feed, cells that flash the direction of a tick, prices in 32nds, hotkeys that know which panel has focus, an order ticket that types `99-16+`.
+tradecn adds grids, price formatting, scoped hotkeys, and order tickets to shadcn's menus and tooltips. These are some of the items; [tradecn.dev](https://tradecn.dev/docs/components/) has the full catalog, docs, and live demos.
 
 | Item | What it does |
 |---|---|
-| [`format`](docs/format.md) | Precision from the tick size, 32nds and 64ths (`99-16+`), yield, bps, DV01, compact notional. One null sentinel. |
-| [`row-store`](docs/row-store.md) | You apply one batch of deltas per frame. Components subscribe to one row each. |
-| [`flash-cell`](docs/flash-cell.md) | Flashes up, down, or flat on change. Zero is flat, not up. |
-| [`data-grid`](docs/data-grid.md) | Virtualized grid on the row store. A delta to one row re-renders one row. |
-| [`feed-health`](docs/feed-health.md) | Per-feed state, data age, staleness tier. Drop counts for lanes that drop, gaps for lanes that don't. |
-| [`use-hotkeys`](docs/use-hotkeys.md) | Declare a binding once: the same list runs the keys and shows them. A panel's keys beat global ones. `x` won't cancel an order while you're typing, or under a dialog. |
-| [`command-palette`](docs/command-palette.md) | Your shadcn `command`, fed by an action registry and your symbol search. Shift+Enter runs a row's second action. Also a go-bar that reads `AAPL GP`. |
-| [`panel`](docs/panel.md) | The frame around a book or a chart, and a hotkey scope: with two books up, the one with focus answers. Click the symbol to retype it. Link groups carry it across panels and windows. Pop a panel out and its state comes with it. |
-| [`sparkline`](docs/sparkline.md) | A line that fits a grid cell. Up, down, or flat against the first reading or a previous close, in color and in words. A missing reading leaves a gap. It doesn't slide the afternoon left. |
-| [`watchlist`](docs/watchlist.md) | The grid with a watchlist's columns, prices printed per instrument. Add a symbol that's already there and it takes you to it. Delete takes one off. The list stays yours. |
-| [`blotter`](docs/blotter.md) | The grid with a blotter's columns. The status is the server's word, never worked out. Cancel only shows for orders the server says can be cancelled, the button says how many, and it asks again when you click. |
-| [`workspace`](docs/workspace.md) | Panels that dock, tab, float, and pop out, on dockview. Every one keeps its keys. The layout is yours to save, and it says in the payload what it left out. |
-| [`ticket`](docs/ticket.md) | An order ticket, the registry's first block. Types `99-16+` and steps by the tick. The buttons are the actions the server allowed and nothing else; the status is the server's word. It sends nothing: it hands you a checked draft. |
-| [`tradecn-amber`](docs/tradecn-amber.md) | The default theme, and a theme is the one kind of item that overwrites your variables, so `--diff` it first. Amber, both sides: warm paper by day, near-black by night, and blue and vermilion for direction, the pair that stays apart under every kind of color blindness. It's what tradecn.dev wears. |
-| [`tradecn-slate`](docs/tradecn-slate.md) | A real light side and a real dark side: cool neutrals, a blue primary, the colorblind-safe bluish green and vermilion for up and down. Every color checked at 4.5:1 on its surface, both modes. The items' own light marks are this theme's, so a project with no theme keeps green for up. |
-| [`tradecn-slate-east`](docs/tradecn-slate-east.md) | Slate with red for up and green for down, the way screens in China, Japan, and Taiwan show it. Four tokens differ. |
+| [`format`](docs/format.md) | Tick-size precision, 32nds and 64ths (`99-16+`), yield, bps, DV01, and compact notional. One missing-value marker. |
+| [`row-store`](docs/row-store.md) | Batched deltas with per-row subscriptions. Apply one batch per frame. |
+| [`flash-cell`](docs/flash-cell.md) | Flashes up, down, or flat on change. Zero change is flat. |
+| [`data-grid`](docs/data-grid.md) | Virtualized grid with per-row updates from the row store. |
+| [`feed-health`](docs/feed-health.md) | Feed state, data age, and staleness. Drop counts for coalesced feeds; sequence gaps for ordered feeds. |
+| [`use-hotkeys`](docs/use-hotkeys.md) | One registry runs and displays bindings. Panel bindings win over global ones. Text inputs allow only `editing` bindings; dialogs block outside scopes. |
+| [`command-palette`](docs/command-palette.md) | shadcn `command` with your actions and symbol search. Shift+Enter runs a secondary action; a configurable go-bar accepts commands such as `AAPL GP`. |
+| [`panel`](docs/panel.md) | Panel frame and hotkey scope, editable symbols, cross-window link groups, and popouts that preserve mounted state. |
+| [`sparkline`](docs/sparkline.md) | Cell-sized chart with direction in color and words, relative to the first reading or a supplied baseline. Missing readings leave gaps. |
+| [`watchlist`](docs/watchlist.md) | Watchlist columns and per-instrument prices. Opt-in add/remove callbacks; duplicate symbols focus the existing row, and Delete requests removal. You own the list. |
+| [`blotter`](docs/blotter.md) | Order columns and server-supplied status. Action buttons count eligible orders, disable at zero, and recheck permissions on click. |
+| [`workspace`](docs/workspace.md) | Dock, tab, float, and pop out panels with dockview, preserving hotkey scopes. You save the layout; its payload describes persistence boundaries. |
+| [`ticket`](docs/ticket.md) | Order-entry block accepting `99-16+` and tick stepping. Displays server-supplied status and allowed actions; validates drafts by default and calls your handler. |
+
+### Themes
+
+Themes replace your stylesheet variables, including tradecn font choices; other items add only missing variables. Review with `--diff` before installing. Each theme has light and dark palettes:
+
+| Theme | Palette |
+|---|---|
+| [`tradecn-amber`](docs/tradecn-amber.md) | tradecn.dev's default: warm paper and near-black surfaces, amber primary, blue for up and vermilion for down. |
+| [`tradecn-slate`](docs/tradecn-slate.md) | Cool neutrals, blue primary, bluish green for up and vermilion for down. Item defaults use Slate's direction colors in light mode. |
+| [`tradecn-slate-east`](docs/tradecn-slate-east.md) | Slate with red for up and green for down, a convention used in China, Japan, and Taiwan. Only four palette tokens differ. |
+
+Tests check declared text/surface pairs and semantic marks at 4.5:1 in both modes. They do not cover every state or chart color, or guarantee distinguishability for every reader. Direction also needs signs or labels; [Color](docs/color.md) explains the palette choices and research.
 
 ## It rides shadcn
 
-tradecn never copies shadcn's code. It imports your `@/components/ui/*`, styles it with `className`, and stops there. No Radix import, no Base UI import, no `asChild`, no `render`. So it doesn't care which base or style you picked, and a shadcn update is something that happens underneath it.
+tradecn imports your `@/components/ui/*` and styles them with `className`. It bundles no shadcn code and uses no direct Radix or Base UI imports, `asChild`, or `render` props.
 
-That's a promise, so CI checks it. Every change installs the registry into three clean projects (Radix Nova, Base UI Mira, Base UI Vega) through the real CLI, typechecks tradecn's files, builds, and renders every item in a browser. A validator rejects any item that breaks the rules in [`docs/contract.md`](docs/contract.md). A nightly job refetches every shadcn component tradecn composes and fails if an export it uses changed.
+CI installs the registry through the CLI into Radix Nova, Base UI Mira, and Base UI Vega projects, then typechecks, builds, and renders the items. Source checks enforce the [item contract](docs/contract.md); a nightly job checks upstream export drift.
 
-It has already caught one. Radix tooltips throw without a provider above them. Base UI's don't. Types passed in all three. The browser didn't.
+The browser checks catch differences types miss: Radix tooltips require a provider; Base UI's don't. tradecn supplies it.
 
 ## Updating
 
-Two commands. Neither touches the other's files. Put the tag you're moving to in the first one.
+Review tradecn and shadcn updates separately. Replace the tag with the release you want:
 
 <!-- x-release-please-start-version -->
 
@@ -79,30 +92,41 @@ npx shadcn@latest add tooltip --diff                       # a shadcn change und
 
 ## Dependencies
 
-`cn`, `@tanstack/react-virtual` under the grids, `dockview-react` under the workspace (it brings `dockview` and `dockview-core`, same repo, nothing else), and `uplot` under the chart (MIT, a canvas, nothing under it). That's the list, and an item only pulls in the part it uses. It's short on purpose: some of you ship into places where every package is a form to fill out.
+Beyond React and shadcn's dependencies, items declare only the packages they use:
 
-No icon library either. shadcn picks a different one per base, so the grid draws its own three dots.
+| Package | Purpose |
+|---|---|
+| `cn` | Class names. |
+| `@tanstack/react-virtual` | Grid virtualization. |
+| `dockview-react` | Workspace layout; brings `dockview` and `dockview-core`. |
+| `uplot` | Canvas charts; MIT, no runtime dependencies. |
 
-The colors are data too. [`color.md`](docs/color.md) has the research behind the themes: who cannot tell red from green, what red does to a reader's expectations, why a theme wants two palettes, and the one rule every component keeps: direction never rides on hue alone.
+tradecn adds no icon library or font files. Set font families through CSS variables; [Typography](docs/typography.md) explains the defaults and research.
 
-No font files either. [`typography.md`](docs/typography.md) says which families the components expect and why, with the research behind each, and every one of them is a CSS variable you set once. Any component rendering numeric data MUST set `font-variant-numeric: lining-nums tabular-nums` on the numeric node. That is the one rule the components enforce on their own, whatever font you chose.
+Any component rendering numeric data MUST set `font-variant-numeric: lining-nums tabular-nums` on the numeric node. This applies whatever font you choose.
 
 ## Numbers
 
-Apple M5 Max, 128 GB, macOS 27.0, headless Chromium 153, 2026-09-20. 1,000 rows, 60 visible, 12 numeric columns, every patch applied in one batch per animation frame, 10 seconds measured after 1 second of warm-up.
+Apple M5 Max, 128 GB, macOS 27.0, headless Chromium 153, 2026-09-20. 1,000 rows, 60 visible, 12 numeric columns, `rfq` preset. One batch per animation frame; 10 seconds measured after 1 second of warm-up.
 
-| Patches per frame | Visible cells changed per frame | Dropped frames | Script p99 |
+| Patches per frame | Patches hitting visible/overscan rows per frame | Dropped frames | Script p99 |
 |---|---|---|---|
 | 2,000 | 136 | 0 of 601 | 3.0 ms |
 | 5,000 | 341 | 1 of 600 | 7.4 ms |
 | 10,000 | 682 | 101 of 500 | 10.5 ms |
 
-Script time is building the batch, applying it, and React's commit. At 10,000 it's still inside a 16.7 ms frame. The late frames there are the flash animations, hundreds running at once.
+The second column counts patch hits, including repeats, across 60 visible rows plus 8 overscan rows. Script time includes batch construction, application, and React's render and commit; it excludes style, layout, and paint. At 10,000 patches, script p99 stays below 16.7 ms, but frames still drop. These timings do not isolate the cost of flash animations.
 
-A laptop in headless Chromium is not your users' machine. `just bench --machine "<name>"` runs it on yours and writes the JSON. The runs behind this table are in [`bench/`](bench/README.md). If your numbers disagree with mine, open an issue with your machine and your run.
+Run `just bench --machine "<name>"` on your target hardware to write your own JSON results. The recorded runs and methodology are in [`bench/`](bench/README.md). If results differ, open an issue with your machine and run.
 
 ## Working on it
 
-`bun install`, then `just dev` for the playground and `just check` for everything CI runs. Each item has a demo in `playground/src/demos/`; it's the one tradecn.dev shows, so a new item ships with one. A variant worth a block of its own on the page is a demo of its own, `<item>-<variant>.tsx`, placed where the item's doc says `<!-- demo: <item>-<variant> -->` under a heading of its own. `terminal.tsx` there is the desk on the front page, one workspace with every item on it, and a test holds it to the registry, so a new item joins the desk too. Pull request titles pick the next tag; [`CONTRIBUTING.md`](CONTRIBUTING.md) has the table.
+Run `bun install`, then `just dev` for the playground. Before pushing, run `just check` for lint, types, tests, registry validation/build, and site build/smoke checks. CI also runs consumer installation, GitHub install-by-ref, and infrastructure checks.
+
+- Give each new item a demo in `playground/src/demos/`; tradecn.dev uses it.
+- Put substantial variants in `<item>-<variant>.tsx`, with `<!-- demo: <item>-<variant> -->` under a dedicated heading in the item's doc.
+- Add new items to `playground/src/demos/terminal.tsx`, the front-page workspace. A test checks its registry coverage.
+
+PR titles determine releases. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the title format and release table.
 
 MIT. I'm John Carmack (the Rust and TypeScript one, not the Doom one).
