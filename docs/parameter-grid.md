@@ -5,27 +5,59 @@ Edit parameters by instrument, tier, or pair, with pending values, server-contro
 ## Usage
 
 ```tsx
-import { ParameterGrid, type ParameterDef, type ParameterRow } from "@/components/ui/parameter-grid"
+import { useState } from "react"
 import { createRowStore } from "@/lib/row-store"
-```
+import { ParameterGrid, type ParameterDef, type ParameterRow } from "@/components/ui/parameter-grid"
 
-```tsx
 interface Sheet extends ParameterRow {
   skew: number | null
-  width: number
-  maxSize: number
 }
 
-const PARAMETERS: ParameterDef<Sheet>[] = [
-  { key: "skew", header: "Skew", accessor: (r) => r.skew, step: 0.25, min: -5, max: 5 },
-  { key: "width", header: "Width", accessor: (r) => r.width, step: 0.5, min: 0 },
-  { key: "maxSize", header: "Max size", accessor: (r) => r.maxSize, decimals: 0, readOnly: true },
+const parameters: ParameterDef<Sheet>[] = [
+  { key: "skew", header: "Skew", accessor: (row) => row.skew, step: 0.25, min: -5, max: 5 },
 ]
 
-const store = createRowStore<Sheet>({ getRowId: (r) => r.id })
+function PricingParameters() {
+  const [store] = useState(() => {
+    const store = createRowStore<Sheet>({ getRowId: (row) => row.id })
+    store.applyDeltas({ upsert: [
+      { id: "zn", name: "ZN", enabled: true, allowedActions: ["toggle", "edit"], skew: 0.5 },
+      { id: "zb", name: "ZB", enabled: false, allowedActions: ["toggle", "edit"], skew: null },
+    ] })
+    return store
+  })
 
-<ParameterGrid store={store} parameters={PARAMETERS} onEdit={(change) => api.setParameter(change.rowId, change.key, change.value)} changedSince={sessionOpenedAt} />
+  return (
+    <div className="h-40 w-fit max-w-full">
+      <ParameterGrid store={store} parameters={parameters} label="Pricing parameters" asOf={false} onEdit={(change) => {
+        store.applyDeltas({ patch: [{ id: change.rowId, fields: { [change.key]: change.value, updatedAt: Date.now(), updatedBy: "you" } as Partial<Sheet> }] })
+      }} />
+    </div>
+  )
+}
 ```
+
+Seed the row store, define the parameter, and grant each row the actions it may take. This example acknowledges edits immediately by writing the requested value back to the store. Your application sends the request and applies the server's response.
+
+Double-click a Skew value, or focus its cell and press Enter, to edit. Press Enter to commit or Escape to cancel. Up and Down step by 0.25; Shift uses ten steps. Values outside −5 through 5 stay in the editor with an error. Blank input becomes null. The enable checkbox also sends an edit request, and the Updated column records each accepted change.
+
+The preview alignment controls keep an edge fixed while resizing columns and save that choice across examples.
+
+## Pending values and server replies
+
+Commit a Width edit with Enter, or toggle ZN, then choose **Receive replies**. Until then, numeric edits stay pending and the checkbox keeps the store's value. Each press handles the queued requests in order. This example supplies the reply control so you can inspect pending states without a timer.
+
+A Width over 8 is refused: the cell returns to the stored value and shows **Over 8**. Reopen it to clear the error and try again. Accepted requests update the row, its timestamp and author, and the as-of time. The changed-since marker identifies rows accepted during this session. The status shows the queue size and counts accepted and refused requests from the last set of replies.
+
+<!-- demo: parameter-grid-server -->
+
+## Permissions and read-only parameters
+
+ZN permits both edits and enable requests. ZB permits edits but cannot be enabled here. ZT permits neither. The Hedge ratio column is read-only on every row, independently of those permissions.
+
+The permissions come from each row's `allowedActions`; `readOnly` comes from the parameter definition. Enabled state is separate from permission: ZB's Skew is editable even while its enable checkbox is off.
+
+<!-- demo: parameter-grid-permissions -->
 
 ## API Reference
 
