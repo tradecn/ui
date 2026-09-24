@@ -41,6 +41,9 @@
     "price-chart-ticks",
     "sparkline-interactive",
     "grid-rules-data-grid",
-    "column-chooser"
+    "column-chooser",
+    "blotter",
+    "blotter-actions",
+    "blotter-reports"
   ]
 }
