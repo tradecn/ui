@@ -5,28 +5,34 @@ Show the environment, market clocks, signed-in user, and your own readouts in a 
 ## Usage
 
 ```tsx
-import { FeedHealth } from "@/components/ui/feed-health"
-import { PerfMonitor } from "@/components/ui/perf-monitor"
 import { StatusBar } from "@/components/ui/status-bar"
+
+function TerminalStatus() {
+  return (
+    <div className="w-xl max-w-full">
+      <StatusBar
+        environment={{ label: "PRODUCTION", tone: "destructive" }}
+        clocks={[{ label: "New York", zone: "America/New_York" }]}
+        user="jdoe"
+      />
+    </div>
+  )
+}
 ```
 
-The application supplies `feeds` and `session.user`, a string to display. Install `feed-health` and `perf-monitor` separately for these slots.
-
-```tsx
-<StatusBar
-  environment={{ label: "PRODUCTION", tone: "destructive" }}
-  clocks={[{ label: "New York", zone: "America/New_York" }, { label: "London", zone: "Europe/London" }, { label: "Tokyo", zone: "Asia/Tokyo" }]}
-  user={session.user}
-  left={<FeedHealth feeds={feeds} compact />}
-  right={<PerfMonitor compact />}
-/>
-```
+The application supplies the environment and user text. The clock shows the current time in New York and ticks once a second. This example bounds the bar's width; place it at the bottom of your own layout. The bar wraps when space runs out.
 
 ## Composition
 
-The order is environment badge, `left`, `center`, clocks, user, `right`. The bar wraps onto more lines when space runs out. The center wrapper always remains as a flexible spacer, even without content. The left and right wrappers disappear only when their props are `undefined`; passing `null` or `false` leaves an empty wrapper.
+The order is environment badge, `left`, `center`, clocks, user, `right`. The center wrapper always remains as a flexible spacer, even without content. The left and right wrappers disappear only when their props are `undefined`; passing `null` or `false` leaves an empty wrapper.
 
-The bar imports none of the items in its slots. The example puts [`feed-health`](feed-health.md) and [`perf-monitor`](perf-monitor.md) there in their compact forms.
+## Feed and frame health
+
+The bar imports none of the items in its slots. Install [`feed-health`](feed-health.md) and [`perf-monitor`](perf-monitor.md) separately for this example. A supplied feed goes on the left and actual frame measurements on the right. The monitor's bounded width lets its readouts wrap within the slot on narrow screens.
+
+Choose **Receive message** to update the sample feed's timestamp. With no further messages, its age increases; the default thresholds mark it aging after two seconds and stale after ten. Compact mode hides the tier badge; the feed's tooltip reports the tier. The monitor continues measuring while mounted. There is no demo publisher or load generator.
+
+<!-- demo: status-bar-slots -->
 
 ## API Reference
 
