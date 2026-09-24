@@ -152,6 +152,7 @@ describe("the demo source shown under Code", () => {
       }
     }
     expect([...placed.keys()].sort()).toEqual([
+      "alert-store-cap",
       "alerts-actions",
       "alerts-bridge",
       "blotter-actions",
@@ -310,6 +311,7 @@ describe("a theme on the site", () => {
     const framed = framedDemos(docs)
     const variants = [...framed].filter((name) => !docSlugs.has(name)).sort()
     expect(variants).toEqual([
+      "alert-store-cap",
       "alerts-actions",
       "alerts-bridge",
       "blotter-actions",
