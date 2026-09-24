@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.13](https://github.com/tradecn/ui/compare/v1.4.12...v1.4.13) (2026-09-24)
+
+
+### Documentation
+
+* **repo:** simplify README ([#219](https://github.com/tradecn/ui/issues/219)) ([90b443e](https://github.com/tradecn/ui/commit/90b443e2355bddf7c523ae543706aeb37ff5336a))
+
 ## [1.4.12](https://github.com/tradecn/ui/compare/v1.4.11...v1.4.12) (2026-09-24)
 
 
