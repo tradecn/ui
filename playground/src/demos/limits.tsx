@@ -1,8 +1,7 @@
 import { createInstrumentFormatter, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { checkLimits, type Limits, type LimitsDraft } from "@/registry/tradecn/lib/limits"
 
-// One limits table, five drafts against it: within the lines, past the ask-again line, past the stop, too
-// far from the market, and a side the book does not take.
+// One limits table: allowed, confirmation, quantity block, distance block, and minimum-size block.
 const ust: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const fmt = createInstrumentFormatter(ust)
 const market = { bid: 99.5, ask: 99.515625 }
@@ -24,17 +23,24 @@ const DRAFTS: { label: string; draft: LimitsDraft }[] = [
 
 export default function LimitsDemo() {
   return (
-    <div className="space-y-2 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
+    <div className="w-2xl max-w-full space-y-2 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
       <p className="text-muted-foreground">
         market {fmt.price(market.bid)} / {fmt.price(market.ask)} · ask again above 10,000,000, stop above 50,000,000, at least 1,000,000, within 4 ticks of the market
       </p>
       <table className="w-full">
+        <caption className="sr-only">Draft limit checks</caption>
+        <thead>
+          <tr className="border-t border-border text-left text-muted-foreground">
+            <th scope="col" className="py-1 pr-3 font-normal">Draft</th>
+            <th scope="col" className="py-1 font-normal">Result</th>
+          </tr>
+        </thead>
         <tbody>
           {DRAFTS.map(({ label, draft }) => {
             const problems = checkLimits(draft, LIMITS, { market, convention: ust })
             return (
               <tr key={label} className="border-t border-border align-top">
-                <td className="py-1 pr-3 whitespace-nowrap">{label}</td>
+                <th scope="row" className="py-1 pr-3 text-left font-normal">{label}</th>
                 <td className="py-1">
                   {problems.length === 0 ? (
                     <span className="text-muted-foreground">within the limits</span>
