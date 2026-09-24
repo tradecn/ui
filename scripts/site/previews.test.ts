@@ -102,6 +102,7 @@ describe("the demo source shown under Code", () => {
       "price-chart-ticks",
       "sparkline-interactive",
       "grid-rules-data-grid",
+      "column-chooser",
     ])
     for (const name of alignable) {
       expect(demos.has(name), name).toBe(true)
@@ -149,6 +150,7 @@ describe("the demo source shown under Code", () => {
     expect([...placed.keys()].sort()).toEqual([
       "alerts-actions",
       "alerts-bridge",
+      "column-chooser-inline",
       "command-palette-go-bar",
       "command-palette-scoped-actions",
       "command-palette-shared-recents",
@@ -299,6 +301,7 @@ describe("a theme on the site", () => {
     expect(variants).toEqual([
       "alerts-actions",
       "alerts-bridge",
+      "column-chooser-inline",
       "command-palette-go-bar",
       "command-palette-scoped-actions",
       "command-palette-shared-recents",
