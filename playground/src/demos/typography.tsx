@@ -48,7 +48,7 @@ export default function TypographyDemo() {
   const variant = tabular ? "lining-nums tabular-nums" : "normal"
   return (
     <>
-      <div data-demo-controls className="mb-4 flex flex-wrap gap-2 text-xs">
+      <div data-demo-controls className="mb-4 flex flex-wrap gap-2 font-(family-name:--tradecn-font-sans) text-xs">
         <button type="button" className="rounded-md border border-border px-2 py-1" aria-pressed={tabular} onClick={() => setTabular((on) => !on)}>{tabular ? "Tabular figures: on" : "Tabular figures: off"}</button>
         <button type="button" className="rounded-md border border-border px-2 py-1" aria-pressed={hyperlegible} onClick={() => setHyperlegible((on) => !on)}>{hyperlegible ? "Hyperlegible: on" : "Hyperlegible: off"}</button>
       </div>
