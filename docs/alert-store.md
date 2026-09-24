@@ -5,17 +5,28 @@ A capped notice store on the row store's ordered lane. Repeated keys update an e
 ## Usage
 
 ```ts
-import { createAlertStore, type Alert } from "@/lib/alert-store"
+import { createAlertStore } from "@/lib/alert-store"
+
+const alerts = createAlertStore()
+const first = alerts.push({ key: "md:slow", severity: "warning", title: "Feed slow", message: "1.2 s behind" })
+const repeat = alerts.push({ key: "md:slow", severity: "critical", title: "Feed slow", message: "4 s behind" })
+
+console.log(first.id === repeat.id) // true
+console.log(alerts.size(), repeat.count) // 1 row, count 2
+console.log(repeat.severity, repeat.message) // critical, 4 s behind
+console.log(alerts.list()) // current notices, newest first
+alerts.dismiss(repeat.id)
 ```
 
-```ts
-const alerts = createAlertStore({ max: 500 })
-const first: Alert = alerts.push({ key: "md:slow", severity: "warning", tone: "stale", title: "Feed slow", message: "1.2 s behind", allowedActions: ["reconnect"] })
-alerts.push({ key: "md:slow", severity: "critical", tone: "destructive", title: "Feed slow", message: "4 s behind", allowedActions: ["reconnect"] }) // one row, count 2
-alerts.list() // newest first
-alerts.dismiss(first.id)
-alerts.store // a RowStore<Alert>, for a grid, a view, or useRowIds
-```
+A repeated key keeps the row's identity and adds to its count. The latest push supplies the other fields; see [Coalescing](#coalescing) for how omitted fields behave.
+
+## Capped notices
+
+Add a notice to exceed the three-row cap. The slow-feed notice starts oldest, but its allowed action gives it priority over the plain notices. Repeats update its count without adding a row. Clear removes everything, including tracked keys; Restore reseeds the original three rows.
+
+This React example subscribes to the underlying store's metadata so repeats redraw immediately. Order subscriptions alone only catch rows being added or removed. The table prints allowed action ids; implementing those actions is the application's job.
+
+<!-- demo: alert-store-cap -->
 
 ## API Reference
 
