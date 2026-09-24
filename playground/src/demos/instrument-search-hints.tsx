@@ -35,7 +35,8 @@ const search: InstrumentSearchFn = async (query, hint, signal) => {
   if (hint.kind === "isin") return instruments.filter((hit) => hit.isin === hint.isin)
   if (hint.kind === "coupon-maturity" && hint.maturityParts) {
     const { month, day, year } = hint.maturityParts
-    const fullYear = year < 100 ? 2000 + year : year
+    const shortYear = /\/\d{2}$/.test(hint.maturity ?? "")
+    const fullYear = shortYear ? 2000 + year : year
     return instruments.filter((hit) => hit.coupon === hint.coupon && hit.maturity?.month === month && hit.maturity.year === fullYear && (day === undefined || hit.maturity.day === day) && (!hint.ticker || hit.ticker === hint.ticker))
   }
   return instruments.filter((hit) => hit.symbol.startsWith(query.trim().toUpperCase()))
