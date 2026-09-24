@@ -5,24 +5,37 @@ Show the newest notices with severity, repeat counts, allowed actions, and dismi
 ## Usage
 
 ```tsx
-import { Alerts, useToastBridge } from "@/components/ui/alerts"
-import { createAlertStore } from "@/lib/alert-store"
-```
+import { useState } from "react"
+import { createAlertStore, type AlertStore } from "@/lib/alert-store"
+import { Alerts } from "@/components/ui/alerts"
 
-Keep the store stable and push notices from your feed. Call `useToastBridge` inside a React component.
+function restore(alerts: AlertStore) {
+  alerts.clear()
+  alerts.push({ severity: "info", tone: "up", title: "Feed connected" })
+  alerts.push({ severity: "fill", tone: "primary", title: "Order filled", message: "5mm UST at 99-16+" })
+}
 
-```tsx
-const alerts = createAlertStore({ max: 500 })
+function NoticeStrip() {
+  const [alerts] = useState(() => {
+    const store = createAlertStore()
+    restore(store)
+    return store
+  })
 
-// In the feed handler: the venue's severity, a key for repeats, and allowed actions.
-alerts.push({ key: `feed:${feed.id}:slow`, severity: "warning", tone: "stale", title: `${feed.name} slow`, message: `${age} s behind`, allowedActions: ["reconnect"], meta: { feed: feed.id } })
-
-function Notices() {
-  useToastBridge(alerts, (alert) => toast(alert.title, { description: alert.message }))
-
-  return <Alerts alerts={alerts} visible={3} assertive={["critical"]} ttlMs={20_000} actions={[{ id: "reconnect", label: "Reconnect", onAction: (a) => feeds.reconnect(a.meta?.feed) }, { id: "ack", label: "Acknowledge", onAction: (a) => api.ack(a.id) }]} />
+  return (
+    <>
+      <div data-demo-controls className="text-xs">
+        <button type="button" className="rounded border border-border px-2 py-1" onClick={() => restore(alerts)}>Restore notices</button>
+      </div>
+      <Alerts alerts={alerts} className="w-lg max-w-full" />
+    </>
+  )
 }
 ```
+
+Keep the store stable and push notices from your feed. This example supplies two notices; dismiss either one or choose **Clear all**, then **Restore notices** to replay. Newer notices appear first. Severity is the word your application supplies; `tone` adds color.
+
+The previews omit `ttlMs` so notices stay available to inspect. For automatic dismissal, see [Dismissal](#dismissal): timers apply only to mounted strip notices without allowed actions.
 
 ## Composition
 
@@ -34,6 +47,22 @@ function Notices() {
 | Toasts for new notices after subscribing | `useToastBridge(alerts, toast)` beside either component |
 
 [`alert-store`](alert-store.md) is installed alongside the components. `AlertList` uses [`data-grid`](data-grid.md).
+
+## Allowed actions and repeated notices
+
+Choose **Receive slow feed** or **Receive rejection** to bring that notice to the front. Repeating its key updates the row and increments its count; both notices stay available for their actions.
+
+The server's `allowedActions` selects the matching button. These handlers record the chosen action and explicitly dismiss its notice; replace that simulation with your service request. Critical rejections use the assertive live region, while warnings use the polite region.
+
+<!-- demo: alerts-actions -->
+
+## Forwarding new notices
+
+`useToastBridge` forwards new IDs after it subscribes. The seeded notice is skipped. Choose **Receive slow notice** once to forward it, then again to grow its repeat count without another callback. After **Clear all**, receiving it again creates a new notice and forwards it.
+
+The readout records the callback count and last title instead of opening a toast. Pass your own toast adapter in an application; the Alerts installation includes no toast package. The hook owns its subscription and unsubscribes on unmount.
+
+<!-- demo: alerts-bridge -->
 
 ## API Reference
 

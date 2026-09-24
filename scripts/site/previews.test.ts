@@ -147,6 +147,8 @@ describe("the demo source shown under Code", () => {
       }
     }
     expect([...placed.keys()].sort()).toEqual([
+      "alerts-actions",
+      "alerts-bridge",
       "command-palette-go-bar",
       "command-palette-scoped-actions",
       "command-palette-shared-recents",
@@ -295,6 +297,8 @@ describe("a theme on the site", () => {
     const framed = framedDemos(docs)
     const variants = [...framed].filter((name) => !docSlugs.has(name)).sort()
     expect(variants).toEqual([
+      "alerts-actions",
+      "alerts-bridge",
       "command-palette-go-bar",
       "command-palette-scoped-actions",
       "command-palette-shared-recents",
