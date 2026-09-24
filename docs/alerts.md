@@ -1,175 +1,211 @@
 # Alerts
 
-Show the newest notices with severity, repeat counts, allowed actions, and dismissal controls. The strip and full list share a capped store that folds notices with the same key into one row.
+Compose notices from a container, list, header, body, and actions. You own the data and markup; optional hooks connect notices to the shared alert store without prescribing their layout.
 
 ## Usage
 
 ```tsx
 import { useState } from "react"
-import { createAlertStore, type AlertStore } from "@/lib/alert-store"
-import { Alerts } from "@/components/ui/alerts"
+import { Alerts, AlertsList, AlertsEmpty, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertDismiss } from "@/components/ui/alerts"
 
-function restore(alerts: AlertStore) {
-  alerts.clear()
-  alerts.push({ severity: "info", tone: "up", title: "Feed connected" })
-  alerts.push({ severity: "fill", tone: "primary", title: "Order filled", message: "5mm UST at 99-16+" })
-}
+const initial = [
+  { id: "fill", severity: "fill", title: "Order filled", message: "5mm UST at 99-16+" },
+  { id: "feed", severity: "info", title: "Feed connected", message: "Market data is available." },
+]
 
-function NoticeStrip() {
-  const [alerts] = useState(() => {
-    const store = createAlertStore()
-    restore(store)
-    return store
-  })
-
+function Notices() {
+  const [notices, setNotices] = useState(initial)
   return (
     <>
       <div data-demo-controls className="text-xs">
-        <button type="button" className="rounded border border-border px-2 py-1" onClick={() => restore(alerts)}>Restore notices</button>
+        <button type="button" className="rounded border border-border px-2 py-1" onClick={() => setNotices(initial)}>Restore notices</button>
       </div>
-      <Alerts alerts={alerts} className="w-lg max-w-full" />
+      <Alerts className="w-lg max-w-full">
+        <AlertsList>
+          {notices.map((notice) => (
+            <AlertItem key={notice.id}>
+              <AlertHeader>
+                <AlertSeverity>{notice.severity}</AlertSeverity>
+                <AlertTitle>{notice.title}</AlertTitle>
+                <AlertDismiss aria-label={`Dismiss: ${notice.title}`} onClick={() => setNotices((rows) => rows.filter((row) => row.id !== notice.id))} />
+              </AlertHeader>
+              <AlertBody>{notice.message}</AlertBody>
+            </AlertItem>
+          ))}
+        </AlertsList>
+        {notices.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
+      </Alerts>
     </>
   )
 }
 ```
 
-Keep the store stable and push notices from your feed. This example supplies two notices; dismiss either one or choose **Clear all**, then **Restore notices** to replay. Newer notices appear first. Severity is the word your application supplies; `tone` adds color.
-
-The previews omit `ttlMs` so notices stay available to inspect. For automatic dismissal, see [Dismissal](#dismissal): timers apply only to mounted strip notices without allowed actions.
+This example uses local state. Dismiss either notice, then choose **Restore notices** to replay. `Alerts` renders its children; it does not create notices, buttons, announcements, or a dialog.
 
 ## Composition
 
-| Use | Choose |
+| Part | Purpose |
 |---|---|
-| A compact strip with dismissal and a full-list dialog | `Alerts` |
-| A full list in your own panel | `AlertList` |
-| Custom columns or your own view of the store | `alertColumns()` and `useAlertView(alerts)` |
-| Toasts for new notices after subscribing | `useToastBridge(alerts, toast)` beside either component |
+| `Alerts` | The outer group. |
+| `AlertsList` | A semantic list whose children you supply. |
+| `AlertItem` | One notice, with optional tone decoration. |
+| `AlertHeader`, `AlertTitle` | Header layout and title content. |
+| `AlertBody` | Text, links, or other application content. |
+| `AlertSeverity` | Your severity word, optionally colored by tone. |
+| `AlertActions` | Layout for your controls. |
+| `AlertAction` | A button gated by an alert's `allowedActions`. |
+| `AlertDismiss` | A button whose click handler you supply. |
+| `AlertsEmpty` | Empty-state content, rendered when you choose. |
+| `AlertsAnnouncer` | Live regions for one selected store notice. |
+| `AlertHistory` | An optional grid for your panel, dialog, or sheet. |
 
-[`alert-store`](alert-store.md) is installed alongside the components. `AlertList` uses [`data-grid`](data-grid.md).
+Map your collection into `AlertItem` children. Place, omit, or reorder the other parts as needed. `AlertBody` supports rich content and wraps by default. Use an accessible link or button for interactive content, and pair tone with a severity word or another non-color cue.
+
+For a live store, use `useRowIds(useAlertView(alerts))` to read newest-first IDs, then map them into your own row component. Call `useAlert(alerts, id)` inside that row so a notice update rerenders its subscriber. The store still coalesces repeated keys and enforces its cap; see [alert-store](alert-store.md).
 
 ## Allowed actions and repeated notices
 
-Choose **Receive slow feed** or **Receive rejection** to bring that notice to the front. Repeating its key updates the row and increments its count; both notices stay available for their actions.
+This layout moves severity after the title and puts actions below a multiline body. Each row subscribes through `useAlert`; repeating a notice updates its count even when its position stays the same. The action handlers record the request and dismiss the notice explicitly. Replace them with your application handlers.
 
-The server's `allowedActions` selects the matching button. These handlers record the chosen action and explicitly dismiss its notice; replace that simulation with your service request. Critical rejections use the assertive live region, while warnings use the polite region.
+Choose **Receive slow feed** or **Receive rejection** to restore or repeat a notice. `AlertAction` renders only when its action ID appears in `allowedActions`. One `AlertsAnnouncer` announces the first displayed notice, using the assertive region for critical notices.
 
 <!-- demo: alerts-actions -->
 
+## History in your own dialog
+
+This example displays two notices and places the rest in a caller-owned dialog. You decide the slice, overflow button, clear control, and history height. The overflow button uses `DialogTrigger` so closing the dialog returns focus to it. Install shadcn's `dialog` component separately before copying this example; it is no longer part of the Alerts installation. `AlertHistory` also works in an always-open panel with a height.
+
+<!-- demo: alerts-history -->
+
 ## Forwarding new notices
 
-`useToastBridge` forwards new IDs after it subscribes. The seeded notice is skipped. Choose **Receive slow notice** once to forward it, then again to grow its repeat count without another callback. After **Clear all**, receiving it again creates a new notice and forwards it.
+`useToastBridge` forwards new IDs after subscribing. The seeded notice is skipped. Choose **Receive slow notice** once to forward it, then again to increase its repeat count without another callback. After **Clear all**, receiving it creates a new notice and forwards it again.
 
-The readout records the callback count and last title instead of opening a toast. Pass your own toast adapter in an application; the Alerts installation includes no toast package. The hook owns its subscription and unsubscribes on unmount.
+The readout records the callback count and last title. Supply your own toast adapter in an application. This example uses that adapter's feedback instead of mounting a second announcement path.
 
 <!-- demo: alerts-bridge -->
 
 ## API Reference
 
-### Alerts props
+### Migrating from the assembled strip
+
+This is a breaking interface change. Replace `<Alerts alerts={store} ... />` with `<Alerts>...</Alerts>` and compose its contents. The existing alert-store interface is unchanged.
+
+| Previous interface | Replacement |
+|---|---|
+| `Alerts.alerts` | Read IDs with `useRowIds(useAlertView(store))`; subscribe to each notice with `useAlert(store, id)`. Plain arrays also work. |
+| `visible` and implicit newest-first rendering | Slice or order the IDs at the call site, then map them into your row component. |
+| `actions: AlertAction[]` | Compose `AlertAction` buttons with children, an `alert`, an `action` ID, and `onAction`. The old `AlertAction` data type is removed. |
+| `ttlMs`, `now` | Pass them to `useAlert(store, id, options)` in the displayed row. |
+| `assertive` | Pass it to one `AlertsAnnouncer`, along with the store and selected ID. |
+| `time`, repeat-count formatting | Render your own `time` or `span` wherever needed. Apply lining and tabular figures to numeric text. |
+| `labels` on the strip | Supply children and accessible names directly. |
+| Automatic dismiss, clear-all, empty state, and overflow | Compose the controls and conditional content at the call site. `AlertDismiss` needs your handler. |
+| `listColumns`, `listPreset`, implicit dialog | Pass `columns` and `preset` to `AlertHistory` in your own container. Install Dialog or Sheet separately when used. |
+| `AlertList` / `AlertListProps` | Renamed to `AlertHistory` / `AlertHistoryProps`; `AlertsList` is the new children-based list. The unused grid `actions` prop is removed. |
+| `AlertsLabels`, `DEFAULT_ALERTS_LABELS` | Replaced by `AlertHistoryLabels`, `DEFAULT_ALERT_HISTORY_LABELS` for the grid. Its `title` names the grid and `noticeTitle` names the title column. Other strip/dialog labels become your content. |
+| `data-slot="tradecn-alert-list"` | History uses `tradecn-alert-history`; the new list uses `tradecn-alerts-list`. |
+| Generated `data-alert-*`, counts, and strip controls | Add application selectors at the call site. Public pieces carry their own `data-slot`; the action, severity, and announcer markers listed below remain available. |
+
+`Alerts` no longer accepts the old `AlertsProps` interface; its props are native `div` props. Messages and titles wrap instead of truncating by default. The tone decorates the item's start border instead of inserting an internal bar. The root still uses `data-slot="tradecn-alerts"`.
+
+### Presentation parts
+
+All presentation parts accept their underlying element's props, including `children`, `className`, events, and `ref`. The styling classes are defaults you can extend at each part. None reads an alert store or chooses content.
+
+| Part | Underlying element | Defaults and additional props |
+|---|---|---|
+| `Alerts` | `div` | `role="group"`, `aria-label="Notices"`; override to name your collection. |
+| `AlertsList` | `ul` | `role="list"`; supply `AlertItem` children. |
+| `AlertItem` | `li` | Optional `tone: AlertTone`; sets `data-tone` and a colored start border. |
+| `AlertHeader` | `div` | Wrapping header layout. |
+| `AlertTitle` | `div` | Flexible, wrapping title. |
+| `AlertBody` | `div` | Wrapping content; accepts block elements and links. |
+| `AlertActions` | `div` | Wrapping controls. |
+| `AlertsEmpty` | `p` | Muted text; visibility and content belong to you. |
+| `AlertSeverity` | Your `Badge` | Optional `tone: AlertTone`; default `variant="outline"`; `data-alert-severity` marker. |
+| `AlertDismiss` | Your `Button` | `type="button"`, `variant="ghost"`, `size="sm"`, `aria-label="Dismiss"`, and a × child. Supply `onClick`; set a notice-specific accessible name. |
+
+Each piece has a `data-slot` matching its kebab-case name with the `tradecn-` prefix, such as `tradecn-alert-header`.
+
+### AlertAction
+
+`AlertAction` accepts Button props, including children and a ref, except `onClick`. It renders only when `alert.allowedActions` contains `action`. Missing or empty permissions render nothing. It defaults to `type="button"`, `variant="outline"`, and `size="sm"`, with `data-alert-action` set to the action ID.
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
-| `alerts` | `AlertStore` | Required | Shared notice store. |
-| `visible` | `number` | `3` | Number of newest notices shown in the strip; zero or negative hides them all. |
-| `actions` | `AlertAction[]` | `[]` | Available strip actions, in display order. |
-| `assertive` | `string[]` | `[]` | Severities announced through the assertive live region. |
-| `ttlMs` | `number` | Off | Expiry delay in milliseconds for mounted notices without allowed actions. |
-| `now` | `() => number` | `Date.now` | Clock used to calculate remaining TTL, in milliseconds since the epoch. |
-| `time` | `(ms: number) => string` | Local 24-hour time with seconds | Formats strip timestamps; does not format the full list. |
-| `listColumns` | `ColumnDef<Alert>[]` | `alertColumns({ labels })` | Columns in the dialog's list. |
-| `listPreset` | `DataGridPreset` | `"blotter"` | Grid preset for the dialog's list. |
-| `labels` | `Partial<AlertsLabels>` | `DEFAULT_ALERTS_LABELS` | Overrides the labels below. |
-| `className` | `string` | Unset | Classes on the strip's outer wrapper. |
+| `alert` | `Alert` | Required | Current notice, normally supplied by `useAlert`. |
+| `action` | `string` | Required | ID checked against `allowedActions`. |
+| `onAction` | `(alert: Alert) => void` | Required | Called with the rendered notice when clicked. |
+| `children` | `ReactNode` | Unset | Button content, including its visible label. |
+| Button props | `ComponentProps<typeof Button>` excluding `onClick` | See above | Styling, disabled state, accessible naming, and other native behavior. |
 
-### A store, not a toast each
+The callback does not dismiss the notice. Send requests and call `alerts.dismiss(id)` explicitly when appropriate. UI permissions do not replace server authorization.
 
-`createAlertStore()` uses the row store's ordered lane. A repeated `key` updates the existing row and grows its `count`. The cap defaults to 500 rows, evicting the oldest notices without allowed actions before those with actions. The strip, list, custom views, and toast bridge read the same store. See [`alert-store`](alert-store.md) for notice fields and store methods.
+### useAlert
 
-### The words are yours
+`useAlert(alerts, id, options?)` returns the current `Alert`, or `undefined` when the ID is absent. The row subscribes to that ID; switching the store or ID replaces its subscription.
 
-`severity` is your string, printed unchanged: `info`, `warning`, `critical`, `fill`, or another word. Optional `tone` colors the strip's edge bar and severity text; the word carries the meaning. `title` and `message` use the supplied text, truncated in the strip with the full text in a title attribute. Counts above one appear as `×3`, using `labels.times` as the prefix.
+| Input | Type | Default | Purpose |
+|---|---|---|---|
+| `alerts` | `AlertStore` | Required | Store to subscribe to. |
+| `id` | `RowId` | Required | Notice ID. |
+| `options.ttlMs` | `number` | Off | Automatic dismissal while this hook is mounted. |
+| `options.now` | `() => number` | `Date.now` | Clock in milliseconds since the epoch, on the same basis as the store. |
 
-### Actions are the server's
+Expiry waits `max(0, alert.at + ttlMs - now())` milliseconds. A repeat with a new `at` reschedules it. Any nonempty `allowedActions` disables expiry, including action IDs for which you render no button. Removing those permissions enables the remaining timer, or schedules immediate dismissal if already overdue. Unmounting, changing stores or IDs, or disabling TTL cancels the old timer.
 
-The strip offers only actions whose `id` appears in the notice's `allowedActions`, in the order of the `actions` prop. Missing or empty `allowedActions` offers none. The handler receives the current notice; sending requests or dismissing it is your responsibility.
+Timers belong to the hook invocation. Put TTL on the displayed notice row only. Hidden notices and history-only rows have no timer unless your application mounts another expiry-enabled hook for them. When displaying one notice in several places, choose one owner for automatic dismissal; omit TTL from the other subscriptions.
 
-All `AlertAction` fields are required:
+### AlertsAnnouncer
 
-| Field | Type | Purpose |
-|---|---|---|
-| `id` | `string` | Matches an entry in `allowedActions`. |
-| `label` | `string` | Button text. |
-| `onAction` | `(alert: Alert) => void` | Runs when the button is clicked. |
+Mount one announcer for the collection. It keeps two visually hidden regions: polite `role="status"` and assertive `role="alert"`. Only one contains the selected notice's announcement, including severity, title, optional message, and repeat count above one. It does not take focus or open UI.
 
-### It never takes focus
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `alerts` | `AlertStore` | Required | Store to subscribe to. |
+| `id` | `RowId \| null` | Required | Notice to announce; usually the first displayed ID. Null leaves both regions empty. |
+| `assertive` | `readonly string[]` | `[]` | Severities announced assertively. |
 
-Receiving a notice does not request focus or open the dialog. Two visually hidden live regions announce the newest displayed notice: `role="alert"` with `aria-live="assertive"` when its severity is in `assertive`, otherwise `role="status"` with `aria-live="polite"`. Only one region contains the announcement. It includes severity, title, message when present, and count above one; a repeat updates that count. This is the newest displayed row, not a queue of every arrival.
-
-### Dismissal
-
-Each strip notice has a dismiss button calling `alerts.dismiss(id)`. `Clear all` calls `alerts.clear()` and appears while the store has rows. Your hotkeys can call the same methods.
-
-TTL timers exist only while a notice is mounted in the strip. They wait `max(0, alert.at + ttlMs - now())` milliseconds, so an already expired notice is scheduled for immediate dismissal when shown. Hidden notices and rows displayed only in `AlertList` have no timer. A repeat with a new `at` reschedules the timer. Use the same clock basis for the store's timestamps and `Alerts.now`.
-
-Any nonempty `allowedActions` disables TTL, even when no supplied action matches. Omitting `ttlMs` disables timers; store-cap eviction can still remove notices.
+The announcer follows the selected row, including repeats; it is not a queue of every arrival. Its region markers are `data-alerts-polite` and `data-alerts-assertive`. Avoid duplicate announcements when a toast adapter already announces the same notices.
 
 ### The whole list
 
-When the store has more rows than the strip shows, `{n} more` opens `AlertList` in the installed `Dialog`. The list uses a newest-first view, ordered by `at` then `seq`. The default `blotter` preset adjusts scroll position when arrivals above the first visible row would move it. For an always-open panel, render `AlertList` inside a container with a height.
+`AlertHistory` is an optional DataGrid presentation, ordered newest first by `at`, then `seq`. Give its container a height. It does not supply action or dismiss controls, create a dialog, or start TTL timers. Its default `blotter` preset adjusts scroll position when notices arrive above the first visible row.
 
-| `AlertList` prop | Type | Default | Purpose |
+| Prop | Type | Default | Purpose |
 |---|---|---|---|
-| `alerts` | `AlertStore` | Required | Shared notice store. |
-| `columns` | `ColumnDef<Alert>[]` | `alertColumns({ labels })` | Grid columns. |
-| `preset` | `DataGridPreset` | `"blotter"` | Grid behavior and appearance; see [`data-grid`](data-grid.md). |
-| `actions` | `AlertAction[]` | Unused | Accepted by the interface but not read or rendered. |
-| `label` | `string` | `labels.listTitle` | Accessible grid name. |
-| `labels` | `Partial<AlertsLabels>` | `DEFAULT_ALERTS_LABELS` | Grid name, empty state, and default column labels. |
-| `renderContextMenu` | `(rows: Alert[], ids: RowId[]) => ReactNode` | Unset | Custom grid context-menu content. |
-| `className` | `string` | Unset | Classes on the list's outer wrapper. |
+| `alerts` | `AlertStore` | Required | Shared store. |
+| `columns` | `ColumnDef<Alert>[]` | `alertColumns({ labels })` | Add, remove, reorder, or replace grid columns. |
+| `preset` | `DataGridPreset` | `"blotter"` | Grid behavior and presentation. |
+| `label` | `string` | `labels.title` | Accessible grid name. |
+| `labels` | `Partial<AlertHistoryLabels>` | `DEFAULT_ALERT_HISTORY_LABELS` | Empty state, grid name, and default column labels. |
+| `renderContextMenu` | `(rows: Alert[], ids: RowId[]) => ReactNode` | Unset | Caller-composed context menu. |
+| `className` | `string` | Unset | History wrapper classes. |
 
-The default columns are time, severity, title, message, and count. They contain no action or dismiss controls. Customize them with these helpers:
+`alertColumns({ time?, labels? })` returns time, severity, title, message, and count columns. `time` accepts `(ms: number) => string` and defaults to local 24-hour time with seconds. Pass labels explicitly when constructing custom columns. `useAlertView(alerts)` returns a `RowView<Alert>`, recreates it when the store changes, and disposes it on cleanup. Read it through `useRowIds` from the installed `use-row-store` hooks.
 
-| Helper | Inputs | Returns |
-|---|---|---|
-| `alertColumns(options?)` | Optional `time: (ms: number) => string` and `labels: Partial<AlertsLabels>` | `ColumnDef<Alert>[]` to add to, remove from, or reorder. Defaults to local 24-hour time with seconds and `DEFAULT_ALERTS_LABELS`. |
-| `useAlertView(alerts)` | Required `AlertStore` | `RowView<Alert>` sorted newest first; recreated when the store instance changes and disposed on cleanup. |
-
-To change the dialog's time format, pass `listColumns={alertColumns({ time: formatTime })}`. The strip's `time` prop does not reach these columns. When supplying custom columns, pass their labels to `alertColumns` yourself.
+| History label | Default |
+|---|---|
+| `title` | `All notices` |
+| `empty` | `No notices.` |
+| `time` | `Time` |
+| `severity` | `Severity` |
+| `noticeTitle` | `Title` |
+| `message` | `Message` |
+| `count` | `Count` |
 
 ### The toast bridge
 
-`useToastBridge(alerts, toast)` returns `void` and imports no toast package. Pass your shadcn `sonner` adapter or another callback.
+`useToastBridge(alerts, toast)` returns `void` and imports no toast package. Pass your own toast adapter.
 
 | Argument | Type | Purpose |
 |---|---|---|
-| `alerts` | `AlertStore` | Required store to subscribe to. |
+| `alerts` | `AlertStore` | Required store. |
 | `toast` | `((alert: Alert) => void) \| null \| undefined` | Callback for newly observed IDs, or no callback. |
 
-IDs already present when the effect subscribes are skipped. On each order notification, unseen IDs are forwarded oldest first by `at` then `seq`; folding a repeat into an existing row does not toast again. Removed IDs are forgotten, so a later notice reusing one can toast again. A null or undefined callback still marks new IDs as seen: enabling it later does not replay them. Changing stores starts a new subscription; unmounting unsubscribes.
-
-### Labels
-
-Pass `labels` to override strings in `DEFAULT_ALERTS_LABELS`:
-
-| Label | Default | Used for |
-|---|---|---|
-| `title` | `Notices` | Strip's accessible group name. |
-| `listTitle` | `All notices` | Dialog title and default grid name. |
-| `listDescription` | `Every notice, newest first.` | Dialog description. |
-| `dismiss` | `Dismiss` | Dismiss button's accessible name, followed by `: ` and the notice title. |
-| `clearAll` | `Clear all` | Clear button. |
-| `more` | `{n} more` | More button; the first `{n}` is replaced with the locale-formatted hidden count. |
-| `times` | `×` | Prefix before repeat counts. |
-| `empty` | `No notices.` | Empty strip and grid. |
-| `time` | `Time` | Time column header. |
-| `severity` | `Severity` | Severity column header. |
-| `message` | `Message` | Message column header. |
-| `count` | `Count` | Count column header. |
-
-The title column header is hardcoded as `Title`; `labels.title` does not change it. Supply custom columns to rename it.
+Existing IDs are skipped on subscription. Newly observed IDs are forwarded oldest first within a batch; a repeat folded into an existing ID does not toast again. Removed IDs are forgotten, so a later reused ID can toast. A null or undefined callback still marks IDs seen; enabling it later does not replay them. Changing stores starts a new subscription, and unmounting unsubscribes.
 
 ### Tokens
 
-`AlertTone` accepts `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`. The exported `ALERT_TONE_BAR` and `ALERT_TONE_TEXT` maps provide the corresponding background and text classes. Without a tone, the strip uses a border-colored bar and uncolored severity text. The install adds the five trading tokens and their soft variants if absent; `primary` and `destructive` use your theme's tokens.
+`AlertTone` accepts `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`. `ALERT_TONE_BAR` and `ALERT_TONE_TEXT` remain exported for custom decoration. Item tone colors its start border; severity tone colors its text independently, so pass the tone to both when desired. Include a non-color cue in custom compositions. The install adds the five trading tokens and their soft variants if absent; `primary` and `destructive` come from your theme.

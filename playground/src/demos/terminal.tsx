@@ -1,7 +1,8 @@
+import type { Alert } from "@/registry/tradecn/lib/alert-store"
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { QuotePanel as TwoWayPanel, type QuoteAction, type QuoteRow } from "@/registry/tradecn/blocks/quote-panel/quote-panel"
 import { RfqTicket, type RfqAction, type RfqInquiry, type RfqLevels } from "@/registry/tradecn/blocks/rfq-ticket/rfq-ticket"
@@ -23,7 +24,7 @@ import { createRowStore, type RowId, type RowStore, type RowView } from "@/regis
 import { createSessionCalendar } from "@/registry/tradecn/lib/session-calendar"
 import { WINDOW_SET_SLOT, mainWindow, readWindowSet, windowSetOf, writeWindowSet } from "@/registry/tradecn/lib/window-set"
 import type { WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
-import { Alerts, type AlertAction } from "@/registry/tradecn/ui/alerts"
+import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertAction, AlertDismiss, AlertHistory, useAlert, useAlertView } from "@/registry/tradecn/ui/alerts"
 import { AuditTrail, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
 import { Blotter, blotterColumns, type BlotterAction, type BlotterRow } from "@/registry/tradecn/ui/blotter"
 import { ColumnChooser } from "@/registry/tradecn/ui/column-chooser"
@@ -1554,7 +1555,7 @@ export default function TerminalDemo() {
       }, 600),
     )
   useEffect(() => desk.start(), [desk])
-  const alertActions = useMemo<AlertAction[]>(
+  const alertActions = useMemo<NoticeAction[]>(
     () => [
       {
         id: "reconnect",
@@ -1579,7 +1580,7 @@ export default function TerminalDemo() {
                 <SessionGuard expiresAt={sessionEndsAt} onReauthenticate={renew} className="border-b border-border px-2 py-1">
                   <p className="text-muted-foreground">A desk's sign-in goes here: a password, a token prompt, or one button to the identity provider. Nothing on the desk has moved.</p>
                 </SessionGuard>
-                <Alerts alerts={desk.alerts} visible={1} ttlMs={12_000} assertive={["critical"]} actions={alertActions} className="border-b border-border px-2 py-1" />
+                <DeskAlerts alerts={desk.alerts} actions={alertActions} />
                 <Workspace className="min-h-0 flex-1" panels={PANELS} seed={seed} onLayoutChange={setLayout} onReady={desk.attach} watermark="No panels. Open Layouts and reset the desk." />
                 <Foot sessionEndsAt={sessionEndsAt} />
                 <Dialogs dialog={dialog} setDialog={setDialog} layout={layout} />
@@ -1589,5 +1590,45 @@ export default function TerminalDemo() {
         </DeskContext.Provider>
       </LinkGroupProvider>
     </HotkeysProvider>
+  )
+}
+
+type NoticeAction = { id: string; label: string; onAction: (alert: Alert) => void }
+
+function Notice({ alerts, id, actions, ttlMs }: { alerts: AlertStore; id: string; actions: NoticeAction[]; ttlMs?: number }) {
+  const alert = useAlert(alerts, id, { ttlMs })
+  if (!alert) return null
+  return (
+    <AlertItem tone={alert.tone} data-alert-id={id} data-severity={alert.severity}>
+      <AlertHeader>
+        <AlertSeverity tone={alert.tone}>{alert.severity}</AlertSeverity>
+        <AlertTitle>{alert.title}</AlertTitle>
+        {alert.count > 1 && <span className="text-muted-foreground" data-alert-count={alert.count}>×{alert.count}</span>}
+        <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)} />
+      </AlertHeader>
+      {alert.message && <AlertBody>{alert.message}</AlertBody>}
+      <AlertActions>{actions.map((action) => <AlertAction key={action.id} alert={alert} action={action.id} onAction={action.onAction}>{action.label}</AlertAction>)}</AlertActions>
+    </AlertItem>
+  )
+}
+
+function DeskAlerts({ alerts, actions }: { alerts: AlertStore; actions: NoticeAction[] }) {
+  const ids = useRowIds(useAlertView(alerts))
+  return (
+    <Dialog>
+      <Alerts className="border-b border-border px-2 py-1">
+        <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
+        <AlertsList>{ids.slice(0, 1).map((id) => <Notice key={id} alerts={alerts} id={id} actions={actions} ttlMs={12_000} />)}</AlertsList>
+        {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
+        <div className="flex gap-2">
+          {ids.length > 1 && <DialogTrigger className={buttonVariants({ variant: "ghost", size: "sm" })}>{ids.length - 1} more</DialogTrigger>}
+          {ids.length > 0 && <Button variant="ghost" size="sm" onClick={() => alerts.clear()}>Clear all</Button>}
+        </div>
+      </Alerts>
+      <DialogContent className="min-w-0 sm:max-w-3xl">
+        <DialogHeader><DialogTitle>All notices</DialogTitle><DialogDescription>Every notice, newest first.</DialogDescription></DialogHeader>
+        <div className="h-80 min-w-0"><AlertHistory alerts={alerts} /></div>
+      </DialogContent>
+    </Dialog>
   )
 }

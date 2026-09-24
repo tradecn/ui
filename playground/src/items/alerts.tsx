@@ -1,7 +1,28 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { createAlertStore, type Alert, type AlertTone } from "@/registry/tradecn/lib/alert-store"
-import { AlertList, Alerts, useToastBridge } from "@/registry/tradecn/ui/alerts"
+import { createAlertStore, type Alert, type AlertStore, type AlertTone } from "@/registry/tradecn/lib/alert-store"
+import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertAction, AlertDismiss, AlertHistory, useAlert, useAlertView, useToastBridge } from "@/registry/tradecn/ui/alerts"
+
+import { useRowIds } from "@/registry/tradecn/hooks/use-row-store"
+
+type NoticeAction = { id: string; label: string; onAction: (alert: Alert) => void }
+
+function Notice({ alerts, id, actions, ttlMs }: { alerts: AlertStore; id: string; actions: NoticeAction[]; ttlMs?: number }) {
+  const alert = useAlert(alerts, id, { ttlMs })
+  if (!alert) return null
+  return (
+    <AlertItem tone={alert.tone} data-alert-id={id} data-severity={alert.severity}>
+      <AlertHeader>
+        <AlertSeverity tone={alert.tone}>{alert.severity}</AlertSeverity>
+        <AlertTitle>{alert.title}</AlertTitle>
+        {alert.count > 1 && <span className="text-muted-foreground" data-alert-count={alert.count}>×{alert.count}</span>}
+        <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)} />
+      </AlertHeader>
+      {alert.message && <AlertBody>{alert.message}</AlertBody>}
+      <AlertActions>{actions.map((action) => <AlertAction key={action.id} alert={alert} action={action.id} onAction={action.onAction}>{action.label}</AlertAction>)}</AlertActions>
+    </AlertItem>
+  )
+}
 
 // The close: a burst of events into the store, most of them folding into a few rows by key, the strip
 // showing the newest three, the whole list beside it as a grid, and the toast bridge counting what it
@@ -27,6 +48,7 @@ function seeded() {
 
 export function AlertsScene() {
   const [alerts] = useState(seeded)
+  const ids = useRowIds(useAlertView(alerts))
   const [burst, setBurst] = useState(false)
   const [visible, setVisible] = useState(3)
   const [ttl, setTtl] = useState<number | undefined>(undefined)
@@ -69,9 +91,14 @@ export function AlertsScene() {
         </span>
       </div>
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[28rem_1fr]">
-        <Alerts alerts={alerts} visible={visible} ttlMs={ttl} assertive={["critical"]} actions={[{ id: "reconnect", label: "Reconnect", onAction: act("reconnect") }, { id: "resubscribe", label: "Resubscribe", onAction: act("resubscribe") }, { id: "ack", label: "Acknowledge", onAction: act("ack") }]} className="self-start" />
+        <Alerts className="self-start">
+          <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
+          <AlertsList>{ids.slice(0, visible).map((id) => <Notice key={id} alerts={alerts} id={id} ttlMs={ttl} actions={[{ id: "reconnect", label: "Reconnect", onAction: act("reconnect") }, { id: "resubscribe", label: "Resubscribe", onAction: act("resubscribe") }, { id: "ack", label: "Acknowledge", onAction: act("ack") }]} />)}</AlertsList>
+          {ids.length === 0 ? <AlertsEmpty>No notices.</AlertsEmpty> : <Button variant="ghost" size="sm" onClick={() => alerts.clear()}>Clear all</Button>}
+          {ids.length > visible && <p>{ids.length - visible} more in the history panel</p>}
+        </Alerts>
         <div className="min-h-0">
-          <AlertList alerts={alerts} label="Every notice" />
+          <AlertHistory alerts={alerts} label="Every notice" />
         </div>
       </div>
     </main>

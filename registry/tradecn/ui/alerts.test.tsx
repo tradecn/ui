@@ -1,8 +1,9 @@
 import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react"
-import { StrictMode } from "react"
+import { createRef, StrictMode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createAlertStore, type Alert } from "@/registry/tradecn/lib/alert-store"
-import { ALERT_TONE_BAR, AlertList, Alerts, alertColumns, useToastBridge } from "@/registry/tradecn/ui/alerts"
+import { createAlertStore, type Alert, type AlertStore } from "@/registry/tradecn/lib/alert-store"
+import { useRowIds } from "@/registry/tradecn/hooks/use-row-store"
+import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertActions, AlertAction, AlertDismiss, AlertHistory, AlertSeverity, alertColumns, useAlert, useAlertView, useToastBridge, type UseAlertOptions } from "@/registry/tradecn/ui/alerts"
 
 const RECT = { width: 800, height: 240 }
 const saved = new Map<string, PropertyDescriptor | undefined>()
@@ -47,183 +48,206 @@ function seeded(now: () => number) {
   return alerts
 }
 
-describe("Alerts", () => {
-  it("shows the newest few with the severity word, the tone, the message, the count, the time, and says how many more there are", () => {
-    const c = clock()
-    const alerts = seeded(c.now)
-    c.tick(10)
-    alerts.push({ key: "md:slow", severity: "warning", title: "Feed slow", message: "2.0 s behind", tone: "stale", allowedActions: ["reconnect"] })
-    render(<Alerts alerts={alerts} time={printTime} />)
-    const strip = screen.getByRole("group", { name: "Notices" })
-    expect(strip.dataset.slot).toBe("tradecn-alerts")
-    expect(strip.dataset.count).toBe("4")
-    expect(strip.dataset.shown).toBe("3")
-    // The folded notice took the newest time, so it leads; the two at one time run by id, newest id first.
-    const rows = [...strip.querySelectorAll<HTMLElement>("li[data-alert-id]")]
-    expect(rows.map((li) => li.dataset.alertId)).toEqual(["n2", "n4", "n3"])
-    const slow = rows[0]!
-    expect(slow.dataset.severity).toBe("warning")
-    expect(slow.dataset.tone).toBe("stale")
-    expect(within(slow).getByText("warning")).toBeInTheDocument()
-    expect(within(slow).getByText("2.0 s behind")).toBeInTheDocument()
-    expect(slow.querySelector("[data-alert-count]")).toHaveAttribute("data-alert-count", "2")
-    expect(slow.querySelector("[data-alert-count]")).toHaveTextContent("×2")
-    expect(slow.querySelector("[data-alert-bar]")?.className).toContain(ALERT_TONE_BAR.stale)
-    expect(within(slow).getByText("t1010")).toBeInTheDocument()
-    expect(rows[1]!.querySelector("[data-alert-count]")).toBeNull()
-    expect(screen.getByRole("button", { name: "1 more" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Clear all" })).toBeInTheDocument()
-  })
+function Notice({ alerts, id, options, onAction }: { alerts: AlertStore; id: string; options?: UseAlertOptions; onAction?: (alert: Alert) => void }) {
+  const alert = useAlert(alerts, id, options)
+  if (!alert) return null
+  return (
+    <AlertItem tone={alert.tone} data-alert-id={id}>
+      <AlertHeader>
+        <AlertTitle>{alert.title}</AlertTitle>
+        <AlertSeverity tone={alert.tone}>{alert.severity}</AlertSeverity>
+      </AlertHeader>
+      <AlertBody>{alert.message} <span data-alert-count>{alert.count}</span></AlertBody>
+      <AlertActions>
+        {onAction && <AlertAction alert={alert} action="ack" onAction={onAction}>Acknowledge</AlertAction>}
+        <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)} />
+      </AlertActions>
+    </AlertItem>
+  )
+}
 
-  it("shows a repeat folded into the notice already at the top, whose row changes but whose place does not", () => {
-    const c = clock()
-    const alerts = seeded(c.now)
-    render(<Alerts alerts={alerts} assertive={["warning"]} />)
-    expect(document.querySelector('li[data-alert-id="n4"]')).toBeInTheDocument()
-    // Fold into the newest row twice: the order is the same each time, the count is not.
-    act(() => {
-      c.tick(1)
-      alerts.push({ key: "md:rejected", id: "n4", severity: "critical", title: "Order rejected" })
-    })
-    // n4 has no key, so that was a new row; give the top row a key and fold into it instead.
-    act(() => {
-      c.tick(1)
-      alerts.push({ key: "top", severity: "warning", title: "Top", tone: "stale" })
-    })
-    const top = () => document.querySelector<HTMLElement>("li[data-alert-id]")!
-    expect(top()).toHaveAttribute("data-severity", "warning")
-    expect(top().querySelector("[data-alert-count]")).toBeNull()
-    act(() => {
-      c.tick(1)
-      alerts.push({ key: "top", severity: "warning", title: "Top", tone: "stale", message: "again" })
-    })
-    expect(top().querySelector("[data-alert-count]")).toHaveTextContent("×2")
-    expect(within(top()).getByText("again")).toBeInTheDocument()
-    act(() => {
-      c.tick(1)
-      alerts.push({ key: "top", severity: "warning", title: "Top", tone: "stale", message: "and again" })
-    })
-    expect(top().querySelector("[data-alert-count]")).toHaveTextContent("×3")
-    expect(document.querySelector("[data-alerts-assertive]")).toHaveTextContent("warning: Top. and again (3)")
-  })
+function Collection({ alerts, visible = 3, options, onAction }: { alerts: AlertStore; visible?: number; options?: UseAlertOptions; onAction?: (alert: Alert) => void }) {
+  const ids = useRowIds(useAlertView(alerts)).slice(0, visible)
+  return (
+    <Alerts>
+      <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
+      <AlertsList>{ids.map((id) => <Notice key={id} alerts={alerts} id={id} options={options} onAction={onAction} />)}</AlertsList>
+      {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
+    </Alerts>
+  )
+}
 
-  it("offers only the actions a notice allows, in your order with your labels, and dismisses and clears through the store", () => {
-    const alerts = seeded(clock().now)
-    const onAction = vi.fn()
-    render(<Alerts alerts={alerts} actions={[{ id: "ack", label: "Acknowledge", onAction }, { id: "reconnect", label: "Reconnect", onAction }, { id: "pause", label: "Pause", onAction }]} visible={4} />)
-    const slow = document.querySelector<HTMLElement>('li[data-alert-id="n2"]')!
-    expect([...slow.querySelectorAll<HTMLElement>("[data-alert-action]")].map((b) => b.textContent)).toEqual(["Reconnect"])
-    const rejected = document.querySelector<HTMLElement>('li[data-alert-id="n4"]')!
-    fireEvent.click(within(rejected).getByRole("button", { name: "Acknowledge" }))
-    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ id: "n4", severity: "critical" }))
-    expect(document.querySelector('li[data-alert-id="n1"] [data-alert-action]')).toBeNull()
-    fireEvent.click(within(rejected).getByRole("button", { name: "Dismiss: Order rejected" }))
-    expect(alerts.size()).toBe(3)
-    expect(document.querySelector('li[data-alert-id="n4"]')).toBeNull()
-    fireEvent.click(screen.getByRole("button", { name: "Clear all" }))
-    expect(alerts.size()).toBe(0)
-    expect(screen.getByText("No notices.")).toBeInTheDocument()
+describe("notice composition", () => {
+  it("works without a store, forwards native props and refs, and leaves content and controls to the caller", () => {
+    const root = createRef<HTMLDivElement>()
+    const list = createRef<HTMLUListElement>()
+    const item = createRef<HTMLLIElement>()
+    const body = createRef<HTMLDivElement>()
+    const dismiss = vi.fn()
+    render(
+      <Alerts ref={root} aria-label="Desk notices" className="custom-root" data-owner="desk">
+        <button type="button">Consumer toolbar</button>
+        <AlertsList ref={list} aria-label="Messages">
+          <AlertItem ref={item} tone="stale">
+            <AlertBody ref={body} className="custom-body"><a href="/orders/42">View order</a><p>Custom rich content.</p></AlertBody>
+            <AlertHeader><AlertTitle>Caller title</AlertTitle><AlertSeverity>warning</AlertSeverity></AlertHeader>
+            <AlertActions><AlertDismiss onClick={dismiss}>Remove notice</AlertDismiss></AlertActions>
+          </AlertItem>
+        </AlertsList>
+      </Alerts>,
+    )
+    expect(root.current).toBe(screen.getByRole("group", { name: "Desk notices" }))
+    expect(root.current).toHaveAttribute("data-owner", "desk")
+    expect(root.current).toHaveClass("custom-root")
+    expect(list.current).toBe(screen.getByRole("list", { name: "Messages" }))
+    expect(item.current).toBe(screen.getByRole("listitem"))
+    expect(item.current?.firstElementChild).toBe(body.current)
+    expect(body.current).toHaveClass("custom-body")
+    expect(screen.getByRole("link", { name: "View order" })).toHaveAttribute("href", "/orders/42")
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
+    expect(dismiss).toHaveBeenCalledOnce()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(screen.queryByRole("alert")).toBeNull()
     expect(screen.queryByRole("button", { name: "Clear all" })).toBeNull()
   })
 
-  it("dismisses a notice without an action after ttlMs and never one with an action, and takes no focus", () => {
-    vi.useFakeTimers()
+  it("follows newest-first IDs while a repeat updates the mounted notice and announcement", () => {
     const c = clock()
     const alerts = seeded(c.now)
-    render(<Alerts alerts={alerts} ttlMs={5_000} now={c.now} visible={4} />)
+    render(<Collection alerts={alerts} />)
+    expect([...document.querySelectorAll<HTMLElement>("li[data-alert-id]")].map((row) => row.dataset.alertId)).toEqual(["n4", "n3", "n2"])
+    act(() => { c.tick(1); alerts.push({ key: "top", severity: "critical", title: "Top" }) })
+    act(() => { c.tick(1); alerts.push({ key: "top", severity: "critical", title: "Top", message: "Again" }) })
+    const row = document.querySelector<HTMLElement>("li[data-alert-id]")!
+    expect(row.querySelector("[data-alert-count]")).toHaveTextContent("2")
+    expect(within(row).getByText(/Again/)).toBeInTheDocument()
+    expect(document.querySelector("[data-alerts-assertive]")).toHaveTextContent("critical: Top. Again (2)")
+  })
+
+  it("offers an allowed action with caller-owned content and updates when permissions change", () => {
+    const alerts = seeded(clock().now)
+    const onAction = vi.fn()
+    render(<Collection alerts={alerts} visible={4} onAction={onAction} />)
+    fireEvent.click(screen.getByRole("button", { name: "Acknowledge" }))
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ id: "n4" }))
     expect(alerts.size()).toBe(4)
-    expect(document.activeElement).toBe(document.body)
-    act(() => {
-      c.tick(4_999)
-      vi.advanceTimersByTime(4_999)
-    })
-    expect(alerts.size()).toBe(4)
-    act(() => {
-      c.tick(1)
-      vi.advanceTimersByTime(1)
-    })
-    // The two without actions are gone; the two with actions stay for as long as it takes.
-    expect(alerts.list().map((a) => a.id).sort()).toEqual(["n2", "n4"])
-    act(() => {
-      c.tick(60_000)
-      vi.advanceTimersByTime(60_000)
-    })
-    expect(alerts.size()).toBe(2)
-    // A notice arriving later gets its own clock, and a repeat folded into it starts the clock again.
-    act(() => alerts.push({ key: "later", severity: "info", title: "Later" }))
-    act(() => {
-      c.tick(4_000)
-      vi.advanceTimersByTime(4_000)
-    })
+    act(() => alerts.store.applyDeltas({ patch: [{ id: "n4", fields: { allowedActions: [] } }] }))
+    expect(screen.queryByRole("button", { name: "Acknowledge" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss: Order rejected" }))
     expect(alerts.size()).toBe(3)
-    act(() => alerts.push({ key: "later", severity: "info", title: "Later" }))
-    act(() => {
-      c.tick(4_000)
-      vi.advanceTimersByTime(4_000)
-    })
-    expect(alerts.size()).toBe(3)
-    act(() => {
-      c.tick(1_000)
-      vi.advanceTimersByTime(1_000)
-    })
-    expect(alerts.size()).toBe(2)
-    expect(document.activeElement).toBe(document.body)
+    act(() => alerts.clear())
+    expect(screen.getByText("No notices.")).toBeInTheDocument()
   })
 
-  it("announces the newest notice politely, and at once only for a severity you name", () => {
-    const alerts = seeded(clock().now)
-    render(<Alerts alerts={alerts} assertive={["critical"]} />)
-    const polite = document.querySelector("[data-alerts-polite]")!
-    const urgent = document.querySelector("[data-alerts-assertive]")!
-    expect(polite).toHaveAttribute("role", "status")
-    expect(polite).toHaveAttribute("aria-live", "polite")
-    expect(urgent).toHaveAttribute("role", "alert")
-    expect(urgent).toHaveAttribute("aria-live", "assertive")
-    expect(urgent).toHaveTextContent("critical: Order rejected. Price away from market")
-    expect(polite).toHaveTextContent("")
-    act(() => alerts.push({ severity: "info", title: "Feed reconnected" }))
-    expect(polite).toHaveTextContent("info: Feed reconnected")
-    expect(urgent).toHaveTextContent("")
-  })
-
-  it("opens the whole list in your dialog as a grid, newest first, from the more button", () => {
-    const alerts = seeded(clock().now)
-    render(<Alerts alerts={alerts} time={printTime} />)
-    expect(screen.queryByRole("dialog")).toBeNull()
-    fireEvent.click(screen.getByRole("button", { name: "1 more" }))
-    const dialog = screen.getByRole("dialog", { name: "All notices" })
-    const grid = within(dialog).getByRole("grid", { name: "All notices" })
-    expect(grid).toHaveAttribute("aria-rowcount", "5")
-    expect([...grid.querySelectorAll<HTMLElement>("[data-row-id]")].map((r) => r.dataset.rowId)).toEqual(["n4", "n3", "n2", "n1"])
-    expect(within(grid).getByText("critical")).toBeInTheDocument()
-    expect(within(grid).getByText("Price away from market")).toBeInTheDocument()
-  })
-
-  it("takes its words from labels", () => {
-    const alerts = seeded(clock().now)
-    render(<Alerts alerts={alerts} labels={{ title: "Meldungen", more: "{n} weitere", clearAll: "Alle löschen", dismiss: "Schließen" }} />)
-    expect(screen.getByRole("group", { name: "Meldungen" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "1 weitere" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Alle löschen" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Schließen: Order rejected" })).toBeInTheDocument()
+  it("forwards an action button's ref, accessible name, and disabled state", () => {
+    const alert = seeded(clock().now).store.getRow("n4")!
+    const ref = createRef<HTMLButtonElement>()
+    const onAction = vi.fn()
+    const { rerender } = render(<AlertAction ref={ref} alert={alert} action="ack" aria-label="Acknowledge rejection" disabled onAction={onAction}><span>Confirm</span></AlertAction>)
+    const button = screen.getByRole("button", { name: "Acknowledge rejection" })
+    expect(ref.current).toBe(button)
+    expect(button).toBeDisabled()
+    fireEvent.click(button)
+    expect(onAction).not.toHaveBeenCalled()
+    rerender(<AlertAction ref={ref} alert={alert} action="ack" aria-label="Acknowledge rejection" onAction={onAction}><span>Confirm</span></AlertAction>)
+    fireEvent.click(button)
+    expect(onAction).toHaveBeenCalledWith(alert)
   })
 })
 
-describe("AlertList and alertColumns", () => {
-  it("is the grid over the store, newest first, with the columns as a list to spread", () => {
+describe("useAlert", () => {
+  it("updates only the subscribed row", () => {
     const alerts = seeded(clock().now)
-    expect(alertColumns().map((c) => c.key)).toEqual(["at", "severity", "title", "message", "count"])
-    render(
-      <div style={{ height: 240 }}>
-        <AlertList alerts={alerts} label="Log" />
-      </div>,
-    )
-    const grid = screen.getByRole("grid", { name: "Log" })
-    expect(document.querySelector("[data-slot='tradecn-alert-list']")).toBeInTheDocument()
-    expect(grid.dataset.preset).toBe("blotter")
-    expect([...grid.querySelectorAll<HTMLElement>("[data-row-id]")].map((r) => r.dataset.rowId)).toEqual(["n4", "n3", "n2", "n1"])
-    act(() => alerts.push({ severity: "info", title: "Newest" }))
-    expect(grid.querySelector("[data-row-id]")).toHaveAttribute("data-row-id", "n5")
+    const rendered = vi.fn()
+    const { result } = renderHook(() => { rendered(); return useAlert(alerts, "n1") })
+    expect(rendered).toHaveBeenCalledTimes(1)
+    act(() => alerts.store.applyDeltas({ patch: [{ id: "n2", fields: { title: "Other row" } }] }))
+    expect(rendered).toHaveBeenCalledTimes(1)
+    act(() => alerts.store.applyDeltas({ patch: [{ id: "n1", fields: { title: "Changed" } }] }))
+    expect(result.current?.title).toBe("Changed")
+    expect(rendered).toHaveBeenCalledTimes(2)
+  })
+
+  it("expires only mounted plain notices, restarts on repeats, and never expires actionable notices", () => {
+    vi.useFakeTimers()
+    const c = clock()
+    const alerts = seeded(c.now)
+    render(<Collection alerts={alerts} options={{ ttlMs: 5_000, now: c.now }} />)
+    act(() => { c.tick(5_000); vi.advanceTimersByTime(5_000) })
+    expect(alerts.store.getRow("n3")).toBeUndefined()
+    // The previously hidden row mounts after n3 expires and schedules its already-due timer.
+    act(() => vi.advanceTimersByTime(0))
+    expect(alerts.store.getRow("n1")).toBeUndefined()
+    expect(alerts.size()).toBe(2)
+    act(() => alerts.push({ key: "later", severity: "info", title: "Later" }))
+    act(() => { c.tick(4_000); vi.advanceTimersByTime(4_000) })
+    act(() => alerts.push({ key: "later", severity: "info", title: "Later" }))
+    act(() => { c.tick(4_000); vi.advanceTimersByTime(4_000) })
+    expect(alerts.size()).toBe(3)
+    act(() => { c.tick(1_000); vi.advanceTimersByTime(1_000) })
+    expect(alerts.size()).toBe(2)
+    act(() => { c.tick(60_000); vi.advanceTimersByTime(60_000) })
+    expect(alerts.size()).toBe(2)
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it("keeps hidden rows, cleans up timers on unmount, and follows store and ID replacements", () => {
+    vi.useFakeTimers()
+    const c = clock()
+    const first = seeded(c.now)
+    const second = seeded(c.now)
+    const { result, rerender, unmount } = renderHook(({ alerts, id }) => useAlert(alerts, id, { ttlMs: 1_000, now: c.now }), { initialProps: { alerts: first, id: "n1" } })
+    rerender({ alerts: second, id: "n3" })
+    expect(result.current?.id).toBe("n3")
+    act(() => { c.tick(1_000); vi.advanceTimersByTime(1_000) })
+    expect(first.size()).toBe(4)
+    expect(second.store.getRow("n3")).toBeUndefined()
+    expect(second.store.getRow("n1")).toBeDefined()
+    rerender({ alerts: second, id: "n1" })
+    unmount()
+    act(() => vi.runAllTimers())
+    expect(second.store.getRow("n1")).toBeDefined()
+  })
+
+  it("disables an existing timer when actions arrive and enables expiry when they are removed", () => {
+    vi.useFakeTimers()
+    const c = clock()
+    const alerts = seeded(c.now)
+    renderHook(() => useAlert(alerts, "n1", { ttlMs: 1_000, now: c.now }))
+    act(() => alerts.store.applyDeltas({ patch: [{ id: "n1", fields: { allowedActions: ["unmapped-action"] } }] }))
+    act(() => { c.tick(2_000); vi.advanceTimersByTime(2_000) })
+    expect(alerts.store.getRow("n1")).toBeDefined()
+    act(() => alerts.store.applyDeltas({ patch: [{ id: "n1", fields: { allowedActions: [] } }] }))
+    act(() => vi.advanceTimersByTime(0))
+    expect(alerts.store.getRow("n1")).toBeUndefined()
+  })
+})
+
+describe("AlertsAnnouncer", () => {
+  it("announces only the chosen notice, switches urgency, and permits an empty selection", () => {
+    const alerts = seeded(clock().now)
+    const { rerender } = render(<AlertsAnnouncer alerts={alerts} id="n4" assertive={["critical"]} />)
+    expect(screen.getByRole("alert")).toHaveTextContent("critical: Order rejected. Price away from market")
+    expect(screen.getByRole("status")).toBeEmptyDOMElement()
+    rerender(<AlertsAnnouncer alerts={alerts} id="n1" assertive={["critical"]} />)
+    expect(screen.getByRole("status")).toHaveTextContent("info: Feed connected")
+    expect(screen.getByRole("alert")).toBeEmptyDOMElement()
+    rerender(<AlertsAnnouncer alerts={alerts} id={null} />)
+    expect(screen.getByRole("status")).toBeEmptyDOMElement()
+    expect(screen.getByRole("alert")).toBeEmptyDOMElement()
+  })
+})
+
+describe("AlertHistory and alertColumns", () => {
+  it("renders the independent grid and permits caller-owned columns and labels", () => {
+    const alerts = seeded(clock().now)
+    expect(alertColumns().map((column) => column.key)).toEqual(["at", "severity", "title", "message", "count"])
+    expect(alertColumns({ labels: { noticeTitle: "Subject" } })[2]!.header).toBe("Subject")
+    const columns = alertColumns({ time: printTime }).filter((column) => column.key !== "severity")
+    render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Log" columns={columns} /></div>)
+    expect(screen.getByRole("grid", { name: "Log" })).toHaveAttribute("aria-rowcount", "5")
+    expect(screen.queryByRole("columnheader", { name: "Severity" })).toBeNull()
+    expect(document.querySelector("[data-row-id]")).toHaveAttribute("data-row-id", "n4")
   })
 })
 
@@ -255,20 +279,16 @@ describe("useToastBridge", () => {
   })
 })
 
-// Keep the type in use so a change to Alert's shape is caught here too.
-const _shape: Alert = { id: "x", at: 0, seq: 1, severity: "s", title: "t", count: 1 }
-void _shape
-
 describe("under StrictMode", () => {
-  it("the strip keeps following the store after the mount rehearsal", () => {
-    const alerts = createAlertStore()
-    render(
-      <StrictMode>
-        <Alerts alerts={alerts} />
-      </StrictMode>,
-    )
+  it("keeps following arrivals and cleans up the expiry hook after the mount rehearsal", () => {
+    vi.useFakeTimers()
+    const c = clock()
+    const alerts = createAlertStore({ now: c.now })
+    render(<StrictMode><Collection alerts={alerts} options={{ ttlMs: 1_000, now: c.now }} /></StrictMode>)
     expect(screen.getByText("No notices.")).toBeInTheDocument()
     act(() => alerts.push({ severity: "info", title: "Later" }))
-    expect(document.querySelector("li[data-alert-id]")).toHaveTextContent("Later")
+    expect(screen.getByText("Later")).toBeInTheDocument()
+    act(() => { c.tick(1_000); vi.advanceTimersByTime(1_000) })
+    expect(screen.getByText("No notices.")).toBeInTheDocument()
   })
 })

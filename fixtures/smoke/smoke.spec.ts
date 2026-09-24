@@ -778,11 +778,11 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   await expect(strip.locator("li[data-alert-id='up']")).toHaveCount(0)
   await expect(strip.locator("li[data-tone='destructive'] [data-alert-severity]")).toHaveText("critical")
   const painted = await page.evaluate(() => {
-    const bar = document.querySelector("section[data-scene='alerts'] li[data-tone='destructive'] [data-alert-bar]")!
+    const bar = document.querySelector("section[data-scene='alerts'] li[data-tone='destructive']")!
     const probe = document.createElement("i")
     probe.style.backgroundColor = "var(--destructive)"
     document.body.append(probe)
-    const out = { bar: getComputedStyle(bar).backgroundColor, token: getComputedStyle(probe).backgroundColor }
+    const out = { bar: getComputedStyle(bar).borderInlineStartColor, token: getComputedStyle(probe).backgroundColor }
     probe.remove()
     return out
   })
@@ -795,7 +795,8 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   await expect(strip).toHaveAttribute("data-count", "4")
   await expect(strip.locator("li[data-alert-id='slow'] [data-alert-action]")).toHaveText(["Reconnect"])
   await expect(strip.locator("li[data-alert-id='fill'] [data-alert-action]")).toHaveCount(0)
-  await strip.locator("li[data-alert-id='slow'] [data-alert-action='reconnect']").click()
+  await strip.locator("li[data-alert-id='slow'] [data-alert-action='reconnect']").focus()
+  await page.keyboard.press("Enter")
   await expect(scene.locator("[data-alerts-acted]")).toHaveAttribute("data-alerts-acted", "reconnect:slow")
   await strip.getByRole("button", { name: "1 more" }).click()
   const dialog = page.getByRole("dialog", { name: "All notices" })
@@ -803,6 +804,7 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   await expect(dialog.locator("[data-row-id]").first()).toHaveAttribute("data-row-id", "slow")
   await page.keyboard.press("Escape")
   await expect(dialog).toHaveCount(0)
+  await expect(strip.getByRole("button", { name: "1 more" })).toBeFocused()
   await strip.getByRole("button", { name: "Dismiss: Order rejected" }).click()
   await expect(strip).toHaveAttribute("data-count", "3")
   await strip.getByRole("button", { name: "Clear all" }).click()

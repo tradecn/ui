@@ -1869,7 +1869,7 @@
       "name": "alerts",
       "type": "registry:ui",
       "title": "Alerts",
-      "description": "The strip of notices: the newest few, each with the severity as your word and the tone as a bar beside it, the count when one notice stands for many, the actions the server allowed, a dismiss, a clear-all, and a button that opens the whole list in the data grid. Over a store that coalesces by key and keeps to a cap, so a thousand events at the close are a few rows. It never takes focus; a screen reader hears a new notice politely, and at once only for a severity you name. With it, useToastBridge forwards each new notice to whatever toast you have.",
+      "description": "Composable notice containers, lists, headers, bodies, and actions. Supply your own markup and data, or use the included alert-store hooks for newest-first views, per-notice updates, expiry, and announcements. Add the optional history grid wherever it belongs in your application.",
       "categories": [
         "feed",
         "chrome"
@@ -1883,7 +1883,6 @@
         "button",
         "checkbox",
         "context-menu",
-        "dialog",
         "dropdown-menu"
       ],
       "files": [
@@ -1924,39 +1923,87 @@
         "components": [
           {
             "title": "Alerts",
-            "description": "The strip, the more button, and the dialog with the whole list."
+            "description": "The children-based notice container."
           },
           {
-            "title": "AlertList",
-            "description": "The whole list in the data grid, newest first, for a panel of your own."
+            "title": "AlertsList",
+            "description": "A semantic list of caller-composed notices."
           },
           {
-            "title": "alertColumns",
-            "description": "Time, severity, title, message, count, as a list to spread."
+            "title": "AlertItem",
+            "description": "One notice with an optional tone."
+          },
+          {
+            "title": "AlertHeader",
+            "description": "A notice header."
+          },
+          {
+            "title": "AlertTitle",
+            "description": "A notice title."
+          },
+          {
+            "title": "AlertBody",
+            "description": "Rich notice content."
+          },
+          {
+            "title": "AlertSeverity",
+            "description": "The caller’s severity word, optionally colored by tone."
+          },
+          {
+            "title": "AlertActions",
+            "description": "Caller-composed notice controls."
+          },
+          {
+            "title": "AlertAction",
+            "description": "An action button shown only when the notice allows it."
+          },
+          {
+            "title": "AlertDismiss",
+            "description": "A dismiss button wired by the caller."
+          },
+          {
+            "title": "AlertsEmpty",
+            "description": "Caller-controlled empty-state content."
+          },
+          {
+            "title": "AlertsAnnouncer",
+            "description": "Polite or assertive announcements for a selected notice."
+          },
+          {
+            "title": "useAlert",
+            "description": "Per-notice subscription and optional expiry while mounted."
           },
           {
             "title": "useAlertView",
-            "description": "A view of the store newest first."
+            "description": "A newest-first store view."
+          },
+          {
+            "title": "AlertHistory",
+            "description": "The optional history grid for a caller-owned panel or dialog."
+          },
+          {
+            "title": "alertColumns",
+            "description": "Customizable history columns."
           },
           {
             "title": "useToastBridge",
-            "description": "Forwards each new notice to your toast function; imports no toast package."
+            "description": "Forwards new notices to the caller’s toast adapter."
           },
           {
             "title": "ALERT_TONE_BAR",
-            "description": "The bar's class per tone."
+            "description": "Background classes per tone."
           },
           {
             "title": "ALERT_TONE_TEXT",
-            "description": "The severity's class per tone."
+            "description": "Text classes per tone."
           },
           {
-            "title": "DEFAULT_ALERTS_LABELS",
-            "description": "Every word on it, to replace in part."
+            "title": "DEFAULT_ALERT_HISTORY_LABELS",
+            "description": "Default grid labels."
           }
         ]
       },
-      "docs": "Installs the alert store and the data grid alongside and composes your badge, button, and dialog plus the checkbox, context-menu, and dropdown-menu the grid uses. Adds @tanstack/react-virtual and the up, down, flat, stale, and expiring tokens for the tones. Imports no toast package: useToastBridge takes your function.",
+      "docs": "Installs the optional alert store, history grid, and their hooks. Composes your badge and button plus the checkbox, context-menu, and dropdown-menu used by the grid. Adds @tanstack/react-virtual and trading tone tokens. Dialogs, sheets, collection mapping, and action content belong to the caller; install any extra shadcn presentation separately. Imports no toast package.",
       "cssVars": {
         "light": {
           "down": "oklch(0.46 0.19 40)",
