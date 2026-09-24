@@ -6,12 +6,25 @@ Show frame-gap statistics, a histogram against your frame budget, and each store
 
 ```tsx
 import { PerfMonitor } from "@/components/ui/perf-monitor"
-import { createFrameSampler } from "@/lib/frame-stats"
+
+function FrameHealth() {
+  return <PerfMonitor className="w-80 max-w-full" />
+}
 ```
 
-```tsx
-<PerfMonitor lanes={[{ label: "Market data", store: quotes }, { label: "Inquiries", store: inquiries }]} readouts={[{ label: "ipc batch", value: `${lastBatchRows} rows` }]} onReport={(report) => log.write(report)} />
-```
+Mount the monitor in the view you want to measure. It starts sampling after mount and reports four times a second, so an initial empty reading fills in as frames arrive. The histogram and numbers show measurements from your browser. The width here lets the readouts wrap on narrow screens.
+
+The monitor stops its sampler on unmount. It needs no row store, feed or load generator for ordinary frame measurements.
+
+## Measuring a grid
+
+Install [`data-grid`](data-grid.md) separately for this composition; it also supplies `row-store`. The example keeps 300 rows and applies one batch per animation frame when **Patches per frame** is above zero. Each patch updates a row's bid and ask; batches above 300 visit rows more than once. The fixture is deterministic and stays the same size.
+
+The load starts paused. Increase it to compare measurements, then return to zero to stop updates while the monitor keeps sampling. The Quotes lane shows the store's row count, batch rate, drops and age; `patches/frame` is an application readout. No producer drops are simulated. **Reset measurements** clears the supplied sampler's retained gaps and long-task count without changing the load or grid.
+
+The histogram's dashed line marks the frame budget. Measurements depend on the browser and machine; increasing this workload does not promise a particular p99 or dropped-frame count. Use the shared preview alignment control to keep the grid's left edge fixed while resizing columns.
+
+<!-- demo: perf-monitor-load -->
 
 ## API Reference
 
