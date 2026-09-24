@@ -5,15 +5,51 @@ A cell that flashes on change, colored up, down, or flat, as a fill or an inset 
 ## Usage
 
 ```tsx
+import { useState } from "react"
 import { FlashCell } from "@/components/ui/flash-cell"
+
+function PriceCell() {
+  const [quote, setQuote] = useState({ price: 100, change: 0 })
+
+  function receive(change: number) {
+    setQuote((previous) => ({ price: previous.price + change, change }))
+  }
+
+  return (
+    <>
+      <div data-demo-controls className="flex flex-wrap gap-2 text-xs lining-nums tabular-nums">
+        <button type="button" className="rounded border border-border px-2 py-1" onClick={() => receive(0.25)}>Price +0.25</button>
+        <button type="button" className="rounded border border-border px-2 py-1" onClick={() => receive(-0.25)}>Price −0.25</button>
+      </div>
+      <div className="w-28 max-w-full space-y-2 text-xs lining-nums tabular-nums">
+        <p className="text-muted-foreground">Price</p>
+        <FlashCell value={quote.price} className="px-2 py-1 text-right">{quote.price.toFixed(2)}</FlashCell>
+        <p role="status">{quote.change === 0 ? "No update yet" : quote.change > 0 ? "Up 0.25" : "Down 0.25"}</p>
+      </div>
+    </>
+  )
+}
 ```
 
-```tsx
-<FlashCell value={quote.px}>{format.price(quote.px)}</FlashCell>
-<FlashCell value={level.size} variant="ring">{level.size}</FlashCell>
-```
+`value` is watched, not printed. Supply the display as `children`; this example formats a supplied decimal price with `toFixed(2)`. Use an instrument formatter from [`format`](format.md) when the price needs another notation. Without children, the cell is empty.
 
-`value` is watched, not printed. Supply the display as `children`; `format` above is your instrument formatter from [`format`](format.md). Without children, the cell is empty.
+Choose either price control to send a quarter-point change. The first render is quiet; later increases and decreases flash for the default 900 ms. The text below the price shows the direction immediately and remains after the color clears.
+
+## Fill, ring, and repeated readings
+
+Both cells receive the same price. Fill tints the background; ring draws an inset outline. The controls supply positive, negative, or unchanged readings, and the caption records which reading arrived.
+
+**Repeat price** changes `revision` while keeping `value` equal. With `flashOnEqual`, that starts a flat flash. The example enables equal-value flashes only after a reading arrives, keeping the initial render quiet under development Strict Mode effect replay. Supplying the same value alone would not signal a new arrival.
+
+<!-- demo: flash-cell-readings -->
+
+## Remembering a flash across mounts
+
+Choose **Raise both prices**, then **Hide cells** and **Show cells** within five seconds. Both cells unmount while hidden. The local cell forgets its flash; the shared cell resumes the part of its original window that remains. After that window expires, showing the same price is quiet in both cells.
+
+This example extends `windowMs` to 5000 so there is time to hide and restore the cells. The parent owns one bounded memory record and keeps the price while the cells are absent. Each shared cell needs a stable, distinct `cellKey`; here there is only one. The price control is disabled while hidden so the comparison isolates a same-value remount.
+
+<!-- demo: flash-cell-memory -->
 
 ## API Reference
 
