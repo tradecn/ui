@@ -1,26 +1,33 @@
 import { useState } from "react"
-import { createAlertStore, type AlertStore } from "@/registry/tradecn/lib/alert-store"
-import { Alerts } from "@/registry/tradecn/ui/alerts"
+import { Alerts, AlertsList, AlertsEmpty, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertDismiss } from "@/registry/tradecn/ui/alerts"
 
-function restore(alerts: AlertStore) {
-  alerts.clear()
-  alerts.push({ severity: "info", tone: "up", title: "Feed connected" })
-  alerts.push({ severity: "fill", tone: "primary", title: "Order filled", message: "5mm UST at 99-16+" })
-}
+const initial = [
+  { id: "fill", severity: "fill", title: "Order filled", message: "5mm UST at 99-16+" },
+  { id: "feed", severity: "info", title: "Feed connected", message: "Market data is available." },
+]
 
 export default function AlertsDemo() {
-  const [alerts] = useState(() => {
-    const store = createAlertStore()
-    restore(store)
-    return store
-  })
-
+  const [notices, setNotices] = useState(initial)
   return (
     <>
       <div data-demo-controls className="text-xs">
-        <button type="button" className="rounded border border-border px-2 py-1" onClick={() => restore(alerts)}>Restore notices</button>
+        <button type="button" className="rounded border border-border px-2 py-1" onClick={() => setNotices(initial)}>Restore notices</button>
       </div>
-      <Alerts alerts={alerts} className="w-lg max-w-full" />
+      <Alerts className="w-lg max-w-full">
+        {notices.length > 0 && <AlertsList>
+          {notices.map((notice) => (
+            <AlertItem key={notice.id}>
+              <AlertHeader>
+                <AlertSeverity>{notice.severity}</AlertSeverity>
+                <AlertTitle>{notice.title}</AlertTitle>
+                <AlertDismiss aria-label={`Dismiss: ${notice.title}`} onClick={() => setNotices((rows) => rows.filter((row) => row.id !== notice.id))} />
+              </AlertHeader>
+              <AlertBody>{notice.message}</AlertBody>
+            </AlertItem>
+          ))}
+        </AlertsList>}
+        {notices.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
+      </Alerts>
     </>
   )
 }

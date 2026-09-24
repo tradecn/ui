@@ -97,4 +97,4 @@ Each push uses one synchronous `applyDeltas` batch, including any evictions. Met
 
 ### What it does not do
 
-The store has no timers or toast integration. Your application decides what severity means, when a notice expires, and what each action does. [`alerts`](alerts.md) provides the strip, full list, and optional toast bridge over this store.
+The store has no timers or toast integration. Your application decides what severity means, when a notice expires, and what each action does. [`alerts`](alerts.md) provides composable notice parts, subscription and expiry hooks, an optional history grid, and a toast bridge over this store.

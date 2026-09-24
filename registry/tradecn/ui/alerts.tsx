@@ -1,61 +1,140 @@
 import { cn } from "cn"
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type ComponentProps, type ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { useRow, useRowIds, useView } from "@/registry/tradecn/hooks/use-row-store"
+import { useRow, useView } from "@/registry/tradecn/hooks/use-row-store"
 import { byNewest, type Alert, type AlertStore, type AlertTone } from "@/registry/tradecn/lib/alert-store"
-import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
-import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
+import type { RowId, RowView } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, type ColumnDef, type DataGridPreset } from "@/registry/tradecn/ui/data-grid"
 
-// The strip of notices: the newest few, each with the severity as the consumer's word and the tone
-// as a bar beside it, the count when one stands for many, the actions the server allowed, a dismiss,
-// a clear-all, and "N more" that opens the whole list in a grid. It never takes focus. Screen readers
-// hear a new notice politely, and at once only for a severity the consumer names. A notice with an
-// action never dismisses itself; one without may, after a `ttlMs` the consumer sets.
+// Notices assembled by the caller. The parts own styling; useAlert owns a row's subscription and
+// optional expiry. Mount one announcer for the collection, and put history wherever it belongs.
 
-export interface AlertsLabels {
-  /** The region's name. */
+/** The notice container. The caller supplies the list, controls, and any overflow presentation. */
+export function Alerts({ className, ...props }: ComponentProps<"div">) {
+  return <div role="group" aria-label={props["aria-labelledby"] ? undefined : "Notices"} data-slot="tradecn-alerts" className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} />
+}
+
+export function AlertsList({ className, ...props }: ComponentProps<"ul">) {
+  return <ul role="list" data-slot="tradecn-alerts-list" className={cn("flex min-w-0 list-none flex-col gap-2", className)} {...props} />
+}
+
+export interface AlertItemProps extends ComponentProps<"li"> {
+  tone?: AlertTone
+}
+
+/** Tone decorates the notice; include a severity word or another non-color cue in its content. */
+export function AlertItem({ tone, className, ...props }: AlertItemProps) {
+  return <li data-slot="tradecn-alert-item" data-tone={tone} className={cn("flex min-w-0 flex-col gap-1 rounded-sm border border-border/60 border-s-2 bg-card px-2 py-1.5", "data-[tone=up]:border-s-up data-[tone=down]:border-s-down data-[tone=flat]:border-s-flat data-[tone=stale]:border-s-stale data-[tone=expiring]:border-s-expiring data-[tone=primary]:border-s-primary data-[tone=destructive]:border-s-destructive", className)} {...props} />
+}
+
+export function AlertHeader({ className, ...props }: ComponentProps<"div">) {
+  return <div data-slot="tradecn-alert-header" className={cn("flex min-w-0 flex-wrap items-baseline gap-2", className)} {...props} />
+}
+
+export function AlertTitle({ className, ...props }: ComponentProps<"div">) {
+  return <div data-slot="tradecn-alert-title" className={cn("min-w-0 flex-1 font-medium wrap-anywhere", className)} {...props} />
+}
+
+export function AlertBody({ className, ...props }: ComponentProps<"div">) {
+  return <div data-slot="tradecn-alert-body" className={cn("min-w-0 text-muted-foreground wrap-anywhere", className)} {...props} />
+}
+
+export function AlertActions({ className, ...props }: ComponentProps<"div">) {
+  return <div data-slot="tradecn-alert-actions" className={cn("flex flex-wrap items-center gap-1", className)} {...props} />
+}
+
+export function AlertsEmpty({ className, ...props }: ComponentProps<"p">) {
+  return <p data-slot="tradecn-alerts-empty" className={cn("text-muted-foreground", className)} {...props} />
+}
+
+export interface AlertSeverityProps extends ComponentProps<typeof Badge> {
+  tone?: AlertTone
+}
+
+export function AlertSeverity({ tone, className, ...props }: AlertSeverityProps) {
+  return <Badge variant="outline" data-slot="tradecn-alert-severity" data-alert-severity="" className={cn("h-auto shrink-0 px-1.5 text-xs", tone && ALERT_TONE_TEXT[tone], className)} {...props} />
+}
+
+export interface AlertActionButtonProps extends Omit<ComponentProps<typeof Button>, "onClick"> {
+  alert: Alert
+  action: string
+  onAction: (alert: Alert) => void
+}
+
+/** A caller-composed button shown only when the notice allows its action. It does not dismiss. */
+export function AlertActionButton({ alert, action, onAction, className, ...props }: AlertActionButtonProps) {
+  if (!alert.allowedActions?.includes(action)) return null
+  return <Button type="button" variant="outline" size="sm" data-slot="tradecn-alert-action-button" data-alert-action={action} className={cn("h-6 px-2 text-xs", className)} {...props} onClick={() => onAction(alert)} />
+}
+
+export function AlertDismiss({ className, children, ...props }: ComponentProps<typeof Button>) {
+  return <Button type="button" variant="ghost" size="sm" aria-label={children === undefined && !props["aria-labelledby"] ? "Dismiss" : undefined} data-slot="tradecn-alert-dismiss" className={cn("h-6 shrink-0 px-1.5 text-xs", className)} {...props}>{children === undefined ? <span aria-hidden>×</span> : children}</Button>
+}
+
+export interface UseAlertOptions {
+  /** Expiry while this hook is mounted. Any allowed action disables it. */
+  ttlMs?: number
+  /** Use the same clock basis as the store. Defaults to Date.now. */
+  now?: () => number
+}
+
+/** Subscribe to one notice. Mount in a consumer's row component to retain per-row updates. */
+export function useAlert(alerts: AlertStore, id: RowId, { ttlMs, now = Date.now }: UseAlertOptions = {}): Alert | undefined {
+  const alert = useRow(alerts.store, id)
+  const at = alert?.at
+  const actionable = Boolean(alert?.allowedActions?.length)
+  const latest = useRef(now)
+  useEffect(() => { latest.current = now })
+  useEffect(() => {
+    if (ttlMs === undefined || at === undefined || actionable) return
+    const timer = setTimeout(() => alerts.dismiss(id), Math.max(0, at + ttlMs - latest.current()))
+    return () => clearTimeout(timer)
+  }, [alerts, id, at, actionable, ttlMs])
+  return alert
+}
+
+export interface AlertsAnnouncerProps {
+  alerts: AlertStore
+  /** The notice to announce, usually the first displayed ID; null leaves both regions empty. */
+  id: RowId | null
+  assertive?: readonly string[]
+}
+
+/** Mount one announcer for the collection. Repeats update its subscribed notice's count. */
+export function AlertsAnnouncer({ alerts, id, assertive = [] }: AlertsAnnouncerProps) {
+  const subscribe = useCallback((notify: () => void) => id === null ? () => {} : alerts.store.subscribeRow(id, notify), [alerts, id])
+  const get = useCallback(() => id === null ? undefined : alerts.store.getRow(id), [alerts, id])
+  const alert = useSyncExternalStore(subscribe, get, get)
+  const text = alert ? `${alert.severity}: ${alert.title}${alert.message ? `. ${alert.message}` : ""}${alert.count > 1 ? ` (${alert.count})` : ""}` : ""
+  const urgent = alert !== undefined && assertive.includes(alert.severity)
+  return <>
+    <div role="status" aria-live="polite" aria-atomic="true" className="sr-only" data-alerts-polite>{urgent ? "" : text}</div>
+    <div role="alert" aria-live="assertive" aria-atomic="true" className="sr-only" data-alerts-assertive>{urgent ? text : ""}</div>
+  </>
+}
+
+export interface AlertHistoryLabels {
   title: string
-  listTitle: string
-  listDescription: string
-  dismiss: string
-  clearAll: string
-  /** `{n}` is the count. */
-  more: string
-  /** Before a count above one: "×3". */
-  times: string
   empty: string
   time: string
   severity: string
+  noticeTitle: string
   message: string
   count: string
 }
 
-export const DEFAULT_ALERTS_LABELS: AlertsLabels = {
-  title: "Notices",
-  listTitle: "All notices",
-  listDescription: "Every notice, newest first.",
-  dismiss: "Dismiss",
-  clearAll: "Clear all",
-  more: "{n} more",
-  times: "×",
+export const DEFAULT_ALERT_HISTORY_LABELS: AlertHistoryLabels = {
+  title: "All notices",
   empty: "No notices.",
   time: "Time",
   severity: "Severity",
+  noticeTitle: "Title",
   message: "Message",
   count: "Count",
 }
 
-export interface AlertAction {
-  /** Matched against a notice's `allowedActions`. */
-  id: string
-  label: string
-  onAction: (alert: Alert) => void
-}
-
-/** The tone as a bar and as the severity's text. The severity word is always printed; the color is the hint. */
+/** Background classes for caller-composed bars or other decoration; pair them with a visible cue. */
 export const ALERT_TONE_BAR: Record<AlertTone, string> = {
   up: "bg-up",
   down: "bg-down",
@@ -79,207 +158,46 @@ export const ALERT_TONE_TEXT: Record<AlertTone, string> = {
 let clockFormat: Intl.DateTimeFormat | null = null
 const localTime = (ms: number) => (clockFormat ??= new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })).format(ms)
 
-function fill(template: string, n: number): string {
-  return template.replace("{n}", n.toLocaleString())
-}
-
 const NEWEST_FIRST = { comparator: byNewest }
 
-/** A view of the store newest first, owned by the component through `useView`, remade when the store changes and disposed after. */
+/** A newest-first view, disposed when its owner unmounts. Read its IDs with useRowIds. */
 export function useAlertView(alerts: AlertStore): RowView<Alert> {
   return useView(alerts.store, NEWEST_FIRST)!
 }
 
 /** Time, severity, title, message, count. Spread them into your own list to add, drop, or reorder. */
-export function alertColumns(options: { time?: (ms: number) => string; labels?: Partial<AlertsLabels> } = {}): ColumnDef<Alert>[] {
+export function alertColumns(options: { time?: (ms: number) => string; labels?: Partial<AlertHistoryLabels> } = {}): ColumnDef<Alert>[] {
   const time = options.time ?? localTime
-  const labels = { ...DEFAULT_ALERTS_LABELS, ...options.labels }
+  const labels = { ...DEFAULT_ALERT_HISTORY_LABELS, ...options.labels }
   return [
     { key: "at", header: labels.time, width: 80, sortable: true, flash: false, accessor: (a) => a.at, format: (v) => time(v as number) },
     // The word, in the tone: the tone is a hint on a word that is always there.
     { key: "severity", header: labels.severity, width: 88, sortable: true, flash: false, accessor: (a) => a.severity, cell: ({ row }) => <span className={cn("font-medium", row.tone && ALERT_TONE_TEXT[row.tone])}>{row.severity}</span> },
-    { key: "title", header: "Title", width: 200, sortable: true, flash: false, accessor: (a) => a.title },
+    { key: "title", header: labels.noticeTitle, width: 200, sortable: true, flash: false, accessor: (a) => a.title },
     { key: "message", header: labels.message, width: 280, flash: false, accessor: (a) => a.message ?? null },
     { key: "count", header: labels.count, width: 64, numeric: true, sortable: true, flash: false, accessor: (a) => a.count },
   ]
 }
 
-export interface AlertListProps {
+export interface AlertHistoryProps {
   alerts: AlertStore
   columns?: ColumnDef<Alert>[]
-  /** The grid's preset. `blotter` by default: newest first, the viewport pinned while notices arrive above it. */
   preset?: DataGridPreset
-  actions?: AlertAction[]
   label?: string
-  labels?: Partial<AlertsLabels>
+  labels?: Partial<AlertHistoryLabels>
   renderContextMenu?: (rows: Alert[], ids: RowId[]) => ReactNode
   className?: string
 }
 
-/** The whole list in the data grid, newest first, for the dialog or a panel of your own. */
-export function AlertList({ alerts, columns, preset = "blotter", label, labels: labelsProp, renderContextMenu, className }: AlertListProps) {
-  const labels = { ...DEFAULT_ALERTS_LABELS, ...labelsProp }
+/** The optional grid view. Put it in a panel, dialog, or sheet at the call site. */
+export function AlertHistory({ alerts, columns, preset = "blotter", label, labels: labelsProp, renderContextMenu, className }: AlertHistoryProps) {
+  const labels = { ...DEFAULT_ALERT_HISTORY_LABELS, ...labelsProp }
   const view = useAlertView(alerts)
-  // The consumer's partial keeps its identity; the merged object would not, and the columns would be remade every render.
+  // Depend on the caller's partial labels, not the merged object recreated on every render.
   const cols = useMemo(() => columns ?? alertColumns({ labels: labelsProp }), [columns, labelsProp])
   return (
-    <div data-slot="tradecn-alert-list" className={cn("h-full min-h-0", className)}>
-      <DataGrid<Alert> store={alerts.store} view={view} columns={cols} preset={preset} label={label ?? labels.listTitle} renderContextMenu={renderContextMenu} emptyState={labels.empty} />
-    </div>
-  )
-}
-
-export interface AlertsProps {
-  alerts: AlertStore
-  /** How many of the newest show in the strip. Default 3. */
-  visible?: number
-  /** Offered on a notice whose `allowedActions` names the id, in this order, with these labels. */
-  actions?: AlertAction[]
-  /** Severities a screen reader hears at once. Every other notice is announced politely. */
-  assertive?: string[]
-  /** Dismiss a notice with no action this long after it arrived. Off when left out. A notice with an action never dismisses itself. */
-  ttlMs?: number
-  /** For the ttl and the times. Defaults to Date.now. */
-  now?: () => number
-  time?: (ms: number) => string
-  /** Columns for the full list. */
-  listColumns?: ColumnDef<Alert>[]
-  listPreset?: DataGridPreset
-  labels?: Partial<AlertsLabels>
-  className?: string
-}
-
-interface NoticeProps {
-  store: RowStore<Alert>
-  id: RowId
-  actions: AlertAction[]
-  time: (ms: number) => string
-  labels: AlertsLabels
-  ttlMs?: number
-  now: () => number
-  onDismiss: (id: RowId) => void
-}
-
-// One notice subscribes to its own row, so a repeat folded into the row at the top of the strip, which
-// moves nothing in the order, still shows its new count. The ttl lives here too, from the row's own
-// `at`, so a repeat starts the clock again and a notice with an action never sets one.
-function Notice({ store, id, actions, time, labels, ttlMs, now, onDismiss }: NoticeProps) {
-  const alert = useRow(store, id)
-  const latest = useRef({ onDismiss, now })
-  useEffect(() => {
-    latest.current = { onDismiss, now }
-  })
-  const at = alert?.at
-  const actionable = Boolean(alert?.allowedActions?.length)
-  useEffect(() => {
-    if (ttlMs === undefined || at === undefined || actionable) return
-    const timer = setTimeout(() => latest.current.onDismiss(id), Math.max(0, at + ttlMs - latest.current.now()))
-    return () => clearTimeout(timer)
-  }, [id, at, actionable, ttlMs])
-  if (!alert) return null
-  const allowed = new Set(alert.allowedActions ?? [])
-  const offered = actions.filter((action) => allowed.has(action.id))
-  return (
-    <li data-alert-id={alert.id} data-severity={alert.severity} data-tone={alert.tone} data-count={alert.count} className="flex items-stretch gap-2 rounded-sm border border-border/60 bg-card px-2 py-1">
-      <span aria-hidden data-alert-bar className={cn("w-0.5 shrink-0 rounded-sm", alert.tone ? ALERT_TONE_BAR[alert.tone] : "bg-border")} />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <Badge variant="outline" className={cn("h-4 shrink-0 px-1.5 text-xs", alert.tone && ALERT_TONE_TEXT[alert.tone])} data-alert-severity>
-            {alert.severity}
-          </Badge>
-          <span className="min-w-0 flex-1 truncate font-medium" title={alert.title}>
-            {alert.title}
-          </span>
-          {alert.count > 1 && (
-            <span className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)} data-alert-count={alert.count} title={`${alert.count}`}>
-              {labels.times}
-              {alert.count}
-            </span>
-          )}
-          <span className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)} data-alert-time>
-            {time(alert.at)}
-          </span>
-        </div>
-        {alert.message && <p className="truncate text-muted-foreground" title={alert.message}>{alert.message}</p>}
-        {offered.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {offered.map((action) => (
-              <Button key={action.id} type="button" variant="outline" size="sm" className="h-6 px-2 text-xs" data-alert-action={action.id} onClick={() => action.onAction(alert)}>
-                {action.label}
-              </Button>
-            ))}
-          </div>
-        )}
-      </div>
-      <Button type="button" variant="ghost" size="sm" className="h-6 shrink-0 self-start px-1.5 text-xs" aria-label={`${labels.dismiss}: ${alert.title}`} onClick={() => onDismiss(id)}>
-        <span aria-hidden>×</span>
-      </Button>
-    </li>
-  )
-}
-
-export function Alerts({ alerts, visible = 3, actions, assertive, ttlMs, now, time, listColumns, listPreset, labels: labelsProp, className }: AlertsProps) {
-  const labels = { ...DEFAULT_ALERTS_LABELS, ...labelsProp }
-  const view = useAlertView(alerts)
-  const ids = useRowIds(view)
-  const shown = ids.slice(0, Math.max(0, visible))
-  const more = Math.max(0, ids.length - shown.length)
-  const [open, setOpen] = useState(false)
-  const actionList = actions ?? []
-  const printTime = time ?? localTime
-  const clock = now ?? Date.now
-  const dismiss = useCallback((id: RowId) => alerts.dismiss(id), [alerts])
-
-  // What a screen reader hears: the newest notice, politely, and at once for a severity the consumer
-  // names. Two regions, both visually hidden, so the strip itself never has to be a live region. The
-  // newest row is subscribed to, so a repeat folded into it is announced with its count.
-  const newest = useRow(alerts.store, shown[0] ?? "")
-  const assertiveSet = useMemo(() => new Set(assertive ?? []), [assertive])
-  const announcement = newest ? `${newest.severity}: ${newest.title}${newest.message ? `. ${newest.message}` : ""}${newest.count > 1 ? ` (${newest.count})` : ""}` : ""
-  const urgent = newest !== undefined && assertiveSet.has(newest.severity)
-
-  return (
-    <div data-slot="tradecn-alerts" data-count={ids.length} data-shown={shown.length} className={cn("flex flex-col gap-1 text-xs lining-nums tabular-nums", className)} aria-label={labels.title} role="group">
-      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only" data-alerts-polite>
-        {urgent ? "" : announcement}
-      </div>
-      <div role="alert" aria-live="assertive" aria-atomic="true" className="sr-only" data-alerts-assertive>
-        {urgent ? announcement : ""}
-      </div>
-      {shown.length === 0 ? (
-        <p className="text-muted-foreground" data-alerts-empty>
-          {labels.empty}
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-1">
-          {shown.map((id) => (
-            <Notice key={id} store={alerts.store} id={id} actions={actionList} time={printTime} labels={labels} ttlMs={ttlMs} now={clock} onDismiss={dismiss} />
-          ))}
-        </ul>
-      )}
-      {(more > 0 || ids.length > 0) && (
-        <div className="flex items-center gap-2">
-          {more > 0 && (
-            <Button type="button" variant="ghost" size="sm" className={cn("h-6 px-1.5 text-xs", NUMERIC_CLASS)} data-alerts-more={more} onClick={() => setOpen(true)}>
-              {fill(labels.more, more)}
-            </Button>
-          )}
-          <Button type="button" variant="ghost" size="sm" className="ml-auto h-6 px-1.5 text-xs" onClick={() => alerts.clear()}>
-            {labels.clearAll}
-          </Button>
-        </div>
-      )}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{labels.listTitle}</DialogTitle>
-            <DialogDescription>{labels.listDescription}</DialogDescription>
-          </DialogHeader>
-          <div className="h-80">
-            <AlertList alerts={alerts} columns={listColumns} preset={listPreset} actions={actionList} labels={labels} />
-          </div>
-        </DialogContent>
-      </Dialog>
+    <div data-slot="tradecn-alert-history" className={cn("h-full min-h-0 min-w-0", className)}>
+      <DataGrid<Alert> store={alerts.store} view={view} columns={cols} preset={preset} label={label ?? labels.title} renderContextMenu={renderContextMenu} emptyState={labels.empty} />
     </div>
   )
 }

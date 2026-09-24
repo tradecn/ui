@@ -880,7 +880,7 @@ describe("the docs pages", async () => {
         .sort((a, b) => titleOf(a).localeCompare(titleOf(b), "en"))
         .map((item) => item.name),
     )
-    expect(docs.map((doc) => doc.slug)).toEqual([...START_PAGES, "color", "contract", "shells", "typography", ...byGroup])
+    expect(docs.map((doc) => doc.slug)).toEqual([...START_PAGES, "color", "contract", "migrating-v1-to-v2", "shells", "typography", ...byGroup])
     // The registry lists the utilities first and the rest as they shipped; the pages put the components first, never mix the kinds, and sort each kind by the name the sidebar shows.
     expect(byGroup).not.toEqual(itemSlugs)
     expect(docs.filter((doc) => groupOf(doc.item) === "Components").map((doc) => doc.label).slice(0, 4)).toEqual(["Alerts", "Audit Trail", "Blotter", "Column Chooser"])
@@ -910,7 +910,7 @@ describe("the docs pages", async () => {
   it("groups the sidebar by kind, marks the current page, and links every other page", () => {
     const nav = docsNav(docs, "format")
     expect(nav).toContain('<h2>Get Started</h2>\n<ul>\n<li><a href="/docs/">Introduction</a></li>\n<li><a href="/docs/installation/">Installation</a></li>')
-    expect(nav).toContain('<li><a href="/docs/changelog/">Changelog</a></li>\n<li><a href="/docs/color/">Color</a></li>\n<li><a href="/docs/contract/">The item contract</a></li>\n<li><a href="/docs/shells/">Desktop shells</a></li>\n<li><a href="/docs/typography/">Typography</a></li>\n</ul>')
+    expect(nav).toContain('<li><a href="/docs/changelog/">Changelog</a></li>\n<li><a href="/docs/color/">Color</a></li>\n<li><a href="/docs/contract/">The item contract</a></li>\n<li><a href="/docs/migrating-v1-to-v2/">Migrating from v1 to v2</a></li>\n<li><a href="/docs/shells/">Desktop shells</a></li>\n<li><a href="/docs/typography/">Typography</a></li>\n</ul>')
     // A utility is not a component: format sits under Utilities, use-hotkeys under Hooks, the themes under Themes, and only the ui items and the blocks under Components.
     // Each kind is alphabetical by the item's registry title and printed as that title: Data Grid, not data-grid; RFQ Stack before Rules Editor; a hook by its exported name, useHotkeys.
     expect(nav).toContain('<h2><a href="/docs/components/">Components</a></h2>\n<ul>\n<li><a href="/docs/alerts/">Alerts</a></li>\n<li><a href="/docs/audit-trail/">Audit Trail</a></li>\n<li><a href="/docs/blotter/">Blotter</a></li>\n<li><a href="/docs/column-chooser/">Column Chooser</a></li>\n<li><a href="/docs/command-palette/">Command Palette</a></li>\n<li><a href="/docs/countdown/">Countdown</a></li>\n<li><a href="/docs/data-grid/">Data Grid</a></li>\n<li><a href="/docs/depth-ladder/">Depth Ladder</a></li>\n<li><a href="/docs/feed-health/">Feed Health</a></li>\n<li><a href="/docs/flash-cell/">Flash Cell</a></li>\n<li><a href="/docs/hotkey-editor/">Hotkey Editor</a></li>\n<li><a href="/docs/instrument-search/">Instrument Search</a></li>\n<li><a href="/docs/layout-manager/">Layout Manager</a></li>\n<li><a href="/docs/panel/">Panel</a></li>\n<li><a href="/docs/parameter-grid/">Parameter Grid</a></li>\n<li><a href="/docs/perf-monitor/">Perf Monitor</a></li>\n<li><a href="/docs/positions/">Positions</a></li>\n<li><a href="/docs/price-chart/">Price Chart</a></li>\n<li><a href="/docs/quote-field/">Quote Field</a></li>\n<li><a href="/docs/quote-panel/">Quote Panel</a></li>\n<li><a href="/docs/rfq-stack/">RFQ Stack</a></li>\n<li><a href="/docs/rfq-ticket/">RFQ Ticket</a></li>\n<li><a href="/docs/rules-editor/">Rules Editor</a></li>\n<li><a href="/docs/session-guard/">Session Guard</a></li>\n<li><a href="/docs/sparkline/">Sparkline</a></li>\n<li><a href="/docs/spread-matrix/">Spread Matrix</a></li>\n<li><a href="/docs/status-bar/">Status Bar</a></li>\n<li><a href="/docs/ticket/">Ticket</a></li>\n<li><a href="/docs/watchlist/">Watchlist</a></li>\n<li><a href="/docs/workspace/">Workspace</a></li>\n</ul>\n<h2>Hooks</h2>\n<ul>\n<li><a href="/docs/use-hotkeys/">useHotkeys</a></li>\n</ul>')
@@ -1192,7 +1192,8 @@ describe("the docs pages", async () => {
     expect(at(`docs/${last.slug}/index.html`)).toContain(`<a rel="prev" href="${docs.at(-2)!.path}">← ${docs.at(-2)!.label}</a>\n<span></span>`)
     expect(at("docs/color/index.html")).toContain(`<a rel="prev" href="/docs/changelog/">← Changelog</a>`)
     expect(at("docs/contract/index.html")).toContain(`<a rel="prev" href="/docs/color/">← Color</a>`)
-    expect(at("docs/contract/index.html")).toContain(`<a rel="next" href="/docs/shells/">Desktop shells →</a>`)
+    expect(at("docs/contract/index.html")).toContain(`<a rel="next" href="/docs/migrating-v1-to-v2/">Migrating from v1 to v2 →</a>`)
+    expect(at("docs/migrating-v1-to-v2/index.html")).toContain(`<a rel="next" href="/docs/shells/">Desktop shells →</a>`)
     expect(at("docs/shells/index.html")).toContain(`<a rel="next" href="/docs/typography/">Typography →</a>`)
     expect(at("docs/typography/index.html")).toContain(`<a rel="next" href="/docs/${items[0]!.slug}/">${items[0]!.label} →</a>`)
     expect(at("docs/typography/index.html")).toContain(`<a rel="next" href="/docs/alerts/">Alerts →</a>`)

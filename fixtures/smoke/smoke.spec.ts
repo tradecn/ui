@@ -766,7 +766,7 @@ test("a preferences envelope keeps its boundaries through export and import", as
   await expect(page.locator("section[data-scene='preferences'] [data-slot='tradecn-preferences']")).toHaveText("layout | layout,hotkeys | layout")
 })
 
-// Four notices in the store, three in the strip: the severity word beside a bar painted with the tone's
+// Four notices in the store, three in the strip: the severity word beside a start border painted with the tone's
 // token, a repeat folded into its row with a climbing count, only the allowed action offered and run
 // through the consumer's button, the whole list in the consumer's dialog as a grid, then dismiss and clear.
 test("an alerts strip shows the newest notices in words and tone, folds a repeated key, offers only allowed actions, opens the list, and clears", async ({ page }) => {
@@ -777,17 +777,25 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   await expect(strip.locator("li[data-alert-id]")).toHaveCount(3)
   await expect(strip.locator("li[data-alert-id='up']")).toHaveCount(0)
   await expect(strip.locator("li[data-tone='destructive'] [data-alert-severity]")).toHaveText("critical")
+  for (const item of await strip.locator("li[data-tone]").all()) {
+    await expect(item.locator("[data-alert-severity]")).toHaveText(await item.getAttribute("data-severity") ?? "")
+    await expect(item.locator("[data-alert-severity]")).toBeVisible()
+    await expect(item.locator("time")).toHaveText(/^\d{2}:\d{2}:\d{2}$/)
+    const at = await item.locator("time").getAttribute("datetime")
+    const local = await page.evaluate((value) => new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(value!)), at)
+    await expect(item.locator("time")).toHaveText(local)
+  }
   const painted = await page.evaluate(() => {
-    const bar = document.querySelector("section[data-scene='alerts'] li[data-tone='destructive'] [data-alert-bar]")!
+    const item = document.querySelector("section[data-scene='alerts'] li[data-tone='destructive']")!
     const probe = document.createElement("i")
     probe.style.backgroundColor = "var(--destructive)"
     document.body.append(probe)
-    const out = { bar: getComputedStyle(bar).backgroundColor, token: getComputedStyle(probe).backgroundColor }
+    const out = { border: getComputedStyle(item).borderInlineStartColor, token: getComputedStyle(probe).backgroundColor }
     probe.remove()
     return out
   })
-  expect(painted.bar, "the bar is painted with the tone's token").toBe(painted.token)
-  expect(painted.bar).not.toBe("rgba(0, 0, 0, 0)")
+  expect(painted.border, "the start border is painted with the tone's token").toBe(painted.token)
+  expect(painted.border).not.toBe("rgba(0, 0, 0, 0)")
   await scene.getByRole("button", { name: "slow feed again" }).click()
   await scene.getByRole("button", { name: "slow feed again" }).click()
   await expect(strip.locator("li[data-alert-id='slow'] [data-alert-count]")).toHaveText("×3")
@@ -795,19 +803,89 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   await expect(strip).toHaveAttribute("data-count", "4")
   await expect(strip.locator("li[data-alert-id='slow'] [data-alert-action]")).toHaveText(["Reconnect"])
   await expect(strip.locator("li[data-alert-id='fill'] [data-alert-action]")).toHaveCount(0)
-  await strip.locator("li[data-alert-id='slow'] [data-alert-action='reconnect']").click()
+  await strip.locator("li[data-alert-id='slow'] [data-alert-action='reconnect']").focus()
+  await page.keyboard.press("Enter")
   await expect(scene.locator("[data-alerts-acted]")).toHaveAttribute("data-alerts-acted", "reconnect:slow")
   await strip.getByRole("button", { name: "1 more" }).click()
   const dialog = page.getByRole("dialog", { name: "All notices" })
   await expect(dialog.getByRole("grid", { name: "All notices" })).toHaveAttribute("aria-rowcount", "5")
   await expect(dialog.locator("[data-row-id]").first()).toHaveAttribute("data-row-id", "slow")
+  await page.setViewportSize({ width: 390, height: 280 })
+  await expect.poll(() => dialog.evaluate((el) => {
+    const box = el.getBoundingClientRect()
+    return box.top >= 0 && box.bottom <= window.innerHeight && box.left >= 0 && box.right <= window.innerWidth
+  })).toBe(true)
+  await expect(dialog.getByRole("heading", { name: "All notices" })).toBeVisible()
   await page.keyboard.press("Escape")
   await expect(dialog).toHaveCount(0)
+  await expect(strip.getByRole("button", { name: "1 more" })).toBeFocused()
   await strip.getByRole("button", { name: "Dismiss: Order rejected" }).click()
   await expect(strip).toHaveAttribute("data-count", "3")
+  await expect(strip.locator("li[data-tone='up'] [data-alert-severity]")).toHaveText("info")
+  await expect(strip.locator("li[data-tone='up'] [data-alert-severity]")).toBeVisible()
   await strip.getByRole("button", { name: "Clear all" }).click()
   await expect(strip).toHaveAttribute("data-count", "0")
+  await expect(strip.getByRole("list")).toHaveCount(0)
   await expect(strip.getByText("No notices.")).toBeVisible()
+})
+
+for (const change of ["dismiss", "clear"]) {
+  test(`alert history restores focus after ${change} removes the overflow`, async ({ page }) => {
+    await page.goto("/")
+    const strip = page.locator("section[data-scene='alerts'] [data-slot='tradecn-alerts']")
+    const trigger = await strip.getByRole("button", { name: "1 more" }).elementHandle()
+    await strip.getByRole("button", { name: "1 more" }).focus()
+    await page.keyboard.press("Enter")
+    const dialog = page.getByRole("dialog", { name: "All notices" })
+    await expect(dialog).toBeVisible()
+    // Invoke the store callbacks behind the modal to simulate an external update.
+    if (change === "dismiss") await strip.locator("button[aria-label='Dismiss: Order rejected']").evaluate((button: HTMLButtonElement) => button.click())
+    else await strip.locator("button").filter({ hasText: /^Clear all$/ }).evaluate((button: HTMLButtonElement) => button.click())
+    await expect(strip).toHaveAttribute("data-count", change === "dismiss" ? "3" : "0")
+    await expect(dialog).toBeVisible()
+    expect(await trigger!.evaluate((button) => button.isConnected)).toBe(true)
+    if (change === "dismiss") await page.keyboard.press("Escape")
+    else await dialog.getByRole("button", { name: "Close", exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect.poll(() => trigger!.evaluate((button) => document.activeElement === button)).toBe(true)
+    await expect(strip.getByRole("button", { name: "History", exact: true })).toBeEnabled()
+  })
+}
+
+test("notice counts and times follow the numeric font and accessibility mode", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='alerts']")
+  await scene.getByRole("button", { name: "slow feed again" }).click()
+  const row = scene.locator("li[data-alert-id='slow']")
+  await expect(row.locator("[data-alert-count]")).toHaveText("×2")
+  for (const mode of ["custom", "hyperlegible"] as const) {
+    const result = await row.evaluate((el, mode) => {
+      // Give inherited text a different family so omitting the numeric class cannot pass by accident.
+      el.style.fontFamily = "monospace"
+      const root = document.documentElement
+      root.style.setProperty("--tradecn-font-numeric", mode === "custom" ? "Georgia, serif" : "var(--tradecn-font-sans)")
+      if (mode === "hyperlegible") root.setAttribute("data-accessibility", "hyperlegible")
+      const probe = document.createElement("i")
+      probe.style.fontFamily = mode === "custom" ? "var(--tradecn-font-numeric)" : "var(--tradecn-font-accessible)"
+      probe.style.color = "var(--muted-foreground)"
+      document.body.append(probe)
+      const expected = { font: getComputedStyle(probe).fontFamily, color: getComputedStyle(probe).color }
+      const metadata = [...el.querySelectorAll("[data-alert-count], time")].map((node) => {
+        const style = getComputedStyle(node)
+        return { tag: node.tagName, font: style.fontFamily, color: style.color, shrink: style.flexShrink, variant: style.fontVariantNumeric }
+      })
+      probe.remove()
+      return { expected, metadata }
+    }, mode)
+    expect(result.metadata.map((node) => node.tag)).toEqual(["SPAN", "TIME"])
+    for (const node of result.metadata) {
+      expect(node.font, `${mode}: ${node.tag} uses the numeric family`).toBe(result.expected.font)
+      expect(node.color).toBe(result.expected.color)
+      expect(node.shrink).toBe("0")
+      expect(node.variant).toContain("lining-nums")
+      expect(node.variant).toContain("tabular-nums")
+    }
+  }
 })
 
 // The store alone through the installed lib: the keyed repeat is one row at a count of two, and the cap
