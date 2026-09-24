@@ -78,6 +78,12 @@ function Collection({ alerts, visible = 3, options, onAction }: { alerts: AlertS
 }
 
 describe("notice composition", () => {
+  it("uses the caller's referenced heading without adding a fallback label", () => {
+    render(<><h2 id="desk-notices">Desk notices</h2><Alerts aria-labelledby="desk-notices">Caller content</Alerts></>)
+    expect(screen.getByRole("group", { name: "Desk notices" })).not.toHaveAttribute("aria-label")
+    expect(screen.queryByRole("group", { name: "Notices" })).toBeNull()
+  })
+
   it("works without a store, forwards native props and refs, and leaves content and controls to the caller", () => {
     const root = createRef<HTMLDivElement>()
     const list = createRef<HTMLUListElement>()

@@ -9,7 +9,7 @@ import { DataGrid, type ColumnDef, type DataGridPreset } from "@/registry/tradec
 
 /** The notice container. The caller supplies the list, controls, and any overflow presentation. */
 export function Alerts({ className, ...props }: ComponentProps<"div">) {
-  return <div role="group" aria-label="Notices" data-slot="tradecn-alerts" className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} />
+  return <div role="group" aria-label={props["aria-labelledby"] ? undefined : "Notices"} data-slot="tradecn-alerts" className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} />
 }
 
 export function AlertsList({ className, ...props }: ComponentProps<"ul">) {
