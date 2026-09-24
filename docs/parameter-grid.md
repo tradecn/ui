@@ -45,9 +45,9 @@ The preview alignment controls keep an edge fixed while resizing columns and sav
 
 ## Pending values and server replies
 
-Commit a Width edit with Enter, or toggle ZN, then choose **Receive replies**. Until then, numeric edits stay pending and the checkbox keeps the store's value. Each press handles the queued requests in order. This example supplies the reply control so you can inspect pending states without a timer.
+Commit a Width edit with Enter, or toggle ZN, then choose **Receive reply**. Until then, numeric edits stay pending and the checkbox keeps the store's value. This example handles one request at a time: it removes the row's allowed actions while a reply is pending and restores them after acceptance or refusal. You can inspect the pending state without a timer, then edit again once the reply arrives.
 
-A Width over 8 is refused: the cell returns to the stored value and shows **Over 8**. Reopen it to clear the error and try again. Accepted requests update the row, its timestamp and author, and the as-of time. The changed-since marker identifies rows accepted during this session. The status shows the queue size and counts accepted and refused requests from the last set of replies.
+A Width over 8 is refused: the cell returns to the stored value and shows **Over 8**. Reopen it to clear the error and try again. Accepted requests update the row, its timestamp and author, and the as-of time. The changed-since marker identifies rows accepted during this session. The status reports whether a reply is pending, accepted, or refused.
 
 <!-- demo: parameter-grid-server -->
 
