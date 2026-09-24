@@ -403,6 +403,37 @@ describe("conflicts", () => {
     registry.register(binding("a", ""))
     expect(registry.register(binding("b", ""))).toEqual([])
   })
+
+  it("does not report two bindings whose handlers are fenced apart, and does again when one runs anywhere or the boxes nest", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const host = mount(`<div id="a" data-hotkey-scope="editing"><input /></div><div id="b" data-hotkey-scope="editing"><div id="inner"></div></div>`)
+    registry.register(binding("ticket.send", "mod+enter", "editing"))
+    const duplicate = { kind: "duplicate", keys: "ctrl+enter", ids: ["rfq.send", "ticket.send"] }
+    expect(registry.register(binding("rfq.send", "mod+enter", "editing"))).toEqual([duplicate])
+    const woke = vi.fn()
+    registry.subscribe(woke)
+    const list = registry.list()
+    const offA = registry.bind("ticket.send", vi.fn(), { scope: "editing", element: () => host.querySelector("#a") })
+    // One side fenced and the other not bound yet: the declarations still meet.
+    expect(registry.conflicts()).toHaveLength(1)
+    registry.bind("rfq.send", vi.fn(), { scope: "editing", element: () => host.querySelector("#b") })
+    expect(woke).toHaveBeenCalledTimes(2)
+    expect(registry.list()).toBe(list)
+    const settled = registry.conflicts()
+    expect(settled).toEqual([])
+    expect(registry.conflicts()).toBe(settled)
+    expect(registry.remap("rfq.send", "ctrl+enter")).toEqual([])
+    // A handler that runs anywhere brings the report back; its leaving takes it away again.
+    const offAny = registry.bind("rfq.send", vi.fn())
+    expect(registry.conflicts()).toEqual([{ ...duplicate, ids: ["ticket.send", "rfq.send"] }])
+    offAny()
+    expect(registry.conflicts()).toEqual([])
+    // A second order ticket inside the rfq ticket's box: the two can meet there.
+    registry.bind("ticket.send", vi.fn(), { scope: "editing", element: () => host.querySelector("#inner") })
+    expect(registry.conflicts()).toHaveLength(1)
+    offA()
+    expect(registry.conflicts()).toHaveLength(1)
+  })
 })
 
 describe("remapping", () => {

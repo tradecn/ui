@@ -81,7 +81,7 @@ The plus key has a current limitation: capture can produce `ctrl++`, which remap
 
 ### Conflicts
 
-The editor reads `registry.conflicts()` when the registry list changes and shows each conflict under both affected rows that are visible.
+The editor reads `registry.conflicts()` whenever the registry wakes it and shows each conflict under both affected rows that are visible.
 
 | Kind | Reported overlap | Default phrase |
 |---|---|---|
@@ -91,7 +91,7 @@ The editor reads `registry.conflicts()` when the registry list changes and shows
 
 Each phrase names the other binding. The same phrase appears on both rows, so prefix and shadow messages do not indicate which row is the shorter sequence or panel binding.
 
-Reports compare declarations regardless of handlers or `when()`. Unbound bindings and pairs with different panel scope names are excluded. Conflicts do not block a remap or decide which shortcut runs; a shadow may be intentional. See the registry's [conflict rules](use-hotkeys.md).
+Reports compare declarations regardless of `when()`. Unbound bindings and pairs with different panel scope names are excluded, and so is a pair whose handlers are all fenced to elements that do not hold one another, the way two tickets on one desk share `mod+enter`; that pair is reported until both sides have such handlers. Conflicts do not block a remap or decide which shortcut runs; a shadow may be intentional. See the registry's [conflict rules](use-hotkeys.md).
 
 ### Export and import
 

@@ -141,6 +141,8 @@ A key that does not continue the chord clears it and is tried on its own, so `g`
 | `prefix` | One sequence starts another in the same scope, or between `global` and `editing`. |
 | `shadow` | A panel and a global or editing binding share keys or a chord prefix. |
 
+Handlers can settle a duplicate. While every handler on both sides is fenced to elements that do not hold one another, the pair is not reported: an order ticket and an RFQ ticket on one desk share `mod+enter` with no line under either. A handler is fenced when it is bound with `within` in the binding's own scope, which `useHotkey` does inside a `HotkeyScope` of that scope. A binding with no handler yet, or with a handler that runs anywhere, is compared by its declaration alone, and the report returns when such a handler binds. `conflicts()` returns the same array until a binding, an override, or a fenced handler changes, and `subscribe` wakes for each.
+
 These reports compare declarations, regardless of handlers or `when()`. They do not reject a binding or guarantee which one will run. A shadow may be intentional. Unbound bindings and pairs with different panel scope names are excluded, even when those panels are nested.
 
 ### Remapping
@@ -169,11 +171,11 @@ For persistence, create a registry once, restore saved overrides with `load`, an
 |---|---|
 | `register(binding: HotkeyBinding, handler?: HotkeyHandler)` | Declare or replace a binding; return its `HotkeyConflict[]`. |
 | `unregister(id: string)` | Remove a declaration. |
-| `bind(id: string, handler: HotkeyHandler, within?: HandlerScope \| null)` | Attach a handler before or after declaration; return a detach function. `within` optionally supplies `{ scope: string, element: () => Element \| null }` for the element restriction described above. |
+| `bind(id: string, handler: HotkeyHandler, within?: HandlerScope \| null)` | Attach a handler before or after declaration; return a detach function. `within` optionally supplies `{ scope: string, element: () => Element \| null }` for the element restriction described above. Attaching or detaching wakes `subscribe`, since a fenced handler can settle a conflict. |
 | `list()` | Current `readonly HotkeyEntry[]`, also read by `useHotkeyList`. |
-| `conflicts()` | All reported `HotkeyConflict[]`. |
+| `conflicts()` | All reported `HotkeyConflict[]`; the same array until something changes. |
 | `pending()` | Normalized pending chord, or `null`. |
-| `subscribe(callback: () => void)` | Subscribe to list or pending-chord changes; return an unsubscribe function. |
+| `subscribe(callback: () => void)` | Subscribe to list, pending-chord, or conflict changes; return an unsubscribe function. |
 | `attach(target?: HotkeyTarget)` | Listen for `keydown`; return a detach function. `HotkeyTarget` supplies `addEventListener` and `removeEventListener`. Defaults to `document`, or does nothing when no document exists. |
 | `handle(event: KeyboardEvent)` | Dispatch a forwarded event; return `true` when consumed. |
 

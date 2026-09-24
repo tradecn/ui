@@ -71,7 +71,7 @@ export interface HotkeyRegistry {
   /** Declare a binding, or replace the one with the same id. Returns the conflicts it takes part in. */
   register(binding: HotkeyBinding, handler?: HotkeyHandler): HotkeyConflict[]
   unregister(id: string): void
-  /** Attach a handler to a declared (or not yet declared) binding. Returns the detach. */
+  /** Attach a handler to a declared (or not yet declared) binding. Returns the detach. A fenced handler can settle a conflict, so both wake `subscribe`. */
   bind(id: string, handler: HotkeyHandler, within?: HandlerScope | null): () => void
   /** Override a binding's keys; `""` unbinds it. Notifies `onChange`. Returns the conflicts the new keys take part in. */
   remap(id: string, keys: string): HotkeyConflict[]
@@ -84,8 +84,9 @@ export interface HotkeyRegistry {
   onChange(cb: (overrides: HotkeyOverrides) => void): () => void
   /** Every binding with its keys in force. Stable array reference until something changes. */
   list(): readonly HotkeyEntry[]
+  /** Every conflict the declarations and their handlers leave standing. Stable array reference until something changes. */
   conflicts(): HotkeyConflict[]
-  /** Wakes on any change to `list()` or `pending()`. */
+  /** Wakes on any change to `list()`, `pending()`, or `conflicts()`. */
   subscribe(cb: () => void): () => void
   /** Listen for keydown on a target, `document` by default. Attaching the same target twice adds one listener. */
   attach(target?: HotkeyTarget): () => void
@@ -323,6 +324,7 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
   const changeListeners = new Set<(overrides: HotkeyOverrides) => void>()
   const attached = new Map<HotkeyTarget, { count: number; listener: (event: Event) => void }>()
   let snapshot: readonly HotkeyEntry[] | null = null
+  let conflictSnapshot: HotkeyConflict[] | null = null
   // Chord state: how many steps of which bindings have matched so far.
   let progress = new Map<string, number>()
   let pendingSteps: string[] = []
@@ -330,6 +332,13 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
 
   function emit() {
     snapshot = null
+    conflictSnapshot = null
+    for (const cb of listeners) cb()
+  }
+
+  // A handler came or went: the list stands, the conflicts may not.
+  function emitHandlers() {
+    conflictSnapshot = null
     for (const cb of listeners) cb()
   }
 
@@ -368,13 +377,36 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
     emit()
   }
 
+  // The elements a binding's handlers are fenced to, in the binding's own scope; null when any handler runs
+  // unfenced, empty when nothing is bound. Mirrors what handlerFor lets through.
+  function fencesOf(rec: Rec): (Element | null)[] | null {
+    if (rec.handler) return null
+    const out: (Element | null)[] = []
+    for (const { within } of bound.get(rec.binding.id) ?? []) {
+      if (!within || within.scope !== rec.binding.scope) return null
+      out.push(within.element())
+    }
+    return out
+  }
+
+  // Two bindings whose every handler is fenced to boxes that do not hold one another cannot meet on one key,
+  // which is how an order ticket and an RFQ ticket on one desk share mod+enter. Declarations with no handler,
+  // or a handler that runs anywhere, are compared as declared.
+  function apart(a: Rec, b: Rec): boolean {
+    const fa = fencesOf(a)
+    const fb = fencesOf(b)
+    if (!fa?.length || !fb?.length) return false
+    for (const ea of fa) for (const eb of fb) if (ea && eb && (ea === eb || ea.contains(eb) || eb.contains(ea))) return false
+    return true
+  }
+
   function conflictsFor(id: string): HotkeyConflict[] {
     const rec = recs.get(id)
     if (!rec) return []
     const out: HotkeyConflict[] = []
     for (const other of recs.values()) {
       const c = other === rec ? null : conflictBetween(rec, other)
-      if (c) out.push(c)
+      if (c && !apart(rec, other)) out.push(c)
     }
     return out
   }
@@ -484,12 +516,15 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
       const list = bound.get(id)
       if (list) list.push(entry)
       else bound.set(id, [entry])
+      emitHandlers()
       return () => {
         const current = bound.get(id)
         if (!current) return
         const i = current.indexOf(entry)
-        if (i >= 0) current.splice(i, 1)
+        if (i < 0) return
+        current.splice(i, 1)
         if (!current.length) bound.delete(id)
+        emitHandlers()
       }
     },
     remap(id, keys) {
@@ -526,15 +561,16 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
       }))
     },
     conflicts() {
+      if (conflictSnapshot) return conflictSnapshot
       const all = [...recs.values()]
       const out: HotkeyConflict[] = []
       for (let i = 0; i < all.length; i++) {
         for (let j = i + 1; j < all.length; j++) {
           const c = conflictBetween(all[i]!, all[j]!)
-          if (c) out.push(c)
+          if (c && !apart(all[i]!, all[j]!)) out.push(c)
         }
       }
-      return out
+      return (conflictSnapshot = out)
     },
     subscribe(cb) {
       listeners.add(cb)
