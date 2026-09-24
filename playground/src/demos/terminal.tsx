@@ -1,3 +1,4 @@
+import { Separator } from "@/components/ui/separator"
 import { cn } from "cn"
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -32,7 +33,8 @@ import { CommandPalette, createActionRegistry, type ActionRegistry, type Palette
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/registry/tradecn/ui/data-grid"
 import { DepthLadder, levelId, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
-import { FeedHealth, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTrigger, FeedHealthContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { Tooltip } from "@/components/ui/tooltip"
 import { FlashCell } from "@/registry/tradecn/ui/flash-cell"
 import { HotkeyEditor } from "@/registry/tradecn/ui/hotkey-editor"
 import { InstrumentSearch, toSymbolAdapter, type InstrumentHit, type InstrumentSearchFn } from "@/registry/tradecn/ui/instrument-search"
@@ -1496,7 +1498,22 @@ function Feeds() {
     void meta.version
     return desk.feeds.getIds().flatMap((id) => desk.feeds.getRow(id) ?? [])
   }, [desk, meta.version])
-  return <FeedHealth feeds={feeds} compact session={GLOBEX} />
+  return <FeedHealth session={GLOBEX}>
+    {feeds.map((feed, index) => <div key={feed.id} className="inline-flex items-center gap-1">
+      {index > 0 && <Separator orientation="vertical" className="h-3" />}
+      <FeedHealthItem feed={feed}>
+        <Tooltip>
+          <FeedHealthTrigger>
+            <FeedHealthIndicator /><span className="font-medium">{feed.label}</span>
+            <FeedHealthTier className="sr-only" />
+            <FeedAge feed={feed} /><FeedHealthLane />
+          </FeedHealthTrigger>
+          <FeedHealthContent><FeedHealthDetails /></FeedHealthContent>
+        </Tooltip>
+      </FeedHealthItem>
+    </div>)}
+    <FeedHealthAnnouncer feeds={feeds} />
+  </FeedHealth>
 }
 
 function Session() {

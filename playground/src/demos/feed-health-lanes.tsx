@@ -1,9 +1,11 @@
 import { useState } from "react"
-import { FeedHealth, type Clock, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTrigger, FeedHealthContent, FeedHealthDetails, FeedHealthAnnouncer, type Clock, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { Tooltip } from "@/components/ui/tooltip"
+import { Separator } from "@/components/ui/separator"
 
 // Freeze the sample so its lane details stay comparable while changing the presentation.
 const now = Date.parse("2026-09-22T14:00:00Z")
-const clock: Clock = { now: () => now, subscribe: () => () => {} }
+const clock: Clock = { now: () => now, subscribe: () => () => { } }
 
 export default function FeedHealthLanesDemo() {
   const [compact, setCompact] = useState(false)
@@ -18,7 +20,22 @@ export default function FeedHealthLanesDemo() {
         <label className="inline-flex items-center gap-2"><input type="checkbox" checked={compact} onChange={(event) => setCompact(event.target.checked)} />Compact</label>
         <button type="button" className="rounded border px-2 py-1" onClick={() => setHasGap(!hasGap)}>{hasGap ? "Close RFQ gap" : "Open RFQ gap"}</button>
       </div>
-      <FeedHealth feeds={feeds} clock={clock} compact={compact} className="w-fit max-w-full flex-wrap" />
+      <FeedHealth clock={clock} className="w-fit max-w-full flex-wrap">
+        {feeds.map((feed, index) => <div key={feed.id} className="inline-flex items-center gap-1">
+          {index > 0 && <Separator orientation="vertical" className="h-3" />}
+          <FeedHealthItem feed={feed}>
+            <Tooltip>
+              <FeedHealthTrigger>
+                <FeedHealthIndicator /><span className="font-medium">{feed.label}</span>
+                <FeedHealthTier className={compact ? "sr-only" : undefined} />
+                <FeedAge feed={feed} /><FeedHealthLane />
+              </FeedHealthTrigger>
+              <FeedHealthContent><FeedHealthDetails /></FeedHealthContent>
+            </Tooltip>
+          </FeedHealthItem>
+        </div>)}
+        <FeedHealthAnnouncer feeds={feeds} />
+      </FeedHealth>
     </>
   )
 }

@@ -61,3 +61,30 @@ Inside the row, where `alert` comes from `useAlert(store, id)`, add these childr
 `NUMERIC_CLASS` selects `--tradecn-font-numeric` as well as lining and tabular figures, preserving the caller's numeric font choice. The history grid still supplies local 24-hour timestamps by default. Use `alertColumns({ time })` to override its formatter independently of the notice rows.
 
 See [Alerts](alerts.md) for composition examples and the current API, and [alert-store](alert-store.md) for store behavior.
+
+## FeedHealth
+
+FeedHealth now accepts children. Map feeds into public items, compose their readings, and mount one announcer per collection. The [current reference](feed-health.md) includes complete menu and card recipes.
+
+| Previous interface | Current interface |
+|---|---|
+| `<FeedHealth feeds={feeds} />` | `<FeedHealth>{feeds.map(...) }<FeedHealthAnnouncer feeds={feeds} /></FeedHealth>` with a keyed `FeedHealthItem` per feed. |
+| Automatic label, dot, badge, age and lane report | Caller label plus `FeedHealthIndicator`, `FeedHealthTier`, `FeedAge` and `FeedHealthLane`. |
+| Automatic tooltip | Caller `Tooltip` containing `FeedHealthTrigger` and `FeedHealthContent`; place `FeedHealthDetails` in the content or write your own. |
+| Automatic separators and order | Caller map and `Separator`; install `separator` when needed. |
+| `compact` | Apply `className="sr-only"` to `FeedHealthTier` to preserve its accessible word. |
+| Root `actions` and `pendingMs` | `useFeedActions(feed, actions, { pendingMs })` in the caller's row component. Map returned actions into a menu or buttons and call `run(action.id)`. |
+| Automatic menu and pending marker | Caller controls, `pending` passed to the item, and `<FeedHealthPending>{pendingLabel}</FeedHealthPending>` wherever needed. Install `dropdown-menu` or `button` for those controls. |
+| `labels`, `FeedHealthLabels`, `DEFAULT_FEED_HEALTH_LABELS` | Removed. Supply your menu's accessible name and pending metadata label directly in JSX. |
+| Automatic tier announcements | Explicit `FeedHealthAnnouncer`; mount once even when rendering multiple views of the same feeds. |
+| `thresholds`, `session`, `clock` | Remain on the group and can be overridden per item or announcer. A hook outside the group needs its custom clock explicitly. |
+
+The former action-button name default was `"Actions: {feed}"`; the pending tooltip heading was `"Pending"`. Preserve or translate those strings in your caller JSX.
+
+`FeedDescriptor`, `FeedAction`, `PendingFeedAction`, tier helpers, thresholds, session types and clock exports remain available. `FeedAge` retains its required `feed` and optional `clock`; it now forwards native span props and refs and inherits the nearest group or item's clock when present.
+
+Use stable feed ids as React keys. Move collection limits, empty-state content and application navigation into the caller. Preserve the original action guarantees in your controls: filter by the hook's returned actions, disable while pending, show its pending label and report request failures yourself. Keep a mounted focus target when removing data or changing permissions while a menu is open.
+
+Pending now belongs to one hook instance per feed. Share its result between views when they should coordinate; visual items create no request timers. State/id changes, unmount, timeout and promise settlement clear pending. Request identity prevents an old completion from clearing a newer request made at the same clock timestamp.
+
+The status indicator includes a state word, and compact recipes retain the tier word for assistive technology. The trigger/content pair explicitly links its tooltip description in either supported primitive base. These replace the old compact color-only cue and the missing description relationship observed in the Base UI tooltip.

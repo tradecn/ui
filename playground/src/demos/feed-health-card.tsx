@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTrigger, FeedHealthContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, type FeedAction, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
-import { Tooltip } from "@/components/ui/tooltip"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedHealthLane, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, type FeedAction, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { Button } from "@/components/ui/button"
 
 const disconnected: FeedDescriptor = { id: "rfq", label: "RFQ", state: "disconnected", lane: "ordered", lastMessageAt: null, seq: 0, allowedActions: ["reconnect"] }
 
-export default function FeedHealthActionsDemo() {
+export default function FeedHealthCardDemo() {
   const [feed, setFeed] = useState(disconnected)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState("Disconnected.")
@@ -38,21 +37,18 @@ export default function FeedHealthActionsDemo() {
       </div>
       <div className="w-fit max-w-full space-y-2">
         <FeedHealth className="flex-wrap">
-          <FeedHealthItem feed={feed} pending={pending}>
-            <Tooltip>
-              <FeedHealthTrigger>
-                <FeedHealthIndicator /><span className="font-medium">{feed.label}</span>
-                <FeedHealthTier />
-                <FeedAge feed={feed} /><FeedHealthLane /><FeedHealthPending>{pendingLabel}</FeedHealthPending>
-              </FeedHealthTrigger>
-              <FeedHealthContent><FeedHealthDetails>{pending && <><dt>Pending</dt><dd>{pendingLabel}</dd></>}</FeedHealthDetails></FeedHealthContent>
-            </Tooltip>
-            {offered.length > 0 && <DropdownMenu>
-              <DropdownMenuTrigger aria-label={`Actions: ${feed.label}`} data-feed-actions={feed.id} className="rounded px-1 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40">⋮</DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {offered.map((action) => <DropdownMenuItem key={action.id} data-feed-action={action.id} disabled={Boolean(pending)} className={action.destructive ? "text-destructive" : undefined} onClick={() => run(action.id)}>{action.label}</DropdownMenuItem>)}
-              </DropdownMenuContent>
-            </DropdownMenu>}
+          <FeedHealthItem feed={feed} pending={pending} className="w-72 max-w-full flex-col items-stretch gap-3 border p-3">
+            <header className="flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-2 font-medium"><FeedHealthIndicator />{feed.label}</span>
+              <FeedHealthTier />
+            </header>
+            <FeedHealthDetails><dt>Venue</dt><dd>Chicago</dd>{pending && <><dt>Pending</dt><dd>{pendingLabel}</dd></>}</FeedHealthDetails>
+            <FeedHealthLane />
+            <footer className="flex flex-wrap items-center gap-2">
+              <FeedHealthPending>{pendingLabel}</FeedHealthPending>
+              {offered.map((action) => <Button key={action.id} variant="outline" size="sm" disabled={Boolean(pending)} onClick={() => run(action.id)}>{action.label}</Button>)}
+              <a href="https://tradecn.dev/docs/feed-health/" target="_blank" rel="noreferrer" className="underline underline-offset-4">Feed API</a>
+            </footer>
           </FeedHealthItem>
           <FeedHealthAnnouncer feeds={[feed]} />
         </FeedHealth>

@@ -1,23 +1,13 @@
 import { cn } from "cn"
-import { useEffect, useRef, useState } from "react"
+import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ComponentProps } from "react"
 import { Badge } from "@/components/ui/badge"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useNow } from "@/registry/tradecn/hooks/use-clock"
 import { createClock, sharedClock, type Clock } from "@/registry/tradecn/lib/clock"
 
-// A strip that says, for each feed, whether it is connected and how old its data is.
-//
-// A number that admits it is two seconds old can be worked with; a frozen screen cannot. So every
-// feed gets a state, an age, and a tier, and past a threshold the tier says stale. Only the leaves
-// subscribe to the clock: the strip and the app around it do not re-render every second.
-//
-// A feed may also offer actions, the ids the server allows on it (pause, resume, reconnect,
-// resubscribe are the usual set) with the consumer's labels, in a menu on the feed. A press is a
-// request: the feed shows it pending until its state changes or a while passes, and the tier never
-// moves on a click, only on what the feed reports.
+// Callers own the rows, tooltips and controls. Items coordinate one feed's readings; only
+// those items, standalone ages and the explicit collection announcer subscribe to the clock.
 
 export type FeedState = "connected" | "connecting" | "disconnected" | "unknown"
 export type FeedLane = "coalesced" | "ordered"
@@ -49,15 +39,6 @@ export interface FeedAction {
   run: (feed: FeedDescriptor) => void | Promise<unknown>
   destructive?: boolean
 }
-
-export interface FeedHealthLabels {
-  /** The menu button's name. `{feed}` is the feed's label. */
-  actions: string
-  /** The tooltip's word for an action that is out. */
-  pending: string
-}
-
-export const DEFAULT_FEED_HEALTH_LABELS: FeedHealthLabels = { actions: "Actions: {feed}", pending: "Pending" }
 
 /** The actions a feed offers now: yours, in your order, kept to the ids in its `allowedActions`. */
 export function feedActionsFor(feed: FeedDescriptor, actions: readonly FeedAction[] | undefined): FeedAction[] {
@@ -126,223 +107,231 @@ const STATE_DOT: Record<FeedState, string> = {
   unknown: "bg-muted-foreground",
 }
 
-export interface FeedAgeProps {
-  feed: FeedDescriptor
-  clock?: Clock
-  className?: string
-}
-
-/** The age of a feed's data, ticking once a second. Hidden from assistive tech; the strip announces tier changes instead. */
-export function FeedAge({ feed, clock, className }: FeedAgeProps) {
-  const now = useNow(clock ?? sharedClock())
-  return (
-    <span aria-hidden data-numeric="" className={cn("lining-nums tabular-nums", className)}>
-      {formatAge(feed.lastMessageAt === null ? null : Math.max(0, now - feed.lastMessageAt))}
-    </span>
-  )
-}
-
-interface ItemProps {
-  feed: FeedDescriptor
-  thresholds: StalenessThresholds
-  session: SessionCalendar
-  clock: Clock
-  compact: boolean
-  actions: readonly FeedAction[]
-  pending: PendingFeedAction | undefined
-  labels: FeedHealthLabels
-  onRun: (feed: FeedDescriptor, action: FeedAction) => void
-}
-
-const fill = (template: string, values: Record<string, string>) => template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "")
-
-function FeedItem({ feed, thresholds, session, clock, compact, actions, pending, labels, onRun }: ItemProps) {
-  const now = useNow(clock)
-  const tier = stalenessTier(feed, now, thresholds, session)
-  const offered = feedActionsFor(feed, actions)
-  const pendingLabel = pending ? (actions.find((a) => a.id === pending.action)?.label ?? pending.action) : null
-  return (
-    <>
-      <Tooltip>
-        <TooltipTrigger
-          data-feed={feed.id}
-          data-tier={tier}
-          data-state={feed.state}
-          data-pending={pending?.action}
-          className={cn("inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40", TIER_CLASS[tier])}
-        >
-          <span aria-hidden className={cn("size-1.5 rounded-full", STATE_DOT[feed.state])} />
-          <span className="font-medium">{feed.label}</span>
-          {!compact && (
-            <Badge variant="outline" className={cn("h-4 px-1 text-xs uppercase", TIER_CLASS[tier])}>
-              {tier}
-            </Badge>
-          )}
-          <FeedAge feed={feed} clock={clock} />
-          {feed.lane === "coalesced" && Boolean(feed.dropped) && <span className="text-muted-foreground lining-nums tabular-nums">{`drop ${feed.dropped!.toLocaleString()}`}</span>}
-          {feed.lane === "ordered" && feed.gap && (
-            <span className="inline-flex items-center gap-1 text-stale">
-              {feed.gap.replaying && <Spinner className="size-3" />}
-              {`gap ${formatAge(Math.max(0, now - feed.gap.since))}`}
-            </span>
-          )}
-          {/* An action out on the feed: the spinner and the word; the tier is untouched. */}
-          {pending && (
-            <span data-feed-pending={pending.action} className="inline-flex items-center gap-1 text-muted-foreground">
-              <Spinner className="size-3" />
-              {pendingLabel}
-            </span>
-          )}
-        </TooltipTrigger>
-        <TooltipContent>
-          <div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 text-left lining-nums tabular-nums">
-            <span>State</span>
-            <span>{feed.state}</span>
-            <span>Data</span>
-            <span>{tier}</span>
-            <span>Last message</span>
-            <span>{feed.lastMessageAt === null ? "–" : new Date(feed.lastMessageAt).toLocaleTimeString()}</span>
-            {pending && (
-              <>
-                <span>{labels.pending}</span>
-                <span>{pendingLabel}</span>
-              </>
-            )}
-          {feed.lane === "ordered" && feed.seq !== undefined && (
-            <>
-              <span>Sequence</span>
-              <span>{feed.seq.toLocaleString()}</span>
-            </>
-          )}
-          {feed.lane === "coalesced" && (
-            <>
-              <span>Dropped</span>
-              <span>{(feed.dropped ?? 0).toLocaleString()}</span>
-            </>
-          )}
-            {feed.gap && (
-              <>
-                <span>Gap</span>
-                <span>{feed.gap.replaying ? "replaying" : "open"}</span>
-              </>
-            )}
-          </div>
-        </TooltipContent>
-      </Tooltip>
-      {/* The menu, only for a feed the server allows something on. Its items are held while an action is out. */}
-      {offered.length > 0 && (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label={fill(labels.actions, { feed: feed.label })}
-            data-feed-actions={feed.id}
-            className="rounded px-1 text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
-          >
-            <svg aria-hidden width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-              <circle cx="5" cy="1.5" r="1.2" />
-              <circle cx="5" cy="5" r="1.2" />
-              <circle cx="5" cy="8.5" r="1.2" />
-            </svg>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {offered.map((action) => (
-              <DropdownMenuItem key={action.id} disabled={Boolean(pending)} data-feed-action={action.id} className={cn(action.destructive && "text-destructive")} onClick={() => onRun(feed, action)}>
-                {action.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-    </>
-  )
-}
-
-function Announcer({ feeds, thresholds, session, clock }: Pick<ItemProps, "thresholds" | "session" | "clock"> & { feeds: FeedDescriptor[] }) {
-  const now = useNow(clock)
-  const tiers = feeds.map((f) => `${f.id}=${stalenessTier(f, now, thresholds, session)}`).join("|")
-  const [seen, setSeen] = useState(tiers)
-  const [message, setMessage] = useState("")
-  // Derived state, set during render: speak only when a tier changes, never on a plain tick.
-  if (seen !== tiers) {
-    const before = new Map(seen.split("|").map((p) => p.split("=") as [string, string]))
-    const changes = feeds
-      .map((f) => ({ f, tier: stalenessTier(f, now, thresholds, session) }))
-      .filter(({ f, tier }) => before.get(f.id) !== tier)
-      .map(({ f, tier }) => `${f.label} ${tier}${tier === "stale" || tier === "aging" ? `, ${formatAge(f.lastMessageAt === null ? null : now - f.lastMessageAt)}` : ""}`)
-    setSeen(tiers)
-    if (changes.length) setMessage(changes.join(". "))
-  }
-  return (
-    <span aria-live="polite" className="sr-only">
-      {message}
-    </span>
-  )
-}
-
-export interface FeedHealthProps {
-  feeds: FeedDescriptor[]
+export interface FeedHealthOptions {
   thresholds?: StalenessThresholds
   session?: SessionCalendar
   clock?: Clock
-  /** Hide the tier pill; the color and the age still show. */
-  compact?: boolean
-  /** What can be done to a feed, in your order and your words. A feed offers only the ids in its `allowedActions`, in a menu of its own. */
-  actions?: readonly FeedAction[]
-  /** How long an action shows pending when neither the feed's state nor the run's promise settles it. Default 5000. */
-  pendingMs?: number
-  labels?: Partial<FeedHealthLabels>
-  className?: string
 }
 
-const NO_ACTIONS: readonly FeedAction[] = []
-const NO_PENDING: Readonly<Record<string, PendingFeedAction>> = {}
+const OptionsContext = createContext<FeedHealthOptions>({})
 
-export function FeedHealth({ feeds, thresholds = PROVISIONAL_THRESHOLDS, session = alwaysOpen, clock, compact = false, actions = NO_ACTIONS, pendingMs = 5000, labels: labelsProp, className }: FeedHealthProps) {
-  const c = clock ?? sharedClock()
-  const labels = { ...DEFAULT_FEED_HEALTH_LABELS, ...labelsProp }
-  // Actions out, by feed id. Derived state settled during render: a feed whose state moved since the press is answered.
-  const [pending, setPending] = useState(NO_PENDING)
-  let settled: Record<string, PendingFeedAction> | null = null
-  for (const [id, entry] of Object.entries(pending)) {
-    const feed = feeds.find((f) => f.id === id)
-    if (feed && feed.state === entry.state) continue
-    settled ??= { ...pending }
-    delete settled[id]
+function useOptions(options: FeedHealthOptions) {
+  const inherited = useContext(OptionsContext)
+  return {
+    thresholds: options.thresholds ?? inherited.thresholds ?? PROVISIONAL_THRESHOLDS,
+    session: options.session ?? inherited.session ?? alwaysOpen,
+    clock: options.clock ?? inherited.clock ?? sharedClock(),
   }
-  const live = settled ?? pending
-  if (settled) setPending(settled)
-  const latest = useRef({ actions, pendingMs })
-  useEffect(() => {
-    latest.current = { actions, pendingMs }
-  })
-  const clear = (id: string, since: number) => setPending((current) => (current[id]?.since === since ? Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)) : current))
-  const run = (feed: FeedDescriptor, action: FeedAction) => {
-    // Asked of the feed as it is now, not as it was drawn.
-    if (!feed.allowedActions?.includes(action.id) || live[feed.id]) return
-    const since = c.now()
-    setPending((current) => ({ ...current, [feed.id]: { action: action.id, state: feed.state, since } }))
-    setTimeout(() => clear(feed.id, since), latest.current.pendingMs)
-    let result: void | Promise<unknown>
-    try {
-      result = action.run(feed)
-    } catch {
-      clear(feed.id, since)
-      return
-    }
-    if (result && typeof (result as Promise<unknown>).then === "function") (result as Promise<unknown>).then(() => clear(feed.id, since), () => clear(feed.id, since))
-  }
-  // Radix tooltips throw without a provider above them; Base UI tooltips do not need one. Every style
-  // exports TooltipProvider, so the strip brings its own and works in a consumer that never added one.
+}
+
+export interface FeedHealthProps extends ComponentProps<"div">, FeedHealthOptions { }
+
+/** Supply the rows and one announcer. No clock subscription or collection state lives here. */
+export function FeedHealth({ thresholds, session, clock, className, ...props }: FeedHealthProps) {
+  const options = useOptions({ thresholds, session, clock })
   return (
-    <TooltipProvider>
-      <div role="group" aria-label="Feed health" data-slot="tradecn-feed-health" className={cn("flex items-center gap-1 lining-nums tabular-nums", className)}>
-        {feeds.map((feed, i) => (
-          <span key={feed.id} className="inline-flex items-center gap-1">
-            {i > 0 && <Separator orientation="vertical" className="h-3" />}
-            <FeedItem feed={feed} thresholds={thresholds} session={session} clock={c} compact={compact} actions={actions} pending={live[feed.id]} labels={labels} onRun={run} />
-          </span>
-        ))}
-        <Announcer feeds={feeds} thresholds={thresholds} session={session} clock={c} />
-      </div>
-    </TooltipProvider>
+    <OptionsContext value={options}>
+      <TooltipProvider>
+        <div role="group" aria-label={props["aria-labelledby"] ? undefined : "Feed health"} data-slot="tradecn-feed-health" className={cn("flex min-w-0 items-center gap-1 text-xs lining-nums tabular-nums", className)} {...props} />
+      </TooltipProvider>
+    </OptionsContext>
   )
+}
+
+interface FeedContextValue {
+  feed: FeedDescriptor
+  tier: Tier
+  now: number
+  pending?: PendingFeedAction | null
+  descriptionId: string
+}
+
+const FeedContext = createContext<FeedContextValue | null>(null)
+
+function useFeed() {
+  const feed = useContext(FeedContext)
+  if (!feed) throw new Error("FeedHealth parts must be inside FeedHealthItem")
+  return feed
+}
+
+export interface FeedHealthItemProps extends ComponentProps<"div">, FeedHealthOptions {
+  feed: FeedDescriptor
+  pending?: PendingFeedAction | null
+}
+
+/** One feed's context and presentation. Its children can be a strip, a card, or application markup. */
+export function FeedHealthItem({ feed, pending, thresholds, session, clock, className, ...props }: FeedHealthItemProps) {
+  const options = useOptions({ thresholds, session, clock })
+  const now = useNow(options.clock)
+  const tier = stalenessTier(feed, now, options.thresholds, options.session)
+  const descriptionId = useId()
+  return (
+    <OptionsContext value={options}>
+      <FeedContext value={{ feed, tier, now, pending, descriptionId }}>
+        <div data-slot="tradecn-feed-health-item" data-feed={feed.id} data-tier={tier} data-state={feed.state} data-pending={pending?.action} className={cn("inline-flex min-w-0 items-center gap-1.5 rounded text-xs lining-nums tabular-nums", TIER_CLASS[tier], className)} {...props} />
+      </FeedContext>
+    </OptionsContext>
+  )
+}
+
+/** Use inside your Tooltip, paired with FeedHealthContent. */
+export function FeedHealthTrigger({ className, ...props }: ComponentProps<typeof TooltipTrigger>) {
+  const { descriptionId } = useFeed()
+  return <TooltipTrigger aria-describedby={descriptionId} className={cn("inline-flex min-w-0 items-center gap-1.5 rounded px-1.5 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/40", className)} {...props} />
+}
+
+/** A described tooltip in either primitive base. The caller supplies its content. */
+export function FeedHealthContent(props: ComponentProps<typeof TooltipContent>) {
+  const { descriptionId } = useFeed()
+  return <TooltipContent id={descriptionId} role="tooltip" {...props} />
+}
+
+/** The state word accompanies its dot even when the tier badge is visually hidden. */
+export function FeedHealthIndicator({ className, children, ...props }: ComponentProps<"span">) {
+  const { feed } = useFeed()
+  return <span data-slot="tradecn-feed-health-indicator" className={cn("inline-flex items-center", className)} {...props}>
+    <span aria-hidden className={cn("size-1.5 rounded-full", STATE_DOT[feed.state])} />
+    {children === undefined ? <span className="sr-only">{feed.state}</span> : children}
+  </span>
+}
+
+export function FeedHealthTier({ className, children, ...props }: ComponentProps<typeof Badge>) {
+  const { tier } = useFeed()
+  return <Badge variant="outline" data-slot="tradecn-feed-health-tier" className={cn("h-4 px-1 text-xs uppercase", TIER_CLASS[tier], className)} {...props}>{children === undefined ? tier : children}</Badge>
+}
+
+export interface FeedAgeProps extends ComponentProps<"span"> {
+  feed: FeedDescriptor
+  clock?: Clock
+}
+
+/** A self-ticking age. Hidden from assistive technology; mount one announcer for tier changes. */
+export function FeedAge({ feed, clock, className, children, ...props }: FeedAgeProps) {
+  const options = useOptions({ clock })
+  const now = useNow(options.clock)
+  return <span aria-hidden data-numeric="" className={cn("lining-nums tabular-nums", className)} {...props}>{children === undefined ? formatAge(feed.lastMessageAt === null ? null : Math.max(0, now - feed.lastMessageAt)) : children}</span>
+}
+
+/** Optional inline drop count or gap age. Detailed sequence and gap state are in FeedHealthDetails. */
+export function FeedHealthLane({ className, children, ...props }: ComponentProps<"span">) {
+  const { feed, now } = useFeed()
+  const dropped = feed.lane === "coalesced" && Boolean(feed.dropped)
+  const gap = feed.lane === "ordered" ? feed.gap : null
+  if (children === undefined && !dropped && !gap) return null
+  return <span data-slot="tradecn-feed-health-lane" data-numeric="" className={cn("inline-flex items-center gap-1 lining-nums tabular-nums", gap ? "text-stale" : "text-muted-foreground", className)} {...props}>
+    {children === undefined ? <>
+      {dropped && `drop ${feed.dropped!.toLocaleString()}`}
+      {gap && <>{gap.replaying && <Spinner aria-hidden className="size-3" />}{`gap ${formatAge(Math.max(0, now - gap.since))}`}<span className="sr-only">{gap.replaying ? " replaying" : " open"}</span></>}
+    </> : children}
+  </span>
+}
+
+/** Replaceable metadata formatting. Children append caller-owned fields, such as a pending label. */
+export function FeedHealthDetails({ className, children, ...props }: ComponentProps<"dl">) {
+  const { feed, tier } = useFeed()
+  return <dl data-slot="tradecn-feed-health-details" className={cn("grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 text-left text-xs lining-nums tabular-nums", className)} {...props}>
+    <dt>State</dt><dd>{feed.state}</dd>
+    <dt>Data</dt><dd>{tier}</dd>
+    <dt>Last message</dt><dd>{feed.lastMessageAt === null ? "–" : new Date(feed.lastMessageAt).toLocaleTimeString()}</dd>
+    {feed.lane === "ordered" && feed.seq !== undefined && <><dt>Sequence</dt><dd>{feed.seq.toLocaleString()}</dd></>}
+    {feed.lane === "coalesced" && <><dt>Dropped</dt><dd>{(feed.dropped ?? 0).toLocaleString()}</dd></>}
+    {feed.gap && <><dt>Gap</dt><dd>{feed.gap.replaying ? "replaying" : "open"}</dd></>}
+    {children}
+  </dl>
+}
+
+/** Put the caller's pending label wherever it belongs; omission uses the action id. */
+export function FeedHealthPending({ className, children, ...props }: ComponentProps<"span">) {
+  const { pending } = useFeed()
+  if (!pending) return null
+  return <span data-slot="tradecn-feed-health-pending" data-feed-pending={pending.action} className={cn("inline-flex items-center gap-1 text-muted-foreground", className)} {...props}><Spinner aria-hidden className="size-3" />{children === undefined ? pending.action : children}</span>
+}
+
+export interface FeedHealthAnnouncerProps extends ComponentProps<"span">, FeedHealthOptions {
+  feeds: readonly FeedDescriptor[]
+}
+
+/** Mount once per collection, even when the same feeds have several visual presentations. */
+export function FeedHealthAnnouncer({ feeds, thresholds, session, clock, className, ...props }: FeedHealthAnnouncerProps) {
+  const options = useOptions({ thresholds, session, clock })
+  const now = useNow(options.clock)
+  const tiers = new Map(feeds.map((feed) => [feed.id, stalenessTier(feed, now, options.thresholds, options.session)]))
+  const [seen, setSeen] = useState(tiers)
+  const [message, setMessage] = useState("")
+  if (seen.size !== tiers.size || feeds.some((feed) => seen.get(feed.id) !== tiers.get(feed.id))) {
+    const changes = feeds.filter((feed) => seen.get(feed.id) !== tiers.get(feed.id)).map((feed) => {
+      const tier = tiers.get(feed.id)!
+      return `${feed.label} ${tier}${tier === "stale" || tier === "aging" ? `, ${formatAge(feed.lastMessageAt === null ? null : Math.max(0, now - feed.lastMessageAt))}` : ""}`
+    })
+    setSeen(tiers)
+    if (changes.length) setMessage(changes.join(". "))
+  }
+  return <span aria-live="polite" aria-atomic="true" data-slot="tradecn-feed-health-announcer" className={cn("sr-only", className)} {...props}>{message}</span>
+}
+
+export interface UseFeedActionsOptions {
+  /** A pending request expires after this many milliseconds. Changes affect future presses. */
+  pendingMs?: number
+  /** Timestamp source; this hook does not subscribe. */
+  clock?: Clock
+}
+
+interface FeedRequest {
+  feedId: string
+  pending: PendingFeedAction
+  timer: ReturnType<typeof setTimeout>
+}
+
+/** One owner per feed. Share its result across controls or views; run rechecks current permissions. */
+export function useFeedActions(feed: FeedDescriptor, actions: readonly FeedAction[], { pendingMs = 5000, clock }: UseFeedActionsOptions = {}) {
+  const options = useOptions({ clock })
+  const [request, setRequest] = useState<FeedRequest | null>(null)
+  const active = useRef<FeedRequest | null>(null)
+  const latest = useRef({ feed, actions, pendingMs, clock: options.clock })
+  const mounted = useRef(false)
+
+  useLayoutEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      if (active.current) clearTimeout(active.current.timer)
+      active.current = null
+    }
+  }, [])
+  useLayoutEffect(() => {
+    latest.current = { feed, actions, pendingMs, clock: options.clock }
+    if (active.current && (active.current.feedId !== feed.id || active.current.pending.state !== feed.state)) {
+      clearTimeout(active.current.timer)
+      active.current = null
+      setRequest(null)
+    }
+  }, [feed, actions, pendingMs, options.clock])
+
+  const run = useCallback((actionId: string) => {
+    const current = latest.current
+    const action = current.actions.find((candidate) => candidate.id === actionId)
+    if (!mounted.current || active.current || !action || !current.feed.allowedActions?.includes(actionId)) return
+    const clear = () => {
+      if (active.current !== next) return
+      clearTimeout(next.timer)
+      active.current = null
+      setRequest(null)
+    }
+    const next: FeedRequest = {
+      feedId: current.feed.id,
+      pending: { action: actionId, state: current.feed.state, since: current.clock.now() },
+      timer: setTimeout(clear, current.pendingMs),
+    }
+    active.current = next
+    setRequest(next)
+    try {
+      const result = action.run(current.feed)
+      if (result) Promise.resolve(result).then(clear, clear)
+    } catch {
+      clear()
+    }
+  }, [])
+
+  const pending = request?.feedId === feed.id && request.pending.state === feed.state ? request.pending : null
+  return { actions: feedActionsFor(feed, actions), pending, pendingLabel: pending ? (actions.find((action) => action.id === pending.action)?.label ?? pending.action) : undefined, run }
 }
