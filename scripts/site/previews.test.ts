@@ -106,6 +106,7 @@ describe("the demo source shown under Code", () => {
       "blotter",
       "blotter-actions",
       "blotter-reports",
+      "perf-monitor-load",
     ])
     for (const name of alignable) {
       expect(demos.has(name), name).toBe(true)
@@ -182,6 +183,7 @@ describe("the demo source shown under Code", () => {
       "panel-states",
       "parameter-grid-permissions",
       "parameter-grid-server",
+      "perf-monitor-load",
       "positions-books",
       "positions-formats",
       "positions-updates",
@@ -337,6 +339,7 @@ describe("a theme on the site", () => {
       "panel-states",
       "parameter-grid-permissions",
       "parameter-grid-server",
+      "perf-monitor-load",
       "positions-books",
       "positions-formats",
       "positions-updates",
