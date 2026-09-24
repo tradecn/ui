@@ -6,22 +6,62 @@ Edit one grid's highlights, filters, and sort order, with live match counts and 
 
 ```tsx
 import { useState } from "react"
-import { DataGrid, type ColumnState } from "@/components/ui/data-grid"
-import { RulesEditor } from "@/components/ui/rules-editor"
+import { createInstrumentFormatter, formatNotional } from "@/lib/format"
 import type { GridRules } from "@/lib/grid-rules"
+import { createRowStore } from "@/lib/row-store"
+import { DataGrid, type ColumnDef, type ColumnState } from "@/components/ui/data-grid"
+import { RulesEditor } from "@/components/ui/rules-editor"
+
+interface Rfq {
+  id: string
+  client: string
+  size: number
+  px: number | null
+}
+
+const ust = createInstrumentFormatter({ price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 })
+
+const columns: ColumnDef<Rfq>[] = [
+  { key: "client", header: "Client", width: 180, sortable: true, accessor: (r) => r.client },
+  { key: "size", header: "Size", width: 160, numeric: true, sortable: true, accessor: (r) => r.size, format: (v) => formatNotional(v as number, { unit: "mm" }) },
+  { key: "px", header: "Price", width: 170, numeric: true, font: "mono", sortable: true, accessor: (r) => r.px, format: (v) => ust.price(v as number | null), parse: ust.parsePrice },
+]
+
+const rows: Rfq[] = [
+  { id: "Q-1", client: "ALPHA", size: 5_000_000, px: 99.5 },
+  { id: "Q-2", client: "BETA", size: 25_000_000, px: 100.015625 },
+  { id: "Q-3", client: "GAMMA", size: 10_000_000, px: null },
+]
+
+// The editor and the grid share one rules object and one column state. Edit a rule and the grid follows the keystroke.
+function QuoteRules() {
+  const [store] = useState(() => {
+    const s = createRowStore<Rfq>({ getRowId: (r) => r.id })
+    s.applyDeltas({ upsert: rows })
+    return s
+  })
+  const [rules, setRules] = useState<GridRules>({
+    columns: [{ id: "threshold", column: "px", when: { op: "gte", value: "100-00" }, tone: "primary", label: "Price threshold" }],
+    filter: [],
+    sort: [],
+  })
+  const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: {}, hidden: [] })
+  return (
+    <div className="w-lg max-w-full space-y-3">
+      <RulesEditor className="overflow-x-auto" columns={columns} rules={rules} onRulesChange={setRules} store={store} columnState={columnState} onColumnStateChange={setColumnState} />
+      <div className="h-48">
+        <DataGrid store={store} columns={columns} preset="watchlist" label="Quotes with rules" rules={rules} columnState={columnState} onColumnStateChange={setColumnState} />
+      </div>
+    </div>
+  )
+}
 ```
 
-```tsx
-const [rules, setRules] = useState<GridRules>({ columns: [], filter: [], sort: [] })
-const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: {}, hidden: [] })
-
-<RulesEditor columns={columns} rules={rules} onRulesChange={setRules} store={store} columnState={columnState} onColumnStateChange={setColumnState} />
-<DataGrid store={store} columns={columns} rules={rules} columnState={columnState} onColumnStateChange={setColumnState} label="Open RFQs" />
-```
+The editor and grid share one controlled rules object. Change the price threshold from `100-00` to `99-00`: the match count grows from one to two, and both price cells highlight. The blank price stays unmatched. Filters and Sort start empty; add rules in those tabs to narrow or reorder the same three rows.
 
 ## Composition
 
-The first three tabs edit [`GridRules`](grid-rules.md): Highlights edits `columns`, Filters edits `filter`, and Sort edits `sort`. Columns embeds [`ColumnChooserPanel`](column-chooser.md) when both `columnState` and `onColumnStateChange` are supplied.
+The first three tabs edit [`GridRules`](grid-rules.md): Highlights edits `columns`, Filters edits `filter`, and Sort edits `sort`. Columns embeds [`ColumnChooserPanel`](column-chooser.md) when both `columnState` and `onColumnStateChange` are supplied. The example shares that state with the grid too; omit both props from the editor when you do not need the Columns tab. The RulesEditor installation includes the grid, chooser, formatter, and store used here.
 
 Left/Right wrap through tabs; Home/End select the first/last. `defaultTab` chooses the initial tab only. If Columns is selected but unavailable, Highlights is shown; Columns returns when both props return unless another tab was selected.
 
