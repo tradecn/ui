@@ -257,16 +257,18 @@ export function FeedHealthAnnouncer({ feeds, thresholds, session, clock, classNa
   const now = useNow(options.clock)
   const tiers = new Map(feeds.map((feed) => [feed.id, stalenessTier(feed, now, options.thresholds, options.session)]))
   const [seen, setSeen] = useState(tiers)
-  const [message, setMessage] = useState("")
+  const [message, setMessage] = useState({ text: "", revision: 0 })
   if (seen.size !== tiers.size || feeds.some((feed) => seen.get(feed.id) !== tiers.get(feed.id))) {
     const changes = feeds.filter((feed) => seen.get(feed.id) !== tiers.get(feed.id)).map((feed) => {
       const tier = tiers.get(feed.id)!
       return `${feed.label} ${tier}${tier === "stale" || tier === "aging" ? `, ${formatAge(feed.lastMessageAt === null ? null : Math.max(0, now - feed.lastMessageAt))}` : ""}`
     })
     setSeen(tiers)
-    if (changes.length) setMessage(changes.join(". "))
+    // A new addition may repeat the previous words after a removal. Replace the message node
+    // so the persistent live region receives an addition even when its text is identical.
+    if (changes.length) setMessage({ text: changes.join(". "), revision: message.revision + 1 })
   }
-  return <span aria-live="polite" aria-atomic="true" data-slot="tradecn-feed-health-announcer" className={cn("sr-only", className)} {...props}>{message}</span>
+  return <span aria-live="polite" aria-atomic="true" data-slot="tradecn-feed-health-announcer" className={cn("sr-only", className)} {...props}>{message.text && <span key={message.revision}>{message.text}</span>}</span>
 }
 
 export interface UseFeedActionsOptions {

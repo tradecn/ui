@@ -286,6 +286,25 @@ describe("public composition", () => {
     expect(live).toHaveTextContent("Market data offline. RFQ aging, 5s")
   })
 
+  it("updates the live region when a removed feed returns with identical announcement text", async () => {
+    const clock = { now: () => 5000, subscribe: () => () => {} }
+    const offline = feed({ state: "disconnected" })
+    const { rerender } = render(<FeedHealthAnnouncer feeds={[]} clock={clock} />)
+    const live = document.querySelector("[aria-live]")!
+    rerender(<FeedHealthAnnouncer feeds={[offline]} clock={clock} />)
+    expect(live).toHaveTextContent("Market data offline")
+    rerender(<FeedHealthAnnouncer feeds={[]} clock={clock} />)
+    const added: string[] = []
+    const observer = new MutationObserver((records) => {
+      for (const record of records) for (const node of record.addedNodes) added.push(node.textContent ?? "")
+    })
+    observer.observe(live, { childList: true, subtree: true })
+    await act(async () => { rerender(<FeedHealthAnnouncer feeds={[offline]} clock={clock} />) })
+    observer.disconnect()
+    expect(added).toContain("Market data offline")
+    expect(document.querySelector("[aria-live]")).toBe(live)
+  })
+
   it("clamps a future timestamp and supports a standalone age with native span props", () => {
     render(<FeedAge feed={feed({ lastMessageAt: 9000 })} clock={{ now: () => 5000, subscribe: () => () => { } }} aria-label="Age" />)
     expect(screen.getByLabelText("Age")).toHaveTextContent("now")
