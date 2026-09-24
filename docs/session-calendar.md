@@ -5,24 +5,31 @@ Build a session calendar from trading hours, holidays, and early closes in a ven
 ## Usage
 
 ```ts
-import { createSessionCalendar } from "@/lib/session-calendar"
-```
+import { createSessionCalendar, zonedInstant } from "@/lib/session-calendar"
 
-```ts
-const cash = createSessionCalendar({
+const calendar = createSessionCalendar({
   zone: "America/New_York",
-  sessions: [{ days: [1, 2, 3, 4, 5], open: "09:30", close: "16:00", pre: "04:00", post: "20:00" }],
-  holidays: ["2026-11-26", "2026-12-25"],
-  earlyCloses: [{ date: "2026-11-27", close: "13:00" }],
+  sessions: [{ days: [1, 2, 3, 4, 5], open: "09:30", close: "16:00" }],
 })
+const at = zonedInstant("2026-09-23", "10:00", calendar.zone)
 
-cash.status(Date.now()) // "open" | "closed" | "pre" | "post" | "holiday"
-cash.nextTransition(Date.now()) // { at, status } or null
-cash.timeToClose(Date.now()) // ms, or null when not open
-cash.isTradingDay("2026-11-27") // true
-
-<FeedHealth feeds={feeds} session={cash} />
+console.log(calendar.status(at)) // "open"
+console.log(calendar.nextTransition(at)) // { at: ..., status: "closed" }; 16:00 New York
+console.log(calendar.timeToClose(at)) // 21_600_000 ms (6 hours)
+console.log(calendar.isTradingDay("2026-09-23")) // true
 ```
+
+This illustrative schedule opens Monday through Friday. `zonedInstant` converts its local date and time to an epoch timestamp. The preview queries one fixed instant, so its status and time to close remain available to inspect. The calendar runs no timer; your application supplies each instant to query.
+
+To use it with a feed, install [`feed-health`](feed-health.md) separately and pass the calendar to its `session` prop. That component reads `status(now)` from the calendar; it supplies no venue schedule.
+
+## Calendar exceptions
+
+This comparison adds pre-open and post-close windows, a sample holiday on September 24, and a 13:00 close on September 25. These dates are illustrative. Applications should use their venue's published schedule.
+
+The holiday has no opening session. The early-close date remains a trading day: thirty minutes remain at 12:30, and the status is `post` at 13:30 because the configured post-close window still ends at 20:00. Saturday is closed. A trading day means a session is scheduled to open that day, even during pre-open or post-close hours. Scroll the table horizontally on narrow screens.
+
+<!-- demo: session-calendar-exceptions -->
 
 ## API Reference
 
@@ -101,7 +108,7 @@ Each `EarlyClose` overrides the close for sessions ending on that date. For an o
 
 The last override for a date wins. It leaves the opening and pre-open times unchanged; post-close still ends at the configured `post`, clamped against the replacement close. Overrides are not checked against the open or normal close, so a close before open can leave the session in `pre`. Supply valid dates and close times; an invalid close time can throw when the calendar is read.
 
-The library ships no venue schedule. Supply sessions, holidays, and early closes from the venue's published calendar. The demo names the exchange calendar behind its example; check that source before relying on the example.
+The library ships no venue schedule. Supply sessions, holidays, and early closes from the venue's published calendar. The examples use illustrative schedules, not exchange calendar data.
 
 ### Time zones
 
