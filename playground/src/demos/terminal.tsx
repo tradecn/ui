@@ -1615,18 +1615,19 @@ function Notice({ alerts, id, actions, ttlMs }: { alerts: AlertStore; id: string
   )
 }
 
-function DeskAlerts({ alerts, actions }: { alerts: AlertStore; actions: NoticeAction[] }) {
+export function DeskAlerts({ alerts, actions }: { alerts: AlertStore; actions: NoticeAction[] }) {
   const ids = useRowIds(useAlertView(alerts))
+  // Notices can expire while history is open; keep its trigger mounted for focus on close.
   return (
     <Dialog>
       <Alerts className="border-b border-border px-2 py-1">
         <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
         {ids.length > 0 && <AlertsList>{ids.slice(0, 1).map((id) => <Notice key={id} alerts={alerts} id={id} actions={actions} ttlMs={12_000} />)}</AlertsList>}
         {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
-        {ids.length > 0 && <div className="flex gap-2">
-          {ids.length > 1 && <DialogTrigger className={buttonVariants({ variant: "ghost", size: "sm" })}>{ids.length - 1} more</DialogTrigger>}
-          <Button variant="ghost" size="sm" onClick={() => alerts.clear()}>Clear all</Button>
-        </div>}
+        <div className="flex gap-2">
+          <DialogTrigger className={buttonVariants({ variant: "ghost", size: "sm" })}>{ids.length > 1 ? `${ids.length - 1} more` : "History"}</DialogTrigger>
+          {ids.length > 0 && <Button variant="ghost" size="sm" onClick={() => alerts.clear()}>Clear all</Button>}
+        </div>
       </Alerts>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col sm:max-w-3xl">
         <DialogHeader className="shrink-0"><DialogTitle>All notices</DialogTitle><DialogDescription>Every notice, newest first.</DialogDescription></DialogHeader>
