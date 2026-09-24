@@ -68,7 +68,7 @@ export function useHotkey(id: string, handler: HotkeyHandler, options: UseHotkey
   }, [registry, id, enabled, scope])
 }
 
-/** Every binding with its keys in force, for a help overlay or a settings screen. Re-renders on declare, remap, and reset. */
+/** Every binding with its keys in force, for a help overlay or a settings screen. Re-renders on declare, remap, and reset, and when a handler attaches or detaches. */
 export function useHotkeyList(): readonly HotkeyEntry[] {
   const registry = useHotkeys()
   return useSyncExternalStore(registry.subscribe, registry.list, registry.list)

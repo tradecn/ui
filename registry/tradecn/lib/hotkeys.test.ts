@@ -403,6 +403,49 @@ describe("conflicts", () => {
     registry.register(binding("a", ""))
     expect(registry.register(binding("b", ""))).toEqual([])
   })
+
+  it("does not report two bindings whose handlers are fenced apart, and does again when one runs anywhere or the boxes nest", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const host = mount(`<div id="a" data-hotkey-scope="editing"><input /></div><div id="b" data-hotkey-scope="editing"><div id="inner"></div></div>`)
+    registry.register(binding("ticket.send", "mod+enter", "editing"))
+    const duplicate = { kind: "duplicate", keys: "ctrl+enter", ids: ["rfq.send", "ticket.send"] }
+    expect(registry.register(binding("rfq.send", "mod+enter", "editing"))).toEqual([duplicate])
+    const woke = vi.fn()
+    registry.subscribe(woke)
+    const offA = registry.bind("ticket.send", vi.fn(), { scope: "editing", element: () => host.querySelector("#a") })
+    // One side fenced and the other not bound yet: the declarations still meet.
+    expect(registry.conflicts()).toHaveLength(1)
+    registry.bind("rfq.send", vi.fn(), { scope: "editing", element: () => host.querySelector("#b") })
+    // Each handler wakes subscribers, so a settings screen sees the line go.
+    expect(woke).toHaveBeenCalledTimes(2)
+    expect(registry.conflicts()).toEqual([])
+    expect(registry.remap("rfq.send", "ctrl+enter")).toEqual([])
+    // A handler that runs anywhere brings the report back; its leaving takes it away again.
+    const offAny = registry.bind("rfq.send", vi.fn())
+    expect(registry.conflicts()).toEqual([{ ...duplicate, ids: ["ticket.send", "rfq.send"] }])
+    offAny()
+    expect(registry.conflicts()).toEqual([])
+    expect(woke).toHaveBeenCalledTimes(5)
+    // A second order ticket inside the rfq ticket's box: the two can meet there.
+    registry.bind("ticket.send", vi.fn(), { scope: "editing", element: () => host.querySelector("#inner") })
+    expect(registry.conflicts()).toHaveLength(1)
+    offA()
+    expect(registry.conflicts()).toHaveLength(1)
+  })
+
+  it("settles a prefix and a shadow the same way, by where the handlers are fenced", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const host = mount(`<div id="a"><div id="p" data-hotkey-scope="panel:book"></div></div><div id="b"></div>`)
+    registry.register(binding("go.home", "g h"))
+    registry.register(binding("grid.go", "g"))
+    registry.register(binding("book.go", "g", "panel:book"))
+    expect(registry.conflicts()).toHaveLength(3)
+    registry.bind("go.home", vi.fn(), { scope: "global", element: () => host.querySelector("#b") })
+    registry.bind("grid.go", vi.fn(), { scope: "global", element: () => host.querySelector("#a") })
+    registry.bind("book.go", vi.fn(), { scope: "panel:book", element: () => host.querySelector("#p") })
+    // The chord and the single key sit in different boxes; the panel's key is inside the grid's box.
+    expect(registry.conflicts()).toEqual([{ kind: "shadow", keys: "g", ids: ["grid.go", "book.go"] }])
+  })
 })
 
 describe("remapping", () => {

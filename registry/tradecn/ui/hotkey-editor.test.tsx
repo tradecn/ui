@@ -135,6 +135,28 @@ describe("HotkeyEditor", () => {
     expect(document.querySelector("[data-hotkey-conflicts]")).toBeNull()
   })
 
+  it("drops a conflict line once both handlers are fenced apart, and shows it again when one leaves", () => {
+    const { registry } = mount()
+    act(() => {
+      registry.register({ id: "ticket.send", keys: "mod+enter", scope: "editing", description: "Send the ticket", group: "Ticket" })
+      registry.register({ id: "rfq.send", keys: "mod+enter", scope: "editing", description: "Send the quote", group: "Inquiry" })
+    })
+    expect(row("ticket.send").querySelector("[data-hotkey-conflicts]")).toHaveTextContent('same keys as "Send the quote"')
+    const a = document.createElement("div")
+    const b = document.createElement("div")
+    document.body.append(a, b)
+    let off = () => {}
+    act(() => {
+      registry.bind("ticket.send", () => {}, { scope: "editing", element: () => a })
+      off = registry.bind("rfq.send", () => {}, { scope: "editing", element: () => b })
+    })
+    expect(document.querySelector("[data-hotkey-conflicts]")).toBeNull()
+    act(() => off())
+    expect(row("rfq.send").querySelector("[data-hotkey-conflicts]")).toHaveTextContent('same keys as "Send the ticket"')
+    a.remove()
+    b.remove()
+  })
+
   it("resets everything, exports the overrides, asks you to import, and hides what you say", () => {
     const onExport = vi.fn()
     const onImport = vi.fn()
