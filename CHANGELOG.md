@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.11](https://github.com/tradecn/ui/compare/v1.4.10...v1.4.11) (2026-09-24)
+
+
+### Documentation
+
+* **blotter:** simplify the documentation examples ([c168f97](https://github.com/tradecn/ui/commit/c168f979847d2e1bbbc5b455dec0ff65b57b9c88))
+* **column-chooser:** simplify the documentation examples ([aa49ce7](https://github.com/tradecn/ui/commit/aa49ce7d53db552f8ff8829a33f99ec82496913d))
+* **session-calendar:** simplify the documentation examples ([b532b28](https://github.com/tradecn/ui/commit/b532b2882a14a43dc87f4ccba15000a0e0550d6d))
+* **status-bar:** simplify the documentation examples ([65f5f0e](https://github.com/tradecn/ui/commit/65f5f0e5a438bb3cf0c1448e1404c16e0d6a5f80))
+
 ## [1.4.10](https://github.com/tradecn/ui/compare/v1.4.9...v1.4.10) (2026-09-24)
 
 
