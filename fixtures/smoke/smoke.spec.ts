@@ -399,8 +399,10 @@ test("a ticket types a price in 32nds, steps it, sends from a key, and shows onl
   await expect.poll(async () => JSON.parse((await state.getAttribute("data-ticket-sent")) ?? "[]")).toEqual([{ side: "buy", quantity: 5, price: 99.515625, type: "limit", tif: "day", account: null }])
   // The status is the scene's word for the server's, printed as is; the acknowledgement rings the box.
   await expect(ticket.locator("[data-ticket-status]")).toHaveText("Sent")
+  await expect(ticket).toHaveAttribute("data-status", "Sent")
   await scene.getByRole("button", { name: "acknowledge" }).click()
   await expect(ticket.locator("[data-ticket-status]")).toHaveText("Acknowledged")
+  await expect(ticket).toHaveAttribute("data-status", "Acknowledged")
   await expect(ticket.locator("[data-direction='flat']")).toHaveCount(1)
   // Quick sizes: a press puts the size in the field and wears the mark; mod+1 from inside the price field puts the first.
   await ticket.getByRole("button", { name: "Quantity 10" }).click()

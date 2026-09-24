@@ -458,7 +458,7 @@ export function Ticket({
   )
 
   return (
-    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} className={cn("block outline-none lining-nums tabular-nums", className)}>
+    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block outline-none lining-nums tabular-nums", className)}>
       <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground">
         <div className="flex items-center gap-2">
           <span className="font-(family-name:--tradecn-font-mono) text-sm font-semibold" data-ticket-symbol>

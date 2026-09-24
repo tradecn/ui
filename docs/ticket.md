@@ -68,7 +68,7 @@ This is the registry's first block: `ticket.tsx` installs into your `components`
 | `onDraftChange` | `(draft: TicketDraft) => void` | None | Receives draft updates after mount. |
 | `limits` | `Limits` | None | Blocks and confirmation rules. |
 | `quickSizes` | `readonly number[]` | No buttons | Quantities to select with a button or shortcut. |
-| `status` | `string` | None | Server status, printed as supplied. |
+| `status` | `string` | None | Server status, printed as supplied and set as `data-status` on the group. |
 | `message` | `string` | None | Server detail, such as a rejection reason. |
 | `acknowledged` | `unknown` | None | A changed value triggers the acknowledgement ring. |
 | `disabled` | `boolean` | `false` | Disables fields and buttons; stops actions and quick-size shortcuts. |
