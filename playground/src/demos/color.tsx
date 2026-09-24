@@ -1,83 +1,93 @@
-import type { CSSProperties } from "react"
-// As text, so the playground's tsconfig does not need JSON modules for one demo.
-import registryText from "../../../registry.json?raw"
+import { useId } from "react"
 
-// Every theme's direction pair, in light and in dark, seen four more ways: through the three kinds of color
-// blindness and in grayscale. The simulations are SVG color matrices from Machado, Oliveira, and Fernandes
-// (2009), at full severity. What has to survive every column is that up and down stay two colors, and that
-// each stays readable on its page: the sign and the word carry direction where the hue cannot.
-
-interface ThemeItem {
-  name: string
-  type: string
-  cssVars?: { light?: Record<string, string>; dark?: Record<string, string> }
+interface Palette {
+  background: string
+  foreground: string
+  up: string
+  down: string
+  stale: string
+  expiring: string
 }
 
-const themes = (JSON.parse(registryText) as { items: ThemeItem[] }).items.filter((item) => item.type === "registry:theme")
-
-const SIMULATIONS: Array<{ id: string; label: string; matrix?: string }> = [
-  { id: "none", label: "as drawn" },
-  { id: "protanopia", label: "protanopia", matrix: "0.152286 1.052583 -0.204868 0 0  0.114503 0.786281 0.099216 0 0  -0.003882 -0.048116 1.051998 0 0  0 0 0 1 0" },
-  { id: "deuteranopia", label: "deuteranopia", matrix: "0.367322 0.860646 -0.227968 0 0  0.280085 0.672501 0.047413 0 0  -0.011820 0.042940 0.968881 0 0  0 0 0 1 0" },
-  { id: "tritanopia", label: "tritanopia", matrix: "1.255528 -0.076749 -0.178779 0 0  -0.078411 0.930809 0.147602 0 0  0.004733 0.691367 0.303900 0 0  0 0 0 1 0" },
-  { id: "grayscale", label: "grayscale" },
+// The six colors used below, included so the comparison can be copied on its own.
+const themes: Array<{ name: string; light: Palette; dark: Palette }> = [
+  {
+    name: "tradecn-amber",
+    light: { background: "oklch(0.99 0.004 85)", foreground: "oklch(0.2 0.01 85)", up: "oklch(0.45 0.13 245)", down: "oklch(0.56 0.19 45)", stale: "oklch(0.52 0.13 75)", expiring: "oklch(0.53 0.2 350)" },
+    dark: { background: "oklch(0.14 0.005 85)", foreground: "oklch(0.94 0.03 85)", up: "oklch(0.66 0.12 240)", down: "oklch(0.78 0.18 45)", stale: "oklch(0.8 0.15 80)", expiring: "oklch(0.74 0.17 350)" },
+  },
+  {
+    name: "tradecn-slate",
+    light: { background: "oklch(0.985 0.003 250)", foreground: "oklch(0.2 0.02 250)", up: "oklch(0.52 0.13 165)", down: "oklch(0.46 0.19 40)", stale: "oklch(0.52 0.13 75)", expiring: "oklch(0.53 0.2 350)" },
+    dark: { background: "oklch(0.16 0.01 250)", foreground: "oklch(0.95 0.008 250)", up: "oklch(0.77 0.14 165)", down: "oklch(0.66 0.19 40)", stale: "oklch(0.8 0.15 80)", expiring: "oklch(0.74 0.17 350)" },
+  },
+  {
+    name: "tradecn-slate-east",
+    light: { background: "oklch(0.985 0.003 250)", foreground: "oklch(0.2 0.02 250)", up: "oklch(0.46 0.19 40)", down: "oklch(0.52 0.13 165)", stale: "oklch(0.52 0.13 75)", expiring: "oklch(0.53 0.2 350)" },
+    dark: { background: "oklch(0.16 0.01 250)", foreground: "oklch(0.95 0.008 250)", up: "oklch(0.66 0.19 40)", down: "oklch(0.77 0.14 165)", stale: "oklch(0.8 0.15 80)", expiring: "oklch(0.74 0.17 350)" },
+  },
 ]
 
-const MARKS: Array<{ token: string; text: string }> = [
+// Machado, Oliveira and Fernandes (2009), severity 1; these matrices operate in linear RGB.
+// https://www.inf.ufrgs.br/~oliveira/pubs_files/CVD_Simulation/CVD_Simulation.html
+const SIMULATIONS: Array<{ id: string; label: string; matrix?: string }> = [
+  { id: "none", label: "As drawn" },
+  { id: "protanopia", label: "Protanopia", matrix: "0.152286 1.052583 -0.204868 0 0  0.114503 0.786281 0.099216 0 0  -0.003882 -0.048116 1.051998 0 0  0 0 0 1 0" },
+  { id: "deuteranopia", label: "Deuteranopia", matrix: "0.367322 0.860646 -0.227968 0 0  0.280085 0.672501 0.047413 0 0  -0.011820 0.042940 0.968881 0 0  0 0 0 1 0" },
+  { id: "tritanopia", label: "Tritanopia", matrix: "1.255528 -0.076749 -0.178779 0 0  -0.078411 0.930809 0.147602 0 0  0.004733 0.691367 0.303900 0 0  0 0 0 1 0" },
+  { id: "grayscale", label: "Grayscale" },
+]
+
+const marks = [
   { token: "up", text: "+0.25 up" },
   { token: "down", text: "−0.31 down" },
   { token: "stale", text: "stale" },
   { token: "expiring", text: "0:09 left" },
-]
+] as const
 
-function filterFor(id: string): string | undefined {
+function filterFor(id: string, prefix: string): string | undefined {
   if (id === "none") return undefined
   if (id === "grayscale") return "grayscale(1)"
-  return `url(#tradecn-cvd-${id})`
-}
-
-/** One theme's marks on its own page, in one mode, under one simulation. */
-function Swatch({ vars, simulation }: { vars: Record<string, string>; simulation: string }) {
-  const page: CSSProperties = { background: vars.background, color: vars.foreground, filter: filterFor(simulation) }
-  return (
-    <div className="flex flex-col gap-0.5 rounded px-2 py-1.5 text-xs lining-nums tabular-nums" style={page}>
-      {MARKS.map(({ token, text }) => (
-        <span key={token} style={{ color: vars[token] }}>
-          {text}
-        </span>
-      ))}
-    </div>
-  )
+  return `url(#${prefix}-${id})`
 }
 
 export default function ColorDemo() {
+  const prefix = useId()
   return (
-    <div className="flex flex-col gap-4 text-xs">
-      <svg aria-hidden width="0" height="0" className="absolute">
-        <defs>
-          {SIMULATIONS.filter((s) => s.matrix).map((s) => (
-            <filter key={s.id} id={`tradecn-cvd-${s.id}`} colorInterpolationFilters="sRGB">
-              <feColorMatrix type="matrix" values={s.matrix} />
-            </filter>
-          ))}
-        </defs>
+    <div className="w-fit max-w-full space-y-3 text-xs">
+      <svg aria-hidden="true" width="0" height="0" className="absolute">
+        <defs>{SIMULATIONS.filter((s) => s.matrix).map((s) => (
+          <filter key={s.id} id={`${prefix}-${s.id}`} colorInterpolationFilters="linearRGB">
+            <feColorMatrix type="matrix" values={s.matrix} />
+          </filter>
+        ))}</defs>
       </svg>
-      {themes.map((theme) => (
-        <section key={theme.name} className="flex flex-col gap-1" data-theme={theme.name}>
-          <h3 className="font-medium">{theme.name}</h3>
-          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${SIMULATIONS.length}, minmax(0, 1fr))` }}>
-            {SIMULATIONS.map((s) => (
-              <span key={s.id} className="text-xs text-muted-foreground uppercase">
-                {s.label}
-              </span>
-            ))}
-            {(["light", "dark"] as const).map((mode) =>
-              SIMULATIONS.map((s) => <Swatch key={`${mode}-${s.id}`} vars={theme.cssVars?.[mode] ?? {}} simulation={s.id} />),
-            )}
-          </div>
-        </section>
-      ))}
-      <p className="text-muted-foreground">Each theme twice, its light page over its dark one. A pair that keeps two colors in every column is safe to lean on; the sign and the word are there for the columns where it does not.</p>
+      <div role="region" aria-label="Theme color comparisons" tabIndex={0} className="max-w-full overflow-x-auto">
+        <div className="space-y-4">
+          {themes.map((theme) => (
+            <table key={theme.name} className="w-[38rem] border-separate border-spacing-2 text-left">
+              <caption className="text-left font-medium">{theme.name}</caption>
+              <thead><tr>
+                <th scope="col" className="font-medium">Mode</th>
+                {SIMULATIONS.map((s) => <th key={s.id} scope="col" className="font-medium">{s.label}</th>)}
+              </tr></thead>
+              <tbody>{(["light", "dark"] as const).map((mode) => (
+                <tr key={mode}>
+                  <th scope="row" className="font-normal">{mode === "light" ? "Light" : "Dark"}</th>
+                  {SIMULATIONS.map((s) => (
+                    <td key={s.id}>
+                      <div className="flex flex-col gap-0.5 rounded px-2 py-1.5 whitespace-nowrap lining-nums tabular-nums" style={{ background: theme[mode].background, color: theme[mode].foreground, filter: filterFor(s.id, prefix) }}>
+                        {marks.map(({ token, text }) => <span key={token} style={{ color: theme[mode][token] }}>{text}</span>)}
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              ))}</tbody>
+            </table>
+          ))}
+        </div>
+      </div>
+      <p className="max-w-[38rem] text-muted-foreground">Simulations help spot potential confusion. They do not reproduce every reader's vision or establish accessibility; keep the signs and words, and test with readers.</p>
     </div>
   )
 }
