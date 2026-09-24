@@ -7,6 +7,9 @@ import { byNewest, type Alert, type AlertStore, type AlertTone } from "@/registr
 import type { RowId, RowView } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, type ColumnDef, type DataGridPreset } from "@/registry/tradecn/ui/data-grid"
 
+// Notices assembled by the caller. The parts own styling; useAlert owns a row's subscription and
+// optional expiry. Mount one announcer for the collection, and put history wherever it belongs.
+
 /** The notice container. The caller supplies the list, controls, and any overflow presentation. */
 export function Alerts({ className, ...props }: ComponentProps<"div">) {
   return <div role="group" aria-label={props["aria-labelledby"] ? undefined : "Notices"} data-slot="tradecn-alerts" className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} />
@@ -53,20 +56,20 @@ export function AlertSeverity({ tone, className, ...props }: AlertSeverityProps)
   return <Badge variant="outline" data-slot="tradecn-alert-severity" data-alert-severity="" className={cn("h-auto shrink-0 px-1.5 text-xs", tone && ALERT_TONE_TEXT[tone], className)} {...props} />
 }
 
-export interface AlertActionProps extends Omit<ComponentProps<typeof Button>, "onClick"> {
+export interface AlertActionButtonProps extends Omit<ComponentProps<typeof Button>, "onClick"> {
   alert: Alert
   action: string
   onAction: (alert: Alert) => void
 }
 
 /** A caller-composed button shown only when the notice allows its action. It does not dismiss. */
-export function AlertAction({ alert, action, onAction, className, ...props }: AlertActionProps) {
+export function AlertActionButton({ alert, action, onAction, className, ...props }: AlertActionButtonProps) {
   if (!alert.allowedActions?.includes(action)) return null
-  return <Button type="button" variant="outline" size="sm" data-slot="tradecn-alert-action" data-alert-action={action} className={cn("h-6 px-2 text-xs", className)} {...props} onClick={() => onAction(alert)} />
+  return <Button type="button" variant="outline" size="sm" data-slot="tradecn-alert-action-button" data-alert-action={action} className={cn("h-6 px-2 text-xs", className)} {...props} onClick={() => onAction(alert)} />
 }
 
-export function AlertDismiss({ className, children = <span aria-hidden>×</span>, ...props }: ComponentProps<typeof Button>) {
-  return <Button type="button" variant="ghost" size="sm" aria-label="Dismiss" data-slot="tradecn-alert-dismiss" className={cn("h-6 shrink-0 px-1.5 text-xs", className)} {...props}>{children}</Button>
+export function AlertDismiss({ className, children, ...props }: ComponentProps<typeof Button>) {
+  return <Button type="button" variant="ghost" size="sm" aria-label={children === undefined && !props["aria-labelledby"] ? "Dismiss" : undefined} data-slot="tradecn-alert-dismiss" className={cn("h-6 shrink-0 px-1.5 text-xs", className)} {...props}>{children === undefined ? <span aria-hidden>×</span> : children}</Button>
 }
 
 export interface UseAlertOptions {
@@ -131,6 +134,7 @@ export const DEFAULT_ALERT_HISTORY_LABELS: AlertHistoryLabels = {
   count: "Count",
 }
 
+/** Background classes for caller-composed bars or other decoration; pair them with a visible cue. */
 export const ALERT_TONE_BAR: Record<AlertTone, string> = {
   up: "bg-up",
   down: "bg-down",
@@ -189,6 +193,7 @@ export interface AlertHistoryProps {
 export function AlertHistory({ alerts, columns, preset = "blotter", label, labels: labelsProp, renderContextMenu, className }: AlertHistoryProps) {
   const labels = { ...DEFAULT_ALERT_HISTORY_LABELS, ...labelsProp }
   const view = useAlertView(alerts)
+  // Depend on the caller's partial labels, not the merged object recreated on every render.
   const cols = useMemo(() => columns ?? alertColumns({ labels: labelsProp }), [columns, labelsProp])
   return (
     <div data-slot="tradecn-alert-history" className={cn("h-full min-h-0 min-w-0", className)}>

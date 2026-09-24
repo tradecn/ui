@@ -84,7 +84,7 @@ export function tokensUsedIn(source: string, tokenNames: readonly string[]): Set
   const used = new Set<string>()
   for (const name of tokenNames) {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    const utility = new RegExp(`(?:^|[^\\w-])(?:[\\w]+:)*(?:bg|text|border|ring|outline|fill|stroke|shadow|from|to|via|decoration|accent|caret|divide|placeholder|inset-ring)-${escaped}(?![\\w-])`)
+    const utility = new RegExp(`(?:^|[^\\w-])(?:[\\w]+:)*(?:bg|text|border(?:-[xysetblr])?|ring|outline|fill|stroke|shadow|from|to|via|decoration|accent|caret|divide|placeholder|inset-ring)-${escaped}(?![\\w-])`)
     const variable = new RegExp(`--(?:color-)?${escaped}(?![\\w-])`)
     if (utility.test(source) || variable.test(source)) used.add(name)
   }

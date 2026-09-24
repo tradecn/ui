@@ -3,7 +3,7 @@ import { createRef, StrictMode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createAlertStore, type Alert, type AlertStore } from "@/registry/tradecn/lib/alert-store"
 import { useRowIds } from "@/registry/tradecn/hooks/use-row-store"
-import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertActions, AlertAction, AlertDismiss, AlertHistory, AlertSeverity, alertColumns, useAlert, useAlertView, useToastBridge, type UseAlertOptions } from "@/registry/tradecn/ui/alerts"
+import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertActions, AlertActionButton, AlertDismiss, AlertHistory, AlertSeverity, alertColumns, useAlert, useAlertView, useToastBridge, type UseAlertOptions } from "@/registry/tradecn/ui/alerts"
 
 const RECT = { width: 800, height: 240 }
 const saved = new Map<string, PropertyDescriptor | undefined>()
@@ -59,7 +59,7 @@ function Notice({ alerts, id, options, onAction }: { alerts: AlertStore; id: str
       </AlertHeader>
       <AlertBody>{alert.message} <span data-alert-count>{alert.count}</span></AlertBody>
       <AlertActions>
-        {onAction && <AlertAction alert={alert} action="ack" onAction={onAction}>Acknowledge</AlertAction>}
+        {onAction && <AlertActionButton alert={alert} action="ack" onAction={onAction}>Acknowledge</AlertActionButton>}
         <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)} />
       </AlertActions>
     </AlertItem>
@@ -110,11 +110,22 @@ describe("notice composition", () => {
     expect(item.current?.firstElementChild).toBe(body.current)
     expect(body.current).toHaveClass("custom-body")
     expect(screen.getByRole("link", { name: "View order" })).toHaveAttribute("href", "/orders/42")
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
+    fireEvent.click(screen.getByRole("button", { name: "Remove notice" }))
     expect(dismiss).toHaveBeenCalledOnce()
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(screen.queryByRole("alert")).toBeNull()
     expect(screen.queryByRole("button", { name: "Clear all" })).toBeNull()
+  })
+
+  it("names the default dismiss icon and respects the caller's naming props", () => {
+    const { rerender } = render(<AlertDismiss />)
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument()
+    rerender(<AlertDismiss aria-label="Dismiss: Feed slow" />)
+    expect(screen.getByRole("button", { name: "Dismiss: Feed slow" })).toBeInTheDocument()
+    rerender(<><span id="dismiss-label">Remove warning</span><AlertDismiss aria-labelledby="dismiss-label" /></>)
+    expect(screen.getByRole("button", { name: "Remove warning" })).not.toHaveAttribute("aria-label")
+    rerender(<AlertDismiss aria-label="Remove notice: Feed slow">Remove notice</AlertDismiss>)
+    expect(screen.getByRole("button", { name: "Remove notice: Feed slow" })).toHaveTextContent("Remove notice")
   })
 
   it("follows newest-first IDs while a repeat updates the mounted notice and announcement", () => {
@@ -149,13 +160,13 @@ describe("notice composition", () => {
     const alert = seeded(clock().now).store.getRow("n4")!
     const ref = createRef<HTMLButtonElement>()
     const onAction = vi.fn()
-    const { rerender } = render(<AlertAction ref={ref} alert={alert} action="ack" aria-label="Acknowledge rejection" disabled onAction={onAction}><span>Confirm</span></AlertAction>)
-    const button = screen.getByRole("button", { name: "Acknowledge rejection" })
+    const { rerender } = render(<AlertActionButton ref={ref} alert={alert} action="ack" aria-label="Confirm rejection" disabled onAction={onAction}><span>Confirm</span></AlertActionButton>)
+    const button = screen.getByRole("button", { name: "Confirm rejection" })
     expect(ref.current).toBe(button)
     expect(button).toBeDisabled()
     fireEvent.click(button)
     expect(onAction).not.toHaveBeenCalled()
-    rerender(<AlertAction ref={ref} alert={alert} action="ack" aria-label="Acknowledge rejection" onAction={onAction}><span>Confirm</span></AlertAction>)
+    rerender(<AlertActionButton ref={ref} alert={alert} action="ack" aria-label="Confirm rejection" onAction={onAction}><span>Confirm</span></AlertActionButton>)
     fireEvent.click(button)
     expect(onAction).toHaveBeenCalledWith(alert)
   })
@@ -238,6 +249,9 @@ describe("AlertsAnnouncer", () => {
     rerender(<AlertsAnnouncer alerts={alerts} id="n1" assertive={["critical"]} />)
     expect(screen.getByRole("status")).toHaveTextContent("info: Feed connected")
     expect(screen.getByRole("alert")).toBeEmptyDOMElement()
+    act(() => alerts.push({ id: "", severity: "info", title: "Empty ID" }))
+    rerender(<AlertsAnnouncer alerts={alerts} id="" />)
+    expect(screen.getByRole("status")).toHaveTextContent("info: Empty ID")
     rerender(<AlertsAnnouncer alerts={alerts} id={null} />)
     expect(screen.getByRole("status")).toBeEmptyDOMElement()
     expect(screen.getByRole("alert")).toBeEmptyDOMElement()
@@ -254,6 +268,10 @@ describe("AlertHistory and alertColumns", () => {
     expect(screen.getByRole("grid", { name: "Log" })).toHaveAttribute("aria-rowcount", "5")
     expect(screen.queryByRole("columnheader", { name: "Severity" })).toBeNull()
     expect(document.querySelector("[data-row-id]")).toHaveAttribute("data-row-id", "n4")
+    act(() => alerts.push({ severity: "info", title: "Newest" }))
+    expect(screen.getByRole("grid", { name: "Log" })).toHaveAttribute("aria-rowcount", "6")
+    expect(document.querySelector("[data-row-id]")).toHaveAttribute("data-row-id", "n5")
+    expect(screen.getByRole("gridcell", { name: "Newest" })).toBeInTheDocument()
   })
 })
 

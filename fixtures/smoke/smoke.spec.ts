@@ -766,7 +766,7 @@ test("a preferences envelope keeps its boundaries through export and import", as
   await expect(page.locator("section[data-scene='preferences'] [data-slot='tradecn-preferences']")).toHaveText("layout | layout,hotkeys | layout")
 })
 
-// Four notices in the store, three in the strip: the severity word beside a bar painted with the tone's
+// Four notices in the store, three in the strip: the severity word beside a start border painted with the tone's
 // token, a repeat folded into its row with a climbing count, only the allowed action offered and run
 // through the consumer's button, the whole list in the consumer's dialog as a grid, then dismiss and clear.
 test("an alerts strip shows the newest notices in words and tone, folds a repeated key, offers only allowed actions, opens the list, and clears", async ({ page }) => {
@@ -777,17 +777,25 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   await expect(strip.locator("li[data-alert-id]")).toHaveCount(3)
   await expect(strip.locator("li[data-alert-id='up']")).toHaveCount(0)
   await expect(strip.locator("li[data-tone='destructive'] [data-alert-severity]")).toHaveText("critical")
+  for (const item of await strip.locator("li[data-tone]").all()) {
+    await expect(item.locator("[data-alert-severity]")).toHaveText(await item.getAttribute("data-severity") ?? "")
+    await expect(item.locator("[data-alert-severity]")).toBeVisible()
+    await expect(item.locator("time")).toHaveText(/^\d{2}:\d{2}:\d{2}$/)
+    const at = await item.locator("time").getAttribute("datetime")
+    const local = await page.evaluate((value) => new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(value!)), at)
+    await expect(item.locator("time")).toHaveText(local)
+  }
   const painted = await page.evaluate(() => {
-    const bar = document.querySelector("section[data-scene='alerts'] li[data-tone='destructive']")!
+    const item = document.querySelector("section[data-scene='alerts'] li[data-tone='destructive']")!
     const probe = document.createElement("i")
     probe.style.backgroundColor = "var(--destructive)"
     document.body.append(probe)
-    const out = { bar: getComputedStyle(bar).borderInlineStartColor, token: getComputedStyle(probe).backgroundColor }
+    const out = { border: getComputedStyle(item).borderInlineStartColor, token: getComputedStyle(probe).backgroundColor }
     probe.remove()
     return out
   })
-  expect(painted.bar, "the bar is painted with the tone's token").toBe(painted.token)
-  expect(painted.bar).not.toBe("rgba(0, 0, 0, 0)")
+  expect(painted.border, "the start border is painted with the tone's token").toBe(painted.token)
+  expect(painted.border).not.toBe("rgba(0, 0, 0, 0)")
   await scene.getByRole("button", { name: "slow feed again" }).click()
   await scene.getByRole("button", { name: "slow feed again" }).click()
   await expect(strip.locator("li[data-alert-id='slow'] [data-alert-count]")).toHaveText("×3")
@@ -813,6 +821,8 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   await expect(strip.getByRole("button", { name: "1 more" })).toBeFocused()
   await strip.getByRole("button", { name: "Dismiss: Order rejected" }).click()
   await expect(strip).toHaveAttribute("data-count", "3")
+  await expect(strip.locator("li[data-tone='up'] [data-alert-severity]")).toHaveText("info")
+  await expect(strip.locator("li[data-tone='up'] [data-alert-severity]")).toBeVisible()
   await strip.getByRole("button", { name: "Clear all" }).click()
   await expect(strip).toHaveAttribute("data-count", "0")
   await expect(strip.getByText("No notices.")).toBeVisible()

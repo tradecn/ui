@@ -1,4 +1,3 @@
-import type { Alert } from "@/registry/tradecn/lib/alert-store"
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
@@ -12,7 +11,7 @@ import { useNow } from "@/registry/tradecn/hooks/use-clock"
 import { HotkeysProvider, useHotkey } from "@/registry/tradecn/hooks/use-hotkeys"
 import { LinkGroupProvider, useLinkGroup } from "@/registry/tradecn/hooks/use-link-group"
 import { useRow, useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
-import { createAlertStore, type AlertStore } from "@/registry/tradecn/lib/alert-store"
+import { createAlertStore, type Alert, type AlertStore } from "@/registry/tradecn/lib/alert-store"
 import { createInstrumentFormatter, formatDv01, formatNotional, formatPrice, formatQuantity, roundToTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { formatKeys, type HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
@@ -24,7 +23,7 @@ import { createRowStore, type RowId, type RowStore, type RowView } from "@/regis
 import { createSessionCalendar } from "@/registry/tradecn/lib/session-calendar"
 import { WINDOW_SET_SLOT, mainWindow, readWindowSet, windowSetOf, writeWindowSet } from "@/registry/tradecn/lib/window-set"
 import type { WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
-import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertAction, AlertDismiss, AlertHistory, useAlert, useAlertView } from "@/registry/tradecn/ui/alerts"
+import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertActionButton, AlertDismiss, AlertHistory, useAlert, useAlertView } from "@/registry/tradecn/ui/alerts"
 import { AuditTrail, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
 import { Blotter, blotterColumns, type BlotterAction, type BlotterRow } from "@/registry/tradecn/ui/blotter"
 import { ColumnChooser } from "@/registry/tradecn/ui/column-chooser"
@@ -1593,6 +1592,8 @@ export default function TerminalDemo() {
   )
 }
 
+const noticeTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
+
 type NoticeAction = { id: string; label: string; onAction: (alert: Alert) => void }
 
 function Notice({ alerts, id, actions, ttlMs }: { alerts: AlertStore; id: string; actions: NoticeAction[]; ttlMs?: number }) {
@@ -1604,10 +1605,11 @@ function Notice({ alerts, id, actions, ttlMs }: { alerts: AlertStore; id: string
         <AlertSeverity tone={alert.tone}>{alert.severity}</AlertSeverity>
         <AlertTitle>{alert.title}</AlertTitle>
         {alert.count > 1 && <span className="text-muted-foreground" data-alert-count={alert.count}>×{alert.count}</span>}
+        <time dateTime={new Date(alert.at).toISOString()} className="shrink-0 text-muted-foreground lining-nums tabular-nums">{noticeTime.format(alert.at)}</time>
         <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)} />
       </AlertHeader>
       {alert.message && <AlertBody>{alert.message}</AlertBody>}
-      <AlertActions>{actions.map((action) => <AlertAction key={action.id} alert={alert} action={action.id} onAction={action.onAction}>{action.label}</AlertAction>)}</AlertActions>
+      <AlertActions>{actions.map((action) => <AlertActionButton key={action.id} alert={alert} action={action.id} onAction={action.onAction}>{action.label}</AlertActionButton>)}</AlertActions>
     </AlertItem>
   )
 }

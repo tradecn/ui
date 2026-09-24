@@ -1,10 +1,11 @@
 import { useState } from "react"
-import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertAction, AlertDismiss, AlertHistory, useAlert, useAlertView } from "@/components/ui/alerts"
+import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertActionButton, AlertDismiss, AlertHistory, useAlert, useAlertView } from "@/components/ui/alerts"
 import { createAlertStore, type Alert, type AlertStore } from "@/lib/alert-store"
-
 import { useRowIds } from "@/hooks/use-row-store"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+
+const noticeTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
 
 type NoticeAction = { id: string; label: string; onAction: (alert: Alert) => void }
 
@@ -17,10 +18,11 @@ function Notice({ alerts, id, actions, ttlMs }: { alerts: AlertStore; id: string
         <AlertSeverity tone={alert.tone}>{alert.severity}</AlertSeverity>
         <AlertTitle>{alert.title}</AlertTitle>
         {alert.count > 1 && <span className="text-muted-foreground" data-alert-count={alert.count}>×{alert.count}</span>}
+        <time dateTime={new Date(alert.at).toISOString()} className="shrink-0 text-muted-foreground lining-nums tabular-nums">{noticeTime.format(alert.at)}</time>
         <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)} />
       </AlertHeader>
       {alert.message && <AlertBody>{alert.message}</AlertBody>}
-      <AlertActions>{actions.map((action) => <AlertAction key={action.id} alert={alert} action={action.id} onAction={action.onAction}>{action.label}</AlertAction>)}</AlertActions>
+      <AlertActions>{actions.map((action) => <AlertActionButton key={action.id} alert={alert} action={action.id} onAction={action.onAction}>{action.label}</AlertActionButton>)}</AlertActions>
     </AlertItem>
   )
 }

@@ -36,10 +36,12 @@ export default function AlertsBridgeDemo() {
           <AlertsList>{ids.map((id) => <Notice key={id} alerts={alerts} id={id} />)}</AlertsList>
           {ids.length === 0 ? <AlertsEmpty>No notices.</AlertsEmpty> : <button type="button" className="self-end rounded border border-border px-2 py-1" onClick={() => alerts.clear()}>Clear all</button>}
         </Alerts>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-          <dt>Forwarded</dt><dd>{forwarded.count}</dd>
-          <dt>Last forwarded</dt><dd>{forwarded.title}</dd>
-        </dl>
+        <div role="status" aria-atomic="true">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+            <dt>Forwarded</dt><dd>{forwarded.count}</dd>
+            <dt>Last forwarded</dt><dd>{forwarded.title}</dd>
+          </dl>
+        </div>
       </div>
     </>
   )

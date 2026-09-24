@@ -1935,11 +1935,11 @@
           },
           {
             "title": "AlertHeader",
-            "description": "A notice header."
+            "description": "Wrapping layout for a notice's heading and controls."
           },
           {
             "title": "AlertTitle",
-            "description": "A notice title."
+            "description": "Flexible title content that wraps within the header."
           },
           {
             "title": "AlertBody",
@@ -1947,14 +1947,14 @@
           },
           {
             "title": "AlertSeverity",
-            "description": "The caller’s severity word, optionally colored by tone."
+            "description": "The caller's severity word, optionally colored by tone."
           },
           {
             "title": "AlertActions",
             "description": "Caller-composed notice controls."
           },
           {
-            "title": "AlertAction",
+            "title": "AlertActionButton",
             "description": "An action button shown only when the notice allows it."
           },
           {
@@ -1987,7 +1987,7 @@
           },
           {
             "title": "useToastBridge",
-            "description": "Forwards new notices to the caller’s toast adapter."
+            "description": "Forwards new notices to the caller's toast adapter."
           },
           {
             "title": "ALERT_TONE_BAR",
@@ -1999,7 +1999,7 @@
           },
           {
             "title": "DEFAULT_ALERT_HISTORY_LABELS",
-            "description": "Default grid labels."
+            "description": "Default history name, empty state, and column labels."
           }
         ]
       },

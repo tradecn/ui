@@ -2,22 +2,22 @@ import { readFileSync, readdirSync, statSync } from "node:fs"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
 import { luminance, parseOklch } from "./lib/oklch"
-import { ROOT, readRegistry } from "./lib/registry"
+import { ROOT, readRegistry, tokensUsedIn } from "./lib/registry"
 
 // Contract rule 15: direction never rides on hue alone. Every registry file that colors a value by direction
 // is listed here with the other channel it carries the direction in, and the test fails on a file that colors
 // by direction and is not in the table, so a new use has to say what else it does. docs/color.md has the why.
 
 // A utility class, or the token itself read for a canvas or an inline style: `--up`, `var(--down-soft)`.
-const DIRECTION_COLOR = /(?<![\w-])(?:[\w-]+:)*(?:text|bg|border|stroke|fill)-(?:up|down)(?:-soft)?(?![\w-])|--(?:up|down)(?:-soft)?(?![\w-])/
+const DIRECTION_COLOR = /(?<![\w-])(?:[\w-]+:)*(?:text|bg|border(?:-[xysetblr])?|stroke|fill)-(?:up|down)(?:-soft)?(?![\w-])|--(?:up|down)(?:-soft)?(?![\w-])/
 
-/** File under registry/tradecn, the channel besides color, and a string the file must contain to prove it. */
+/** Source evidence for each channel. This inventory cannot prove the content of arbitrary caller compositions. */
 const CHANNELS: Array<{ file: string; channel: string; proof: RegExp }> = [
   { file: "hooks/use-flash.ts", channel: "the data-direction attribute the hook writes for the flash window; directionClass is paired with formatSigned where the watchlist uses it", proof: /data-direction|dataset\.direction/ },
   { file: "ui/flash-cell.tsx", channel: "data-direction on the cell for the window, and the value's own sign inside it", proof: /data-\[direction=/ },
   { file: "ui/data-grid.tsx", channel: "data-direction on a flashing cell; the cell's text is the signed value", proof: /data-\[direction=/ },
   { file: "lib/grid-rules.ts", channel: "an applied rule names itself in data-rule and data-tone on the element and puts its words in the accessible description", proof: /"aria-description": rule\.label\?\.trim\(\) \|\| describeRule/ },
-  { file: "ui/alerts.tsx", channel: "the severity word is always printed beside the bar, in the badge and in the grid's column; the tone colors a word that is there", proof: /data-alert-severity/ },
+  { file: "ui/alerts.tsx", channel: "the default history column prints severity; item and badge content belongs to the caller, who must pair tone with a visible cue (rendered examples are checked in the alerts smoke scene)", proof: /cell:.*\{row\.severity\}/ },
   { file: "ui/status-bar.tsx", channel: "the environment badge is the word itself, PRODUCTION or UAT, and the tone colors that word", proof: /data-status-environment=\{environment\.label\}/ },
   { file: "ui/sparkline.tsx", channel: "data-direction on the root and the direction in the words a screen reader hears", proof: /data-direction=\{tone\}/ },
   { file: "ui/price-chart.tsx", channel: "the last price prints its change with a sign in the header, the root carries data-direction, and the plot's accessible name says the direction in a word; the canvas takes the same tokens", proof: /data-direction=\{direction\}/ },
@@ -40,6 +40,17 @@ function* sources(dir: string): Generator<string> {
 describe("contract rule 15: direction never rides on hue alone", () => {
   const registryDir = path.join(ROOT, "registry/tradecn")
   const colored = [...sources(registryDir)].filter((file) => DIRECTION_COLOR.test(readFileSync(file, "utf8"))).map((file) => path.relative(registryDir, file))
+
+  it.each(["border-s-up", "data-[tone=up]:border-s-up", "dark:border-e-down-soft/50", "hover:border-x-up", "border-t-down", "text-up", "bg-down-soft", "var(--up)"])("detects direction and installs its token for %s", (source) => {
+    expect(DIRECTION_COLOR.test(source)).toBe(true)
+    const token = source.includes("down-soft") ? "down-soft" : source.includes("down") ? "down" : "up"
+    expect([...tokensUsedIn(source, ["up", "down", "down-soft"])]).toEqual([token])
+  })
+
+  it.each(["border-s-upward", "border-s-downloader", "setup-down", "text-update"])("does not mistake %s for a direction token", (source) => {
+    expect(DIRECTION_COLOR.test(source)).toBe(false)
+    expect([...tokensUsedIn(source, ["up", "down"])]).toEqual([])
+  })
 
   it("lists every file that colors by direction, with the channel it carries the direction in besides color", () => {
     expect(colored.sort()).toEqual(CHANNELS.map((entry) => entry.file).sort())

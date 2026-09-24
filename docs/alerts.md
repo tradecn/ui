@@ -44,20 +44,20 @@ This example uses local state. Dismiss either notice, then choose **Restore noti
 
 ## Composition
 
-| Part | Purpose |
-|---|---|
-| `Alerts` | The outer group. |
-| `AlertsList` | A semantic list whose children you supply. |
-| `AlertItem` | One notice, with optional tone decoration. |
-| `AlertHeader`, `AlertTitle` | Header layout and title content. |
-| `AlertBody` | Text, links, or other application content. |
-| `AlertSeverity` | Your severity word, optionally colored by tone. |
-| `AlertActions` | Layout for your controls. |
-| `AlertAction` | A button gated by an alert's `allowedActions`. |
-| `AlertDismiss` | A button whose click handler you supply. |
-| `AlertsEmpty` | Empty-state content, rendered when you choose. |
-| `AlertsAnnouncer` | Live regions for one selected store notice. |
-| `AlertHistory` | An optional grid for your panel, dialog, or sheet. |
+```text
+Alerts
+├── AlertsAnnouncer (optional store announcements)
+├── AlertsList
+│   └── AlertItem
+│       ├── AlertHeader
+│       │   ├── AlertSeverity
+│       │   ├── AlertTitle
+│       │   └── AlertDismiss
+│       ├── AlertBody
+│       └── AlertActions
+│           └── AlertActionButton
+└── AlertsEmpty (when your collection is empty)
+```
 
 Map your collection into `AlertItem` children. Place, omit, or reorder the other parts as needed. `AlertBody` supports rich content and wraps by default. Use an accessible link or button for interactive content, and pair tone with a severity word or another non-color cue.
 
@@ -67,7 +67,7 @@ For a live store, use `useRowIds(useAlertView(alerts))` to read newest-first IDs
 
 This layout moves severity after the title and puts actions below a multiline body. Each row subscribes through `useAlert`; repeating a notice updates its count even when its position stays the same. The action handlers record the request and dismiss the notice explicitly. Replace them with your application handlers.
 
-Choose **Receive slow feed** or **Receive rejection** to restore or repeat a notice. `AlertAction` renders only when its action ID appears in `allowedActions`. One `AlertsAnnouncer` announces the first displayed notice, using the assertive region for critical notices.
+Choose **Receive slow feed** or **Receive rejection** to restore or repeat a notice. `AlertActionButton` renders only when its action ID appears in `allowedActions`. One `AlertsAnnouncer` announces the first displayed notice, using the assertive region for critical notices.
 
 <!-- demo: alerts-actions -->
 
@@ -81,7 +81,7 @@ This example displays two notices and places the rest in a caller-owned dialog. 
 
 `useToastBridge` forwards new IDs after subscribing. The seeded notice is skipped. Choose **Receive slow notice** once to forward it, then again to increase its repeat count without another callback. After **Clear all**, receiving it creates a new notice and forwards it again.
 
-The readout records the callback count and last title. Supply your own toast adapter in an application. This example uses that adapter's feedback instead of mounting a second announcement path.
+The readout is a polite live region that announces the callback count and last title. In an application, replace this callback with your toast adapter. Mount one announcement path for new notices; an adapter that already announces them can take that role.
 
 <!-- demo: alerts-bridge -->
 
@@ -102,13 +102,13 @@ All presentation parts accept their underlying element's props, including `child
 | `AlertActions` | `div` | Wrapping controls. |
 | `AlertsEmpty` | `p` | Muted text; visibility and content belong to you. |
 | `AlertSeverity` | Your `Badge` | Optional `tone: AlertTone`; default `variant="outline"`; `data-alert-severity` marker. |
-| `AlertDismiss` | Your `Button` | `type="button"`, `variant="ghost"`, `size="sm"`, `aria-label="Dismiss"`, and a × child. Supply `onClick`; set a notice-specific accessible name. |
+| `AlertDismiss` | Your `Button` | `type="button"`, `variant="ghost"`, `size="sm"`, and a × child. The default icon is named "Dismiss" unless `aria-labelledby` is supplied. Custom children provide their own name; explicit naming props take precedence. Supply `onClick` and a notice-specific name for icon buttons. |
 
 Each piece has a `data-slot` matching its kebab-case name with the `tradecn-` prefix, such as `tradecn-alert-header`.
 
-### AlertAction
+### AlertActionButton
 
-`AlertAction` accepts Button props, including children and a ref, except `onClick`. It renders only when `alert.allowedActions` contains `action`. Missing or empty permissions render nothing. It defaults to `type="button"`, `variant="outline"`, and `size="sm"`, with `data-alert-action` set to the action ID.
+`AlertActionButton` accepts Button props, including children and a ref, except `onClick`. It renders only when `alert.allowedActions` contains `action`. Missing or empty permissions render nothing. It defaults to `type="button"`, `variant="outline"`, and `size="sm"`, with `data-alert-action` set to the action ID.
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
@@ -118,7 +118,7 @@ Each piece has a `data-slot` matching its kebab-case name with the `tradecn-` pr
 | `children` | `ReactNode` | Unset | Button content, including its visible label. |
 | Button props | `ComponentProps<typeof Button>` excluding `onClick` | See above | Styling, disabled state, accessible naming, and other native behavior. |
 
-The callback does not dismiss the notice. Send requests and call `alerts.dismiss(id)` explicitly when appropriate. UI permissions do not replace server authorization.
+The button checks the supplied alert when it renders; it does not subscribe or re-read the store on click. Use the current row from `useAlert` for changing permissions. The callback does not dismiss the notice. Send requests and call `alerts.dismiss(id)` explicitly when appropriate. UI permissions do not replace server authorization.
 
 ### useAlert
 
@@ -186,4 +186,4 @@ Existing IDs are skipped on subscription. Newly observed IDs are forwarded oldes
 
 ### Tokens
 
-`AlertTone` accepts `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`. `ALERT_TONE_BAR` and `ALERT_TONE_TEXT` are exported for custom decoration. Item tone colors its start border; severity tone colors its text independently, so pass the tone to both when desired. Include a non-color cue in custom compositions. The install adds the five trading tokens and their soft variants if absent; `primary` and `destructive` come from your theme.
+`AlertTone` accepts `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`. `ALERT_TONE_BAR` supplies background classes for custom bars or decoration; `ALERT_TONE_TEXT` supplies text classes. Item tone colors its start border; severity tone colors its text independently, so pass the tone to both when desired. Include a non-color cue in custom compositions. The install adds the five trading tokens and their soft variants if absent; `primary` and `destructive` come from your theme.

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { createAlertStore, type Alert, type AlertInput, type AlertStore } from "@/registry/tradecn/lib/alert-store"
 import { useRowIds } from "@/registry/tradecn/hooks/use-row-store"
-import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertAction, AlertDismiss, useAlert, useAlertView } from "@/registry/tradecn/ui/alerts"
+import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertActionButton, AlertDismiss, useAlert, useAlertView } from "@/registry/tradecn/ui/alerts"
 
 const slow: AlertInput = { key: "feed:slow", severity: "warning", tone: "stale", title: "Feed slow", message: "Market data is 1.2 seconds behind. Reconnect to request a fresh subscription.", allowedActions: ["reconnect"] }
 const rejected: AlertInput = { key: "order:rejected", severity: "critical", tone: "destructive", title: "Order rejected", message: "Price away from market. Review the order before submitting again.", allowedActions: ["ack"] }
@@ -20,8 +20,8 @@ function Notice({ alerts, id, onAction }: { alerts: AlertStore; id: string; onAc
         <p className="mt-1">Received {alert.count} {alert.count === 1 ? "time" : "times"}.</p>
       </AlertBody>
       <AlertActions>
-        <AlertAction alert={alert} action="reconnect" onAction={(row) => onAction("Reconnect requested", row)}>Reconnect</AlertAction>
-        <AlertAction alert={alert} action="ack" onAction={(row) => onAction("Acknowledged", row)}>Acknowledge</AlertAction>
+        <AlertActionButton alert={alert} action="reconnect" onAction={(row) => onAction("Reconnect requested", row)}>Reconnect</AlertActionButton>
+        <AlertActionButton alert={alert} action="ack" onAction={(row) => onAction("Acknowledged", row)}>Acknowledge</AlertActionButton>
         <AlertDismiss className="ml-auto" aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)}>Dismiss</AlertDismiss>
       </AlertActions>
     </AlertItem>
