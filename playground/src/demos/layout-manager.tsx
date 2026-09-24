@@ -31,8 +31,11 @@ export default function LayoutManagerDemo() {
           className="min-w-96"
           templates={templates}
           onTemplatesChange={(next) => {
+            const previous = templates.find((template) => template.id === activeId)
+            const active = next.find((template) => template.id === activeId)
+            const layout = JSON.stringify(active?.layout)
+            if (!active || (layout !== JSON.stringify(previous?.layout) && layout !== JSON.stringify(current))) setActiveId(null)
             setTemplates(next)
-            if (!next.some((template) => template.id === activeId)) setActiveId(null)
           }}
           current={current}
           kinds={["book"]}

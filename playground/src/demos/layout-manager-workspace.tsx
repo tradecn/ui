@@ -29,15 +29,23 @@ export default function LayoutManagerWorkspaceDemo() {
   const [api, setApi] = useState<WorkspaceApi | null>(null)
   const [current, setCurrent] = useState<WorkspaceLayout | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [message, setMessage] = useState("Template changes are saved in this browser.")
   const [exported, setExported] = useState("")
-  const [prefs, setPrefs] = useState(() => {
+  const [initial] = useState(() => {
+    const empty = createPreferences({ template: ["layouts"] })
     try {
-      return withBoundary(parsePreferences(localStorage.getItem(STORAGE_KEY)) ?? createPreferences(), "layouts", "template")
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored === null) return { prefs: empty, message: "Save a template to keep it in this browser." }
+      const prefs = parsePreferences(stored)
+      return prefs
+        ? { prefs: withBoundary(prefs, "layouts", "template"), message: "Saved template list restored." }
+        : { prefs: empty, message: "Stored templates could not be read. Starting with an empty list." }
     } catch {
-      return createPreferences({ template: ["layouts"] })
+      return { prefs: empty, message: "Browser storage could not be read. Starting with an empty template list." }
     }
   })
+  const [prefs, setPrefs] = useState(initial.prefs)
+  const [message, setMessage] = useState(initial.message)
+  const templates = readLayoutTemplates(prefs)
 
   return (
     <>
@@ -61,11 +69,14 @@ export default function LayoutManagerWorkspaceDemo() {
         <div role="region" aria-label="Workspace layout controls" tabIndex={0} className="overflow-x-auto">
           <LayoutManager
             className="min-w-[32rem]"
-            templates={readLayoutTemplates(prefs)}
-            onTemplatesChange={(templates) => {
-              const next = writeLayoutTemplates(prefs, templates)
+            templates={templates}
+            onTemplatesChange={(nextTemplates) => {
+              const previous = templates.find((template) => template.id === activeId)
+              const active = nextTemplates.find((template) => template.id === activeId)
+              const layout = JSON.stringify(active?.layout)
+              if (!active || (layout !== JSON.stringify(previous?.layout) && layout !== JSON.stringify(current))) setActiveId(null)
+              const next = writeLayoutTemplates(prefs, nextTemplates)
               setPrefs(next)
-              if (!templates.some((template) => template.id === activeId)) setActiveId(null)
               try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
                 setMessage("Template list saved in this browser.")

@@ -38,8 +38,11 @@ function SavedLayouts() {
           className="min-w-96"
           templates={templates}
           onTemplatesChange={(next) => {
+            const previous = templates.find((template) => template.id === activeId)
+            const active = next.find((template) => template.id === activeId)
+            const layout = JSON.stringify(active?.layout)
+            if (!active || (layout !== JSON.stringify(previous?.layout) && layout !== JSON.stringify(current))) setActiveId(null)
             setTemplates(next)
-            if (!next.some((template) => template.id === activeId)) setActiveId(null)
           }}
           current={current}
           kinds={["book"]}
@@ -59,13 +62,13 @@ function SavedLayouts() {
 
 Start with a controlled list and the current layout. This example uses a real one-panel snapshot, so save, rename, duplicate, delete, and import work without mounting a workspace. **Load** selects a snapshot in local state and reports its name. The workspace example below restores the panels themselves.
 
-Give a new name to **Save current**, or use an existing name to replace that template. The opening template has a fixed sample date; new saves use the current time. At narrow widths, the manager's controls scroll horizontally.
+Give a new name to **Save current**, or use an existing name to replace that template. The loaded marker survives renames and saves of the current snapshot; replacing its layout through import clears the marker unless the JSON matches the previous or current snapshot. The opening template has a fixed sample date; new saves use the current time. At narrow widths, the manager's controls scroll horizontally.
 
 ## Saving and restoring a workspace
 
 Install [`workspace`](workspace.md) as well; it supplies the Workspace and Panel components used here. Change a symbol or add the equities book, then save a named layout. Change the workspace again and load that template to restore its arrangement and panel state. **Reset to default** restores the initial ZN book and keeps the saved list.
 
-The template list is written to this browser under `tradecn-layout-manager-example`, in a preferences slot assigned to the template boundary. Reloading restores the list; choose **Load** to restore a workspace. This is local example storage. Your application chooses its own storage and handles failures.
+The template list is written to this browser under `tradecn-layout-manager-example`, in a preferences slot assigned to the template boundary. Reloading restores the list; choose **Load** to restore a workspace. A storage read failure or invalid preferences envelope starts an empty list with a status message. A failed write keeps edits in memory and reports that they were not saved. This is local example storage; your application chooses its own storage.
 
 **Export** shows the layout JSON in a read-only field. Copy it into **Import** and give it a name to add or replace a template; import does not load it. The example takes a fresh current snapshot on ready, load, and reset, while ordinary workspace edits arrive through `onLayoutChange`.
 
