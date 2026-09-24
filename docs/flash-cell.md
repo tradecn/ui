@@ -33,13 +33,13 @@ function PriceCell() {
 
 `value` is watched, not printed. Supply the display as `children`; this example formats a supplied decimal price with `toFixed(2)`. Use an instrument formatter from [`format`](format.md) when the price needs another notation. Without children, the cell is empty.
 
-Choose either price control to send a quarter-point change. The first render is quiet; later increases and decreases flash for the default 900 ms. The text below the price records the direction after the color clears.
+Choose either price control to send a quarter-point change. The first render is quiet; later increases and decreases flash for the default 900 ms. The text below the price shows the direction immediately and remains after the color clears.
 
 ## Fill, ring, and repeated readings
 
 Both cells receive the same price. Fill tints the background; ring draws an inset outline. The controls supply positive, negative, or unchanged readings, and the caption records which reading arrived.
 
-**Repeat price** changes `revision` while keeping `value` equal. With `flashOnEqual`, that starts a flat flash. Supplying the same value alone would not signal a new arrival.
+**Repeat price** changes `revision` while keeping `value` equal. With `flashOnEqual`, that starts a flat flash. The example enables equal-value flashes only after a reading arrives, keeping the initial render quiet under development Strict Mode effect replay. Supplying the same value alone would not signal a new arrival.
 
 <!-- demo: flash-cell-readings -->
 

@@ -16,11 +16,11 @@ export default function FlashCellReadingsDemo() {
         <button type="button" className="rounded border border-border px-2 py-1" onClick={() => receive(0)}>Repeat price</button>
       </div>
       <table className="w-52 max-w-full text-xs lining-nums tabular-nums">
-        <caption className="caption-bottom pt-2" role="status">Reading {reading.revision}: {reading.revision === 0 ? "no update yet" : reading.change === 0 ? "unchanged" : reading.change > 0 ? "up 0.25" : "down 0.25"}</caption>
+        <caption className="caption-bottom pt-2"><span role="status">Reading {reading.revision}: {reading.revision === 0 ? "no update yet" : reading.change === 0 ? "unchanged" : reading.change > 0 ? "up 0.25" : "down 0.25"}</span></caption>
         <thead><tr>{["Fill", "Ring"].map((label) => <th key={label} scope="col" className="pb-2 text-left font-normal text-muted-foreground">{label}</th>)}</tr></thead>
         <tbody><tr>{(["fill", "ring"] as const).map((variant) => (
           <td key={variant} className="w-1/2">
-            <FlashCell value={reading.price} revision={reading.revision} flashOnEqual variant={variant} className="px-2 py-1 text-right">{reading.price.toFixed(2)}</FlashCell>
+            <FlashCell value={reading.price} revision={reading.revision} flashOnEqual={reading.revision > 0} variant={variant} className="px-2 py-1 text-right">{reading.price.toFixed(2)}</FlashCell>
           </td>
         ))}</tr></tbody>
       </table>
