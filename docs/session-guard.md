@@ -5,18 +5,54 @@ Warn before a session expires, then show a sign-in dialog over the desk. The gua
 ## Usage
 
 ```tsx
-import { SessionGuard, SessionStatus } from "@/components/ui/session-guard"
+import { useState } from "react"
+import { SessionGuard } from "@/components/ui/session-guard"
+
+function GuardedDraft() {
+  const [expiresAt, setExpiresAt] = useState(() => Date.now() + 30_000)
+  const [note, setNote] = useState("")
+
+  return (
+    <>
+      <div data-demo-controls className="flex flex-wrap gap-2 text-xs">
+        <button type="button" className="rounded border border-border px-2 py-1" onClick={() => setExpiresAt(0)}>Expire session</button>
+      </div>
+      <div className="flex min-h-72 w-sm max-w-full flex-col justify-center gap-3 text-xs">
+        <SessionGuard expiresAt={expiresAt} warnMs={60_000} onReauthenticate={async () => {
+          setExpiresAt(Date.now() + 300_000)
+          return true
+        }}>
+          <p className="text-sm text-muted-foreground">This example signs in immediately.</p>
+        </SessionGuard>
+        <label className="flex flex-col gap-1.5">
+          Draft note
+          <input className="rounded border border-border bg-background px-3 py-2" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Kept through sign-in" />
+        </label>
+      </div>
+    </>
+  )
+}
 ```
 
-```tsx
-<SessionGuard expiresAt={session.expiresAt} warnMs={120_000} onReauthenticate={() => auth.refresh()}>
-  <SignInWithToken />
-</SessionGuard>
+`expiresAt` is milliseconds since the epoch. This example starts with thirty seconds left, inside its one-minute warning window. Type a draft, then choose **Expire session** or wait for the deadline. The sign-in dialog leaves the draft mounted. **Stay signed in** or **Sign in again** renews immediately for five minutes, clearing the banner or dialog.
 
-<StatusBar right={<SessionStatus expiresAt={session.expiresAt} />} />
-```
+The callback simulates success. In your application, await your session service, update the expiry in application state on success, and return its boolean result. Returning `true` alone does not close the guard. Put your sign-in UI in its `children` and keep the desk outside it.
 
-`expiresAt` is milliseconds since the epoch. Have `auth.refresh()` resolve `true` on success and update `session.expiresAt` in application state. The new phase determines whether the banner or dialog remains visible.
+## Pending and refused sign-ins
+
+Choose **Show expired session**, then **Sign in again**. The request stays pending until you choose **Accept sign-in** or **Refuse sign-in** inside the dialog. These two controls stand in for the identity provider; keeping them inside the modal lets you retry after refusal.
+
+Acceptance updates the expiry and closes the dialog. Refusal leaves it open with the guard's error message; choose **Sign in again** to retry. This variant uses `warnMs={0}` to skip the warning banner and keep every request inside the dialog, where its reply controls are available. The example settles an unfinished request when it unmounts and creates no timer for the simulated reply.
+
+<!-- demo: session-guard-replies -->
+
+## Session status readouts
+
+`SessionStatus` can show the same expiry elsewhere on the desk, independently of the guard. This comparison uses one fixed clock to keep all four phases available to inspect. Real sessions use the shared ticking clock by default.
+
+To place a readout in [`StatusBar`](status-bar.md), install that component separately and pass the readout to one of its slots.
+
+<!-- demo: session-guard-status -->
 
 ## API Reference
 
