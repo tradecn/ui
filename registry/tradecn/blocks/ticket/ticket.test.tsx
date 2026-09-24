@@ -186,10 +186,13 @@ describe("Ticket", () => {
 
   it("prints the status and the message as given, and rings once in primary when acknowledged", () => {
     const { rerender } = mount({ status: "Sent" })
+    const root = screen.getByRole("group", { name: "Order ticket ZN" })
     expect(screen.getByText("Sent")).toBeInTheDocument()
+    expect(root).toHaveAttribute("data-status", "Sent")
     expect(HTMLElement.prototype.animate).not.toHaveBeenCalled()
     rerender({ status: "Rejected", message: "Price outside the band" })
     expect(screen.getByText("Rejected")).toBeInTheDocument()
+    expect(root).toHaveAttribute("data-status", "Rejected")
     expect(screen.getByText("Price outside the band")).toBeInTheDocument()
     expect(HTMLElement.prototype.animate).not.toHaveBeenCalled()
     rerender({ status: "Acknowledged", acknowledged: "ORD-1" })
@@ -200,6 +203,8 @@ describe("Ticket", () => {
     expect(HTMLElement.prototype.animate).toHaveBeenCalledTimes(1)
     rerender({ status: "Acknowledged", acknowledged: "ORD-2" })
     expect(HTMLElement.prototype.animate).toHaveBeenCalledTimes(2)
+    rerender({ status: undefined, acknowledged: "ORD-2" })
+    expect(root).not.toHaveAttribute("data-status")
   })
 
   it("tells the draft after it changed, not on the first render", () => {
