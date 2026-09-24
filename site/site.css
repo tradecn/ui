@@ -239,27 +239,46 @@ html:not(.js) .copy, html:not(.js) .managers { display: none; }
 .tabs-bar [role="tab"] { font: inherit; color: var(--muted-foreground); background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: .35rem 0; cursor: pointer; }
 .tabs-bar [role="tab"][aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--foreground); }
 .tabs-bar [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.file { margin: 1.25rem 0 .35rem; font-size: .85rem; color: var(--muted-foreground); }
-.file + .source { margin-top: 0; }
 html:not(.js) .tabs-bar { display: none; }
 html:not(.js) .tabs [role="tabpanel"][hidden] { display: block; }
-/* A block to copy from under Manual, a file or the stylesheet, shadcn's shape: collapsed to its first lines under a
-   fade, Expand beside the copy button and again over the fade (a button for the mouse; the Tab key and a screen reader
-   meet the first), the code inert; opened, the whole block however long, with Collapse where Expand was. The copy
-   button takes the whole block either way. A block short enough to show whole has nothing to expand: site.js measures
-   it against the clip and marks it, and its clip and its buttons go. */
-.source { position: relative; margin: 1rem 0; }
-.source .code { margin: 0; }
+/* Manual's steps, shadcn's shape: each numbered in a circle that sits on a rule down their left edge, what to do beside
+   the number and the blocks to do it with under it. On a phone the rule goes and the number stands at the start of
+   the line, so the blocks keep the column's width. */
+.steps { margin: 1.5rem 0 0 1.125rem; padding: 0 0 0 2rem; border-left: 1px solid var(--border); list-style: none; counter-reset: step; }
+.steps > li { position: relative; margin: 0; counter-increment: step; }
+.steps > li + li { margin-top: 2rem; }
+.steps > li > p:first-child { margin: 0; font-weight: 500; }
+.steps > li > p:first-child::before { content: counter(step); position: absolute; top: -.3rem; left: calc(-2rem - .5px); translate: -50% 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 2.25rem; height: 2.25rem; font: 500 .875rem/1 var(--font-mono); color: var(--foreground); background: var(--muted); border: 4px solid var(--background); border-radius: 50%; }
+/* A block to copy from under Manual, a file or the stylesheet, shadcn's shape: a header with the block's language mark
+   where a command's prompt stands, then the file's path, Expand and the copy button at the header's end. Under it the
+   code, collapsed to its first lines under a fade with Expand again over it (a button for the mouse; the Tab key and a
+   screen reader meet the first), the code inert; opened, the whole block however long, with Collapse where Expand was.
+   The copy button takes the whole block either way. A block short enough to show whole has nothing to expand: site.js
+   measures it against the clip and marks it, and its clip and its buttons go. */
+.source { position: relative; margin: 1rem 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+.source figcaption { position: relative; min-height: calc(2.45rem + 1px); padding: .35rem .75rem .35rem 2.1rem; font-size: .85rem; line-height: 1.75rem; color: var(--muted-foreground); border-bottom: 1px solid var(--border); }
+.source figcaption svg { position: absolute; top: .725rem; left: .7rem; width: 1rem; height: 1rem; }
+.source figcaption code { padding: 0; font-size: 1em; color: inherit; background: none; border: 0; }
+/* The header's first line keeps clear of the buttons at its end, as wide as Collapse and the copy button, or the copy
+   button alone on a block that shows whole; a path too long for it breaks after a slash and goes on under them. */
+.source figcaption::before { content: ""; float: right; width: 7.25rem; height: 1.75rem; }
+.source[data-fits] figcaption::before { width: 2.05rem; }
+.source figcaption span { white-space: nowrap; }
+/* The copy button stands in the header, so its block is the whole figure, not the code under it. */
+.source .code { position: static; margin: 0; }
+.source pre { padding-right: 1rem; border: 0; border-radius: 0; background: none; }
+.source .copy { top: .35rem; }
 .source[data-collapsed]:not([data-fits]) pre { max-height: 16rem; overflow: hidden; }
-.expand { position: absolute; top: .45rem; right: 2.75rem; height: 1.75rem; padding: 0 .55rem; font: inherit; font-size: .85rem; color: var(--muted-foreground); background: var(--card); border: 0; border-radius: var(--radius); cursor: pointer; }
+.expand { position: absolute; top: .35rem; right: 2.75rem; height: 1.75rem; padding: 0 .55rem; font: inherit; font-size: .85rem; color: var(--muted-foreground); background: var(--card); border: 0; border-radius: var(--radius); cursor: pointer; }
 .expand::after { content: ""; position: absolute; top: .3rem; right: -.3rem; bottom: .3rem; border-left: 1px solid var(--border); }
 .expand:hover, .expand:focus-visible { color: var(--foreground); }
 .expand:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.expand-foot { position: absolute; right: 1px; bottom: 1px; left: 1px; display: flex; align-items: center; justify-content: center; height: 5rem; font: inherit; font-size: .85rem; color: var(--muted-foreground); background: linear-gradient(to bottom, color-mix(in oklab, var(--card) 70%, transparent), var(--card)); border: 0; border-radius: 0 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px); cursor: pointer; }
+.expand-foot { position: absolute; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; height: 5rem; font: inherit; font-size: .85rem; color: var(--muted-foreground); background: linear-gradient(to bottom, color-mix(in oklab, var(--card) 70%, transparent), var(--card)); border: 0; border-radius: 0 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px); cursor: pointer; }
 .expand-foot:hover { color: var(--foreground); }
 .source:not([data-collapsed]) .expand-foot, .source[data-fits] .expand, .source[data-fits] .expand-foot { display: none; }
 /* Without the script the buttons would do nothing, so they are not there and a block scrolls inside itself. */
 html:not(.js) .expand, html:not(.js) .expand-foot { display: none; }
+html:not(.js) .source figcaption::before { content: none; }
 html:not(.js) .source[data-collapsed] pre { max-height: 24rem; overflow: auto; }
 /* The live preview, shadcn's shape: the item running in an iframe sized by the height it reports (the embed page
    centers the demo and keeps at least 22rem), and its source under the frame. Collapsed, the first lines show
@@ -294,6 +313,10 @@ html:not(.js) .view-code { display: none; }
   .page { grid-template-columns: 1fr; gap: 1.5rem; }
   .hero { padding-top: 2.5rem; }
   .cta { flex-wrap: wrap; }
+  /* Manual's steps give up their rule: each number stands at the start of its line, and a longer line hangs under the text. */
+  .steps { margin-left: 0; padding-left: 0; border-left: 0; }
+  .steps > li > p:first-child { padding-left: 2rem; text-indent: -2rem; }
+  .steps > li > p:first-child::before { position: static; translate: none; width: 1.5rem; height: 1.5rem; margin-right: .5rem; text-indent: 0; border: 0; }
   /* On a phone the search is its icon, and the dialog takes the screen. */
   .search-button span, .search-button kbd { display: none; }
   .search-button { padding: .3rem .45rem; }
