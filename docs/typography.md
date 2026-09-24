@@ -110,7 +110,9 @@ The three-consumer browser matrix checks computed numeric styles on nodes with d
 
 ## Character disambiguation
 
-Compare a candidate font at 12, 13, and 14 px on the background you ship. The specimen uses this page's font. The live demo on tradecn.dev compares the sans and mono stacks with Georgia and offers an accessibility toggle.
+Compare a candidate font at 12, 13, and 14 px on the background you ship. The specimen uses this page's font. The live demo on tradecn.dev compares the sans and mono stacks with a system serif and offers an accessibility toggle.
+
+To copy the live preview, install [`format`](format.md) for its helpers, family tokens, and accessibility remap. Install `@fontsource/inter`, `@fontsource/jetbrains-mono`, `@fontsource/atkinson-hyperlegible-next`, and `@fontsource/atkinson-hyperlegible-mono` too; the preview imports its own fonts. Its local numeric alias makes the decimal column follow the scoped accessibility change described above. The controls affect only the specimen; the serif column keeps its system font.
 
 <p class="specimen"><span style="font-size: 12px">0O 1lI 5S 8B 69 3-5 4-6 <small>12 px</small></span><br><span style="font-size: 13px">0O 1lI 5S 8B 69 3-5 4-6 <small>13 px</small></span><br><span style="font-size: 14px">0O 1lI 5S 8B 69 3-5 4-6 <small>14 px</small></span></p>
 
