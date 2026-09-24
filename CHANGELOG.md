@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.9](https://github.com/tradecn/ui/compare/v1.4.8...v1.4.9) (2026-09-24)
+
+
+### Bug Fixes
+
+* **use-hotkeys:** handlers fenced apart are not a conflict ([#192](https://github.com/tradecn/ui/issues/192)) ([a70664c](https://github.com/tradecn/ui/commit/a70664cea92732e83cc719ff5abd04fd8bd86eb1))
+
+
+### Documentation
+
+* **grid-rules:** simplify the documentation examples ([#191](https://github.com/tradecn/ui/issues/191)) ([e2fb5e4](https://github.com/tradecn/ui/commit/e2fb5e4ea40403495b4e37a4ede10187c27b76cb))
+* **layout-manager:** simplify the documentation examples ([#190](https://github.com/tradecn/ui/issues/190)) ([f01b6ad](https://github.com/tradecn/ui/commit/f01b6ad6bc55dab3fc8237b64619a91ba2db2b6c))
+* **sparkline:** simplify the documentation examples ([#194](https://github.com/tradecn/ui/issues/194)) ([a8a921f](https://github.com/tradecn/ui/commit/a8a921fa196c2b554f96d69e8534b0e12f26743a))
+
 ## [1.4.8](https://github.com/tradecn/ui/compare/v1.4.7...v1.4.8) (2026-09-24)
 
 
