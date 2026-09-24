@@ -5,29 +5,49 @@ An order blotter backed by a row store, with server-provided status and actions 
 ## Usage
 
 ```tsx
-import { Blotter, blotterColumns, type BlotterRow } from "@/components/ui/blotter"
+import { useState } from "react"
 import { createRowStore } from "@/lib/row-store"
-```
+import { Blotter, type BlotterRow } from "@/components/ui/blotter"
 
-```tsx
-const store = createRowStore<BlotterRow>({ getRowId: (o) => o.id, lane: "ordered" })
-const price = (value: number, order: BlotterRow) => conventions[order.symbol].price(value)
+const TIME = Date.UTC(2026, 8, 23, 14, 30)
 
-function MyBlotter() {
+function OrderBlotter() {
+  const [store] = useState(() => {
+    const rows = createRowStore<BlotterRow>({ getRowId: (row) => row.id, lane: "ordered" })
+    rows.applyDeltas({ upsert: [
+      { id: "O-1", time: TIME, symbol: "ES", side: "buy", quantity: 10, filled: 0, price: 5012.25, status: "Working", account: "A-1" },
+      { id: "O-2", time: TIME + 1000, symbol: "CL", side: "sell", quantity: 5, filled: 5, price: 78.1, status: "Filled", account: "A-2" },
+    ] })
+    return rows
+  })
+
   return (
-    <Blotter
-      store={store}
-      sort={{ key: "time", dir: "desc" }}
-      price={price}
-      onNew={() => openTicket()}
-      actions={[
-        { id: "cancel", label: "Cancel", destructive: true, run: (orders) => api.cancel(orders.map((o) => o.id)) },
-        { id: "amend", label: "Amend", run: ([order]) => openTicket(order) },
-      ]}
-    />
+    <div className="h-40 w-fit max-w-full">
+      <Blotter store={store} sort={{ key: "time", dir: "desc" }} />
+    </div>
   )
 }
 ```
+
+Give the blotter a stable row store and a container with a height. These two supplied orders use the built-in columns and decimal price format. Their timestamps are fixed; the time column displays them in your local timezone. The sort puts the newest order first.
+
+The component prints the supplied status. Your feed owns order updates; no order changes in this basic example. Use the shared preview alignment control to keep the left edge fixed while resizing columns.
+
+## Permission-filtered actions
+
+Select all three orders. **Cancel 2 of 3** and **Amend 1 of 3** reflect their `allowedActions`. Choose **Finish first order** to simulate a server update while the selection stays in place; Cancel then permits only the second order. **Restore orders** restores the original rows and permissions without clearing the selection.
+
+Cancel simulates an immediate server response and writes `Cancelled` back to the permitted rows. Amend and New order only record requests; an application opens its ticket or calls its service there. The same actions appear in the context menu, and this example explicitly enables Delete and Backspace as Cancel shortcuts. The readout identifies the rows that reached each handler. On narrow screens, scroll the specimen to reach the whole toolbar.
+
+<!-- demo: blotter-actions -->
+
+## Server reports and status
+
+Choose **Receive report** to apply three supplied updates. The first is a partial fill. The second fills all four units but still says `PartiallyFilled`; the final report changes the status to `Filled`. The blotter never infers that last transition from quantity.
+
+The Filled and Status cells flash when their values change. The last report stays visible, and **Reset reports** starts the sequence again. There is no background publisher.
+
+<!-- demo: blotter-reports -->
 
 ## API Reference
 
