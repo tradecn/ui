@@ -97,6 +97,7 @@ describe("the demo source shown under Code", () => {
       "price-chart-candles",
       "price-chart-overlays",
       "price-chart-ticks",
+      "sparkline-interactive",
     ])
     for (const name of alignable) {
       expect(demos.has(name), name).toBe(true)
@@ -182,6 +183,8 @@ describe("the demo source shown under Code", () => {
       "row-store-batching",
       "row-store-deltas",
       "row-store-views",
+      "sparkline-baseline",
+      "sparkline-interactive",
       "spread-matrix-structures",
       "spread-matrix-updates",
       "spread-matrix-yields",
@@ -320,6 +323,8 @@ describe("a theme on the site", () => {
       "row-store-batching",
       "row-store-deltas",
       "row-store-views",
+      "sparkline-baseline",
+      "sparkline-interactive",
       "spread-matrix-structures",
       "spread-matrix-updates",
       "spread-matrix-yields",

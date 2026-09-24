@@ -6,13 +6,31 @@ A compact SVG history for a grid cell, with direction, gaps, and an optional cro
 
 ```tsx
 import { Sparkline } from "@/components/ui/sparkline"
+
+const prices = [99.5, 99.52, 99.51, 99.56, 99.54, 99.55]
+
+function PriceHistory() {
+  return <Sparkline values={prices} label="ABC, 10:00–10:05" width={160} height={40} format={(value) => value.toFixed(2)} />
+}
 ```
 
-```tsx
-<Sparkline values={row.closes} label={`${row.symbol}, last 30 minutes`} width={96} height={22} />
-<Sparkline values={closes} baseline={previousClose} label="ZN today" format={price} />
-<Sparkline values={closes} label="ZN today" interactive pointLabel={(i) => times[i]} className="h-12 w-full" />
-```
+Supply both dimensions when the surrounding cell has a known size. These six readings are one minute apart. The accessible name reports direction, last price, low, and high using the supplied decimal formatter. No extra formatter installation is needed.
+
+## Gaps and a baseline
+
+Missing readings keep their places on the time axis. This fixed series has gaps at 10:02 and 10:04, leaving the 10:03 reading as a dot. Each connected run gets its own area fill.
+
+The dashed line is the previous close, 99.60. Although the last reading is above the first, it is below that baseline, so the automatic direction is down. The caption states the comparison as well.
+
+<!-- demo: sparkline-baseline -->
+
+## Responsive crosshair
+
+Omit both dimensions and size the box with classes to let Sparkline measure it. **Narrow chart** changes the wrapper's width; the chart remains capped at the available preview width. The shared alignment controls choose which edge stays fixed while the width changes.
+
+Move the pointer over the chart, or focus it and use the arrow keys, Home, End, and Escape. The crosshair names the original sample minute and price. There is no 10:02 reading, so navigation skips from 10:01 to 10:03. These readings stay fixed while you inspect them.
+
+<!-- demo: sparkline-interactive -->
 
 ## API Reference
 
