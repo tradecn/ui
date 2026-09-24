@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.4.12](https://github.com/tradecn/ui/compare/v1.4.11...v1.4.12) (2026-09-24)
+
+
+### Documentation
+
+* **alert-store:** simplify the documentation examples ([45d30bf](https://github.com/tradecn/ui/commit/45d30bf3a517b007ae9cc15608cbcbbf2fcd1878))
+* **audit-trail:** make the event history ready to inspect ([88fcf5f](https://github.com/tradecn/ui/commit/88fcf5f98a6be953ce52c6ed6e2ab626c224275e))
+* **countdown:** make timer examples self-contained ([f8095ae](https://github.com/tradecn/ui/commit/f8095ae0ddb1f52bd701c509d609cd95408dde4e))
+* **format:** organize the examples by value type ([f9e20bb](https://github.com/tradecn/ui/commit/f9e20bb0dca594743d17991b5ae11f029aa8ec2f))
+* **hotkey-editor:** simplify setup and show exported overrides ([ac5197e](https://github.com/tradecn/ui/commit/ac5197ec2cf0bcd62a8a6cca5af2cf13e96d8c6d))
+* **instrument-search:** simplify the documentation examples ([e89b82b](https://github.com/tradecn/ui/commit/e89b82bf6095cc3b99d949bc7fc3236d1ccd5b5a))
+* **limits:** simplify usage and clarify preview outcomes ([60f15a0](https://github.com/tradecn/ui/commit/60f15a029f46ab181253a6bf483a79a6c4ab2cb9))
+* **perf-monitor:** separate basic monitoring from grid load ([12c41ef](https://github.com/tradecn/ui/commit/12c41ef47c3f888371b8e5ffae161b88be6750c6))
+* **quote-field:** make the comparison easy to copy and inspect ([56924a3](https://github.com/tradecn/ui/commit/56924a3dc70cb35ec609662cc9c7bd27ab612389))
+* **rules-editor:** complete and simplify the example ([c795260](https://github.com/tradecn/ui/commit/c7952602bb801f33bc982263220013f0e798c91f))
+* **site:** make the color comparison self-contained ([9050561](https://github.com/tradecn/ui/commit/9050561395d3e8eb14211ff477d6760a31b793e0))
+* **typography:** make the font specimen self-contained ([8d549df](https://github.com/tradecn/ui/commit/8d549dfbd54aea7af723fb17f1d23a17865c0c07))
+* **window-set:** clarify and contain the simulated shell example ([62315da](https://github.com/tradecn/ui/commit/62315da1f380b6a6a073f54a7ca263b0bbfeba08))
+
 ## [1.4.11](https://github.com/tradecn/ui/compare/v1.4.10...v1.4.11) (2026-09-24)
 
 
