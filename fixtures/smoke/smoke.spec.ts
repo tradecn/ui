@@ -825,7 +825,44 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   await expect(strip.locator("li[data-tone='up'] [data-alert-severity]")).toBeVisible()
   await strip.getByRole("button", { name: "Clear all" }).click()
   await expect(strip).toHaveAttribute("data-count", "0")
+  await expect(strip.getByRole("list")).toHaveCount(0)
   await expect(strip.getByText("No notices.")).toBeVisible()
+})
+
+test("notice counts and times follow the numeric font and accessibility mode", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='alerts']")
+  await scene.getByRole("button", { name: "slow feed again" }).click()
+  const row = scene.locator("li[data-alert-id='slow']")
+  await expect(row.locator("[data-alert-count]")).toHaveText("×2")
+  for (const mode of ["custom", "hyperlegible"] as const) {
+    const result = await row.evaluate((el, mode) => {
+      // Give inherited text a different family so omitting the numeric class cannot pass by accident.
+      el.style.fontFamily = "monospace"
+      const root = document.documentElement
+      root.style.setProperty("--tradecn-font-numeric", mode === "custom" ? "Georgia, serif" : "var(--tradecn-font-sans)")
+      if (mode === "hyperlegible") root.setAttribute("data-accessibility", "hyperlegible")
+      const probe = document.createElement("i")
+      probe.style.fontFamily = mode === "custom" ? "var(--tradecn-font-numeric)" : "var(--tradecn-font-accessible)"
+      probe.style.color = "var(--muted-foreground)"
+      document.body.append(probe)
+      const expected = { font: getComputedStyle(probe).fontFamily, color: getComputedStyle(probe).color }
+      const metadata = [...el.querySelectorAll("[data-alert-count], time")].map((node) => {
+        const style = getComputedStyle(node)
+        return { tag: node.tagName, font: style.fontFamily, color: style.color, shrink: style.flexShrink, variant: style.fontVariantNumeric }
+      })
+      probe.remove()
+      return { expected, metadata }
+    }, mode)
+    expect(result.metadata.map((node) => node.tag)).toEqual(["SPAN", "TIME"])
+    for (const node of result.metadata) {
+      expect(node.font, `${mode}: ${node.tag} uses the numeric family`).toBe(result.expected.font)
+      expect(node.color).toBe(result.expected.color)
+      expect(node.shrink).toBe("0")
+      expect(node.variant).toContain("lining-nums")
+      expect(node.variant).toContain("tabular-nums")
+    }
+  }
 })
 
 // The store alone through the installed lib: the keyed repeat is one row at a count of two, and the cap

@@ -50,7 +50,7 @@ export default function AlertsActionsDemo() {
       <div className="flex w-lg max-w-full flex-col gap-3 text-xs">
         <Alerts>
           <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
-          <AlertsList>{ids.map((id) => <Notice key={id} alerts={alerts} id={id} onAction={onAction} />)}</AlertsList>
+          {ids.length > 0 && <AlertsList>{ids.map((id) => <Notice key={id} alerts={alerts} id={id} onAction={onAction} />)}</AlertsList>}
           {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
         </Alerts>
         <p role="status">{acted}</p>

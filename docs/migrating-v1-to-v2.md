@@ -30,7 +30,7 @@ The new history labels retain `empty`, `time`, `severity`, `message`, and `count
 
 | v1 label | v1 default | v2 destination |
 |---|---|---|
-| `title` | `Notices` | `Alerts` accessible name, still defaulting to "Notices". This field no longer names the strip in history labels. |
+| `title` | `Notices` | `Alerts` accessible name, still defaulting to "Notices". `AlertHistoryLabels.title` now names the grid (v1's `listTitle`). |
 | `listTitle` | `All notices` | `AlertHistoryLabels.title` for the grid; supply your own dialog title separately. |
 | `listDescription` | `Every notice, newest first.` | Your dialog description. Removed from history labels. |
 | `dismiss` | `Dismiss` | Your dismiss button's visible text or accessible name, including the notice title when preserving v1 behavior. Removed from history labels. |
@@ -40,9 +40,12 @@ The new history labels retain `empty`, `time`, `severity`, `message`, and `count
 
 ### Timestamps and counts
 
-Keep the formatter at the call site. For the same timestamp and count display as v1, define it once outside your row component:
+Keep the formatter at the call site. For the same timestamp and count display as v1, import `NUMERIC_CLASS` from the bundled format library and define the formatter once outside your row component:
 
 ```tsx
+import { cn } from "cn"
+import { NUMERIC_CLASS } from "@/lib/format"
+
 const noticeTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
 ```
 
@@ -50,11 +53,11 @@ Inside the row, where `alert` comes from `useAlert(store, id)`, add these childr
 
 ```tsx
 <>
-  <time dateTime={new Date(alert.at).toISOString()} className="lining-nums tabular-nums">{noticeTime.format(alert.at)}</time>
-  {alert.count > 1 && <span className="lining-nums tabular-nums">×{alert.count}</span>}
+  {alert.count > 1 && <span className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)}>×{alert.count}</span>}
+  <time dateTime={new Date(alert.at).toISOString()} className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)}>{noticeTime.format(alert.at)}</time>
 </>
 ```
 
-The history grid still supplies local 24-hour timestamps by default. Use `alertColumns({ time })` to override its formatter independently of the notice rows.
+`NUMERIC_CLASS` selects `--tradecn-font-numeric` as well as lining and tabular figures, preserving the caller's numeric font choice. The history grid still supplies local 24-hour timestamps by default. Use `alertColumns({ time })` to override its formatter independently of the notice rows.
 
 See [Alerts](alerts.md) for composition examples and the current API, and [alert-store](alert-store.md) for store behavior.

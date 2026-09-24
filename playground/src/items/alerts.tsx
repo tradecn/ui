@@ -1,6 +1,8 @@
+import { cn } from "cn"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { createAlertStore, type Alert, type AlertStore, type AlertTone } from "@/registry/tradecn/lib/alert-store"
+import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
 import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertActionButton, AlertDismiss, AlertHistory, useAlert, useAlertView, useToastBridge } from "@/registry/tradecn/ui/alerts"
 import { useRowIds } from "@/registry/tradecn/hooks/use-row-store"
 
@@ -16,8 +18,8 @@ function Notice({ alerts, id, actions, ttlMs }: { alerts: AlertStore; id: string
       <AlertHeader>
         <AlertSeverity tone={alert.tone}>{alert.severity}</AlertSeverity>
         <AlertTitle>{alert.title}</AlertTitle>
-        {alert.count > 1 && <span className="text-muted-foreground" data-alert-count={alert.count}>×{alert.count}</span>}
-        <time dateTime={new Date(alert.at).toISOString()} className="shrink-0 text-muted-foreground lining-nums tabular-nums">{noticeTime.format(alert.at)}</time>
+        {alert.count > 1 && <span className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)} data-alert-count={alert.count}>×{alert.count}</span>}
+        <time dateTime={new Date(alert.at).toISOString()} className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)}>{noticeTime.format(alert.at)}</time>
         <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)} />
       </AlertHeader>
       {alert.message && <AlertBody>{alert.message}</AlertBody>}
@@ -95,7 +97,7 @@ export function AlertsScene() {
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[28rem_1fr]">
         <Alerts className="self-start">
           <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
-          <AlertsList>{ids.slice(0, visible).map((id) => <Notice key={id} alerts={alerts} id={id} ttlMs={ttl} actions={[{ id: "reconnect", label: "Reconnect", onAction: act("reconnect") }, { id: "resubscribe", label: "Resubscribe", onAction: act("resubscribe") }, { id: "ack", label: "Acknowledge", onAction: act("ack") }]} />)}</AlertsList>
+          {ids.length > 0 && <AlertsList>{ids.slice(0, visible).map((id) => <Notice key={id} alerts={alerts} id={id} ttlMs={ttl} actions={[{ id: "reconnect", label: "Reconnect", onAction: act("reconnect") }, { id: "resubscribe", label: "Resubscribe", onAction: act("resubscribe") }, { id: "ack", label: "Acknowledge", onAction: act("ack") }]} />)}</AlertsList>}
           {ids.length === 0 ? <AlertsEmpty>No notices.</AlertsEmpty> : <Button variant="ghost" size="sm" onClick={() => alerts.clear()}>Clear all</Button>}
           {ids.length > visible && <p>{ids.length - visible} more in the history panel</p>}
         </Alerts>

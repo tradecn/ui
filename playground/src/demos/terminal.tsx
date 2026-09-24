@@ -1,3 +1,4 @@
+import { cn } from "cn"
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
@@ -12,7 +13,7 @@ import { HotkeysProvider, useHotkey } from "@/registry/tradecn/hooks/use-hotkeys
 import { LinkGroupProvider, useLinkGroup } from "@/registry/tradecn/hooks/use-link-group"
 import { useRow, useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
 import { createAlertStore, type Alert, type AlertStore } from "@/registry/tradecn/lib/alert-store"
-import { createInstrumentFormatter, formatDv01, formatNotional, formatPrice, formatQuantity, roundToTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { createInstrumentFormatter, formatDv01, formatNotional, formatPrice, formatQuantity, roundToTick, NUMERIC_CLASS, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { formatKeys, type HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
 import type { Limits } from "@/registry/tradecn/lib/limits"
@@ -1604,8 +1605,8 @@ function Notice({ alerts, id, actions, ttlMs }: { alerts: AlertStore; id: string
       <AlertHeader>
         <AlertSeverity tone={alert.tone}>{alert.severity}</AlertSeverity>
         <AlertTitle>{alert.title}</AlertTitle>
-        {alert.count > 1 && <span className="text-muted-foreground" data-alert-count={alert.count}>×{alert.count}</span>}
-        <time dateTime={new Date(alert.at).toISOString()} className="shrink-0 text-muted-foreground lining-nums tabular-nums">{noticeTime.format(alert.at)}</time>
+        {alert.count > 1 && <span className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)} data-alert-count={alert.count}>×{alert.count}</span>}
+        <time dateTime={new Date(alert.at).toISOString()} className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)}>{noticeTime.format(alert.at)}</time>
         <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)} />
       </AlertHeader>
       {alert.message && <AlertBody>{alert.message}</AlertBody>}
@@ -1620,12 +1621,12 @@ function DeskAlerts({ alerts, actions }: { alerts: AlertStore; actions: NoticeAc
     <Dialog>
       <Alerts className="border-b border-border px-2 py-1">
         <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
-        <AlertsList>{ids.slice(0, 1).map((id) => <Notice key={id} alerts={alerts} id={id} actions={actions} ttlMs={12_000} />)}</AlertsList>
+        {ids.length > 0 && <AlertsList>{ids.slice(0, 1).map((id) => <Notice key={id} alerts={alerts} id={id} actions={actions} ttlMs={12_000} />)}</AlertsList>}
         {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
-        <div className="flex gap-2">
+        {ids.length > 0 && <div className="flex gap-2">
           {ids.length > 1 && <DialogTrigger className={buttonVariants({ variant: "ghost", size: "sm" })}>{ids.length - 1} more</DialogTrigger>}
-          {ids.length > 0 && <Button variant="ghost" size="sm" onClick={() => alerts.clear()}>Clear all</Button>}
-        </div>
+          <Button variant="ghost" size="sm" onClick={() => alerts.clear()}>Clear all</Button>
+        </div>}
       </Alerts>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col sm:max-w-3xl">
         <DialogHeader className="shrink-0"><DialogTitle>All notices</DialogTitle><DialogDescription>Every notice, newest first.</DialogDescription></DialogHeader>

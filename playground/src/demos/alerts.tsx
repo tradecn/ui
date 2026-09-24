@@ -14,7 +14,7 @@ export default function AlertsDemo() {
         <button type="button" className="rounded border border-border px-2 py-1" onClick={() => setNotices(initial)}>Restore notices</button>
       </div>
       <Alerts className="w-lg max-w-full">
-        <AlertsList>
+        {notices.length > 0 && <AlertsList>
           {notices.map((notice) => (
             <AlertItem key={notice.id}>
               <AlertHeader>
@@ -25,7 +25,7 @@ export default function AlertsDemo() {
               <AlertBody>{notice.message}</AlertBody>
             </AlertItem>
           ))}
-        </AlertsList>
+        </AlertsList>}
         {notices.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
       </Alerts>
     </>

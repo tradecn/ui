@@ -33,7 +33,7 @@ export default function AlertsBridgeDemo() {
       </div>
       <div className="flex w-lg max-w-full flex-col gap-3 text-xs lining-nums tabular-nums">
         <Alerts>
-          <AlertsList>{ids.map((id) => <Notice key={id} alerts={alerts} id={id} />)}</AlertsList>
+          {ids.length > 0 && <AlertsList>{ids.map((id) => <Notice key={id} alerts={alerts} id={id} />)}</AlertsList>}
           {ids.length === 0 ? <AlertsEmpty>No notices.</AlertsEmpty> : <button type="button" className="self-end rounded border border-border px-2 py-1" onClick={() => alerts.clear()}>Clear all</button>}
         </Alerts>
         <div role="status" aria-atomic="true">

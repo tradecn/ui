@@ -34,12 +34,12 @@ export default function AlertsHistoryDemo() {
     <Dialog>
       <Alerts className="w-lg max-w-full">
         <AlertsAnnouncer alerts={alerts} id={shown[0] ?? null} />
-        <AlertsList>{shown.map((id) => <Notice key={id} alerts={alerts} id={id} />)}</AlertsList>
+        {ids.length > 0 && <AlertsList>{shown.map((id) => <Notice key={id} alerts={alerts} id={id} />)}</AlertsList>}
         {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
-        <div className="flex gap-2">
+        {ids.length > 0 && <div className="flex gap-2">
           {ids.length > shown.length && <DialogTrigger className={buttonVariants({ variant: "outline", size: "sm" })}>{ids.length - shown.length} more</DialogTrigger>}
-          {ids.length > 0 && <Button variant="ghost" size="sm" className="ml-auto" onClick={() => alerts.clear()}>Clear all</Button>}
-        </div>
+          <Button variant="ghost" size="sm" className="ml-auto" onClick={() => alerts.clear()}>Clear all</Button>
+        </div>}
       </Alerts>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col sm:max-w-3xl">
         <DialogHeader className="shrink-0">
