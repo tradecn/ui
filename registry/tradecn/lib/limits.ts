@@ -112,8 +112,10 @@ export function marketSideFor(field: "price" | "bid" | "ask", side: "buy" | "sel
 /** How far a level is from a market level in the convention's unit: ticks for a price basis, basis points for the rest. */
 export function distanceFromMarket(level: number, market: number, convention: InstrumentConvention | undefined): { value: number; unit: "ticks" | "bps" } {
   if (!convention || quoteBasisOf(convention) === "price") return { value: Math.abs(ticksBetween(level, market, convention?.tick ?? 1)), unit: "ticks" }
+  // A yield or a discount is quoted in percent, so a hundredth of a point is a basis point; a spread is quoted in basis points already.
+  const perPoint = quoteBasisOf(convention) === "spread" ? 1 : 100
   // To a thousandth of a basis point, so 4.30 against 4.25 is 5 and not 4.999999999999982.
-  return { value: Math.round(Math.abs(level - market) * 100 * 1000) / 1000, unit: "bps" }
+  return { value: Math.round(Math.abs(level - market) * perPoint * 1000) / 1000, unit: "bps" }
 }
 
 /**
