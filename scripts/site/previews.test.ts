@@ -622,11 +622,14 @@ describe("the preview card", () => {
     expect(preview).toContain('#root[data-frame="stretch"] { box-sizing: border-box; min-height: 14rem; display: flex; flex-direction: column; justify-content: center; padding: 1.5rem 1rem; }')
     expect(preview).toContain('#root[data-frame="desk"] {')
     const script = readFileSync(resolve(root, "site", "site.js"), "utf8")
-    // One wiring for the preview's View Code and the Manual's Expand: the collapsed code is inert unless the block shows whole, the button reads Collapse once open, and an opened preview's source takes the focus.
-    expect(script).toContain('document.querySelectorAll(".view-code, .expand")')
+    // View Code opens the preview's source for good, as shadcn's does: the source takes the focus and the button goes.
+    expect(script).toContain('for (const button of document.querySelectorAll(".view-code")) viewCode(button)')
+    expect(script).toContain("body.focus({ preventScroll: true })\n    button.remove()")
+    // The Manual's Expand opens and closes: the collapsed code is inert unless the block shows whole, and the button reads Collapse once open and keeps the focus.
+    expect(script).toContain('for (const button of document.querySelectorAll(".expand")) collapsible(button)')
     expect(script).toContain("body.inert = !open && !fits")
-    expect(script).toContain('if (open) (button.classList.contains("view-code") ? body : button).focus({ preventScroll: true })')
     expect(script).toContain('button.textContent = open ? "Collapse" : closed')
+    expect(script).toContain("if (open) button.focus({ preventScroll: true })")
     expect(script).toContain('event.data.type !== "tradecn-preview"')
     expect(script).toContain("event.origin !== location.origin")
     // Every preview frame, the docs page's card and the opening page's showcase alike, is sized and asked.

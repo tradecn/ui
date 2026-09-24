@@ -242,7 +242,8 @@ for (const item of items) {
     if (kind === "item" && !(await page.locator(".toc a[href='#installation']").count())) failures.push(`${item}: the page lists no Installation under On this page`)
     if (kind === "doc" && (await page.locator("#installation").count())) failures.push(`${item}: a doc's page grew an Installation section`)
     if (!(await page.locator(".arrows a[rel='prev'], .arrows a[rel='next']").count())) failures.push(`${item}: no arrows beside the title`)
-    // The source sits under the frame: collapsed and inert until View Code opens it, Collapse closes it again, and no link leads out of the card.
+    // The source sits under the frame: collapsed and inert until View Code opens it for good, as shadcn's does (the
+    // button goes, and nothing closes it again), and no link leads out of the card.
     const view = card.locator(".view-code")
     const body = card.locator(".preview-code-body")
     const inert = () => body.evaluate((el) => (el as HTMLElement).inert)
@@ -254,7 +255,8 @@ for (const item of items) {
     const pre = card.locator(".preview-code pre")
     if ((await pre.evaluate((el) => getComputedStyle(el).overflowY)) !== "hidden") failures.push(`${item}: the collapsed source's pre scrolls on its own`)
     await view.click()
-    if ((await view.getAttribute("aria-expanded")) !== "true" || (await view.innerText()) !== "Collapse") failures.push(`${item}: View Code did not open the source`)
+    if (await inert()) failures.push(`${item}: View Code did not open the source`)
+    if (await card.locator("button:not(.copy)").count()) failures.push(`${item}: the opened source still has a button to close it`)
     // The opened source holds the focus, and from there the Tab order reads on inside it: the pre first when its lines
     // overflow, since Chromium makes such a scroller keyboard-focusable, then the copy button, before anything outside.
     if (!(await page.evaluate(() => document.activeElement?.classList.contains("preview-code-body")))) failures.push(`${item}: the opened source did not take focus`)
@@ -297,8 +299,6 @@ for (const item of items) {
     const source = await previewCode.evaluate((el) => el.textContent ?? "")
     await card.locator(".preview-code .copy").click()
     if ((await clipboard(page)) !== source.trimEnd()) failures.push(`${item}: the source's copy button copied something else`)
-    await view.click()
-    if (!(await inert()) || (await view.innerText()) !== "View Code") failures.push(`${item}: Collapse did not close the source`)
     if (kind === "variant") {
       // A variant's card stands in a section of its own, after Usage and before API Reference, where the doc placed it.
       const placement = await page.evaluate((name) => {
