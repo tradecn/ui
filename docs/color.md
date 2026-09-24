@@ -54,7 +54,9 @@ These gaps do not guarantee distinguishability in print or with color vision def
 
 Keep direction visible in a sign, arrow, or word. A ticket's side button says Buy or Sell; the default noninteractive sparkline includes its direction in its accessible name when it has data. A flash cell exposes `data-direction`, but its displayed content is caller-supplied: pair an absolute price with a signed change or another visible direction cue. A DOM attribute or screen-reader description alone does not provide that visible cue.
 
-Rule 15 of [the item contract](contract.md) requires another channel alongside direction color. `scripts/color.test.ts` inventories source files using direction tokens and looks for each declared channel's source pattern. It does not prove that every rendered use supplies an adequate visual alternative. The demo above shows the themes in light and dark under protanopia, deuteranopia, tritanopia, and grayscale simulations. Use those views to spot problems; they do not reproduce every reader's vision or replace testing with readers.
+Rule 15 of [the item contract](contract.md) requires another channel alongside direction color. `scripts/color.test.ts` inventories source files using direction tokens and looks for each declared channel's source pattern. It does not prove that every rendered use supplies an adequate visual alternative. The demo above compares all three themes in both modes, with signed direction labels and separate status words. Its copyable source includes the six palette values each swatch uses; no repository data file is needed. Scroll the comparison horizontally on a narrow screen.
+
+The protanopia, deuteranopia, and tritanopia views apply [Machado, Oliveira, and Fernandes's matrices](https://www.inf.ufrgs.br/~oliveira/pubs_files/CVD_Simulation/CVD_Simulation.html) at severity one in linear RGB; grayscale uses the browser's CSS filter. These views help spot potential confusion. They do not reproduce every reader's vision, establish accessibility, or replace testing with readers.
 
 ## Light and dark are two palettes
 
