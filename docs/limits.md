@@ -114,9 +114,9 @@ Only finite references are usable. The mid is a finite explicit `market.mid`, or
 |---|---|---|
 | `price` (also the default basis) | Difference divided by `convention.tick`, rounded to the nearest eighth of a tick, then made absolute. Without a convention, tick size is `1`. | `ticks` |
 | `yield`, `discount` | Absolute difference × `100`, rounded to `0.001` basis points. Inputs are percentage points: `4.30` against `4.25` gives `5`. | `bps` |
-| `spread` | The same difference × `100` calculation, even though spread inputs already use basis points: `101` against `100` gives `100`. | `bps` |
+| `spread` | Absolute difference, rounded to `0.001` basis points. Inputs are already basis points: `203` against `200` gives `3`. | `bps` |
 
-The spread row describes the current implementation's scaling. `quoteStep` and `quoteDecimals` do not affect this helper. For price quotes, a nonpositive tick produces `NaN`, which does not trigger a distance problem.
+`quoteStep` and `quoteDecimals` do not affect this helper. For price quotes, a nonpositive tick produces `NaN`, which does not trigger a distance problem.
 
 `maxDistance` produces a problem only when the calculated distance is strictly greater than the limit and the units match. A `ticks` rule on a yield, discount, or spread convention is skipped; a `bps` rule on a price convention is skipped too.
 

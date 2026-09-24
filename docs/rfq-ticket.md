@@ -193,7 +193,7 @@ Draft shortcuts have narrower guards than the controls: step and suggestion shor
 
 The [`limits`](limits.md) check receives only requested bid and ask levels, plus the inquiry's market and convention. It receives no quantity, so `maxQuantity` and `minQuantity` do not constrain RFQ quick sizes. Custom rules receive that same limited draft.
 
-`maxDistance` compares each level with the market's same side, falling back to `market.mid` when that side is absent. Use ticks for price and basis points for other quote bases. The current limit calculation multiplies all non-price differences by 100, including spreads; this differs from the spread distance shown below the field. `sides` checks the dealer's side: a bid is a buy and an offer is a sell.
+`maxDistance` compares each level with the market's same side, falling back to `market.mid` when that side is absent. Use ticks for price and basis points for other quote bases; a spread is compared in the basis points it is quoted in, the same distance the field shows. `sides` checks the dealer's side: a bid is a buy and an offer is a sell.
 
 A block shows under its field, or below the actions for other fields, and disables actions that need a quote. A confirm applies to any action that needs a quote: its button becomes `Quote anyway?` (using that action's label), the reason appears below, and the next activation of the same action sends if checks pass. Editing a level or choosing a size clears the confirmation. Both checks run live and again on execution; `needsQuote: false` actions bypass them.
 

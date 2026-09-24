@@ -4,6 +4,7 @@ import { blocks, checkLimits, confirms, distanceFromMarket, marketSideFor, probl
 
 const ust: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const bill: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.0005, quoteBasis: "discount" }
+const credit: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.001, quoteBasis: "spread" }
 const market = { bid: 99.5, ask: 99.515625, last: 99.5 }
 
 describe("checkLimits", () => {
@@ -41,6 +42,10 @@ describe("checkLimits", () => {
     const billMarket = { bid: 4.26, ask: 4.25 }
     expect(checkLimits({ side: "buy", quantity: 1, price: 4.3 }, { maxDistance: { bps: 4 } }, { market: billMarket, convention: bill })[0]?.message).toBe("The price is 5 bp from the market; the limit is 4 bp.")
     expect(checkLimits({ side: "buy", quantity: 1, price: 4.28 }, { maxDistance: { bps: 4 } }, { market: billMarket, convention: bill })).toEqual([])
+    // A spread is already in basis points: 203 against a market of 200 is 3 bp, not 300.
+    const creditMarket = { bid: 205, ask: 200 }
+    expect(checkLimits({ side: "buy", quantity: 1, price: 203 }, { maxDistance: { bps: 2 } }, { market: creditMarket, convention: credit })[0]?.message).toBe("The price is 3 bp from the market; the limit is 2 bp.")
+    expect(checkLimits({ side: "buy", quantity: 1, price: 201.5 }, { maxDistance: { bps: 2 } }, { market: creditMarket, convention: credit })).toEqual([])
     // A ticks rule on a basis-point instrument, or no market, says nothing rather than something wrong.
     expect(checkLimits({ side: "buy", quantity: 1, price: 4.9 }, { maxDistance: { ticks: 4 } }, { market: billMarket, convention: bill })).toEqual([])
     expect(checkLimits({ side: "buy", quantity: 1, price: 105 }, { maxDistance: { ticks: 4 } }, { convention: ust })).toEqual([])
@@ -83,6 +88,8 @@ describe("the market side and the distance", () => {
     expect(marketSideFor("price", "buy", {})).toBeNull()
     expect(distanceFromMarket(99.625, 99.515625, ust)).toEqual({ value: 7, unit: "ticks" })
     expect(distanceFromMarket(4.3, 4.25, bill)).toEqual({ value: 5, unit: "bps" })
+    expect(distanceFromMarket(203, 200, credit)).toEqual({ value: 3, unit: "bps" })
+    expect(distanceFromMarket(200.1, 200, credit)).toEqual({ value: 0.1, unit: "bps" })
     expect(distanceFromMarket(101, 100, undefined)).toEqual({ value: 1, unit: "ticks" })
   })
 })
