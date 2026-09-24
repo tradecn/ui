@@ -802,6 +802,12 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   const dialog = page.getByRole("dialog", { name: "All notices" })
   await expect(dialog.getByRole("grid", { name: "All notices" })).toHaveAttribute("aria-rowcount", "5")
   await expect(dialog.locator("[data-row-id]").first()).toHaveAttribute("data-row-id", "slow")
+  await page.setViewportSize({ width: 390, height: 280 })
+  await expect.poll(() => dialog.evaluate((el) => {
+    const box = el.getBoundingClientRect()
+    return box.top >= 0 && box.bottom <= window.innerHeight && box.left >= 0 && box.right <= window.innerWidth
+  })).toBe(true)
+  await expect(dialog.getByRole("heading", { name: "All notices" })).toBeVisible()
   await page.keyboard.press("Escape")
   await expect(dialog).toHaveCount(0)
   await expect(strip.getByRole("button", { name: "1 more" })).toBeFocused()

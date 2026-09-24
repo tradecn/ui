@@ -41,12 +41,12 @@ export default function AlertsHistoryDemo() {
           {ids.length > 0 && <Button variant="ghost" size="sm" className="ml-auto" onClick={() => alerts.clear()}>Clear all</Button>}
         </div>
       </Alerts>
-      <DialogContent className="min-w-0 sm:max-w-3xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col sm:max-w-3xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Notice history</DialogTitle>
           <DialogDescription>Every notice, newest first.</DialogDescription>
         </DialogHeader>
-        <div className="h-80 min-w-0"><AlertHistory alerts={alerts} /></div>
+        <div className="h-80 min-h-0 min-w-0"><AlertHistory alerts={alerts} /></div>
       </DialogContent>
     </Dialog>
   )
