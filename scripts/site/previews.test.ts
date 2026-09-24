@@ -108,6 +108,7 @@ describe("the demo source shown under Code", () => {
       "blotter-reports",
       "perf-monitor-load",
       "rules-editor",
+      "audit-trail",
     ])
     for (const name of alignable) {
       expect(demos.has(name), name).toBe(true)
