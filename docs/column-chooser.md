@@ -6,25 +6,64 @@ Show, hide, reorder, and find one grid's columns, or reset their widths, through
 
 ```tsx
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { createInstrumentFormatter, formatNotional } from "@/lib/format"
+import { createRowStore } from "@/lib/row-store"
 import { ColumnChooser } from "@/components/ui/column-chooser"
-import { DataGrid, type ColumnState } from "@/components/ui/data-grid"
+import { DataGrid, type ColumnDef, type ColumnState } from "@/components/ui/data-grid"
+
+type Quote = { id: string; client: string; size: number; price: number }
+const ust = createInstrumentFormatter({ price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 })
+const columns: ColumnDef<Quote>[] = [
+  { key: "client", header: "Client", width: 112, accessor: (row) => row.client },
+  { key: "size", header: "Size", width: 96, numeric: true, accessor: (row) => row.size, format: (value) => formatNotional(value as number, { unit: "mm" }) },
+  { key: "price", header: "Price", width: 96, numeric: true, font: "mono", accessor: (row) => row.price, format: (value) => ust.price(value as number), parse: ust.parsePrice },
+]
+
+function QuoteColumns() {
+  const [store] = useState(() => {
+    const rows = createRowStore<Quote>({ getRowId: (row) => row.id })
+    rows.applyDeltas({ upsert: [
+      { id: "Q-1", client: "ALPHA", size: 5_000_000, price: 99.5 },
+      { id: "Q-2", client: "BETA", size: 10_000_000, price: 99.515625 },
+    ] })
+    return rows
+  })
+  const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: {}, hidden: [] })
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <div data-demo-controls className="text-xs">
+        <button type="button" className="rounded border border-border px-2 py-1" onClick={() => setOpen(true)}>Columns</button>
+      </div>
+      <div className="flex min-h-104 w-fit max-w-full flex-col justify-center">
+        <ColumnChooser open={open} onOpenChange={setOpen} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} className="max-h-[calc(100%-2rem)] grid-cols-1 overflow-auto" />
+        <div className="h-40">
+          <DataGrid store={store} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} label="Quotes" />
+        </div>
+      </div>
+    </>
+  )
+}
 ```
 
-```tsx
-const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: {}, hidden: [] })
-const [open, setOpen] = useState(false)
+The grid and dialog share one `ColumnState` and callback. Open **Columns** to search, show or hide columns, or change their order. Close the dialog to see the grid update. Resize a grid header, then reopen the chooser to inspect or reset that width. **Reset all** restores the column definitions.
 
-<Button onClick={() => setOpen(true)}>Columns</Button>
-<ColumnChooser open={open} onOpenChange={setOpen} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={rules.columns} />
-<DataGrid store={store} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={rules} label="Open RFQs" />
-```
+The preview alignment control is shared across pages and remembered. Choose left alignment to keep the grid in place while changing its width. The dialog scrolls when its controls need more room.
 
 ## Composition
 
 `ColumnChooser` wraps the panel in your shadcn dialog with a title and description. Pass `open` and accept `onOpenChange` to handle dismissal by Escape or the overlay.
 
 `ColumnChooserPanel` embeds the same list in a sheet, settings page, or tab; [`rules-editor`](rules-editor.md) uses it for its Columns tab. It needs no dialog state. Share `columns`, `columnState`, and `onColumnStateChange` with the grid.
+
+## Inline settings and rule labels
+
+Use `ColumnChooserPanel` when column settings belong in your own panel. This example starts with Client hidden and Price widened to 144 px. Show Client, move it below Price, or reset the saved width. The frozen RFQ stays in its group.
+
+The Price badge describes a configured rule in words; the panel displays that rule but does not edit or apply it. Pass the same column rules to the grid when composing them. The inline container scrolls horizontally on narrow screens so its controls remain available.
+
+<!-- demo: column-chooser-inline -->
 
 ## API Reference
 

@@ -40,6 +40,7 @@
     "price-chart-overlays",
     "price-chart-ticks",
     "sparkline-interactive",
-    "grid-rules-data-grid"
+    "grid-rules-data-grid",
+    "column-chooser"
   ]
 }
