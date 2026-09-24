@@ -71,7 +71,7 @@ export interface HotkeyRegistry {
   /** Declare a binding, or replace the one with the same id. Returns the conflicts it takes part in. */
   register(binding: HotkeyBinding, handler?: HotkeyHandler): HotkeyConflict[]
   unregister(id: string): void
-  /** Attach a handler to a declared (or not yet declared) binding. Returns the detach. A fenced handler can settle a conflict, so both wake `subscribe`. */
+  /** Attach a handler to a declared (or not yet declared) binding. Returns the detach. A fenced handler can settle a conflict, so attaching and detaching wake `subscribe` as a declaration does. */
   bind(id: string, handler: HotkeyHandler, within?: HandlerScope | null): () => void
   /** Override a binding's keys; `""` unbinds it. Notifies `onChange`. Returns the conflicts the new keys take part in. */
   remap(id: string, keys: string): HotkeyConflict[]
@@ -82,11 +82,11 @@ export interface HotkeyRegistry {
   overrides(): HotkeyOverrides
   /** Overrides changed through `remap` or `reset`: the moment to persist. */
   onChange(cb: (overrides: HotkeyOverrides) => void): () => void
-  /** Every binding with its keys in force. Stable array reference until something changes. */
+  /** Every binding with its keys in force. Stable array reference until a binding, an override, or a handler changes. */
   list(): readonly HotkeyEntry[]
-  /** Every conflict the declarations and their handlers leave standing. Stable array reference until something changes. */
+  /** Every conflict the declarations leave standing once their handlers are read, against the document as it is now. A fresh array each call. */
   conflicts(): HotkeyConflict[]
-  /** Wakes on any change to `list()`, `pending()`, or `conflicts()`. */
+  /** Wakes on any change to `list()` or `pending()`, and when a handler comes or goes. */
   subscribe(cb: () => void): () => void
   /** Listen for keydown on a target, `document` by default. Attaching the same target twice adds one listener. */
   attach(target?: HotkeyTarget): () => void
@@ -324,7 +324,6 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
   const changeListeners = new Set<(overrides: HotkeyOverrides) => void>()
   const attached = new Map<HotkeyTarget, { count: number; listener: (event: Event) => void }>()
   let snapshot: readonly HotkeyEntry[] | null = null
-  let conflictSnapshot: HotkeyConflict[] | null = null
   // Chord state: how many steps of which bindings have matched so far.
   let progress = new Map<string, number>()
   let pendingSteps: string[] = []
@@ -332,13 +331,6 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
 
   function emit() {
     snapshot = null
-    conflictSnapshot = null
-    for (const cb of listeners) cb()
-  }
-
-  // A handler came or went: the list stands, the conflicts may not.
-  function emitHandlers() {
-    conflictSnapshot = null
     for (const cb of listeners) cb()
   }
 
@@ -516,7 +508,8 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
       const list = bound.get(id)
       if (list) list.push(entry)
       else bound.set(id, [entry])
-      emitHandlers()
+      // A fenced handler can settle a conflict, so a settings screen wants to hear about it.
+      emit()
       return () => {
         const current = bound.get(id)
         if (!current) return
@@ -524,7 +517,7 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
         if (i < 0) return
         current.splice(i, 1)
         if (!current.length) bound.delete(id)
-        emitHandlers()
+        emit()
       }
     },
     remap(id, keys) {
@@ -561,7 +554,6 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
       }))
     },
     conflicts() {
-      if (conflictSnapshot) return conflictSnapshot
       const all = [...recs.values()]
       const out: HotkeyConflict[] = []
       for (let i = 0; i < all.length; i++) {
@@ -570,7 +562,7 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
           if (c && !apart(all[i]!, all[j]!)) out.push(c)
         }
       }
-      return (conflictSnapshot = out)
+      return out
     },
     subscribe(cb) {
       listeners.add(cb)

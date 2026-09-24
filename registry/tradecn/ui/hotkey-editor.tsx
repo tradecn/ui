@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useMemo, useState, useSyncExternalStore, type KeyboardEvent } from "react"
+import { useMemo, useState, type KeyboardEvent } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -218,8 +218,11 @@ export function HotkeyEditor({ onExport, onImport, hide, labels: labelsProp, cla
   const labels = { ...DEFAULT_HOTKEY_EDITOR_LABELS, ...labelsProp }
   const registry = useHotkeys()
   const entries = useHotkeyList()
-  // The registry hands back the same array until a binding, an override, or a fenced handler changes it.
-  const conflicts = useSyncExternalStore(registry.subscribe, registry.conflicts, registry.conflicts)
+  // The list's identity changes exactly when the registry emits, and the conflicts change with it.
+  const conflicts = useMemo(() => {
+    void entries
+    return registry.conflicts()
+  }, [registry, entries])
   const [query, setQuery] = useState("")
   const shown = useMemo(() => entries.filter((e) => !hide?.(e) && matchesQuery(e, query, registry.platform)), [entries, hide, query, registry.platform])
   // Named groups first, in order; then the groups a scope gave its name to.

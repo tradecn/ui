@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react"
+import { useEffect, useState } from "react"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { HotkeyScope, HotkeysProvider, useHotkey, useHotkeyList, useHotkeys, usePendingChord } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry, formatKeys, keysFromEvent, type HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
@@ -68,7 +68,8 @@ function Bindings() {
   const hotkeys = useHotkeys()
   const list = useHotkeyList()
   const [capturing, setCapturing] = useState<string | null>(null)
-  const conflicts = useSyncExternalStore(hotkeys.subscribe, hotkeys.conflicts, hotkeys.conflicts)
+  // The list changes whenever a binding does, so this is always current.
+  const conflicts = hotkeys.conflicts()
   useEffect(() => {
     if (!capturing) return
     // Ahead of the registry's listener, so the key being captured does not also fire.
