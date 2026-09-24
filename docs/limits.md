@@ -7,9 +7,7 @@ Check a draft against quantity, market-distance, and side limits. Each problem e
 ```ts
 import { checkLimits, type Limits } from "@/lib/limits"
 import type { InstrumentConvention } from "@/lib/format"
-```
 
-```tsx
 const convention: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const limits: Limits = {
   maxQuantity: { confirm: 10_000_000, block: 50_000_000 },
@@ -21,10 +19,9 @@ const limits: Limits = {
 checkLimits({ side: "buy", quantity: 20_000_000, price: 99.625 }, limits, { market: { bid: 99.5, ask: 99.515625 }, convention })
 // [{ field: "quantity", level: "confirm", rule: "maxQuantity", message: "20,000,000 is above 10,000,000. Send it anyway?" },
 //  { field: "price", level: "block", rule: "maxDistance", message: "The price is 7 ticks from the market; the limit is 4 ticks." }]
-
-<Ticket {...props} limits={limits} />
-<RfqTicket {...props} limits={limits} />
 ```
+
+The same draft can produce both a confirm and a block. The preview checks five fixed drafts: within limits, above each quantity threshold, too far from the market, and below the minimum quantity. Both buy and sell are allowed. See [Block and confirm](#block-and-confirm) for Ticket and RfqTicket integration.
 
 ## API Reference
 
