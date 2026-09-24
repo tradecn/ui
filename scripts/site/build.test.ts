@@ -618,6 +618,28 @@ describe("code blocks", () => {
     expect(styles).toContain("html:not(.js) .preview-code[data-collapsed] pre { overflow: auto; }")
   })
 
+  it("number Manual's steps and head each of its blocks in the stylesheet", () => {
+    const styles = readFileSync(resolve(root, "site", SITE_STYLES), "utf8")
+    // The list counts its steps, each number in a circle on the rule down their left edge. The circle is sized by its
+    // border edge, which `* { box-sizing }` never gives a pseudo-element, or its ring would make it larger and set it low.
+    expect(styles).toContain(".steps { margin: 1.5rem 0 0 1.125rem; padding: 0 0 0 2rem; border-left: 1px solid var(--border); list-style: none; counter-reset: step; }")
+    expect(styles).toContain(".steps > li { position: relative; margin: 0; counter-increment: step; }")
+    expect(styles).toMatch(/\n\.steps > li > p:first-child::before \{ content: counter\(step\); position: absolute; [^}]*box-sizing: border-box; width: 2\.25rem; height: 2\.25rem; [^}]*border: 4px solid var\(--background\); border-radius: 50%; \}/)
+    // On a phone the rule goes and the number stands at the start of the line, a longer line hanging under the text.
+    const phone = styles.slice(styles.indexOf("@media (max-width: 48rem)"))
+    expect(phone).toContain(".steps { margin-left: 0; padding-left: 0; border-left: 0; }")
+    expect(phone).toContain(".steps > li > p:first-child { padding-left: 2rem; text-indent: -2rem; }")
+    // The copy button stands in the header beside Expand. The header's first line keeps clear of them, as wide as
+    // Collapse and the copy button or the copy button alone, and a path breaks only after a slash, between its parts.
+    expect(styles).toContain(".source .code { position: static; margin: 0; }")
+    expect(styles).toContain('.source figcaption::before { content: ""; float: right; width: 7.25rem; height: 1.75rem; }')
+    expect(styles).toContain(".source[data-fits] figcaption::before { width: 2.05rem; }")
+    expect(styles).toContain("html:not(.js) .source figcaption::before { content: none; }")
+    expect(styles).toContain(".source figcaption span { white-space: nowrap; }")
+    // The file line that stood above each block is gone.
+    expect(styles).not.toMatch(/^\.file\b/m)
+  })
+
   it("offer a command under pnpm, npm, yarn, and bun, changing only the lines that start with npx, each colored", () => {
     const html = codeBlocks('<pre><code class="language-bash">npx shadcn@latest add tradecn/ui/panel --diff   # look first\nnpx shadcn@latest add tradecn/ui/panel\n</code></pre>')
     expect(html).toContain('<div class="managers" role="tablist" aria-label="Package manager">')
@@ -1136,42 +1158,49 @@ describe("the docs pages", async () => {
     expect(grid).not.toContain("@tradecn/data-grid")
   })
 
-  it("spells the install out under Manual: packages, built-ins, every file at its path with a consumer's imports, and the CSS", () => {
+  it("spells the install out under Manual in numbered steps: packages, built-ins, every file at its path with a consumer's imports, and the CSS", () => {
     const grid = at("docs/data-grid/index.html")
-    expect(grid).toContain("<p>Install the dependencies:</p>")
+    // The steps are an ordered list the stylesheet numbers, each what to do and then the blocks to do it with.
+    expect(grid).toContain('<div id="installation-manual" role="tabpanel" aria-labelledby="installation-tab-manual" hidden>\n<ol class="steps" role="list">\n<li>\n<p>Install the dependencies:</p>\n<div class="code command">')
+    const steps = (html: string) => [...html.matchAll(/<li>\n<p>([^<]+)<\/p>/g)].map((match) => match[1])
+    expect(steps(grid)).toEqual(["Install the dependencies:", "Add the shadcn components it composes:", "Copy the files into your project:", "Add the tokens to your stylesheet:", "Append this to your stylesheet:"])
     for (const add of ["npm install", "pnpm add", "yarn add", "bun add"]) expect(textOf(grid)).toContain(`${add} cn @tanstack/react-virtual`)
-    expect(grid).toContain("<p>Add the shadcn components it composes:</p>")
     expect(textOf(grid)).toContain("pnpm dlx shadcn@latest add checkbox context-menu dropdown-menu")
-    expect(grid).toContain("<p>Copy the files into your project:</p>")
-    for (const path of ["components/ui/data-grid.tsx", "hooks/use-flash.ts", "hooks/use-row-store.ts", "lib/row-store.ts", "lib/format.ts"]) {
-      expect(grid).toContain(`<p class="file"><code>${path}</code></p>`)
-    }
+    // Each file is a figure its path names, in a header with the TypeScript mark where a command has its prompt; the
+    // path breaks only after a slash, and reads whole.
+    const captions = [...grid.matchAll(/<figcaption>([\s\S]*?)<\/figcaption>/g)].map((match) => match[1] ?? "")
+    expect(captions.map((caption) => textOf(caption))).toEqual(["components/ui/data-grid.tsx", "hooks/use-flash.ts", "hooks/use-row-store.ts", "lib/row-store.ts", "lib/format.ts", "lib/grid-rules.ts", "", ""])
+    expect(captions[0]).toMatch(/^<svg class="ts-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="[^"]+"\/><\/svg><code><span>components\/<\/span><wbr><span>ui\/<\/span><wbr><span>data-grid\.tsx<\/span><\/code>$/)
+    for (const caption of captions.slice(1, 6)) expect(caption).toContain('<svg class="ts-icon"')
+    // The stylesheet's blocks carry the CSS mark and no path: the step says where they go.
+    for (const caption of captions.slice(6)) expect(caption).toMatch(/^<svg class="css-icon" [^>]*><path [^>]*\/><\/svg>$/)
     // Each file and each stylesheet block opens from its first lines: the pre carries the id Expand controls, and the
     // fade is a second Expand the Tab key and a screen reader skip. The commands stay bare.
-    expect(grid).toContain('<p class="file"><code>components/ui/data-grid.tsx</code></p>\n<div class="source" data-collapsed>\n<div class="code"><pre id="installation-manual-1"><code class="language-tsx">')
-    expect(grid).toContain('<button type="button" class="expand" aria-expanded="false" aria-controls="installation-manual-1">Expand</button>\n<button type="button" class="expand-foot" tabindex="-1" aria-hidden="true">Expand</button>\n</div>')
-    expect(grid.match(/<div class="source" data-collapsed>/g)).toHaveLength(8)
-    expect(grid).toContain('<p>Add the tokens to your stylesheet:</p>\n<div class="source" data-collapsed>\n<div class="code"><pre id="installation-manual-7"><code class="language-css">')
-    expect(grid).toContain('<p>Append this to your stylesheet:</p>\n<div class="source" data-collapsed>\n<div class="code"><pre id="installation-manual-8"><code class="language-css">')
-    expect(grid).not.toMatch(/<div class="source" data-collapsed>\n<div class="code command">/)
+    expect(grid).toContain('<span>data-grid.tsx</span></code></figcaption>\n<div class="code"><pre id="installation-manual-1"><code class="language-tsx">')
+    expect(grid).toContain('<button type="button" class="expand" aria-expanded="false" aria-controls="installation-manual-1">Expand</button>\n<button type="button" class="expand-foot" tabindex="-1" aria-hidden="true">Expand</button>\n</figure>')
+    expect(grid.match(/<figure class="source" data-collapsed>\n<figcaption>/g)).toHaveLength(8)
+    expect(grid).toMatch(/<p>Add the tokens to your stylesheet:<\/p>\n<figure class="source" data-collapsed>\n<figcaption><svg class="css-icon" [^\n]*<\/figcaption>\n<div class="code"><pre id="installation-manual-7"><code class="language-css">/)
+    expect(grid).toMatch(/<p>Append this to your stylesheet:<\/p>\n<figure class="source" data-collapsed>\n<figcaption><svg class="css-icon" [^\n]*<\/figcaption>\n<div class="code"><pre id="installation-manual-8"><code class="language-css">/)
+    expect(grid).not.toMatch(/<figure class="source" data-collapsed>\n<figcaption>[^\n]*<\/figcaption>\n<div class="code command">/)
     expect(grid).toContain('<code class="language-tsx">')
     expect(grid).toContain("@/hooks/use-row-store")
     expect(grid).not.toContain("@/registry/")
-    expect(grid).toContain("<p>Add the tokens to your stylesheet:</p>")
     expect(grid).toMatch(/<code class="language-css"><span class="line"><span style="color:light-dark\([^)]+\)">:root<\/span>/)
     expect(textOf(grid)).toMatch(/:root \{ --(up|down|flat)/)
     expect(textOf(grid)).toContain(" --up: ")
     const ticket = at("docs/ticket/index.html")
-    expect(ticket).toContain('<p class="file"><code>components/ticket.tsx</code></p>')
+    expect(ticket).toContain("<figcaption><svg class=\"ts-icon\"")
+    expect(ticket).toContain("<code><span>components/</span><wbr><span>ticket.tsx</span></code></figcaption>")
     const workspace = at("docs/workspace/index.html")
-    expect(workspace).toContain("<p>Append this to your stylesheet:</p>")
+    expect(workspace).toContain("<li>\n<p>Append this to your stylesheet:</p>")
     expect(textOf(workspace)).toContain("@layer components { .dockview-theme-tradecn { --dv-")
     const format = at("docs/format/index.html")
-    expect(format).not.toContain("Install the dependencies")
-    expect(format).not.toContain("Add the shadcn components")
-    expect(format).toContain('<p class="file"><code>lib/format.ts</code></p>')
+    expect(steps(format)).toEqual(["Copy the files into your project:", "Add the tokens to your stylesheet:", "Append this to your stylesheet:"])
+    expect(format).toContain("<code><span>lib/</span><wbr><span>format.ts</span></code></figcaption>")
+    // An item that is files and nothing else is one step.
+    expect(steps(at("docs/row-store/index.html"))).toEqual(["Copy the files into your project:"])
     const theme = at("docs/tradecn-slate/index.html")
-    expect(theme).toContain("<p>Replace the variables in your stylesheet with these:</p>")
+    expect(steps(theme)[0]).toBe("Replace the variables in your stylesheet with these:")
     expect(textOf(theme)).toContain(":root { --accent:")
     expect(textOf(theme)).toContain(".dark { --accent:")
     expect(theme).not.toContain("Copy the files")

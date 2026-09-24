@@ -21,7 +21,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
-import { chromium, type Page } from "@playwright/test"
+import { chromium, type Locator, type Page } from "@playwright/test"
 import { compareTags, DESK_DEMO, FONT_PACKAGES, HEADERS_FILE, PREVIEW_PATH, ROBOTS_FILE, SEARCH_INDEX, SITE_SCRIPT, SITE_URL, SITEMAP_FILE, THEME_ITEM, VERSIONS_INDEX } from "./build"
 import type { SearchPage } from "./build"
 
@@ -149,6 +149,31 @@ const clipboard = (page: Page) => page.evaluate(() => navigator.clipboard.readTe
 const firstLine = (error: unknown) => (error instanceof Error ? error.message.split("\n")[0] : String(error))
 /** The height a preview frame has taken from its page's message, in px. */
 const frameHeight = (page: Page, item: string) => page.evaluate((name) => parseFloat((document.querySelector(`iframe[data-preview='${name}']`) as HTMLIFrameElement | null)?.style.height ?? "0"), item)
+/**
+ * What is wrong with a Manual block's header, or nothing: it wears the TypeScript mark over a file and names the file
+ * by a path of its language, or wears the CSS mark over the stylesheet and names nothing; Expand, where it shows, and
+ * the copy button stand inside it, clear of the path; the path breaks only after a slash; the code starts under it.
+ */
+const headerProblem = (block: Locator) =>
+  block.evaluate((el) => {
+    const caption = el.querySelector(":scope > figcaption")
+    const language = el.querySelector("pre code")?.className.replace("language-", "")
+    if (!caption) return "has no header"
+    const mark = caption.querySelector(":scope > svg")?.getAttribute("class")
+    if (mark !== (language === "css" ? "css-icon" : "ts-icon")) return `wears ${mark} over ${language}`
+    const text = caption.textContent ?? ""
+    if (language === "css" ? text !== "" : !text.endsWith(`.${language}`)) return `is headed "${text}" over ${language}`
+    for (const part of caption.querySelectorAll("code > span")) if (part.getClientRects().length !== 1) return `breaks its path inside "${part.textContent}"`
+    const box = caption.getBoundingClientRect()
+    const lines = [...(caption.querySelector("code")?.getClientRects() ?? [])]
+    for (const button of el.querySelectorAll(":scope > .expand, .copy")) {
+      const edge = button.getBoundingClientRect()
+      if (!edge.width) continue // Expand, on a block that shows whole.
+      if (edge.top < box.top || edge.bottom > box.bottom) return `has its ${button.className} button outside it`
+      if (lines.some((line) => line.right > edge.left && line.left < edge.right && line.bottom > edge.top && line.top < edge.bottom)) return `runs its path under the ${button.className} button`
+    }
+    return el.querySelector("pre")!.getBoundingClientRect().top < box.bottom ? "starts its code under the header" : ""
+  })
 
 for (const item of items) {
   const page = await context.newPage()
@@ -331,16 +356,28 @@ for (const item of items) {
     const manual = await page.locator("#installation-manual").innerText()
     if (manual.includes("@/registry/")) failures.push(`${item}: Manual shows a playground import, not the consumer's`)
     if (!(await page.locator("#installation-manual .code").count())) failures.push(`${item}: Manual has nothing to copy`)
-    // Each file and the stylesheet under Manual is a block that opens, shadcn's shape: collapsed to its first lines
-    // with its code inert and its copy button taking the whole of it; Expand, beside the copy button or over the fade,
-    // shows the whole block, however long, and Collapse closes it again. A block short enough to show whole has
-    // neither the clip nor the buttons, and its code is reachable. The commands are not blocks that open.
+    // Manual is numbered steps: an ordered list the stylesheet counts, each step saying what to do before its blocks.
+    const steps = await page.evaluate(() => {
+      const list = document.querySelector("#installation-manual > ol.steps")
+      if (!list) return "Manual is not a list of steps"
+      if (!list.children.length || getComputedStyle(list).counterReset !== "step 0") return "Manual's list counts no steps"
+      const unnumbered = [...list.children].findIndex((step) => step.firstElementChild?.tagName !== "P" || getComputedStyle(step).counterIncrement !== "step 1" || getComputedStyle(step.firstElementChild, "::before").content !== "counter(step)")
+      return unnumbered < 0 ? "" : `Manual's step ${unnumbered + 1} is not numbered, or does not say first what to do`
+    })
+    if (steps) failures.push(`${item}: ${steps}`)
+    // Each file and the stylesheet under Manual is a block that opens, shadcn's shape: headed by its language and a
+    // file's path, collapsed to its first lines with its code inert and its copy button taking the whole of it;
+    // Expand, beside the copy button in the header or over the fade, shows the whole block, however long, and Collapse
+    // closes it again. A block short enough to show whole has neither the clip nor Expand, and its code is reachable.
+    // The commands are not blocks that open.
     const blocks = page.locator("#installation-manual .source")
     if (!(await blocks.count())) failures.push(`${item}: Manual has no block that opens`)
     if (await page.locator("#installation-manual .source .command").count()) failures.push(`${item}: a command under Manual got an Expand`)
     for (let i = 0; i < (await blocks.count()); i++) {
       const block = blocks.nth(i)
       const nth = `Manual's block ${i + 1}`
+      const header = await headerProblem(block)
+      if (header) failures.push(`${item}: ${nth}'s header ${header}`)
       const sourcePre = block.locator("pre")
       const expand = block.locator(".expand")
       const foot = block.locator(".expand-foot")
@@ -370,6 +407,12 @@ for (const item of items) {
       if (!(await page.evaluate(() => document.activeElement?.classList.contains("expand")))) failures.push(`${item}: Expand on ${nth} left the focus elsewhere`)
       await expand.click()
       if (!(await state()).inert || (await expand.innerText()) !== "Expand") failures.push(`${item}: Collapse did not close ${nth}`)
+    }
+    // On a phone a path too long for the line beside the buttons breaks after a slash and goes on under them.
+    await page.setViewportSize({ width: 390, height: 900 })
+    for (let i = 0; i < (await blocks.count()); i++) {
+      const header = await headerProblem(blocks.nth(i))
+      if (header) failures.push(`${item}: at 390px, Manual's block ${i + 1}'s header ${header}`)
     }
     console.log(`ok  ${item.padEnd(26)} ${Math.round(height)}px`)
   } catch (error) {
