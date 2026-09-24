@@ -36,6 +36,7 @@
     "price-chart-candles",
     "price-chart-overlays",
     "price-chart-ticks",
-    "sparkline-interactive"
+    "sparkline-interactive",
+    "grid-rules-data-grid"
   ]
 }
