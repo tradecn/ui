@@ -4,20 +4,22 @@ Format trading values and parse or step quotes in each instrument's convention.
 
 ## Usage
 
-```ts
-import { createInstrumentFormatter, formatBps, formatSigned, parsePrice } from "@/lib/format"
-```
+Bind the instrument's convention once, then format, parse, and step prices through the same formatter.
 
 ```ts
-const ust = createInstrumentFormatter({ price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 })
-const bill = createInstrumentFormatter({ price: { kind: "decimal", decimals: 3 }, tick: 0.0005, quoteBasis: "discount" })
+import { createInstrumentFormatter } from "@/lib/format"
+
+const ust = createInstrumentFormatter({
+  price: { kind: "fraction", denominator: 32, half: "+" },
+  tick: 1 / 64,
+})
 
 ust.price(99.515625) // "99-16+"
-parsePrice("99-16+", { kind: "fraction", denominator: 32, half: "+" }) // 99.515625
-bill.quote(4.2531) // "4.253"
-formatSigned(0.12) // "+0.12"
-formatBps(12.5) // "12.5 bp"
+ust.parsePrice("99-17") // 99.53125
+ust.price(ust.step(99.5, 1)) // "99-16+"
 ```
+
+The preview groups quote conventions, instrument details, and scalar values. It uses the default `en-US` locale; yield, discount, and percent inputs are percentage points, and `mm` means millions.
 
 ## API Reference
 
