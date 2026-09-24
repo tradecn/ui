@@ -1,5 +1,4 @@
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 
 // A deadline the demo owns: when it began, when it ends, and two ways to move it. The countdown only shows it.
@@ -24,13 +23,13 @@ export default function CountdownDemo() {
   const inquiry = useDeadline(30)
   return (
     <>
-      <div data-demo-controls className="flex gap-2 font-(family-name:--tradecn-font-mono) text-xs">
-        <Button size="sm" variant="outline" onClick={() => inquiry.extend(15)}>
+      <div data-demo-controls className="flex flex-wrap gap-2 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
+        <button type="button" className="rounded-md border border-border px-2 py-1" onClick={() => inquiry.extend(15)}>
           Extend by 15 s
-        </Button>
-        <Button size="sm" variant="outline" onClick={inquiry.restart}>
+        </button>
+        <button type="button" className="rounded-md border border-border px-2 py-1" onClick={inquiry.restart}>
           Start again
-        </Button>
+        </button>
       </div>
       <Countdown expiresAt={inquiry.end} startsAt={inquiry.start} label="Inquiry" className="font-(family-name:--tradecn-font-mono) text-xl" />
     </>
