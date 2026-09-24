@@ -5,19 +5,48 @@ A search field that recognizes CUSIPs, ISINs, tickers, and coupon-and-maturity p
 ## Usage
 
 ```tsx
-import { InstrumentSearch, toSymbolAdapter, type InstrumentHit, type InstrumentSearchFn } from "@/components/ui/instrument-search"
-import { recognizeQuery } from "@/lib/instrument-query"
+import { useState } from "react"
+import { InstrumentSearch, type InstrumentHit, type InstrumentSearchFn } from "@/components/ui/instrument-search"
+
+const instruments: InstrumentHit[] = [
+  { id: "zn", symbol: "ZN", name: "T-Note future" },
+  { id: "zb", symbol: "ZB", name: "T-Bond future" },
+]
+const search: InstrumentSearchFn = async (query) => {
+  const prefix = query.trim().toUpperCase()
+  return instruments.filter((hit) => hit.symbol.startsWith(prefix))
+}
+
+function SearchInstrument() {
+  const [selected, setSelected] = useState("None")
+  return (
+    <div className="min-h-56 w-sm max-w-full space-y-2 text-xs lining-nums tabular-nums">
+      <InstrumentSearch search={search} onSelect={(hit) => setSelected(hit.symbol)} labels={{ placeholder: "Search ZN or ZB" }} />
+      <p role="status">Selected: {selected}</p>
+    </div>
+  )
+}
 ```
 
-```tsx
-const search: InstrumentSearchFn = (query, hint, signal) => api.instruments({ query, ...hint }, { signal })
+Type `z` to list the two supplied instruments, use the arrow keys to choose one, and press Enter. The field clears after selection; the readout keeps the selected symbol. A query such as `ES` shows the empty result.
 
-<InstrumentSearch search={search} onSelect={(hit) => openTicket(hit.id)} autoFocus />
+The component recognizes the query and calls your promise-returning search function. This local lookup matches symbol prefixes. For a service request, use the supplied hint to choose the lookup and pass its abort signal to your request.
 
-// The same function behind the palette's symbol rows and the watchlist's add field.
-<CommandPalette actions={actions} symbols={toSymbolAdapter(search)} onSymbolSelect={(s) => load(s.symbol)} />
-<Watchlist store={store} onAdd={async (symbol) => { const [hit] = await search(symbol, recognizeQuery(symbol), new AbortController().signal); if (hit) api.watch(hit.id) }} />
-```
+## Recognition and cancellation
+
+Choose a sample query or type your own. This lookup uses the recognized CUSIP or ISIN to find the equity, and numeric coupon and maturity fields to find the illustrative Treasury. Try `4.125 5/15/2034` as another spelling of `4 1/8 05/34`. This fixture interprets two-digit years as 2000–2099; the recognizer itself does not expand them. An optional day or ticker must match when supplied.
+
+The example waits 300 ms after the component's debounce to simulate a service request. Editing the query aborts the pending lookup and removes its timer. The controls set a controlled query; `onQueryChange` applies edits and the empty string after selection. The readout uses the hint received by `onSelect`.
+
+<!-- demo: instrument-search-hints -->
+
+## Palette adapter
+
+Install [`command-palette`](command-palette.md) separately to use `toSymbolAdapter(search)` with its `symbols` prop. This example repeats the basic lookup in an inline go-bar. The adapter recognizes the query and forwards the palette's abort signal, then maps hits to symbol results. Instrument ids and identifiers are not part of those results.
+
+The palette owns its query, debounce, selection and recent symbols. Focus the field and search `z`; selecting a result updates the readout and clears the field. This example declares no hotkey.
+
+<!-- demo: instrument-search-palette -->
 
 ## API Reference
 
@@ -99,7 +128,7 @@ The list uses your `command` with filtering off. Results stay in server order. T
 
 `toSymbolAdapter(search, options?)` supplies [`command-palette`](command-palette.md)'s `symbols` prop. It recognizes each query and forwards the palette's abort signal to your search. Each hit becomes `{ symbol, name, exchange, kind }`; `id`, `cusip`, and `isin` are dropped. Optional `minLength` and `debounceMs` pass through to the palette, which defaults to a minimum query length of `1` character and a debounce of `150` milliseconds. The adapter itself does not debounce or enforce a minimum length.
 
-[`watchlist`](watchlist.md)'s `onAdd` and `validate` receive a symbol string. Run the asynchronous search in `onAdd` with `recognizeQuery(symbol)` and your own abort signal, as in Usage. Watchlist does not await `onAdd`; handle search failures in your callback. `validate` must return a synchronous boolean, so use it for immediate checks or cached results.
+[`watchlist`](watchlist.md)'s `onAdd` and `validate` receive a symbol string. Run the asynchronous search in `onAdd` with `recognizeQuery(symbol)` and your own abort signal. Watchlist does not await `onAdd`; handle search failures in your callback. `validate` must return a synchronous boolean, so use it for immediate checks or cached results.
 
 Two more helpers are exported from `@/components/ui/instrument-search`:
 
