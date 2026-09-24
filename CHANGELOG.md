@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.8](https://github.com/tradecn/ui/compare/v1.4.7...v1.4.8) (2026-09-24)
+
+
+### Bug Fixes
+
+* **limits:** a spread distance is in basis points already ([#188](https://github.com/tradecn/ui/issues/188)) ([9757cd4](https://github.com/tradecn/ui/commit/9757cd4363932b27c5b184af48443dbb77a7548b))
+* **ticket:** the group carries its status as data-status ([#189](https://github.com/tradecn/ui/issues/189)) ([d02900c](https://github.com/tradecn/ui/commit/d02900cdb07466b7c1d96c68710a4ec1f0e5fa49))
+
+
+### Documentation
+
+* **preferences:** simplify the documentation examples ([#186](https://github.com/tradecn/ui/issues/186)) ([ebcabdb](https://github.com/tradecn/ui/commit/ebcabdb3818c6412e5766d10ff998f9e3bde81e1))
+
 ## [1.4.7](https://github.com/tradecn/ui/compare/v1.4.6...v1.4.7) (2026-09-24)
 
 
