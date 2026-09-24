@@ -829,6 +829,29 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   await expect(strip.getByText("No notices.")).toBeVisible()
 })
 
+for (const change of ["dismiss", "clear"]) {
+  test(`alert history restores focus after ${change} removes the overflow`, async ({ page }) => {
+    await page.goto("/")
+    const strip = page.locator("section[data-scene='alerts'] [data-slot='tradecn-alerts']")
+    const trigger = await strip.getByRole("button", { name: "1 more" }).elementHandle()
+    await strip.getByRole("button", { name: "1 more" }).focus()
+    await page.keyboard.press("Enter")
+    const dialog = page.getByRole("dialog", { name: "All notices" })
+    await expect(dialog).toBeVisible()
+    // Invoke the store callbacks behind the modal to simulate an external update.
+    if (change === "dismiss") await strip.locator("button[aria-label='Dismiss: Order rejected']").evaluate((button: HTMLButtonElement) => button.click())
+    else await strip.locator("button").filter({ hasText: /^Clear all$/ }).evaluate((button: HTMLButtonElement) => button.click())
+    await expect(strip).toHaveAttribute("data-count", change === "dismiss" ? "3" : "0")
+    await expect(dialog).toBeVisible()
+    expect(await trigger!.evaluate((button) => button.isConnected)).toBe(true)
+    if (change === "dismiss") await page.keyboard.press("Escape")
+    else await dialog.getByRole("button", { name: "Close", exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect.poll(() => trigger!.evaluate((button) => document.activeElement === button)).toBe(true)
+    await expect(strip.getByRole("button", { name: "History", exact: true })).toBeEnabled()
+  })
+}
+
 test("notice counts and times follow the numeric font and accessibility mode", async ({ page }) => {
   await page.goto("/")
   const scene = page.locator("section[data-scene='alerts']")

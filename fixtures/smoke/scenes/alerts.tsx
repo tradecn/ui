@@ -53,10 +53,10 @@ export function AlertsScene() {
           <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
           {ids.length > 0 && <AlertsList>{ids.slice(0, 3).map((id) => <Notice key={id} alerts={alerts} id={id} actions={[{ id: "reconnect", label: "Reconnect", onAction: (a) => setActed(`reconnect:${a.id}`) }, { id: "ack", label: "Acknowledge", onAction: (a) => setActed(`ack:${a.id}`) }]} />)}</AlertsList>}
           {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
-          {ids.length > 0 && <div className="flex gap-2">
-            {ids.length > 3 && <DialogTrigger className={buttonVariants({ variant: "ghost", size: "sm" })}>{ids.length - 3} more</DialogTrigger>}
-            <Button variant="ghost" size="sm" onClick={() => alerts.clear()}>Clear all</Button>
-          </div>}
+          <div className="flex gap-2">
+            <DialogTrigger className={buttonVariants({ variant: "ghost", size: "sm" })}>{ids.length > 3 ? `${ids.length - 3} more` : "History"}</DialogTrigger>
+            {ids.length > 0 && <Button variant="ghost" size="sm" onClick={() => alerts.clear()}>Clear all</Button>}
+          </div>
         </Alerts>
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col sm:max-w-3xl">
           <DialogHeader className="shrink-0"><DialogTitle>All notices</DialogTitle><DialogDescription>Every notice, newest first.</DialogDescription></DialogHeader>

@@ -73,7 +73,7 @@ Choose **Receive slow feed** or **Receive rejection** to restore or repeat a not
 
 ## History in your own dialog
 
-This example displays two notices and places the rest in a caller-owned dialog. You decide the slice, overflow button, clear control, and history height. The overflow button uses `DialogTrigger` so closing the dialog returns focus to it. Install shadcn's `dialog` component separately before copying this example. `AlertHistory` also works in an always-open panel with a height.
+This example displays two notices and places the rest in a caller-owned dialog. You decide the slice, history button, clear control, and history height. The button uses `DialogTrigger` and stays mounted so closing the dialog returns focus to it even if notices expire or are cleared. It reads "History" when nothing overflows. Install shadcn's `dialog` component separately before copying this example. `AlertHistory` also works in an always-open panel with a height.
 
 <!-- demo: alerts-history -->
 

@@ -1,17 +1,20 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, expect, it, vi } from "vitest"
-import { createAlertStore } from "@/registry/tradecn/lib/alert-store"
+import * as alertStore from "@/registry/tradecn/lib/alert-store"
 import AlertsDemo from "./demos/alerts"
 import AlertsActionsDemo from "./demos/alerts-actions"
 import AlertsHistoryDemo from "./demos/alerts-history"
 import AlertsBridgeDemo from "./demos/alerts-bridge"
 import { DeskAlerts } from "./demos/terminal"
 
-afterEach(() => vi.useRealTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 it.each(["expiry", "clear"])("returns focus from terminal history after %s removes the overflow", async (change) => {
   vi.useFakeTimers()
-  const alerts = createAlertStore()
+  const alerts = alertStore.createAlertStore()
   alerts.push({ severity: "warning", title: "Retained", allowedActions: ["ack"] })
   alerts.push({ severity: "info", title: "Temporary" })
   render(<DeskAlerts alerts={alerts} actions={[]} />)
@@ -26,6 +29,29 @@ it.each(["expiry", "clear"])("returns focus from terminal history after %s remov
   })
   expect(alerts.size()).toBe(change === "expiry" ? 1 : 0)
   if (change === "expiry") fireEvent.keyDown(dialog, { key: "Escape", code: "Escape" })
+  else fireEvent.click(within(dialog).getByRole("button", { name: "Close" }))
+  await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+  expect(screen.queryByRole("dialog")).toBeNull()
+  expect(trigger).toHaveFocus()
+  expect(trigger).toHaveAccessibleName("History")
+})
+
+it.each(["dismiss", "clear"])("returns focus from the history example after %s removes the overflow", async (change) => {
+  vi.useFakeTimers()
+  const alerts = alertStore.createAlertStore()
+  vi.spyOn(alertStore, "createAlertStore").mockReturnValueOnce(alerts)
+  render(<AlertsHistoryDemo />)
+  const trigger = screen.getByRole("button", { name: "2 more" })
+  trigger.focus()
+  fireEvent.click(trigger)
+  await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+  const dialog = screen.getByRole("dialog", { name: "Notice history" })
+  act(() => {
+    if (change === "dismiss") alerts.dismiss(alerts.list().slice(0, 2).map((alert) => alert.id))
+    else alerts.clear()
+  })
+  expect(alerts.size()).toBe(change === "dismiss" ? 2 : 0)
+  if (change === "dismiss") fireEvent.keyDown(dialog, { key: "Escape", code: "Escape" })
   else fireEvent.click(within(dialog).getByRole("button", { name: "Close" }))
   await act(async () => { await vi.advanceTimersByTimeAsync(100) })
   expect(screen.queryByRole("dialog")).toBeNull()
