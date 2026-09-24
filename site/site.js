@@ -457,14 +457,32 @@ function search() {
 }
 
 /**
- * A source that opens: the preview card's, under View Code, and a Manual block's, under Expand. Collapsed, the first
- * lines show under a fade and the code is inert, so a screen reader and the Tab key meet the button and not a page of
- * code; open, the button reads Collapse and closes it again. The pane is the button's collapsed ancestor, found before
- * anything opens it. A Manual block has two things more. Its fade is a second button that opens it, for the mouse; the
- * Tab key and the accessibility tree skip it, since Expand already stands for it. And a block short enough to show
- * whole while collapsed has nothing to expand: measured against the clip once the Manual panel opens and lays it out
- * (hidden, it has no height), it drops its clip and its buttons, and its code stays reachable. Its lines stand as tall
- * whatever font draws them, so the measure holds.
+ * The preview card's source, shadcn's shape: its first lines under a fade with View Code over them, the code inert, so
+ * a screen reader and the Tab key meet the button and not a page of code. View Code opens it for good, as shadcn's
+ * does: the button goes, and the source scrolls in its window with its copy button. The source takes the focus the
+ * button leaves, so the next Tab meets the copy button.
+ */
+function viewCode(button) {
+  const pane = button.closest("[data-collapsed]")
+  const body = document.getElementById(button.getAttribute("aria-controls"))
+  if (!pane || !body) return
+  body.inert = true
+  button.addEventListener("click", () => {
+    pane.removeAttribute("data-collapsed")
+    body.inert = false
+    body.focus({ preventScroll: true })
+    button.remove()
+  })
+}
+
+/**
+ * A Manual block that opens, a file or the stylesheet. Collapsed, the first lines show under a fade and the code is
+ * inert, so a screen reader and the Tab key meet Expand and not a page of code; open, the whole block, and Expand reads
+ * Collapse and closes it again. The pane is the button's collapsed ancestor, found before anything opens it. Its fade
+ * is a second button that opens it, for the mouse; the Tab key and the accessibility tree skip it, since Expand already
+ * stands for it. And a block short enough to show whole while collapsed has nothing to expand: measured against the
+ * clip once the Manual panel opens and lays it out (hidden, it has no height), it drops its clip and its buttons, and
+ * its code stays reachable. Its lines stand as tall whatever font draws them, so the measure holds.
  */
 function collapsible(button) {
   const pane = button.closest("[data-collapsed]")
@@ -483,30 +501,26 @@ function collapsible(button) {
   const set = (to) => {
     open = to
     apply()
-    // Opened by a press, the focus has somewhere to be. The preview's source takes it, since its button has moved from
-    // over the code to the foot of it: from there the next Tab meets the copy button and then Collapse, in reading
-    // order, instead of skipping past both. The Manual's Expand keeps it, reading Collapse now, also after a press on
-    // the fade, which is gone.
-    if (open) (button.classList.contains("view-code") ? body : button).focus({ preventScroll: true })
+    // Opened by a press, Expand keeps the focus, reading Collapse now, also after a press on the fade, which is gone.
+    if (open) button.focus({ preventScroll: true })
   }
   apply()
   button.addEventListener("click", () => set(!open))
   for (const foot of pane.querySelectorAll(".expand-foot")) foot.addEventListener("click", () => set(true))
-  if (pane.classList.contains("source")) {
-    new ResizeObserver(() => {
-      if (!open && !fits && body.clientHeight && body.scrollHeight <= body.clientHeight) {
-        fits = true
-        apply()
-      }
-    }).observe(body)
-  }
+  new ResizeObserver(() => {
+    if (!open && !fits && body.clientHeight && body.scrollHeight <= body.clientHeight) {
+      fits = true
+      apply()
+    }
+  }).observe(body)
 }
 
 addEventListener("DOMContentLoaded", () => {
   menu()
   versions()
   search()
-  for (const button of document.querySelectorAll(".view-code, .expand")) collapsible(button)
+  for (const button of document.querySelectorAll(".view-code")) viewCode(button)
+  for (const button of document.querySelectorAll(".expand")) collapsible(button)
   // Tabbed cards: the Installation's Command / Manual. The card's bar is its own first child tablist; a
   // package-manager bar inside one of its panels is wired separately below.
   for (const card of document.querySelectorAll("[data-tabs]")) {
