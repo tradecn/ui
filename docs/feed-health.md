@@ -73,7 +73,7 @@ The clock is fixed at a sample instant so the readings stay comparable. Compact 
 
 Install `dropdown-menu` for this composition. `useFeedActions` returns the currently allowed actions, pending state, a pending label and `run(actionId)`. You choose the menu, labels and placement.
 
-Open Actions: RFQ and choose Reconnect. The feed stays offline while pending. A simulated reply arrives after 1.2 seconds, marks it connected and supplies a timestamp. The allowed action then becomes Resubscribe, which advances the sequence without changing the connection state. Its reply removes all allowed actions. The recipe retains a focused or open menu trigger through that update; an open menu shows “No actions available.” and closing it returns focus to the feed reading. Reopen the menu while Resubscribe is pending to try that path.
+Open Actions: RFQ and choose Reconnect. The feed stays offline while pending. A simulated reply arrives after 1.2 seconds, marks it connected and supplies a timestamp. The allowed action then becomes Resubscribe, which advances the sequence without changing the connection state. Its reply removes all allowed actions. The recipe retains a focused or open menu trigger through that update; an open menu shows a disabled “No actions available.” item and closing it returns focus to the feed reading. Reopen the menu while Resubscribe is pending to try that path.
 
 The request returns a promise, so pending clears even when the reply leaves the state unchanged. Disconnect RFQ resets the sample and is disabled while a reply is pending. The reply timer is cleared on unmount. Return the server request's promise in your integration and update the descriptor from its response; report failures yourself.
 
@@ -205,6 +205,8 @@ Each `FeedAction` has these fields:
 `feedActionsFor(feed, actions)` is also available as a pure filter. It preserves action order and labels. Missing actions or missing allowed ids means no available action. The hook rechecks current permissions and action definitions inside `run`, including when a menu was opened before a feed update.
 
 Pending clears when the feed's connection state or id changes, React cleans up the hook’s effects (including unmount, Activity hiding and Suspense hiding), the returned promise settles, `run` throws, or the timeout expires. Returning `void` alone does not clear it. Changing `pendingMs` does not reschedule an existing timeout. An older request's completion cannot clear a newer request, even when the clock timestamp is unchanged.
+
+Clearing pending does not cancel the underlying request. To keep pending state and duplicate protection while a view is hidden, keep the hook's owner mounted outside the Activity or Suspense boundary and pass its result into the view.
 
 A press does not change the tier. The hook catches synchronous errors and promise rejections without displaying an error; report failures in your integration. Mark controls disabled while pending. For inline buttons that should keep focus, use `aria-disabled` as in the card recipe; `run` still blocks duplicate execution. Permissions changing alone does not settle a request already sent.
 

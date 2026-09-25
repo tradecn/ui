@@ -480,7 +480,10 @@ if (items.includes("feed-health-card") && items.includes("feed-health-actions"))
       if (reopen) await page.keyboard.press("ArrowDown")
       await expect(page.locator("p[role='status']")).toHaveText("Resubscribed. No actions are allowed now.")
       if (reopen) {
-        await expect(page.getByText("No actions available.")).toBeVisible()
+        const empty = page.getByRole("menuitem", { name: "No actions available.", exact: true })
+        await expect(empty).toBeVisible()
+        await expect(empty).toBeDisabled()
+        await expect(page.locator("[data-feed-action]")).toHaveCount(0)
         await page.keyboard.press("Escape")
         await expect(page.locator("[data-slot='tooltip-trigger']")).toBeFocused()
       } else {

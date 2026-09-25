@@ -112,7 +112,7 @@ function FeedPresentation({ feed, health, compact }: { feed: FeedDescriptor; hea
     {(offered.length > 0 || open || menuFocused) && <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger onFocus={() => setMenuFocused(true)} onBlur={() => setMenuFocused(false)} aria-label={`Actions: ${feed.label}`} data-feed-actions={feed.id} className="rounded px-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40">⋮</DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {offered.length === 0 && <p className="px-2 py-1 text-xs">No actions available.</p>}
+        {offered.length === 0 && <DropdownMenuItem disabled>No actions available.</DropdownMenuItem>}
         {offered.map((action) => <DropdownMenuItem key={action.id} data-feed-action={action.id} disabled={Boolean(pending)} className={action.destructive ? "text-destructive" : undefined} onClick={() => run(action.id)}>{action.label}</DropdownMenuItem>)}
       </DropdownMenuContent>
     </DropdownMenu>}
