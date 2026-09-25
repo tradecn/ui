@@ -48,7 +48,6 @@ function PaletteResults() {
             {(group.id === "recent" ? group.rows.slice(0, 5) : group.rows).map((row) => (
               <CommandPaletteItem key={row.key} row={row}>
                 <span className="truncate">{row.title}</span>
-
               </CommandPaletteItem>
             ))}
           </CommandGroup>

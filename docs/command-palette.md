@@ -8,7 +8,17 @@ Search registered actions and symbols in a dialog or inline command line, with s
 import { CommandGroup } from "@/components/ui/command"
 import { useState } from "react"
 import { HotkeysProvider } from "@/hooks/use-hotkeys"
-import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteList, CommandPaletteResults, createActionRegistry } from "@/components/ui/command-palette"
+import {
+  CommandPalette,
+  CommandPaletteContent,
+  CommandPaletteDialog,
+  CommandPaletteEmpty,
+  CommandPaletteInput,
+  CommandPaletteItem,
+  CommandPaletteList,
+  CommandPaletteResults,
+  createActionRegistry,
+} from "@/components/ui/command-palette"
 ```
 
 ```tsx
@@ -63,7 +73,7 @@ Keep the action registry stable for the lifetime of the view. This example creat
 
 Use `variant="go-bar"` for an always-visible command line. Focus it, or press `/` while focus is in this preview and outside a text field. Type `AAPL` to see its functions, then `AAPL G` to narrow to the price chart command. Enter selects it; Escape clears and blurs the input.
 
-The grammar accepts `AAPL`, `MSFT`, or `ZN`, followed by `DES` or `GP`. It reports the selected command below the input. These rows come from `goBarGrammar`, so they do not require asynchronous symbol search or enter recents. This layout reads groups with `useCommandPalette()`, puts each description below its title, and adds application help beneath the results. It uses the same input, selection and focus behavior as the dialog.
+The grammar accepts `AAPL`, `MSFT`, or `ZN`, followed by `DES` or `GP`. It reports the selected command below the input. These rows come from `goBarGrammar`, so they do not require asynchronous symbol search or enter recents. This layout reads groups with `useCommandPalette()`, puts each description below its title, and adds application help beneath the input. It uses the same input, selection and focus behavior as the dialog.
 
 <!-- demo: command-palette-go-bar -->
 
@@ -119,7 +129,7 @@ When `open` is supplied, update it in `onOpenChange` to accept requests to open 
 
 ### `<CommandPaletteDialog>`
 
-Optional modal wrapper connected to the root's open state. Put one `CommandPaletteContent` inside. It forwards your shadcn `CommandDialog` props except managed `open`, `defaultOpen` and `onOpenChange`; `children` is required. `title` and `description` default to the root labels; `className` styles the modal content. The installed dialog supplies focus trapping and restoration. Compose your own dialog instead when your application needs a different shell, using the root's controlled `open` and `onOpenChange` props.
+Optional modal wrapper connected to the root's open state. Put one `CommandPaletteContent` inside. It forwards your shadcn `CommandDialog` props except managed `open`, `defaultOpen` and `onOpenChange`; `children` is required. `title` and `description` default to the root labels; `className` styles the modal content. Both supported bases trap focus. Base UI restores focus to the opener; the Radix wrapper has no dialog trigger, so closing it can leave focus on the page body. Compose your own dialog when you need Radix focus restoration or a different shell, using the root's controlled `open` and `onOpenChange` props.
 
 ### `<CommandPaletteContent>`
 
@@ -145,7 +155,7 @@ Optional keyed group iterator. Its required child is `(group: PaletteGroup) => R
 |---|---|---|
 | `id` | `string` | `recent`, `commands`, `symbols`, or `actions:` followed by the group heading. |
 | `heading` | `string` | Localized group heading or the action's own group. |
-| `rows` | `PaletteRow[]` | Eligible rows in ranked or registration order. Treat as read-only. |
+| `rows` | `readonly PaletteRow[]` | Eligible rows in ranked or registration order. |
 
 ### `<CommandPaletteItem>`
 
@@ -171,6 +181,8 @@ A removed result cannot run through `select`; it resolves the requested key agai
 Optional native button inside an Item. Requires caller content and renders only when the row has a secondary action. It inherits a disabled Item, retains input focus on mouse down, and stops the click from selecting the primary action. Your `onClick` can cancel it with `preventDefault()`.
 
 It defaults to `type="button"`, `tabIndex={-1}` and selected-row-only visibility. A disabled Secondary blocks both its click and Shift+Enter; a disabled Item blocks both actions. Shift+Enter invokes the same alternate action from the input, even when you omit the button. Supply a discoverable hint when offering secondary actions. The symbols and scoped-action examples show the composition.
+
+Children of a listbox option are presentational to assistive technology, so the secondary button's disabled state is not announced. Include an unavailable cue in the row's text or accessible name when disabling its secondary action.
 
 ### `<CommandPaletteKeys>`
 

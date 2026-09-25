@@ -206,8 +206,10 @@ export interface PaletteRow {
 export interface PaletteGroup {
   id: string
   heading: string
-  rows: PaletteRow[]
+  rows: readonly PaletteRow[]
 }
+
+type MutablePaletteGroup = PaletteGroup & { rows: PaletteRow[] }
 
 const NO_SYMBOLS: readonly SymbolResult[] = []
 const NO_ENTRIES: readonly HotkeyEntry[] = []
@@ -407,7 +409,7 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   })
 
   const offered = list.filter((a) => !a.scope || active.has(a.scope))
-  const sections: PaletteGroup[] = []
+  const sections: MutablePaletteGroup[] = []
   if (!query) {
     const rows: PaletteRow[] = []
     for (const recent of recents) {
@@ -508,7 +510,7 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   )
 }
 
-function pushRow(groups: PaletteGroup[], heading: string, row: PaletteRow) {
+function pushRow(groups: MutablePaletteGroup[], heading: string, row: PaletteRow) {
   const id = `actions:${heading}`
   const group = groups.find((group) => group.id === id)
   if (group) group.rows.push(row)
@@ -640,7 +642,7 @@ export function CommandPaletteSecondary({ children, className, onClick, onMouseD
     <button
       type="button"
       tabIndex={-1}
-      className={cn("hidden items-center gap-1 in-data-[selected=true]:inline-flex", className)}
+      className={cn("hidden items-center gap-1 in-data-[selected=true]:inline-flex disabled:opacity-50", className)}
       {...props}
       onMouseDown={(event) => {
         onMouseDown?.(event)

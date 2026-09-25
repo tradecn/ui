@@ -41,7 +41,6 @@ function PaletteResults() {
               <CommandPaletteItem key={row.key} row={row}>
                 <span className="truncate">{row.title}</span>
                 {row.subtitle && <span className="truncate text-muted-foreground">{row.subtitle}</span>}
-
               </CommandPaletteItem>
             ))}
           </CommandGroup>

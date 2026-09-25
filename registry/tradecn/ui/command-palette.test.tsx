@@ -534,7 +534,6 @@ describe("public composition", () => {
   })
 })
 
-
 describe("caller controls", () => {
   it("supports click interception through the primitive's native capture event", () => {
     const stopped = vi.fn((event: React.MouseEvent<HTMLDivElement>) => event.stopPropagation())
@@ -585,85 +584,85 @@ describe("caller controls", () => {
     expect(run.blotter).not.toHaveBeenCalled()
     expect(run.ticket).not.toHaveBeenCalled()
   })
+
+  it.each(["palette", "go-bar"] as const)("closes %s from an application control and preserves native event targets", (variant) => {
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const onOpenChange = vi.fn()
+    const contentRef = React.createRef<HTMLDivElement>()
+    const targets: EventTarget[] = []
+    const content = <CommandPaletteContent ref={contentRef} onKeyDown={(event) => targets.push(event.currentTarget)}><CommandPaletteInput /><CommandPaletteList><PaletteResults /></CommandPaletteList><button>Application action</button></CommandPaletteContent>
+    render(<CommandPalette actions={seed()} hotkeys={hotkeys} variant={variant} defaultOpen onOpenChange={onOpenChange}>{variant === "palette" ? <CommandPaletteDialog>{content}</CommandPaletteDialog> : content}</CommandPalette>)
+    const button = screen.getByText("Application action")
+    act(() => button.focus())
+    fireEvent.keyDown(button, { key: "a" })
+    expect(targets).toEqual([contentRef.current])
+    fireEvent.keyDown(button, variant === "palette" ? { key: "k", ctrlKey: true } : { key: "Escape" })
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+    expect(run.blotter).not.toHaveBeenCalled()
+  })
+
+  it("preserves the secondary marker when caller props try to remove it", () => {
+    function Results() {
+      const { groups } = useCommandPalette()
+      const row = groups.flatMap((group) => group.rows).find((row) => row.secondary)!
+      return <CommandPaletteList><CommandPaletteItem row={row}>{row.title}<CommandPaletteSecondary disabled data-secondary={undefined}>Alternate</CommandPaletteSecondary></CommandPaletteItem></CommandPaletteList>
+    }
+    render(<CommandPalette actions={seed()} hotkeys={null} open><CommandPaletteDialog><CommandPaletteContent><CommandPaletteInput /><Results /></CommandPaletteContent></CommandPaletteDialog></CommandPalette>)
+    fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
+    expect(run.ticketSell).not.toHaveBeenCalled()
+    expect(screen.getByText("Alternate")).toHaveAttribute("data-secondary")
+  })
 })
 
+describe("forwarded refs", () => {
+  it("keeps forwarded callback refs stable through query and registry updates", () => {
+    const content = vi.fn()
+    const field = vi.fn()
+    const actions = seed()
+    const view = render(<CommandPalette actions={actions} hotkeys={null} variant="go-bar" defaultOpen><CommandPaletteContent ref={content}><CommandPaletteInput ref={field} /><CommandPaletteList><PaletteResults /></CommandPaletteList></CommandPaletteContent></CommandPalette>)
+    expect(content).toHaveBeenCalledTimes(1)
+    expect(field).toHaveBeenCalledTimes(1)
+    type("ticket")
+    act(() => { actions.register({ id: "new", title: "Another ticket", run: () => {} }) })
+    expect(content).toHaveBeenCalledTimes(1)
+    expect(field).toHaveBeenCalledTimes(1)
+    const nextContent = vi.fn()
+    const nextField = vi.fn()
+    view.rerender(<CommandPalette actions={actions} hotkeys={null} variant="go-bar" defaultOpen><CommandPaletteContent ref={nextContent}><CommandPaletteInput ref={nextField} /><CommandPaletteList><PaletteResults /></CommandPaletteList></CommandPaletteContent></CommandPalette>)
+    expect(content.mock.calls.map(([node]) => node === null)).toEqual([false, true])
+    expect(field.mock.calls.map(([node]) => node === null)).toEqual([false, true])
+    expect(nextContent).toHaveBeenCalledTimes(1)
+    expect(nextField).toHaveBeenCalledTimes(1)
+    view.unmount()
+    expect(nextContent.mock.calls.map(([node]) => node === null)).toEqual([false, true])
+    expect(nextField.mock.calls.map(([node]) => node === null)).toEqual([false, true])
+  })
 
-it.each(["palette", "go-bar"] as const)("closes %s from an application control and preserves native event targets", (variant) => {
-  const hotkeys = createHotkeyRegistry({ platform: "other" })
-  const onOpenChange = vi.fn()
-  const contentRef = React.createRef<HTMLDivElement>()
-  const targets: EventTarget[] = []
-  const content = <CommandPaletteContent ref={contentRef} onKeyDown={(event) => targets.push(event.currentTarget)}><CommandPaletteInput /><CommandPaletteList><PaletteResults /></CommandPaletteList><button>Application action</button></CommandPaletteContent>
-  render(<CommandPalette actions={seed()} hotkeys={hotkeys} variant={variant} defaultOpen onOpenChange={onOpenChange}>{variant === "palette" ? <CommandPaletteDialog>{content}</CommandPaletteDialog> : content}</CommandPalette>)
-  const button = screen.getByText("Application action")
-  act(() => button.focus())
-  fireEvent.keyDown(button, { key: "a" })
-  expect(targets).toEqual([contentRef.current])
-  fireEvent.keyDown(button, variant === "palette" ? { key: "k", ctrlKey: true } : { key: "Escape" })
-  expect(onOpenChange).toHaveBeenLastCalledWith(false)
-  expect(run.blotter).not.toHaveBeenCalled()
-})
-
-it("keeps forwarded callback refs stable through query and registry updates", () => {
-  const content = vi.fn()
-  const field = vi.fn()
-  const actions = seed()
-  const view = render(<CommandPalette actions={actions} hotkeys={null} variant="go-bar" defaultOpen><CommandPaletteContent ref={content}><CommandPaletteInput ref={field} /><CommandPaletteList><PaletteResults /></CommandPaletteList></CommandPaletteContent></CommandPalette>)
-  expect(content).toHaveBeenCalledTimes(1)
-  expect(field).toHaveBeenCalledTimes(1)
-  type("ticket")
-  act(() => { actions.register({ id: "new", title: "Another ticket", run: () => {} }) })
-  expect(content).toHaveBeenCalledTimes(1)
-  expect(field).toHaveBeenCalledTimes(1)
-  const nextContent = vi.fn()
-  const nextField = vi.fn()
-  view.rerender(<CommandPalette actions={actions} hotkeys={null} variant="go-bar" defaultOpen><CommandPaletteContent ref={nextContent}><CommandPaletteInput ref={nextField} /><CommandPaletteList><PaletteResults /></CommandPaletteList></CommandPaletteContent></CommandPalette>)
-  expect(content.mock.calls.map(([node]) => node === null)).toEqual([false, true])
-  expect(field.mock.calls.map(([node]) => node === null)).toEqual([false, true])
-  expect(nextContent).toHaveBeenCalledTimes(1)
-  expect(nextField).toHaveBeenCalledTimes(1)
-  view.unmount()
-  expect(nextContent.mock.calls.map(([node]) => node === null)).toEqual([false, true])
-  expect(nextField.mock.calls.map(([node]) => node === null)).toEqual([false, true])
-})
-
-it("preserves the secondary marker when caller props try to remove it", () => {
-  function Results() {
-    const { groups } = useCommandPalette()
-    const row = groups.flatMap((group) => group.rows).find((row) => row.secondary)!
-    return <CommandPaletteList><CommandPaletteItem row={row}>{row.title}<CommandPaletteSecondary disabled data-secondary={undefined}>Alternate</CommandPaletteSecondary></CommandPaletteItem></CommandPaletteList>
-  }
-  render(<CommandPalette actions={seed()} hotkeys={null} open><CommandPaletteDialog><CommandPaletteContent><CommandPaletteInput /><Results /></CommandPaletteContent></CommandPaletteDialog></CommandPalette>)
-  fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
-  expect(run.ticketSell).not.toHaveBeenCalled()
-  expect(screen.getByText("Alternate")).toHaveAttribute("data-secondary")
-})
-
-
-it("forwards replaced input nodes and preserves callback-ref cleanup", () => {
-  const actions = seed()
-  const element = React.createRef<HTMLInputElement>()
-  const detach = vi.fn()
-  const callback = vi.fn<(node: HTMLInputElement | null) => () => void>(() => detach)
-  function App({ version, ref }: { version: number; ref: React.Ref<HTMLInputElement> }) {
-    // eslint-disable-next-line no-restricted-syntax -- Tests cmdk node replacement, shared by both bases; installed JSX does not use asChild.
-    return <CommandPalette actions={actions} hotkeys={null} variant="go-bar" defaultOpen><CommandPaletteContent><CommandPaletteInput asChild ref={ref}><input key={version} /></CommandPaletteInput><CommandPaletteList><PaletteResults /></CommandPaletteList></CommandPaletteContent></CommandPalette>
-  }
-  const view = render(<App version={0} ref={element} />)
-  const first = element.current
-  view.rerender(<App version={1} ref={element} />)
-  expect(element.current).toBe(input())
-  expect(element.current).not.toBe(first)
-  expect(first?.isConnected).toBe(false)
-  view.rerender(<App version={1} ref={callback} />)
-  expect(element.current).toBeNull()
-  expect(callback).toHaveBeenCalledTimes(1)
-  type("ticket")
-  expect(callback).toHaveBeenCalledTimes(1)
-  view.rerender(<App version={2} ref={callback} />)
-  expect(detach).toHaveBeenCalledTimes(1)
-  expect(callback).toHaveBeenCalledTimes(2)
-  view.unmount()
-  expect(detach).toHaveBeenCalledTimes(2)
-  expect(callback.mock.calls.every(([node]) => node !== null)).toBe(true)
+  it("forwards replaced input nodes and preserves callback-ref cleanup", () => {
+    const actions = seed()
+    const element = React.createRef<HTMLInputElement>()
+    const detach = vi.fn()
+    const callback = vi.fn<(node: HTMLInputElement | null) => () => void>(() => detach)
+    function App({ version, ref }: { version: number; ref: React.Ref<HTMLInputElement> }) {
+      // eslint-disable-next-line no-restricted-syntax -- Tests cmdk node replacement, shared by both bases; installed JSX does not use asChild.
+      return <CommandPalette actions={actions} hotkeys={null} variant="go-bar" defaultOpen><CommandPaletteContent><CommandPaletteInput asChild ref={ref}><input key={version} /></CommandPaletteInput><CommandPaletteList><PaletteResults /></CommandPaletteList></CommandPaletteContent></CommandPalette>
+    }
+    const view = render(<App version={0} ref={element} />)
+    const first = element.current
+    view.rerender(<App version={1} ref={element} />)
+    expect(element.current).toBe(input())
+    expect(element.current).not.toBe(first)
+    expect(first?.isConnected).toBe(false)
+    view.rerender(<App version={1} ref={callback} />)
+    expect(element.current).toBeNull()
+    expect(callback).toHaveBeenCalledTimes(1)
+    type("ticket")
+    expect(callback).toHaveBeenCalledTimes(1)
+    view.rerender(<App version={2} ref={callback} />)
+    expect(detach).toHaveBeenCalledTimes(1)
+    expect(callback).toHaveBeenCalledTimes(2)
+    view.unmount()
+    expect(detach).toHaveBeenCalledTimes(2)
+    expect(callback.mock.calls.every(([node]) => node !== null)).toBe(true)
+  })
 })

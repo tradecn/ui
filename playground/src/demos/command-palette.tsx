@@ -1,7 +1,17 @@
 import { CommandGroup } from "@/components/ui/command"
 import { useState } from "react"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
-import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteList, CommandPaletteResults, createActionRegistry } from "@/registry/tradecn/ui/command-palette"
+import {
+  CommandPalette,
+  CommandPaletteContent,
+  CommandPaletteDialog,
+  CommandPaletteEmpty,
+  CommandPaletteInput,
+  CommandPaletteItem,
+  CommandPaletteList,
+  CommandPaletteResults,
+  createActionRegistry,
+} from "@/registry/tradecn/ui/command-palette"
 
 export default function CommandPaletteDemo() {
   const [open, setOpen] = useState(false)

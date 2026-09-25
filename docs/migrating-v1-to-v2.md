@@ -95,7 +95,7 @@ The live region is now atomic, so each batched transition is read as one message
 
 ## CommandPalette
 
-`CommandPalette` now requires caller-owned children and coordinates behavior without inserting UI. Replace self-closing calls with a `CommandPaletteDialog` or inline `CommandPaletteContent`, then compose the input, list, empty message, groups and items. See the [complete ordinary and inline examples](command-palette.md#usage).
+`CommandPalette` now requires caller-owned children and coordinates behavior without inserting UI. Replace self-closing calls with a `CommandPaletteDialog` or inline `CommandPaletteContent`, then compose the input, list, empty message, groups and items. See the complete [ordinary](command-palette.md#usage) and [inline](command-palette.md#inline-commands) examples.
 
 | Previous interface | Current interface |
 |---|---|

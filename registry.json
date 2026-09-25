@@ -398,7 +398,7 @@
       "name": "command-palette",
       "type": "registry:ui",
       "title": "Command Palette",
-      "description": "A command palette on your own shadcn command: actions from a registry, a second action per row on Shift+Enter, async symbol search through an adapter you supply, recents, and shortcuts rendered live from the hotkey registry. A go-bar variant renders inline and reads SYMBOL FUNCTION commands through your grammar.",
+      "description": "Compose a command palette from public parts on your own shadcn command. Shared behavior supplies registered actions, Shift+Enter secondary actions, async symbol search, recents and live shortcut data. Use the optional dialog wrapper or compose an inline go-bar with your own grammar and result markup.",
       "dependencies": [
         "cn@^0.3.0"
       ],
@@ -424,7 +424,7 @@
         "palette",
         "hotkeys"
       ],
-      "docs": "Composes your command (and the dialog and input-group it brings) and kbd. Callers provide groups, result markup, empty content, and dialogs. Installs the hotkey registry alongside; inside a HotkeysProvider the palette declares palette.open on mod+k, and remaps show on the rows. No dependency beyond cn: cmdk comes with your own command component.",
+      "docs": "Uses your command (and the dialog and input-group it brings) and kbd. Callers compose public parts, groups, result markup and empty content; CommandPaletteDialog supplies an optional modal shell. Installs the hotkey registry alongside; inside a HotkeysProvider the palette declares palette.open on mod+k. Render live row.keys with CommandPaletteKeys to show remaps. No dependency beyond cn: cmdk comes with your own command component.",
       "meta": {
         "components": [
           {
