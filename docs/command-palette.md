@@ -129,7 +129,7 @@ When `open` is supplied, update it in `onOpenChange` to accept requests to open 
 
 ### `<CommandPaletteDialog>`
 
-Optional modal wrapper connected to the root's open state. Put one `CommandPaletteContent` inside. It forwards your shadcn `CommandDialog` props except managed `open`, `defaultOpen` and `onOpenChange`; `children` is required. `title` and `description` default to the root labels; `className` styles the modal content. Both supported bases trap focus. Base UI restores focus to the opener; the Radix wrapper has no dialog trigger, so closing it can leave focus on the page body. Compose your own dialog when you need Radix focus restoration or a different shell, using the root's controlled `open` and `onOpenChange` props.
+Optional modal wrapper connected to the root's open state. Put one `CommandPaletteContent` inside. It forwards your shadcn `CommandDialog` props except managed `open`, `defaultOpen` and `onOpenChange`; `children` is required. `title` and `description` default to the root labels; `className` styles the modal content. Your installed dialog traps focus while open and determines where focus goes on close. Compose your own dialog when your application needs a different shell or different focus handling, using the root's controlled `open` and `onOpenChange` props.
 
 ### `<CommandPaletteContent>`
 
