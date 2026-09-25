@@ -221,12 +221,12 @@ The action hook runs no menu or focus effects. The copyable menu recipe uses `us
 | `hasActions` | `boolean` | Required | Whether any allowed menu actions remain. Usually `actions.length > 0` from `useFeedActions`. |
 | `fallbackRef` | `RefObject<HTMLElement \| null>` | Required | Persistent, focusable target in the same document, such as the feed reading or a heading with `tabIndex={-1}`. |
 
-| Return | Purpose |
-|---|---|
-| `mounted` | Render the menu tree while actions exist, its trigger has focus, or the menu is open or finishing dismissal. |
-| `menuProps` | Controlled `open` and `onOpenChange` props for `DropdownMenu`. |
-| `triggerProps` | Button ref and focus/blur handlers for `DropdownMenuTrigger`. |
-| `contentProps` | Div ref for `DropdownMenuContent`. |
+| Returned value | Type | Purpose |
+|---|---|---|
+| `mounted` | `boolean` | Render the menu tree while actions exist, its trigger has focus, or the menu is open or finishing dismissal. |
+| `menuProps` | `{ open: boolean; onOpenChange(open: boolean): void }` | Controlled `open` and `onOpenChange` props for `DropdownMenu`. |
+| `triggerProps` | `{ ref: RefObject<HTMLButtonElement \| null>; onFocus(): void; onBlur(): void }` | Button ref and focus/blur handlers for `DropdownMenuTrigger`. |
+| `contentProps` | `{ ref: RefObject<HTMLDivElement \| null> }` | Div ref for `DropdownMenuContent`. |
 
 Keep the fallback mounted outside the conditional menu. Spread each props object onto its corresponding part, as in the menu recipe. If you add refs or focus handlers to those parts, compose them with the returned ones. Keep the empty-menu content and disabled/destructive action styling in your JSX.
 
