@@ -33,7 +33,7 @@ import { CommandPalette, createActionRegistry, type ActionRegistry, type Palette
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/registry/tradecn/ui/data-grid"
 import { DepthLadder, levelId, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { FlashCell } from "@/registry/tradecn/ui/flash-cell"
 import { HotkeyEditor } from "@/registry/tradecn/ui/hotkey-editor"
@@ -1498,8 +1498,8 @@ function Feeds() {
     void meta.version
     return desk.feeds.getIds().flatMap((id) => desk.feeds.getRow(id) ?? [])
   }, [desk, meta.version])
-  return <FeedHealth session={GLOBEX}>
-    {feeds.map((feed, index) => <div key={feed.id} className="inline-flex items-center gap-1">
+  return <FeedHealth feeds={feeds} session={GLOBEX}>
+    <FeedHealthList>{(feed, index) => <div className="inline-flex items-center gap-1">
       {index > 0 && <Separator orientation="vertical" className="h-3" />}
       <FeedHealthItem feed={feed}>
         <Tooltip>
@@ -1511,8 +1511,8 @@ function Feeds() {
           <FeedHealthTooltipContent><FeedHealthDetails /></FeedHealthTooltipContent>
         </Tooltip>
       </FeedHealthItem>
-    </div>)}
-    <FeedHealthAnnouncer feeds={feeds} />
+    </div>}</FeedHealthList>
+    <FeedHealthAnnouncer />
   </FeedHealth>
 }
 

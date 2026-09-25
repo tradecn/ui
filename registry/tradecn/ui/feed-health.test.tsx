@@ -4,15 +4,15 @@ import { Tooltip } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthPending, FeedHealthAnnouncer, useFeedActions, useFeedActionMenu, type FeedAction, type FeedHealthOptions, alwaysOpen, createClock, feedActionsFor, formatAge, stalenessTier, type FeedDescriptor, type SessionCalendar } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthPending, FeedHealthAnnouncer, useFeedActions, useFeedActionMenu, type FeedAction, type FeedHealthOptions, alwaysOpen, createClock, feedActionsFor, formatAge, stalenessTier, type FeedDescriptor, type SessionCalendar } from "@/registry/tradecn/ui/feed-health"
 
 function Strip({ feeds, actions = [], pendingMs, ...options }: FeedHealthOptions & { feeds: FeedDescriptor[]; actions?: FeedAction[]; pendingMs?: number }) {
-  return <FeedHealth {...options}>
-    {feeds.map((feed, index) => <div key={feed.id}>
+  return <FeedHealth feeds={feeds} {...options}>
+    <FeedHealthList>{(feed, index) => <div>
       {index > 0 && <Separator orientation="vertical" />}
       <Row feed={feed} actions={actions} pendingMs={pendingMs} />
-    </div>)}
-    <FeedHealthAnnouncer feeds={feeds} />
+    </div>}</FeedHealthList>
+    <FeedHealthAnnouncer />
   </FeedHealth>
 }
 
@@ -220,6 +220,92 @@ describe("feed actions", () => {
 
 
 describe("public composition", () => {
+  it("keys list rows by feed id across reordered and replaced descriptors, and releases removed requests", () => {
+    vi.useFakeTimers()
+    const clock = { now: () => 5000, subscribe: () => () => { } }
+    const run = vi.fn()
+    const actions = [{ id: "resubscribe", label: "Resubscribe", run }]
+    const md = feed({ lastMessageAt: 5000, allowedActions: ["resubscribe"] })
+    const rfq = feed({ id: "rfq", label: "RFQ", lastMessageAt: 5000, allowedActions: ["resubscribe"] })
+    function ActionRow({ feed }: { feed: FeedDescriptor }) {
+      const health = useFeedActions(feed, actions, { clock })
+      return <FeedHealthItem feed={feed} pending={health.pending}>
+        <input aria-label={`Note: ${feed.id}`} defaultValue="" />
+        <button onClick={() => health.run("resubscribe")}>{feed.label}</button>
+      </FeedHealthItem>
+    }
+    function App({ feeds }: { feeds: readonly FeedDescriptor[] }) {
+      return <StrictMode><FeedHealth feeds={feeds} clock={clock}>
+        <FeedHealthList>{(feed) => <ActionRow feed={feed} />}</FeedHealthList>
+        <FeedHealthAnnouncer />
+      </FeedHealth></StrictMode>
+    }
+    const { rerender, unmount } = render(<App feeds={[md, rfq]} />)
+    const note = screen.getByRole("textbox", { name: "Note: md" })
+    fireEvent.change(note, { target: { value: "Keep this note" } })
+    fireEvent.click(screen.getByRole("button", { name: "Market data" }))
+    note.focus()
+    rerender(<App feeds={[{ ...rfq }, { ...md, label: "Prices" }]} />)
+    expect([...document.querySelectorAll("[data-feed]")].map((item) => item.getAttribute("data-feed"))).toEqual(["rfq", "md"])
+    expect(screen.getByRole("textbox", { name: "Note: md" })).toBe(note)
+    expect(note).toHaveValue("Keep this note")
+    expect(note).toHaveFocus()
+    expect(document.querySelector('[data-feed="md"]')).toHaveAttribute("data-pending", "resubscribe")
+    expect(document.querySelector('[data-feed="rfq"]')).not.toHaveAttribute("data-pending")
+    fireEvent.click(screen.getByRole("button", { name: "Prices" }))
+    expect(run).toHaveBeenCalledOnce()
+    expect(document.querySelector("[aria-live]")).toBeEmptyDOMElement()
+    rerender(<App feeds={[rfq]} />)
+    expect(vi.getTimerCount()).toBe(0)
+    rerender(<App feeds={[rfq, md]} />)
+    expect(screen.getByRole("textbox", { name: "Note: md" })).toHaveValue("")
+    expect(document.querySelector('[data-feed="md"]')).not.toHaveAttribute("data-pending")
+    expect(document.querySelector("[aria-live]")).toHaveTextContent("Market data live")
+    unmount()
+    vi.useRealTimers()
+  })
+
+  it("uses the nearest collection, keeps empty roots independent, and allows an explicit announcer collection", () => {
+    const outer = feed({ lastMessageAt: 5000 })
+    const inner = feed({ id: "rfq", label: "RFQ", lastMessageAt: 5000 })
+    const clock = { now: () => 5000, subscribe: () => () => { } }
+    const list = createRef<HTMLDivElement>()
+    const click = vi.fn()
+    function App({ feeds }: { feeds: readonly FeedDescriptor[] }) {
+      return <FeedHealth feeds={feeds} clock={clock}>
+        <FeedHealthList ref={list} className="flex-col" title="Outer rows" onClick={click}>{(feed, index) => <button>{index}: {feed.label}</button>}</FeedHealthList>
+        <FeedHealthAnnouncer data-testid="outer-announcer" />
+        <FeedHealth feeds={[inner]}>
+          <FeedHealthList>{(feed) => <p>{feed.label}</p>}</FeedHealthList>
+          <FeedHealthAnnouncer data-testid="inner-announcer" />
+          <FeedHealthAnnouncer feeds={[]} data-testid="explicit-announcer" />
+        </FeedHealth>
+        <FeedHealth>
+          <FeedHealthList data-testid="empty-list">{(feed) => <p>{feed.label}</p>}</FeedHealthList>
+          <FeedHealthAnnouncer data-testid="empty-announcer" />
+          <p>No feeds configured.</p>
+        </FeedHealth>
+      </FeedHealth>
+    }
+    const { rerender } = render(<App feeds={[outer]} />)
+    expect(list.current).toHaveAttribute("data-slot", "tradecn-feed-health-list")
+    expect(list.current).toHaveAttribute("title", "Outer rows")
+    expect(list.current).toHaveClass("flex-col")
+    fireEvent.click(screen.getByRole("button", { name: "0: Market data" }))
+    expect(click).toHaveBeenCalledOnce()
+    expect(screen.getByText("RFQ")).toBeVisible()
+    expect(screen.getByTestId("empty-list")).toBeEmptyDOMElement()
+    expect(screen.getByText("No feeds configured.")).toBeVisible()
+    rerender(<App feeds={[{ ...outer, state: "disconnected" }]} />)
+    expect(screen.getByTestId("outer-announcer")).toHaveTextContent("Market data offline")
+    for (const id of ["inner-announcer", "explicit-announcer", "empty-announcer"]) expect(screen.getByTestId(id)).toBeEmptyDOMElement()
+  })
+
+  it("reports missing collection context instead of silently dropping requested rows or announcements", () => {
+    expect(() => render(<FeedHealthList>{(feed) => <p>{feed.label}</p>}</FeedHealthList>)).toThrow("FeedHealthList must be inside FeedHealth")
+    expect(() => render(<FeedHealthAnnouncer />)).toThrow("FeedHealthAnnouncer needs feeds or a FeedHealth parent")
+  })
+
   it("forwards native props, refs, children and events, and supports a card without a tooltip", () => {
     const root = createRef<HTMLDivElement>()
     const item = createRef<HTMLDivElement>()
@@ -261,11 +347,19 @@ describe("public composition", () => {
     let now = 0
     const clock = createClock(1000, () => now)
     let rowRenders = 0
+    let listRenders = 0
     function StaticContent() { rowRenders++; return <span>Application content</span> }
-    const { unmount } = render(<FeedHealth clock={clock}><FeedHealthItem feed={feed()}><StaticContent /><FeedHealthTier /><FeedAge feed={feed()} /></FeedHealthItem><FeedHealthAnnouncer feeds={[feed()]} /></FeedHealth>)
+    const { unmount } = render(<FeedHealth feeds={[feed()]} clock={clock}>
+      <FeedHealthList>{(feed) => {
+        listRenders++
+        return <FeedHealthItem feed={feed}><StaticContent /><FeedHealthTier /><FeedAge feed={feed} /></FeedHealthItem>
+      }}</FeedHealthList>
+      <FeedHealthAnnouncer />
+    </FeedHealth>)
     act(() => { now = 10_000; vi.advanceTimersByTime(10_000) })
     expect(screen.getByText("stale")).toBeVisible()
     expect(rowRenders).toBe(1)
+    expect(listRenders).toBe(1)
     unmount()
     expect(vi.getTimerCount()).toBe(0)
     vi.useRealTimers()

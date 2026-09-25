@@ -1,7 +1,7 @@
 import { Separator } from "@/components/ui/separator"
 import { useState } from "react"
 import { createSessionCalendar, zonedInstant, type FullSessionCalendar, type SessionStatus } from "@/registry/tradecn/lib/session-calendar"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 
 // Two calendars against a clock you can move: a cash session with holidays and early closes, and an
@@ -82,8 +82,8 @@ export function SessionCalendarScene() {
       </div>
       <div className="space-y-1">
         <p className="text-muted-foreground">feed-health with the cash calendar, at that moment (the clock is frozen there)</p>
-        <FeedHealth session={cash} clock={{ subscribe: () => () => { }, now: () => at }}>
-          {feeds.map((feed, index) => <div key={feed.id} className="inline-flex items-center gap-1">
+        <FeedHealth feeds={feeds} session={cash} clock={{ subscribe: () => () => { }, now: () => at }}>
+          <FeedHealthList>{(feed, index) => <div className="inline-flex items-center gap-1">
             {index > 0 && <Separator orientation="vertical" className="h-3" />}
             <FeedHealthItem feed={feed}>
               <Tooltip>
@@ -95,8 +95,8 @@ export function SessionCalendarScene() {
                 <FeedHealthTooltipContent><FeedHealthDetails /></FeedHealthTooltipContent>
               </Tooltip>
             </FeedHealthItem>
-          </div>)}
-          <FeedHealthAnnouncer feeds={feeds} />
+          </div>}</FeedHealthList>
+          <FeedHealthAnnouncer />
         </FeedHealth>
       </div>
     </main>

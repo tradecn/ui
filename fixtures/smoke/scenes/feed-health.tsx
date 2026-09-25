@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, useFeedActionMenu, type FeedAction, type FeedDescriptor } from "@/components/ui/feed-health"
+import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, useFeedActionMenu, type FeedAction, type FeedDescriptor } from "@/components/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
@@ -45,12 +45,12 @@ export function FeedHealthScene() {
         <button type="button" onClick={() => schedule(() => setFeeds((feeds) => feeds.map((feed) => ({ ...feed, allowedActions: [] }))), 500)}>Revoke actions soon</button>
         <label><input type="checkbox" checked={compact} onChange={(event) => setCompact(event.target.checked)} />Compact feeds</label>
       </div>
-      <FeedHealth>
-        {feeds.map((feed, index) => <div key={feed.id} className="inline-flex items-center gap-1">
+      <FeedHealth feeds={feeds}>
+        <FeedHealthList>{(feed, index) => <div className="inline-flex items-center gap-1">
           {index > 0 && <Separator orientation="vertical" className="h-3" />}
           <FeedRow feed={feed} actions={actions} compact={compact} />
-        </div>)}
-        <FeedHealthAnnouncer feeds={feeds} />
+        </div>}</FeedHealthList>
+        <FeedHealthAnnouncer />
       </FeedHealth>
     </div>
   )

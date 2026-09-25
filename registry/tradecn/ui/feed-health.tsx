@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentProps, type RefObject } from "react"
+import { Fragment, createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
 import { TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -128,18 +128,37 @@ function useOptions(options: FeedHealthOptions) {
   }
 }
 
-export interface FeedHealthProps extends ComponentProps<"div">, FeedHealthOptions { }
+const FeedsContext = createContext<readonly FeedDescriptor[] | null>(null)
 
-/** Supply the rows and one announcer. No clock subscription or collection state lives here. */
-export function FeedHealth({ thresholds, session, clock, className, ...props }: FeedHealthProps) {
+export interface FeedHealthProps extends ComponentProps<"div">, FeedHealthOptions {
+  feeds?: readonly FeedDescriptor[]
+}
+
+/** Supply a collection and compose its lists, readings and one announcer. No clock subscription lives here. */
+export function FeedHealth({ feeds = [], thresholds, session, clock, className, ...props }: FeedHealthProps) {
   const options = useOptions({ thresholds, session, clock })
   return (
     <OptionsContext value={options}>
-      <TooltipProvider>
-        <div role="group" aria-label={props["aria-labelledby"] ? undefined : "Feed health"} data-slot="tradecn-feed-health" className={cn("flex min-w-0 items-center gap-1 lining-nums tabular-nums", className)} {...props} />
-      </TooltipProvider>
+      <FeedsContext value={feeds}>
+        <TooltipProvider>
+          <div role="group" aria-label={props["aria-labelledby"] ? undefined : "Feed health"} data-slot="tradecn-feed-health" className={cn("flex min-w-0 items-center gap-1 lining-nums tabular-nums", className)} {...props} />
+        </TooltipProvider>
+      </FeedsContext>
     </OptionsContext>
   )
+}
+
+export interface FeedHealthListProps extends Omit<ComponentProps<"div">, "children"> {
+  children: (feed: FeedDescriptor, index: number) => ReactNode
+}
+
+/** Render the nearest group's feeds in order, preserving each row's identity by feed.id. */
+export function FeedHealthList({ children, className, ...props }: FeedHealthListProps) {
+  const feeds = useContext(FeedsContext)
+  if (!feeds) throw new Error("FeedHealthList must be inside FeedHealth")
+  return <div data-slot="tradecn-feed-health-list" className={cn("flex min-w-0 items-center gap-1", className)} {...props}>
+    {feeds.map((feed, index) => <Fragment key={feed.id}>{children(feed, index)}</Fragment>)}
+  </div>
 }
 
 interface FeedContextValue {
@@ -250,11 +269,14 @@ export function FeedHealthPending({ className, children, ...props }: ComponentPr
 }
 
 export interface FeedHealthAnnouncerProps extends ComponentProps<"span">, FeedHealthOptions {
-  feeds: readonly FeedDescriptor[]
+  feeds?: readonly FeedDescriptor[]
 }
 
 /** Mount once per collection, even when the same feeds have several visual presentations. */
-export function FeedHealthAnnouncer({ feeds, thresholds, session, clock, className, ...props }: FeedHealthAnnouncerProps) {
+export function FeedHealthAnnouncer({ feeds: suppliedFeeds, thresholds, session, clock, className, ...props }: FeedHealthAnnouncerProps) {
+  const inheritedFeeds = useContext(FeedsContext)
+  const feeds = suppliedFeeds ?? inheritedFeeds
+  if (!feeds) throw new Error("FeedHealthAnnouncer needs feeds or a FeedHealth parent")
   const options = useOptions({ thresholds, session, clock })
   const now = useNow(options.clock)
   const tiers = new Map(feeds.map((feed) => [feed.id, stalenessTier(feed, now, options.thresholds, options.session)]))

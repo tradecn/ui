@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type Clock, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type Clock, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { Separator } from "@/components/ui/separator"
 
@@ -20,8 +20,8 @@ export default function FeedHealthLanesDemo() {
         <label className="inline-flex items-center gap-2"><input type="checkbox" checked={compact} onChange={(event) => setCompact(event.target.checked)} />Compact</label>
         <button type="button" className="rounded border px-2 py-1" onClick={() => setHasGap(!hasGap)}>{hasGap ? "Close RFQ gap" : "Open RFQ gap"}</button>
       </div>
-      <FeedHealth clock={clock} className="w-fit max-w-full flex-wrap">
-        {feeds.map((feed, index) => <div key={feed.id} className="inline-flex items-center gap-1">
+      <FeedHealth feeds={feeds} clock={clock} className="w-fit max-w-full">
+        <FeedHealthList className="flex-wrap">{(feed, index) => <div className="inline-flex items-center gap-1">
           {index > 0 && <Separator orientation="vertical" className="h-3" />}
           <FeedHealthItem feed={feed}>
             <Tooltip>
@@ -33,8 +33,8 @@ export default function FeedHealthLanesDemo() {
               <FeedHealthTooltipContent><FeedHealthDetails /></FeedHealthTooltipContent>
             </Tooltip>
           </FeedHealthItem>
-        </div>)}
-        <FeedHealthAnnouncer feeds={feeds} />
+        </div>}</FeedHealthList>
+        <FeedHealthAnnouncer />
       </FeedHealth>
     </>
   )

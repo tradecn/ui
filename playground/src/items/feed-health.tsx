@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, useFeedActionMenu, type FeedAction, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, useFeedActionMenu, type FeedAction, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -66,14 +66,14 @@ export function FeedHealthScene() {
     <main className="mx-auto max-w-4xl space-y-4 p-6 font-(family-name:--tradecn-font-mono) text-xs">
       <h1 className="text-sm font-semibold">feed-health</h1>
       <p className="text-muted-foreground">Each feed's menu offers what the server allows on it; a press shows pending until the feed's state moves or the promise settles. The tier never moves on a click.</p>
-      <FeedHealth className="w-fit flex-col items-start gap-3">
-        {[false, true].map((compact) => <div key={String(compact)} className="flex items-center gap-1">
-          {availableFeeds.map((feed, index) => <div key={feed.id} className="inline-flex items-center gap-1">
+      <FeedHealth feeds={availableFeeds} className="w-fit flex-col items-start gap-3">
+        {[false, true].map((compact) => <FeedHealthList key={String(compact)}>
+          {(feed, index) => <div className="inline-flex items-center gap-1">
             {index > 0 && <Separator orientation="vertical" className="h-3" />}
             <FeedPresentation feed={feed} health={health[index]!} compact={compact} />
-          </div>)}
-        </div>)}
-        <FeedHealthAnnouncer feeds={availableFeeds} />
+          </div>}
+        </FeedHealthList>)}
+        <FeedHealthAnnouncer />
       </FeedHealth>
       <div className="flex gap-2">
         <button className="rounded border border-border px-2 py-1" onClick={() => setPaused((p) => !p)}>

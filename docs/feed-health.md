@@ -5,55 +5,81 @@ Compose feed readings from public parts. You own the rows, labels, tooltips, con
 ## Usage
 
 ```tsx
-import { useState } from "react"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/components/ui/feed-health"
+import {
+  FeedHealth,
+  FeedHealthList,
+  FeedHealthItem,
+  FeedHealthIndicator,
+  FeedHealthTier,
+  FeedAge,
+  FeedHealthTooltipTrigger,
+  FeedHealthTooltipContent,
+  FeedHealthDetails,
+  FeedHealthAnnouncer,
+  type FeedDescriptor,
+} from "@/components/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
+```
 
-function MarketDataHealth() {
-  const [lastMessageAt, setLastMessageAt] = useState(Date.now)
-  const feed: FeedDescriptor = { id: "md", label: "Market data", state: "connected", lane: "coalesced", lastMessageAt }
+```tsx
+const feeds: FeedDescriptor[] = [
+  {
+    id: "md",
+    label: "Market data",
+    state: "connected",
+    lane: "coalesced",
+    lastMessageAt: Date.now(),
+  },
+]
+
+export function MarketDataHealth() {
   return (
-    <>
-      <div data-demo-controls className="text-xs">
-        <button type="button" className="rounded border px-2 py-1" onClick={() => setLastMessageAt(Date.now())}>Receive a message</button>
-      </div>
-      <FeedHealth thresholds={{ agingMs: 2000, staleMs: 10_000 }} className="w-fit max-w-full flex-wrap">
-        <FeedHealthItem feed={feed}>
-          <Tooltip>
-            <FeedHealthTooltipTrigger>
-              <span className="font-medium">{feed.label}</span><FeedHealthIndicator className="order-first" />
-              <FeedHealthTier />
-              <FeedAge feed={feed} />
-            </FeedHealthTooltipTrigger>
-            <FeedHealthTooltipContent><FeedHealthDetails /></FeedHealthTooltipContent>
-          </Tooltip>
-        </FeedHealthItem>
-        <FeedHealthAnnouncer feeds={[feed]} />
-      </FeedHealth>
-    </>
+    <FeedHealth feeds={feeds} className="w-fit max-w-full">
+      <FeedHealthList className="flex-wrap">
+        {(feed) => (
+          <FeedHealthItem feed={feed}>
+            <Tooltip>
+              <FeedHealthTooltipTrigger>
+                <span className="font-medium">{feed.label}</span>
+                <FeedHealthIndicator className="order-first" />
+                <FeedHealthTier />
+                <FeedAge feed={feed} />
+              </FeedHealthTooltipTrigger>
+              <FeedHealthTooltipContent>
+                <FeedHealthDetails />
+              </FeedHealthTooltipContent>
+            </Tooltip>
+          </FeedHealthItem>
+        )}
+      </FeedHealthList>
+      <FeedHealthAnnouncer />
+    </FeedHealth>
   )
 }
 ```
 
-The connection stays connected while its data ages. Without another message, the tier becomes aging at two seconds and stale at ten seconds, on the shared clock's next tick. Receive a message supplies a new timestamp and makes it live again.
+Pass the collection to `FeedHealth` and render each feed through `FeedHealthList`. The list keeps your order and keys each result by `feed.id`; you supply the item JSX without a map or key. Keep ids unique and stable within the collection. The optional index argument is useful for separators.
 
-These thresholds are sample values. Agree real boundaries with the people using the data, then pass both values. The component reads descriptors from your integration; it does not connect or publish messages. The clock starts and stops with subscribers.
+The sample timestamp is captured when the module loads. The connection stays connected while its data ages: with the provisional thresholds, it becomes aging at two seconds and stale at ten seconds, on the shared clock's next tick. In an integration, replace the descriptors as messages arrive. The component does not connect or publish messages.
 
-`FeedHealthItem` accepts your JSX. Use `FeedHealthTooltipTrigger` and `FeedHealthTooltipContent` together inside your shadcn `Tooltip` for a keyboard-accessible description. `FeedHealth` supplies the tooltip provider. Put one `FeedHealthAnnouncer` in the collection, including when you show the same feeds in several places.
+Agree real age boundaries with the people using the data, then pass both values through `thresholds`. The clock starts and stops with subscribers.
+
+`FeedHealthItem` accepts your JSX. Use `FeedHealthTooltipTrigger` and `FeedHealthTooltipContent` together inside your shadcn `Tooltip` for a keyboard-accessible description. `FeedHealth` supplies the tooltip provider. Put one `FeedHealthAnnouncer` in the group to announce its collection, including when several lists display the same feeds.
 
 ## Composition
 
 ```text
-FeedHealth
-├── FeedHealthItem (one per feed)
-│   ├── Tooltip (optional)
-│   │   ├── FeedHealthTooltipTrigger
-│   │   │   ├── Caller label and FeedHealthIndicator
-│   │   │   ├── FeedHealthTier and FeedAge
-│   │   │   └── FeedHealthLane and FeedHealthPending
-│   │   └── FeedHealthTooltipContent
-│   │       └── FeedHealthDetails
-│   └── Caller controls using useFeedActions
+FeedHealth (feeds)
+├── FeedHealthList (children(feed, index))
+│   └── FeedHealthItem
+│       ├── Tooltip (optional)
+│       │   ├── FeedHealthTooltipTrigger
+│       │   │   ├── Caller label and FeedHealthIndicator
+│       │   │   ├── FeedHealthTier and FeedAge
+│       │   │   └── FeedHealthLane and FeedHealthPending
+│       │   └── FeedHealthTooltipContent
+│       │       └── FeedHealthDetails
+│       └── Caller controls using useFeedActions
 └── FeedHealthAnnouncer (one per collection)
 ```
 
@@ -61,7 +87,7 @@ Place readings, details and controls in your own layout. The card below keeps me
 
 ## Lanes and compact display
 
-Install `separator` for this composition. The caller maps the feeds in order and adds separators between them.
+Install `separator` for this composition. The list callback receives each feed and its index; the caller adds separators between them.
 
 Coalesced market data reports seven dropped updates. The ordered RFQ feed reports sequence 42 in its tooltip and a three-second gap while replay is in progress. Close RFQ gap removes the report; open it to restore the sample. Drops and gaps do not change either feed's live tier.
 
@@ -95,15 +121,27 @@ Both accept native `div` props, children, refs, classes and events. The options 
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
-| `children` | `ReactNode` | — | Your rows, readings, application content and announcer. |
+| `feeds` | `readonly FeedDescriptor[]` | `[]` | Collection for descendant lists and the announcer. Each nested root owns its collection. |
+| `children` | `ReactNode` | — | Your lists, readings, application content and announcer. |
 | `thresholds` | `StalenessThresholds` | `PROVISIONAL_THRESHOLDS` | Age boundaries in milliseconds. |
 | `session` | `SessionCalendar` | `alwaysOpen` | Session used for tiering. |
 | `clock` | `Clock` | Shared clock | Time source for tiers and descendant readings. |
 | `className` | `string` | — | Extends the default inline layout. Use grid or column classes for another arrangement. |
 
-`FeedHealth` renders a group named `Feed health`; supply `aria-label` or `aria-labelledby` to name it yourself. It inherits the caller’s text size and supplies no rows, separators, empty state, controls or announcements. Map collections with stable feed ids as keys, and keep any empty-state text at the call site.
+`FeedHealth` renders a group named `Feed health`; supply `aria-label` or `aria-labelledby` to name it yourself. It inherits the caller’s text size and supplies no rows, separators, empty state, controls or announcements. Pass your ordered collection through `feeds`, compose its rows with `FeedHealthList`, and keep any empty-state text at the call site.
 
 `FeedHealthItem` requires `feed: FeedDescriptor` and optionally accepts `pending: PendingFeedAction | null`. Its `data-feed`, `data-state`, `data-tier` and `data-pending` attributes describe that item. It sets the reading text size but does not tint caller content. Tier colors belong to `FeedHealthTier` and `FeedHealthTooltipTrigger`. Mount it inside `FeedHealth` when using tooltips so either primitive base receives its provider.
+
+### FeedHealthList
+
+`FeedHealthList` renders a div inside `FeedHealth` and accepts native div props, events and a ref. It reads the nearest root's collection and keys each callback result by `feed.id`. Reordering or replacing descriptors with the same ids preserves row state; removing an id unmounts its row. Keep ids unique and stable. The callback supplies JSX; put hooks in a row component returned by that callback.
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `children` | `(feed: FeedDescriptor, index: number) => ReactNode` | Required | Row content for each feed, in collection order. The list supplies the React key. |
+| `className` | `string` | — | Extends the horizontal flex layout. Add `flex-wrap`, column or grid classes here to arrange the rows. |
+
+Multiple lists can show the same collection differently; mount one announcer outside them. A list adds no clock subscriptions or action state. Single-feed layouts can place `FeedHealthItem` directly in the group, as the card recipe does. An empty list renders an empty container; supply your own empty content beside it. Filter or limit the array before passing it to the root so the announcer describes the displayed collection.
 
 ### Readings
 
@@ -210,7 +248,7 @@ Clearing pending does not cancel the underlying request. To keep pending state a
 
 A press does not change the tier. The hook catches synchronous errors and promise rejections without displaying an error; report failures in your integration. Mark controls disabled while pending. For inline buttons that should keep focus, use `aria-disabled` as in the card recipe; `run` still blocks duplicate execution. Permissions changing alone does not settle a request already sent.
 
-The action hook runs no menu or focus effects. The copyable menu recipe uses `useFeedActionMenu` for retention and dismissal focus; the card supplies a persistent heading as a focus target when a button disappears. Use stable feed keys so removing a feed unmounts its hooks and releases their timers.
+The action hook runs no menu or focus effects. The copyable menu recipe uses `useFeedActionMenu` for retention and dismissal focus; the card supplies a persistent heading as a focus target when a button disappears. Put the hook in a row component returned by `FeedHealthList`; its stable feed keys release the removed row's timers. If you map rows yourself, key them by `feed.id`.
 
 ### Action-menu focus
 
@@ -234,11 +272,11 @@ When actions disappear, a focused trigger remains until focus leaves, and an ope
 
 ### Announcements and clock
 
-`FeedHealthAnnouncer` requires `feeds: readonly FeedDescriptor[]`. It accepts the same `thresholds`, `session` and `clock` options as the group, plus native span props and a ref. Place it in the group to inherit those options, or pass them explicitly beside the group. Use the same options as the group whose feeds it announces.
+`FeedHealthAnnouncer` inherits the nearest root's collection. Its optional `feeds: readonly FeedDescriptor[]` overrides that collection and is required outside a root. It accepts the same `thresholds`, `session` and `clock` options as the group, plus native span props and a ref. Place it in the group to inherit those options, or pass them explicitly beside the group. Use the same options as the group whose feeds it announces.
 
 Its polite, atomic live region initializes empty. It updates when a feed changes tier or is added, combining simultaneous changes into one message. Aging and stale announcements include the age at that transition, such as “Market data stale, 10s”. Plain age ticks, label changes, reordering and removals leave the last message unchanged. A new addition or tier change inserts a fresh message node even when its words match the previous announcement. A clock that refreshes an old timestamp on subscription can cause a tier change during mounting.
 
-Only items, ages and announcers subscribe to the clock. Ticks do not rerender the group or its parent. The shared one-second interval runs while it has subscribers and stops after the last unsubscribe; other ticking components use the same interval.
+Only items, ages and announcers subscribe to the clock. Ticks do not rerender the group, the list callback or their parents. The shared one-second interval runs while it has subscribers and stops after the last unsubscribe; other ticking components use the same interval.
 
 `createClock(intervalMs = 1000, source = Date.now)` is exported for custom clocks and tests. A `Clock` supplies `now(): number` and `subscribe(cb): () => void`. The created clock caches its timestamp between ticks and refreshes it when its first subscriber arrives after inactivity. Its optional `sample(): number` method reads the source directly without changing that snapshot or starting a timer. `useFeedActions` uses `sample()` for request timestamps, falling back to `now()` for custom clocks without it. Use epoch milliseconds to match feed timestamps.
 
@@ -246,4 +284,4 @@ Only items, ages and announcers subscribe to the clock. Ticks do not rerender th
 
 The item installs `badge`, `spinner`, `tooltip` and the shared clock. Install the primitives your own layout adds: `separator` for separated rows, `dropdown-menu` for the menu recipe or `button` for the card. The `stale` and `up` tokens are added when absent.
 
-Updating from the array-based widget? See the [FeedHealth migration guide](migrating-v1-to-v2.md#feedhealth).
+Updating from the closed widget? See the [FeedHealth migration guide](migrating-v1-to-v2.md#feedhealth).

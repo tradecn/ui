@@ -39,7 +39,7 @@ export default function FeedHealthActionsDemo() {
         <button type="button" className="rounded border px-2 py-1 disabled:opacity-50" disabled={busy || feed.state === "disconnected"} onClick={() => { setFeed(disconnected); setMessage("Disconnected.") }}>Disconnect RFQ</button>
       </div>
       <div className="w-fit max-w-full space-y-2">
-        <FeedHealth className="flex-wrap">
+        <FeedHealth feeds={[feed]} className="flex-wrap">
           <FeedHealthItem feed={feed} pending={pending}>
             <Tooltip>
               <FeedHealthTooltipTrigger ref={reading}>
@@ -57,7 +57,7 @@ export default function FeedHealthActionsDemo() {
               </DropdownMenuContent>
             </DropdownMenu>}
           </FeedHealthItem>
-          <FeedHealthAnnouncer feeds={[feed]} />
+          <FeedHealthAnnouncer />
         </FeedHealth>
         <p role="status" className="text-xs text-muted-foreground">{message}</p>
       </div>

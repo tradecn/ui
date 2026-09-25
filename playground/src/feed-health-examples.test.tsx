@@ -9,17 +9,16 @@ import { FeedHealthScene } from "./items/feed-health"
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
 
-it("starts with one feed, ages quietly and recovers when a message arrives", () => {
+it("renders the sample collection and ages quietly without demo controls", () => {
   render(<FeedHealthDemo />)
   const item = document.querySelector("[data-feed]")!
   expect(document.querySelectorAll("[data-feed]")).toHaveLength(1)
-  expect(item).toHaveAttribute("data-tier", "live")
+  expect(screen.getByRole("button", { name: /^Market data connected/ })).toBeInTheDocument()
   act(() => vi.advanceTimersByTime(10_000))
   expect(item).toHaveAttribute("data-tier", "stale")
   expect(item).toHaveAttribute("data-state", "connected")
-  fireEvent.click(screen.getByRole("button", { name: "Receive a message" }))
-  expect(item).toHaveAttribute("data-tier", "live")
-  expect(document.querySelector("[aria-live]")).toHaveTextContent("Market data live")
+  expect(screen.queryByRole("button", { name: "Receive a message" })).toBeNull()
+  expect(document.querySelector("[aria-live]")).toHaveTextContent("Market data stale")
 })
 
 it("preserves lane readings and accessible tier words when the caller compacts the rows", () => {

@@ -18,7 +18,7 @@ export default function StatusBarSlotsDemo() {
         <StatusBar
           environment={{ label: "UAT", tone: "stale" }}
           user="jdoe"
-          left={<FeedHealth><FeedHealthItem feed={feed}>
+          left={<FeedHealth feeds={[feed]}><FeedHealthItem feed={feed}>
             <Tooltip>
               <FeedHealthTooltipTrigger>
                 <span className="font-medium">{feed.label}</span><FeedHealthIndicator className="order-first" />
@@ -27,7 +27,7 @@ export default function StatusBarSlotsDemo() {
               </FeedHealthTooltipTrigger>
               <FeedHealthTooltipContent><FeedHealthDetails /></FeedHealthTooltipContent>
             </Tooltip>
-          </FeedHealthItem><FeedHealthAnnouncer feeds={[feed]} /></FeedHealth>}
+          </FeedHealthItem><FeedHealthAnnouncer /></FeedHealth>}
           right={<PerfMonitor compact className="w-56" />}
         />
       </div>

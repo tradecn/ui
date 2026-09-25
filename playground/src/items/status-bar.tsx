@@ -1,6 +1,6 @@
 import { Separator } from "@/components/ui/separator"
 import { useEffect, useState } from "react"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
 import { StatusBar, type StatusBarClock, type StatusBarEnvironment } from "@/registry/tradecn/ui/status-bar"
@@ -85,8 +85,8 @@ export function StatusBarScene() {
         environment={ENVIRONMENTS[env]}
         clocks={clocks}
         user={user}
-        left={slots.left ? <FeedHealth>
-          {feeds.map((feed, index) => <div key={feed.id} className="inline-flex items-center gap-1">
+        left={slots.left ? <FeedHealth feeds={feeds}>
+          <FeedHealthList>{(feed, index) => <div className="inline-flex items-center gap-1">
             {index > 0 && <Separator orientation="vertical" className="h-3" />}
             <FeedHealthItem feed={feed}>
               <Tooltip>
@@ -98,8 +98,8 @@ export function StatusBarScene() {
                 <FeedHealthTooltipContent><FeedHealthDetails /></FeedHealthTooltipContent>
               </Tooltip>
             </FeedHealthItem>
-          </div>)}
-          <FeedHealthAnnouncer feeds={feeds} />
+          </div>}</FeedHealthList>
+          <FeedHealthAnnouncer />
         </FeedHealth> : undefined}
         center={slots.center ? <span className="text-muted-foreground">T 4 1/8 05/34 · 99-16+ / 99-17</span> : undefined}
         right={slots.right ? <PerfMonitor compact /> : undefined}

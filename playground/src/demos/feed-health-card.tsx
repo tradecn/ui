@@ -43,7 +43,7 @@ export default function FeedHealthCardDemo() {
         <button type="button" className="rounded border px-2 py-1 disabled:opacity-50" disabled={busy || feed.state === "disconnected"} onClick={() => { setFeed(disconnected); setMessage("Disconnected.") }}>Disconnect RFQ</button>
       </div>
       <div className="w-fit max-w-full space-y-2">
-        <FeedHealth className="flex-wrap">
+        <FeedHealth feeds={[feed]} className="flex-wrap">
           <FeedHealthItem feed={feed} pending={pending} className="w-72 max-w-full flex-col items-stretch gap-3 border p-3">
             <header className="flex items-center justify-between gap-3">
               <h3 ref={heading} tabIndex={-1} className="inline-flex items-center gap-2 rounded font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/40">{feed.label}<FeedHealthIndicator className="order-first" /></h3>
@@ -57,7 +57,7 @@ export default function FeedHealthCardDemo() {
               <a href="https://tradecn.dev/docs/feed-health/" target="_blank" rel="noreferrer" className="underline underline-offset-4">Feed API</a>
             </footer>
           </FeedHealthItem>
-          <FeedHealthAnnouncer feeds={[feed]} />
+          <FeedHealthAnnouncer />
         </FeedHealth>
         <p role="status" className="text-xs text-muted-foreground">{message}</p>
       </div>

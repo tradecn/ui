@@ -255,12 +255,16 @@
         "feed",
         "chrome"
       ],
-      "docs": "Adds the stale and up tokens and installs the shared one-second clock. Compose feed items from public readings; mount one FeedHealthAnnouncer per collection. Install dropdown-menu, separator or button separately when your layout uses them. Default aging/stale thresholds (2 s/10 s) are placeholders; agree real boundaries with the people using the data.",
+      "docs": "Adds the stale and up tokens and installs the shared one-second clock. Pass feeds to FeedHealth, render rows through FeedHealthList, and mount one FeedHealthAnnouncer per collection. Compose each item from public readings. Install dropdown-menu, separator or button separately when your layout uses them. Default aging/stale thresholds (2 s/10 s) are placeholders; agree real boundaries with the people using the data.",
       "meta": {
         "components": [
           {
             "title": "FeedHealth",
-            "description": "Children-based group with shared thresholds, session and clock."
+            "description": "Collection and shared thresholds, session and clock for caller-owned lists and readings."
+          },
+          {
+            "title": "FeedHealthList",
+            "description": "Renders the root collection through caller JSX, keyed by feed id."
           },
           {
             "title": "FeedHealthItem",
