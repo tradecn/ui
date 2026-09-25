@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, type FeedAction, type FeedDescriptor } from "@/components/ui/feed-health"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, useFeedActionMenu, type FeedAction, type FeedDescriptor } from "@/components/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
@@ -58,21 +58,8 @@ export function FeedHealthScene() {
 
 function FeedRow({ feed, actions, compact }: { feed: FeedDescriptor; actions: FeedAction[]; compact: boolean }) {
   const { actions: offered, pending, pendingLabel, run } = useFeedActions(feed, actions, { pendingMs: 2000 })
-  const [menuState, setMenuState] = useState<"closed" | "open" | "closing">("closed")
-  const [menuFocused, setMenuFocused] = useState(false)
   const reading = useRef<HTMLButtonElement>(null)
-  const trigger = useRef<HTMLButtonElement>(null)
-  const content = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (menuState !== "closing") return
-    // Keep the trigger mounted until the primitive and browser finish moving focus.
-    const restoreFocus = setTimeout(() => {
-      const active = document.activeElement
-      if (offered.length === 0 && document.hasFocus() && (active === document.body || active === trigger.current || content.current?.contains(active))) reading.current?.focus()
-      setMenuState("closed")
-    }, 0)
-    return () => clearTimeout(restoreFocus)
-  }, [menuState, offered.length])
+  const menu = useFeedActionMenu({ hasActions: offered.length > 0, fallbackRef: reading })
   return <FeedHealthItem feed={feed} pending={pending}>
     <Tooltip>
       <FeedHealthTooltipTrigger ref={reading}>
@@ -82,9 +69,9 @@ function FeedRow({ feed, actions, compact }: { feed: FeedDescriptor; actions: Fe
       </FeedHealthTooltipTrigger>
       <FeedHealthTooltipContent><FeedHealthDetails>{pending && <><dt>Pending</dt><dd>{pendingLabel}</dd></>}</FeedHealthDetails></FeedHealthTooltipContent>
     </Tooltip>
-    {(offered.length > 0 || menuState !== "closed" || menuFocused) && <DropdownMenu open={menuState === "open"} onOpenChange={(open) => setMenuState(open ? "open" : "closing")}>
-      <DropdownMenuTrigger ref={trigger} onFocus={() => setMenuFocused(true)} onBlur={() => setMenuFocused(false)} aria-label={`Actions: ${feed.label}`} data-feed-actions={feed.id} className="rounded px-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40">⋮</DropdownMenuTrigger>
-      <DropdownMenuContent ref={content} align="start">
+    {menu.mounted && <DropdownMenu {...menu.menuProps}>
+      <DropdownMenuTrigger {...menu.triggerProps} aria-label={`Actions: ${feed.label}`} data-feed-actions={feed.id} className="rounded px-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40">⋮</DropdownMenuTrigger>
+      <DropdownMenuContent {...menu.contentProps} align="start">
         {offered.length === 0 && <DropdownMenuItem disabled>No actions available.</DropdownMenuItem>}
         {offered.map((action) => <DropdownMenuItem key={action.id} data-feed-action={action.id} disabled={Boolean(pending)} className={action.destructive ? "text-destructive" : undefined} onClick={() => run(action.id)}>{action.label}</DropdownMenuItem>)}
       </DropdownMenuContent>

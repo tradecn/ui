@@ -307,6 +307,10 @@
             "description": "Permission checks and pending state for caller-owned controls."
           },
           {
+            "title": "useFeedActionMenu",
+            "description": "Menu retention and focus recovery when allowed actions disappear."
+          },
+          {
             "title": "stalenessTier",
             "description": "Pure tiering: live, aging, stale, offline, closed."
           },

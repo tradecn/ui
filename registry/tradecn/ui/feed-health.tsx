@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ComponentProps } from "react"
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentProps, type RefObject } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
 import { TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -340,4 +340,38 @@ export function useFeedActions(feed: FeedDescriptor, actions: readonly FeedActio
 
   const pending = request?.feedId === feed.id && request.pending.state === feed.state ? request.pending : null
   return { actions: feedActionsFor(feed, actions), pending, pendingLabel: pending ? (actions.find((action) => action.id === pending.action)?.label ?? pending.action) : undefined, run }
+}
+
+export interface UseFeedActionMenuOptions {
+  /** Whether the caller has any menu actions to render. */
+  hasActions: boolean
+  /** A persistent, focusable element to receive focus when the empty menu disappears. */
+  fallbackRef: RefObject<HTMLElement | null>
+}
+
+/** Retain a caller-owned menu through permission loss and recover focus after dismissal. */
+export function useFeedActionMenu({ hasActions, fallbackRef }: UseFeedActionMenuOptions) {
+  const [state, setState] = useState<"closed" | "open" | "closing">("closed")
+  const [focused, setFocused] = useState(false)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const content = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (state !== "closing") return
+    // Keep the trigger mounted until the primitive and browser finish moving focus.
+    const restoreFocus = setTimeout(() => {
+      const ownerDocument = trigger.current?.ownerDocument ?? fallbackRef.current?.ownerDocument
+      if (!hasActions && ownerDocument?.hasFocus()) {
+        const active = ownerDocument.activeElement
+        if (active === ownerDocument.body || active === trigger.current || content.current?.contains(active)) fallbackRef.current?.focus()
+      }
+      setState("closed")
+    }, 0)
+    return () => clearTimeout(restoreFocus)
+  }, [state, hasActions, fallbackRef])
+  return {
+    mounted: hasActions || state !== "closed" || focused,
+    menuProps: { open: state === "open", onOpenChange: (open: boolean) => setState(open ? "open" : "closing") },
+    triggerProps: { ref: trigger, onFocus: () => setFocused(true), onBlur: () => setFocused(false) },
+    contentProps: { ref: content },
+  }
 }

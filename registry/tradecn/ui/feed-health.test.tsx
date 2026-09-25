@@ -1,10 +1,10 @@
-import { Activity, StrictMode, Suspense, createRef } from "react"
+import { Activity, StrictMode, Suspense, createRef, useRef } from "react"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthPending, FeedHealthAnnouncer, useFeedActions, type FeedAction, type FeedHealthOptions, alwaysOpen, createClock, feedActionsFor, formatAge, stalenessTier, type FeedDescriptor, type SessionCalendar } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthPending, FeedHealthAnnouncer, useFeedActions, useFeedActionMenu, type FeedAction, type FeedHealthOptions, alwaysOpen, createClock, feedActionsFor, formatAge, stalenessTier, type FeedDescriptor, type SessionCalendar } from "@/registry/tradecn/ui/feed-health"
 
 function Strip({ feeds, actions = [], pendingMs, ...options }: FeedHealthOptions & { feeds: FeedDescriptor[]; actions?: FeedAction[]; pendingMs?: number }) {
   return <FeedHealth {...options}>
@@ -463,5 +463,109 @@ describe("useFeedActions", () => {
     expect(screen.getByRole("button", { name: "Menu rfq" })).toBeEnabled()
     fireEvent.click(screen.getByRole("button", { name: "Menu rfq" }))
     expect(run).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("useFeedActionMenu", () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  function Menu({ hasActions }: { hasActions: boolean }) {
+    const fallback = useRef<HTMLHeadingElement>(null)
+    const menu = useFeedActionMenu({ hasActions, fallbackRef: fallback })
+    return <>
+      <h2 ref={fallback} tabIndex={-1}>Feed reading</h2>
+      {menu.mounted && <>
+        <button {...menu.triggerProps} onClick={() => menu.menuProps.onOpenChange(true)}>Actions</button>
+        {menu.menuProps.open && <div {...menu.contentProps} role="menu">
+          <button onClick={() => menu.menuProps.onOpenChange(false)}>Close menu</button>
+        </div>}
+      </>}
+      <button>Elsewhere</button>
+    </>
+  }
+
+  function closingMenu() {
+    const view = render(<Menu hasActions />, { wrapper: StrictMode })
+    fireEvent.click(screen.getByRole("button", { name: "Actions" }))
+    act(() => screen.getByRole("button", { name: "Close menu" }).focus())
+    view.rerender(<Menu hasActions={false} />)
+    expect(screen.getByRole("menu")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close menu" }))
+    expect(screen.getByRole("button", { name: "Actions" })).toBeInTheDocument()
+    return view
+  }
+
+  it("retains an empty focused trigger until focus leaves, without a FeedHealth provider", () => {
+    const { rerender } = render(<Menu hasActions={false} />)
+    expect(screen.queryByRole("button", { name: "Actions" })).not.toBeInTheDocument()
+    rerender(<Menu hasActions />)
+    act(() => screen.getByRole("button", { name: "Actions" }).focus())
+    rerender(<Menu hasActions={false} />)
+    expect(screen.getByRole("button", { name: "Actions" })).toHaveFocus()
+    act(() => screen.getByRole("button", { name: "Elsewhere" }).focus())
+    expect(screen.queryByRole("button", { name: "Actions" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("retains an empty open menu through dismissal and recovers lost focus to the caller's heading", () => {
+    closingMenu()
+    expect(screen.getByRole("heading")).not.toHaveFocus()
+    act(() => vi.runOnlyPendingTimers())
+    expect(screen.getByRole("heading")).toHaveFocus()
+    expect(screen.queryByRole("button", { name: "Actions" })).not.toBeInTheDocument()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("recovers focus when the primitive returns it to the disappearing trigger", () => {
+    closingMenu()
+    act(() => screen.getByRole("button", { name: "Actions" }).focus())
+    act(() => vi.runOnlyPendingTimers())
+    expect(screen.getByRole("heading")).toHaveFocus()
+    expect(screen.queryByRole("button", { name: "Actions" })).not.toBeInTheDocument()
+  })
+
+  it("preserves an explicit destination reached before dismissal finishes", () => {
+    closingMenu()
+    act(() => screen.getByRole("button", { name: "Elsewhere" }).focus())
+    act(() => vi.runOnlyPendingTimers())
+    expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus()
+    expect(screen.queryByRole("button", { name: "Actions" })).not.toBeInTheDocument()
+  })
+
+  it("leaves another document's focus alone", () => {
+    closingMenu()
+    vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    act(() => vi.runOnlyPendingTimers())
+    expect(screen.getByRole("heading")).not.toHaveFocus()
+    expect(screen.queryByRole("button", { name: "Actions" })).not.toBeInTheDocument()
+  })
+
+  it("cancels deferred recovery when the menu reopens or unmounts", () => {
+    const { unmount } = closingMenu()
+    fireEvent.click(screen.getByRole("button", { name: "Actions" }))
+    expect(vi.getTimerCount()).toBe(0)
+    act(() => vi.runOnlyPendingTimers())
+    expect(screen.getByRole("menu")).toBeInTheDocument()
+    expect(screen.getByRole("heading")).not.toHaveFocus()
+    fireEvent.click(screen.getByRole("button", { name: "Close menu" }))
+    expect(vi.getTimerCount()).toBe(1)
+    unmount()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("keeps a restored action menu without moving focus to the fallback", () => {
+    const { rerender } = closingMenu()
+    act(() => screen.getByRole("button", { name: "Actions" }).focus())
+    rerender(<Menu hasActions />)
+    act(() => vi.runOnlyPendingTimers())
+    expect(screen.getByRole("button", { name: "Actions" })).toHaveFocus()
+    expect(screen.getByRole("heading")).not.toHaveFocus()
+    fireEvent.click(screen.getByRole("button", { name: "Actions" }))
+    expect(screen.getByRole("menu")).toBeInTheDocument()
   })
 })

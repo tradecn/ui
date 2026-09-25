@@ -71,7 +71,7 @@ The clock is fixed at a sample instant so the readings stay comparable. Compact 
 
 ## Actions and replies
 
-Install `dropdown-menu` for this composition. `useFeedActions` returns the currently allowed actions, pending state, a pending label and `run(actionId)`. You choose the menu, labels and placement.
+Install `dropdown-menu` for this composition. `useFeedActions` returns the currently allowed actions, pending state, a pending label and `run(actionId)`. `useFeedActionMenu` retains the menu through permission loss and manages dismissal focus. You choose the menu, labels, placement and fallback focus target.
 
 Open Actions: RFQ and choose Reconnect. The feed stays offline while pending. A simulated reply arrives after 1.2 seconds, marks it connected and supplies a timestamp. The allowed action then becomes Resubscribe, which advances the sequence without changing the connection state. Its reply removes all allowed actions. The recipe retains a focused or open menu trigger through that update; an open menu shows a disabled “No actions available.” item. The trigger stays mounted through dismissal so the primitive can finish moving focus. If focus would remain on the disappearing menu or be lost, it returns to the feed reading; an explicit destination outside the menu is preserved. Reopen the menu while Resubscribe is pending to try that path.
 
@@ -210,7 +210,27 @@ Clearing pending does not cancel the underlying request. To keep pending state a
 
 A press does not change the tier. The hook catches synchronous errors and promise rejections without displaying an error; report failures in your integration. Mark controls disabled while pending. For inline buttons that should keep focus, use `aria-disabled` as in the card recipe; `run` still blocks duplicate execution. Permissions changing alone does not settle a request already sent.
 
-The hook runs no menu or focus effects. The copyable menu recipe retains its focused/open trigger through permission loss and dismissal; the card supplies a persistent heading as a focus target when a button disappears. Apply the same ownership when data or permissions change in your layout. Use stable feed keys so removing a feed unmounts its hook and releases its timeout.
+The action hook runs no menu or focus effects. The copyable menu recipe uses `useFeedActionMenu` for retention and dismissal focus; the card supplies a persistent heading as a focus target when a button disappears. Use stable feed keys so removing a feed unmounts its hooks and releases their timers.
+
+### Action-menu focus
+
+`useFeedActionMenu({ hasActions, fallbackRef })` coordinates a caller-owned menu without importing `dropdown-menu`. It is independent of `useFeedActions` and requires no FeedHealth context.
+
+| Option | Type | Default | Purpose |
+|---|---|---|---|
+| `hasActions` | `boolean` | Required | Whether any allowed menu actions remain. Usually `actions.length > 0` from `useFeedActions`. |
+| `fallbackRef` | `RefObject<HTMLElement \| null>` | Required | Persistent, focusable target in the same document, such as the feed reading or a heading with `tabIndex={-1}`. |
+
+| Return | Purpose |
+|---|---|
+| `mounted` | Render the menu tree while actions exist, its trigger has focus, or the menu is open or finishing dismissal. |
+| `menuProps` | Controlled `open` and `onOpenChange` props for `DropdownMenu`. |
+| `triggerProps` | Button ref and focus/blur handlers for `DropdownMenuTrigger`. |
+| `contentProps` | Div ref for `DropdownMenuContent`. |
+
+Keep the fallback mounted outside the conditional menu. Spread each props object onto its corresponding part, as in the menu recipe. If you add refs or focus handlers to those parts, compose them with the returned ones. Keep the empty-menu content and disabled/destructive action styling in your JSX.
+
+When actions disappear, a focused trigger remains until focus leaves, and an open menu remains until dismissed. The trigger stays mounted through one deferred task so the primitive and browser can finish moving focus. If focus is then lost or still belongs to the disappearing menu, the hook focuses the fallback. It preserves deliberate destinations and leaves another document's focus alone. Reopening or unmounting cancels the deferred task. The menu primitive owns keyboard behavior: Base moves on Tab, while Radix keeps its menu open.
 
 ### Announcements and clock
 
