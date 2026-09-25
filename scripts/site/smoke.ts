@@ -1359,6 +1359,76 @@ if (items.includes("data-grid")) {
   }
 }
 
+// The FeedHealth reference keeps ordinary inputs visible. Details are native keyboard controls,
+// and links/search reveal their destination instead of leaving the relevant contract collapsed.
+if (items.includes("feed-health")) {
+  const page = await context.newPage()
+  watch(page, "API reference")
+  try {
+    await page.goto(`${base}/docs/feed-health/`)
+    const reference = page.locator(".api-reference")
+    // Older releases keep their original reference; this presentation is opt-in in the doc source.
+    if (await reference.count()) {
+      await expect(reference.locator(".api-props").first()).toBeVisible()
+      await expect(reference.locator("details[open]")).toHaveCount(0)
+      const detail = page.locator("#usefeedactionmenu-triggerprops-type")
+      const summary = detail.locator("summary")
+      await summary.focus()
+      await page.keyboard.press("Enter")
+      await expect(detail).toHaveAttribute("open", "")
+      await expect(summary).toBeFocused()
+      await expect(detail.locator(".api-signature")).toContainText("onBlur(): void")
+      await page.keyboard.press("Space")
+      await expect(detail).not.toHaveAttribute("open")
+      await expect(summary).toBeFocused()
+      await reference.getByRole("button", { name: "Expand all details", exact: true }).click()
+      await expect(reference.locator("details:not([open])")).toHaveCount(0)
+      await reference.getByRole("button", { name: "Collapse all details", exact: true }).click()
+      await expect(reference.locator("details[open]")).toHaveCount(0)
+      // A direct URL and a legacy heading alias both reveal the relevant detail.
+      await page.goto(`${base}/docs/feed-health/#usefeedactionmenu-triggerprops-type`)
+      await expect(detail.locator(".api-signature")).toBeVisible()
+      await page.goto(`${base}/docs/feed-health/#action-menu-focus`)
+      await expect(page.locator("#feed-action-menu-recovery")).toHaveAttribute("open", "")
+      await page.goto(`${base}/docs/feed-health/`)
+      await page.locator(".site-header .search-button").click()
+      await page.locator("dialog.search input").fill("Activity/Suspense")
+      await page.locator("dialog.search [role='option'][href='/docs/feed-health/#usefeedactions']").click()
+      await expect(page.locator("#feed-actions-lifecycle")).toHaveAttribute("open", "")
+      // Search to the same hash must also reopen a detail the reader closed.
+      await page.locator("#feed-actions-lifecycle summary").click()
+      await page.locator(".site-header .search-button").click()
+      await page.locator("dialog.search input").fill("Activity/Suspense")
+      await page.locator("dialog.search [role='option'][href='/docs/feed-health/#usefeedactions']").click()
+      await expect(page.locator("#feed-actions-lifecycle")).toHaveAttribute("open", "")
+      for (const width of [1280, 390, 360]) {
+        await page.setViewportSize({ width, height: 640 })
+        for (const scheme of ["light", "dark"] as const) {
+          await page.emulateMedia({ colorScheme: scheme })
+          await reference.getByRole("button", { name: "Expand all details", exact: true }).click()
+          expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0)
+          await reference.getByRole("button", { name: "Collapse all details", exact: true }).click()
+        }
+      }
+      const plainContext = await browser.newContext({ javaScriptEnabled: false })
+      try {
+        const plain = await plainContext.newPage()
+        await plain.goto(`${base}/docs/feed-health/`)
+        await plain.locator("#feed-actions-lifecycle summary").click()
+        await expect(plain.locator("#feed-actions-lifecycle p")).toBeVisible()
+        await expect(plain.locator(".api-props").first()).toBeVisible()
+      } finally {
+        await plainContext.close()
+      }
+      console.log("ok  API reference: keyboard disclosures, full types, links/search, narrow themes and no-script access")
+    }
+  } catch (error) {
+    failures.push(`API reference: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
 // The crawlers' two files at the root. robots.txt names the sitemap, and every address the sitemap lists answers
 // with a page that names that address as its canonical and carries no robots meta; the opening page, the docs
 // index, and every page with a preview of its own are among them. A preview and a missing page carry noindex

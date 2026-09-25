@@ -705,6 +705,43 @@ describe("the Manual tab", () => {
 })
 
 describe("markdown", () => {
+  it("renders opted-in API inputs as entries with visible defaults and complete expandable types", () => {
+    const source = `### Widget
+
+<!-- api-props -->
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| \`name\` | \`string\` | Required | Accessible name. |
+| \`delay\` | \`number\` | \`5000\` | Milliseconds. |
+| \`gap\` | \`{ since: number; replaying: boolean } \\| null\` | — | Open gap. |
+| \`run\` | \`(id: string) => void\` | — | Run an action. |
+
+| Tier | Condition |
+|---|---|
+| live | Recent message. |
+`
+    const { html } = renderMarkdown(source)
+    expect(html).not.toContain("<!-- api-props -->")
+    expect(html).toContain('<dl class="api-props">')
+    expect(html).toContain('<div class="api-prop" id="widget-name"><dt><a href="#widget-name"><code>name</code></a></dt>')
+    expect(html).toContain('Type: <code>string</code></span> <span>Required</span>')
+    expect(html).toContain('Default: <code>5000</code>')
+    expect(html).toContain('Type: object | null</span> <span>Optional</span>')
+    expect(html).toContain('<details class="api-details" id="widget-gap-type"><summary>Full type<span class="sr-only"> for gap</span></summary>')
+    expect(html).not.toContain('id="widget-run-type"')
+    expect(textOf(html)).toContain('Full type for gap { since: number; replaying: boolean } | null')
+    expect(html.match(/<table>/g)).toHaveLength(1)
+    expect(html).toContain('<th>Tier</th>')
+  })
+
+  it("keeps return values distinct from optional props and rejects an incompatible API table", () => {
+    const { html } = renderMarkdown('### Hook\n\n<!-- api-props -->\n\n| Return | Type | Purpose |\n|---|---|---|\n| `result` | `string` | Latest result. |\n')
+    expect(textOf(html)).toContain('result Type: string Latest result.')
+    expect(html).not.toMatch(/Optional|Default:/)
+    expect(() => renderMarkdown('<!-- api-props -->\n\n| Name | Description |\n|---|---|\n| x | y |\n')).toThrow(/api-props needs/)
+  })
+
   it("takes the title from the first heading and gives every heading an anchor", () => {
     const doc = renderMarkdown("# `format`\n\nIntro line.\n\n## Prices\n\ntext\n\n## Prices\n\nmore\n\n### The rest\n")
     expect(doc.title).toBe("format")

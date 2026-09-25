@@ -624,9 +624,44 @@ export function firstParagraph(markdown: string): string {
 export function renderMarkdown(markdown: string): RenderedDoc {
   const ids = new Map<string, number>()
   let title = ""
+  let section = ""
+  let apiTable = false
+  const uniqueId = (name: string) => {
+    const id = slugify(name)
+    const seen = ids.get(id) ?? 0
+    ids.set(id, seen + 1)
+    return seen ? `${id}-${seen}` : id
+  }
   const marked = new Marked({ gfm: true })
   marked.use({
     renderer: {
+      // Opt in one table at a time. The source remains a readable Markdown table on GitHub.
+      html(token) {
+        if (token.text.trim() !== "<!-- api-props -->") return false
+        apiTable = true
+        return ""
+      },
+      table(token) {
+        if (!apiTable) return false
+        apiTable = false
+        const headers = token.header.map((cell) => cell.text)
+        const defaults = headers.length === 4
+        if (headers[1] !== "Type" || headers.at(-1) !== "Purpose" || (defaults ? headers[2] !== "Default" : headers.length !== 3)) {
+          throw new Error("api-props needs Name / Type / Default / Purpose or Name / Type / Purpose columns")
+        }
+        const rows = token.rows.map((row) => {
+          const cells = row.map((cell) => this.parser.parseInline(cell.tokens))
+          const [name = "", type = ""] = cells
+          const id = uniqueId(`${section}-${textOf(name)}`)
+          const signature = textOf(type)
+          const complex = signature.startsWith("{") ? `object${signature.slice(signature.lastIndexOf("}") + 1)}` : signature.includes("=>") && signature.length > 40 ? "function" : null
+          const value = cells[2] ?? ""
+          const status = !defaults ? "" : value === "Required" ? "Required" : value === "—" ? "Optional" : `Default: ${value}`
+          const detail = complex ? `<details class="api-details" id="${id}-type"><summary>Full type<span class="sr-only"> for ${escapeHtml(textOf(name))}</span></summary><div class="api-signature">${type}</div></details>` : ""
+          return `<div class="api-prop" id="${id}"><dt><a href="#${id}">${name}</a></dt><dd class="api-meta"><span>Type: ${complex ? escapeHtml(complex) : type}</span>${status ? ` <span>${status}</span>` : ""}</dd><dd class="api-description">${cells.at(-1)}${detail}</dd></div>`
+        })
+        return `<dl class="api-props">\n${rows.join("\n")}\n</dl>\n`
+      },
       link(token) {
         // A doc links a sibling as `data-grid.md`, which works on GitHub; here that page is /docs/data-grid/.
         const href = /^[\w-]+\.md$/.test(token.href) ? `/docs/${token.href.slice(0, -".md".length)}/` : token.href
@@ -636,10 +671,8 @@ export function renderMarkdown(markdown: string): RenderedDoc {
       heading(token) {
         const plain = token.text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/`/g, "")
         if (token.depth === 1 && !title) title = plain
-        let id = slugify(plain)
-        const seen = ids.get(id) ?? 0
-        ids.set(id, seen + 1)
-        if (seen) id = `${id}-${seen}`
+        const id = uniqueId(plain)
+        if (token.depth <= 3) section = id
         const inline = this.parser.parseInline(token.tokens)
         const linked = token.tokens.some((t) => t.type === "link")
         return `<h${token.depth} id="${id}">${linked ? inline : `<a href="#${id}">${inline}</a>`}</h${token.depth}>\n`
@@ -1177,7 +1210,7 @@ const NAMED_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quo
 /** Rendered HTML as the words on the page: a block's end is a space, an inline tag is nothing, entities decoded, whitespace folded. */
 export function textOf(html: string): string {
   return html
-    .replace(/<\/?(p|li|h[1-6]|br|hr|td|th|tr|pre|div|ul|ol|blockquote|table|thead|tbody|dl|dt|dd)\b[^>]*>/g, " ")
+    .replace(/<\/?(p|li|h[1-6]|br|hr|td|th|tr|pre|div|ul|ol|blockquote|table|thead|tbody|dl|dt|dd|details|summary)\b[^>]*>/g, " ")
     .replace(/<[^>]+>/g, "")
     .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity: string, code: string) => {
       if (code[0] === "#") return String.fromCodePoint(code[1]?.toLowerCase() === "x" ? parseInt(code.slice(2), 16) : Number(code.slice(1)))
