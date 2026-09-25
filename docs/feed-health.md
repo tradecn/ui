@@ -110,9 +110,8 @@ Install `button`. This layout puts metadata inline, application fields in the de
 Parts forward their underlying element's props, refs, `className` and events. Children are caller-owned except where a part supplies defaults below; the list takes a callback and the announcer excludes children.
 
 <div id="props"></div>
-<div id="group-and-item"></div>
 
-### `<FeedHealth />`
+### `<FeedHealth />` <!-- heading-id: feedhealth-root -->
 
 A div that supplies the collection, shared options and tooltip provider. Nested roots inherit omitted options but own their collections.
 
@@ -215,8 +214,6 @@ Future timestamps clamp to zero. `formatAge(ms)` returns `now` below one second,
 
 </details>
 
-<div id="announcements-and-clock"></div>
-
 ### `<FeedHealthAnnouncer />`
 
 `FeedHealthAnnouncer` is a span with a polite, atomic live region and no `children` prop. Mount once per collection, including when several lists display it.
@@ -245,8 +242,6 @@ Owns pending state without subscribing to the clock. Use one owner per feed and 
 
 - `feed: FeedDescriptor`: the current feed, including its allowed action ids.
 - `actions: readonly FeedAction[]`: your action definitions, in display order.
-
-<div id="options"></div>
 
 #### `options?: UseFeedActionsOptions`
 
@@ -283,13 +278,9 @@ The action hook does not change the tier. Errors and rejections are caught but n
 
 Disable pending controls; `aria-disabled` preserves inline-button focus while the hook blocks duplicates. The hook manages no menus or focus. Use `useFeedActionMenu` for menus or a persistent fallback for disappearing buttons, as in the card. Use `feed.id` keys when mapping rows yourself.
 
-<div id="action-menu-focus"></div>
-
 ### `useFeedActionMenu(options)`
 
 Needs neither FeedHealth context nor `useFeedActions` and imports no menu primitive.
-
-<div id="options-1"></div>
 
 #### `options: UseFeedActionMenuOptions`
 

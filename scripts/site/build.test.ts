@@ -705,6 +705,32 @@ describe("the Manual tab", () => {
 })
 
 describe("markdown", () => {
+  it("pins an explicit heading URL and its property links independently of heading names and order", () => {
+    const body = `### \`<Widget />\` <!-- heading-id: widget-root -->
+
+<!-- api-props -->
+
+| Prop | Type | Purpose |
+|---|---|---|
+| \`name\` | \`string\` | Visible name. |
+`
+    for (const before of ["## API Reference\n\n", "# Widget\n\n## Widget\n\n## API Reference\n\n"]) {
+      const { html } = renderMarkdown(before + body)
+      expect(html).toContain('<h3 id="widget-root"><a href="#widget-root"><code>&lt;Widget /&gt;</code></a></h3>')
+      expect(html).toContain('<div class="api-prop" id="widget-root-name"><dt><a href="#widget-root-name">')
+      expect(html).not.toContain("heading-id:")
+      expect(toc(html)).toContain('<a href="#widget-root"><code>&lt;Widget /&gt;</code></a>')
+    }
+    expect(renderMarkdown(body.replace("<Widget />", "<RenamedWidget />")).html).toContain('id="widget-root"')
+    expect(() => renderMarkdown("# Widget root\n\n" + body)).toThrow("Duplicate heading id: widget-root")
+    expect(() => renderMarkdown(body + "\n" + body)).toThrow("Duplicate heading id: widget-root")
+    // Generated suffixes must also avoid a URL that was explicitly reserved.
+    const { html } = renderMarkdown("### Fixed <!-- heading-id: widget-1 -->\n\n## Widget\n\n## Widget\n")
+    expect(html).toContain('<h3 id="widget-1">')
+    expect(html).toContain('<h2 id="widget">')
+    expect(html).toContain('<h2 id="widget-2">')
+  })
+
   it("keeps API links stable when headings show JSX, typed signatures and interface declarations", () => {
     const { html } = renderMarkdown(`# FeedHealth
 
@@ -933,6 +959,12 @@ describe("the docs pages", async () => {
     const html = at("docs/feed-health/index.html")
     for (const id of ["props", "feeds", "tiers", "lanes", "thresholds-and-the-session", "actions", "the-clock", "tokens"]) {
       expect(html.match(new RegExp(`id="${id}"`, "g")), id).toHaveLength(1)
+    }
+    expect(html).toContain('<h3 id="feedhealth-root">')
+    expect(html).not.toContain('id="feedhealth-1')
+    for (const prop of ["feeds", "children", "thresholds", "session", "clock", "classname"]) {
+      expect(html).toContain(`id="feedhealth-root-${prop}"`)
+      expect(html).toContain(`href="#feedhealth-root-${prop}"`)
     }
   })
 

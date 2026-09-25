@@ -622,15 +622,17 @@ export function firstParagraph(markdown: string): string {
  * since a link inside a link is not HTML.
  */
 export function renderMarkdown(markdown: string): RenderedDoc {
-  const ids = new Map<string, number>()
+  const ids = new Set<string>()
   let title = ""
   let section = ""
   let apiTable = false
-  const uniqueId = (name: string) => {
-    const id = slugify(name)
-    const seen = ids.get(id) ?? 0
-    ids.set(id, seen + 1)
-    return seen ? `${id}-${seen}` : id
+  const uniqueId = (name: string, fixed = false) => {
+    const base = slugify(name)
+    if (fixed && ids.has(base)) throw new Error(`Duplicate heading id: ${base}`)
+    let id = base
+    for (let suffix = 1; ids.has(id); suffix++) id = `${base}-${suffix}`
+    ids.add(id)
+    return id
   }
   const marked = new Marked({ gfm: true })
   marked.use({
@@ -669,16 +671,22 @@ export function renderMarkdown(markdown: string): RenderedDoc {
         return `<a href="${escapeHtml(href)}"${title}>${this.parser.parseInline(token.tokens)}</a>`
       },
       heading(token) {
-        const plain = token.text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/`/g, "")
+        // A trailing comment fixes a public URL without adding visible syntax to the Markdown.
+        const last = token.tokens.at(-1)
+        const fixed = last?.type === "html" ? /^<!-- heading-id: ([a-z][a-z0-9-]*) -->$/.exec(last.text)?.[1] : undefined
+        const text = fixed ? token.text.slice(0, token.text.lastIndexOf("<!--")).trimEnd() : token.text
+        const tokens = fixed ? token.tokens.slice(0, -1) : token.tokens
+        const plain = text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/`/g, "")
         if (token.depth === 1 && !title) title = plain
         // A code-only signature identifies its export: parameters and declaration syntax do not change its links.
-        const reference = token.tokens.length === 1 && token.tokens[0]?.type === "codespan"
+        const reference = tokens.length === 1 && tokens[0]?.type === "codespan"
           ? /^(?:interface |type )?([A-Za-z_$][\w$]*)(?:\(|$)/.exec(plain)?.[1]
           : undefined
-        const id = uniqueId(reference ?? plain)
+        const id = uniqueId(fixed ?? reference ?? plain, fixed !== undefined)
         if (token.depth <= 3) section = id
-        const inline = this.parser.parseInline(token.tokens)
-        const linked = token.tokens.some((t) => t.type === "link")
+        const rendered = this.parser.parseInline(tokens)
+        const inline = fixed ? rendered.trimEnd() : rendered
+        const linked = tokens.some((t) => t.type === "link")
         return `<h${token.depth} id="${id}">${linked ? inline : `<a href="#${id}">${inline}</a>`}</h${token.depth}>\n`
       },
     },

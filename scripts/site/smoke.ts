@@ -1388,11 +1388,13 @@ if (items.includes("feed-health")) {
       // A direct URL and a legacy heading alias both reveal the relevant detail.
       await page.goto(`${base}/docs/feed-health/#usefeedactionmenu-triggerprops-type`)
       await expect(detail.locator(".api-signature")).toBeVisible()
-      await page.goto(`${base}/docs/feed-health/#action-menu-focus`)
-      await expect(page.locator("#feed-action-menu-recovery")).toHaveAttribute("open", "")
+      await page.goto(`${base}/docs/feed-health/#actions`)
+      await expect(page.locator("#feed-actions-lifecycle")).toHaveAttribute("open", "")
       // Links from the original closed widget still lead to the corresponding public API sections.
       await page.goto(`${base}/docs/feed-health/#props`)
-      await expect(page.locator("#feedhealth-1")).toBeInViewport()
+      await expect(page.locator("#feedhealth-root")).toBeInViewport()
+      await page.goto(`${base}/docs/feed-health/#feedhealth-root-feeds`)
+      await expect(page.locator("#feedhealth-root-feeds")).toBeInViewport()
       await page.goto(`${base}/docs/feed-health/#the-clock`)
       await expect(page.locator("#clock-methods")).toHaveAttribute("open", "")
       await page.goto(`${base}/docs/feed-health/#tokens`)
