@@ -1,6 +1,7 @@
+import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { useMemo, useState } from "react"
 import { QUERY_KIND_LABELS, recognizeQuery } from "@/registry/tradecn/lib/instrument-query"
-import { CommandPalette, createActionRegistry } from "@/registry/tradecn/ui/command-palette"
+import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, createActionRegistry } from "@/registry/tradecn/ui/command-palette"
 import { InstrumentSearch, toSymbolAdapter, type InstrumentHit, type InstrumentSearchFn } from "@/registry/tradecn/ui/instrument-search"
 
 // One search function, three places: the field, the palette's symbol rows (mod+k), and a raw readout of what the
@@ -64,7 +65,42 @@ export function InstrumentSearchScene() {
         <pre className="whitespace-pre-wrap">{JSON.stringify(hint, null, 1)}</pre>
       </div>
       <pre className="h-24 overflow-auto rounded-md border border-border bg-card p-2 text-muted-foreground">{log.join("\n") || "picks land here"}</pre>
-      <CommandPalette actions={actions} symbols={symbols} onSymbolSelect={(s) => say(`palette picked ${s.symbol}`)} />
+      <CommandPalette actions={actions} symbols={symbols} onSymbolSelect={(s) => say(`palette picked ${s.symbol}`)}>
+        <CommandPaletteDialog>
+          <CommandPaletteContent>
+            <CommandPaletteInput />
+            <CommandPaletteList><PaletteResults /></CommandPaletteList>
+          </CommandPaletteContent>
+        </CommandPaletteDialog>
+      </CommandPalette>
     </main>
+  )
+}
+
+function PaletteResults() {
+  const { loading } = useCommandPalette()
+  return (
+    <>
+      <CommandPaletteEmpty>{loading ? "Searching…" : "No results"}</CommandPaletteEmpty>
+      <CommandPaletteResults>
+        {(group) => (
+          <CommandGroup heading={group.heading}>
+            {(group.id === "recent" ? group.rows.slice(0, 5) : group.rows).map((row) => (
+              <CommandPaletteItem key={row.key} row={row}>
+                <span className="truncate">{row.title}</span>
+                {row.subtitle && <span className="truncate text-muted-foreground">{row.subtitle}</span>}
+                {row.badge && <span className="rounded border border-border px-1 text-xs uppercase">{row.badge}</span>}
+                {(row.secondary || row.keys) && (
+                  <CommandShortcut className="flex shrink-0 items-center gap-2 text-xs tracking-normal">
+                    <CommandPaletteSecondary><CommandPaletteKeys keys="shift+enter" />{row.secondary?.title}</CommandPaletteSecondary>
+                    {row.keys && <CommandPaletteKeys keys={row.keys} />}
+                  </CommandShortcut>
+                )}
+              </CommandPaletteItem>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandPaletteResults>
+    </>
   )
 }

@@ -1,7 +1,8 @@
+import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { useCallback, useEffect, useState } from "react"
 import { HotkeyScope, HotkeysProvider, useHotkey } from "@/registry/tradecn/hooks/use-hotkeys"
 import type { HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
-import { CommandPalette, createActionRegistry, type PaletteAction, type PaletteRecent, type SymbolResult, type SymbolSearchAdapter } from "@/registry/tradecn/ui/command-palette"
+import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, createActionRegistry, type PaletteAction, type PaletteRecent, type SymbolResult, type SymbolSearchAdapter } from "@/registry/tradecn/ui/command-palette"
 
 const BINDINGS: HotkeyBinding[] = [
   { id: "go.blotter", keys: "g b", scope: "global", description: "Go to the blotter", group: "Go" },
@@ -113,8 +114,20 @@ function Scene() {
       <p className="text-muted-foreground">
         The go-bar below and the dialog share one registry, one symbol adapter, and one list of recents. Try <code>aapl gp</code>, <code>tick</code>, or a symbol, then Shift+Enter. The dialog opens on mod+k; the go-bar focuses on <code>/</code>.
       </p>
-      <CommandPalette variant="go-bar" {...shared} />
-      <CommandPalette {...shared} open={open} onOpenChange={setOpen} className="sm:max-w-xl" />
+      <CommandPalette variant="go-bar" {...shared}>
+        <CommandPaletteContent>
+          <CommandPaletteInput />
+          <CommandPaletteList><PaletteResults /></CommandPaletteList>
+        </CommandPaletteContent>
+      </CommandPalette>
+      <CommandPalette {...shared} open={open} onOpenChange={setOpen}>
+        <CommandPaletteDialog className="sm:max-w-xl">
+          <CommandPaletteContent>
+            <CommandPaletteInput />
+            <CommandPaletteList><PaletteResults /></CommandPaletteList>
+          </CommandPaletteContent>
+        </CommandPaletteDialog>
+      </CommandPalette>
       <div className="grid grid-cols-2 gap-3">
         <Book log={log} />
         <section className="rounded border border-border p-3">
@@ -139,5 +152,33 @@ export function CommandPaletteScene() {
     <HotkeysProvider bindings={BINDINGS}>
       <Scene />
     </HotkeysProvider>
+  )
+}
+
+function PaletteResults() {
+  const { loading } = useCommandPalette()
+  return (
+    <>
+      <CommandPaletteEmpty>{loading ? "Searching…" : "No results"}</CommandPaletteEmpty>
+      <CommandPaletteResults>
+        {(group) => (
+          <CommandGroup heading={group.heading}>
+            {(group.id === "recent" ? group.rows.slice(0, 5) : group.rows).map((row) => (
+              <CommandPaletteItem key={row.key} row={row}>
+                <span className="truncate">{row.title}</span>
+                {row.subtitle && <span className="truncate text-muted-foreground">{row.subtitle}</span>}
+                {row.badge && <span className="rounded border border-border px-1 text-xs uppercase">{row.badge}</span>}
+                {(row.secondary || row.keys) && (
+                  <CommandShortcut className="flex shrink-0 items-center gap-2 text-xs tracking-normal">
+                    <CommandPaletteSecondary><CommandPaletteKeys keys="shift+enter" />{row.secondary?.title}</CommandPaletteSecondary>
+                    {row.keys && <CommandPaletteKeys keys={row.keys} />}
+                  </CommandShortcut>
+                )}
+              </CommandPaletteItem>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandPaletteResults>
+    </>
   )
 }

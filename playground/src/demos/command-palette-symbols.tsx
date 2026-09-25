@@ -1,6 +1,7 @@
+import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { useState } from "react"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
-import { CommandPalette, createActionRegistry, type SymbolResult, type SymbolSearchAdapter } from "@/registry/tradecn/ui/command-palette"
+import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, createActionRegistry, type SymbolResult, type SymbolSearchAdapter } from "@/registry/tradecn/ui/command-palette"
 
 const SYMBOLS: SymbolResult[] = [
   { symbol: "AAPL", name: "Apple" },
@@ -41,9 +42,44 @@ export default function CommandPaletteSymbolsDemo() {
           symbols={symbols}
           onSymbolSelect={(symbol) => setResult(`Selected: ${symbol.symbol}`)}
           symbolSecondary={{ title: "Watch", run: (symbol) => setResult(`Watch requested: ${symbol.symbol}`) }}
-          labels={{ title: "Find a symbol", placeholder: "Search at least two letters…", empty: "No matching symbols" }}
-        />
+          labels={{ title: "Find a symbol", placeholder: "Search at least two letters…" }}
+        >
+          <CommandPaletteDialog>
+            <CommandPaletteContent>
+              <CommandPaletteInput />
+              <CommandPaletteList><PaletteResults /></CommandPaletteList>
+            </CommandPaletteContent>
+          </CommandPaletteDialog>
+        </CommandPalette>
       </div>
     </HotkeysProvider>
+  )
+}
+
+function PaletteResults() {
+  const { loading } = useCommandPalette()
+  return (
+    <>
+      <CommandPaletteEmpty>{loading ? "Searching…" : "No matching symbols"}</CommandPaletteEmpty>
+      <CommandPaletteResults>
+        {(group) => (
+          <CommandGroup heading={group.heading}>
+            {(group.id === "recent" ? group.rows.slice(0, 5) : group.rows).map((row) => (
+              <CommandPaletteItem key={row.key} row={row}>
+                <span className="truncate">{row.title}</span>
+                {row.subtitle && <span className="truncate text-muted-foreground">{row.subtitle}</span>}
+                {row.badge && <span className="rounded border border-border px-1 text-xs uppercase">{row.badge}</span>}
+                {(row.secondary || row.keys) && (
+                  <CommandShortcut className="flex shrink-0 items-center gap-2 text-xs tracking-normal">
+                    <CommandPaletteSecondary><CommandPaletteKeys keys="shift+enter" />{row.secondary?.title}</CommandPaletteSecondary>
+                    {row.keys && <CommandPaletteKeys keys={row.keys} />}
+                  </CommandShortcut>
+                )}
+              </CommandPaletteItem>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandPaletteResults>
+    </>
   )
 }

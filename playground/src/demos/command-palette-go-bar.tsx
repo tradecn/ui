@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { CommandGroup } from "@/components/ui/command"
+import { useId, useState } from "react"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
-import { CommandPalette, createActionRegistry, type PaletteAction } from "@/registry/tradecn/ui/command-palette"
+import { CommandPalette, CommandPaletteContent, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteList, useCommandPalette, createActionRegistry, type PaletteAction } from "@/registry/tradecn/ui/command-palette"
 
 const SYMBOLS = new Set(["AAPL", "MSFT", "ZN"])
 const FUNCTIONS = [
@@ -9,6 +10,7 @@ const FUNCTIONS = [
 ]
 
 export default function CommandPaletteGoBarDemo() {
+  const helpId = useId()
   const [actions] = useState(() => createActionRegistry())
   const [command, setCommand] = useState("None")
   const grammar = (input: string): PaletteAction[] => {
@@ -24,9 +26,37 @@ export default function CommandPaletteGoBarDemo() {
   return (
     <HotkeysProvider>
       <div className="min-h-64 w-md max-w-full space-y-3 text-sm">
-        <CommandPalette variant="go-bar" actions={actions} goBarGrammar={grammar} />
+        <CommandPalette variant="go-bar" actions={actions} goBarGrammar={grammar} labels={{ title: "Instrument functions" }}>
+          <CommandPaletteContent>
+            <p className="px-2 pb-2 text-xs font-medium">Instrument functions</p>
+            <CommandPaletteInput aria-describedby={helpId} />
+            <p id={helpId} className="px-3 py-2 text-xs text-muted-foreground">DES: description · GP: price chart</p>
+            <CommandPaletteList className="mt-0"><PaletteResults /></CommandPaletteList>
+          </CommandPaletteContent>
+        </CommandPalette>
         <p role="status">Command: {command}</p>
       </div>
     </HotkeysProvider>
+  )
+}
+
+function PaletteResults() {
+  const { groups } = useCommandPalette()
+  return (
+    <>
+      <CommandPaletteEmpty>Type a symbol and function.</CommandPaletteEmpty>
+      {groups.map((group) => (
+        <CommandGroup key={group.id} heading={group.heading}>
+          {group.rows.map((row) => (
+            <CommandPaletteItem key={row.key} row={row} className="items-start py-3">
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="font-medium">{row.title}</span>
+                <span className="text-muted-foreground">{row.subtitle}</span>
+              </span>
+            </CommandPaletteItem>
+          ))}
+        </CommandGroup>
+      ))}
+    </>
   )
 }

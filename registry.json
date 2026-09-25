@@ -398,12 +398,11 @@
       "name": "command-palette",
       "type": "registry:ui",
       "title": "Command Palette",
-      "description": "A command palette on your own shadcn command: actions from a registry, a second action per row on Shift+Enter, async symbol search through an adapter you supply, recents, and shortcuts rendered live from the hotkey registry. A go-bar variant renders inline and reads SYMBOL FUNCTION commands through your grammar.",
+      "description": "Compose a command palette from public parts on your own shadcn command. Shared behavior supplies registered actions, Shift+Enter secondary actions, async symbol search, recents and live shortcut data. Use the optional dialog wrapper or compose an inline go-bar with your own grammar and result markup.",
       "dependencies": [
         "cn@^0.3.0"
       ],
       "registryDependencies": [
-        "badge",
         "command",
         "kbd"
       ],
@@ -425,12 +424,52 @@
         "palette",
         "hotkeys"
       ],
-      "docs": "Composes your command (and the dialog and input-group it brings), kbd, and badge. Installs the hotkey registry alongside; inside a HotkeysProvider the palette declares palette.open on mod+k, and remaps show on the rows. No dependency beyond cn: cmdk comes with your own command component.",
+      "docs": "Uses your command (and the dialog and input-group it brings) and kbd. Callers compose public parts, groups, result markup and empty content; CommandPaletteDialog supplies an optional modal shell. Installs the hotkey registry alongside; inside a HotkeysProvider the palette declares palette.open on mod+k. Render live row.keys with CommandPaletteKeys to show remaps. No dependency beyond cn: cmdk comes with your own command component.",
       "meta": {
         "components": [
           {
             "title": "CommandPalette",
-            "description": "The palette, as a dialog or an inline go-bar."
+            "description": "Shared open state, scopes and hotkeys for caller-owned palette content."
+          },
+          {
+            "title": "CommandPaletteContent",
+            "description": "Search, keyboard selection and caller-owned children."
+          },
+          {
+            "title": "CommandPaletteDialog",
+            "description": "Optional dialog bound to the root open state."
+          },
+          {
+            "title": "CommandPaletteInput",
+            "description": "Query input with inline focus behavior."
+          },
+          {
+            "title": "CommandPaletteList",
+            "description": "Result list with inline visibility and focus retention."
+          },
+          {
+            "title": "CommandPaletteItem",
+            "description": "Selectable result with caller-owned content."
+          },
+          {
+            "title": "CommandPaletteResults",
+            "description": "Keyed group callback for caller rendering."
+          },
+          {
+            "title": "CommandPaletteEmpty",
+            "description": "Caller-owned empty or loading message."
+          },
+          {
+            "title": "CommandPaletteSecondary",
+            "description": "Optional secondary-action button inside a result."
+          },
+          {
+            "title": "CommandPaletteKeys",
+            "description": "Platform-aware shortcut caps."
+          },
+          {
+            "title": "useCommandPalette",
+            "description": "Read groups and search state without another search subscription."
           },
           {
             "title": "createActionRegistry",
