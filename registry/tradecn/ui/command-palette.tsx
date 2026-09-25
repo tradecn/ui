@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, Fragment, useContext, useEffect, useImperativeHandle, useRef, useState, useSyncExternalStore, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
+import { createContext, Fragment, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from "react"
 import { Command, CommandDialog, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
@@ -313,13 +313,31 @@ export function useCommandPalette(): CommandPaletteState {
   return state
 }
 
+function assignPaletteRef<T>(ref: Ref<T> | undefined, node: T | null) {
+  if (typeof ref === "function") return ref(node)
+  if (ref) ref.current = node
+}
+
+// Attach both refs to the actual node, including replacements made by the consumer's primitive.
+function usePaletteRef<T>(localRef: { current: T | null }, forwardedRef: Ref<T> | undefined) {
+  return useCallback((node: T | null) => {
+    localRef.current = node
+    const cleanup = assignPaletteRef(forwardedRef, node)
+    return () => {
+      localRef.current = null
+      if (typeof cleanup === "function") cleanup()
+      else assignPaletteRef(forwardedRef, null)
+    }
+  }, [localRef, forwardedRef])
+}
+
 export type CommandPaletteContentProps = Omit<ComponentProps<typeof Command>, "children" | "shouldFilter"> & { children: ReactNode }
 
 export function CommandPaletteContent({ children, ref, className, onKeyDown: onKeyDownProp, onBlur, ...props }: CommandPaletteContentProps) {
   const { options, labels, hotkeys, ownBindingId, scopes, open, setOpen, inputRef } = usePaletteRoot()
   const { actions, symbols, onSymbolSelect, symbolSecondary, goBarGrammar, variant = "palette" } = options
   const root = useRef<HTMLDivElement>(null)
-  useImperativeHandle(ref, () => root.current!)
+  const contentRef = usePaletteRef(root, ref)
   const onDone = () => {
     setOpen(false)
     if (variant === "go-bar") inputRef.current?.blur()
@@ -459,7 +477,7 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   return (
     <ContentContext value={{ groups: sections, input, setInput, loading: search.loading, open, setOpen, platform: hotkeys?.platform, select }}>
       <Command
-        ref={root}
+        ref={contentRef}
         loop
         label={labels.title}
         {...props}
@@ -559,12 +577,12 @@ export type CommandPaletteInputProps = Omit<ComponentProps<typeof CommandInput>,
 export function CommandPaletteInput({ ref, onFocus, ...props }: CommandPaletteInputProps) {
   const { input, setInput } = useCommandPalette()
   const { labels, options, setOpen, inputRef } = usePaletteRoot()
-  useImperativeHandle(ref, () => inputRef.current!)
+  const fieldRef = usePaletteRef(inputRef, ref)
   return (
     <CommandInput
       placeholder={labels.placeholder}
       {...props}
-      ref={inputRef}
+      ref={fieldRef}
       value={input}
       onValueChange={setInput}
       onFocus={(event) => {
@@ -622,13 +640,13 @@ export function CommandPaletteSecondary({ children, className, onClick, onMouseD
     <button
       type="button"
       tabIndex={-1}
-      data-secondary=""
       className={cn("hidden items-center gap-1 in-data-[selected=true]:inline-flex", className)}
       {...props}
       onMouseDown={(event) => {
         onMouseDown?.(event)
         event.preventDefault()
       }}
+      data-secondary=""
       disabled={disabled || props.disabled}
       onClick={(event) => {
         event.stopPropagation()
