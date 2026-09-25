@@ -18,6 +18,8 @@ interface PlotDouble {
   destroy: ReturnType<typeof vi.fn>
   setCursor: ReturnType<typeof vi.fn>
   valToPos: ReturnType<typeof vi.fn>
+  cursor: { idx: number | null; event?: MouseEvent; left: number; top: number }
+  fireCursor: () => void
 }
 
 vi.mock("uplot", () => ({
@@ -28,7 +30,12 @@ vi.mock("uplot", () => ({
     setSize = vi.fn()
     redraw = vi.fn()
     destroy = vi.fn()
-    setCursor = vi.fn()
+    cursor: PlotDouble["cursor"] = { idx: null, left: -10, top: -10 }
+    fireCursor = () => this.options.hooks?.setCursor?.forEach((hook) => hook?.(this as unknown as uPlot))
+    setCursor = vi.fn((position: { left: number; top: number }, fireHook = true) => {
+      Object.assign(this.cursor, position)
+      if (fireHook) this.fireCursor()
+    })
     valToPos = vi.fn((value: number) => value)
     over = document.createElement("div")
     options: uPlot.Options
@@ -92,6 +99,72 @@ describe("PriceChart plot lifecycle", () => {
     unmount()
     expect(plot.destroy).toHaveBeenCalledOnce()
     expect(resizeDisconnect).toHaveBeenCalledOnce()
+  })
+
+  it("moves the keyboard crosshair to the retained bar when the selected tail is removed", () => {
+    const { store } = setup()
+    act(() => store.applyDeltas({ upsert: [{ ...first, time: 2_000 }, { ...first, time: 3_000 }] }))
+    const plot = drawing.plots[0]!
+    act(() => screen.getByRole("slider").focus())
+    plot.setCursor.mockClear()
+    act(() => store.applyDeltas({ remove: [barId(2_000), barId(3_000)] }))
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "0")
+    expect(plot.setCursor).toHaveBeenLastCalledWith({ left: first.time, top: first.close }, false)
+  })
+
+  it("resynchronizes keyboard coordinates after uPlot commits new scales without echoing callbacks", () => {
+    const onCursor = vi.fn()
+    const { store } = setup({ onCursor })
+    const plot = drawing.plots[0]!
+    act(() => screen.getByRole("slider").focus())
+    expect(onCursor).toHaveBeenCalledOnce()
+    act(() => store.applyDeltas({ upsert: [{ ...first, close: 12 }] }))
+    plot.valToPos.mockImplementation((value: number) => value + 50)
+    act(() => plot.fireCursor())
+    expect(plot.setCursor).toHaveBeenLastCalledWith({ left: 1_050, top: 62 }, false)
+    expect(onCursor).toHaveBeenCalledOnce()
+  })
+
+  it("keeps pointer coordinates through data commits and hands control back to the keys", () => {
+    const onCursor = vi.fn()
+    const { store } = setup({ onCursor })
+    act(() => store.applyDeltas({ upsert: [{ ...first, time: 2_000 }, { ...first, time: 3_000 }] }))
+    const plot = drawing.plots[0]!
+    Object.assign(plot.cursor, { idx: 2, left: 2_950, top: 9, event: new MouseEvent("mousemove") })
+    act(() => plot.fireCursor())
+    expect(onCursor).toHaveBeenCalledOnce()
+    plot.setCursor.mockClear()
+    act(() => store.applyDeltas({ remove: [barId(2_000), barId(3_000)] }))
+    plot.cursor.idx = 0
+    act(() => plot.fireCursor())
+    expect(plot.setCursor).not.toHaveBeenCalled()
+    expect(plot.cursor).toMatchObject({ left: 2_950, top: 9 })
+    expect(onCursor).toHaveBeenCalledTimes(2)
+    fireEvent.keyDown(screen.getByRole("slider"), { key: "Escape" })
+    expect(plot.setCursor).toHaveBeenLastCalledWith({ left: -10, top: -10 }, false)
+    fireEvent.keyDown(screen.getByRole("slider"), { key: "Home" })
+    expect(plot.setCursor).toHaveBeenLastCalledWith({ left: 1_000, top: 11 }, false)
+    plot.setCursor.mockClear()
+    act(() => plot.fireCursor())
+    expect(plot.setCursor).toHaveBeenLastCalledWith({ left: 1_000, top: 11 }, false)
+    expect(onCursor).toHaveBeenCalledTimes(4)
+  })
+
+  it("lets a key reclaim the same bar from the pointer and ignores a destroyed plot's queued hook", () => {
+    const onCursor = vi.fn()
+    const { chart, rerender } = setup({ onCursor })
+    const old = drawing.plots[0]!
+    Object.assign(old.cursor, { idx: 0, left: 1_020, top: 9, event: new MouseEvent("mousemove") })
+    act(() => old.fireCursor())
+    old.setCursor.mockClear()
+    fireEvent.keyDown(screen.getByRole("slider"), { key: "Home" })
+    expect(old.setCursor).toHaveBeenLastCalledWith({ left: 1_000, top: 11 }, false)
+    rerender(chart({ kind: "candles" }))
+    const current = drawing.plots[1]!
+    act(() => old.fireCursor())
+    act(() => current.fireCursor())
+    expect(current.setCursor).toHaveBeenLastCalledWith({ left: 1_000, top: 11 }, false)
+    expect(onCursor).toHaveBeenCalledOnce()
   })
 
   it("recreates for structural changes and destroys on empty data before repopulation", () => {

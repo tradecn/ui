@@ -1759,5 +1759,29 @@ test("a price chart paints in the page's tokens, prints the last with its sign, 
     return out
   })
   expect(swatch.swatch, "bg-chart-1 resolves to the token").toBe(swatch.token)
+  // Retention can remove the keyboard-selected tail without moving focus. The crosshair must
+  // follow the retained bar after uPlot commits its new scales, without echoing a cursor callback.
+  await plot.focus()
+  await page.keyboard.press("End")
+  const calls = await scene.locator("[data-cursor-calls]").getAttribute("data-cursor-calls")
+  await scene.getByRole("button", { name: "retain first bar" }).click()
+  await expect(plot).toBeFocused()
+  await expect(plot).toHaveAttribute("aria-valuenow", "0")
+  await expect(readout).toHaveText("09:30:00 110-17 V 10")
+  await expect(scene.locator("[data-cursor-calls]")).toHaveAttribute("data-cursor-calls", calls!)
+  await expect.poll(async () => {
+    const line = (await chart.locator(".u-cursor-x").boundingBox())!
+    const point = (await chart.locator(".u-cursor-pt").first().boundingBox())!
+    return Math.abs(line.x - (point.x + point.width / 2))
+  }, { message: "the keyboard crosshair stays on the retained bar" }).toBeLessThan(2)
+  // A retention update while the pointer is still inside keeps its pixel coordinates. Trigger
+  // the feed control without moving the pointer, as a network update would arrive independently.
+  await scene.getByRole("button", { name: "new bar", exact: true }).click()
+  const nextBox = (await chart.locator(".u-over").boundingBox())!
+  await page.mouse.move(nextBox.x + nextBox.width - 8, nextBox.y + nextBox.height / 3)
+  const before = await chart.locator(".u-cursor-x, .u-cursor-y").evaluateAll((lines) => lines.map((line) => getComputedStyle(line).transform))
+  await scene.getByRole("button", { name: "retain first bar" }).evaluate((button: HTMLButtonElement) => button.click())
+  await expect(plot).toHaveAttribute("aria-valuemax", "0")
+  await expect.poll(() => chart.locator(".u-cursor-x, .u-cursor-y").evaluateAll((lines) => lines.map((line) => getComputedStyle(line).transform))).toEqual(before)
   expect(errors).toEqual([])
 })

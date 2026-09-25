@@ -163,7 +163,7 @@ interface PlotArgs {
   convention: PriceConvention | InstrumentConvention
   overlays: readonly PriceChartOverlay[]
   live: () => Live
-  onCursor: (index: number | null) => void
+  onCursor: (plot: uPlot) => void
 }
 
 const noPaths = () => null
@@ -257,7 +257,7 @@ function plotOptions(a: PlotArgs): uPlot.Options {
           styleCursor(u, a.live().palette)
         },
       ],
-      setCursor: [(u) => a.onCursor(u.cursor.idx ?? null)],
+      setCursor: [a.onCursor],
       draw: [(u) => drawMarks(u, a)],
     },
   }
@@ -347,6 +347,11 @@ function drawTag(u: uPlot, text: string, y: number, fill: string, palette: Palet
 const clamp = (n: number, max: number) => Math.max(0, Math.min(max, n))
 const DAY_MS = 86_400_000
 
+/** Silent writes update uPlot's crosshair without echoing a programmatic move to the caller. */
+function syncPlotCursor(plot: uPlot, bar: Bar | null) {
+  plot.setCursor(bar ? { left: plot.valToPos(bar.time, "x"), top: plot.valToPos(bar.close, "y") } : { left: -10, top: -10 }, false)
+}
+
 export interface PriceChartState {
   readonly bars: readonly Bar[]
   readonly summary: SeriesSummary
@@ -360,7 +365,6 @@ export interface PriceChartState {
 
 interface ChartContext extends PriceChartState {
   columns: BarColumns
-  selection: number | null
   label: string
   sentence: string
   kind: PriceChartKind
@@ -418,7 +422,7 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const readout = at ? `${time(at.time)} ${kind === "candles" ? `${labels.open} ${formatPrice(at.open, price)} ${labels.high} ${formatPrice(at.high, price)} ${labels.low} ${formatPrice(at.low, price)} ${labels.close} ${formatPrice(at.close, price)}` : formatPrice(at.close, price)}${typeof at.volume === "number" ? ` ${labels.volume} ${formatQuantity(at.volume)}` : ""}` : ""
   const sentence = last ? `${label}: ${word}, last ${formatPrice(last.close, price)}, ${formatChange(summary.change, convention)} (${formatPercent(summary.changePct, { signed: true })}), low ${formatPrice(summary.low, price)}, high ${formatPrice(summary.high, price)}, ${count} ${labels.bars}` : `${label}: ${labels.noData}`
 
-  const context: ChartContext = { bars: columns.bars, columns, summary, selection, cursor, bar: at, readout, overlays: overlayList, convention, labels, label, sentence, kind, baseline: ref, zone, crosshair, lastLine, moveCursor }
+  const context: ChartContext = { bars: columns.bars, columns, summary, cursor, bar: at, readout, overlays: overlayList, convention, labels, label, sentence, kind, baseline: ref, zone, crosshair, lastLine, moveCursor }
 
   return (
     <PriceChartContext.Provider value={context}>
@@ -488,7 +492,7 @@ export function PriceChartOverlaySwatch({ overlayId, className, ...props }: Pric
 }
 
 export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDown: onKeyDownProp, onFocus, onBlur, ...props }: ComponentProps<"div">) {
-  const { columns, summary, selection: cursor, convention, overlays: overlayList, sentence, readout, kind, baseline, zone, crosshair, lastLine, moveCursor: selectCursor } = useChartContext()
+  const { columns, summary, cursor, bar, convention, overlays: overlayList, sentence, readout, kind, baseline, zone, crosshair, lastLine, moveCursor: selectCursor } = useChartContext()
   const overlayKey = overlayList.map((o) => `${o.id}:${o.color ?? ""}:${o.width ?? ""}`).join("|")
   const conventionKey = JSON.stringify(convention)
   const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
@@ -499,16 +503,21 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   const overlaysRef = useRef(overlayList)
   const conventionRef = useRef(convention)
   const onCursorRef = useRef(selectCursor)
-  const cursorFromPlot = useRef(false)
-  const moveCursor = (index: number | null, fromPlot: boolean) => {
-    cursorFromPlot.current = fromPlot
+  const pointerOwnsCursor = useRef(false)
+  const lastCursorEvent = useRef<uPlot.Cursor["event"]>(undefined)
+  const cursorBar = useRef(bar)
+  const moveCursor = (index: number | null) => {
+    pointerOwnsCursor.current = false
+    lastCursorEvent.current = plot.current?.cursor.event
     onCursorRef.current(index)
+    if (index === cursor && plot.current) syncPlotCursor(plot.current, cursorBar.current)
   }
 
   useLayoutEffect(() => {
     overlaysRef.current = overlayList
     conventionRef.current = convention
     onCursorRef.current = selectCursor
+    cursorBar.current = bar
   })
   useLayoutEffect(() => {
     live.current.summary = summary
@@ -539,6 +548,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     if (!plotEl || !ready || !canDraw()) return
     live.current.palette = readPalette(plotEl)
     const box = plotEl.getBoundingClientRect()
+    lastCursorEvent.current = undefined
     const u = new uPlot(
       plotOptions({
         width: box.width,
@@ -550,7 +560,17 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
         convention: conventionRef.current,
         overlays: overlaysRef.current,
         live: () => live.current,
-        onCursor: (index) => moveCursor(index, true),
+        onCursor: (u) => {
+          if (plot.current !== u) return
+          // uPlot also fires this hook after setData recalculates its scales. Only a new native
+          // event transfers ownership to the pointer; keyboard selection follows the retained bar.
+          if (u.cursor.event && u.cursor.event !== lastCursorEvent.current) {
+            pointerOwnsCursor.current = true
+            lastCursorEvent.current = u.cursor.event
+          }
+          if (pointerOwnsCursor.current) onCursorRef.current(u.cursor.idx ?? null)
+          else syncPlotCursor(u, cursorBar.current)
+        },
       }),
       alignedData(live.current.columns, kind, overlaysRef.current),
       plotEl,
@@ -582,17 +602,11 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     if (size && plot.current) plot.current.setSize(size)
   }, [size])
 
-  // The keyboard's cursor reaches the plot; the pointer's came from it and stays where the hand put it.
+  // Keys move the plot immediately. Its cursor hook repeats this after new scales are committed;
+  // pointer-owned coordinates stay where the hand put them. Silent writes cannot echo onCursor.
   useEffect(() => {
     const u = plot.current
-    if (!u) return
-    if (cursorFromPlot.current) {
-      cursorFromPlot.current = false
-      return
-    }
-    const bar = cursor === null ? undefined : live.current.columns.bars[cursor]
-    if (!bar) u.setCursor({ left: -10, top: -10 })
-    else u.setCursor({ left: u.valToPos(bar.time, "x"), top: u.valToPos(bar.close, "y") })
+    if (u && !pointerOwnsCursor.current) syncPlotCursor(u, cursorBar.current)
   }, [cursor])
 
   const attachPlot = useCallback((node: HTMLDivElement | null) => {
@@ -612,7 +626,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     if (to === undefined && event.key !== "Escape") return
     // Claimed, so a hotkey registry or a panel further out leaves the key alone.
     event.preventDefault()
-    moveCursor(to === undefined ? null : clamp(to, count - 1), false)
+    moveCursor(to === undefined ? null : clamp(to, count - 1))
   }
 
   return (
@@ -630,11 +644,11 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       onKeyDown={onKeyDown}
       onFocus={(event) => {
         onFocus?.(event)
-        if (!event.defaultPrevented && interactive && cursor === null) moveCursor(count - 1, false)
+        if (!event.defaultPrevented && interactive && cursor === null) moveCursor(count - 1)
       }}
       onBlur={(event) => {
         onBlur?.(event)
-        if (!event.defaultPrevented) moveCursor(null, false)
+        if (!event.defaultPrevented) moveCursor(null)
       }}
       data-chart-plot=""
       className={cn("relative min-h-0 flex-1 overflow-hidden rounded-sm outline-none", interactive && "cursor-crosshair focus-visible:ring-2 focus-visible:ring-ring/50", className)}

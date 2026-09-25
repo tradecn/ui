@@ -111,7 +111,7 @@ For v1 integrations, see the [migration guide](migrating-v1-to-v2.md#pricechart)
 | `lastLine` | `boolean` | `true` | The dashed line and the tag at the last close. |
 | `height` | `number` | Omitted | Root height in px, overriding `style.height`. Otherwise, `h-64` unless styled differently. |
 | `labels` | `Partial<PriceChartLabels>` | `DEFAULT_PRICE_CHART_LABELS` | Override the words listed below. |
-| `onCursor` | `(bar: Bar \| null) => void` | None | Called when the selected bar index changes or is cleared; receives the bar or `null`. |
+| `onCursor` | `(bar: Bar \| null) => void` | None | Receives the selected bar or `null` on cursor interaction and pointer-driven index changes. Data clamping is silent; see [Keyboard](#keyboard). |
 | `className` | `string` | None | Classes on the root. |
 | `style` | `CSSProperties` | None | Inline styles on the root. |
 
@@ -209,7 +209,7 @@ With the crosshair on and at least one finite bar, the plot is a horizontal `sli
 
 The pointer moves the crosshair too, and the readout and `onCursor` follow whichever moved it last. Root handlers run around the plot and see each event after the plot handles it: a claimed key arrives with `defaultPrevented` set, every other key clean.
 
-`onCursor` follows index changes, not changes to the bar at that index. Updating a selected bar or inserting bars before it can change the readout without a callback. It is not called simply because the component mounted, and unmount does not send `null`.
+A keyboard-selected crosshair follows its current index as data updates. If bars are removed, it clamps to the last remaining bar without a new `onCursor` call. A pointer-controlled crosshair stays at the pointer coordinates, so a data or scale change can select a different index and call `onCursor`. Updating the bar at an unchanged index changes the readout without a callback. It is not called simply because the component mounted, and unmount does not send `null`.
 
 ### Marks
 

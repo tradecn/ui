@@ -17,15 +17,16 @@ const BARS = [bar(0, 110.5, 110.53125), bar(1, 110.53125, 110.5), bar(2, 110.5, 
 const OVERLAYS: PriceChartOverlay[] = [{ id: "avg", label: "3-bar average", values: (bars) => bars.map((_, i) => (i < 2 ? null : (bars[i]!.close + bars[i - 1]!.close + bars[i - 2]!.close) / 3)) }]
 
 export function PriceChartScene() {
+  const [cursorCalls, setCursorCalls] = useState(0)
   const [store] = useState(() => {
     const s = createRowStore<Bar>({ getRowId: (b) => barId(b.time), lane: "ordered" })
     s.applyDeltas({ upsert: BARS })
     return s
   })
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1" data-cursor-calls={cursorCalls}>
       <div style={{ width: 480, height: 240 }}>
-        <PriceChart store={store} convention={ZN} label="ZN, today" zone="America/New_York" overlays={OVERLAYS} className="h-full">
+        <PriceChart store={store} convention={ZN} label="ZN, today" zone="America/New_York" overlays={OVERLAYS} className="h-full" onCursor={() => setCursorCalls((count) => count + 1)}>
           <PriceChartHeader>
             <PriceChartLast />
             <PriceChartChange />
@@ -37,6 +38,9 @@ export function PriceChartScene() {
           <PriceChartLegend>{OVERLAYS.map((overlay) => <li key={overlay.id} className="flex items-center gap-1"><PriceChartOverlaySwatch overlayId={overlay.id} />{overlay.label}</li>)}</PriceChartLegend>
         </PriceChart>
       </div>
+      <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => store.applyDeltas({ remove: store.getIds().filter((id) => id !== barId(T0)) })}>
+        retain first bar
+      </button>
       {/* A tick under the first open folds into the open bar and turns the chart down; a later tick opens a fourth bar. */}
       <button type="button" onClick={() => store.applyDeltas(foldTicks(store, [{ at: T0 + 2 * MINUTE + 30_000, price: 110.484375 }], MINUTE))}>
         tick down
