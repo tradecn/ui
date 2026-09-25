@@ -530,7 +530,11 @@ export function codeBlocks(html: string): string {
  * from marked, so this is a pass over the page like `codeBlocks`; no table here holds another.
  */
 export function tables(html: string): string {
-  return html.replace(/<table\b[\s\S]*?<\/table>/g, (table) => `<div class="table">${table}</div>`)
+  return html.replace(/<table\b[\s\S]*?<\/table>/g, (table) => {
+    // Keep a single identifier intact, including hyphens, while signatures and JSX can wrap at spaces.
+    const content = table.replace(/<code>((?:--)?[A-Za-z_$][\w$.-]*)<\/code>/g, '<code class="identifier">$1</code>')
+    return `<div class="table">${content}</div>`
+  })
 }
 
 /** A page: the template filled, then every code block given its colors and its copy button and, for a command, its package-manager tabs, and every table its scroll wrapper. */

@@ -683,6 +683,11 @@ describe("tables", () => {
     expect(html).toBe('<p>x</p>\n<div class="table"><table class="tokens">\n<tr><td>a</td></tr>\n</table></div>\n<div class="table"><table><tr><td>b</td></tr></table></div>')
     expect(renderPage("<table><tr><td>npx x</td></tr></table>", {})).toContain('<div class="table"><table>')
   })
+
+  it("keeps table identifiers intact without binding whole signatures or changing prose code", () => {
+    const html = tables('<p><code>data-feed</code></p><table><tr><td><code>data-feed-actions</code> <code>--up</code> <code>clock.now</code></td><td><code>clockFormat(zone: string)</code></td></tr></table>')
+    expect(html).toBe('<p><code>data-feed</code></p><div class="table"><table><tr><td><code class="identifier">data-feed-actions</code> <code class="identifier">--up</code> <code class="identifier">clock.now</code></td><td><code>clockFormat(zone: string)</code></td></tr></table></div>')
+  })
 })
 
 describe("the Manual tab", () => {
@@ -992,8 +997,8 @@ describe("the docs pages", async () => {
     expect(intro).toContain('<a href="/docs/contract/">the item contract</a>')
     expect(intro).toContain(`${tag} is the latest, and <a href="/docs/installation/">Installation</a> has both forms`)
     expect(intro).toContain('<table class="dependencies">')
-    expect(intro).toContain('<tr><td><code>dockview-react</code></td><td><a href="/docs/workspace/"><code>workspace</code></a></td></tr>')
-    expect(intro).toMatch(/<tr><td><code>@tanstack\/react-virtual<\/code><\/td><td><a href="\/docs\/data-grid\/"><code>data-grid<\/code><\/a>, /)
+    expect(intro).toContain('<tr><td><code class="identifier">dockview-react</code></td><td><a href="/docs/workspace/"><code class="identifier">workspace</code></a></td></tr>')
+    expect(intro).toMatch(/<tr><td><code>@tanstack\/react-virtual<\/code><\/td><td><a href="\/docs\/data-grid\/"><code class="identifier">data-grid<\/code><\/a>, /)
     expect(intro).not.toContain("<iframe")
     expect(intro).not.toContain('id="installation"')
     expect(intro).toContain('<a rel="next" href="/docs/installation/">Installation →</a>')
@@ -1049,7 +1054,7 @@ describe("the docs pages", async () => {
     expect(theming).toContain("<thead><tr><th>Token</th><th>Light, then dark</th><th>Added by</th></tr></thead>")
     const up = registry.items.find((item) => item.name === "flash-cell")?.cssVars
     // Light over dark in one cell, three columns in all, so a laptop shows the table without scrolling it.
-    expect(theming).toContain(`<tr><td><code>--up</code></td><td class="value"><span class="swatch" style="background: ${up?.light?.up}"></span><code>${up?.light?.up}</code><br><span class="swatch" style="background: ${up?.dark?.up}"></span><code>${up?.dark?.up}</code></td><td><a href="/docs/flash-cell/"><code>flash-cell</code></a>, `)
+    expect(theming).toContain(`<tr><td><code class="identifier">--up</code></td><td class="value"><span class="swatch" style="background: ${up?.light?.up}"></span><code>${up?.light?.up}</code><br><span class="swatch" style="background: ${up?.dark?.up}"></span><code>${up?.dark?.up}</code></td><td><a href="/docs/flash-cell/"><code class="identifier">flash-cell</code></a>, `)
     // A token whose two values agree shows one line.
     expect(theming).toContain('<td class="value"><span class="swatch" style="background: var(--muted-foreground)"></span><code>var(--color-muted-foreground)</code></td>')
     // In a wrapper that scrolls sideways, so a narrow window never scrolls the page itself.
@@ -1057,14 +1062,14 @@ describe("the docs pages", async () => {
     expect(at("docs/index.html")).toContain('<div class="table"><table class="dependencies">')
     // A shadcn variable paints through the page's own palette.
     expect(theming).toContain('<span class="swatch" style="background: var(--muted-foreground)"></span><code>var(--color-muted-foreground)</code>')
-    expect(theming).toContain("<code>--link-1</code>")
+    expect(theming).toContain('<code class="identifier">--link-1</code>')
     // A typography token is listed with the items that add it and no swatch, since a font stack paints nothing.
-    expect(theming).toMatch(/<tr><td><code>--tradecn-font-mono<\/code><\/td><td class="value"><code class="stack">&#39;JetBrains Mono&#39;, ui-monospace/)
+    expect(theming).toMatch(/<tr><td><code class="identifier">--tradecn-font-mono<\/code><\/td><td class="value"><code class="stack">&#39;JetBrains Mono&#39;, ui-monospace/)
     expect(theming).not.toMatch(/<span class="swatch" style="background: &#39;/)
     // The numeric variant is a theme's token alone: the items set the figures with utilities, so no item adds it.
-    expect(theming).not.toContain("<code>--tradecn-numeric-variant</code>")
-    expect(theming).toContain("<code>--panel-active</code>")
-    expect(theming).not.toContain("<code>--sidebar</code>")
+    expect(theming).not.toContain('<code class="identifier">--tradecn-numeric-variant</code>')
+    expect(theming).toContain('<code class="identifier">--panel-active</code>')
+    expect(theming).not.toContain('<code class="identifier">--sidebar</code>')
     expect(theming).toContain('<li><a href="/docs/tradecn-slate/"><code>tradecn-slate</code></a> ')
     expect(theming).toContain('<li><a href="/docs/tradecn-slate-east/"><code>tradecn-slate-east</code></a> ')
     expect(theming).toContain('<li><a href="/docs/tradecn-amber/"><code>tradecn-amber</code></a> ')

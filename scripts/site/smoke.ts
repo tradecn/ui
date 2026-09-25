@@ -419,7 +419,7 @@ for (const item of items) {
     // On a phone a path too long for the line beside the buttons breaks after a slash and goes on under them.
     await page.setViewportSize({ width: 390, height: 900 })
     const splitIdentifiers = await page.locator("article .table code").evaluateAll((nodes) => nodes
-      .filter((node) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(node.textContent ?? "") && node.getClientRects().length > 1)
+      .filter((node) => /^(?:--)?[A-Za-z_$][\w$.-]*$/.test(node.textContent ?? "") && node.getClientRects().length > 1)
       .map((node) => node.textContent))
     if (splitIdentifiers.length) failures.push(`${item}: at 390px, table identifiers break across lines: ${splitIdentifiers.join(", ")}`)
     for (let i = 0; i < (await blocks.count()); i++) {
