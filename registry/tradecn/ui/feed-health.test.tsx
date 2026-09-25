@@ -1,10 +1,10 @@
-import { Activity, StrictMode, Suspense, createRef, useRef } from "react"
+import { Activity, StrictMode, Suspense, createRef, useRef, type ReactNode } from "react"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { FeedHealth, FeedHealthList, FeedHealthEmpty, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthPending, FeedHealthAnnouncer, useFeedActions, useFeedActionMenu, type FeedAction, type FeedHealthOptions, alwaysOpen, createClock, feedActionsFor, formatAge, stalenessTier, type FeedDescriptor, type SessionCalendar } from "@/registry/tradecn/ui/feed-health"
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest"
+import { FeedHealth, FeedHealthList, FeedHealthEmpty, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthPending, FeedHealthAnnouncer, useFeedActions, useFeedActionMenu, type FeedAction, type FeedHealthOptions, type FeedHealthProps, alwaysOpen, createClock, feedActionsFor, formatAge, stalenessTier, type FeedDescriptor, type SessionCalendar } from "@/registry/tradecn/ui/feed-health"
 
 function Strip({ feeds, actions = [], pendingMs, ...options }: FeedHealthOptions & { feeds: FeedDescriptor[]; actions?: FeedAction[]; pendingMs?: number }) {
   return <FeedHealth feeds={feeds} {...options}>
@@ -311,6 +311,11 @@ describe("public composition", () => {
     // @ts-expect-error A direct item does not supply the root's collection.
     const missing = <FeedHealth><FeedHealthItem feed={feed()} /><FeedHealthAnnouncer /></FeedHealth>
     expect(() => render(missing)).toThrow("FeedHealth requires feeds; pass [] for an empty collection")
+  })
+
+  it("rejects the old childless root props while accepting caller-owned React content", () => {
+    expectTypeOf<{ feeds: FeedDescriptor[]; thresholds: typeof T }>().not.toExtend<FeedHealthProps>()
+    expectTypeOf<{ feeds: FeedDescriptor[]; children: ReactNode }>().toExtend<FeedHealthProps>()
   })
 
   it("shows caller-owned empty content only for the nearest empty collection without subscribing", () => {

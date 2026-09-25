@@ -120,7 +120,7 @@ A div that supplies the collection, shared options and tooltip provider. Nested 
 | Root prop | Type | Default | Purpose |
 |---|---|---|---|
 | `feeds` | `readonly FeedDescriptor[]` | Required | Collection for lists, empty content and announcements. Use `[]` for none. |
-| `children` | `ReactNode` | — | Your composition. |
+| `children` | `ReactNode` | Required | Your composition. |
 | `thresholds` | `StalenessThresholds` | `PROVISIONAL_THRESHOLDS` | Age boundaries. |
 | `session` | `SessionCalendar` | `alwaysOpen` | Session used for tiering. |
 | `clock` | `Clock` | Shared clock | Time source. |

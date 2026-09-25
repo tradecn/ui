@@ -132,6 +132,7 @@ const FeedsContext = createContext<readonly FeedDescriptor[] | null>(null)
 
 export interface FeedHealthProps extends ComponentProps<"div">, FeedHealthOptions {
   feeds: readonly FeedDescriptor[]
+  children: ReactNode
 }
 
 /** Supply a collection and compose its lists, readings and one announcer. No clock subscription lives here. */
