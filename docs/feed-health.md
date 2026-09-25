@@ -272,7 +272,7 @@ When actions disappear, a focused trigger remains until focus leaves, and an ope
 
 ### Announcements and clock
 
-`FeedHealthAnnouncer` inherits the nearest root's collection. Its optional `feeds: readonly FeedDescriptor[]` overrides that collection and is required outside a root. It accepts the same `thresholds`, `session` and `clock` options as the group, plus native span props and a ref. Place it in the group to inherit those options, or pass them explicitly beside the group. Use the same options as the group whose feeds it announces.
+`FeedHealthAnnouncer` inherits the nearest root's collection. Its optional `feeds: readonly FeedDescriptor[]` overrides that collection and is required outside a root. It accepts the same `thresholds`, `session` and `clock` options as the group, plus native span props and a ref, except `children`: the announcer owns its live-region content. Place it in the group to inherit those options, or pass them explicitly beside the group. Use the same options as the group whose feeds it announces.
 
 Its polite, atomic live region initializes empty. It updates when a feed changes tier or is added, combining simultaneous changes into one message. Aging and stale announcements include the age at that transition, such as “Market data stale, 10s”. Plain age ticks, label changes, reordering and removals leave the last message unchanged. A new addition or tier change inserts a fresh message node even when its words match the previous announcement. A clock that refreshes an old timestamp on subscription can cause a tier change during mounting.
 

@@ -268,7 +268,7 @@ export function FeedHealthPending({ className, children, ...props }: ComponentPr
   return <span data-slot="tradecn-feed-health-pending" data-feed-pending={pending.action} className={cn("inline-flex items-center gap-1 text-muted-foreground", className)} {...props}><Spinner aria-hidden className="size-3" />{children === undefined ? pending.action : children}</span>
 }
 
-export interface FeedHealthAnnouncerProps extends ComponentProps<"span">, FeedHealthOptions {
+export interface FeedHealthAnnouncerProps extends Omit<ComponentProps<"span">, "children">, FeedHealthOptions {
   feeds?: readonly FeedDescriptor[]
 }
 
