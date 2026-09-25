@@ -239,11 +239,18 @@ It initializes empty, then batches additions and tier changes; aging/stale messa
 
 <div id="actions"></div>
 
-### `useFeedActions(feed: FeedDescriptor, actions: readonly FeedAction[], options?: UseFeedActionsOptions)`
+### `useFeedActions(feed, actions, options?)`
 
 Owns pending state without subscribing to the clock. Use one owner per feed and share its result between views. Outside the group, pass its custom clock explicitly.
 
-#### Options
+- `feed: FeedDescriptor`: the current feed, including its allowed action ids.
+- `actions: readonly FeedAction[]`: your action definitions, in display order.
+
+<div id="options"></div>
+
+#### `options?: UseFeedActionsOptions`
+
+Optional third argument. Omit it to use the defaults below.
 
 <!-- api-props -->
 
@@ -278,11 +285,15 @@ Disable pending controls; `aria-disabled` preserves inline-button focus while th
 
 <div id="action-menu-focus"></div>
 
-### `useFeedActionMenu(options: UseFeedActionMenuOptions)`
+### `useFeedActionMenu(options)`
 
 Needs neither FeedHealth context nor `useFeedActions` and imports no menu primitive.
 
-#### Options
+<div id="options-1"></div>
+
+#### `options: UseFeedActionMenuOptions`
+
+Required argument with both fields below.
 
 <!-- api-props -->
 
