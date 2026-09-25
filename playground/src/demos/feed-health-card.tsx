@@ -53,7 +53,7 @@ export default function FeedHealthCardDemo() {
             <FeedHealthLane />
             <footer className="flex flex-wrap items-center gap-2">
               <FeedHealthPending>{pendingLabel}</FeedHealthPending>
-              {offered.map((action) => <Button key={action.id} ref={actionRef} variant="outline" size="sm" aria-disabled={Boolean(pending)} onClick={() => run(action.id)}>{action.label}</Button>)}
+              {offered.map((action) => <Button key={action.id} ref={actionRef} variant="outline" size="sm" className="aria-disabled:opacity-50" aria-disabled={Boolean(pending)} onClick={() => run(action.id)}>{action.label}</Button>)}
               <a href="https://tradecn.dev/docs/feed-health/" target="_blank" rel="noreferrer" className="underline underline-offset-4">Feed API</a>
             </footer>
           </FeedHealthItem>
