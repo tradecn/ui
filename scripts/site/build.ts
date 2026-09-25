@@ -530,7 +530,11 @@ export function codeBlocks(html: string): string {
  * from marked, so this is a pass over the page like `codeBlocks`; no table here holds another.
  */
 export function tables(html: string): string {
-  return html.replace(/<table\b[\s\S]*?<\/table>/g, (table) => `<div class="table">${table}</div>`)
+  return html.replace(/<table\b[\s\S]*?<\/table>/g, (table) => {
+    // Keep a single identifier intact, including hyphens, while signatures and JSX can wrap at spaces.
+    const content = table.replace(/<code>((?:--)?[A-Za-z_$][\w$.-]*)<\/code>/g, '<code class="identifier">$1</code>')
+    return `<div class="table">${content}</div>`
+  })
 }
 
 /** A page: the template filled, then every code block given its colors and its copy button and, for a command, its package-manager tabs, and every table its scroll wrapper. */
@@ -618,11 +622,48 @@ export function firstParagraph(markdown: string): string {
  * since a link inside a link is not HTML.
  */
 export function renderMarkdown(markdown: string): RenderedDoc {
-  const ids = new Map<string, number>()
+  const ids = new Set<string>()
   let title = ""
+  let section = ""
+  let apiTable = false
+  const uniqueId = (name: string, fixed = false) => {
+    const base = slugify(name)
+    if (fixed && ids.has(base)) throw new Error(`Duplicate heading id: ${base}`)
+    let id = base
+    for (let suffix = 1; ids.has(id); suffix++) id = `${base}-${suffix}`
+    ids.add(id)
+    return id
+  }
   const marked = new Marked({ gfm: true })
   marked.use({
     renderer: {
+      // Opt in one table at a time. The source remains a readable Markdown table on GitHub.
+      html(token) {
+        if (token.text.trim() !== "<!-- api-props -->") return false
+        apiTable = true
+        return ""
+      },
+      table(token) {
+        if (!apiTable) return false
+        apiTable = false
+        const headers = token.header.map((cell) => cell.text)
+        const defaults = headers.length === 4
+        if (headers[1] !== "Type" || headers.at(-1) !== "Purpose" || (defaults ? headers[2] !== "Default" : headers.length !== 3)) {
+          throw new Error("api-props needs Name / Type / Default / Purpose or Name / Type / Purpose columns")
+        }
+        const rows = token.rows.map((row) => {
+          const cells = row.map((cell) => this.parser.parseInline(cell.tokens))
+          const [name = "", type = ""] = cells
+          const id = uniqueId(`${section}-${textOf(name)}`)
+          const signature = textOf(type)
+          const complex = signature.startsWith("{") ? `object${signature.slice(signature.lastIndexOf("}") + 1)}` : signature.includes("=>") && signature.length > 40 ? "function" : null
+          const value = cells[2] ?? ""
+          const status = !defaults ? "" : value === "Required" ? "Required" : value === "—" ? "Optional" : `Default: ${value}`
+          const detail = complex ? `<details class="api-details" id="${id}-type"><summary>Full type<span class="sr-only"> for ${escapeHtml(textOf(name))}</span></summary><div class="api-signature">${type}</div></details>` : ""
+          return `<div class="api-prop" id="${id}"><dt><a href="#${id}">${name}</a></dt><dd class="api-meta"><span>Type: ${complex ? escapeHtml(complex) : type}</span>${status ? ` <span>${status}</span>` : ""}</dd><dd class="api-description">${cells.at(-1)}${detail}</dd></div>`
+        })
+        return `<dl class="api-props">\n${rows.join("\n")}\n</dl>\n`
+      },
       link(token) {
         // A doc links a sibling as `data-grid.md`, which works on GitHub; here that page is /docs/data-grid/.
         const href = /^[\w-]+\.md$/.test(token.href) ? `/docs/${token.href.slice(0, -".md".length)}/` : token.href
@@ -630,14 +671,22 @@ export function renderMarkdown(markdown: string): RenderedDoc {
         return `<a href="${escapeHtml(href)}"${title}>${this.parser.parseInline(token.tokens)}</a>`
       },
       heading(token) {
-        const plain = token.text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/`/g, "")
+        // A trailing comment fixes a public URL without adding visible syntax to the Markdown.
+        const last = token.tokens.at(-1)
+        const fixed = last?.type === "html" ? /^<!-- heading-id: ([a-z][a-z0-9-]*) -->$/.exec(last.text)?.[1] : undefined
+        const text = fixed ? token.text.slice(0, token.text.lastIndexOf("<!--")).trimEnd() : token.text
+        const tokens = fixed ? token.tokens.slice(0, -1) : token.tokens
+        const plain = text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/`/g, "")
         if (token.depth === 1 && !title) title = plain
-        let id = slugify(plain)
-        const seen = ids.get(id) ?? 0
-        ids.set(id, seen + 1)
-        if (seen) id = `${id}-${seen}`
-        const inline = this.parser.parseInline(token.tokens)
-        const linked = token.tokens.some((t) => t.type === "link")
+        // A code-only signature identifies its export: parameters and declaration syntax do not change its links.
+        const reference = tokens.length === 1 && tokens[0]?.type === "codespan"
+          ? /^(?:interface |type )?([A-Za-z_$][\w$]*)(?:\(|$)/.exec(plain)?.[1]
+          : undefined
+        const id = uniqueId(fixed ?? reference ?? plain, fixed !== undefined)
+        if (token.depth <= 3) section = id
+        const rendered = this.parser.parseInline(tokens)
+        const inline = fixed ? rendered.trimEnd() : rendered
+        const linked = tokens.some((t) => t.type === "link")
         return `<h${token.depth} id="${id}">${linked ? inline : `<a href="#${id}">${inline}</a>`}</h${token.depth}>\n`
       },
     },
@@ -1173,7 +1222,7 @@ const NAMED_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quo
 /** Rendered HTML as the words on the page: a block's end is a space, an inline tag is nothing, entities decoded, whitespace folded. */
 export function textOf(html: string): string {
   return html
-    .replace(/<\/?(p|li|h[1-6]|br|hr|td|th|tr|pre|div|ul|ol|blockquote|table|thead|tbody|dl|dt|dd)\b[^>]*>/g, " ")
+    .replace(/<\/?(p|li|h[1-6]|br|hr|td|th|tr|pre|div|ul|ol|blockquote|table|thead|tbody|dl|dt|dd|details|summary)\b[^>]*>/g, " ")
     .replace(/<[^>]+>/g, "")
     .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity: string, code: string) => {
       if (code[0] === "#") return String.fromCodePoint(code[1]?.toLowerCase() === "x" ? parseInt(code.slice(2), 16) : Number(code.slice(1)))
@@ -1220,7 +1269,9 @@ export function toc(html: string): string {
     level: Number(level),
     id: id ?? "",
     // The heading's own anchor, and any link in it, would nest inside the entry's link.
-    text: (inner ?? "").replace(/<\/?a\b[^>]*>/g, ""),
+    text: (inner ?? "").replace(/<\/?a\b[^>]*>/g, "")
+      // Keep complete signatures in the article and search; the narrow navigation needs only their names.
+      .replace(/^<code>([A-Za-z_$][\w$]*)\([\s\S]*\)<\/code>$/, "<code>$1(…)</code>"),
   }))
   if (headings.length < 2) return ""
   // An h3 nests under the h2 before it; the list closes whatever is open when the level comes back up.

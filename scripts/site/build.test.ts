@@ -683,6 +683,11 @@ describe("tables", () => {
     expect(html).toBe('<p>x</p>\n<div class="table"><table class="tokens">\n<tr><td>a</td></tr>\n</table></div>\n<div class="table"><table><tr><td>b</td></tr></table></div>')
     expect(renderPage("<table><tr><td>npx x</td></tr></table>", {})).toContain('<div class="table"><table>')
   })
+
+  it("keeps table identifiers intact without binding whole signatures or changing prose code", () => {
+    const html = tables('<p><code>data-feed</code></p><table><tr><td><code>data-feed-actions</code> <code>--up</code> <code>clock.now</code></td><td><code>clockFormat(zone: string)</code></td></tr></table>')
+    expect(html).toBe('<p><code>data-feed</code></p><div class="table"><table><tr><td><code class="identifier">data-feed-actions</code> <code class="identifier">--up</code> <code class="identifier">clock.now</code></td><td><code>clockFormat(zone: string)</code></td></tr></table></div>')
+  })
 })
 
 describe("the Manual tab", () => {
@@ -700,6 +705,95 @@ describe("the Manual tab", () => {
 })
 
 describe("markdown", () => {
+  it("pins an explicit heading URL and its property links independently of heading names and order", () => {
+    const body = `### \`<Widget />\` <!-- heading-id: widget-root -->
+
+<!-- api-props -->
+
+| Prop | Type | Purpose |
+|---|---|---|
+| \`name\` | \`string\` | Visible name. |
+`
+    for (const before of ["## API Reference\n\n", "# Widget\n\n## Widget\n\n## API Reference\n\n"]) {
+      const { html } = renderMarkdown(before + body)
+      expect(html).toContain('<h3 id="widget-root"><a href="#widget-root"><code>&lt;Widget /&gt;</code></a></h3>')
+      expect(html).toContain('<div class="api-prop" id="widget-root-name"><dt><a href="#widget-root-name">')
+      expect(html).not.toContain("heading-id:")
+      expect(toc(html)).toContain('<a href="#widget-root"><code>&lt;Widget /&gt;</code></a>')
+    }
+    expect(renderMarkdown(body.replace("<Widget />", "<RenamedWidget />")).html).toContain('id="widget-root"')
+    expect(() => renderMarkdown("# Widget root\n\n" + body)).toThrow("Duplicate heading id: widget-root")
+    expect(() => renderMarkdown(body + "\n" + body)).toThrow("Duplicate heading id: widget-root")
+    // Generated suffixes must also avoid a URL that was explicitly reserved.
+    const { html } = renderMarkdown("### Fixed <!-- heading-id: widget-1 -->\n\n## Widget\n\n## Widget\n")
+    expect(html).toContain('<h3 id="widget-1">')
+    expect(html).toContain('<h2 id="widget">')
+    expect(html).toContain('<h2 id="widget-2">')
+  })
+
+  it("keeps API links stable when headings show JSX, typed signatures and interface declarations", () => {
+    const { html } = renderMarkdown(`# FeedHealth
+
+## API Reference
+
+### \`<FeedHealth />\`
+
+### \`useFeedActions(feed: FeedDescriptor, actions: readonly FeedAction[], options?: UseFeedActionsOptions)\`
+
+<!-- api-props -->
+
+| Return | Type | Purpose |
+|---|---|---|
+| \`pending\` | \`PendingFeedAction\` | Request state. |
+
+### \`interface FeedDescriptor\`
+`)
+    expect(html).toContain('<h3 id="feedhealth-1"><a href="#feedhealth-1"><code>&lt;FeedHealth /&gt;</code></a></h3>')
+    expect(html).toContain('<h3 id="usefeedactions"><a href="#usefeedactions"><code>useFeedActions(feed: FeedDescriptor, actions: readonly FeedAction[], options?: UseFeedActionsOptions)</code></a></h3>')
+    expect(html).toContain('id="usefeedactions-pending"')
+    expect(html).toContain('<h3 id="feeddescriptor"><a href="#feeddescriptor"><code>interface FeedDescriptor</code></a></h3>')
+    expect(toc(html)).toContain('<a href="#usefeedactions"><code>useFeedActions(…)</code></a>')
+    expect(toc(html)).not.toContain('options?:')
+    expect(renderMarkdown('### `useFeedActions(next: FeedDescriptor)`').html).toContain('id="usefeedactions"')
+  })
+
+  it("renders opted-in API inputs as entries with visible defaults and complete expandable types", () => {
+    const source = `### Widget
+
+<!-- api-props -->
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| \`name\` | \`string\` | Required | Accessible name. |
+| \`delay\` | \`number\` | \`5000\` | Milliseconds. |
+| \`gap\` | \`{ since: number; replaying: boolean } \\| null\` | — | Open gap. |
+| \`run\` | \`(id: string) => void\` | — | Run an action. |
+
+| Tier | Condition |
+|---|---|
+| live | Recent message. |
+`
+    const { html } = renderMarkdown(source)
+    expect(html).not.toContain("<!-- api-props -->")
+    expect(html).toContain('<dl class="api-props">')
+    expect(html).toContain('<div class="api-prop" id="widget-name"><dt><a href="#widget-name"><code>name</code></a></dt>')
+    expect(html).toContain('Type: <code>string</code></span> <span>Required</span>')
+    expect(html).toContain('Default: <code>5000</code>')
+    expect(html).toContain('Type: object | null</span> <span>Optional</span>')
+    expect(html).toContain('<details class="api-details" id="widget-gap-type"><summary>Full type<span class="sr-only"> for gap</span></summary>')
+    expect(html).not.toContain('id="widget-run-type"')
+    expect(textOf(html)).toContain('Full type for gap { since: number; replaying: boolean } | null')
+    expect(html.match(/<table>/g)).toHaveLength(1)
+    expect(html).toContain('<th>Tier</th>')
+  })
+
+  it("keeps return values distinct from optional props and rejects an incompatible API table", () => {
+    const { html } = renderMarkdown('### Hook\n\n<!-- api-props -->\n\n| Return | Type | Purpose |\n|---|---|---|\n| `result` | `string` | Latest result. |\n')
+    expect(textOf(html)).toContain('result Type: string Latest result.')
+    expect(html).not.toMatch(/Optional|Default:/)
+    expect(() => renderMarkdown('<!-- api-props -->\n\n| Name | Description |\n|---|---|\n| x | y |\n')).toThrow(/api-props needs/)
+  })
+
   it("takes the title from the first heading and gives every heading an anchor", () => {
     const doc = renderMarkdown("# `format`\n\nIntro line.\n\n## Prices\n\ntext\n\n## Prices\n\nmore\n\n### The rest\n")
     expect(doc.title).toBe("format")
@@ -861,6 +955,19 @@ describe("the docs pages", async () => {
   const at = (path: string) => byPath.get(path) ?? ""
   const items = docs.filter((doc) => doc.item)
 
+  it("preserves FeedHealth's pre-refactor API section links", () => {
+    const html = at("docs/feed-health/index.html")
+    for (const id of ["props", "feeds", "tiers", "lanes", "thresholds-and-the-session", "actions", "the-clock", "tokens"]) {
+      expect(html.match(new RegExp(`id="${id}"`, "g")), id).toHaveLength(1)
+    }
+    expect(html).toContain('<h3 id="feedhealth-root">')
+    expect(html).not.toContain('id="feedhealth-1')
+    for (const prop of ["feeds", "children", "thresholds", "session", "clock", "classname"]) {
+      expect(html).toContain(`id="feedhealth-root-${prop}"`)
+      expect(html).toContain(`href="#feedhealth-root-${prop}"`)
+    }
+  })
+
   it("renders the site's own pages, then one page per docs/*.md, with no placeholder left", () => {
     expect(site.map((doc) => doc.slug)).toEqual([...START_PAGES])
     expect(byPath.size).toBe(START_PAGES.length + tagDocs.length)
@@ -992,8 +1099,8 @@ describe("the docs pages", async () => {
     expect(intro).toContain('<a href="/docs/contract/">the item contract</a>')
     expect(intro).toContain(`${tag} is the latest, and <a href="/docs/installation/">Installation</a> has both forms`)
     expect(intro).toContain('<table class="dependencies">')
-    expect(intro).toContain('<tr><td><code>dockview-react</code></td><td><a href="/docs/workspace/"><code>workspace</code></a></td></tr>')
-    expect(intro).toMatch(/<tr><td><code>@tanstack\/react-virtual<\/code><\/td><td><a href="\/docs\/data-grid\/"><code>data-grid<\/code><\/a>, /)
+    expect(intro).toContain('<tr><td><code class="identifier">dockview-react</code></td><td><a href="/docs/workspace/"><code class="identifier">workspace</code></a></td></tr>')
+    expect(intro).toMatch(/<tr><td><code>@tanstack\/react-virtual<\/code><\/td><td><a href="\/docs\/data-grid\/"><code class="identifier">data-grid<\/code><\/a>, /)
     expect(intro).not.toContain("<iframe")
     expect(intro).not.toContain('id="installation"')
     expect(intro).toContain('<a rel="next" href="/docs/installation/">Installation →</a>')
@@ -1049,7 +1156,7 @@ describe("the docs pages", async () => {
     expect(theming).toContain("<thead><tr><th>Token</th><th>Light, then dark</th><th>Added by</th></tr></thead>")
     const up = registry.items.find((item) => item.name === "flash-cell")?.cssVars
     // Light over dark in one cell, three columns in all, so a laptop shows the table without scrolling it.
-    expect(theming).toContain(`<tr><td><code>--up</code></td><td class="value"><span class="swatch" style="background: ${up?.light?.up}"></span><code>${up?.light?.up}</code><br><span class="swatch" style="background: ${up?.dark?.up}"></span><code>${up?.dark?.up}</code></td><td><a href="/docs/flash-cell/"><code>flash-cell</code></a>, `)
+    expect(theming).toContain(`<tr><td><code class="identifier">--up</code></td><td class="value"><span class="swatch" style="background: ${up?.light?.up}"></span><code>${up?.light?.up}</code><br><span class="swatch" style="background: ${up?.dark?.up}"></span><code>${up?.dark?.up}</code></td><td><a href="/docs/flash-cell/"><code class="identifier">flash-cell</code></a>, `)
     // A token whose two values agree shows one line.
     expect(theming).toContain('<td class="value"><span class="swatch" style="background: var(--muted-foreground)"></span><code>var(--color-muted-foreground)</code></td>')
     // In a wrapper that scrolls sideways, so a narrow window never scrolls the page itself.
@@ -1057,14 +1164,14 @@ describe("the docs pages", async () => {
     expect(at("docs/index.html")).toContain('<div class="table"><table class="dependencies">')
     // A shadcn variable paints through the page's own palette.
     expect(theming).toContain('<span class="swatch" style="background: var(--muted-foreground)"></span><code>var(--color-muted-foreground)</code>')
-    expect(theming).toContain("<code>--link-1</code>")
+    expect(theming).toContain('<code class="identifier">--link-1</code>')
     // A typography token is listed with the items that add it and no swatch, since a font stack paints nothing.
-    expect(theming).toMatch(/<tr><td><code>--tradecn-font-mono<\/code><\/td><td class="value"><code class="stack">&#39;JetBrains Mono&#39;, ui-monospace/)
+    expect(theming).toMatch(/<tr><td><code class="identifier">--tradecn-font-mono<\/code><\/td><td class="value"><code class="stack">&#39;JetBrains Mono&#39;, ui-monospace/)
     expect(theming).not.toMatch(/<span class="swatch" style="background: &#39;/)
     // The numeric variant is a theme's token alone: the items set the figures with utilities, so no item adds it.
-    expect(theming).not.toContain("<code>--tradecn-numeric-variant</code>")
-    expect(theming).toContain("<code>--panel-active</code>")
-    expect(theming).not.toContain("<code>--sidebar</code>")
+    expect(theming).not.toContain('<code class="identifier">--tradecn-numeric-variant</code>')
+    expect(theming).toContain('<code class="identifier">--panel-active</code>')
+    expect(theming).not.toContain('<code class="identifier">--sidebar</code>')
     expect(theming).toContain('<li><a href="/docs/tradecn-slate/"><code>tradecn-slate</code></a> ')
     expect(theming).toContain('<li><a href="/docs/tradecn-slate-east/"><code>tradecn-slate-east</code></a> ')
     expect(theming).toContain('<li><a href="/docs/tradecn-amber/"><code>tradecn-amber</code></a> ')

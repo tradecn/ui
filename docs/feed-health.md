@@ -1,149 +1,397 @@
 # FeedHealth
 
-A strip that shows each feed's connection state, the age of its data, and a staleness tier.
+Display connection state, data age and lane health. Pass feeds to the root and compose their readings, tooltips and controls from public parts.
 
 ## Usage
 
 ```tsx
-import { useState } from "react"
-import { FeedHealth, type FeedDescriptor } from "@/components/ui/feed-health"
+import {
+  FeedHealth,
+  FeedHealthList,
+  FeedHealthItem,
+  FeedHealthIndicator,
+  FeedHealthTier,
+  FeedAge,
+  FeedHealthTooltipTrigger,
+  FeedHealthTooltipContent,
+  FeedHealthDetails,
+  FeedHealthAnnouncer,
+  type FeedDescriptor,
+} from "@/components/ui/feed-health"
+import { Tooltip } from "@/components/ui/tooltip"
+```
 
-function MarketDataHealth() {
-  const [lastMessageAt, setLastMessageAt] = useState(Date.now)
-  const feeds: FeedDescriptor[] = [{ id: "md", label: "Market data", state: "connected", lane: "coalesced", lastMessageAt }]
+```tsx
+const feeds: FeedDescriptor[] = [
+  {
+    id: "md",
+    label: "Market data",
+    state: "connected",
+    lane: "coalesced",
+    lastMessageAt: Date.now(),
+  },
+]
+
+export function MarketDataHealth() {
   return (
-    <>
-      <div data-demo-controls className="text-xs">
-        <button type="button" className="rounded border px-2 py-1" onClick={() => setLastMessageAt(Date.now())}>Receive a message</button>
-      </div>
-      <FeedHealth feeds={feeds} thresholds={{ agingMs: 2000, staleMs: 10_000 }} className="w-fit max-w-full flex-wrap" />
-    </>
+    <FeedHealth feeds={feeds} className="w-fit max-w-full">
+      <FeedHealthList className="flex-wrap">
+        {(feed) => (
+          <FeedHealthItem feed={feed}>
+            <Tooltip>
+              <FeedHealthTooltipTrigger>
+                <span className="font-medium">{feed.label}</span>
+                <FeedHealthIndicator className="order-first" />
+                <FeedHealthTier />
+                <FeedAge feed={feed} />
+              </FeedHealthTooltipTrigger>
+              <FeedHealthTooltipContent>
+                <FeedHealthDetails />
+              </FeedHealthTooltipContent>
+            </Tooltip>
+          </FeedHealthItem>
+        )}
+      </FeedHealthList>
+      <FeedHealthAnnouncer />
+    </FeedHealth>
   )
 }
 ```
 
-The feed starts with a message timestamp. Without another message, its data becomes aging at two seconds and stale at ten seconds, on the shared clock's next tick. Receive a message supplies a new timestamp and makes it live again. The connection stays connected throughout: a connection and fresh data are separate facts.
 
-These thresholds are sample values. Agree real boundaries with the people using the data, then pass both values. The component reads descriptors from your feed integration; it does not connect or publish messages. Its shared clock starts and stops with subscribers, and a quiet example deliberately stays stale until you send another message.
+The sample timestamp is set at module load. Its connected feed becomes aging after two seconds and stale after ten, on the next clock tick. Replace descriptors as real messages arrive; this component does not connect feeds or publish messages.
+
+## Composition
+
+```text
+FeedHealth (feeds)
+├── FeedHealthList (children(feed, index))
+│   └── FeedHealthItem
+│       ├── Tooltip (optional)
+│       │   ├── FeedHealthTooltipTrigger
+│       │   │   ├── Caller label and FeedHealthIndicator
+│       │   │   ├── FeedHealthTier and FeedAge
+│       │   │   └── FeedHealthLane and FeedHealthPending
+│       │   └── FeedHealthTooltipContent
+│       │       └── FeedHealthDetails
+│       └── Caller controls using useFeedActions
+├── FeedHealthEmpty (optional caller content)
+└── FeedHealthAnnouncer (one per collection)
+```
+
+## Empty collection
+
+Toggle Include market data to switch between no feeds and an offline feed. `FeedHealthEmpty` shows your message for `feeds={[]}`. The checkbox stays mounted so focus survives either change.
+
+<!-- demo: feed-health-empty -->
 
 ## Lanes and compact display
 
-Coalesced market data reports seven dropped updates. The ordered RFQ feed reports sequence 42 in its tooltip and a three-second gap while replay is in progress. Close RFQ gap removes that report; open it to restore the sample. Drops and gaps do not change either feed's live tier.
-
-This example fixes the clock at a sample instant so the readings stay comparable. Toggle Compact to hide the tier badges while keeping names, ages and lane details. Hover or focus a feed to read its tooltip. The strip wraps to fit a narrow preview.
+Install `separator` for this layout. This example shows coalesced drops and an ordered gap, with a fixed clock for the gap age. Close RFQ gap removes the report. Compact hides the tier badge with `sr-only`, keeping its word available to assistive technology.
 
 <!-- demo: feed-health-lanes -->
 
 ## Actions and replies
 
-Open Actions: RFQ and choose Reconnect. The disconnected feed stays offline while the request is pending. A simulated reply arrives after 1.2 seconds, marks it connected and supplies a message timestamp. Its allowed action then becomes Resubscribe, which waits for another reply and advances the sequence without changing the connection state.
-
-The action returns a promise, so pending clears even when the reply leaves the connection state unchanged. Disconnect RFQ resets the sample for another run; it is disabled while a reply is pending. The reply timer is cleared on unmount. In an integration, return the server request's promise and update the descriptor from its response. Pending alone does not mean success; report a rejected request yourself.
-
-There is no continuing publisher here. Once connected, the data ages until another reply supplies a timestamp. Pause and resume use the same action-id and allowed-actions contract when your feed supports them.
+Install `dropdown-menu`. Reconnect receives a simulated reply after 1.2 seconds and becomes Resubscribe. Resubscribing advances the sequence without changing connection state, then removes all actions. Reopen the menu while it is pending to try empty-menu dismissal. Disconnect RFQ resets the sample.
 
 <!-- demo: feed-health-actions -->
 
+## A card with inline controls
+
+Install `button`. This layout puts metadata inline, application fields in the details, and actions and navigation in the footer. Pending buttons use `aria-disabled` to keep focus; removing a focused button returns focus to the heading. Resubscribe remains available in this recipe.
+
+<!-- demo: feed-health-card -->
+
 ## API Reference
 
-### Props
+<div class="api-reference">
 
-`FeedHealthProps` accepts these inputs:
+Parts forward their underlying element's props, refs, `className` and events. Children are caller-owned except where a part supplies defaults below; the list takes a callback and the announcer excludes children.
+
+<div id="props"></div>
+
+### `<FeedHealth />` <!-- heading-id: feedhealth-root -->
+
+A div that supplies the collection, shared options and tooltip provider. Nested roots inherit omitted options but own their collections.
+
+<!-- api-props -->
+
+| Root prop | Type | Default | Purpose |
+|---|---|---|---|
+| `feeds` | `readonly FeedDescriptor[]` | Required | Collection for lists, empty content and announcements. Use `[]` for none. |
+| `children` | `ReactNode` | Required | Your composition. |
+| `thresholds` | `StalenessThresholds` | `PROVISIONAL_THRESHOLDS` | Age boundaries. |
+| `session` | `SessionCalendar` | `alwaysOpen` | Session used for tiering. |
+| `clock` | `Clock` | Shared clock | Time source. |
+| `className` | `string` | — | Override the horizontal flex layout. Text size is inherited. |
+
+Omitting `feeds` is a type error and throws at runtime. A direct single-item layout still needs `feeds={[feed]}` on the root. Filter or limit this array before passing it. The group's default name is `Feed health`; override it with `aria-label` or `aria-labelledby`.
+
+### `<FeedHealthItem />`
+
+A div that supplies one feed's readings and pending state to its children.
+
+<!-- api-props -->
+
+| Item prop | Type | Default | Purpose |
+|---|---|---|---|
+| `feed` | `FeedDescriptor` | Required | This item's readings. |
+| `pending` | `PendingFeedAction \| null` | — | Request state from `useFeedActions`. |
+
+The item sets small text and `data-feed`, `data-state`, `data-tier`, `data-pending`. Tier colors belong to the badge and tooltip trigger, leaving application content untinted.
+
+### `<FeedHealthList />`
+
+Renders a div from the nearest root's feeds, keyed by `feed.id`. Keep ids unique and stable. Put hooks in a row component returned by the callback.
+
+<!-- api-props -->
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
-| `feeds` | `FeedDescriptor[]` | Required | Feeds in display order. Use distinct, stable ids. |
-| `thresholds` | `StalenessThresholds` | `PROVISIONAL_THRESHOLDS` | Age boundaries in milliseconds. |
-| `session` | `SessionCalendar` | `alwaysOpen` | Calendar shared by all feeds in the strip. |
-| `clock` | `Clock` | Shared one-second clock | Time source for ages, tiers, and pending-action timestamps. |
-| `compact` | `boolean` | `false` | Hides the tier badge; keeps the dot, label, age, lane details, and actions. |
-| `actions` | `readonly FeedAction[]` | `[]` | Available actions, in menu order. |
-| `pendingMs` | `number` | `5000` | Timeout in milliseconds for a pending action. |
-| `labels` | `Partial<FeedHealthLabels>` | `DEFAULT_FEED_HEALTH_LABELS` | Overrides the action button's accessible name and pending tooltip label. |
-| `className` | `string` | Omitted | Classes on the outer group, named `Feed health`. |
+| `children` | `(feed: FeedDescriptor, index: number) => ReactNode` | Required | Row JSX in collection order; use the index for separators. |
+| `className` | `string` | — | Arrange rows with `flex-wrap`, column or grid classes. Default is horizontal flex. |
 
-### Feeds
+Multiple lists may share a collection; mount one announcer outside them. An empty list still renders its container. The list owns no action state and throws outside `FeedHealth`.
 
-Each `FeedDescriptor` supplies the connection state and message metadata. The component displays them; it does not connect, detect gaps, or replay messages.
+<details class="api-details" id="feedhealthlist-identity">
+<summary>Row identity and cleanup</summary>
 
-| Field | Type | Required | Purpose |
+Matching ids preserve row state through reordering or replacement; removing an id unmounts its row.
+
+</details>
+
+### `<FeedHealthEmpty />`
+
+A div shown only when the nearest root's collection is empty. Offline feeds are nonempty. It supplies muted small text, no default content, live region or focus management, and throws outside `FeedHealth`. Place it beside the list; an empty list never calls its row callback. Keep a focus target mounted when removing rows with focused controls or open menus.
+
+### Readings
+
+These parts require `FeedHealthItem`. Indicator, Tier, Lane and Pending use default text only when `children` is omitted or `undefined`; `null` or `false` suppresses that text. Keep a non-color cue when replacing indicator or tier content.
+
+#### `<FeedHealthIndicator />`
+
+A span containing the dot and a screen-reader connection-state word. Children replace the word.
+
+#### `<FeedHealthTier />`
+
+A badge containing the tier word. Use `className="sr-only"` for compact display.
+
+#### `<FeedHealthLane />`
+
+A span containing nonzero coalesced drops or ordered gap age, a replay spinner and an accessible replay/open word. With omitted children, no data renders nothing.
+
+#### `<FeedHealthDetails />`
+
+A description list containing state, tier, local last-message time and lane metadata. Children append `dt`/`dd` pairs, such as a pending label. Details can also be inline or replaced with your own markup.
+
+#### `<FeedHealthPending />`
+
+A span containing a spinner and action id while pending. Pass `pendingLabel` as children for the action label.
+
+#### `<FeedHealthTooltipTrigger />` and `<FeedHealthTooltipContent />`
+
+Wrap your shadcn `TooltipTrigger` and `TooltipContent`. The trigger adds tier color, focus style and a description link; the content adds the matching id and tooltip role. Both take caller content.
+
+Put the tooltip pair inside your shadcn `Tooltip` and `FeedHealth` provider. Preserve their matching id/description attributes when overriding props. Put the label first for its accessible name; `order-first` places the indicator visually first.
+
+### `<FeedAge />`
+
+A span that also works outside an item. It defaults to `aria-hidden` so age ticks are not read aloud. Custom children replace the formatted age, including explicit `null` or `false`.
+
+<!-- api-props -->
+
+| Prop | Type | Default | Purpose |
 |---|---|---|---|
-| `id` | `string` | Yes | Identity for rendering, pending actions, and announcements. |
-| `label` | `string` | Yes | Visible feed name. |
-| `state` | `FeedState` | Yes | `"connected"`, `"connecting"`, `"disconnected"`, or `"unknown"`; sets the state dot. |
-| `lane` | `FeedLane` | Yes | `"coalesced"` or `"ordered"`; selects lane details. |
-| `lastMessageAt` | `number \| null` | Yes | Last message time in milliseconds since the epoch; `null` means no timestamp. |
-| `dropped` | `number` | No | Cumulative dropped count for a coalesced lane; defaults to zero in the tooltip and appears inline when nonzero. |
-| `seq` | `number` | No | Last applied sequence, shown in an ordered lane's tooltip when supplied. |
-| `gap` | `{ since: number; replaying: boolean } \| null` | No | Open gap; `since` is milliseconds since the epoch. Omit or pass `null` for none. |
-| `allowedActions` | `readonly string[]` | No | Action ids currently allowed on this feed; omission or an empty list allows none. |
+| `feed` | `FeedDescriptor` | Required | Last-message timestamp. |
+| `clock` | `Clock` | Group, then shared clock | Time source. |
+| `children` | `ReactNode` | Formatted age | Replacement content. |
+
+<details class="api-details" id="feedage-formatting">
+<summary>Age formatting</summary>
+
+Future timestamps clamp to zero. `formatAge(ms)` returns `now` below one second, then whole seconds, minutes or hours (`12s`, `3m`, `2h`); null and nonfinite input display `–`.
+
+</details>
+
+### `<FeedHealthAnnouncer />`
+
+`FeedHealthAnnouncer` is a span with a polite, atomic live region and no `children` prop. Mount once per collection, including when several lists display it.
+
+<!-- api-props -->
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `feeds` | `readonly FeedDescriptor[]` | Root collection | Override the collection; required outside a root. |
+| `thresholds` | `StalenessThresholds` | Inherited | Match the readings' age boundaries. |
+| `session` | `SessionCalendar` | Inherited | Match the readings' session. |
+| `clock` | `Clock` | Inherited | Match the readings' time source. |
+
+<details class="api-details" id="feedhealthannouncer-timing">
+<summary>Announcement timing</summary>
+
+It initializes empty, then batches additions and tier changes; aging/stale messages include the age. Age-only ticks, label changes, reordering and removals leave the last message unchanged. Repeated wording still inserts a new message node. An idle clock refreshing on subscription can produce a tier change during mounting.
+
+</details>
+
+<div id="actions"></div>
+
+### `useFeedActions(feed, actions, options?)`
+
+Owns pending state without subscribing to the clock. Use one owner per feed and share its result between views. Outside the group, pass its custom clock explicitly.
+
+- `feed: FeedDescriptor`: the current feed, including its allowed action ids.
+- `actions: readonly FeedAction[]`: your action definitions, in display order.
+
+#### `options?: UseFeedActionsOptions`
+
+Optional third argument. Omit it to use the defaults below.
+
+<!-- api-props -->
+
+| Option | Type | Default | Purpose |
+|---|---|---|---|
+| `pendingMs` | `number` | `5000` | Timeout in milliseconds; changes affect future presses. |
+| `clock` | `Clock` | Group, then shared clock | Press timestamp. Timeout uses `setTimeout`. |
+
+#### Returns
+
+<!-- api-props -->
+
+| Returned value | Type | Purpose |
+|---|---|---|
+| `actions` | `FeedAction[]` | Allowed actions in caller order. |
+| `pending` | `PendingFeedAction \| null` | Action id, connection state at press and `since` timestamp; pass to the item. |
+| `pendingLabel` | `string \| undefined` | Action label, or id if its definition disappeared. |
+| `run` | `(actionId: string) => void` | Rechecks definitions and permissions; blocks duplicate presses while pending. |
+
+`feedActionsFor(feed, actions)` is the pure filter, preserving order and labels. Missing actions or allowed ids yields none.
+
+<details class="api-details" id="feed-actions-lifecycle">
+<summary>Pending lifecycle</summary>
+
+Pending clears on state/id change, promise settlement, a synchronous throw, timeout or effect cleanup (unmount or Activity/Suspense hiding). Returning void or changing permissions does not clear it; an older request cannot clear a newer one. Clearing pending does not cancel the request. Keep the hook owner outside a hidden boundary to preserve pending and duplicate protection there.
+
+</details>
+
+The action hook does not change the tier. Errors and rejections are caught but not displayed; report failures yourself. Return your request's promise and update the descriptor from its reply.
+
+Disable pending controls; `aria-disabled` preserves inline-button focus while the hook blocks duplicates. The hook manages no menus or focus. Use `useFeedActionMenu` for menus or a persistent fallback for disappearing buttons, as in the card. Use `feed.id` keys when mapping rows yourself.
+
+### `useFeedActionMenu(options)`
+
+Needs neither FeedHealth context nor `useFeedActions` and imports no menu primitive.
+
+#### `options: UseFeedActionMenuOptions`
+
+Required argument with both fields below.
+
+<!-- api-props -->
+
+| Option | Type | Default | Purpose |
+|---|---|---|---|
+| `hasActions` | `boolean` | Required | Usually `actions.length > 0` from `useFeedActions`. |
+| `fallbackRef` | `RefObject<HTMLElement \| null>` | Required | Persistent focusable target in the same document, outside the menu. |
+
+#### Returns
+
+<!-- api-props -->
+
+| Returned value | Type | Purpose |
+|---|---|---|
+| `mounted` | `boolean` | Render the menu while actions exist, its trigger is focused, or it is open/finishing dismissal. |
+| `menuProps` | `{ open: boolean; onOpenChange(open: boolean): void }` | Spread onto `DropdownMenu`. |
+| `triggerProps` | `{ ref: RefObject<HTMLButtonElement \| null>; onFocus(): void; onBlur(): void }` | Spread onto `DropdownMenuTrigger`. |
+| `contentProps` | `{ ref: RefObject<HTMLDivElement \| null> }` | Spread onto `DropdownMenuContent`. |
+
+Compose your own refs/focus handlers with the returned ones. Supply empty-menu content and disabled/destructive styling. A reading button or heading with `tabIndex={-1}` can be the fallback.
+
+<details class="api-details" id="feed-action-menu-recovery">
+<summary>Dismissal and focus recovery</summary>
+
+When actions disappear, a focused trigger stays until focus leaves; an open menu stays until dismissed. Deferred recovery moves lost focus, or focus still on the disappearing menu, to the fallback. It preserves deliberate destinations and does not take focus from another document. Reopening or unmounting cancels recovery. Keyboard behavior belongs to the primitive: Base moves on Tab; Radix keeps the menu open.
+
+</details>
+
+<div id="feeds"></div>
+
+### `interface FeedDescriptor`
+
+`FeedDescriptor` describes data supplied by your integration. FeedHealth does not detect gaps or replay messages.
+
+<!-- api-props -->
+
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `id` | `string` | Required | Identity for rows, requests and announcements. |
+| `label` | `string` | Required | Feed name. |
+| `state` | `FeedState` | Required | `"connected"`, `"connecting"`, `"disconnected"` or `"unknown"`. |
+| `lane` | `FeedLane` | Required | `"coalesced"` or `"ordered"`. |
+| `lastMessageAt` | `number \| null` | Required | Epoch milliseconds; null means no timestamp. |
+| `dropped` | `number` | — | Cumulative coalesced drop count. Details default to zero; Lane shows nonzero counts. |
+| `seq` | `number` | — | Last applied sequence, shown in ordered-lane details. |
+| `gap` | `{ since: number; replaying: boolean } \| null` | — | Open gap; `since` is epoch milliseconds. Omit or use null for none. |
+| `allowedActions` | `readonly string[]` | — | Allowed action ids; omitted or empty allows none. |
+
+### `interface FeedAction`
+
+An action definition matched against the feed's `allowedActions`.
+
+<!-- api-props -->
+
+| FeedAction field | Type | Default | Purpose |
+|---|---|---|---|
+| `id` | `string` | Required | Distinct id matching `allowedActions`. |
+| `label` | `string` | Required | Control text and pending label. |
+| `run` | `(feed: FeedDescriptor) => void \| Promise<unknown>` | Required | Receives the latest committed descriptor. |
+| `destructive` | `boolean` | — | Metadata for caller styling or confirmation. |
 
 ### Tiers
 
-`stalenessTier(feed, now, thresholds, session)` returns the first matching tier below. It is a pure helper for using the same tier elsewhere, such as graying out a grid; its threshold and session defaults match the component.
+`stalenessTier(feed, now, thresholds?, session?)` is pure and uses the component's defaults. First matching condition wins:
 
-| Condition, in precedence order | Tier |
+| Tier | Condition |
 |---|---|
-| `state` is `"disconnected"`, whatever the session | `offline` |
-| Session status is `"closed"` or `"holiday"` | `closed` |
-| `lastMessageAt` is `null` | `aging` |
-| `now - lastMessageAt < agingMs` | `live` |
-| `now - lastMessageAt < staleMs` | `aging` |
-| Otherwise | `stale` |
+| `offline` | Disconnected, regardless of session. |
+| `closed` | Session is closed or holiday. |
+| `aging` | No message timestamp. |
+| `live` | Age < `agingMs`. |
+| `aging` | Age < `staleMs`. |
+| `stale` | Otherwise. |
 
-At the boundaries, age equal to `agingMs` is aging and age equal to `staleMs` is stale. `"connecting"` and `"unknown"` use the same age rules as `"connected"`, so either can have a live tier. A null timestamp stays aging while the session is active. Drops and gaps do not change the tier.
+Equality reaches the next tier. Connecting and unknown feeds follow the same age rules as connected feeds; drops and gaps do not affect tiers.
 
 ### Lanes
 
-Coalesced lanes report intentional drops of stale ticks. Ordered lanes carry messages that must not be dropped; they report an open gap's age, with a spinner when `gap.replaying` is true. The tooltip also shows connection state, tier, and last-message time. It shows gap status whenever `gap` is supplied, even on a coalesced lane.
+Coalesced lanes count dropped stale ticks; ordered lanes must not drop messages and report gap age and replay status. Details show gap status whenever `gap` exists, even for a coalesced lane.
 
-To map a [`row-store`](row-store.md)'s `useStoreMeta` into a descriptor, use `lane`, `dropped`, `lastBatchAt` as `lastMessageAt`, and `seq ?? undefined`. Supply the feed's identity, label, and connection state yourself. Store metadata has only a boolean `gap`; track its opening time and replay state in your feed integration to build `{ since, replaying }`.
+For [`row-store`](row-store.md)'s `useStoreMeta`, map `lane`, `dropped`, `lastBatchAt` → `lastMessageAt`, and `seq ?? undefined`. Supply identity, label and connection state. Its boolean `gap` needs an opening timestamp and replay state from your integration.
 
 ### Thresholds and the session
 
-`StalenessThresholds` requires `agingMs` and `staleMs`, both numbers in milliseconds. `PROVISIONAL_THRESHOLDS` is `{ agingMs: 2000, staleMs: 10_000 }`. These are placeholders: choose thresholds with the people who use the data. Supply the whole object with `0 <= agingMs < staleMs`; the component does not validate or reorder it.
+`StalenessThresholds` requires both numeric millisecond values: `agingMs` and `staleMs`. `PROVISIONAL_THRESHOLDS` is `{ agingMs: 2000, staleMs: 10_000 }`. Agree real boundaries with users and supply `0 <= agingMs < staleMs`; the component does not validate or reorder them.
 
-`SessionCalendar` needs one method: `status(now: number)`, returning `"open"`, `"closed"`, `"pre"`, `"post"`, or `"holiday"`. `now` is milliseconds since the epoch. Pre- and post-session feeds still age normally; only closed and holiday suppress staleness, and neither overrides a disconnection. Real exchange calendars are yours to supply; [`session-calendar`](session-calendar.md) builds one from sessions, holidays, and early closes in the venue's zone.
+`SessionCalendar.status(now)` receives epoch milliseconds and returns `"open"`, `"closed"`, `"pre"`, `"post"` or `"holiday"`. Pre/post still age normally. [`session-calendar`](session-calendar.md) builds calendars from sessions, holidays and early closes in the venue's zone.
 
-### Actions
+<div id="the-clock"></div>
 
-Use `FeedAction` for operations such as pause, resume, reconnect, and resubscribe:
+### `interface Clock`
 
-| Field | Type | Required | Purpose |
-|---|---|---|---|
-| `id` | `string` | Yes | Matches the feed's `allowedActions`. Use distinct action ids. |
-| `label` | `string` | Yes | Menu text and pending-action label. |
-| `run` | `(feed: FeedDescriptor) => void \| Promise<unknown>` | Yes | Receives the descriptor used for the press. A returned promise clears pending on resolution or rejection. |
-| `destructive` | `boolean` | No | Adds destructive text color; does not add confirmation. |
+Only items, ages and announcers subscribe; ticks do not rerender the root, list callback or their parents. The shared one-second interval stops after its last subscriber leaves and is shared with other ticking components.
 
-`feedActionsFor(feed, actions)` filters actions against `allowedActions`, preserving your action order and labels, as [`blotter`](blotter.md) and the tickets do. The feed gets a menu on your `dropdown-menu` only when at least one action matches. Missing actions or missing allowed ids means no menu.
+<details class="api-details" id="clock-methods">
+<summary>Clock methods and event timestamps</summary>
 
-A press shows a spinner and the action label, then disables that feed's menu items while pending. Other feeds remain usable. Pending clears when the feed's `state` changes, the feed is removed, the returned promise settles, `run` throws, or the timeout expires. Returning `void` alone does not clear it. Changing `pendingMs` does not reschedule an existing timeout; the timeout uses `setTimeout`, independently of clock ticks.
+`createClock(intervalMs = 1000, source = Date.now)` returns a `Clock` with `now(): number` and `subscribe(cb): () => void`. It caches epoch milliseconds between ticks and refreshes on the first subscription after inactivity. Optional `sample(): number` reads the source without changing the snapshot or starting a timer. Action timestamps use `sample()` when available, otherwise `now()`.
 
-Pending indicates a request, not success. The component catches synchronous errors and promise rejections without displaying an error; report failures in your integration. A press does not change the tier, which still follows the feed, session, and clock.
+</details>
 
-Pending actions are identified by feed id and the clock's cached timestamp. If a cleared action's timer or promise settles after a newer action starts on the same id before the clock advances, it can clear the newer pending mark. Removing and re-adding that id does not prevent this.
+<div id="tokens"></div>
 
-`labels.actions` defaults to `"Actions: {feed}"`, with `{feed}` replaced by the feed label. `labels.pending` defaults to `"Pending"` in the tooltip. These overrides do not translate tier names, other tooltip labels, or the outer group's name.
+### Installed primitives
 
-### The clock
+Includes `badge`, `spinner`, `tooltip`, the shared clock, and missing `stale`/`up` tokens. Add `separator`, `dropdown-menu` or `button` for layouts that use them.
 
-Feed items, ages, and the announcer subscribe to the clock. The default shared one-second interval runs while it has subscribers and stops after the last unsubscribe; it is shared with other ticking components. Clock ticks do not re-render the strip or its parent.
+Updating from the closed widget? See the [FeedHealth migration guide](migrating-v1-to-v2.md#feedhealth).
 
-`createClock(intervalMs = 1000, source = Date.now)` is exported here for custom clocks and tests. A `Clock` provides `now(): number` and `subscribe(cb): () => void`, which returns an unsubscribe function. The created clock caches its timestamp between ticks and also refreshes it when its first subscriber arrives after inactivity. Use epoch milliseconds to match feed timestamps.
-
-`FeedAge` displays an age on its own:
-
-| Prop | Type | Default | Purpose |
-|---|---|---|---|
-| `feed` | `FeedDescriptor` | Required | Supplies the last-message timestamp. |
-| `clock` | `Clock` | Shared one-second clock | Time source for the age. |
-| `className` | `string` | Omitted | Classes on the age span. |
-
-Ages clamp future timestamps to zero and are hidden from assistive technology. `formatAge(ms)` formats milliseconds as `now` below one second, then whole seconds, minutes, or hours (`12s`, `3m`, `2h`); null or nonfinite input displays `–`.
-
-The polite live region initializes empty. It updates when a feed changes tier or a new feed is added, combining simultaneous changes into one message. A clock that refreshes an old timestamp on subscription can cause a tier change and announcement during mounting. Aging and stale announcements include the age at that transition, such as "Market data stale, 10s". Plain age ticks, label changes, and removals do not create a new message, so the spoken age does not keep counting.
-
-### Tokens
-
-The install adds the `stale` and `up` tokens to your stylesheet if you do not have them.
+</div>

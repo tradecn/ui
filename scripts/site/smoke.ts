@@ -21,7 +21,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
-import { chromium, type Locator, type Page } from "@playwright/test"
+import { chromium, expect, type Locator, type Page } from "@playwright/test"
 import { compareTags, DESK_DEMO, FONT_PACKAGES, HEADERS_FILE, PREVIEW_PATH, ROBOTS_FILE, SEARCH_INDEX, SITE_SCRIPT, SITE_URL, SITEMAP_FILE, THEME_ITEM, VERSIONS_INDEX } from "./build"
 import type { SearchPage } from "./build"
 
@@ -260,6 +260,8 @@ for (const item of items) {
     const card = page.locator(`.preview[data-preview='${item}']`)
     const frame = card.locator("iframe")
     await frame.waitFor({ timeout: 15_000 })
+    // A variant farther down the page stays unloaded until its lazy iframe approaches the viewport.
+    await frame.scrollIntoViewIfNeeded()
     // A demo is taller than the root's padding alone; the height has to be the demo's, not the empty page's.
     await page.waitForFunction((name) => parseFloat((document.querySelector(`.preview[data-preview='${name}'] iframe`) as HTMLIFrameElement | null)?.style.height ?? "0") > 40, item, { timeout: 15_000 })
     const height = await frame.evaluate((el) => parseFloat((el as HTMLIFrameElement).style.height))
@@ -418,6 +420,10 @@ for (const item of items) {
     }
     // On a phone a path too long for the line beside the buttons breaks after a slash and goes on under them.
     await page.setViewportSize({ width: 390, height: 900 })
+    const splitIdentifiers = await page.locator("article .table code").evaluateAll((nodes) => nodes
+      .filter((node) => /^(?:--)?[A-Za-z_$][\w$.-]*$/.test(node.textContent ?? "") && node.getClientRects().length > 1)
+      .map((node) => node.textContent))
+    if (splitIdentifiers.length) failures.push(`${item}: at 390px, table identifiers break across lines: ${splitIdentifiers.join(", ")}`)
     for (let i = 0; i < (await blocks.count()); i++) {
       const header = await headerProblem(blocks.nth(i))
       if (header) failures.push(`${item}: at 390px, Manual's block ${i + 1}'s header ${header}`)
@@ -425,6 +431,116 @@ for (const item of items) {
     console.log(`ok  ${item.padEnd(26)} ${Math.round(height)}px`)
   } catch (error) {
     failures.push(`${item}: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
+if (items.includes("feed-health-empty")) {
+  const page = await context.newPage()
+  watch(page, "feed-health empty collection")
+  try {
+    await page.goto(`${base}/${PREVIEW_PATH}/feed-health-empty/`)
+    const control = page.getByRole("checkbox", { name: "Include market data" })
+    await expect(page.getByText("No feeds configured.")).toBeVisible()
+    await control.focus()
+    await page.keyboard.press("Space")
+    await expect(control).toBeFocused()
+    await expect(page.locator("[data-feed='md']")).toHaveAttribute("data-tier", "offline")
+    await expect(page.getByText("No feeds configured.")).toHaveCount(0)
+    await page.keyboard.press("Space")
+    await expect(control).toBeFocused()
+    await expect(page.getByText("No feeds configured.")).toBeVisible()
+    await expect(page.locator("[data-feed]")).toHaveCount(0)
+  } catch (error) {
+    failures.push(`feed-health empty collection: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
+// These are the copyable recipes themselves: permissions can remove the focused control after a reply.
+if (items.includes("feed-health-card") && items.includes("feed-health-actions")) {
+  const page = await context.newPage()
+  watch(page, "feed-health recipes")
+  try {
+    await page.goto(`${base}/${PREVIEW_PATH}/feed-health-card/`)
+    const reconnect = page.getByRole("button", { name: "Reconnect", exact: true })
+    await reconnect.focus()
+    await page.keyboard.press("Enter")
+    await expect(reconnect).toHaveAttribute("aria-disabled", "true")
+    await expect(reconnect).toBeFocused()
+    await expect(page.getByRole("heading", { name: "RFQ connected" })).toBeFocused()
+    const resubscribe = page.getByRole("button", { name: "Resubscribe", exact: true })
+    await resubscribe.focus()
+    await page.keyboard.press("Enter")
+    await page.keyboard.press("Enter")
+    await expect(resubscribe).toHaveAttribute("aria-disabled", "false")
+    await expect(resubscribe).toBeFocused()
+    await expect(page.getByRole("status")).toHaveText("Resubscribed.")
+    await expect(page.locator("[data-slot='tradecn-feed-health-details'] dd").nth(3)).toHaveText("2")
+    await page.getByRole("button", { name: "Disconnect RFQ" }).click()
+    await reconnect.focus()
+    await page.keyboard.press("Enter")
+    await page.keyboard.press("Tab")
+    const link = page.getByRole("link", { name: "Feed API" })
+    await expect(link).toBeFocused()
+    await expect(page.getByRole("status")).toHaveText("Reconnected.")
+    await expect(link).toBeFocused()
+
+    // Exercise the copied recipe's native dismissal paths after permissions disappear.
+    for (const dismissal of ["focus", "Escape", "pointer", "Tab", "Shift+Tab"]) {
+      await page.goto(`${base}/${PREVIEW_PATH}/feed-health-actions/`)
+      await page.evaluate(() => {
+        const next = document.createElement("button")
+        next.textContent = "After feed"
+        document.body.append(next)
+      })
+      const menu = page.getByRole("button", { name: "Actions: RFQ" })
+      await menu.focus()
+      await page.keyboard.press("ArrowDown")
+      await expect(page.getByRole("menuitem", { name: "Reconnect", exact: true })).toBeFocused()
+      await page.keyboard.press("Enter")
+      await expect(page.getByRole("status")).toHaveText("Reconnected.")
+      await menu.focus()
+      await page.keyboard.press("ArrowDown")
+      await expect(page.getByRole("menuitem", { name: "Resubscribe", exact: true })).toBeFocused()
+      await page.keyboard.press("Enter")
+      await expect(menu).toBeFocused()
+      if (dismissal !== "focus") await page.keyboard.press("ArrowDown")
+      await expect(page.locator("p[role='status']")).toHaveText("Resubscribed. No actions are allowed now.")
+      if (dismissal !== "focus") {
+        const empty = page.getByRole("menuitem", { name: "No actions available.", exact: true })
+        await expect(empty).toBeVisible()
+        await expect(empty).toBeDisabled()
+        await expect(page.locator("[data-feed-action]")).toHaveCount(0)
+        // Radix consumes Tab inside menus; Base moves to the adjacent page control.
+        const consumesTab = await page.getByRole("menu").getAttribute("data-state") !== null
+        if (dismissal === "pointer") {
+          const viewport = page.viewportSize()!
+          await page.mouse.click(viewport.width - 5, viewport.height - 5)
+        } else {
+          await page.keyboard.press(dismissal)
+          if (dismissal.includes("Tab") && consumesTab) {
+            await expect(page.getByRole("menu")).toBeVisible()
+            await page.keyboard.press("Escape")
+          }
+        }
+        await expect(page.getByRole("menu")).toHaveCount(0)
+        const destination = dismissal === "Tab" && !consumesTab
+          ? page.getByRole("button", { name: "After feed", exact: true })
+          : page.locator("[data-slot='tooltip-trigger']")
+        await expect(destination).toBeFocused()
+      } else {
+        await expect(menu).toBeFocused()
+        await page.keyboard.press("Shift+Tab")
+        await expect(page.locator("[data-slot='tooltip-trigger']")).toBeFocused()
+      }
+      await expect(menu).toHaveCount(0)
+    }
+    console.log("ok  feed-health recipes: pending/replacement focus, duplicate presses, and permission loss with keyboard/pointer dismissal")
+  } catch (error) {
+    failures.push(`feed-health recipes: ${firstLine(error)}`)
   } finally {
     await page.close()
   }
@@ -1238,6 +1354,85 @@ if (items.includes("data-grid")) {
     console.log(`ok  no page scrolls sideways at ${widths.join(", ")}px`)
   } catch (error) {
     failures.push(`overflow: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
+// The FeedHealth reference keeps ordinary inputs visible. Details are native keyboard controls,
+// and links/search reveal their destination instead of leaving the relevant contract collapsed.
+if (items.includes("feed-health")) {
+  const page = await context.newPage()
+  watch(page, "API reference")
+  try {
+    await page.goto(`${base}/docs/feed-health/`)
+    const reference = page.locator(".api-reference")
+    // Older releases keep their original reference; this presentation is opt-in in the doc source.
+    if (await reference.count()) {
+      await expect(reference.locator(".api-props").first()).toBeVisible()
+      await expect(reference.locator("details[open]")).toHaveCount(0)
+      const detail = page.locator("#usefeedactionmenu-triggerprops-type")
+      const summary = detail.locator("summary")
+      await summary.focus()
+      await page.keyboard.press("Enter")
+      await expect(detail).toHaveAttribute("open", "")
+      await expect(summary).toBeFocused()
+      await expect(detail.locator(".api-signature")).toContainText("onBlur(): void")
+      await page.keyboard.press("Space")
+      await expect(detail).not.toHaveAttribute("open")
+      await expect(summary).toBeFocused()
+      await reference.getByRole("button", { name: "Expand all details", exact: true }).click()
+      await expect(reference.locator("details:not([open])")).toHaveCount(0)
+      await reference.getByRole("button", { name: "Collapse all details", exact: true }).click()
+      await expect(reference.locator("details[open]")).toHaveCount(0)
+      // A direct URL and a legacy heading alias both reveal the relevant detail.
+      await page.goto(`${base}/docs/feed-health/#usefeedactionmenu-triggerprops-type`)
+      await expect(detail.locator(".api-signature")).toBeVisible()
+      await page.goto(`${base}/docs/feed-health/#actions`)
+      await expect(page.locator("#feed-actions-lifecycle")).toHaveAttribute("open", "")
+      // Links from the original closed widget still lead to the corresponding public API sections.
+      await page.goto(`${base}/docs/feed-health/#props`)
+      await expect(page.locator("#feedhealth-root")).toBeInViewport()
+      await page.goto(`${base}/docs/feed-health/#feedhealth-root-feeds`)
+      await expect(page.locator("#feedhealth-root-feeds")).toBeInViewport()
+      await page.goto(`${base}/docs/feed-health/#the-clock`)
+      await expect(page.locator("#clock-methods")).toHaveAttribute("open", "")
+      await page.goto(`${base}/docs/feed-health/#tokens`)
+      await expect(page.locator("#installed-primitives")).toBeInViewport()
+      await page.goto(`${base}/docs/feed-health/`)
+      await page.locator(".site-header .search-button").click()
+      await page.locator("dialog.search input").fill("Activity/Suspense")
+      await page.locator("dialog.search [role='option'][href='/docs/feed-health/#usefeedactions']").click()
+      await expect(page.locator("#feed-actions-lifecycle")).toHaveAttribute("open", "")
+      // Search to the same hash must also reopen a detail the reader closed.
+      await page.locator("#feed-actions-lifecycle summary").click()
+      await page.locator(".site-header .search-button").click()
+      await page.locator("dialog.search input").fill("Activity/Suspense")
+      await page.locator("dialog.search [role='option'][href='/docs/feed-health/#usefeedactions']").click()
+      await expect(page.locator("#feed-actions-lifecycle")).toHaveAttribute("open", "")
+      for (const width of [1280, 390, 360]) {
+        await page.setViewportSize({ width, height: 640 })
+        for (const scheme of ["light", "dark"] as const) {
+          await page.emulateMedia({ colorScheme: scheme })
+          await reference.getByRole("button", { name: "Expand all details", exact: true }).click()
+          expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0)
+          await reference.getByRole("button", { name: "Collapse all details", exact: true }).click()
+        }
+      }
+      const plainContext = await browser.newContext({ javaScriptEnabled: false })
+      try {
+        const plain = await plainContext.newPage()
+        await plain.goto(`${base}/docs/feed-health/`)
+        await plain.locator("#feed-actions-lifecycle summary").click()
+        await expect(plain.locator("#feed-actions-lifecycle p")).toBeVisible()
+        await expect(plain.locator(".api-props").first()).toBeVisible()
+      } finally {
+        await plainContext.close()
+      }
+      console.log("ok  API reference: keyboard disclosures, full types, links/search, narrow themes and no-script access")
+    }
+  } catch (error) {
+    failures.push(`API reference: ${firstLine(error)}`)
   } finally {
     await page.close()
   }

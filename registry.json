@@ -228,14 +228,12 @@
       "name": "feed-health",
       "type": "registry:ui",
       "title": "Feed Health",
-      "description": "A strip that shows each feed's connection state, the age of its data, and a staleness tier, with drop counts for coalesced lanes and gap indicators for ordered ones. Each feed offers the actions the server allows on it in a menu of its own, pending until the feed reports back. Pluggable thresholds and session calendar; only the leaves tick.",
+      "description": "Composable feed readings with connection state, data age, staleness tiers and lane metadata. Callers own rows, tooltips and controls; a per-feed action hook preserves permission checks and pending requests, and an explicit announcer reports tier changes.",
       "dependencies": [
         "cn@^0.3.0"
       ],
       "registryDependencies": [
         "badge",
-        "dropdown-menu",
-        "separator",
         "spinner",
         "tooltip"
       ],
@@ -257,16 +255,68 @@
         "feed",
         "chrome"
       ],
-      "docs": "Adds the stale and up tokens and installs the shared one-second clock alongside. Composes your badge, separator, spinner, tooltip, and dropdown-menu. The default thresholds (2 s aging, 10 s stale) are placeholders: agree real ones with the people who trade on the data and pass them in. A feed's actions are the ids the server allows on it; a press shows pending until the feed's state moves.",
+      "docs": "Adds the stale and up tokens and installs the shared one-second clock. Pass the required feeds to FeedHealth, render rows through FeedHealthList, and mount one FeedHealthAnnouncer per collection. FeedHealthEmpty shows your content for an explicit empty collection. Compose each item from public readings. Install dropdown-menu, separator or button separately when your layout uses them. Default aging/stale thresholds (2 s/10 s) are placeholders; agree real boundaries with the people using the data.",
       "meta": {
         "components": [
           {
             "title": "FeedHealth",
-            "description": "The strip."
+            "description": "Collection and shared thresholds, session and clock for caller-owned lists and readings."
+          },
+          {
+            "title": "FeedHealthList",
+            "description": "Renders the root collection through caller JSX, keyed by feed id."
+          },
+          {
+            "title": "FeedHealthEmpty",
+            "description": "Caller-owned content shown when the root collection is empty."
+          },
+          {
+            "title": "FeedHealthItem",
+            "description": "One feed and its caller-owned presentation."
+          },
+          {
+            "title": "FeedHealthTooltipTrigger",
+            "description": "Accessible trigger paired with FeedHealthTooltipContent inside your Tooltip."
+          },
+          {
+            "title": "FeedHealthTooltipContent",
+            "description": "Caller-owned tooltip content linked to the trigger."
+          },
+          {
+            "title": "FeedHealthIndicator",
+            "description": "Connection dot with a state word."
+          },
+          {
+            "title": "FeedHealthTier",
+            "description": "Staleness tier badge."
           },
           {
             "title": "FeedAge",
             "description": "A self-ticking age for one feed."
+          },
+          {
+            "title": "FeedHealthLane",
+            "description": "Optional drop count or gap age."
+          },
+          {
+            "title": "FeedHealthDetails",
+            "description": "Replaceable metadata formatting with additional fields."
+          },
+          {
+            "title": "FeedHealthPending",
+            "description": "Pending request marker with caller text."
+          },
+          {
+            "title": "FeedHealthAnnouncer",
+            "description": "One tier-change announcer per collection."
+          },
+          {
+            "title": "useFeedActions",
+            "description": "Permission checks and pending state for caller-owned controls."
+          },
+          {
+            "title": "useFeedActionMenu",
+            "description": "Menu retention and focus recovery when allowed actions disappear."
           },
           {
             "title": "stalenessTier",
@@ -278,7 +328,7 @@
           },
           {
             "title": "feedActionsFor",
-            "description": "The actions a feed offers now: yours, kept to the ids the server allows."
+            "description": "Filter actions by the feed’s current allowed ids."
           }
         ]
       },

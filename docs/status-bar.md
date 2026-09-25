@@ -30,7 +30,7 @@ The order is environment badge, `left`, `center`, clocks, user, `right`. The cen
 
 The bar imports none of the items in its slots. Install [`feed-health`](feed-health.md) and [`perf-monitor`](perf-monitor.md) separately for this example. A supplied feed goes on the left and actual frame measurements on the right. The monitor's bounded width lets its readouts wrap within the slot on narrow screens.
 
-Choose **Receive message** to update the sample feed's timestamp. With no further messages, its age increases; the default thresholds mark it aging after two seconds and stale after ten. Compact mode hides the tier badge; the feed's tooltip reports the tier. The monitor continues measuring while mounted. There is no demo publisher or load generator.
+Choose **Receive message** to update the sample feed's timestamp. With no further messages, its age increases; the default thresholds mark it aging after two seconds and stale after ten. The compact composition visually hides the tier badge with `sr-only`, preserving its accessible word; the feed's tooltip reports the tier. The monitor continues measuring while mounted. There is no demo publisher or load generator.
 
 <!-- demo: status-bar-slots -->
 

@@ -404,7 +404,10 @@ function search() {
       location.assign(url.href)
       return
     }
-    if (url.hash === location.hash) document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView()
+    if (url.hash === location.hash) {
+      revealApiTarget()
+      document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView()
+    }
     else location.assign(url.href)
   }
 
@@ -515,10 +518,58 @@ function collapsible(button) {
   }).observe(body)
 }
 
+// Open a linked API entry, including details hidden under a component heading. Search hits use
+// those same headings, so a result's text is visible when the reader arrives from another page.
+function revealApiTarget() {
+  let id
+  try { id = decodeURIComponent(location.hash.slice(1)) } catch { return }
+  const target = document.getElementById(id)
+  if (!target?.closest(".api-reference")) return
+  for (let node = target; node; node = node.parentElement) {
+    if (node instanceof HTMLDetailsElement) node.open = true
+  }
+  for (const detail of target.querySelectorAll("details")) detail.open = true
+  // Old heading ids remain as empty anchors immediately before the renamed headings.
+  const heading = target.matches("h3") ? target : target.matches(":empty") && target.nextElementSibling?.matches("h3") ? target.nextElementSibling : null
+  if (heading) {
+    for (let node = heading.nextElementSibling; node && !node.matches("h2, h3"); node = node.nextElementSibling) {
+      if (node instanceof HTMLDetailsElement) node.open = true
+      for (const detail of node.querySelectorAll("details")) detail.open = true
+    }
+  }
+  target.scrollIntoView()
+}
+
+function apiReferences() {
+  for (const reference of document.querySelectorAll(".api-reference")) {
+    const details = [...reference.querySelectorAll("details")]
+    if (!details.length) continue
+    const button = document.createElement("button")
+    button.type = "button"
+    button.className = "api-expand"
+    const update = () => { button.textContent = details.every((detail) => detail.open) ? "Collapse all details" : "Expand all details" }
+    button.addEventListener("click", () => {
+      const open = !details.every((detail) => detail.open)
+      for (const detail of details) detail.open = open
+      update()
+    })
+    for (const detail of details) detail.addEventListener("toggle", update)
+    reference.prepend(button)
+    update()
+  }
+  revealApiTarget()
+  addEventListener("hashchange", revealApiTarget)
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest?.("a[href^='#']")
+    if (link?.hash === location.hash) revealApiTarget()
+  })
+}
+
 addEventListener("DOMContentLoaded", () => {
   menu()
   versions()
   search()
+  apiReferences()
   for (const button of document.querySelectorAll(".view-code")) viewCode(button)
   for (const button of document.querySelectorAll(".expand")) collapsible(button)
   // Tabbed cards: the Installation's Command / Manual. The card's bar is its own first child tablist; a

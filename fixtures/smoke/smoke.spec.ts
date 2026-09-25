@@ -1275,6 +1275,89 @@ test("a feed's menu offers what the server allows, marks a press pending, and se
   await expect(md).not.toHaveAttribute("data-pending")
 })
 
+test("a feed composition retains focus after a reply removes its last action", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='feed-health']")
+  const trigger = scene.getByRole("button", { name: "Actions: Market data" })
+  await trigger.focus()
+  await page.keyboard.press("ArrowDown")
+  await expect(page.getByRole("menuitem", { name: "Reconnect", exact: true })).toBeFocused()
+  await page.keyboard.press("Enter")
+  await expect(scene.locator("[data-feed='md']")).toHaveAttribute("data-state", "connecting")
+  await expect(trigger).toBeFocused()
+  await page.keyboard.press("Tab")
+  await expect(trigger).toHaveCount(0)
+  await expect(scene.locator("[data-feed='rfq'] [data-slot='tooltip-trigger']")).toBeFocused()
+})
+
+test("a feed composition describes tooltips and preserves compact state words", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='feed-health']")
+  const md = scene.locator("[data-feed='md']")
+  const trigger = md.locator("[data-slot='tooltip-trigger']")
+  await trigger.hover()
+  const tooltip = page.getByRole("tooltip").last()
+  await expect(tooltip).toBeVisible()
+  await expect(tooltip).toContainText("Stateconnected")
+  await expect(trigger).toHaveAccessibleDescription(/State\s*connected.*Dropped\s*3/)
+  await page.keyboard.press("Escape")
+  await scene.getByRole("checkbox", { name: "Compact feeds" }).check()
+  await expect(md.locator("[data-slot='tradecn-feed-health-tier']")).toHaveClass(/sr-only/)
+  await expect(trigger).toHaveAccessibleName(/^Market data.*connected.*(?:live|aging|stale)/)
+  await trigger.focus()
+  await page.keyboard.press("Tab")
+  await expect(scene.getByRole("button", { name: "Actions: Market data" })).toBeFocused()
+})
+
+for (const dismissal of ["Escape", "pointer", "Tab", "Shift+Tab"]) test(`a feed composition preserves focus after permission revocation and ${dismissal}`, async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='feed-health']")
+  await scene.getByRole("button", { name: "Revoke actions soon" }).click()
+  const trigger = scene.getByRole("button", { name: "Actions: Market data" })
+  await trigger.focus()
+  await page.keyboard.press("ArrowDown")
+  await expect(page.getByRole("menu")).toBeVisible()
+  const empty = page.getByRole("menuitem", { name: "No actions available.", exact: true })
+  await expect(empty).toBeVisible()
+  await expect(empty).toBeDisabled()
+  await expect(page.getByRole("menuitem")).toHaveCount(1)
+  await expect(page.locator("[data-feed-action]")).toHaveCount(0)
+  // Radix consumes Tab inside menus; Base moves to the adjacent page control.
+  const consumesTab = await page.getByRole("menu").getAttribute("data-state") !== null
+  if (dismissal === "pointer") {
+    await page.mouse.click(1, 1)
+  } else {
+    await page.keyboard.press(dismissal)
+    if (dismissal.includes("Tab") && consumesTab) {
+      await expect(page.getByRole("menu")).toBeVisible()
+      await page.keyboard.press("Escape")
+    }
+  }
+  await expect(page.getByRole("menu")).toHaveCount(0)
+  const destination = dismissal === "Tab" && !consumesTab ? "rfq" : "md"
+  await expect(scene.locator(`[data-feed='${destination}'] [data-slot='tooltip-trigger']`)).toBeFocused()
+  await expect(scene.locator("[data-feed-acted]")).toHaveAttribute("data-feed-acted", "")
+})
+
+for (const removal of ["market data", "all feeds"]) test(`a feed composition restores focus when ${removal} disappears with its menu open`, async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='feed-health']")
+  await scene.getByRole("button", { name: `Remove ${removal} soon` }).click()
+  await scene.getByRole("button", { name: "Actions: Market data" }).click()
+  await expect(page.getByRole("menu")).toBeVisible()
+  await expect(scene.locator("[data-feed='md']")).toHaveCount(0)
+  await expect(page.getByRole("menu")).toHaveCount(0)
+  await expect(scene.getByRole("button", { name: "Restore feeds" })).toBeFocused()
+  if (removal === "all feeds") {
+    await expect(scene.locator("[data-feed]")).toHaveCount(0)
+    await expect(scene.getByText("No feeds configured.")).toBeVisible()
+  }
+  await page.keyboard.press("Enter")
+  await expect(scene.locator("[data-feed='md']")).toBeVisible()
+  await expect(scene.locator("[data-feed]")).toHaveCount(2)
+  await expect(scene.getByText("No feeds configured.")).toHaveCount(0)
+})
+
 // The field over the consumer's own command: a CUSIP is read as one and said so, the server is asked with the hint
 // and its answer listed with the identifier that matched, Enter picks and clears; a run's phrase is read as a coupon
 // and maturity; a ticker's list moves with the arrows; a query the server does not know says so.
