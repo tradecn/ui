@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, useFeedActionMenu, type FeedAction, type FeedDescriptor } from "@/components/ui/feed-health"
+import { FeedHealth, FeedHealthList, FeedHealthEmpty, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, useFeedActionMenu, type FeedAction, type FeedDescriptor } from "@/components/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
@@ -43,6 +43,7 @@ export function FeedHealthScene() {
         <button type="button" ref={restore} onClick={() => setFeeds(FEEDS)}>Restore feeds</button>
         <button type="button" onClick={() => schedule(() => setFeeds((feeds) => feeds.filter((feed) => feed.id !== "md")), 500)}>Remove market data soon</button>
         <button type="button" onClick={() => schedule(() => setFeeds((feeds) => feeds.map((feed) => ({ ...feed, allowedActions: [] }))), 500)}>Revoke actions soon</button>
+        <button type="button" onClick={() => schedule(() => setFeeds([]), 500)}>Remove all feeds soon</button>
         <label><input type="checkbox" checked={compact} onChange={(event) => setCompact(event.target.checked)} />Compact feeds</label>
       </div>
       <FeedHealth feeds={feeds}>
@@ -50,6 +51,7 @@ export function FeedHealthScene() {
           {index > 0 && <Separator orientation="vertical" className="h-3" />}
           <FeedRow feed={feed} actions={actions} compact={compact} />
         </div>}</FeedHealthList>
+        <FeedHealthEmpty>No feeds configured.</FeedHealthEmpty>
         <FeedHealthAnnouncer />
       </FeedHealth>
     </div>

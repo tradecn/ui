@@ -1339,17 +1339,23 @@ for (const dismissal of ["Escape", "pointer", "Tab", "Shift+Tab"]) test(`a feed 
   await expect(scene.locator("[data-feed-acted]")).toHaveAttribute("data-feed-acted", "")
 })
 
-test("a feed composition restores focus when a feed disappears with its menu open", async ({ page }) => {
+for (const removal of ["market data", "all feeds"]) test(`a feed composition restores focus when ${removal} disappears with its menu open`, async ({ page }) => {
   await page.goto("/")
   const scene = page.locator("section[data-scene='feed-health']")
-  await scene.getByRole("button", { name: "Remove market data soon" }).click()
+  await scene.getByRole("button", { name: `Remove ${removal} soon` }).click()
   await scene.getByRole("button", { name: "Actions: Market data" }).click()
   await expect(page.getByRole("menu")).toBeVisible()
   await expect(scene.locator("[data-feed='md']")).toHaveCount(0)
   await expect(page.getByRole("menu")).toHaveCount(0)
   await expect(scene.getByRole("button", { name: "Restore feeds" })).toBeFocused()
+  if (removal === "all feeds") {
+    await expect(scene.locator("[data-feed]")).toHaveCount(0)
+    await expect(scene.getByText("No feeds configured.")).toBeVisible()
+  }
   await page.keyboard.press("Enter")
   await expect(scene.locator("[data-feed='md']")).toBeVisible()
+  await expect(scene.locator("[data-feed]")).toHaveCount(2)
+  await expect(scene.getByText("No feeds configured.")).toHaveCount(0)
 })
 
 // The field over the consumer's own command: a CUSIP is read as one and said so, the server is asked with the hint

@@ -80,10 +80,19 @@ FeedHealth (feeds)
 │       │   └── FeedHealthTooltipContent
 │       │       └── FeedHealthDetails
 │       └── Caller controls using useFeedActions
+├── FeedHealthEmpty (optional caller content)
 └── FeedHealthAnnouncer (one per collection)
 ```
 
 Place readings, details and controls in your own layout. The card below keeps metadata inline and puts buttons in its footer. Put the visible label first in the trigger's children so its accessible name starts with that label; `order-first` keeps the indicator visually first.
+
+## Empty collection
+
+Pass `feeds={[]}` when no feeds are configured. Put `FeedHealthEmpty` beside the list to show your empty-state content; it renders nothing when the collection has entries, including disconnected feeds. The part supplies no message, live region or focus management.
+
+Include market data switches this example between an empty collection and an offline feed. Its checkbox stays mounted so focus survives either transition. Keep a focus destination available when removing a row that owns a focused control or open menu.
+
+<!-- demo: feed-health-empty -->
 
 ## Lanes and compact display
 
@@ -121,14 +130,14 @@ Both accept native `div` props, children, refs, classes and events. The options 
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
-| `feeds` | `readonly FeedDescriptor[]` | `[]` | Collection for descendant lists and the announcer. Each nested root owns its collection. |
+| `feeds` | `readonly FeedDescriptor[]` | Required | Collection for descendant lists, empty content and the announcer. Each nested root owns its collection; pass `[]` when empty. |
 | `children` | `ReactNode` | — | Your lists, readings, application content and announcer. |
 | `thresholds` | `StalenessThresholds` | `PROVISIONAL_THRESHOLDS` | Age boundaries in milliseconds. |
 | `session` | `SessionCalendar` | `alwaysOpen` | Session used for tiering. |
 | `clock` | `Clock` | Shared clock | Time source for tiers and descendant readings. |
 | `className` | `string` | — | Extends the default inline layout. Use grid or column classes for another arrangement. |
 
-`FeedHealth` renders a group named `Feed health`; supply `aria-label` or `aria-labelledby` to name it yourself. It inherits the caller’s text size and supplies no rows, separators, empty state, controls or announcements. Pass your ordered collection through `feeds`, compose its rows with `FeedHealthList`, and keep any empty-state text at the call site.
+`FeedHealth` renders a group named `Feed health`; supply `aria-label` or `aria-labelledby` to name it yourself. It inherits the caller’s text size and supplies no rows, separators, empty state, controls or announcements. Pass your ordered collection through the required `feeds` prop, compose its rows with `FeedHealthList`, and put caller-owned empty content in `FeedHealthEmpty`. Omitting `feeds` is a type error and throws at runtime.
 
 `FeedHealthItem` requires `feed: FeedDescriptor` and optionally accepts `pending: PendingFeedAction | null`. Its `data-feed`, `data-state`, `data-tier` and `data-pending` attributes describe that item. It sets the reading text size but does not tint caller content. Tier colors belong to `FeedHealthTier` and `FeedHealthTooltipTrigger`. Mount it inside `FeedHealth` when using tooltips so either primitive base receives its provider.
 
@@ -141,7 +150,16 @@ Both accept native `div` props, children, refs, classes and events. The options 
 | `children` | `(feed: FeedDescriptor, index: number) => ReactNode` | Required | Row content for each feed, in collection order. The list supplies the React key. |
 | `className` | `string` | — | Extends the horizontal flex layout. Add `flex-wrap`, column or grid classes here to arrange the rows. |
 
-Multiple lists can show the same collection differently; mount one announcer outside them. A list adds no clock subscriptions or action state. Single-feed layouts can place `FeedHealthItem` directly in the group, as the card recipe does. An empty list renders an empty container; supply your own empty content beside it. Filter or limit the array before passing it to the root so the announcer describes the displayed collection.
+Multiple lists can show the same collection differently; mount one announcer outside them. A list adds no clock subscriptions or action state. Single-feed layouts can place `FeedHealthItem` directly in the group, as the card recipe does; the root still requires `feeds={[feed]}`. An empty list renders an empty container; place `FeedHealthEmpty` beside it for an empty message. Filter or limit the array before passing it to the root so the announcer describes the displayed collection.
+
+### FeedHealthEmpty
+
+`FeedHealthEmpty` renders a div only when the nearest root has zero feeds. It accepts native div props, children, events, classes and a ref. It has muted, small text by default and no built-in content. It adds no clock subscriptions or announcements and throws outside `FeedHealth`. Put it beside `FeedHealthList`, since the list's row callback does not run for an empty collection.
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `children` | `ReactNode` | — | Your empty message or application content. |
+| `className` | `string` | — | Classes on the empty-content div. |
 
 ### Readings
 

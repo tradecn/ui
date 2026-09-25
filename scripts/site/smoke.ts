@@ -260,6 +260,8 @@ for (const item of items) {
     const card = page.locator(`.preview[data-preview='${item}']`)
     const frame = card.locator("iframe")
     await frame.waitFor({ timeout: 15_000 })
+    // A variant farther down the page stays unloaded until its lazy iframe approaches the viewport.
+    await frame.scrollIntoViewIfNeeded()
     // A demo is taller than the root's padding alone; the height has to be the demo's, not the empty page's.
     await page.waitForFunction((name) => parseFloat((document.querySelector(`.preview[data-preview='${name}'] iframe`) as HTMLIFrameElement | null)?.style.height ?? "0") > 40, item, { timeout: 15_000 })
     const height = await frame.evaluate((el) => parseFloat((el as HTMLIFrameElement).style.height))
@@ -429,6 +431,29 @@ for (const item of items) {
     console.log(`ok  ${item.padEnd(26)} ${Math.round(height)}px`)
   } catch (error) {
     failures.push(`${item}: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
+if (items.includes("feed-health-empty")) {
+  const page = await context.newPage()
+  watch(page, "feed-health empty collection")
+  try {
+    await page.goto(`${base}/${PREVIEW_PATH}/feed-health-empty/`)
+    const control = page.getByRole("checkbox", { name: "Include market data" })
+    await expect(page.getByText("No feeds configured.")).toBeVisible()
+    await control.focus()
+    await page.keyboard.press("Space")
+    await expect(control).toBeFocused()
+    await expect(page.locator("[data-feed='md']")).toHaveAttribute("data-tier", "offline")
+    await expect(page.getByText("No feeds configured.")).toHaveCount(0)
+    await page.keyboard.press("Space")
+    await expect(control).toBeFocused()
+    await expect(page.getByText("No feeds configured.")).toBeVisible()
+    await expect(page.locator("[data-feed]")).toHaveCount(0)
+  } catch (error) {
+    failures.push(`feed-health empty collection: ${firstLine(error)}`)
   } finally {
     await page.close()
   }

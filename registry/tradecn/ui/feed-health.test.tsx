@@ -4,7 +4,7 @@ import { Tooltip } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthPending, FeedHealthAnnouncer, useFeedActions, useFeedActionMenu, type FeedAction, type FeedHealthOptions, alwaysOpen, createClock, feedActionsFor, formatAge, stalenessTier, type FeedDescriptor, type SessionCalendar } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthList, FeedHealthEmpty, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthPending, FeedHealthAnnouncer, useFeedActions, useFeedActionMenu, type FeedAction, type FeedHealthOptions, alwaysOpen, createClock, feedActionsFor, formatAge, stalenessTier, type FeedDescriptor, type SessionCalendar } from "@/registry/tradecn/ui/feed-health"
 
 function Strip({ feeds, actions = [], pendingMs, ...options }: FeedHealthOptions & { feeds: FeedDescriptor[]; actions?: FeedAction[]; pendingMs?: number }) {
   return <FeedHealth feeds={feeds} {...options}>
@@ -280,10 +280,10 @@ describe("public composition", () => {
           <FeedHealthAnnouncer data-testid="inner-announcer" />
           <FeedHealthAnnouncer feeds={[]} data-testid="explicit-announcer" />
         </FeedHealth>
-        <FeedHealth>
+        <FeedHealth feeds={[]}>
           <FeedHealthList data-testid="empty-list">{(feed) => <p>{feed.label}</p>}</FeedHealthList>
           <FeedHealthAnnouncer data-testid="empty-announcer" />
-          <p>No feeds configured.</p>
+          <FeedHealthEmpty>No feeds configured.</FeedHealthEmpty>
         </FeedHealth>
       </FeedHealth>
     }
@@ -303,7 +303,50 @@ describe("public composition", () => {
 
   it("reports missing collection context instead of silently dropping requested rows or announcements", () => {
     expect(() => render(<FeedHealthList>{(feed) => <p>{feed.label}</p>}</FeedHealthList>)).toThrow("FeedHealthList must be inside FeedHealth")
+    expect(() => render(<FeedHealthEmpty>No feeds configured.</FeedHealthEmpty>)).toThrow("FeedHealthEmpty must be inside FeedHealth")
     expect(() => render(<FeedHealthAnnouncer />)).toThrow("FeedHealthAnnouncer needs feeds or a FeedHealth parent")
+  })
+
+  it("requires an explicit root collection even when rendering a direct item", () => {
+    // @ts-expect-error A direct item does not supply the root's collection.
+    const missing = <FeedHealth><FeedHealthItem feed={feed()} /><FeedHealthAnnouncer /></FeedHealth>
+    expect(() => render(missing)).toThrow("FeedHealth requires feeds; pass [] for an empty collection")
+  })
+
+  it("shows caller-owned empty content only for the nearest empty collection without subscribing", () => {
+    const empty = createRef<HTMLDivElement>()
+    const click = vi.fn()
+    const subscribe = vi.fn(() => () => {})
+    const clock = { now: () => 5000, subscribe }
+    const md = feed({ state: "disconnected" })
+    function App({ feeds }: { feeds: readonly FeedDescriptor[] }) {
+      return <StrictMode><FeedHealth feeds={feeds} clock={clock}>
+        <FeedHealthEmpty ref={empty} className="p-2" title="Empty collection" onClick={click}>
+          <p>No feeds configured.</p><button type="button">Choose feeds</button>
+        </FeedHealthEmpty>
+        <FeedHealth feeds={[md]}><FeedHealthEmpty>Inner feeds missing.</FeedHealthEmpty></FeedHealth>
+        <FeedHealth feeds={[]}><FeedHealthEmpty>Inner collection empty.</FeedHealthEmpty></FeedHealth>
+      </FeedHealth></StrictMode>
+    }
+    const { rerender, unmount } = render(<App feeds={[]} />)
+    expect(empty.current).toHaveAttribute("data-slot", "tradecn-feed-health-empty")
+    expect(empty.current).toHaveAttribute("title", "Empty collection")
+    expect(empty.current).toHaveClass("p-2")
+    expect(screen.getByText("No feeds configured.")).toBeVisible()
+    expect(screen.queryByText("Inner feeds missing.")).toBeNull()
+    expect(screen.getByText("Inner collection empty.")).toBeVisible()
+    fireEvent.click(screen.getByRole("button", { name: "Choose feeds" }))
+    expect(click).toHaveBeenCalledOnce()
+    rerender(<App feeds={[md]} />)
+    expect(empty.current).toBeNull()
+    expect(screen.queryByText("No feeds configured.")).toBeNull()
+    expect(screen.getByText("Inner collection empty.")).toBeVisible()
+    rerender(<App feeds={[]} />)
+    expect(screen.getByText("No feeds configured.")).toBeVisible()
+    expect(document.querySelector("[aria-live]")).toBeNull()
+    expect(subscribe).not.toHaveBeenCalled()
+    unmount()
+    expect(empty.current).toBeNull()
   })
 
   it("forwards native props, refs, children and events, and supports a card without a tooltip", () => {
@@ -313,7 +356,7 @@ describe("public composition", () => {
     const onClick = vi.fn()
     const clock = { now: () => 5000, subscribe: () => () => { } }
     const md = feed({ lastMessageAt: 5000, dropped: 7 })
-    render(<FeedHealth ref={root} aria-label="Connections" className="grid" clock={clock}>
+    render(<FeedHealth feeds={[md]} ref={root} aria-label="Connections" className="grid" clock={clock}>
       <h2>My venue</h2>
       <FeedHealthItem ref={item} feed={md} className="flex-col" onClick={onClick} title="Feed card">
         <header><span>{md.label}</span><FeedHealthTier>Fresh</FeedHealthTier></header>
@@ -335,7 +378,8 @@ describe("public composition", () => {
   })
 
   it("retains state and tier words in a compact composition", () => {
-    render(<FeedHealth><FeedHealthItem feed={feed({ state: "unknown", lastMessageAt: null })}>
+    const md = feed({ state: "unknown", lastMessageAt: null })
+    render(<FeedHealth feeds={[md]}><FeedHealthItem feed={md}>
       <FeedHealthIndicator /><span>Market data</span><FeedHealthTier className="sr-only" />
     </FeedHealthItem></FeedHealth>)
     expect(screen.getByText("unknown")).toHaveClass("sr-only")

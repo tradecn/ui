@@ -131,12 +131,13 @@ function useOptions(options: FeedHealthOptions) {
 const FeedsContext = createContext<readonly FeedDescriptor[] | null>(null)
 
 export interface FeedHealthProps extends ComponentProps<"div">, FeedHealthOptions {
-  feeds?: readonly FeedDescriptor[]
+  feeds: readonly FeedDescriptor[]
 }
 
 /** Supply a collection and compose its lists, readings and one announcer. No clock subscription lives here. */
-export function FeedHealth({ feeds = [], thresholds, session, clock, className, ...props }: FeedHealthProps) {
+export function FeedHealth({ feeds, thresholds, session, clock, className, ...props }: FeedHealthProps) {
   const options = useOptions({ thresholds, session, clock })
+  if (!feeds) throw new Error("FeedHealth requires feeds; pass [] for an empty collection")
   return (
     <OptionsContext value={options}>
       <FeedsContext value={feeds}>
@@ -159,6 +160,14 @@ export function FeedHealthList({ children, className, ...props }: FeedHealthList
   return <div data-slot="tradecn-feed-health-list" className={cn("flex min-w-0 items-center gap-1", className)} {...props}>
     {feeds.map((feed, index) => <Fragment key={feed.id}>{children(feed, index)}</Fragment>)}
   </div>
+}
+
+/** Caller-owned content shown only when the nearest group's collection is empty. */
+export function FeedHealthEmpty({ className, ...props }: ComponentProps<"div">) {
+  const feeds = useContext(FeedsContext)
+  if (!feeds) throw new Error("FeedHealthEmpty must be inside FeedHealth")
+  if (feeds.length > 0) return null
+  return <div data-slot="tradecn-feed-health-empty" className={cn("text-xs text-muted-foreground", className)} {...props} />
 }
 
 interface FeedContextValue {

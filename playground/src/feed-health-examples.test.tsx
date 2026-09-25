@@ -4,6 +4,7 @@ import FeedHealthDemo from "./demos/feed-health"
 import FeedHealthLanesDemo from "./demos/feed-health-lanes"
 import FeedHealthActionsDemo from "./demos/feed-health-actions"
 import FeedHealthCardDemo from "./demos/feed-health-card"
+import FeedHealthEmptyDemo from "./demos/feed-health-empty"
 import { FeedHealthScene } from "./items/feed-health"
 
 beforeEach(() => vi.useFakeTimers())
@@ -19,6 +20,25 @@ it("renders the sample collection and ages quietly without demo controls", () =>
   expect(item).toHaveAttribute("data-state", "connected")
   expect(screen.queryByRole("button", { name: "Receive a message" })).toBeNull()
   expect(document.querySelector("[aria-live]")).toHaveTextContent("Market data stale")
+})
+
+it("distinguishes an empty collection from an offline feed and keeps the configuration control focused", () => {
+  render(<FeedHealthEmptyDemo />)
+  const control = screen.getByRole("checkbox", { name: "Include market data" })
+  expect(screen.getByText("No feeds configured.")).toBeVisible()
+  expect(document.querySelector("[data-feed]")).toBeNull()
+  control.focus()
+  fireEvent.click(control)
+  expect(control).toHaveFocus()
+  expect(screen.queryByText("No feeds configured.")).toBeNull()
+  expect(document.querySelector('[data-feed="md"]')).toHaveAttribute("data-tier", "offline")
+  expect(document.querySelector("[aria-live]")).toHaveTextContent("Market data offline")
+  const announcement = document.querySelector("[aria-live]")!.firstChild
+  fireEvent.click(control)
+  expect(control).toHaveFocus()
+  expect(screen.getByText("No feeds configured.")).toBeVisible()
+  expect(document.querySelector("[data-feed]")).toBeNull()
+  expect(document.querySelector("[aria-live]")!.firstChild).toBe(announcement)
 })
 
 it("preserves lane readings and accessible tier words when the caller compacts the rows", () => {
