@@ -705,6 +705,32 @@ describe("the Manual tab", () => {
 })
 
 describe("markdown", () => {
+  it("keeps API links stable when headings show JSX, typed signatures and interface declarations", () => {
+    const { html } = renderMarkdown(`# FeedHealth
+
+## API Reference
+
+### \`<FeedHealth />\`
+
+### \`useFeedActions(feed: FeedDescriptor, actions: readonly FeedAction[], options?: UseFeedActionsOptions)\`
+
+<!-- api-props -->
+
+| Return | Type | Purpose |
+|---|---|---|
+| \`pending\` | \`PendingFeedAction\` | Request state. |
+
+### \`interface FeedDescriptor\`
+`)
+    expect(html).toContain('<h3 id="feedhealth-1"><a href="#feedhealth-1"><code>&lt;FeedHealth /&gt;</code></a></h3>')
+    expect(html).toContain('<h3 id="usefeedactions"><a href="#usefeedactions"><code>useFeedActions(feed: FeedDescriptor, actions: readonly FeedAction[], options?: UseFeedActionsOptions)</code></a></h3>')
+    expect(html).toContain('id="usefeedactions-pending"')
+    expect(html).toContain('<h3 id="feeddescriptor"><a href="#feeddescriptor"><code>interface FeedDescriptor</code></a></h3>')
+    expect(toc(html)).toContain('<a href="#usefeedactions"><code>useFeedActions(…)</code></a>')
+    expect(toc(html)).not.toContain('options?:')
+    expect(renderMarkdown('### `useFeedActions(next: FeedDescriptor)`').html).toContain('id="usefeedactions"')
+  })
+
   it("renders opted-in API inputs as entries with visible defaults and complete expandable types", () => {
     const source = `### Widget
 

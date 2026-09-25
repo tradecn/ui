@@ -671,7 +671,11 @@ export function renderMarkdown(markdown: string): RenderedDoc {
       heading(token) {
         const plain = token.text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/`/g, "")
         if (token.depth === 1 && !title) title = plain
-        const id = uniqueId(plain)
+        // A code-only signature identifies its export: parameters and declaration syntax do not change its links.
+        const reference = token.tokens.length === 1 && token.tokens[0]?.type === "codespan"
+          ? /^(?:interface |type )?([A-Za-z_$][\w$]*)(?:\(|$)/.exec(plain)?.[1]
+          : undefined
+        const id = uniqueId(reference ?? plain)
         if (token.depth <= 3) section = id
         const inline = this.parser.parseInline(token.tokens)
         const linked = token.tokens.some((t) => t.type === "link")
@@ -1257,7 +1261,9 @@ export function toc(html: string): string {
     level: Number(level),
     id: id ?? "",
     // The heading's own anchor, and any link in it, would nest inside the entry's link.
-    text: (inner ?? "").replace(/<\/?a\b[^>]*>/g, ""),
+    text: (inner ?? "").replace(/<\/?a\b[^>]*>/g, "")
+      // Keep complete signatures in the article and search; the narrow navigation needs only their names.
+      .replace(/^<code>([A-Za-z_$][\w$]*)\([\s\S]*\)<\/code>$/, "<code>$1(…)</code>"),
   }))
   if (headings.length < 2) return ""
   // An h3 nests under the h2 before it; the list closes whatever is open when the level comes back up.

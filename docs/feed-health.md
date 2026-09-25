@@ -111,7 +111,7 @@ Parts forward their underlying element's props, refs, `className` and events. Ch
 
 <div id="group-and-item"></div>
 
-### FeedHealth
+### `<FeedHealth />`
 
 A div that supplies the collection, shared options and tooltip provider. Nested roots inherit omitted options but own their collections.
 
@@ -128,7 +128,7 @@ A div that supplies the collection, shared options and tooltip provider. Nested 
 
 Omitting `feeds` is a type error and throws at runtime. A direct single-item layout still needs `feeds={[feed]}` on the root. Filter or limit this array before passing it. The group's default name is `Feed health`; override it with `aria-label` or `aria-labelledby`.
 
-### FeedHealthItem
+### `<FeedHealthItem />`
 
 A div that supplies one feed's readings and pending state to its children.
 
@@ -141,7 +141,7 @@ A div that supplies one feed's readings and pending state to its children.
 
 The item sets small text and `data-feed`, `data-state`, `data-tier`, `data-pending`. Tier colors belong to the badge and tooltip trigger, leaving application content untinted.
 
-### FeedHealthList
+### `<FeedHealthList />`
 
 Renders a div from the nearest root's feeds, keyed by `feed.id`. Keep ids unique and stable. Put hooks in a row component returned by the callback.
 
@@ -161,7 +161,7 @@ Matching ids preserve row state through reordering or replacement; removing an i
 
 </details>
 
-### FeedHealthEmpty
+### `<FeedHealthEmpty />`
 
 A div shown only when the nearest root's collection is empty. Offline feeds are nonempty. It supplies muted small text, no default content, live region or focus management, and throws outside `FeedHealth`. Place it beside the list; an empty list never calls its row callback. Keep a focus target mounted when removing rows with focused controls or open menus.
 
@@ -169,33 +169,33 @@ A div shown only when the nearest root's collection is empty. Offline feeds are 
 
 These parts require `FeedHealthItem`. Indicator, Tier, Lane and Pending use default text only when `children` is omitted or `undefined`; `null` or `false` suppresses that text. Keep a non-color cue when replacing indicator or tier content.
 
-#### FeedHealthIndicator
+#### `<FeedHealthIndicator />`
 
 A span containing the dot and a screen-reader connection-state word. Children replace the word.
 
-#### FeedHealthTier
+#### `<FeedHealthTier />`
 
 A badge containing the tier word. Use `className="sr-only"` for compact display.
 
-#### FeedHealthLane
+#### `<FeedHealthLane />`
 
 A span containing nonzero coalesced drops or ordered gap age, a replay spinner and an accessible replay/open word. With omitted children, no data renders nothing.
 
-#### FeedHealthDetails
+#### `<FeedHealthDetails />`
 
 A description list containing state, tier, local last-message time and lane metadata. Children append `dt`/`dd` pairs, such as a pending label. Details can also be inline or replaced with your own markup.
 
-#### FeedHealthPending
+#### `<FeedHealthPending />`
 
 A span containing a spinner and action id while pending. Pass `pendingLabel` as children for the action label.
 
-#### FeedHealthTooltipTrigger and FeedHealthTooltipContent
+#### `<FeedHealthTooltipTrigger />` and `<FeedHealthTooltipContent />`
 
 Wrap your shadcn `TooltipTrigger` and `TooltipContent`. The trigger adds tier color, focus style and a description link; the content adds the matching id and tooltip role. Both take caller content.
 
 Put the tooltip pair inside your shadcn `Tooltip` and `FeedHealth` provider. Preserve their matching id/description attributes when overriding props. Put the label first for its accessible name; `order-first` places the indicator visually first.
 
-### FeedAge
+### `<FeedAge />`
 
 A span that also works outside an item. It defaults to `aria-hidden` so age ticks are not read aloud. Custom children replace the formatted age, including explicit `null` or `false`.
 
@@ -216,7 +216,7 @@ Future timestamps clamp to zero. `formatAge(ms)` returns `now` below one second,
 
 <div id="announcements-and-clock"></div>
 
-### FeedHealthAnnouncer
+### `<FeedHealthAnnouncer />`
 
 `FeedHealthAnnouncer` is a span with a polite, atomic live region and no `children` prop. Mount once per collection, including when several lists display it.
 
@@ -238,9 +238,9 @@ It initializes empty, then batches additions and tier changes; aging/stale messa
 
 <div id="actions"></div>
 
-### useFeedActions
+### `useFeedActions(feed: FeedDescriptor, actions: readonly FeedAction[], options?: UseFeedActionsOptions)`
 
-`useFeedActions(feed, actions, options?)` takes a `FeedDescriptor` and `readonly FeedAction[]`. It owns pending state without subscribing to the clock. Use one owner per feed and share its result between views. Outside the group, pass its custom clock explicitly.
+Owns pending state without subscribing to the clock. Use one owner per feed and share its result between views. Outside the group, pass its custom clock explicitly.
 
 #### Options
 
@@ -277,9 +277,9 @@ Disable pending controls; `aria-disabled` preserves inline-button focus while th
 
 <div id="action-menu-focus"></div>
 
-### useFeedActionMenu
+### `useFeedActionMenu(options: UseFeedActionMenuOptions)`
 
-`useFeedActionMenu({ hasActions, fallbackRef })` needs neither FeedHealth context nor `useFeedActions` and imports no menu primitive.
+Needs neither FeedHealth context nor `useFeedActions` and imports no menu primitive.
 
 #### Options
 
@@ -312,7 +312,7 @@ When actions disappear, a focused trigger stays until focus leaves; an open menu
 
 <div id="feeds"></div>
 
-### FeedDescriptor
+### `interface FeedDescriptor`
 
 `FeedDescriptor` describes data supplied by your integration. FeedHealth does not detect gaps or replay messages.
 
@@ -330,7 +330,7 @@ When actions disappear, a focused trigger stays until focus leaves; an open menu
 | `gap` | `{ since: number; replaying: boolean } \| null` | — | Open gap; `since` is epoch milliseconds. Omit or use null for none. |
 | `allowedActions` | `readonly string[]` | — | Allowed action ids; omitted or empty allows none. |
 
-### FeedAction
+### `interface FeedAction`
 
 An action definition matched against the feed's `allowedActions`.
 
@@ -370,7 +370,7 @@ For [`row-store`](row-store.md)'s `useStoreMeta`, map `lane`, `dropped`, `lastBa
 
 `SessionCalendar.status(now)` receives epoch milliseconds and returns `"open"`, `"closed"`, `"pre"`, `"post"` or `"holiday"`. Pre/post still age normally. [`session-calendar`](session-calendar.md) builds calendars from sessions, holidays and early closes in the venue's zone.
 
-### Clock
+### `interface Clock`
 
 Only items, ages and announcers subscribe; ticks do not rerender the root, list callback or their parents. The shared one-second interval stops after its last subscriber leaves and is shared with other ticking components.
 
