@@ -472,6 +472,13 @@ const icon = (paths: string, cls: string) =>
   `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`
 const COPY_BUTTON = `<button type="button" class="copy" aria-label="Copy">${icon('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/>', "copy-icon")}${icon('<path d="M5 12.5l4.5 4.5L19 7"/>', "check-icon")}</button>`
 const PROMPT_ICON = icon('<path d="M4 7l5 5-5 5M11 17h9"/>', "prompt")
+// A Manual block's language, where a command's prompt stands: a square with the letters cut out of it, TS for a
+// .ts or .tsx file and CSS for the stylesheet. The narrow S is drawn relative to its start, so CSS draws it twice.
+const mark = (d: string, cls: string) => `<svg class="${cls}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="${d}"/></svg>`
+const SQUARE = "M2 0h20a2 2 0 0 1 2 2v20a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2z"
+const NARROW_S = "v2h-3v2h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-3v-2h3v-2h-1a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z"
+const TS_ICON = mark(`${SQUARE}M3 11h8v2H8v8H6v-8H3zM21 11v2h-6v2h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-6v-2h6v-2h-4a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z`, "ts-icon")
+const CSS_ICON = mark(`${SQUARE}M8 11v2H5v6h3v2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2zM14.5 11${NARROW_S}M21 11${NARROW_S}`, "css-icon")
 const LEFT_ICON = icon('<path d="M15 6l-6 6 6 6"/>', "left-icon")
 const RIGHT_ICON = icon('<path d="M9 6l6 6-6 6"/>', "right-icon")
 
@@ -492,8 +499,9 @@ export function highlighted(escaped: string, language: string | undefined): stri
  * or `npm install` becomes an install block, if it is bash or has no language (a source in another language, or a
  * Manual block, whose pre carries the id its Expand controls, is never one): the same command under pnpm, npm,
  * yarn, and bun, one of them showing. Which one is the page's `data-pm`, which site.js sets from the reader's last
- * choice before the body parses, and the tabs follow it. The last pass over a page, on its HTML, because the blocks
- * come from four places: the templates, marked, the preview card, and the Installation section.
+ * choice before the body parses, and the tabs follow it. A Manual block's copy button stands in its header, so it
+ * comes before the code, where the Tab key meets it after Expand. The last pass over a page, on its HTML, because
+ * the blocks come from four places: the templates, marked, the preview card, and the Installation section.
  */
 export function codeBlocks(html: string): string {
   let blocks = 0
@@ -501,7 +509,8 @@ export function codeBlocks(html: string): string {
     const colored = (text: string) => highlighted(text, language) ?? text
     // A block with attributes is a Manual block, whose pre keeps the id its Expand controls, and a block in a language
     // other than bash is a source: neither becomes a command, whatever its lines start with.
-    if (pre || (language && language !== "bash") || !COMMAND_LINE.test(code)) return `<div class="code"><pre${pre ?? ""}><code${attributes ?? ""}>${colored(code)}</code></pre>${COPY_BUTTON}</div>`
+    if (pre) return `<div class="code">${COPY_BUTTON}<pre${pre}><code${attributes ?? ""}>${colored(code)}</code></pre></div>`
+    if ((language && language !== "bash") || !COMMAND_LINE.test(code)) return `<div class="code"><pre><code${attributes ?? ""}>${colored(code)}</code></pre>${COPY_BUTTON}</div>`
     const id = `pm-${++blocks}`
     const tabs = PACKAGE_MANAGERS.map(
       ({ name }) =>
@@ -1051,44 +1060,57 @@ export function registryCss(css: Record<string, unknown>, depth = 0): string {
 
 /**
  * The Installation section of an item's page, in shadcn's shape. Command is `shadcn add` with the tag pinned, under
- * the reader's package manager. Manual is the same install by hand: the packages, the shadcn built-ins the item
- * composes, every file at the path it lands on with a consumer's imports, and the CSS the command appends, the files
- * and the CSS each collapsed to their first lines until Expand opens the whole.
+ * the reader's package manager. Manual is the same install by hand, in numbered steps: the packages, the shadcn
+ * built-ins the item composes, every file at the path it lands on with a consumer's imports, and the CSS the command
+ * appends, each file and each stylesheet block headed by its language and collapsed to its first lines until Expand
+ * opens the whole.
  */
 export function installationSection(item: RegistryItem, tag: string, sources: Sources): string {
   const bash = (code: string) => `<pre><code class="language-bash">${escapeHtml(code)}</code></pre>`
-  // A block to copy from, a file or the stylesheet, shadcn's shape: collapsed to its first lines under a fade until
+  // A block to copy from, a file or the stylesheet, shadcn's shape: a header with the block's language mark and a
+  // file's path, which Expand and the copy button share, over the code collapsed to its first lines under a fade until
   // Expand opens the whole of it, however long. site.js wires the buttons (the second is the fade, for the mouse),
-  // keeps the collapsed code inert, and takes the buttons off a block that already shows whole.
+  // keeps the collapsed code inert, and takes the buttons off a block that already shows whole. The path names the
+  // figure; the stylesheet's has only its mark, since the step names it. A path too long for a phone's line breaks
+  // after a slash: each part holds together, so a hyphen inside a name is never where it breaks. Expand comes before
+  // the code, and `codeBlocks` puts the copy button between them, so the Tab key meets the header's two buttons in the
+  // order they stand and then the code.
   let blocks = 0
-  const expandable = (language: string, code: string) => {
+  const pathCode = (path: string) => `<code>${path.split(/(?<=\/)/).map((part) => `<span>${escapeHtml(part)}</span>`).join("<wbr>")}</code>`
+  const expandable = (language: "ts" | "tsx" | "css", code: string, path?: string) => {
     const id = `installation-manual-${++blocks}`
     return [
-      `<div class="source" data-collapsed>`,
-      `<pre id="${id}"><code class="language-${language}">${escapeHtml(code)}</code></pre>`,
+      `<figure class="source" data-collapsed>`,
+      `<figcaption>${language === "css" ? CSS_ICON : TS_ICON}${path ? pathCode(path) : ""}</figcaption>`,
       `<button type="button" class="expand" aria-expanded="false" aria-controls="${id}">Expand</button>`,
+      `<pre id="${id}"><code class="language-${language}">${escapeHtml(code)}</code></pre>`,
       `<button type="button" class="expand-foot" tabindex="-1" aria-hidden="true">Expand</button>`,
-      `</div>`,
+      `</figure>`,
     ].join("\n")
   }
-  const manual: string[] = []
+  // Each step is what to do and the blocks to do it with; the stylesheet numbers them.
+  const steps: string[][] = []
   const packages = (item.dependencies ?? []).map(packageName)
-  if (packages.length) manual.push(`<p>Install the dependencies:</p>`, bash(`npm install ${packages.join(" ")}`))
+  if (packages.length) steps.push([`<p>Install the dependencies:</p>`, bash(`npm install ${packages.join(" ")}`)])
   const builtins = item.registryDependencies ?? []
-  if (builtins.length) manual.push(`<p>Add the shadcn components it composes:</p>`, bash(`npx shadcn@latest add ${builtins.join(" ")}`))
+  if (builtins.length) steps.push([`<p>Add the shadcn components it composes:</p>`, bash(`npx shadcn@latest add ${builtins.join(" ")}`)])
   const files = item.files ?? []
-  if (files.length) manual.push(`<p>Copy the files into your project:</p>`)
-  for (const file of files) {
-    const source = sources.get(file.path)
-    if (source === undefined) throw new Error(`${item.name} installs ${file.path}, which the checkout does not have`)
-    const language = file.path.endsWith(".tsx") ? "tsx" : "ts"
-    manual.push(`<p class="file"><code>${escapeHtml(consumerPath(file))}</code></p>`, expandable(language, source))
+  if (files.length) {
+    const step = [`<p>Copy the files into your project:</p>`]
+    for (const file of files) {
+      const source = sources.get(file.path)
+      if (source === undefined) throw new Error(`${item.name} installs ${file.path}, which the checkout does not have`)
+      step.push(expandable(file.path.endsWith(".tsx") ? "tsx" : "ts", source, consumerPath(file)))
+    }
+    steps.push(step)
   }
   if (item.cssVars) {
     const theme = item.type === "registry:theme"
-    manual.push(`<p>${theme ? "Replace the variables in your stylesheet with these:" : "Add the tokens to your stylesheet:"}</p>`, expandable("css", themeCss(item)))
+    steps.push([`<p>${theme ? "Replace the variables in your stylesheet with these:" : "Add the tokens to your stylesheet:"}</p>`, expandable("css", themeCss(item))])
   }
-  if (item.css) manual.push(`<p>Append this to your stylesheet:</p>`, expandable("css", registryCss(item.css)))
+  if (item.css) steps.push([`<p>Append this to your stylesheet:</p>`, expandable("css", registryCss(item.css))])
+  // Safari's VoiceOver stops calling a list a list once the stylesheet takes its markers away; the role keeps it one.
+  const manual = [`<ol class="steps" role="list">`, ...steps.map((step) => ["<li>", ...step, "</li>"].join("\n")), `</ol>`]
   return [
     `<h2 id="installation"><a href="#installation">Installation</a></h2>`,
     `<div class="tabs" data-tabs>`,
