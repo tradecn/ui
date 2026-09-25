@@ -499,6 +499,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [fontEpoch, setFontEpoch] = useState(0)
   const plot = useRef<uPlot | null>(null)
+  const plotShape = useRef<{ kind: PriceChartKind; overlayKey: string } | null>(null)
   const live = useRef<Live>({ palette: UNREAD_PALETTE, columns: EMPTY_COLUMNS, summary, baseline })
   const overlaysRef = useRef(overlayList)
   const conventionRef = useRef(convention)
@@ -527,7 +528,10 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   // The plot takes the columns before the browser paints, so the picture and the header move in one frame.
   useLayoutEffect(() => {
     live.current.columns = columns
-    plot.current?.setData(alignedData(columns, kind, overlaysRef.current), true)
+    // A structural change recreates the plot below; the old series cannot take its new columns.
+    if (plotShape.current?.kind === kind && plotShape.current.overlayKey === overlayKey) {
+      plot.current?.setData(alignedData(columns, kind, overlaysRef.current), true)
+    }
     // overlayKey stands for the overlays' structure; their functions are read through the ref.
   }, [columns, kind, overlayKey])
 
@@ -576,6 +580,8 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       plotEl,
     )
     plot.current = u
+    plotShape.current = { kind, overlayKey }
+    if (!pointerOwnsCursor.current) syncPlotCursor(u, cursorBar.current)
     // A mode or a theme is a class on <html> and the accessibility remap a data attribute; the tokens are read again
     // and the picture redrawn, or, when the font stack itself changed, the plot remade with the new axis font.
     const observer = new MutationObserver(() => {
@@ -594,6 +600,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       observer.disconnect()
       u.destroy()
       plot.current = null
+      plotShape.current = null
     }
     // conventionKey and overlayKey stand for the objects' structure; the objects themselves are read through refs, so an inline one does not remake the plot every render.
   }, [plotEl, ready, kind, crosshair, lastLine, zone, conventionKey, overlayKey, fontEpoch])

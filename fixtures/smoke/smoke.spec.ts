@@ -1774,6 +1774,20 @@ test("a price chart paints in the page's tokens, prints the last with its sign, 
     const point = (await chart.locator(".u-cursor-pt").first().boundingBox())!
     return Math.abs(line.x - (point.x + point.width / 2))
   }, { message: "the keyboard crosshair stays on the retained bar" }).toBeLessThan(2)
+  // Structural changes replace the canvas while the focused plot retains its keyboard selection.
+  const canvas = await chart.locator("canvas").elementHandle()
+  await scene.getByRole("button", { name: "toggle kind" }).click()
+  await expect(chart).toHaveAttribute("data-kind", "candles")
+  expect(await canvas!.evaluate((node) => node.isConnected)).toBe(false)
+  await expect(plot).toBeFocused()
+  await expect(plot).toHaveAttribute("aria-valuenow", "0")
+  await expect.poll(async () => {
+    const area = (await chart.locator(".u-over").boundingBox())!
+    const line = (await chart.locator(".u-cursor-x").boundingBox())!
+    return line.x >= area.x && line.x <= area.x + area.width
+  }, { message: "the recreated plot restores its keyboard crosshair" }).toBe(true)
+  await expect(scene.locator("[data-cursor-calls]")).toHaveAttribute("data-cursor-calls", calls!)
+  await scene.getByRole("button", { name: "toggle kind" }).click()
   // A retention update while the pointer is still inside keeps its pixel coordinates. Trigger
   // the feed control without moving the pointer, as a network update would arrive independently.
   await scene.getByRole("button", { name: "new bar", exact: true }).click()

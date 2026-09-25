@@ -172,14 +172,41 @@ describe("PriceChart plot lifecycle", () => {
     const original = drawing.plots[0]!
     rerender(chart({ kind: "candles" }))
     expect(original.destroy).toHaveBeenCalledOnce()
+    expect(original.setData).not.toHaveBeenCalled()
     const candles = drawing.plots[1]!
     expect(candles.data).toEqual([[1_000], [10], [12], [9], [11]])
-    act(() => store.clear())
+    rerender(chart({ kind: "line" }))
     expect(candles.destroy).toHaveBeenCalledOnce()
+    expect(candles.setData).not.toHaveBeenCalled()
+    const line = drawing.plots[2]!
+    expect(line.data).toEqual([[1_000], [11]])
+    act(() => store.clear())
+    expect(line.destroy).toHaveBeenCalledOnce()
     expect(screen.getByRole("img")).toBeInTheDocument()
     act(() => store.applyDeltas({ upsert: [first] }))
-    expect(drawing.plots).toHaveLength(3)
+    expect(drawing.plots).toHaveLength(4)
     expect(screen.getByRole("slider")).toBeInTheDocument()
+  })
+
+  it("restores the keyboard crosshair immediately after recreating the plot", () => {
+    const onCursor = vi.fn()
+    const { chart, rerender } = setup({ onCursor })
+    act(() => screen.getByRole("slider").focus())
+    rerender(chart({ kind: "candles" }))
+    const current = drawing.plots[1]!
+    expect(current.setCursor).toHaveBeenLastCalledWith({ left: first.time, top: first.close }, false)
+    expect(screen.getByRole("slider")).toHaveFocus()
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "0")
+    expect(onCursor).toHaveBeenCalledOnce()
+  })
+
+  it("recreates for removed overlays without sending fewer columns to the old plot", () => {
+    const { chart, rerender } = setup({ overlays: [{ id: "a", label: "A", values: () => [15] }] })
+    const old = drawing.plots[0]!
+    rerender(chart({ overlays: [] }))
+    expect(old.destroy).toHaveBeenCalledOnce()
+    expect(old.setData).not.toHaveBeenCalled()
+    expect(drawing.plots[1]!.data).toEqual([[1_000], [11]])
   })
 
   it("uses replacement overlay functions on the next batch and pads missing values with gaps", () => {
