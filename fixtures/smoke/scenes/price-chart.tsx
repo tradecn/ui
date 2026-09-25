@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { PriceChart, type PriceChartOverlay } from "@/components/ui/price-chart"
+import { PriceChart, PriceChartLegend, PriceChartOverlaySwatch, PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty, type PriceChartOverlay } from "@/components/ui/price-chart"
 import type { InstrumentConvention } from "@/lib/format"
 import { barId, foldTicks, type Bar } from "@/lib/price-series"
 import { createRowStore } from "@/lib/row-store"
@@ -25,7 +25,17 @@ export function PriceChartScene() {
   return (
     <div className="flex flex-col gap-1">
       <div style={{ width: 480, height: 240 }}>
-        <PriceChart store={store} convention={ZN} label="ZN, today" zone="America/New_York" overlays={OVERLAYS} className="h-full" />
+        <PriceChart store={store} convention={ZN} label="ZN, today" zone="America/New_York" overlays={OVERLAYS} className="h-full">
+          <PriceChartHeader>
+            <PriceChartLast />
+            <PriceChartChange />
+            <PriceChartReadout />
+          </PriceChartHeader>
+          <PriceChartPlot>
+            <PriceChartEmpty />
+          </PriceChartPlot>
+          <PriceChartLegend>{OVERLAYS.map((overlay) => <li key={overlay.id} className="flex items-center gap-1"><PriceChartOverlaySwatch overlayId={overlay.id} />{overlay.label}</li>)}</PriceChartLegend>
+        </PriceChart>
       </div>
       {/* A tick under the first open folds into the open bar and turns the chart down; a later tick opens a fourth bar. */}
       <button type="button" onClick={() => store.applyDeltas(foldTicks(store, [{ at: T0 + 2 * MINUTE + 30_000, price: 110.484375 }], MINUTE))}>

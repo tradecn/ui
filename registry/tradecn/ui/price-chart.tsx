@@ -1,6 +1,6 @@
 import "uplot/dist/uPlot.min.css"
 import { cn } from "cn"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent } from "react"
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNode } from "react"
 import uPlot from "uplot"
 import { directionClass, type Direction } from "@/registry/tradecn/hooks/use-flash"
 import { useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
@@ -8,19 +8,9 @@ import { formatPercent, formatPrice, formatQuantity, NUMERIC_CLASS, numericFontC
 import { columnsOf, dayFormatter, EMPTY_COLUMNS, formatChange, priceIncrements, priceOf, summarize, timeFormatter, type Bar, type BarColumns, type SeriesSummary } from "@/registry/tradecn/lib/price-series"
 import type { RowStore } from "@/registry/tradecn/lib/row-store"
 
-// An intraday price chart on uPlot: a line or candles over a store of bars, a crosshair the pointer and the
-// arrow keys both move, the time axis in the venue's zone, the last price printed with its sign and change,
-// and every color from the page's own tokens.
-//
-// The canvas cannot read a Tailwind class, so the tokens are read off the page when the chart mounts and
-// again when the class on <html> changes (a mode or a theme), and every stroke is a function uPlot asks at
-// draw time. The chart itself is an owned object: made in an effect once its box has a size and the store
-// has a bar, fed by setData once per applied batch, destroyed on the way out, never remade per update.
-// The store is read the way the grid's footer reads it, through useStoreMeta and a memo keyed on the batch
-// version, so the header commits in the same microtask flush as every other item on the screen; a plain
-// state set from the subscription would land a scheduler task later, which the bench caught.
-// Direction never rides on hue alone (contract rule 15): the last price prints its change with a sign, the
-// root carries data-direction, and the accessible name says the direction in a word.
+// The root reads the store once per batch. Public readings share that snapshot; the plot owns its
+// canvas, observers and keyboard crosshair. Moving surrounding content never remakes the plot.
+// Canvas colors are read from the page tokens at mount and whenever the page theme changes.
 
 export type PriceChartKind = "line" | "candles"
 
@@ -53,6 +43,8 @@ export interface PriceChartLabels {
 export const DEFAULT_PRICE_CHART_LABELS: PriceChartLabels = { noData: "No data", open: "O", high: "H", low: "L", close: "C", volume: "V", overlays: "Overlays", up: "up", down: "down", flat: "flat", bars: "bars" }
 
 export interface PriceChartProps extends Omit<ComponentProps<"div">, "children"> {
+  /** Compose the plot and any readings, legend or application content explicitly. */
+  children: ReactNode
   /** Bars keyed by `barId(time)`, fed with `foldTicks` or with whole bars. */
   store: RowStore<Bar>
   /** Prints the prices on the axis, in the readout, and on the last-price tag, and sets the axis grid. */
@@ -66,7 +58,7 @@ export interface PriceChartProps extends Omit<ComponentProps<"div">, "children">
   /** IANA zone for the time axis and the readout: the venue's. Default: the runtime's. */
   zone?: string
   locale?: string
-  /** Lines over the bars, each named in a legend and drawn in a chart token. */
+  /** Lines over the bars. Compose their legend with PriceChartLegend and PriceChartOverlaySwatch. */
   overlays?: readonly PriceChartOverlay[]
   /** The crosshair, moved by the pointer and by the arrow keys. Default true. */
   crosshair?: boolean
@@ -355,19 +347,49 @@ function drawTag(u: uPlot, text: string, y: number, fill: string, palette: Palet
 const clamp = (n: number, max: number) => Math.max(0, Math.min(max, n))
 const DAY_MS = 86_400_000
 
-export function PriceChart({ store, convention, label, kind = "line", baseline = null, zone, locale, overlays, crosshair = true, lastLine = true, height, labels: labelsProp, onCursor, className, style, ...props }: PriceChartProps) {
+export interface PriceChartState {
+  readonly bars: readonly Bar[]
+  readonly summary: SeriesSummary
+  readonly cursor: number | null
+  readonly bar: Bar | null
+  readonly readout: string
+  readonly overlays: readonly PriceChartOverlay[]
+  readonly convention: PriceConvention | InstrumentConvention
+  readonly labels: PriceChartLabels
+}
+
+interface ChartContext extends PriceChartState {
+  columns: BarColumns
+  selection: number | null
+  label: string
+  sentence: string
+  kind: PriceChartKind
+  baseline: number | null
+  zone: string | undefined
+  crosshair: boolean
+  lastLine: boolean
+  moveCursor: (index: number | null) => void
+}
+
+const PriceChartContext = createContext<ChartContext | null>(null)
+
+function useChartContext() {
+  const context = useContext(PriceChartContext)
+  if (!context) throw new Error("PriceChart parts require PriceChart")
+  return context
+}
+
+/** Shared readings for custom content; does not add a store subscription. */
+export function usePriceChart(): PriceChartState {
+  return useChartContext()
+}
+
+export function PriceChart({ store, convention, label, kind = "line", baseline = null, zone, locale, overlays, crosshair = true, lastLine = true, height, labels: labelsProp, onCursor, className, style, children, ...props }: PriceChartProps) {
   const labels = { ...DEFAULT_PRICE_CHART_LABELS, ...labelsProp }
   const ref = typeof baseline === "number" && Number.isFinite(baseline) ? baseline : null
   const overlayList = useMemo(() => overlays ?? [], [overlays])
-  // Structure, not identity: an inline overlays array is a new object per render and must not remake the plot.
-  const overlayKey = overlayList.map((o) => `${o.id}:${o.color ?? ""}:${o.width ?? ""}`).join("|")
-  const conventionKey = JSON.stringify(convention)
-
-  const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null)
-  const [cursor, setCursorState] = useState<number | null>(null)
-  // Bumped when the page's mono stack changes (the accessibility remap): the axis font is fixed at construction, so the plot is remade.
-  const [fontEpoch, setFontEpoch] = useState(0)
+  const [selection, setCursor] = useState<number | null>(null)
+  const cursorRef = useRef<number | null>(null)
   // The store's columns, once per applied batch: the meta's version is the one dependency, so the memo reruns on
   // a batch and on nothing else, and a batch with no bar change gives the same columns back.
   const meta = useStoreMeta(store)
@@ -377,32 +399,122 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   }, [store, meta.version])
   const summary = useMemo(() => summarize(columns, ref), [columns, ref])
 
+  // Notify in the event, never inside a state updater (which StrictMode may run twice).
+  const moveCursor = useCallback((index: number | null) => {
+    if (cursorRef.current === index) return
+    cursorRef.current = index
+    setCursor(index)
+    onCursor?.(index === null ? null : (columns.bars[index] ?? null))
+  }, [columns, onCursor])
+
+  const count = columns.bars.length
+  const cursor = selection === null || count === 0 ? null : clamp(selection, count - 1)
+  const at = cursor === null ? null : columns.bars[cursor]!
+  const price = priceOf(convention)
+  const time = timeFormatter(zone, locale)
+  const direction = summary.direction
+  const word = labels[direction]
+  const last = summary.last
+  const readout = at ? `${time(at.time)} ${kind === "candles" ? `${labels.open} ${formatPrice(at.open, price)} ${labels.high} ${formatPrice(at.high, price)} ${labels.low} ${formatPrice(at.low, price)} ${labels.close} ${formatPrice(at.close, price)}` : formatPrice(at.close, price)}${typeof at.volume === "number" ? ` ${labels.volume} ${formatQuantity(at.volume)}` : ""}` : ""
+  const sentence = last ? `${label}: ${word}, last ${formatPrice(last.close, price)}, ${formatChange(summary.change, convention)} (${formatPercent(summary.changePct, { signed: true })}), low ${formatPrice(summary.low, price)}, high ${formatPrice(summary.high, price)}, ${count} ${labels.bars}` : `${label}: ${labels.noData}`
+
+  const context: ChartContext = { bars: columns.bars, columns, summary, selection, cursor, bar: at, readout, overlays: overlayList, convention, labels, label, sentence, kind, baseline: ref, zone, crosshair, lastLine, moveCursor }
+
+  return (
+    <PriceChartContext.Provider value={context}>
+      <div
+        {...props}
+        data-slot="tradecn-price-chart"
+        data-kind={kind}
+        data-direction={direction}
+        data-empty={count === 0 ? "" : undefined}
+        role="group"
+        aria-label={label}
+        className={cn("flex h-64 w-full min-h-0 flex-col gap-1 text-xs text-foreground lining-nums tabular-nums", className)}
+        style={height === undefined ? style : { ...style, height }}
+      >
+        {children}
+      </div>
+    </PriceChartContext.Provider>
+  )
+}
+
+export function PriceChartHeader({ className, ...props }: ComponentProps<"div">) {
+  return <div {...props} data-chart-header="" className={cn("flex min-h-5 shrink-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 px-1", NUMERIC_CLASS, className)} />
+}
+
+export function PriceChartLast({ className, children, ...props }: ComponentProps<"span">) {
+  const { summary, convention, labels } = usePriceChart()
+  return <span {...props} data-chart-last="" data-direction={summary.direction} className={cn("text-sm font-semibold", numericFontClass(convention), directionClass(summary.direction), className)}>{children === undefined ? summary.last ? formatPrice(summary.last.close, priceOf(convention)) : labels.noData : children}</span>
+}
+
+export function PriceChartChange({ className, children, ...props }: ComponentProps<"span">) {
+  const { summary, convention } = usePriceChart()
+  if (!summary.last) return null
+  return <span {...props} data-chart-change="" data-direction={summary.direction} className={cn(numericFontClass(convention), directionClass(summary.direction), className)}>{children === undefined ? <>{formatChange(summary.change, convention)} <span className={NUMERIC_CLASS}>({formatPercent(summary.changePct, { signed: true })})</span></> : children}</span>
+}
+
+export function PriceChartReadout({ className, children, ...props }: ComponentProps<"span">) {
+  const { readout, convention } = usePriceChart()
+  return <span {...props} data-chart-readout="" className={cn("ml-auto text-muted-foreground", numericFontClass(convention), className)}>{children === undefined ? readout : children}</span>
+}
+
+export function PriceChartEmpty({ className, children, ...props }: ComponentProps<"div">) {
+  const { bars, labels } = usePriceChart()
+  if (bars.length > 0) return null
+  return <div {...props} data-chart-empty="" className={cn("absolute inset-0 flex items-center justify-center text-muted-foreground", className)}>{children === undefined ? labels.noData : children}</div>
+}
+
+export interface PriceChartLegendProps extends Omit<ComponentProps<"ul">, "children"> {
+  children: ReactNode
+}
+
+export function PriceChartLegend({ className, ...props }: PriceChartLegendProps) {
+  const { labels } = usePriceChart()
+  return <ul aria-label={labels.overlays} {...props} data-chart-legend="" className={cn("flex shrink-0 flex-wrap gap-x-3 gap-y-0.5 px-1 text-muted-foreground", className)} />
+}
+
+export interface PriceChartOverlaySwatchProps extends ComponentProps<"span"> {
+  overlayId: string
+}
+
+/** Resolves the plot's token by id, independent of the caller's legend order. */
+export function PriceChartOverlaySwatch({ overlayId, className, ...props }: PriceChartOverlaySwatchProps) {
+  const { overlays } = usePriceChart()
+  const index = overlays.findIndex((overlay) => overlay.id === overlayId)
+  const overlay = overlays[index]
+  if (!overlay) return null
+  return <span {...props} aria-hidden="true" data-chart-swatch="" className={cn("inline-block size-2 shrink-0 rounded-full", CHART_TOKEN_CLASS[Math.min(8, Math.max(1, overlay.color ?? index + 1)) - 1], className)} />
+}
+
+export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDown: onKeyDownProp, onFocus, onBlur, ...props }: ComponentProps<"div">) {
+  const { columns, summary, selection: cursor, convention, overlays: overlayList, sentence, readout, kind, baseline, zone, crosshair, lastLine, moveCursor: selectCursor } = useChartContext()
+  const overlayKey = overlayList.map((o) => `${o.id}:${o.color ?? ""}:${o.width ?? ""}`).join("|")
+  const conventionKey = JSON.stringify(convention)
+  const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  const [fontEpoch, setFontEpoch] = useState(0)
   const plot = useRef<uPlot | null>(null)
-  const live = useRef<Live>({ palette: UNREAD_PALETTE, columns: EMPTY_COLUMNS, summary, baseline: ref })
+  const live = useRef<Live>({ palette: UNREAD_PALETTE, columns: EMPTY_COLUMNS, summary, baseline })
   const overlaysRef = useRef(overlayList)
   const conventionRef = useRef(convention)
-  const onCursorRef = useRef(onCursor)
+  const onCursorRef = useRef(selectCursor)
   const cursorFromPlot = useRef(false)
-  /** Moves the crosshair and tells the consumer, from a key, the focus, or the plot's own pointer; never on mount. */
   const moveCursor = (index: number | null, fromPlot: boolean) => {
     cursorFromPlot.current = fromPlot
-    setCursorState((previous) => {
-      if (previous === index) return previous
-      onCursorRef.current?.(index === null ? null : (live.current.columns.bars[index] ?? null))
-      return index
-    })
+    onCursorRef.current(index)
   }
 
   useLayoutEffect(() => {
     overlaysRef.current = overlayList
     conventionRef.current = convention
-    onCursorRef.current = onCursor
+    onCursorRef.current = selectCursor
   })
   useLayoutEffect(() => {
     live.current.summary = summary
-    live.current.baseline = ref
+    live.current.baseline = baseline
     plot.current?.redraw(false, false)
-  }, [summary, ref])
+  }, [summary, baseline])
   // The plot takes the columns before the browser paints, so the picture and the header move in one frame.
   useLayoutEffect(() => {
     live.current.columns = columns
@@ -483,18 +595,16 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
     else u.setCursor({ left: u.valToPos(bar.time, "x"), top: u.valToPos(bar.close, "y") })
   }, [cursor])
 
+  const attachPlot = useCallback((node: HTMLDivElement | null) => {
+    setPlotEl(node)
+    if (typeof forwardedRef === "function") return forwardedRef(node)
+    if (forwardedRef) forwardedRef.current = node
+  }, [forwardedRef])
   const count = columns.bars.length
-  const at = cursor === null ? null : (columns.bars[clamp(cursor, count - 1)] ?? null)
-  const price = priceOf(convention)
-  const time = timeFormatter(zone, locale)
-  const direction = summary.direction
-  const word = labels[direction]
-  const last = summary.last
-  const readout = at ? `${time(at.time)} ${kind === "candles" ? `${labels.open} ${formatPrice(at.open, price)} ${labels.high} ${formatPrice(at.high, price)} ${labels.low} ${formatPrice(at.low, price)} ${labels.close} ${formatPrice(at.close, price)}` : formatPrice(at.close, price)}${typeof at.volume === "number" ? ` ${labels.volume} ${formatQuantity(at.volume)}` : ""}` : ""
-  const sentence = last ? `${label}: ${word}, last ${formatPrice(last.close, price)}, ${formatChange(summary.change, convention)} (${formatPercent(summary.changePct, { signed: true })}), low ${formatPrice(summary.low, price)}, high ${formatPrice(summary.high, price)}, ${count} ${labels.bars}` : `${label}: ${labels.noData}`
   const interactive = crosshair && count > 0
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    onKeyDownProp?.(event)
     if (event.defaultPrevented || !interactive || event.metaKey || event.ctrlKey || event.altKey) return
     const from = cursor === null ? count - 1 : clamp(cursor, count - 1)
     // The slider pattern's two pairs: Right and Up go forward a bar, Left and Down back one.
@@ -508,57 +618,28 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   return (
     <div
       {...props}
-      data-slot="tradecn-price-chart"
-      data-kind={kind}
-      data-direction={direction}
-      data-empty={count === 0 ? "" : undefined}
-      role="group"
-      aria-label={label}
-      className={cn("flex h-64 w-full min-h-0 flex-col gap-1 text-xs text-foreground lining-nums tabular-nums", className)}
-      style={height === undefined ? style : { ...style, height }}
+      ref={attachPlot}
+      role={interactive ? "slider" : "img"}
+      aria-label={sentence}
+      tabIndex={interactive ? 0 : undefined}
+      aria-orientation={interactive ? "horizontal" : undefined}
+      aria-valuemin={interactive ? 0 : undefined}
+      aria-valuemax={interactive ? count - 1 : undefined}
+      aria-valuenow={interactive ? cursor === null ? count - 1 : clamp(cursor, count - 1) : undefined}
+      aria-valuetext={interactive ? readout || sentence : undefined}
+      onKeyDown={onKeyDown}
+      onFocus={(event) => {
+        onFocus?.(event)
+        if (!event.defaultPrevented && interactive && cursor === null) moveCursor(count - 1, false)
+      }}
+      onBlur={(event) => {
+        onBlur?.(event)
+        if (!event.defaultPrevented) moveCursor(null, false)
+      }}
+      data-chart-plot=""
+      className={cn("relative min-h-0 flex-1 overflow-hidden rounded-sm outline-none", interactive && "cursor-crosshair focus-visible:ring-2 focus-visible:ring-ring/50", className)}
     >
-      <div data-chart-header="" className={cn("flex min-h-5 shrink-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 px-1", numericFontClass(convention))}>
-        <span data-chart-last="" className={cn("text-sm font-semibold", directionClass(direction))}>
-          {last ? formatPrice(last.close, price) : labels.noData}
-        </span>
-        {last && (
-          <span data-chart-change="" className={cn(directionClass(direction))}>
-            {formatChange(summary.change, convention)} <span className={NUMERIC_CLASS}>({formatPercent(summary.changePct, { signed: true })})</span>
-          </span>
-        )}
-        <span data-chart-readout="" className="ml-auto text-muted-foreground">
-          {readout}
-        </span>
-      </div>
-      <div
-        ref={setPlotEl}
-        role={interactive ? "slider" : "img"}
-        aria-label={sentence}
-        {...(interactive ? { tabIndex: 0, "aria-orientation": "horizontal" as const, "aria-valuemin": 0, "aria-valuemax": count - 1, "aria-valuenow": cursor === null ? count - 1 : clamp(cursor, count - 1), "aria-valuetext": readout || sentence } : {})}
-        onKeyDown={onKeyDown}
-        onFocus={() => {
-          if (interactive && cursor === null) moveCursor(count - 1, false)
-        }}
-        onBlur={() => moveCursor(null, false)}
-        data-chart-plot=""
-        className={cn("relative min-h-0 flex-1 overflow-hidden rounded-sm outline-none", interactive && "cursor-crosshair focus-visible:ring-2 focus-visible:ring-ring/50")}
-      >
-        {count === 0 && (
-          <p data-chart-empty="" className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-            {labels.noData}
-          </p>
-        )}
-      </div>
-      {overlayList.length > 0 && (
-        <ul data-chart-legend="" aria-label={labels.overlays} className="flex shrink-0 flex-wrap gap-x-3 gap-y-0.5 px-1 text-muted-foreground">
-          {overlayList.map((overlay, i) => (
-            <li key={overlay.id} className="flex items-center gap-1">
-              <span aria-hidden className={cn("inline-block size-2 rounded-full", CHART_TOKEN_CLASS[Math.min(8, Math.max(1, overlay.color ?? i + 1)) - 1])} />
-              {overlay.label}
-            </li>
-          ))}
-        </ul>
-      )}
+      {children}
     </div>
   )
 }

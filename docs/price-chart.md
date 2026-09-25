@@ -9,7 +9,7 @@ import { useState } from "react"
 import type { InstrumentConvention } from "@/lib/format"
 import { barId, type Bar } from "@/lib/price-series"
 import { createRowStore } from "@/lib/row-store"
-import { PriceChart } from "@/components/ui/price-chart"
+import { PriceChart, PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty } from "@/components/ui/price-chart"
 
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const start = Date.parse("2026-09-22T14:00:00Z")
@@ -29,13 +29,36 @@ function SampleChart() {
     store.applyDeltas({ upsert: bars })
     return store
   })
-  return <div className="w-xl max-w-full"><PriceChart store={store} convention={ZN} label="ZN sample, one-minute bars" zone="America/Chicago" baseline={110.5} className="h-72" /></div>
+  return (
+    <div className="w-xl max-w-full">
+      <PriceChart store={store} convention={ZN} label="ZN sample, one-minute bars" zone="America/Chicago" baseline={110.5} className="h-72">
+        <PriceChartHeader>
+          <PriceChartLast />
+          <PriceChartChange />
+          <PriceChartReadout />
+        </PriceChartHeader>
+        <PriceChartPlot>
+          <PriceChartEmpty />
+        </PriceChartPlot>
+      </PriceChart>
+    </div>
+  )
 }
 ```
 
 This fixed sample contains six one-minute bars from September 22, 2026, starting at 09:00 in Chicago. The line joins their closes; `baseline` is the sample previous close. Move the pointer over the plot, or focus it and use the arrow keys, to inspect a bar's close and volume. Home and End reach the first and last bars.
 
 Keep the store stable across renders and key each bar by its start time with `barId`. This example loads complete bars with `upsert`; the [incoming-ticks example](#incoming-ticks) shows how a feed can build them.
+
+## Composition
+
+`PriceChart` shares the store snapshot and cursor. Compose one `PriceChartPlot` for the canvas and keyboard controls, then place the optional readings and legend wherever your layout needs them. `PriceChartHeader` is a plain layout container. You can use your own elements for application headings, actions and legend rows.
+
+## Sidebar and footer
+
+This layout moves the prices and legend into an aside and the readout into a footer. The legend reverses the overlay order; each `PriceChartOverlaySwatch` still resolves its color by overlay id. `usePriceChart` supplies custom content from the same snapshot without another store subscription.
+
+<!-- demo: price-chart-layout -->
 
 ## Candles
 
@@ -47,7 +70,7 @@ Set `kind="candles"` for a candle per bar: the body from open to close, the wick
 
 `overlays` supplies one value per bar, with a label and a chart token for each line. This example reuses the opening chart's six bars. The three-bar close average leaves the first two values missing until there is enough history. Bar VWAP weights each bar's typical price, `(high + low + close) / 3`, by its volume; it covers this sample only, rather than a full trading session or every individual trade.
 
-Keep overlay functions pure and their definitions stable. The legend names both lines so color is not their only identifier.
+Keep overlay functions pure and their definitions stable. Compose the legend explicitly: the caller owns its rows, labels, order and any extra content. A named swatch identifies each overlay, but matching a label to its plotted line still depends on color.
 
 <!-- demo: price-chart-overlays -->
 
@@ -69,10 +92,13 @@ Changing only `baseline` updates the readout without recalculating the price sca
 
 ### Props
 
-`PriceChartProps` extends the root div's props except `children`. The component owns the root's `role="group"`, `aria-label`, and chart data attributes; other div props and handlers pass through.
+`PriceChartProps` extends the root div's props and requires `children`. The root owns `role="group"`, `aria-label`, and chart data attributes; other div props, refs and handlers pass through. Mount one plot per root. Omitting a reading or legend omits only that presentation; the plot keeps its accessible summary and cursor value.
+
+For v1 integrations, see the [migration guide](migrating-v1-to-v2.md#pricechart).
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
+| `children` | `ReactNode` | Required | Your plot, readings, legend and application content. |
 | `store` | `RowStore<Bar>` | Required | Bars keyed by `barId(time)`. |
 | `convention` | `PriceConvention \| InstrumentConvention` | Required | Prints every price and sets the axis grid. |
 | `label` | `string` | Required | Accessible name of the chart. |
@@ -80,7 +106,7 @@ Changing only `baseline` updates the readout without recalculating the price sca
 | `baseline` | `number \| null` | `null` | A finite previous close: the change is measured from it and it is drawn as a dashed line. Otherwise, the change is from the first bar's open. |
 | `zone` | `string` | The runtime's | A runtime-supported IANA zone for the time axis and readout: the venue's. |
 | `locale` | `string` | `en-US` | Locale of the readout's clock. |
-| `overlays` | `readonly PriceChartOverlay[]` | None | Lines over the bars, named in a legend. |
+| `overlays` | `readonly PriceChartOverlay[]` | None | Lines over the bars; compose their legend separately. |
 | `crosshair` | `boolean` | `true` | The crosshair, from the pointer and the keys. Off, the plot is an image. |
 | `lastLine` | `boolean` | `true` | The dashed line and the tag at the last close. |
 | `height` | `number` | Omitted | Root height in px, overriding `style.height`. Otherwise, `h-64` unless styled differently. |
@@ -88,6 +114,25 @@ Changing only `baseline` updates the readout without recalculating the price sca
 | `onCursor` | `(bar: Bar \| null) => void` | None | Called when the selected bar index changes or is cleared; receives the bar or `null`. |
 | `className` | `string` | None | Classes on the root. |
 | `style` | `CSSProperties` | None | Inline styles on the root. |
+
+### Public parts
+
+Parts accept the native props and ref of the element below. They preserve their `data-chart-*` markers and merge `className`. Coordinated parts and `usePriceChart` must be inside `PriceChart`; `PriceChartHeader` can stand alone.
+
+| Part | Element | Content and behavior |
+|---|---|---|
+| `PriceChartHeader` | `div` | Your children in a wrapping row. No store or cursor subscription. |
+| `PriceChartLast` | `span` | Last close, or `labels.noData`; direction color and numeric font follow the convention. |
+| `PriceChartChange` | `span` | Signed price and percentage change. Renders nothing with no bars. |
+| `PriceChartReadout` | `span` | Selected bar's formatted time, prices and optional volume; blank with no selection. |
+| `PriceChartPlot` | `div` | Canvas, resize/theme observers and keyboard crosshair. Accepts children for an empty state. |
+| `PriceChartEmpty` | `div` | `labels.noData`, shown only with no finite bars. Positioned over the plot by default. |
+| `PriceChartLegend` | `ul` | Requires caller-owned children, usually `li` rows. Defaults its accessible name to `labels.overlays`; no automatic rows or hiding. |
+| `PriceChartOverlaySwatch` | `span` | Requires `overlayId: string`. Decorative swatch resolved from the plot's overlay order and color; unknown ids render nothing. |
+
+Last, Change, Readout and Empty use their default text only when `children` is `undefined`. Supply children to replace it, including `null` to leave the element empty. Numeric readings retain their convention's font when moved outside the header. Plot owns its slider/image role, accessible name, tab stop and value attributes. Its `onKeyDown`, `onFocus` and `onBlur` call your handler first; `preventDefault()` cancels its built-in behavior for that event.
+
+`usePriceChart()` returns `PriceChartState`: `bars` (finite, time-sorted bars), `summary` (`SeriesSummary` from price-series), `cursor` (selected index clamped to the current bars, or null when unselected or empty), `bar` (the selected bar or null), `readout` (formatted cursor text), `overlays`, `convention` and merged `labels`. Treat these shared readings as read-only. The hook adds no subscription or effect; repeated readouts share the root's one store subscription. Keep data updates on the store and cursor interaction on the plot.
 
 ### Bars
 
@@ -134,7 +179,7 @@ The helpers are in `price-series.ts`, with no React runtime dependency, so a fee
 | Field | Type | Default | Purpose |
 |---|---|---|---|
 | `id` | `string` | Required | The key. |
-| `label` | `string` | Required | The word in the legend. |
+| `label` | `string` | Required | The line name; use it in your legend rows. |
 | `values` | `(bars: readonly Bar[]) => readonly (number \| null)[]` | Required | One value per bar in time order; null leaves a gap. |
 | `color` | `number` | Its place in the list, starting at 1 | Chart token index. Supply an integer; values outside 1–8 are clamped to that range. |
 | `width` | `number` | `1` | Line width in CSS px. |
@@ -145,7 +190,7 @@ Keep `values` pure: it runs when the plot is created or recreated and when its d
 
 ### The readout
 
-The header prints the last close in the direction's color, then the change from the reference with its sign in the convention (`+0-02` for a fraction, `+1.25` for a decimal) and in percent. Under the crosshair it prints the bar: the time in the zone, the close for a line or all four prices for candles, and the volume when there is one.
+`PriceChartLast` prints the last close in the direction's color, and `PriceChartChange` prints the change from the reference with its sign in the convention (`+0-02` for a fraction, `+1.25` for a decimal) and in percent. `PriceChartReadout` prints the selected bar: the time in the zone, the close for a line or all four prices for candles, and the volume when there is one.
 
 The direction is the last close against the reference: up, down, or flat when equal, never up. It is on the root as `data-direction`, and the plot's accessible name says it in a word with the last, the change, the range, and the count: `ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars`.
 
@@ -162,7 +207,7 @@ With the crosshair on and at least one finite bar, the plot is a horizontal `sli
 | Escape | Put the crosshair away. Leaving does too. |
 | Ctrl, Cmd, or Alt with any key | Left to listeners above the chart, such as a hotkey registry. |
 
-The pointer moves the crosshair too, and the readout and `onCursor` follow whichever moved it last. Your own `onKeyDown`, `onFocus`, and the rest go on the root, around the plot, and see every key after it: a claimed key arrives with `defaultPrevented` set, every other key clean.
+The pointer moves the crosshair too, and the readout and `onCursor` follow whichever moved it last. Root handlers run around the plot and see each event after the plot handles it: a claimed key arrives with `defaultPrevented` set, every other key clean.
 
 `onCursor` follows index changes, not changes to the bar at that index. Updating a selected bar or inserting bars before it can change the readout without a callback. It is not called simply because the component mounted, and unmount does not send `null`.
 
@@ -174,11 +219,12 @@ The pointer moves the crosshair too, and the readout and `onCursor` follow which
 | `data-direction` | The root | The last close against the reference. |
 | `data-empty` | The root | No finite bars to display. |
 | `data-slot="tradecn-price-chart"` | The root | Component marker. |
-| `data-chart-header` | The header | Last price, change, and cursor readout. |
-| `data-chart-last`, `data-chart-change`, `data-chart-readout` | The header | The three readings, for a test or a style. |
+| `data-chart-header` | Header | Caller-owned header content. |
+| `data-chart-last`, `data-chart-change`, `data-chart-readout` | Each reading | The three readings, wherever placed. |
 | `data-chart-plot` | The plot box | Where the canvas lives. |
 | `data-chart-empty` | The plot box's placeholder | No finite bars to display. |
-| `data-chart-legend` | The legend | One item per overlay. |
+| `data-chart-legend` | Legend | Caller-owned rows. |
+| `data-chart-swatch` | Overlay swatch | The plot token for its overlay id. |
 
 ### Labels
 
@@ -186,7 +232,7 @@ The pointer moves the crosshair too, and the readout and `onCursor` follow which
 
 | Label | Default | Where |
 |---|---|---|
-| `noData` | `No data` | The header and plot when there are no finite bars |
+| `noData` | `No data` | Last, Empty and the plot name when there are no finite bars |
 | `open` / `high` / `low` / `close` | `O` / `H` / `L` / `C` | The candle readout |
 | `volume` | `V` | Volume in either readout |
 | `overlays` | `Overlays` | The legend's name |

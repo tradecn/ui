@@ -2,7 +2,7 @@ import { useState } from "react"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { barId, type Bar } from "@/registry/tradecn/lib/price-series"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { PriceChart, PriceChartLegend, PriceChartOverlaySwatch, PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty, type PriceChartOverlay } from "@/registry/tradecn/ui/price-chart"
+import { PriceChart, usePriceChart, PriceChartLegend, PriceChartOverlaySwatch, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty, type PriceChartOverlay } from "@/registry/tradecn/ui/price-chart"
 
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const start = Date.parse("2026-09-22T14:00:00Z")
@@ -32,24 +32,43 @@ const overlays: PriceChartOverlay[] = [
   { id: "vwap", label: "Bar VWAP", values: vwap, color: 5 },
 ]
 
-export default function PriceChartOverlaysDemo() {
+function CursorDetails() {
+  const { bar, bars, readout } = usePriceChart()
+  return (
+    <footer className="space-y-1 border-t pt-2 text-xs lining-nums tabular-nums sm:col-span-2">
+      <p className="text-muted-foreground">{bars.length} one-minute bars · Chicago time</p>
+      <PriceChartReadout className="ml-0 block">{bar ? readout : "Focus the plot or point at a bar to inspect it."}</PriceChartReadout>
+    </footer>
+  )
+}
+
+export default function PriceChartLayoutDemo() {
   const [store] = useState(() => {
     const store = createRowStore<Bar>({ getRowId: (bar) => barId(bar.time), lane: "ordered" })
     store.applyDeltas({ upsert: bars })
     return store
   })
   return (
-    <div className="w-xl max-w-full">
-      <PriceChart store={store} convention={ZN} label="ZN sample with overlays" zone="America/Chicago" baseline={110.5} overlays={overlays} className="h-72">
-        <PriceChartHeader>
-          <PriceChartLast />
-          <PriceChartChange />
-          <PriceChartReadout />
-        </PriceChartHeader>
-        <PriceChartPlot>
-          <PriceChartEmpty />
-        </PriceChartPlot>
-        <PriceChartLegend>{overlays.map((overlay) => <li key={overlay.id} className="flex items-center gap-1"><PriceChartOverlaySwatch overlayId={overlay.id} />{overlay.label}</li>)}</PriceChartLegend>
+    <div className="w-2xl max-w-full">
+      <PriceChart store={store} convention={ZN} label="ZN sample, research layout" zone="America/Chicago" baseline={110.5} overlays={overlays} className="grid h-auto grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
+        <h3 className="text-sm font-semibold sm:col-span-2">ZN · Session research</h3>
+        <PriceChartPlot className="h-56"><PriceChartEmpty>Waiting for sample bars.</PriceChartEmpty></PriceChartPlot>
+        <aside className="space-y-3">
+          <div className="flex flex-wrap items-baseline gap-2 sm:flex-col">
+            <span className="text-muted-foreground">Last / change</span>
+            <PriceChartLast />
+            <PriceChartChange />
+          </div>
+          <PriceChartLegend className="flex-col gap-2 px-0">
+            {[...overlays].reverse().map((overlay) => (
+              <li key={overlay.id} className="flex items-center gap-2">
+                <PriceChartOverlaySwatch overlayId={overlay.id} />
+                <span>{overlay.label}</span>
+              </li>
+            ))}
+          </PriceChartLegend>
+        </aside>
+        <CursorDetails />
       </PriceChart>
     </div>
   )

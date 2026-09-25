@@ -36,6 +36,7 @@
     "positions-books",
     "positions-updates",
     "price-chart",
+    "price-chart-layout",
     "price-chart-candles",
     "price-chart-overlays",
     "price-chart-ticks",

@@ -3,7 +3,7 @@ import { formatPrice, roundToTick, type InstrumentConvention } from "@/registry/
 import { barId, foldTicks, type Bar, type PriceTick } from "@/registry/tradecn/lib/price-series"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, DATA_GRID_PRESETS, type ColumnDef, type DataGridPreset } from "@/registry/tradecn/ui/data-grid"
-import { PriceChart, type PriceChartKind } from "@/registry/tradecn/ui/price-chart"
+import { PriceChart, PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty, type PriceChartKind } from "@/registry/tradecn/ui/price-chart"
 import { RfqStack, bySize, byTimeLeft, stackOrder, useRfqStackView, type RfqStackRow } from "@/registry/tradecn/ui/rfq-stack"
 
 // The browser bench. Three scenarios. `updates` drives the grid the way a per-frame core would: one
@@ -449,7 +449,16 @@ function ChartBench({ params }: { params: BenchParams }) {
         <Summary result={result} />
       </div>
       <div style={{ height: 420, width: 1100 }}>
-        <PriceChart store={store} convention={T32} kind={params.kind} label="Bench" zone="America/Chicago" className="h-full" />
+        <PriceChart store={store} convention={T32} kind={params.kind} label="Bench" zone="America/Chicago" className="h-full">
+          <PriceChartHeader>
+            <PriceChartLast />
+            <PriceChartChange />
+            <PriceChartReadout />
+          </PriceChartHeader>
+          <PriceChartPlot>
+            <PriceChartEmpty />
+          </PriceChartPlot>
+        </PriceChart>
       </div>
     </main>
   )
