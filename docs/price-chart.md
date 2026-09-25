@@ -209,7 +209,9 @@ With the crosshair on and at least one finite bar, the plot is a horizontal `sli
 
 The pointer moves the crosshair too, and the readout and `onCursor` follow whichever moved it last. Root handlers run around the plot and see each event after the plot handles it: a claimed key arrives with `defaultPrevented` set, every other key clean.
 
-A keyboard-selected crosshair follows its current index as data updates. If bars are removed, it clamps to the last remaining bar without a new `onCursor` call. A pointer-controlled crosshair stays at the pointer coordinates, so a data or scale change can select a different index and call `onCursor`. Updating the bar at an unchanged index changes the readout without a callback. It is not called simply because the component mounted, and unmount does not send `null`.
+A keyboard-selected crosshair follows its current index as data updates. If bars are removed, it clamps to the last remaining bar without a new `onCursor` call. Ordinary data updates keep a pointer-controlled crosshair at its pixel coordinates, so a scale change can select a different index and call `onCursor`. Updating the bar at an unchanged index changes the readout without a callback. It is not called simply because the component mounted, and unmount does not send `null`.
+
+Recreating the plot restores the selected bar without calling `onCursor`, including when the pointer selected it. The crosshair then follows that index until the next pointer movement takes control again.
 
 ### Marks
 

@@ -493,13 +493,12 @@ export function PriceChartOverlaySwatch({ overlayId, className, ...props }: Pric
 
 export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDown: onKeyDownProp, onFocus, onBlur, ...props }: ComponentProps<"div">) {
   const { columns, summary, cursor, bar, convention, overlays: overlayList, sentence, readout, kind, baseline, zone, crosshair, lastLine, moveCursor: selectCursor } = useChartContext()
-  const overlayKey = overlayList.map((o) => `${o.id}:${o.color ?? ""}:${o.width ?? ""}`).join("|")
-  const conventionKey = JSON.stringify(convention)
   const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [fontEpoch, setFontEpoch] = useState(0)
+  const plotKey = JSON.stringify([kind, crosshair, lastLine, zone, convention, overlayList.map((o) => [o.id, o.color, o.width]), fontEpoch])
   const plot = useRef<uPlot | null>(null)
-  const plotShape = useRef<{ kind: PriceChartKind; overlayKey: string } | null>(null)
+  const plotKeyRef = useRef<string | null>(null)
   const live = useRef<Live>({ palette: UNREAD_PALETTE, columns: EMPTY_COLUMNS, summary, baseline })
   const overlaysRef = useRef(overlayList)
   const conventionRef = useRef(convention)
@@ -528,12 +527,13 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   // The plot takes the columns before the browser paints, so the picture and the header move in one frame.
   useLayoutEffect(() => {
     live.current.columns = columns
-    // A structural change recreates the plot below; the old series cannot take its new columns.
-    if (plotShape.current?.kind === kind && plotShape.current.overlayKey === overlayKey) {
-      plot.current?.setData(alignedData(columns, kind, overlaysRef.current), true)
+    // Retire the old plot before its queued hooks can select against new data or incompatible columns.
+    if (plotKeyRef.current !== plotKey) {
+      plotKeyRef.current = null
+      return
     }
-    // overlayKey stands for the overlays' structure; their functions are read through the ref.
-  }, [columns, kind, overlayKey])
+    plot.current?.setData(alignedData(columns, kind, overlaysRef.current), true)
+  }, [columns, kind, plotKey])
 
   // The box's size, from a ResizeObserver; nothing is drawn before the first measurement.
   useLayoutEffect(() => {
@@ -552,6 +552,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     if (!plotEl || !ready || !canDraw()) return
     live.current.palette = readPalette(plotEl)
     const box = plotEl.getBoundingClientRect()
+    pointerOwnsCursor.current = false
     lastCursorEvent.current = undefined
     const u = new uPlot(
       plotOptions({
@@ -565,7 +566,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
         overlays: overlaysRef.current,
         live: () => live.current,
         onCursor: (u) => {
-          if (plot.current !== u) return
+          if (plot.current !== u || plotKeyRef.current !== plotKey) return
           // uPlot also fires this hook after setData recalculates its scales. Only a new native
           // event transfers ownership to the pointer; keyboard selection follows the retained bar.
           if (u.cursor.event && u.cursor.event !== lastCursorEvent.current) {
@@ -580,8 +581,8 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       plotEl,
     )
     plot.current = u
-    plotShape.current = { kind, overlayKey }
-    if (!pointerOwnsCursor.current) syncPlotCursor(u, cursorBar.current)
+    plotKeyRef.current = plotKey
+    syncPlotCursor(u, cursorBar.current)
     // A mode or a theme is a class on <html> and the accessibility remap a data attribute; the tokens are read again
     // and the picture redrawn, or, when the font stack itself changed, the plot remade with the new axis font.
     const observer = new MutationObserver(() => {
@@ -600,10 +601,10 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       observer.disconnect()
       u.destroy()
       plot.current = null
-      plotShape.current = null
+      plotKeyRef.current = null
     }
-    // conventionKey and overlayKey stand for the objects' structure; the objects themselves are read through refs, so an inline one does not remake the plot every render.
-  }, [plotEl, ready, kind, crosshair, lastLine, zone, conventionKey, overlayKey, fontEpoch])
+    // plotKey includes convention, overlay structure and font epoch; equal inline options do not remake the plot.
+  }, [plotEl, ready, kind, crosshair, lastLine, zone, plotKey])
 
   useEffect(() => {
     if (size && plot.current) plot.current.setSize(size)

@@ -1797,5 +1797,22 @@ test("a price chart paints in the page's tokens, prints the last with its sign, 
   await scene.getByRole("button", { name: "retain first bar" }).evaluate((button: HTMLButtonElement) => button.click())
   await expect(plot).toHaveAttribute("aria-valuemax", "0")
   await expect.poll(() => chart.locator(".u-cursor-x, .u-cursor-y").evaluateAll((lines) => lines.map((line) => getComputedStyle(line).transform))).toEqual(before)
+  // Recreating a pointer-controlled plot retains the selected bar until a new pointer event.
+  const pointerCalls = await scene.locator("[data-cursor-calls]").getAttribute("data-cursor-calls")
+  await scene.getByRole("button", { name: "toggle kind" }).evaluate((button: HTMLButtonElement) => button.click())
+  await expect(chart).toHaveAttribute("data-kind", "candles")
+  await expect(plot).toHaveAttribute("aria-valuenow", "0")
+  await expect.poll(async () => {
+    const area = (await chart.locator(".u-over").boundingBox())!
+    const line = (await chart.locator(".u-cursor-x").boundingBox())!
+    return line.x >= area.x && line.x <= area.x + area.width
+  }, { message: "recreation retains the pointer-selected bar" }).toBe(true)
+  await expect(scene.locator("[data-cursor-calls]")).toHaveAttribute("data-cursor-calls", pointerCalls!)
+  const replacedBox = (await chart.locator(".u-over").boundingBox())!
+  await page.mouse.move(replacedBox.x + replacedBox.width / 3, replacedBox.y + 12)
+  await expect.poll(async () => {
+    const line = (await chart.locator(".u-cursor-y").boundingBox())!
+    return Math.abs(line.y - (replacedBox.y + 12))
+  }, { message: "the next pointer move controls the crosshair again" }).toBeLessThan(2)
   expect(errors).toEqual([])
 })

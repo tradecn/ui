@@ -209,6 +209,44 @@ describe("PriceChart plot lifecycle", () => {
     expect(drawing.plots[1]!.data).toEqual([[1_000], [11]])
   })
 
+  it("distinguishes overlay structures whose ids contain separators", () => {
+    const values = () => [15]
+    const { store, chart, rerender } = setup({ overlays: [{ id: "a", label: "A", values }, { id: "b", label: "B", values }] })
+    const old = drawing.plots[0]!
+    rerender(chart({ overlays: [{ id: "a::|b", label: "Combined", values }] }))
+    expect(old.destroy).toHaveBeenCalledOnce()
+    expect(old.setData).not.toHaveBeenCalled()
+    act(() => store.applyDeltas({ upsert: [{ ...first, close: 12 }] }))
+    expect(drawing.plots[1]!.data).toEqual([[1_000], [12], [15]])
+  })
+
+  it.each([{ kind: "candles" as const }, { zone: "UTC" }])("retains the selected bar on recreation with %j, then lets the pointer take control again", (options) => {
+    const onCursor = vi.fn()
+    const { store, chart, rerender } = setup({ onCursor })
+    act(() => store.applyDeltas({ upsert: [{ ...first, time: 2_000 }, { ...first, time: 3_000 }] }))
+    const old = drawing.plots[0]!
+    Object.assign(old.cursor, { idx: 2, left: 2_950, top: 9, event: new MouseEvent("mousemove") })
+    act(() => old.fireCursor())
+    old.setData.mockClear()
+    act(() => {
+      store.applyDeltas({ remove: [barId(2_000), barId(3_000)] })
+      rerender(chart(options))
+    })
+    expect(old.setData).not.toHaveBeenCalled()
+    const current = drawing.plots[1]!
+    expect(current.setCursor).toHaveBeenLastCalledWith({ left: first.time, top: first.close }, false)
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "0")
+    act(() => current.fireCursor())
+    expect(onCursor).toHaveBeenCalledOnce()
+    current.setCursor.mockClear()
+    Object.assign(current.cursor, { idx: 0, left: 1_020, top: 9, event: new MouseEvent("mousemove") })
+    act(() => current.fireCursor())
+    act(() => current.fireCursor())
+    expect(current.setCursor).not.toHaveBeenCalled()
+    expect(current.cursor).toMatchObject({ left: 1_020, top: 9 })
+    expect(onCursor).toHaveBeenLastCalledWith(first)
+  })
+
   it("uses replacement overlay functions on the next batch and pads missing values with gaps", () => {
     const original = vi.fn(() => [15])
     const next = vi.fn(() => [NaN, 20, 30])
