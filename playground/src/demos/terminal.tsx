@@ -1,3 +1,4 @@
+import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "cn"
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
@@ -29,7 +30,7 @@ import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeade
 import { AuditTrail, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
 import { Blotter, blotterColumns, type BlotterAction, type BlotterRow } from "@/registry/tradecn/ui/blotter"
 import { ColumnChooser } from "@/registry/tradecn/ui/column-chooser"
-import { CommandPalette, createActionRegistry, type ActionRegistry, type PaletteAction } from "@/registry/tradecn/ui/command-palette"
+import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, createActionRegistry, type ActionRegistry, type PaletteAction } from "@/registry/tradecn/ui/command-palette"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/registry/tradecn/ui/data-grid"
 import { DepthLadder, levelId, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
@@ -1390,8 +1391,14 @@ function Toolbar() {
         }}
         open={palette}
         onOpenChange={setPalette}
-        className="sm:max-w-xl"
-      />
+      >
+        <CommandPaletteDialog className="sm:max-w-xl">
+          <CommandPaletteContent>
+            <CommandPaletteInput />
+            <CommandPaletteList><PaletteResults /></CommandPaletteList>
+          </CommandPaletteContent>
+        </CommandPaletteDialog>
+      </CommandPalette>
     </div>
   )
 }
@@ -1651,5 +1658,33 @@ export function DeskAlerts({ alerts, actions }: { alerts: AlertStore; actions: N
         <div className="h-80 min-h-0 min-w-0"><AlertHistory alerts={alerts} /></div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function PaletteResults() {
+  const { loading } = useCommandPalette()
+  return (
+    <>
+      <CommandPaletteEmpty>{loading ? "Searching…" : "No results"}</CommandPaletteEmpty>
+      <CommandPaletteResults>
+        {(group) => (
+          <CommandGroup heading={group.heading}>
+            {(group.id === "recent" ? group.rows.slice(0, 5) : group.rows).map((row) => (
+              <CommandPaletteItem key={row.key} row={row}>
+                <span className="truncate">{row.title}</span>
+                {row.subtitle && <span className="truncate text-muted-foreground">{row.subtitle}</span>}
+                {row.badge && <span className="rounded border border-border px-1 text-xs uppercase">{row.badge}</span>}
+                {(row.secondary || row.keys) && (
+                  <CommandShortcut className="flex shrink-0 items-center gap-2 text-xs tracking-normal">
+                    <CommandPaletteSecondary><CommandPaletteKeys keys="shift+enter" />{row.secondary?.title}</CommandPaletteSecondary>
+                    {row.keys && <CommandPaletteKeys keys={row.keys} />}
+                  </CommandShortcut>
+                )}
+              </CommandPaletteItem>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandPaletteResults>
+    </>
   )
 }

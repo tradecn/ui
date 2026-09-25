@@ -92,3 +92,25 @@ Keep feed ids unique and stable; `FeedHealthList` supplies their React keys. Dir
 Pending now belongs to one hook instance per feed. Share its result between views when they should coordinate; visual items create no request timers. State/id changes, effect cleanup (including Activity or Suspense hiding), timeout and promise settlement clear pending. Request identity prevents an old completion from clearing a newer request made at the same clock timestamp.
 
 The live region is now atomic, so each batched transition is read as one message. The status indicator includes a state word, and compact recipes retain the tier word for assistive technology. The trigger/content pair explicitly links its tooltip description in either supported primitive base. These replace the old compact color-only cue and the missing description relationship observed in the Base UI tooltip.
+
+## CommandPalette
+
+`CommandPalette` now requires caller-owned children and coordinates behavior without inserting UI. Replace self-closing calls with a `CommandPaletteDialog` or inline `CommandPaletteContent`, then compose the input, list, empty message, groups and items. See the [complete ordinary and inline examples](command-palette.md#usage).
+
+| Previous interface | Current interface |
+|---|---|
+| `<CommandPalette actions={actions} />` | Required root children. For a modal, compose Dialog → Content → Input and List. For `variant="go-bar"`, compose Content directly. |
+| Private action and symbol groups | `CommandPaletteResults` with a group callback, or `useCommandPalette().groups` for direct ordering and filtering. Use your shadcn `CommandGroup`. |
+| Automatic row title, subtitle, badge and shortcuts | `CommandPaletteItem row={row}` with caller children. Render `row.title`, optional `row.subtitle` and `row.badge`, and `CommandPaletteKeys keys={row.keys}` where needed. Use the shadcn `CommandShortcut` for trailing content. |
+| Automatic secondary hint | Compose `CommandPaletteSecondary` with caller text and optional `CommandPaletteKeys keys="shift+enter"`. Shift+Enter behavior remains shared. Secondary replaces the primary callback. |
+| Automatic five-recent limit | Groups expose all eligible recents; use `group.id === "recent" ? group.rows.slice(0, 5) : group.rows` to preserve the previous display cap. The registry still defaults to storing eight. |
+| Root `className` | Move to `CommandPaletteDialog` for modal styling or `CommandPaletteContent` for inline styling. The root has no DOM node. |
+| `labels.empty`, `labels.searching` | Removed from `CommandPaletteLabels`. Supply Empty children; read `loading` from `useCommandPalette()` to choose text. The previous defaults were `No results` and `Searching…`. |
+| Other labels, actions, symbols, grammar, hotkey and open props | Retained on the root with their previous defaults. `variant` selects behavior; it no longer creates a dialog or input. |
+| Automatically installed `badge` | Removed from installation dependencies. Render a styled span as in the examples, or install `badge` separately. |
+| Go-bar search continuing after blur | Search now aborts when closed and restarts on reopening. Blur retains the query; selection and Escape clear it. |
+| Generated selectors | `tradecn-command-palette` and `data-variant` move onto Content. Item retains `data-row`; Secondary supplies `data-secondary`. |
+
+The action registry, recents persistence, action scoring, symbol types and primary/secondary callback shapes remain available. Keep one Content and one Input per root; share the registry between separate roots for a dialog and inline list. Group and result hooks do not duplicate requests. All symbol search belongs to Content, with cancellation on query/adapter changes, close and unmount.
+
+Keep meaningful row text, shortcut hints, focusable application controls and status announcements in your composition. Public parts retain keyboard selection, captured hotkey scopes, live remaps, early dialog input, inline focus retention, closure and recent updates. Use Item or the hook's `select`, rather than calling a row's raw callback, to keep those selection effects. Scope filtering does not replace permission checks in application actions. The migrated examples preserve the prior five-recent display cap and caller status messages.

@@ -117,6 +117,15 @@ test("the command palette opens, runs both actions, and finds a symbol", async (
   await page.keyboard.type("blotter")
   await page.keyboard.press("Enter")
   await expect(last).toHaveAttribute("data-palette-last", "blotter")
+  // Application controls keep native Enter while Escape still dismisses the modal.
+  await page.keyboard.press("ControlOrMeta+k")
+  const help = palette.getByRole("button", { name: "Palette help" })
+  await help.focus()
+  await page.keyboard.press("Enter")
+  await expect(last).toHaveAttribute("data-palette-last", "help")
+  await expect(palette).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(palette).toHaveCount(0)
   expect(errors).toEqual([])
 })
 

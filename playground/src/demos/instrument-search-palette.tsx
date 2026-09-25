@@ -1,5 +1,6 @@
+import { CommandGroup } from "@/components/ui/command"
 import { useState } from "react"
-import { CommandPalette, createActionRegistry } from "@/registry/tradecn/ui/command-palette"
+import { CommandPalette, CommandPaletteContent, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteList, CommandPaletteResults, useCommandPalette, createActionRegistry } from "@/registry/tradecn/ui/command-palette"
 import { toSymbolAdapter, type InstrumentHit, type InstrumentSearchFn } from "@/registry/tradecn/ui/instrument-search"
 
 const instruments: InstrumentHit[] = [
@@ -17,8 +18,35 @@ export default function InstrumentSearchPaletteDemo() {
   const [selected, setSelected] = useState("None")
   return (
     <div className="min-h-64 w-sm max-w-full space-y-2 text-xs lining-nums tabular-nums">
-      <CommandPalette variant="go-bar" actions={actions} symbols={symbols} hotkey={false} onSymbolSelect={(hit) => setSelected(hit.symbol)} labels={{ title: "Find an instrument", placeholder: "Search ZN or ZB" }} />
+      <CommandPalette variant="go-bar" actions={actions} symbols={symbols} hotkey={false} onSymbolSelect={(hit) => setSelected(hit.symbol)} labels={{ title: "Find an instrument", placeholder: "Search ZN or ZB" }}>
+        <CommandPaletteContent>
+          <CommandPaletteInput />
+          <CommandPaletteList><PaletteResults /></CommandPaletteList>
+        </CommandPaletteContent>
+      </CommandPalette>
       <p role="status">Selected: {selected}</p>
     </div>
+  )
+}
+
+function PaletteResults() {
+  const { loading } = useCommandPalette()
+  return (
+    <>
+      <CommandPaletteEmpty>{loading ? "Searching…" : "No results"}</CommandPaletteEmpty>
+      <CommandPaletteResults>
+        {(group) => (
+          <CommandGroup heading={group.heading}>
+            {(group.id === "recent" ? group.rows.slice(0, 5) : group.rows).map((row) => (
+              <CommandPaletteItem key={row.key} row={row}>
+                <span className="truncate">{row.title}</span>
+                {row.subtitle && <span className="truncate text-muted-foreground">{row.subtitle}</span>}
+
+              </CommandPaletteItem>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandPaletteResults>
+    </>
   )
 }

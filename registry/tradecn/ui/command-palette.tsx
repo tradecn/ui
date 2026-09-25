@@ -1,36 +1,26 @@
 import { cn } from "cn"
-import { useEffect, useRef, useState, useSyncExternalStore, type FocusEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react"
-import { Badge } from "@/components/ui/badge"
-import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
+import { createContext, Fragment, useContext, useEffect, useImperativeHandle, useRef, useState, useSyncExternalStore, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
+import { Command, CommandDialog, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { formatKeys, matchesKeys, scopeChain, type HotkeyEntry, type HotkeyRegistry, type Platform } from "@/registry/tradecn/lib/hotkeys"
 
-// A command palette on the consumer's own shadcn `command`: actions from a registry, symbols from
-// an adapter, and a second action per row on Shift+Enter (open, or open and add to the watchlist).
-//
-// Two variants share the registry, the rows, and the recents. `palette` is the dialog on mod+k.
-// `go-bar` is the same thing inline, for terminals where the command line is always on screen, and
-// it reads `<SYMBOL> <FUNCTION>` through a grammar the consumer supplies.
-//
-// The palette filters and orders its own rows rather than leaving it to cmdk, because three sources
-// land in one list and one of them is asynchronous. Shortcuts on the rows come from the hotkey
-// registry, so a remap shows up here without anyone telling the palette.
+// Search and selection stay shared; callers own the dialog, groups and result markup.
 
 export interface PaletteAction {
   id: string
   title: string
-  /** Muted text after the title. */
+  /** Optional secondary search text for the caller to display. */
   subtitle?: string
   /** A hotkey scope, `panel:book`. The action is offered only when the palette is opened from inside that scope. Omit for everywhere. */
   scope?: string
   keywords?: readonly string[]
   /** The heading the row sits under. */
   group?: string
-  /** A hotkey binding whose keys render on the row. */
+  /** A hotkey binding whose current keys are exposed on the row. */
   bindingId?: string
   run: () => void
-  /** Runs on Shift+Enter. The hint shows on the highlighted row, so it is discoverable. */
+  /** Runs on Shift+Enter. Compose a CommandPaletteSecondary to make it discoverable. */
   secondary?: { title: string; run: () => void }
 }
 
@@ -38,7 +28,7 @@ export interface SymbolResult {
   symbol: string
   name?: string
   exchange?: string
-  /** Asset class or instrument type, rendered as a badge. */
+  /** Asset class or instrument type, exposed as row.badge. */
   kind?: string
 }
 
@@ -159,8 +149,6 @@ export interface CommandPaletteLabels {
   title: string
   description: string
   placeholder: string
-  empty: string
-  searching: string
   recent: string
   actions: string
   commands: string
@@ -173,8 +161,6 @@ const PALETTE_LABELS: CommandPaletteLabels = {
   title: "Command palette",
   description: "Search for a command or a symbol",
   placeholder: "Type a command or a symbol…",
-  empty: "No results",
-  searching: "Searching…",
   recent: "Recent",
   actions: "Actions",
   commands: "Commands",
@@ -186,7 +172,7 @@ const GO_BAR_LABELS: CommandPaletteLabels = { ...PALETTE_LABELS, title: "Command
 
 export interface CommandPaletteProps {
   actions: ActionRegistry
-  /** `palette` is a dialog. `go-bar` renders inline and drops its rows below the input. */
+  /** Dialog keyboard behavior or inline input/dropdown behavior. Compose the corresponding parts. */
   variant?: "palette" | "go-bar"
   open?: boolean
   defaultOpen?: boolean
@@ -202,11 +188,11 @@ export interface CommandPaletteProps {
   /** Keys for the binding the palette declares for itself: `palette.open` (default `mod+k`) or `go-bar.focus` (default `/`). `false` declares nothing. */
   hotkey?: string | false
   labels?: Partial<CommandPaletteLabels>
-  /** On the dialog's content for `palette`, on the root for `go-bar`. */
-  className?: string
+  /** Compose a dialog or an inline content area. */
+  children: ReactNode
 }
 
-interface Row {
+export interface PaletteRow {
   key: string
   title: string
   subtitle?: string
@@ -217,9 +203,10 @@ interface Row {
   recent: PaletteRecent | null
 }
 
-interface Section {
+export interface PaletteGroup {
+  id: string
   heading: string
-  rows: Row[]
+  rows: PaletteRow[]
 }
 
 const NO_SYMBOLS: readonly SymbolResult[] = []
@@ -260,17 +247,20 @@ const getServerFocusScopes = () => AMBIENT_SCOPES
 const subscribeNothing = () => () => {}
 const getNoEntries = () => NO_ENTRIES
 
-function useSymbolSearch(adapter: SymbolSearchAdapter | undefined, query: string) {
-  const [found, setFound] = useState<{ query: string; results: readonly SymbolResult[] }>({ query: "", results: NO_SYMBOLS })
-  const active = adapter !== undefined && query.length >= (adapter.minLength ?? 1)
+function useSymbolSearch(adapter: SymbolSearchAdapter | undefined, query: string, enabled: boolean) {
+  const [found, setFound] = useState<{ adapter?: SymbolSearchAdapter; query: string; results: readonly SymbolResult[]; signal?: AbortSignal }>({ query: "", results: NO_SYMBOLS })
+  const active = enabled && adapter !== undefined && query.length >= (adapter.minLength ?? 1)
   useEffect(() => {
     if (!adapter || !active) return
     const controller = new AbortController()
     const settle = (results: readonly SymbolResult[]) => {
-      if (!controller.signal.aborted) setFound({ query, results })
+      if (!controller.signal.aborted) setFound({ adapter, query, results, signal: controller.signal })
     }
     const timer = setTimeout(() => {
-      adapter.search(query, controller.signal).then(settle, () => settle(NO_SYMBOLS))
+      Promise.resolve().then(() => {
+        if (!controller.signal.aborted) return adapter.search(query, controller.signal)
+        return NO_SYMBOLS
+      }).then(settle, () => settle(NO_SYMBOLS))
     }, adapter.debounceMs ?? 150)
     return () => {
       clearTimeout(timer)
@@ -278,43 +268,68 @@ function useSymbolSearch(adapter: SymbolSearchAdapter | undefined, query: string
     }
   }, [adapter, active, query])
   // Only answers to the query on screen. Enter on a row left over from three letters ago is how the wrong symbol gets loaded.
-  const current = active && found.query === query
+  const current = active && found.adapter === adapter && found.query === query && !found.signal?.aborted
   return { results: current ? found.results : NO_SYMBOLS, loading: active && !current }
 }
 
-function Keys({ keys, platform }: { keys: string; platform?: Platform }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      {formatKeys(keys, platform).map((caps, i) => (
-        <KbdGroup key={i}>
-          {caps.map((cap) => (
-            <Kbd key={cap}>{cap}</Kbd>
-          ))}
-        </KbdGroup>
-      ))}
-    </span>
-  )
-}
-
-interface BodyProps extends Pick<CommandPaletteProps, "actions" | "symbols" | "onSymbolSelect" | "symbolSecondary" | "goBarGrammar"> {
-  variant: "palette" | "go-bar"
+interface PaletteRootState {
+  options: CommandPaletteProps
   labels: CommandPaletteLabels
   hotkeys: HotkeyRegistry | null
-  /** The palette's own binding, to answer it from behind the dialog's wall. */
   ownBindingId: string | null
   scopes: string
-  expanded: boolean
-  onExpand: () => void
-  onDone: () => void
+  open: boolean
+  setOpen: (open: boolean) => void
+  inputRef: { current: HTMLInputElement | null }
 }
 
-function PaletteBody({ actions, symbols, onSymbolSelect, symbolSecondary, goBarGrammar, variant, labels, hotkeys, ownBindingId, scopes, expanded, onExpand, onDone }: BodyProps) {
+const RootContext = createContext<PaletteRootState | null>(null)
+
+function usePaletteRoot() {
+  const root = useContext(RootContext)
+  if (!root) throw new Error("CommandPalette parts require CommandPalette")
+  return root
+}
+
+export interface CommandPaletteState {
+  groups: readonly PaletteGroup[]
+  input: string
+  setInput: (input: string) => void
+  loading: boolean
+  open: boolean
+  setOpen: (open: boolean) => void
+  platform?: Platform
+  /** Select a currently offered row. Secondary falls back to primary when absent. */
+  select: (row: PaletteRow, secondary?: boolean) => void
+}
+
+const ContentContext = createContext<CommandPaletteState | null>(null)
+const ItemContext = createContext<{ row: PaletteRow; disabled: boolean } | null>(null)
+
+/** Read the nearest content's search state without creating subscriptions or requests. */
+export function useCommandPalette(): CommandPaletteState {
+  const state = useContext(ContentContext)
+  if (!state) throw new Error("useCommandPalette requires CommandPaletteContent")
+  return state
+}
+
+export type CommandPaletteContentProps = Omit<ComponentProps<typeof Command>, "children" | "shouldFilter"> & { children: ReactNode }
+
+export function CommandPaletteContent({ children, ref, className, onKeyDown: onKeyDownProp, onBlur, ...props }: CommandPaletteContentProps) {
+  const { options, labels, hotkeys, ownBindingId, scopes, open, setOpen, inputRef } = usePaletteRoot()
+  const { actions, symbols, onSymbolSelect, symbolSecondary, goBarGrammar, variant = "palette" } = options
+  const root = useRef<HTMLDivElement>(null)
+  useImperativeHandle(ref, () => root.current!)
+  const onDone = () => {
+    setOpen(false)
+    if (variant === "go-bar") inputRef.current?.blur()
+  }
   const [input, setInput] = useState("")
   const query = input.trim()
   const list = useSyncExternalStore(actions.subscribe, actions.list, actions.list)
   const recents = useSyncExternalStore(actions.subscribe, actions.recents, actions.recents)
   const entries = useSyncExternalStore(hotkeys?.subscribe ?? subscribeNothing, hotkeys?.list ?? getNoEntries, hotkeys?.list ?? getNoEntries)
-  const search = useSymbolSearch(symbols, query)
+  const search = useSymbolSearch(symbols, query, open)
 
   // Radix focuses the dialog in the commit that mounts it; Base UI does it a few milliseconds later.
   // Keys pressed in that gap land on the body, where a single-key hotkey would take them. Someone who
@@ -322,8 +337,8 @@ function PaletteBody({ actions, symbols, onSymbolSelect, symbolSecondary, goBarG
   // text goes into the query, Enter runs the highlighted row, Escape closes, and nothing reaches the dispatcher.
   const early = useRef<{ enter: (shift: boolean) => void; escape: () => void }>({ enter: () => {}, escape: () => {} })
   useEffect(() => {
-    if (variant !== "palette") return
-    const inside = (node: EventTarget | null) => Boolean((node as Element | null)?.closest?.(`[data-slot="${SLOT}"]`))
+    if (variant !== "palette" || !open) return
+    const inside = (node: EventTarget | null) => Boolean(node instanceof Node && root.current?.contains(node))
     if (inside(document.activeElement)) return
     const onFocus = (event: globalThis.FocusEvent) => {
       if (inside(event.target)) stop()
@@ -347,13 +362,13 @@ function PaletteBody({ actions, symbols, onSymbolSelect, symbolSecondary, goBarG
     document.addEventListener("keydown", onKey, true)
     document.addEventListener("focusin", onFocus, true)
     return stop
-  }, [variant])
+  }, [variant, open])
 
   const active = new Set(scopes.split(" "))
   const keysOf = new Map(entries.map((e) => [e.id, e.keys]))
   const scopeLabel = (scope: string) => scope.replace(/^panel:/, "")
 
-  const actionRow = (action: PaletteAction, prefix: string, recent: PaletteRecent | null): Row => ({
+  const actionRow = (action: PaletteAction, prefix: string, recent: PaletteRecent | null): PaletteRow => ({
     key: `${prefix}:${action.id}`,
     title: action.title,
     subtitle: action.subtitle,
@@ -363,7 +378,7 @@ function PaletteBody({ actions, symbols, onSymbolSelect, symbolSecondary, goBarG
     secondary: action.secondary,
     recent,
   })
-  const symbolRow = (symbol: SymbolResult, prefix: string): Row => ({
+  const symbolRow = (symbol: SymbolResult, prefix: string): PaletteRow => ({
     key: `${prefix}:${symbol.symbol}:${symbol.exchange ?? ""}`,
     title: symbol.symbol,
     subtitle: [symbol.name, symbol.exchange].filter(Boolean).join(" · ") || undefined,
@@ -374,9 +389,9 @@ function PaletteBody({ actions, symbols, onSymbolSelect, symbolSecondary, goBarG
   })
 
   const offered = list.filter((a) => !a.scope || active.has(a.scope))
-  const sections: Section[] = []
+  const sections: PaletteGroup[] = []
   if (!query) {
-    const rows: Row[] = []
+    const rows: PaletteRow[] = []
     for (const recent of recents) {
       if (recent.kind === "symbol") rows.push(symbolRow(recent.symbol, "recent-symbol"))
       else {
@@ -384,44 +399,50 @@ function PaletteBody({ actions, symbols, onSymbolSelect, symbolSecondary, goBarG
         if (action) rows.push(actionRow(action, "recent", recent))
       }
     }
-    if (rows.length) sections.push({ heading: labels.recent, rows: rows.slice(0, 5) })
+    if (rows.length) sections.push({ id: "recent", heading: labels.recent, rows })
     for (const action of offered) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id }))
   } else {
     const commands = goBarGrammar?.(query) ?? []
-    if (commands.length) sections.push({ heading: labels.commands, rows: commands.map((c) => actionRow(c, "command", null)) })
+    if (commands.length) sections.push({ id: "commands", heading: labels.commands, rows: commands.map((c) => actionRow(c, "command", null)) })
     const scored = offered.map((action) => ({ action, score: scorePaletteAction(action, query) })).filter((s) => s.score >= 0)
     scored.sort((a, b) => b.score - a.score)
     for (const { action } of scored) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id }))
-    if (search.results.length) sections.push({ heading: labels.symbols, rows: search.results.map((s) => symbolRow(s, "symbol")) })
+    if (search.results.length) sections.push({ id: "symbols", heading: labels.symbols, rows: search.results.map((s) => symbolRow(s, "symbol")) })
   }
   const rowsByKey = new Map(sections.flatMap((s) => s.rows).map((r) => [r.key, r]))
 
-  const finish = (row: Row, run: () => void) => {
+  const select = (requested: PaletteRow, secondary = false) => {
+    const row = rowsByKey.get(requested.key)
+    if (!row || !open) return
+    const run = secondary && row.secondary ? row.secondary.run : row.run
     setInput("")
     onDone()
     if (row.recent) actions.touch(row.recent)
     run()
   }
 
+  const secondaryDisabled = (item: Element | null | undefined) => Boolean(item?.querySelector("[data-secondary]:disabled"))
+
   useEffect(() => {
     early.current = {
       enter(shift) {
-        const selected = document.querySelector(`[data-slot="${SLOT}"][data-variant="palette"] [cmdk-item][aria-selected="true"]`)
+        const selected = root.current?.querySelector('[cmdk-item][aria-selected="true"]:not([aria-disabled="true"])')
         const row = rowsByKey.get(selected?.getAttribute("data-row") ?? "")
-        if (row) finish(row, shift && row.secondary ? row.secondary.run : row.run)
+        if (row && !(shift && row.secondary && secondaryDisabled(selected))) select(row, shift)
       },
       escape: onDone,
     }
   })
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.nativeEvent.isComposing) return
+    onKeyDownProp?.(event)
+    if (event.defaultPrevented || event.nativeEvent.isComposing) return
     if (event.key === "Enter" && event.shiftKey) {
-      const selected = event.currentTarget.querySelector('[cmdk-item][aria-selected="true"]')
+      const selected = event.currentTarget.querySelector('[cmdk-item][aria-selected="true"]:not([aria-disabled="true"])')
       const row = rowsByKey.get(selected?.getAttribute("data-row") ?? "")
       if (!row?.secondary) return
       event.preventDefault()
-      finish(row, row.secondary.run)
+      if (!secondaryDisabled(selected)) select(row, true)
     } else if (variant === "go-bar" && event.key === "Escape") {
       event.preventDefault()
       setInput("")
@@ -435,82 +456,56 @@ function PaletteBody({ actions, symbols, onSymbolSelect, symbolSecondary, goBarG
     }
   }
 
-  const hint = (row: Row) =>
-    row.secondary && (
-      <span
-        data-secondary
-        className="hidden items-center gap-1 in-data-[selected=true]:inline-flex"
-        onClick={(event: MouseEvent) => {
-          event.stopPropagation()
-          finish(row, row.secondary!.run)
+  return (
+    <ContentContext value={{ groups: sections, input, setInput, loading: search.loading, open, setOpen, platform: hotkeys?.platform, select }}>
+      <Command
+        ref={root}
+        loop
+        label={labels.title}
+        {...props}
+        data-slot="tradecn-command-palette"
+        data-variant={variant}
+        shouldFilter={false}
+        className={cn("lining-nums tabular-nums", variant === "go-bar" && "relative h-auto overflow-visible bg-transparent p-0", className)}
+        onKeyDown={onKeyDown}
+        onBlur={(event) => {
+          onBlur?.(event)
+          if (!event.defaultPrevented && variant === "go-bar" && !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
         }}
       >
-        <Keys keys="shift+enter" platform={hotkeys?.platform} />
-        {row.secondary.title}
-      </span>
-    )
-
-  const rows = (
-    <>
-      <CommandEmpty>{search.loading ? labels.searching : labels.empty}</CommandEmpty>
-      {sections.map((section) => (
-        <CommandGroup key={section.heading} heading={section.heading}>
-          {section.rows.map((row) => (
-            <CommandItem key={row.key} value={row.key} data-row={row.key} onSelect={() => finish(row, row.run)}>
-              <span className="truncate">{row.title}</span>
-              {row.subtitle && <span className="truncate text-muted-foreground">{row.subtitle}</span>}
-              {row.badge && (
-                <Badge variant="outline" className="h-4 px-1 text-xs uppercase">
-                  {row.badge}
-                </Badge>
-              )}
-              {(row.secondary || row.keys) && (
-                <CommandShortcut className="flex shrink-0 items-center gap-2 tracking-normal">
-                  {hint(row)}
-                  {row.keys && <Keys keys={row.keys} platform={hotkeys?.platform} />}
-                </CommandShortcut>
-              )}
-            </CommandItem>
-          ))}
-        </CommandGroup>
-      ))}
-    </>
-  )
-
-  if (variant === "palette") {
-    return (
-      <Command shouldFilter={false} loop label={labels.title} onKeyDown={onKeyDown}>
-        <CommandInput value={input} onValueChange={setInput} placeholder={labels.placeholder} />
-        <CommandList>{rows}</CommandList>
+        <div
+          className="contents"
+          onKeyDown={(event) => {
+            // cmdk handles Enter and navigation at its root. Application controls keep their own keys.
+            if (event.target === inputRef.current) return
+            const own = ownBindingId && keysOf.get(ownBindingId)
+            if (own && matchesKeys(event.nativeEvent, own, hotkeys?.platform)) return
+            if (["Enter", "ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) || (event.ctrlKey && ["n", "j", "p", "k"].includes(event.key))) event.stopPropagation()
+          }}
+        >
+          {children}
+        </div>
       </Command>
-    )
-  }
-  return (
-    <Command shouldFilter={false} loop label={labels.title} onKeyDown={onKeyDown} className="h-auto overflow-visible bg-transparent p-0">
-      <CommandInput value={input} onValueChange={setInput} placeholder={labels.placeholder} onFocus={onExpand} />
-      {expanded && (
-        // The rows are not focusable; without this a click blurs the input and the list is gone before the click lands.
-        <CommandList onMouseDown={(event: MouseEvent) => event.preventDefault()} className="absolute top-full right-0 left-0 z-50 mt-1 rounded-md border border-border bg-popover text-popover-foreground shadow-md">
-          {rows}
-        </CommandList>
-      )}
-    </Command>
+    </ContentContext>
   )
 }
 
-function pushRow(sections: Section[], heading: string, row: Row) {
-  const section = sections.find((s) => s.heading === heading)
-  if (section) section.rows.push(row)
-  else sections.push({ heading, rows: [row] })
+function pushRow(groups: PaletteGroup[], heading: string, row: PaletteRow) {
+  const id = `actions:${heading}`
+  const group = groups.find((group) => group.id === id)
+  if (group) group.rows.push(row)
+  else groups.push({ id, heading, rows: [row] })
 }
 
-export function CommandPalette({ actions, variant = "palette", open: openProp, defaultOpen = false, onOpenChange, symbols, onSymbolSelect, symbolSecondary, goBarGrammar, hotkeys: hotkeysProp, hotkey, labels: labelsProp, className }: CommandPaletteProps) {
+export function CommandPalette(options: CommandPaletteProps) {
+  const { actions, children, variant = "palette", open: openProp, defaultOpen = false, onOpenChange, hotkeys: hotkeysProp, hotkey, labels: labelsProp } = options
+  if (!actions) throw new Error("CommandPalette requires actions")
   const fromContext = useMaybeHotkeys()
   const hotkeys = hotkeysProp === undefined ? fromContext : hotkeysProp
   const labels = { ...(variant === "palette" ? PALETTE_LABELS : GO_BAR_LABELS), ...labelsProp }
   const [uncontrolled, setUncontrolled] = useState(defaultOpen)
   const open = openProp ?? uncontrolled
-  const root = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Freeze where focus was at the moment of opening: a render later the palette itself has it.
   const liveScopes = useSyncExternalStore(subscribeFocusScopes, getFocusScopes, getServerFocusScopes)
@@ -534,7 +529,7 @@ export function CommandPalette({ actions, variant = "palette", open: openProp, d
   useEffect(() => {
     onHotkey.current = () => {
       if (variant === "palette") setOpen(!open)
-      else root.current?.querySelector("input")?.focus()
+      else inputRef.current?.focus()
     }
   })
   useEffect(() => {
@@ -549,47 +544,110 @@ export function CommandPalette({ actions, variant = "palette", open: openProp, d
     }
   }, [hotkeys, keys, bindingId, variant, description, group])
 
-  const body = (expanded: boolean) => (
-    <PaletteBody
-      actions={actions}
-      symbols={symbols}
-      onSymbolSelect={onSymbolSelect}
-      symbolSecondary={symbolSecondary}
-      goBarGrammar={goBarGrammar}
-      variant={variant}
-      labels={labels}
-      hotkeys={hotkeys}
-      ownBindingId={keys === null ? null : bindingId}
-      scopes={scopes}
-      expanded={expanded}
-      onExpand={() => setOpen(true)}
-      onDone={() => {
-        setOpen(false)
-        if (variant === "go-bar") root.current?.querySelector("input")?.blur()
+  return <RootContext value={{ options, labels, hotkeys, ownBindingId: keys === null ? null : bindingId, scopes, open, setOpen, inputRef }}>{children}</RootContext>
+}
+
+export type CommandPaletteDialogProps = Omit<ComponentProps<typeof CommandDialog>, "open" | "defaultOpen" | "onOpenChange" | "children"> & { children: ReactNode }
+
+export function CommandPaletteDialog({ children, ...props }: CommandPaletteDialogProps) {
+  const { open, setOpen, labels } = usePaletteRoot()
+  return <CommandDialog title={labels.title} description={labels.description} {...props} open={open} onOpenChange={setOpen}>{children}</CommandDialog>
+}
+
+export type CommandPaletteInputProps = Omit<ComponentProps<typeof CommandInput>, "value" | "defaultValue" | "onValueChange" | "onChange">
+
+export function CommandPaletteInput({ ref, onFocus, ...props }: CommandPaletteInputProps) {
+  const { input, setInput } = useCommandPalette()
+  const { labels, options, setOpen, inputRef } = usePaletteRoot()
+  useImperativeHandle(ref, () => inputRef.current!)
+  return (
+    <CommandInput
+      placeholder={labels.placeholder}
+      {...props}
+      ref={inputRef}
+      value={input}
+      onValueChange={setInput}
+      onFocus={(event) => {
+        onFocus?.(event)
+        if (!event.defaultPrevented && options.variant === "go-bar") setOpen(true)
       }}
     />
   )
+}
 
-  if (variant === "palette") {
-    return (
-      <CommandDialog open={open} onOpenChange={setOpen} title={labels.title} description={labels.description} className={className}>
-        <div data-slot="tradecn-command-palette" data-variant="palette" className="lining-nums tabular-nums">
-          {body(true)}
-        </div>
-      </CommandDialog>
-    )
-  }
+export function CommandPaletteList({ className, onMouseDown, ...props }: ComponentProps<typeof CommandList>) {
+  const { options, open } = usePaletteRoot()
+  const inline = options.variant === "go-bar"
+  if (inline && !open) return null
   return (
-    <div
-      ref={root}
-      data-slot="tradecn-command-palette"
-      data-variant="go-bar"
-      className={cn("relative w-full lining-nums tabular-nums", className)}
-      onBlur={(event: FocusEvent<HTMLDivElement>) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+    <CommandList
+      {...props}
+      className={cn(inline && "absolute top-full right-0 left-0 z-50 mt-1 rounded-md border border-border bg-popover text-popover-foreground shadow-md", className)}
+      onMouseDown={(event) => {
+        onMouseDown?.(event)
+        if (inline) event.preventDefault()
+      }}
+    />
+  )
+}
+
+export function CommandPaletteEmpty(props: Omit<ComponentProps<typeof CommandEmpty>, "children"> & { children: ReactNode }) {
+  return <CommandEmpty {...props} />
+}
+
+/** Optional group iterator. Use useCommandPalette for a different collection order or structure. */
+export function CommandPaletteResults({ children }: { children: (group: PaletteGroup) => ReactNode }) {
+  const { groups } = useCommandPalette()
+  return groups.map((group) => <Fragment key={group.id}>{children(group)}</Fragment>)
+}
+
+export type CommandPaletteItemProps = Omit<ComponentProps<typeof CommandItem>, "value" | "onSelect" | "onClick" | "onPointerMove" | "children"> & { row: PaletteRow; children: ReactNode }
+
+export function CommandPaletteItem({ row, children, disabled, ...props }: CommandPaletteItemProps) {
+  const { select } = useCommandPalette()
+  return (
+    <ItemContext value={{ row, disabled: Boolean(disabled) }}>
+      <CommandItem {...props} disabled={disabled} value={row.key} data-row={row.key} onSelect={() => { if (!disabled) select(row) }}>{children}</CommandItem>
+    </ItemContext>
+  )
+}
+
+export function CommandPaletteSecondary({ children, className, onClick, onMouseDown, ...props }: Omit<ComponentProps<"button">, "children"> & { children: ReactNode }) {
+  const item = useContext(ItemContext)
+  const { select } = useCommandPalette()
+  if (!item) throw new Error("CommandPaletteSecondary requires CommandPaletteItem")
+  const { row, disabled } = item
+  if (!row.secondary) return null
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      data-secondary=""
+      className={cn("hidden items-center gap-1 in-data-[selected=true]:inline-flex", className)}
+      {...props}
+      onMouseDown={(event) => {
+        onMouseDown?.(event)
+        event.preventDefault()
+      }}
+      disabled={disabled || props.disabled}
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick?.(event)
+        if (!event.defaultPrevented && !disabled) select(row, true)
       }}
     >
-      {body(open)}
-    </div>
+      {children}
+    </button>
+  )
+}
+
+export function CommandPaletteKeys({ keys, platform: platformProp, className, ...props }: Omit<ComponentProps<"span">, "children"> & { keys: string; platform?: Platform }) {
+  const root = useContext(RootContext)
+  return (
+    <span {...props} className={cn("inline-flex items-center gap-1", className)}>
+      {formatKeys(keys, platformProp ?? root?.hotkeys?.platform).map((caps, i) => (
+        <KbdGroup key={i}>{caps.map((cap) => <Kbd key={cap}>{cap}</Kbd>)}</KbdGroup>
+      ))}
+    </span>
   )
 }

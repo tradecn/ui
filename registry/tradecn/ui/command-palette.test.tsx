@@ -1,8 +1,10 @@
+import * as React from "react"
+import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { HotkeyScope, HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
-import { CommandPalette, createActionRegistry, scorePaletteAction, type ActionRegistry, type PaletteAction, type SymbolResult, type SymbolSearchAdapter } from "@/registry/tradecn/ui/command-palette"
+import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, type CommandPaletteProps, createActionRegistry, scorePaletteAction, type ActionRegistry, type PaletteAction, type SymbolResult, type SymbolSearchAdapter } from "@/registry/tradecn/ui/command-palette"
 
 const run = { blotter: vi.fn(), ticket: vi.fn(), ticketSell: vi.fn(), cancel: vi.fn() }
 
@@ -85,9 +87,9 @@ describe("scorePaletteAction", () => {
 describe("CommandPalette", () => {
   it("renders nothing until opened, then grouped actions under the slot", () => {
     const actions = seed()
-    const view = render(<CommandPalette actions={actions} hotkeys={null} />)
+    const view = render(<ComposedPalette actions={actions} hotkeys={null} />)
     expect(document.querySelector("[data-slot='tradecn-command-palette']")).toBeNull()
-    view.rerender(<CommandPalette actions={actions} hotkeys={null} open />)
+    view.rerender(<ComposedPalette actions={actions} hotkeys={null} open />)
     const slot = document.querySelector("[data-slot='tradecn-command-palette']")
     expect(slot).toHaveAttribute("data-variant", "palette")
     // The scoped action is not on offer: focus was never inside panel:book.
@@ -97,7 +99,7 @@ describe("CommandPalette", () => {
   })
 
   it("filters and orders by score, and says when nothing matches", () => {
-    render(<CommandPalette actions={seed()} hotkeys={null} open />)
+    render(<ComposedPalette actions={seed()} hotkeys={null} open />)
     // "tr" starts the Trade group's name and is only letters-in-order in "Go to blotter".
     type("tr")
     expect(rows()).toEqual(["action:ticket.new", "action:go.blotter"])
@@ -111,7 +113,7 @@ describe("CommandPalette", () => {
   it("runs the row on Enter, closes, and remembers it", () => {
     const actions = seed()
     const onOpenChange = vi.fn()
-    render(<CommandPalette actions={actions} hotkeys={null} defaultOpen onOpenChange={onOpenChange} />)
+    render(<ComposedPalette actions={actions} hotkeys={null} defaultOpen onOpenChange={onOpenChange} />)
     type("ticket")
     fireEvent.keyDown(input(), { key: "Enter" })
     expect(run.ticket).toHaveBeenCalledTimes(1)
@@ -121,7 +123,7 @@ describe("CommandPalette", () => {
   })
 
   it("runs the second action on Shift+Enter, and the first when there is no second", () => {
-    render(<CommandPalette actions={seed()} hotkeys={null} open />)
+    render(<ComposedPalette actions={seed()} hotkeys={null} open />)
     type("ticket")
     expect(screen.getByText("New sell ticket")).toBeInTheDocument()
     fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
@@ -133,7 +135,7 @@ describe("CommandPalette", () => {
   })
 
   it("runs the second action from a click on its hint", () => {
-    render(<CommandPalette actions={seed()} hotkeys={null} open />)
+    render(<ComposedPalette actions={seed()} hotkeys={null} open />)
     type("ticket")
     fireEvent.click(screen.getByText("New sell ticket"))
     expect(run.ticketSell).toHaveBeenCalledTimes(1)
@@ -147,7 +149,7 @@ describe("CommandPalette", () => {
       { kind: "action", id: "ticket.new" },
       { kind: "action", id: "gone" },
     ])
-    render(<CommandPalette actions={actions} hotkeys={null} open />)
+    render(<ComposedPalette actions={actions} hotkeys={null} open />)
     expect(rows()).toEqual(["recent-symbol:AAPL:", "recent:ticket.new", "action:go.blotter", "action:ticket.new"])
   })
 
@@ -158,7 +160,7 @@ describe("CommandPalette", () => {
         <HotkeyScope scope="panel:book">
           <button>in the book</button>
         </HotkeyScope>
-        <CommandPalette actions={actions} open={open} />
+        <ComposedPalette actions={actions} open={open} />
       </HotkeysProvider>
     )
     const view = render(ui(false))
@@ -194,7 +196,7 @@ describe("symbol search", () => {
     const onSymbolSelect = vi.fn()
     const watch = vi.fn()
     const actions = createActionRegistry()
-    render(<CommandPalette actions={actions} hotkeys={null} open symbols={symbols} onSymbolSelect={onSymbolSelect} symbolSecondary={{ title: "Add to watchlist", run: watch }} />)
+    render(<ComposedPalette actions={actions} hotkeys={null} open symbols={symbols} onSymbolSelect={onSymbolSelect} symbolSecondary={{ title: "Add to watchlist", run: watch }} />)
     type("a")
     await act(() => vi.advanceTimersByTimeAsync(200))
     expect(symbols.calls).toEqual([])
@@ -220,7 +222,7 @@ describe("symbol search", () => {
   it("treats a failed search as no results", async () => {
     vi.useFakeTimers()
     const symbols: SymbolSearchAdapter = { debounceMs: 0, search: () => Promise.reject(new Error("offline")) }
-    render(<CommandPalette actions={createActionRegistry()} hotkeys={null} open symbols={symbols} />)
+    render(<ComposedPalette actions={createActionRegistry()} hotkeys={null} open symbols={symbols} />)
     type("aapl")
     await act(() => vi.advanceTimersByTimeAsync(10))
     expect(screen.getByText("No results")).toBeInTheDocument()
@@ -234,7 +236,7 @@ describe("hotkeys", () => {
     const onOpenChange = vi.fn()
     const view = render(
       <HotkeysProvider registry={hotkeys}>
-        <CommandPalette actions={seed()} onOpenChange={onOpenChange} />
+        <ComposedPalette actions={seed()} onOpenChange={onOpenChange} />
       </HotkeysProvider>,
     )
     expect(hotkeys.list().find((e) => e.id === "palette.open")).toMatchObject({ keys: "ctrl+k", scope: "editing" })
@@ -259,7 +261,7 @@ describe("hotkeys", () => {
     const detach = hotkeys.attach()
     // Wherever this base puts focus on open, put it back on the body: the gap Base UI leaves in a browser.
     const focus = vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(() => {})
-    render(<CommandPalette actions={seed()} hotkeys={hotkeys} open />)
+    render(<ComposedPalette actions={seed()} hotkeys={hotkeys} open />)
     expect(document.activeElement).toBe(document.body)
     const typed = fireEvent.keyDown(document.body, { key: "x" })
     expect(typed).toBe(false)
@@ -285,13 +287,13 @@ describe("hotkeys", () => {
   it("leaves a binding the consumer declared alone, and declares nothing when told not to", () => {
     const hotkeys = createHotkeyRegistry({ platform: "other" })
     hotkeys.register({ id: "palette.open", keys: "mod+p", scope: "editing", description: "Mine" })
-    const view = render(<CommandPalette actions={seed()} hotkeys={hotkeys} />)
+    const view = render(<ComposedPalette actions={seed()} hotkeys={hotkeys} />)
     act(() => void hotkeys.handle(new KeyboardEvent("keydown", { key: "p", ctrlKey: true })))
     expect(screen.getByRole("combobox")).toBeInTheDocument()
     view.unmount()
     expect(hotkeys.list()).toMatchObject([{ id: "palette.open", description: "Mine" }])
     hotkeys.unregister("palette.open")
-    render(<CommandPalette actions={seed()} hotkeys={hotkeys} hotkey={false} />)
+    render(<ComposedPalette actions={seed()} hotkeys={hotkeys} hotkey={false} />)
     expect(hotkeys.list()).toEqual([])
   })
 })
@@ -306,7 +308,7 @@ describe("go-bar", () => {
   it("renders inline, opens on focus, and closes when focus leaves", () => {
     render(
       <>
-        <CommandPalette variant="go-bar" actions={seed()} hotkeys={null} />
+        <ComposedPalette variant="go-bar" actions={seed()} hotkeys={null} />
         <button>elsewhere</button>
       </>,
     )
@@ -320,7 +322,7 @@ describe("go-bar", () => {
   })
 
   it("reads SYMBOL FUNCTION through the grammar and runs the first row on Enter", () => {
-    render(<CommandPalette variant="go-bar" actions={seed()} hotkeys={null} goBarGrammar={grammar} />)
+    render(<ComposedPalette variant="go-bar" actions={seed()} hotkeys={null} goBarGrammar={grammar} />)
     fireEvent.focus(input())
     type("aapl")
     expect(rows().slice(0, 2)).toEqual(["command:AAPL.DES", "command:AAPL.GP"])
@@ -334,7 +336,7 @@ describe("go-bar", () => {
   it("clears on Escape and focuses from its hotkey", () => {
     const hotkeys = createHotkeyRegistry({ platform: "other" })
     const detach = hotkeys.attach()
-    render(<CommandPalette variant="go-bar" actions={seed()} hotkeys={hotkeys} />)
+    render(<ComposedPalette variant="go-bar" actions={seed()} hotkeys={hotkeys} />)
     expect(hotkeys.list()).toMatchObject([{ id: "go-bar.focus", keys: "/", scope: "global" }])
     fireEvent.keyDown(document.body, { key: "/" })
     expect(document.activeElement).toBe(input())
@@ -343,4 +345,261 @@ describe("go-bar", () => {
     expect(input()).toHaveValue("")
     detach()
   })
+})
+
+function ComposedPalette(props: Omit<CommandPaletteProps, "children">) {
+  const content = <CommandPaletteContent><CommandPaletteInput /><CommandPaletteList><PaletteResults /></CommandPaletteList></CommandPaletteContent>
+  return <CommandPalette {...props}>{props.variant === "go-bar" ? content : <CommandPaletteDialog>{content}</CommandPaletteDialog>}</CommandPalette>
+}
+
+function PaletteResults() {
+  const { loading } = useCommandPalette()
+  return (
+    <>
+      <CommandPaletteEmpty>{loading ? "Searching…" : "No results"}</CommandPaletteEmpty>
+      <CommandPaletteResults>
+        {(group) => (
+          <CommandGroup heading={group.heading}>
+            {(group.id === "recent" ? group.rows.slice(0, 5) : group.rows).map((row) => (
+              <CommandPaletteItem key={row.key} row={row}>
+                <span className="truncate">{row.title}</span>
+                {row.subtitle && <span className="truncate text-muted-foreground">{row.subtitle}</span>}
+                {row.badge && <span className="rounded border border-border px-1 text-xs uppercase">{row.badge}</span>}
+                {(row.secondary || row.keys) && (
+                  <CommandShortcut className="flex shrink-0 items-center gap-2 text-xs tracking-normal">
+                    <CommandPaletteSecondary><CommandPaletteKeys keys="shift+enter" />{row.secondary?.title}</CommandPaletteSecondary>
+                    {row.keys && <CommandPaletteKeys keys={row.keys} />}
+                  </CommandShortcut>
+                )}
+              </CommandPaletteItem>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandPaletteResults>
+    </>
+  )
+}
+
+describe("public composition", () => {
+  it("rejects released childless call shapes while accepting explicit conditional content", () => {
+    const actions = seed()
+    // @ts-expect-error v1 minimal call must request a migration, not render an empty provider.
+    const minimal = <CommandPalette actions={actions} />
+    // @ts-expect-error Retaining open must not make the obsolete call valid.
+    const controlled = <CommandPalette actions={actions} open onOpenChange={() => {}} />
+    // @ts-expect-error The former inline call also requires composition.
+    const inline = <CommandPalette actions={actions} variant="go-bar" defaultOpen hotkey={false} />
+    // @ts-expect-error Retained labels do not supply children.
+    const named = <CommandPalette actions={actions} labels={{ title: "Find" }} />
+    // @ts-expect-error Styling belongs on Content or Dialog now.
+    const styled = <CommandPalette actions={actions} className="wide">{null}</CommandPalette>
+    // @ts-expect-error Empty content belongs to the caller.
+    const labeled = <CommandPalette actions={actions} labels={{ empty: "Nothing" }}>{null}</CommandPalette>
+    const condition = actions.list().length > 0
+    // @ts-expect-error cmdk owns onChange; use onChangeCapture for native observations.
+    const changed = <CommandPaletteInput onChange={() => {}} />
+    expect(changed).toBeDefined()
+    const allowed = [null, false, undefined, condition && <span key="child">Application content</span>].map((children, i) => <CommandPalette key={i} actions={actions}>{children}</CommandPalette>)
+    expect([minimal, controlled, inline, named, styled, labeled, ...allowed]).toHaveLength(10)
+  })
+
+  it("reports missing required coordination", () => {
+    // @ts-expect-error A JavaScript caller still gets a useful runtime failure.
+    expect(() => render(<CommandPalette>{null}</CommandPalette>)).toThrow("CommandPalette requires actions")
+    expect(() => render(<CommandPaletteInput />)).toThrow("useCommandPalette requires CommandPaletteContent")
+  })
+
+  it("selects the visible order and keeps caller content and native events", () => {
+    const actions = seed()
+    const cancel = vi.fn((event: React.KeyboardEvent<HTMLDivElement>) => event.preventDefault())
+    function Results() {
+      const { groups } = useCommandPalette()
+      return <CommandPaletteList>{[...groups].reverse().flatMap((group) => group.rows).map((row) => <CommandPaletteItem key={row.key} row={row} title={row.title}><strong>{row.title}</strong><span>Application detail</span></CommandPaletteItem>)}</CommandPaletteList>
+    }
+    const view = render(<CommandPalette actions={actions} variant="go-bar" defaultOpen hotkeys={null}><CommandPaletteContent onKeyDown={cancel} title="Custom content"><h2>My commands</h2><CommandPaletteInput aria-label="Custom query" /><Results /><p>Application footer</p></CommandPaletteContent></CommandPalette>)
+    expect(rows()).toEqual(["action:ticket.new", "action:go.blotter"])
+    fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
+    expect(run.ticketSell).not.toHaveBeenCalled()
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(screen.getByText("Application footer")).toBeInTheDocument()
+    view.rerender(<CommandPalette actions={actions} variant="go-bar" defaultOpen hotkeys={null}><CommandPaletteContent><CommandPaletteInput /><Results /></CommandPaletteContent></CommandPalette>)
+    fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
+    expect(run.ticketSell).toHaveBeenCalledTimes(1)
+    expect(run.blotter).not.toHaveBeenCalled()
+  })
+
+  it("exposes all eligible recents while letting the caller cap them", () => {
+    const actions = createActionRegistry()
+    actions.loadRecents(Array.from({ length: 8 }, (_, i) => ({ kind: "symbol", symbol: { symbol: `S${i}` } })))
+    function Results() {
+      const { groups } = useCommandPalette()
+      return <><output data-testid="count">{groups[0]?.rows.length}</output><CommandPaletteList><PaletteResults /></CommandPaletteList></>
+    }
+    render(<CommandPalette actions={actions} variant="go-bar" defaultOpen hotkeys={null}><CommandPaletteContent><CommandPaletteInput /><Results /></CommandPaletteContent></CommandPalette>)
+    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(rows()).toHaveLength(5)
+  })
+
+  it("does not execute removed or disabled results, including a disabled secondary button", () => {
+    const actions = seed()
+    let stale: Parameters<ReturnType<typeof useCommandPalette>["select"]>[0] | undefined
+    function Results() {
+      const { groups, select } = useCommandPalette()
+      const row = groups.flatMap((group) => group.rows).find((row) => row.key === "action:ticket.new")
+      React.useEffect(() => { if (row) stale = row }, [row])
+      return <><button onClick={() => stale && select(stale)}>Try previous result</button><CommandPaletteList>{row && <CommandPaletteItem row={row} disabled>{row.title}<CommandPaletteSecondary>Sell instead</CommandPaletteSecondary></CommandPaletteItem>}</CommandPaletteList></>
+    }
+    const view = render(<CommandPalette actions={actions} variant="go-bar" defaultOpen hotkeys={null}><CommandPaletteContent><CommandPaletteInput /><Results /></CommandPaletteContent></CommandPalette>)
+    expect(screen.getByText("Sell instead")).toBeDisabled()
+    fireEvent.click(screen.getByText("Sell instead"))
+    fireEvent.click(screen.getByRole("option"))
+    fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
+    expect(run.ticketSell).not.toHaveBeenCalled()
+    expect(run.ticket).not.toHaveBeenCalled()
+    view.rerender(<CommandPalette actions={createActionRegistry()} variant="go-bar" defaultOpen hotkeys={null}><CommandPaletteContent><CommandPaletteInput /><Results /></CommandPaletteContent></CommandPalette>)
+    fireEvent.click(screen.getByText("Try previous result"))
+    expect(run.ticket).not.toHaveBeenCalled()
+  })
+
+  it("closes before touching recents and invoking one selected callback", () => {
+    const calls: string[] = []
+    const actions = createActionRegistry()
+    actions.register({ id: "a", title: "Action", run: () => calls.push("primary"), secondary: { title: "Alternate", run: () => calls.push("secondary") } })
+    actions.onRecentsChange(() => calls.push("recent"))
+    render(<ComposedPalette actions={actions} hotkeys={null} defaultOpen onOpenChange={(open) => { if (!open) calls.push("close") }} />)
+    fireEvent.click(screen.getByText("Alternate"))
+    expect(calls).toEqual(["close", "recent", "secondary"])
+  })
+
+  it("forwards content, input, list, item and secondary refs", () => {
+    const contentRef = React.createRef<HTMLDivElement>()
+    const inputRef = React.createRef<HTMLInputElement>()
+    const listRef = React.createRef<HTMLDivElement>()
+    const itemRef = React.createRef<HTMLDivElement>()
+    const secondaryRef = React.createRef<HTMLButtonElement>()
+    function Results() {
+      const { groups } = useCommandPalette()
+      const row = groups.flatMap((group) => group.rows).find((row) => row.secondary)!
+      return <CommandPaletteList ref={listRef}><CommandPaletteItem ref={itemRef} row={row} className="custom-row">{row.title}<CommandPaletteSecondary ref={secondaryRef}>Alternate</CommandPaletteSecondary></CommandPaletteItem></CommandPaletteList>
+    }
+    render(<CommandPalette actions={seed()} variant="go-bar" defaultOpen hotkeys={null}><CommandPaletteContent ref={contentRef}><CommandPaletteInput ref={inputRef} /><Results /></CommandPaletteContent></CommandPalette>)
+    expect(contentRef.current).toHaveAttribute("data-slot", "tradecn-command-palette")
+    expect(inputRef.current).toBe(input())
+    expect(listRef.current).toHaveAttribute("role", "listbox")
+    expect(itemRef.current).toHaveClass("custom-row")
+    expect(secondaryRef.current).toHaveTextContent("Alternate")
+  })
+
+  it("drops an old adapter's same-query results and cancels searches when closed", async () => {
+    vi.useFakeTimers()
+    const signals: AbortSignal[] = []
+    const first: SymbolSearchAdapter = { debounceMs: 0, search: vi.fn(async (_query, signal) => { signals.push(signal); return [{ symbol: "OLD" }] }) }
+    let answer: (results: SymbolResult[]) => void = () => {}
+    const second: SymbolSearchAdapter = { debounceMs: 0, search: vi.fn((_query, signal) => { signals.push(signal); return new Promise<SymbolResult[]>((resolve) => { answer = resolve }) }) }
+    const actions = createActionRegistry()
+    const view = render(<ComposedPalette actions={actions} variant="go-bar" hotkeys={null} open symbols={first} />)
+    type("a")
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(rows()).toEqual(["symbol:OLD:"])
+    view.rerender(<ComposedPalette actions={actions} variant="go-bar" hotkeys={null} open symbols={second} />)
+    expect(rows()).toEqual([])
+    expect(screen.getByText("Searching…")).toBeInTheDocument()
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(signals[0]?.aborted).toBe(true)
+    view.rerender(<ComposedPalette actions={actions} variant="go-bar" hotkeys={null} open={false} symbols={second} />)
+    expect(signals[1]?.aborted).toBe(true)
+    await act(async () => answer([{ symbol: "LATE" }]))
+    view.rerender(<ComposedPalette actions={actions} variant="go-bar" hotkeys={null} open symbols={second} />)
+    expect(rows()).toEqual([])
+    view.unmount()
+  })
+
+  it("shares one search among state readers and releases subscriptions and pending requests", async () => {
+    vi.useFakeTimers()
+    const actions = createActionRegistry()
+    const off = vi.fn()
+    const original = actions.subscribe
+    actions.subscribe = vi.fn((listener) => { const unsubscribe = original(listener); return () => { off(); unsubscribe() } })
+    let signal: AbortSignal | undefined
+    const search = vi.fn((_query: string, pending: AbortSignal) => { signal = pending; return new Promise<SymbolResult[]>(() => {}) })
+    function Reader() { const { loading } = useCommandPalette(); return <span>{loading ? "Pending" : "Idle"}</span> }
+    const view = render(<CommandPalette actions={actions} hotkeys={null} variant="go-bar" defaultOpen symbols={{ search, debounceMs: 10 }}><CommandPaletteContent><CommandPaletteInput /><Reader /><Reader /><CommandPaletteList><PaletteResults /></CommandPaletteList></CommandPaletteContent></CommandPalette>)
+    type("aa")
+    await act(() => vi.advanceTimersByTimeAsync(11))
+    expect(search).toHaveBeenCalledTimes(1)
+    expect(actions.subscribe).toHaveBeenCalledTimes(2)
+    view.unmount()
+    expect(signal?.aborted).toBe(true)
+    expect(off).toHaveBeenCalledTimes(2)
+  })
+})
+
+
+describe("caller controls", () => {
+  it("supports click interception through the primitive's native capture event", () => {
+    const stopped = vi.fn((event: React.MouseEvent<HTMLDivElement>) => event.stopPropagation())
+    function Results() {
+      const { groups } = useCommandPalette()
+      const row = groups[0]!.rows[0]!
+      // @ts-expect-error cmdk replaces bubbling onClick; use onClickCapture to intercept it.
+      const ignoredClick = <CommandPaletteItem row={row} onClick={() => {}}>Title</CommandPaletteItem>
+      // @ts-expect-error cmdk replaces bubbling onPointerMove; capture remains supported.
+      const ignoredPointer = <CommandPaletteItem row={row} onPointerMove={() => {}}>Title</CommandPaletteItem>
+      expect([ignoredClick, ignoredPointer]).toHaveLength(2)
+      return <CommandPaletteList><CommandPaletteItem row={row} onClickCapture={stopped}>{row.title}</CommandPaletteItem></CommandPaletteList>
+    }
+    render(<CommandPalette actions={seed()} hotkeys={null} variant="go-bar" defaultOpen><CommandPaletteContent><CommandPaletteInput /><Results /></CommandPaletteContent></CommandPalette>)
+    fireEvent.click(screen.getByRole("option"))
+    expect(stopped).toHaveBeenCalledTimes(1)
+    expect(run.blotter).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])("blocks a disabled secondary from Shift+Enter (early focus: %s)", (early) => {
+    const focus = early ? vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(() => {}) : undefined
+    function Results() {
+      const { groups } = useCommandPalette()
+      const row = groups.flatMap((group) => group.rows).find((row) => row.secondary)!
+      return <CommandPaletteList><CommandPaletteItem row={row}>{row.title}<CommandPaletteSecondary disabled>Alternate</CommandPaletteSecondary></CommandPaletteItem></CommandPaletteList>
+    }
+    render(<CommandPalette actions={seed()} hotkeys={null} open><CommandPaletteDialog><CommandPaletteContent><CommandPaletteInput /><Results /></CommandPaletteContent></CommandPaletteDialog></CommandPalette>)
+    fireEvent.keyDown(early ? document.body : input(), { key: "Enter", shiftKey: true })
+    expect(run.ticketSell).not.toHaveBeenCalled()
+    expect(run.ticket).not.toHaveBeenCalled()
+    fireEvent.keyDown(early ? document.body : input(), { key: "Enter" })
+    expect(run.ticket).toHaveBeenCalledTimes(1)
+    focus?.mockRestore()
+  })
+
+  it("preserves application controls' Enter and navigation without selecting a row", () => {
+    const clicked = vi.fn()
+    const typed = vi.fn()
+    render(<CommandPalette actions={seed()} hotkeys={null} variant="go-bar" defaultOpen><CommandPaletteContent><CommandPaletteInput /><CommandPaletteList><PaletteResults /></CommandPaletteList><button onClick={clicked}>Application action</button><textarea aria-label="Notes" onKeyDown={typed} /></CommandPaletteContent></CommandPalette>)
+    const button = screen.getByText("Application action")
+    act(() => button.focus())
+    expect(fireEvent.keyDown(button, { key: "Enter" })).toBe(true)
+    fireEvent.click(button)
+    expect(clicked).toHaveBeenCalledTimes(1)
+    const notes = screen.getByRole("textbox", { name: "Notes" })
+    expect(fireEvent.keyDown(notes, { key: "ArrowDown" })).toBe(true)
+    expect(typed).toHaveBeenCalledTimes(1)
+    expect(run.blotter).not.toHaveBeenCalled()
+    expect(run.ticket).not.toHaveBeenCalled()
+  })
+})
+
+
+it.each(["palette", "go-bar"] as const)("closes %s from an application control and preserves native event targets", (variant) => {
+  const hotkeys = createHotkeyRegistry({ platform: "other" })
+  const onOpenChange = vi.fn()
+  const contentRef = React.createRef<HTMLDivElement>()
+  const targets: EventTarget[] = []
+  const content = <CommandPaletteContent ref={contentRef} onKeyDown={(event) => targets.push(event.currentTarget)}><CommandPaletteInput /><CommandPaletteList><PaletteResults /></CommandPaletteList><button>Application action</button></CommandPaletteContent>
+  render(<CommandPalette actions={seed()} hotkeys={hotkeys} variant={variant} defaultOpen onOpenChange={onOpenChange}>{variant === "palette" ? <CommandPaletteDialog>{content}</CommandPaletteDialog> : content}</CommandPalette>)
+  const button = screen.getByText("Application action")
+  act(() => button.focus())
+  fireEvent.keyDown(button, { key: "a" })
+  expect(targets).toEqual([contentRef.current])
+  fireEvent.keyDown(button, variant === "palette" ? { key: "k", ctrlKey: true } : { key: "Escape" })
+  expect(onOpenChange).toHaveBeenLastCalledWith(false)
+  expect(run.blotter).not.toHaveBeenCalled()
 })

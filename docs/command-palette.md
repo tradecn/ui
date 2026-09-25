@@ -1,14 +1,17 @@
 # CommandPalette
 
-Search registered actions and symbols in a dialog or inline command line, with shared recents and live shortcuts from the hotkey registry. Built on your shadcn `command` component.
+Search registered actions and symbols in a dialog or inline command line, with shared recents and live shortcuts from the hotkey registry. Compose the dialog, groups and result markup with public parts built on your shadcn `command` component.
 
 ## Usage
 
 ```tsx
+import { CommandGroup } from "@/components/ui/command"
 import { useState } from "react"
 import { HotkeysProvider } from "@/hooks/use-hotkeys"
-import { CommandPalette, createActionRegistry } from "@/components/ui/command-palette"
+import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteList, CommandPaletteResults, createActionRegistry } from "@/components/ui/command-palette"
+```
 
+```tsx
 export default function CommandPaletteDemo() {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState("None")
@@ -25,7 +28,25 @@ export default function CommandPaletteDemo() {
       <div className="flex min-h-80 w-fit max-w-full flex-col justify-center gap-3 text-sm">
         <button type="button" className="self-start rounded border border-border px-3 py-2 hover:bg-muted" onClick={() => setOpen(true)}>Open commands</button>
         <p role="status">Selected: {selected}</p>
-        <CommandPalette actions={actions} open={open} onOpenChange={setOpen} />
+        <CommandPalette actions={actions} open={open} onOpenChange={setOpen}>
+          <CommandPaletteDialog>
+            <CommandPaletteContent>
+              <CommandPaletteInput />
+              <CommandPaletteList>
+                <CommandPaletteEmpty>No results</CommandPaletteEmpty>
+                <CommandPaletteResults>
+                  {(group) => (
+                    <CommandGroup heading={group.heading}>
+                      {(group.id === "recent" ? group.rows.slice(0, 5) : group.rows).map((row) => (
+                        <CommandPaletteItem key={row.key} row={row}>{row.title}</CommandPaletteItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+                </CommandPaletteResults>
+              </CommandPaletteList>
+            </CommandPaletteContent>
+          </CommandPaletteDialog>
+        </CommandPalette>
       </div>
     </HotkeysProvider>
   )
@@ -34,13 +55,15 @@ export default function CommandPaletteDemo() {
 
 Open the dialog and choose an action. The caption shows which callback ran; replace those callbacks with navigation or another application action. `HotkeysProvider` also enables the default opening shortcut: ⌘K on macOS, Ctrl+K elsewhere. Focus the preview before trying it here.
 
+`CommandPalette` coordinates behavior and requires children. `CommandPaletteResults` provides groups; the callback owns their markup. Use ordinary shadcn `CommandGroup` and `CommandShortcut` where needed. The examples cap the recent group at five rows.
+
 Keep the action registry stable for the lifetime of the view. This example creates and populates its own registry in a lazy state initializer; [scoped actions](#scoped-and-secondary-actions) show registration with unmount cleanup.
 
 ## Inline commands
 
 Use `variant="go-bar"` for an always-visible command line. Focus it, or press `/` while focus is in this preview and outside a text field. Type `AAPL` to see its functions, then `AAPL G` to narrow to the price chart command. Enter selects it; Escape clears and blurs the input.
 
-The grammar accepts `AAPL`, `MSFT`, or `ZN`, followed by `DES` or `GP`. It reports the selected command below the input. These rows come from `goBarGrammar`, so they do not require asynchronous symbol search or enter recents.
+The grammar accepts `AAPL`, `MSFT`, or `ZN`, followed by `DES` or `GP`. It reports the selected command below the input. These rows come from `goBarGrammar`, so they do not require asynchronous symbol search or enter recents. This layout reads groups with `useCommandPalette()`, puts each description below its title, and adds application help beneath the results. It uses the same input, selection and focus behavior as the dialog.
 
 <!-- demo: command-palette-go-bar -->
 
@@ -70,12 +93,17 @@ This example keeps recents in memory for its lifetime. [Recents](#recents) descr
 
 ## API Reference
 
-### Props
+<div id="props"></div>
+
+### `<CommandPalette>` <!-- heading-id: commandpalette-root -->
+
+<!-- api-props -->
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `actions` | `ActionRegistry` | Required | Registry created by `createActionRegistry()`. |
-| `variant` | `"palette" \| "go-bar"` | `"palette"` | Dialog or inline input with a dropdown. |
+| `children` | `ReactNode` | Required | Caller-owned dialog or inline content. |
+| `variant` | `"palette" \| "go-bar"` | `"palette"` | Selects keyboard and focus behavior; it does not insert a dialog. |
 | `open` | `boolean` | Uncontrolled | Controls the dialog or go-bar dropdown. |
 | `defaultOpen` | `boolean` | `false` | Initial open state when uncontrolled. |
 | `onOpenChange` | `(open: boolean) => void` | — | Receives requested open-state changes in either mode. |
@@ -85,10 +113,89 @@ This example keeps recents in memory for its lifetime. [Recents](#recents) descr
 | `goBarGrammar` | `(input: string) => readonly PaletteAction[]` | — | Synchronous command rows for nonempty input, in either variant. |
 | `hotkeys` | `HotkeyRegistry \| null` | Nearest `HotkeysProvider`, or `null` | Supplies bindings and row shortcuts; `null` opts out. |
 | `hotkey` | `string \| false` | `"mod+k"` or `"/"` by variant | Default opening or focus binding; `false` disables its registration and handler. |
-| `labels` | `Partial<CommandPaletteLabels>` | See The rest | Overrides accessible names, messages, headings, and binding text. |
-| `className` | `string` | — | Styles the dialog content or go-bar root. |
+| `labels` | `Partial<CommandPaletteLabels>` | See The rest | Overrides accessible names, default input placeholder, group headings and binding text. |
 
 When `open` is supplied, update it in `onOpenChange` to accept requests to open or close. Without it, the component manages that state.
+
+### `<CommandPaletteDialog>`
+
+Optional modal wrapper connected to the root's open state. Put one `CommandPaletteContent` inside. It forwards your shadcn `CommandDialog` props except managed `open`, `defaultOpen` and `onOpenChange`; `children` is required. `title` and `description` default to the root labels; `className` styles the modal content. The installed dialog supplies focus trapping and restoration. Compose your own dialog instead when your application needs a different shell, using the root's controlled `open` and `onOpenChange` props.
+
+### `<CommandPaletteContent>`
+
+Owns one query, action/recent/shortcut subscriptions, and symbol search. Mount one per root. It requires children and forwards `Command` props and refs except `shouldFilter`, which stays false so asynchronous results keep caller order. `loop` defaults to true; `label` defaults to `labels.title`. It adds lining and tabular figures and carries `data-slot="tradecn-command-palette"` and `data-variant`.
+
+An `onKeyDown` or `onBlur` handler runs first; `preventDefault()` cancels the corresponding shared behavior. Application controls inside Content keep their own Enter and navigation keys; these stop before the command root. Use `onKeyDownCapture` to observe them at the root. Escape and the opening shortcut still reach shared close behavior. Input state lasts as long as Content stays mounted. A normal dialog unmounts it on close; inline blur retains the query. Selection and inline Escape clear it.
+
+### `<CommandPaletteInput>`
+
+Forwards `CommandInput` props and its input ref except managed `value`, `defaultValue`, `onValueChange` and the primitive-owned `onChange`. Use `onChangeCapture` to observe native changes. Read or change the query through `useCommandPalette()`. `placeholder` defaults to `labels.placeholder`. Inline focus requests opening; your `onFocus` runs first and can cancel it with `preventDefault()`. Use one input per root.
+
+### `<CommandPaletteList>`
+
+Forwards `CommandList` props and ref. In a go-bar it renders only while open, positions itself below Content, and prevents mouse down from blurring the input before selection. Override placement with `className`; place application controls outside the list when they need normal focus behavior. Dialog lists remain in normal flow.
+
+### `<CommandPaletteResults>`
+
+Optional keyed group iterator. Its required child is `(group: PaletteGroup) => ReactNode`; each group gets a stable keyed fragment. The caller supplies `CommandGroup`, rows and their keys. For a different group order or a flat list, read `groups` from `useCommandPalette()` and map them directly. The underlying command follows the rendered row order.
+
+<!-- api-props -->
+
+| `PaletteGroup` field | Type | Purpose |
+|---|---|---|
+| `id` | `string` | `recent`, `commands`, `symbols`, or `actions:` followed by the group heading. |
+| `heading` | `string` | Localized group heading or the action's own group. |
+| `rows` | `PaletteRow[]` | Eligible rows in ranked or registration order. Treat as read-only. |
+
+### `<CommandPaletteItem>`
+
+Requires a `row: PaletteRow` and caller-owned `children`. Forwards `CommandItem` props and ref except managed `value` and `onSelect`. The primitive owns `onClick` and `onPointerMove`, so these props are excluded; use `onClickCapture` or `onPointerMoveCapture` and `stopPropagation()` to intercept them. It sets `data-row={row.key}` and selects through the shared behavior. Native `disabled` prevents selection. Use `row.key` as the React key, and keep row keys unique within a rendered list.
+
+<!-- api-props -->
+
+| `PaletteRow` field | Type | Purpose |
+|---|---|---|
+| `key` | `string` | Result identity; distinguishes registered, grammar, symbol and recent rows. |
+| `title` | `string` | Action title or symbol. Render it or supply a meaningful accessible name. |
+| `subtitle` | `string \| undefined` | Action subtitle, or symbol name and exchange joined with ` · `. |
+| `badge` | `string \| undefined` | Scope with `panel:` removed, or symbol kind. |
+| `keys` | `string \| undefined` | Current binding keys; pass to `CommandPaletteKeys`. |
+| `secondary` | `{ title: string; run: () => void } \| undefined` | Alternate callback and text. |
+| `run` | `() => void` | Raw callback. Use Item or `select` to retain query, closure and recent behavior. |
+| `recent` | `PaletteRecent \| null` | Entry to remember after selection; null for grammar rows. |
+
+A removed result cannot run through `select`; it resolves the requested key against the current offered rows. Scope filtering controls discovery, not authorization. Action callbacks must enforce application permissions.
+
+### `<CommandPaletteSecondary>`
+
+Optional native button inside an Item. Requires caller content and renders only when the row has a secondary action. It inherits a disabled Item, retains input focus on mouse down, and stops the click from selecting the primary action. Your `onClick` can cancel it with `preventDefault()`.
+
+It defaults to `type="button"`, `tabIndex={-1}` and selected-row-only visibility. A disabled Secondary blocks both its click and Shift+Enter; a disabled Item blocks both actions. Shift+Enter invokes the same alternate action from the input, even when you omit the button. Supply a discoverable hint when offering secondary actions. The symbols and scoped-action examples show the composition.
+
+### `<CommandPaletteKeys>`
+
+Formats required `keys: string` as key caps. Accepts native span props and ref, excluding children. Optional `platform: Platform` overrides the nearest root's hotkey platform; outside a root it uses the formatter's platform detection. It creates no subscription.
+
+### `<CommandPaletteEmpty>`
+
+Forwards `CommandEmpty` props and ref, with required caller-owned children. The command primitive shows it when no rendered items remain. Read `loading` to choose between a searching message and an empty message. It creates no live region; add `role="status"` if your application needs an announcement.
+
+### `useCommandPalette()`
+
+Reads the nearest Content without starting subscriptions, timers or requests. Multiple readers share the same search.
+
+<!-- api-props -->
+
+| Returned value | Type | Purpose |
+|---|---|---|
+| `groups` | `readonly PaletteGroup[]` | All eligible results. Callers choose group order, row markup and limits. |
+| `input`, `setInput` | `string`, `(input: string) => void` | Raw query and setter; matching uses trimmed input. |
+| `loading` | `boolean` | A qualifying symbol query has no current answer. |
+| `open`, `setOpen` | `boolean`, `(open: boolean) => void` | Root state and a request to change it. |
+| `platform` | `Platform \| undefined` | Explicit hotkey platform when present. |
+| `select` | `(row: PaletteRow, secondary?: boolean) => void` | Clears input, requests close, touches recents and invokes the current callback. Secondary defaults to false and falls back to primary if absent. |
+
+Use `CommandPaletteItem` for result selection and `CommandPaletteSecondary` for its alternate control; they also handle disabled state and events. Calling `select` yourself requires guarding your own control's disabled state. It does nothing while closed.
 
 ### Actions
 
@@ -100,13 +207,13 @@ When `open` is supplied, update it in `onOpenChange` to accept requests to open 
 | `title` | `string` | Required | Row title and primary search text. |
 | `run` | `() => void` | Required | Primary action. |
 | `subtitle` | `string` | — | Muted text after the title; also searchable. |
-| `scope` | `string` | Everywhere | Hotkey scope required to offer a registered action. Renders as a badge, with `panel:` removed. |
+| `scope` | `string` | Everywhere | Hotkey scope required to offer a registered action. Exposed as `row.badge`, with `panel:` removed. |
 | `keywords` | `readonly string[]` | — | Additional search terms. |
 | `group` | `string` | `labels.actions` | Heading for registered actions. An explicitly supplied group is also searchable. |
-| `bindingId` | `string` | — | Hotkey binding whose current keys appear on the row. |
+| `bindingId` | `string` | — | Hotkey binding whose current keys appear in `row.keys`. |
 | `secondary` | `{ title: string; run: () => void }` | — | Alternate action and its hint text. |
 
-Enter or a row click runs the primary action. Shift+Enter runs `secondary` when present, otherwise the primary action. The secondary hint appears on the highlighted row and can be clicked. Secondary actions replace the primary callback; repeat any shared work yourself.
+Enter or a row click runs the primary action. Shift+Enter runs `secondary` when present, otherwise the primary action. `CommandPaletteSecondary` supplies a clickable hint on the highlighted row; callers choose its content and placement. Secondary actions replace the primary callback; repeat any shared work yourself.
 
 A registered action with `scope: "panel:book"` is offered only when the palette opens from inside `<HotkeyScope scope="panel:book">`. It captures the scope before taking focus and keeps it for that opening. Grammar rows are not scope-filtered.
 
@@ -136,7 +243,7 @@ Palettes sharing a registry share its actions and recents. Each filters its own 
 | `minLength` | `number` | `1` | Minimum query length before searching. |
 | `debounceMs` | `number` | `150` | Delay in milliseconds before calling `search`. |
 
-Query changes cancel the pending debounce and abort the previous request. Answers from aborted requests are ignored even if the adapter resolves them, and results for another query are hidden. When a qualifying query has no current answer, the empty list shows `labels.searching`. A rejected promise produces no symbol results.
+Query or adapter changes, closure and unmount cancel the pending debounce and abort the previous request. Reopening an inline list starts a fresh lookup. Answers from aborted requests are ignored even if the adapter resolves them, and results for another query are hidden. `loading` is true until the current adapter answers the qualifying query. A rejection or synchronous search error produces no symbol results. Supply searching and empty text through `CommandPaletteEmpty`.
 
 | `SymbolResult` field | Type | Required | Display |
 |---|---|---|---|
@@ -147,7 +254,7 @@ Query changes cancel the pending debounce and abort the previous request. Answer
 
 ### Recents
 
-An empty query shows up to five recents before the registered actions. Missing or out-of-scope actions are skipped. Registered actions still appear in their usual groups too.
+An empty query supplies eligible recents before the registered actions. Callers choose how many to render; the examples use `group.rows.slice(0, 5)` for the recent group. Missing or out-of-scope actions are skipped. Registered actions still appear in their usual groups too.
 
 `PaletteRecent` is `{ kind: "action"; id: string }` or `{ kind: "symbol"; symbol: SymbolResult }`. `touch` deduplicates actions by ID and symbols by symbol plus exchange. Grammar rows do not enter recents.
 
@@ -191,8 +298,6 @@ Both variants use the same action, search, and recent APIs.
 | `title` | `Command palette` | `Command line` |
 | `description` | `Search for a command or a symbol` | Same |
 | `placeholder` | `Type a command or a symbol…` | `Symbol, function, or command` |
-| `empty` | `No results` | Same |
-| `searching` | `Searching…` | Same |
 | `recent` | `Recent` | Same |
 | `actions` | `Actions` | Same |
 | `commands` | `Commands` | Same |
@@ -203,4 +308,4 @@ Both variants use the same action, search, and recent APIs.
 
 ### What it does not do
 
-No nested pages or preview pane. Symbol lookup, symbol meaning, and recent persistence belong to your application.
+Nested pages, symbol lookup, symbol meaning and recent persistence belong to your application. Add surrounding content or a preview pane in your own layout. The component does not virtualize results.
