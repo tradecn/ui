@@ -1281,6 +1281,7 @@ test("a feed composition retains focus after a reply removes its last action", a
   const trigger = scene.getByRole("button", { name: "Actions: Market data" })
   await trigger.focus()
   await page.keyboard.press("ArrowDown")
+  await expect(page.getByRole("menuitem", { name: "Reconnect", exact: true })).toBeFocused()
   await page.keyboard.press("Enter")
   await expect(scene.locator("[data-feed='md']")).toHaveAttribute("data-state", "connecting")
   await expect(trigger).toBeFocused()
@@ -1308,7 +1309,7 @@ test("a feed composition describes tooltips and preserves compact state words", 
   await expect(scene.getByRole("button", { name: "Actions: Market data" })).toBeFocused()
 })
 
-test("a feed composition handles permission revocation while its menu stays open", async ({ page }) => {
+for (const dismissal of ["Escape", "pointer", "Tab", "Shift+Tab"]) test(`a feed composition preserves focus after permission revocation and ${dismissal}`, async ({ page }) => {
   await page.goto("/")
   const scene = page.locator("section[data-scene='feed-health']")
   await scene.getByRole("button", { name: "Revoke actions soon" }).click()
@@ -1321,9 +1322,20 @@ test("a feed composition handles permission revocation while its menu stays open
   await expect(empty).toBeDisabled()
   await expect(page.getByRole("menuitem")).toHaveCount(1)
   await expect(page.locator("[data-feed-action]")).toHaveCount(0)
-  await page.keyboard.press("Escape")
+  // Radix consumes Tab inside menus; Base moves to the adjacent page control.
+  const consumesTab = await page.getByRole("menu").getAttribute("data-state") !== null
+  if (dismissal === "pointer") {
+    await page.mouse.click(1, 1)
+  } else {
+    await page.keyboard.press(dismissal)
+    if (dismissal.includes("Tab") && consumesTab) {
+      await expect(page.getByRole("menu")).toBeVisible()
+      await page.keyboard.press("Escape")
+    }
+  }
   await expect(page.getByRole("menu")).toHaveCount(0)
-  await expect(scene.locator("[data-feed='md'] [data-slot='tooltip-trigger']")).toBeFocused()
+  const destination = dismissal === "Tab" && !consumesTab ? "rfq" : "md"
+  await expect(scene.locator(`[data-feed='${destination}'] [data-slot='tooltip-trigger']`)).toBeFocused()
   await expect(scene.locator("[data-feed-acted]")).toHaveAttribute("data-feed-acted", "")
 })
 

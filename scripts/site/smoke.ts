@@ -463,9 +463,14 @@ if (items.includes("feed-health-card") && items.includes("feed-health-actions"))
     await expect(page.getByRole("status")).toHaveText("Reconnected.")
     await expect(link).toBeFocused()
 
-    // Check permission loss both while the trigger has focus and while its menu is reopened.
-    for (const reopen of [false, true]) {
+    // Exercise the copied recipe's native dismissal paths after permissions disappear.
+    for (const dismissal of ["focus", "Escape", "pointer", "Tab", "Shift+Tab"]) {
       await page.goto(`${base}/${PREVIEW_PATH}/feed-health-actions/`)
+      await page.evaluate(() => {
+        const next = document.createElement("button")
+        next.textContent = "After feed"
+        document.body.append(next)
+      })
       const menu = page.getByRole("button", { name: "Actions: RFQ" })
       await menu.focus()
       await page.keyboard.press("ArrowDown")
@@ -477,15 +482,30 @@ if (items.includes("feed-health-card") && items.includes("feed-health-actions"))
       await expect(page.getByRole("menuitem", { name: "Resubscribe", exact: true })).toBeFocused()
       await page.keyboard.press("Enter")
       await expect(menu).toBeFocused()
-      if (reopen) await page.keyboard.press("ArrowDown")
+      if (dismissal !== "focus") await page.keyboard.press("ArrowDown")
       await expect(page.locator("p[role='status']")).toHaveText("Resubscribed. No actions are allowed now.")
-      if (reopen) {
+      if (dismissal !== "focus") {
         const empty = page.getByRole("menuitem", { name: "No actions available.", exact: true })
         await expect(empty).toBeVisible()
         await expect(empty).toBeDisabled()
         await expect(page.locator("[data-feed-action]")).toHaveCount(0)
-        await page.keyboard.press("Escape")
-        await expect(page.locator("[data-slot='tooltip-trigger']")).toBeFocused()
+        // Radix consumes Tab inside menus; Base moves to the adjacent page control.
+        const consumesTab = await page.getByRole("menu").getAttribute("data-state") !== null
+        if (dismissal === "pointer") {
+          const viewport = page.viewportSize()!
+          await page.mouse.click(viewport.width - 5, viewport.height - 5)
+        } else {
+          await page.keyboard.press(dismissal)
+          if (dismissal.includes("Tab") && consumesTab) {
+            await expect(page.getByRole("menu")).toBeVisible()
+            await page.keyboard.press("Escape")
+          }
+        }
+        await expect(page.getByRole("menu")).toHaveCount(0)
+        const destination = dismissal === "Tab" && !consumesTab
+          ? page.getByRole("button", { name: "After feed", exact: true })
+          : page.locator("[data-slot='tooltip-trigger']")
+        await expect(destination).toBeFocused()
       } else {
         await expect(menu).toBeFocused()
         await page.keyboard.press("Shift+Tab")
@@ -493,7 +513,7 @@ if (items.includes("feed-health-card") && items.includes("feed-health-actions"))
       }
       await expect(menu).toHaveCount(0)
     }
-    console.log("ok  feed-health recipes: pending focus, replacement focus, duplicate presses, and permission loss with a focused/open menu")
+    console.log("ok  feed-health recipes: pending/replacement focus, duplicate presses, and permission loss with keyboard/pointer dismissal")
   } catch (error) {
     failures.push(`feed-health recipes: ${firstLine(error)}`)
   } finally {

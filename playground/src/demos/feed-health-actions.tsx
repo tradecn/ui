@@ -31,14 +31,21 @@ export default function FeedHealthActionsDemo() {
     { id: "resubscribe", label: "Resubscribe", run: request },
   ]
   const { actions: offered, pending, pendingLabel, run } = useFeedActions(feed, actions)
-  const [open, setOpen] = useState(false)
+  const [menuState, setMenuState] = useState<"closed" | "open" | "closing">("closed")
   const [menuFocused, setMenuFocused] = useState(false)
   const reading = useRef<HTMLButtonElement>(null)
-  const wasOpen = useRef(false)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const content = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (wasOpen.current && !open && offered.length === 0) reading.current?.focus()
-    wasOpen.current = open
-  }, [open, offered.length])
+    if (menuState !== "closing") return
+    // Keep the trigger mounted until the primitive and browser finish moving focus.
+    const restoreFocus = setTimeout(() => {
+      const active = document.activeElement
+      if (offered.length === 0 && document.hasFocus() && (active === document.body || active === trigger.current || content.current?.contains(active))) reading.current?.focus()
+      setMenuState("closed")
+    }, 0)
+    return () => clearTimeout(restoreFocus)
+  }, [menuState, offered.length])
   return (
     <>
       <div data-demo-controls className="text-xs">
@@ -55,9 +62,9 @@ export default function FeedHealthActionsDemo() {
               </FeedHealthTooltipTrigger>
               <FeedHealthTooltipContent><FeedHealthDetails>{pending && <><dt>Pending</dt><dd>{pendingLabel}</dd></>}</FeedHealthDetails></FeedHealthTooltipContent>
             </Tooltip>
-            {(offered.length > 0 || open || menuFocused) && <DropdownMenu open={open} onOpenChange={setOpen}>
-              <DropdownMenuTrigger onFocus={() => setMenuFocused(true)} onBlur={() => setMenuFocused(false)} aria-label={`Actions: ${feed.label}`} data-feed-actions={feed.id} className="rounded px-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40">⋮</DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
+            {(offered.length > 0 || menuState !== "closed" || menuFocused) && <DropdownMenu open={menuState === "open"} onOpenChange={(open) => setMenuState(open ? "open" : "closing")}>
+              <DropdownMenuTrigger ref={trigger} onFocus={() => setMenuFocused(true)} onBlur={() => setMenuFocused(false)} aria-label={`Actions: ${feed.label}`} data-feed-actions={feed.id} className="rounded px-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40">⋮</DropdownMenuTrigger>
+              <DropdownMenuContent ref={content} align="start">
                 {offered.length === 0 && <DropdownMenuItem disabled>No actions available.</DropdownMenuItem>}
                 {offered.map((action) => <DropdownMenuItem key={action.id} data-feed-action={action.id} disabled={Boolean(pending)} className={action.destructive ? "text-destructive" : undefined} onClick={() => run(action.id)}>{action.label}</DropdownMenuItem>)}
               </DropdownMenuContent>

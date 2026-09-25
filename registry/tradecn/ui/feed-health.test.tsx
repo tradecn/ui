@@ -317,6 +317,23 @@ describe("useFeedActions", () => {
   const clock = { now: () => 5000, subscribe: vi.fn(() => () => { }) }
   const md = feed({ allowedActions: ["pause", "reconnect"] })
 
+  it.each([false, true])("timestamps a standalone request without subscribing or changing snapshots (previous subscriber: %s)", (previousSubscriber) => {
+    let time = 1000
+    const clock = createClock(1000, () => time)
+    if (previousSubscriber) clock.subscribe(() => {})()
+    const subscribe = vi.spyOn(clock, "subscribe")
+    const { result } = renderHook(() => useFeedActions(md, [{ id: "pause", label: "Pause", run: () => {} }], { clock }))
+    time = 60_000
+    act(() => result.current.run("pause"))
+    expect(result.current.pending?.since).toBe(60_000)
+    expect(subscribe).not.toHaveBeenCalled()
+    expect(clock.now()).toBe(1000)
+    expect(vi.getTimerCount()).toBe(1)
+    act(() => vi.advanceTimersByTime(5000))
+    expect(result.current.pending).toBeNull()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it("rechecks current permissions, action definitions and feed data even through a saved run callback", () => {
     const oldRun = vi.fn()
     const newRun = vi.fn()
@@ -334,6 +351,7 @@ describe("useFeedActions", () => {
     act(() => { run("pause"); run("pause"); run("reconnect") })
     expect(newRun).toHaveBeenCalledExactlyOnceWith(currentFeed)
     expect(result.current.pendingLabel).toBe("Pause now")
+    expect(result.current.pending?.since).toBe(5000)
     expect(clock.subscribe).not.toHaveBeenCalled()
   })
 

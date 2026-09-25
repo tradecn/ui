@@ -8,6 +8,8 @@ export interface Clock {
   subscribe(cb: () => void): () => void
   /** The time of the last tick; stable between ticks. */
   now(): number
+  /** Read the source for an event timestamp without changing the tick snapshot or starting a timer. */
+  sample?(): number
 }
 
 /** One interval shared by every subscriber; it runs only while someone is listening. */
@@ -17,6 +19,7 @@ export function createClock(intervalMs = 1000, source: () => number = Date.now):
   const listeners = new Set<() => void>()
   return {
     now: () => current,
+    sample: source,
     subscribe(cb) {
       listeners.add(cb)
       if (timer === null) {

@@ -73,7 +73,7 @@ The clock is fixed at a sample instant so the readings stay comparable. Compact 
 
 Install `dropdown-menu` for this composition. `useFeedActions` returns the currently allowed actions, pending state, a pending label and `run(actionId)`. You choose the menu, labels and placement.
 
-Open Actions: RFQ and choose Reconnect. The feed stays offline while pending. A simulated reply arrives after 1.2 seconds, marks it connected and supplies a timestamp. The allowed action then becomes Resubscribe, which advances the sequence without changing the connection state. Its reply removes all allowed actions. The recipe retains a focused or open menu trigger through that update; an open menu shows a disabled “No actions available.” item and closing it returns focus to the feed reading. Reopen the menu while Resubscribe is pending to try that path.
+Open Actions: RFQ and choose Reconnect. The feed stays offline while pending. A simulated reply arrives after 1.2 seconds, marks it connected and supplies a timestamp. The allowed action then becomes Resubscribe, which advances the sequence without changing the connection state. Its reply removes all allowed actions. The recipe retains a focused or open menu trigger through that update; an open menu shows a disabled “No actions available.” item. The trigger stays mounted through dismissal so the primitive can finish moving focus. If focus would remain on the disappearing menu or be lost, it returns to the feed reading; an explicit destination outside the menu is preserved. Reopen the menu while Resubscribe is pending to try that path.
 
 The request returns a promise, so pending clears even when the reply leaves the state unchanged. Disconnect RFQ resets the sample and is disabled while a reply is pending. The reply timer is cleared on unmount. Return the server request's promise in your integration and update the descriptor from its response; report failures yourself.
 
@@ -210,7 +210,7 @@ Clearing pending does not cancel the underlying request. To keep pending state a
 
 A press does not change the tier. The hook catches synchronous errors and promise rejections without displaying an error; report failures in your integration. Mark controls disabled while pending. For inline buttons that should keep focus, use `aria-disabled` as in the card recipe; `run` still blocks duplicate execution. Permissions changing alone does not settle a request already sent.
 
-The hook runs no menu or focus effects. The copyable menu recipe retains its focused/open trigger through permission loss; the card supplies a persistent heading as a focus target when a button disappears. Apply the same ownership when data or permissions change in your layout. Use stable feed keys so removing a feed unmounts its hook and releases its timeout.
+The hook runs no menu or focus effects. The copyable menu recipe retains its focused/open trigger through permission loss and dismissal; the card supplies a persistent heading as a focus target when a button disappears. Apply the same ownership when data or permissions change in your layout. Use stable feed keys so removing a feed unmounts its hook and releases its timeout.
 
 ### Announcements and clock
 
@@ -220,7 +220,7 @@ Its polite, atomic live region initializes empty. It updates when a feed changes
 
 Only items, ages and announcers subscribe to the clock. Ticks do not rerender the group or its parent. The shared one-second interval runs while it has subscribers and stops after the last unsubscribe; other ticking components use the same interval.
 
-`createClock(intervalMs = 1000, source = Date.now)` is exported for custom clocks and tests. A `Clock` supplies `now(): number` and `subscribe(cb): () => void`. The created clock caches its timestamp between ticks and refreshes it when its first subscriber arrives after inactivity. Use epoch milliseconds to match feed timestamps.
+`createClock(intervalMs = 1000, source = Date.now)` is exported for custom clocks and tests. A `Clock` supplies `now(): number` and `subscribe(cb): () => void`. The created clock caches its timestamp between ticks and refreshes it when its first subscriber arrives after inactivity. Its optional `sample(): number` method reads the source directly without changing that snapshot or starting a timer. `useFeedActions` uses `sample()` for request timestamps, falling back to `now()` for custom clocks without it. Use epoch milliseconds to match feed timestamps.
 
 ### Installed primitives
 

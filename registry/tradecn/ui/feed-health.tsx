@@ -325,7 +325,7 @@ export function useFeedActions(feed: FeedDescriptor, actions: readonly FeedActio
     }
     const next: FeedRequest = {
       feedId: current.feed.id,
-      pending: { action: actionId, state: current.feed.state, since: current.clock.now() },
+      pending: { action: actionId, state: current.feed.state, since: current.clock.sample?.() ?? current.clock.now() },
       timer: setTimeout(clear, current.pendingMs),
     }
     active.current = next
