@@ -1390,6 +1390,13 @@ if (items.includes("feed-health")) {
       await expect(detail.locator(".api-signature")).toBeVisible()
       await page.goto(`${base}/docs/feed-health/#action-menu-focus`)
       await expect(page.locator("#feed-action-menu-recovery")).toHaveAttribute("open", "")
+      // Links from the original closed widget still lead to the corresponding public API sections.
+      await page.goto(`${base}/docs/feed-health/#props`)
+      await expect(page.locator("#feedhealth-1")).toBeInViewport()
+      await page.goto(`${base}/docs/feed-health/#the-clock`)
+      await expect(page.locator("#clock-methods")).toHaveAttribute("open", "")
+      await page.goto(`${base}/docs/feed-health/#tokens`)
+      await expect(page.locator("#installed-primitives")).toBeInViewport()
       await page.goto(`${base}/docs/feed-health/`)
       await page.locator(".site-header .search-button").click()
       await page.locator("dialog.search input").fill("Activity/Suspense")

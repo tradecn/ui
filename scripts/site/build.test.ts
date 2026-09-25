@@ -929,6 +929,13 @@ describe("the docs pages", async () => {
   const at = (path: string) => byPath.get(path) ?? ""
   const items = docs.filter((doc) => doc.item)
 
+  it("preserves FeedHealth's pre-refactor API section links", () => {
+    const html = at("docs/feed-health/index.html")
+    for (const id of ["props", "feeds", "tiers", "lanes", "thresholds-and-the-session", "actions", "the-clock", "tokens"]) {
+      expect(html.match(new RegExp(`id="${id}"`, "g")), id).toHaveLength(1)
+    }
+  })
+
   it("renders the site's own pages, then one page per docs/*.md, with no placeholder left", () => {
     expect(site.map((doc) => doc.slug)).toEqual([...START_PAGES])
     expect(byPath.size).toBe(START_PAGES.length + tagDocs.length)

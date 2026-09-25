@@ -109,6 +109,7 @@ Install `button`. This layout puts metadata inline, application fields in the de
 
 Parts forward their underlying element's props, refs, `className` and events. Children are caller-owned except where a part supplies defaults below; the list takes a callback and the announcer excludes children.
 
+<div id="props"></div>
 <div id="group-and-item"></div>
 
 ### `<FeedHealth />`
@@ -370,6 +371,8 @@ For [`row-store`](row-store.md)'s `useStoreMeta`, map `lane`, `dropped`, `lastBa
 
 `SessionCalendar.status(now)` receives epoch milliseconds and returns `"open"`, `"closed"`, `"pre"`, `"post"` or `"holiday"`. Pre/post still age normally. [`session-calendar`](session-calendar.md) builds calendars from sessions, holidays and early closes in the venue's zone.
 
+<div id="the-clock"></div>
+
 ### `interface Clock`
 
 Only items, ages and announcers subscribe; ticks do not rerender the root, list callback or their parents. The shared one-second interval stops after its last subscriber leaves and is shared with other ticking components.
@@ -380,6 +383,8 @@ Only items, ages and announcers subscribe; ticks do not rerender the root, list 
 `createClock(intervalMs = 1000, source = Date.now)` returns a `Clock` with `now(): number` and `subscribe(cb): () => void`. It caches epoch milliseconds between ticks and refreshes on the first subscription after inactivity. Optional `sample(): number` reads the source without changing the snapshot or starting a timer. Action timestamps use `sample()` when available, otherwise `now()`.
 
 </details>
+
+<div id="tokens"></div>
 
 ### Installed primitives
 
