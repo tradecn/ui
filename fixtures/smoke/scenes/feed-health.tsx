@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTrigger, FeedHealthContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, type FeedAction, type FeedDescriptor } from "@/components/ui/feed-health"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, type FeedAction, type FeedDescriptor } from "@/components/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
@@ -68,15 +68,15 @@ function FeedRow({ feed, actions, compact }: { feed: FeedDescriptor; actions: Fe
   }, [open, offered.length])
   return <FeedHealthItem feed={feed} pending={pending}>
     <Tooltip>
-      <FeedHealthTrigger ref={reading}>
-        <FeedHealthIndicator /><span className="font-medium">{feed.label}</span>
+      <FeedHealthTooltipTrigger ref={reading}>
+        <span className="font-medium">{feed.label}</span><FeedHealthIndicator className="order-first" />
         <FeedHealthTier className={compact ? "sr-only" : undefined} />
         <FeedAge feed={feed} /><FeedHealthLane /><FeedHealthPending>{pendingLabel}</FeedHealthPending>
-      </FeedHealthTrigger>
-      <FeedHealthContent><FeedHealthDetails>{pending && <><dt>Pending</dt><dd>{pendingLabel}</dd></>}</FeedHealthDetails></FeedHealthContent>
+      </FeedHealthTooltipTrigger>
+      <FeedHealthTooltipContent><FeedHealthDetails>{pending && <><dt>Pending</dt><dd>{pendingLabel}</dd></>}</FeedHealthDetails></FeedHealthTooltipContent>
     </Tooltip>
     {(offered.length > 0 || open || menuFocused) && <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger onFocus={() => setMenuFocused(true)} onBlur={() => setMenuFocused(false)} aria-label={`Actions: ${feed.label}`} data-feed-actions={feed.id} className="rounded px-1 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40">⋮</DropdownMenuTrigger>
+      <DropdownMenuTrigger onFocus={() => setMenuFocused(true)} onBlur={() => setMenuFocused(false)} aria-label={`Actions: ${feed.label}`} data-feed-actions={feed.id} className="rounded px-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40">⋮</DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         {offered.length === 0 && <p className="px-2 py-1 text-xs">No actions available.</p>}
         {offered.map((action) => <DropdownMenuItem key={action.id} data-feed-action={action.id} disabled={Boolean(pending)} className={action.destructive ? "text-destructive" : undefined} onClick={() => run(action.id)}>{action.label}</DropdownMenuItem>)}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTrigger, FeedHealthContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, type FeedAction, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, type FeedAction, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -56,14 +56,24 @@ export function FeedHealthScene() {
     },
     { id: "resubscribe", label: "Resubscribe", run: () => new Promise<void>((resolve) => schedule(resolve, 1500)) },
   ]
-  const offered = feeds.map((f) => (f.id === "md" ? { ...f, allowedActions: [paused ? "resume" : "pause"], state: paused ? ("connecting" as const) : ("connected" as const) } : f.id === "vpn" ? { ...f, allowedActions: down ? ["reconnect"] : [] } : f))
+  const availableFeeds = feeds.map((f) => (f.id === "md" ? { ...f, allowedActions: [paused ? "resume" : "pause"], state: paused ? ("connecting" as const) : ("connected" as const) } : f.id === "vpn" ? { ...f, allowedActions: down ? ["reconnect"] : [] } : f))
+  // This scene has three fixed feeds; each hook supplies both presentations of its feed.
+  const marketHealth = useFeedActions(availableFeeds[0]!, actions)
+  const rfqHealth = useFeedActions(availableFeeds[1]!, actions)
+  const vpnHealth = useFeedActions(availableFeeds[2]!, actions)
+  const health = [marketHealth, rfqHealth, vpnHealth]
   return (
     <main className="mx-auto max-w-4xl space-y-4 p-6 font-(family-name:--tradecn-font-mono) text-xs">
       <h1 className="text-sm font-semibold">feed-health</h1>
       <p className="text-muted-foreground">Each feed's menu offers what the server allows on it; a press shows pending until the feed's state moves or the promise settles. The tier never moves on a click.</p>
-      <FeedHealth className="grid w-fit grid-flow-col grid-rows-2 items-start gap-x-1 gap-y-3">
-        {offered.map((feed, index) => <FeedViews key={feed.id} feed={feed} actions={actions} index={index} />)}
-        <FeedHealthAnnouncer feeds={offered} />
+      <FeedHealth className="w-fit flex-col items-start gap-3">
+        {[false, true].map((compact) => <div key={String(compact)} className="flex items-center gap-1">
+          {availableFeeds.map((feed, index) => <div key={feed.id} className="inline-flex items-center gap-1">
+            {index > 0 && <Separator orientation="vertical" className="h-3" />}
+            <FeedPresentation feed={feed} health={health[index]!} compact={compact} />
+          </div>)}
+        </div>)}
+        <FeedHealthAnnouncer feeds={availableFeeds} />
       </FeedHealth>
       <div className="flex gap-2">
         <button className="rounded border border-border px-2 py-1" onClick={() => setPaused((p) => !p)}>
@@ -80,16 +90,6 @@ export function FeedHealthScene() {
   )
 }
 
-function FeedViews({ feed, actions, index }: { feed: FeedDescriptor; actions: FeedAction[]; index: number }) {
-  const health = useFeedActions(feed, actions)
-  return <div className="contents">
-    {[false, true].map((compact) => <div key={String(compact)} className="inline-flex items-center gap-1">
-      {index > 0 && <Separator orientation="vertical" className="h-3" />}
-      <FeedPresentation feed={feed} health={health} compact={compact} />
-    </div>)}
-  </div>
-}
-
 function FeedPresentation({ feed, health, compact }: { feed: FeedDescriptor; health: ReturnType<typeof useFeedActions>; compact: boolean }) {
   const { actions: offered, pending, pendingLabel, run } = health
   const [open, setOpen] = useState(false)
@@ -102,15 +102,15 @@ function FeedPresentation({ feed, health, compact }: { feed: FeedDescriptor; hea
   }, [open, offered.length])
   return <FeedHealthItem feed={feed} pending={pending}>
     <Tooltip>
-      <FeedHealthTrigger ref={reading}>
-        <FeedHealthIndicator /><span className="font-medium">{feed.label}</span>
+      <FeedHealthTooltipTrigger ref={reading}>
+        <span className="font-medium">{feed.label}</span><FeedHealthIndicator className="order-first" />
         <FeedHealthTier className={compact ? "sr-only" : undefined} />
         <FeedAge feed={feed} /><FeedHealthLane /><FeedHealthPending>{pendingLabel}</FeedHealthPending>
-      </FeedHealthTrigger>
-      <FeedHealthContent><FeedHealthDetails>{pending && <><dt>Pending</dt><dd>{pendingLabel}</dd></>}</FeedHealthDetails></FeedHealthContent>
+      </FeedHealthTooltipTrigger>
+      <FeedHealthTooltipContent><FeedHealthDetails>{pending && <><dt>Pending</dt><dd>{pendingLabel}</dd></>}</FeedHealthDetails></FeedHealthTooltipContent>
     </Tooltip>
     {(offered.length > 0 || open || menuFocused) && <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger onFocus={() => setMenuFocused(true)} onBlur={() => setMenuFocused(false)} aria-label={`Actions: ${feed.label}`} data-feed-actions={feed.id} className="rounded px-1 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40">⋮</DropdownMenuTrigger>
+      <DropdownMenuTrigger onFocus={() => setMenuFocused(true)} onBlur={() => setMenuFocused(false)} aria-label={`Actions: ${feed.label}`} data-feed-actions={feed.id} className="rounded px-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40">⋮</DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         {offered.length === 0 && <p className="px-2 py-1 text-xs">No actions available.</p>}
         {offered.map((action) => <DropdownMenuItem key={action.id} data-feed-action={action.id} disabled={Boolean(pending)} className={action.destructive ? "text-destructive" : undefined} onClick={() => run(action.id)}>{action.label}</DropdownMenuItem>)}

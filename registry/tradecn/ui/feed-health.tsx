@@ -88,6 +88,10 @@ export function formatAge(ms: number | null): string {
   return `${Math.floor(ms / 3_600_000)}h`
 }
 
+function formatFeedAge(feed: FeedDescriptor, now: number) {
+  return formatAge(feed.lastMessageAt === null ? null : Math.max(0, now - feed.lastMessageAt))
+}
+
 // The clock lives in lib/clock so a countdown ticks on the same interval. Exported from here still, so nothing that imported it moves.
 export { createClock }
 export type { Clock }
@@ -132,7 +136,7 @@ export function FeedHealth({ thresholds, session, clock, className, ...props }: 
   return (
     <OptionsContext value={options}>
       <TooltipProvider>
-        <div role="group" aria-label={props["aria-labelledby"] ? undefined : "Feed health"} data-slot="tradecn-feed-health" className={cn("flex min-w-0 items-center gap-1 text-xs lining-nums tabular-nums", className)} {...props} />
+        <div role="group" aria-label={props["aria-labelledby"] ? undefined : "Feed health"} data-slot="tradecn-feed-health" className={cn("flex min-w-0 items-center gap-1 lining-nums tabular-nums", className)} {...props} />
       </TooltipProvider>
     </OptionsContext>
   )
@@ -154,34 +158,32 @@ function useFeed() {
   return feed
 }
 
-export interface FeedHealthItemProps extends ComponentProps<"div">, FeedHealthOptions {
+export interface FeedHealthItemProps extends ComponentProps<"div"> {
   feed: FeedDescriptor
   pending?: PendingFeedAction | null
 }
 
 /** One feed's context and presentation. Its children can be a strip, a card, or application markup. */
-export function FeedHealthItem({ feed, pending, thresholds, session, clock, className, ...props }: FeedHealthItemProps) {
-  const options = useOptions({ thresholds, session, clock })
+export function FeedHealthItem({ feed, pending, className, ...props }: FeedHealthItemProps) {
+  const options = useOptions({})
   const now = useNow(options.clock)
   const tier = stalenessTier(feed, now, options.thresholds, options.session)
   const descriptionId = useId()
   return (
-    <OptionsContext value={options}>
-      <FeedContext value={{ feed, tier, now, pending, descriptionId }}>
-        <div data-slot="tradecn-feed-health-item" data-feed={feed.id} data-tier={tier} data-state={feed.state} data-pending={pending?.action} className={cn("inline-flex min-w-0 items-center gap-1.5 rounded text-xs lining-nums tabular-nums", TIER_CLASS[tier], className)} {...props} />
-      </FeedContext>
-    </OptionsContext>
+    <FeedContext value={{ feed, tier, now, pending, descriptionId }}>
+      <div data-slot="tradecn-feed-health-item" data-feed={feed.id} data-tier={tier} data-state={feed.state} data-pending={pending?.action} className={cn("inline-flex min-w-0 items-center gap-1.5 rounded text-xs lining-nums tabular-nums", className)} {...props} />
+    </FeedContext>
   )
 }
 
-/** Use inside your Tooltip, paired with FeedHealthContent. */
-export function FeedHealthTrigger({ className, ...props }: ComponentProps<typeof TooltipTrigger>) {
-  const { descriptionId } = useFeed()
-  return <TooltipTrigger aria-describedby={descriptionId} className={cn("inline-flex min-w-0 items-center gap-1.5 rounded px-1.5 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/40", className)} {...props} />
+/** Use inside your Tooltip, paired with FeedHealthTooltipContent. */
+export function FeedHealthTooltipTrigger({ className, ...props }: ComponentProps<typeof TooltipTrigger>) {
+  const { descriptionId, tier } = useFeed()
+  return <TooltipTrigger aria-describedby={descriptionId} className={cn("inline-flex min-w-0 items-center gap-1.5 rounded px-1.5 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/40", TIER_CLASS[tier], className)} {...props} />
 }
 
 /** A described tooltip in either primitive base. The caller supplies its content. */
-export function FeedHealthContent(props: ComponentProps<typeof TooltipContent>) {
+export function FeedHealthTooltipContent(props: ComponentProps<typeof TooltipContent>) {
   const { descriptionId } = useFeed()
   return <TooltipContent id={descriptionId} role="tooltip" {...props} />
 }
@@ -209,7 +211,7 @@ export interface FeedAgeProps extends ComponentProps<"span"> {
 export function FeedAge({ feed, clock, className, children, ...props }: FeedAgeProps) {
   const options = useOptions({ clock })
   const now = useNow(options.clock)
-  return <span aria-hidden data-numeric="" className={cn("lining-nums tabular-nums", className)} {...props}>{children === undefined ? formatAge(feed.lastMessageAt === null ? null : Math.max(0, now - feed.lastMessageAt)) : children}</span>
+  return <span aria-hidden data-numeric="" className={cn("lining-nums tabular-nums", className)} {...props}>{children === undefined ? formatFeedAge(feed, now) : children}</span>
 }
 
 /** Optional inline drop count or gap age. Detailed sequence and gap state are in FeedHealthDetails. */
@@ -261,7 +263,7 @@ export function FeedHealthAnnouncer({ feeds, thresholds, session, clock, classNa
   if (seen.size !== tiers.size || feeds.some((feed) => seen.get(feed.id) !== tiers.get(feed.id))) {
     const changes = feeds.filter((feed) => seen.get(feed.id) !== tiers.get(feed.id)).map((feed) => {
       const tier = tiers.get(feed.id)!
-      return `${feed.label} ${tier}${tier === "stale" || tier === "aging" ? `, ${formatAge(feed.lastMessageAt === null ? null : Math.max(0, now - feed.lastMessageAt))}` : ""}`
+      return `${feed.label} ${tier}${tier === "stale" || tier === "aging" ? `, ${formatFeedAge(feed, now)}` : ""}`
     })
     setSeen(tiers)
     // A new addition may repeat the previous words after a removal. Replace the message node
@@ -298,6 +300,8 @@ export function useFeedActions(feed: FeedDescriptor, actions: readonly FeedActio
       mounted.current = false
       if (active.current) clearTimeout(active.current.timer)
       active.current = null
+      // Activity and Suspense can clean up effects while retaining this state.
+      setRequest(null)
     }
   }, [])
   useLayoutEffect(() => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedHealthLane, FeedHealthDetails, FeedHealthAnnouncer, FeedHealthPending, useFeedActions, type FeedAction, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Button } from "@/components/ui/button"
 
@@ -9,11 +9,18 @@ export default function FeedHealthCardDemo() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState("Disconnected.")
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
+  const actionRef = useCallback((button: HTMLButtonElement | null) => {
+    if (!button) return
+    return () => {
+      if (document.activeElement === button) heading.current?.focus()
+    }
+  }, [])
   useEffect(() => () => {
     if (timer.current !== null) clearTimeout(timer.current)
   }, [])
 
-  // Stand in for a server reply; returning the promise lets the strip settle pending.
+  // Stand in for a server reply; returning the promise lets the hook settle pending.
   const request = (current: FeedDescriptor) => new Promise<void>((resolve) => {
     setBusy(true)
     setMessage("Waiting for reply.")
@@ -39,14 +46,14 @@ export default function FeedHealthCardDemo() {
         <FeedHealth className="flex-wrap">
           <FeedHealthItem feed={feed} pending={pending} className="w-72 max-w-full flex-col items-stretch gap-3 border p-3">
             <header className="flex items-center justify-between gap-3">
-              <span className="inline-flex items-center gap-2 font-medium"><FeedHealthIndicator />{feed.label}</span>
+              <h3 ref={heading} tabIndex={-1} className="inline-flex items-center gap-2 rounded font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/40">{feed.label}<FeedHealthIndicator className="order-first" /></h3>
               <FeedHealthTier />
             </header>
             <FeedHealthDetails><dt>Venue</dt><dd>Chicago</dd>{pending && <><dt>Pending</dt><dd>{pendingLabel}</dd></>}</FeedHealthDetails>
             <FeedHealthLane />
             <footer className="flex flex-wrap items-center gap-2">
               <FeedHealthPending>{pendingLabel}</FeedHealthPending>
-              {offered.map((action) => <Button key={action.id} variant="outline" size="sm" disabled={Boolean(pending)} onClick={() => run(action.id)}>{action.label}</Button>)}
+              {offered.map((action) => <Button key={action.id} ref={actionRef} variant="outline" size="sm" aria-disabled={Boolean(pending)} onClick={() => run(action.id)}>{action.label}</Button>)}
               <a href="https://tradecn.dev/docs/feed-health/" target="_blank" rel="noreferrer" className="underline underline-offset-4">Feed API</a>
             </footer>
           </FeedHealthItem>

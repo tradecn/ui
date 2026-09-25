@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTrigger, FeedHealthContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
 import { StatusBar } from "@/registry/tradecn/ui/status-bar"
@@ -20,12 +20,12 @@ export default function StatusBarSlotsDemo() {
           user="jdoe"
           left={<FeedHealth><FeedHealthItem feed={feed}>
             <Tooltip>
-              <FeedHealthTrigger>
-                <FeedHealthIndicator /><span className="font-medium">{feed.label}</span>
+              <FeedHealthTooltipTrigger>
+                <span className="font-medium">{feed.label}</span><FeedHealthIndicator className="order-first" />
                 <FeedHealthTier className="sr-only" />
                 <FeedAge feed={feed} /><FeedHealthLane />
-              </FeedHealthTrigger>
-              <FeedHealthContent><FeedHealthDetails /></FeedHealthContent>
+              </FeedHealthTooltipTrigger>
+              <FeedHealthTooltipContent><FeedHealthDetails /></FeedHealthTooltipContent>
             </Tooltip>
           </FeedHealthItem><FeedHealthAnnouncer feeds={[feed]} /></FeedHealth>}
           right={<PerfMonitor compact className="w-56" />}

@@ -1,7 +1,7 @@
 import { Separator } from "@/components/ui/separator"
 import { useState } from "react"
 import { createSessionCalendar, zonedInstant, type FullSessionCalendar, type SessionStatus } from "@/registry/tradecn/lib/session-calendar"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTrigger, FeedHealthContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 
 // Two calendars against a clock you can move: a cash session with holidays and early closes, and an
@@ -87,12 +87,12 @@ export function SessionCalendarScene() {
             {index > 0 && <Separator orientation="vertical" className="h-3" />}
             <FeedHealthItem feed={feed}>
               <Tooltip>
-                <FeedHealthTrigger>
-                  <FeedHealthIndicator /><span className="font-medium">{feed.label}</span>
+                <FeedHealthTooltipTrigger>
+                  <span className="font-medium">{feed.label}</span><FeedHealthIndicator className="order-first" />
                   <FeedHealthTier />
                   <FeedAge feed={feed} /><FeedHealthLane />
-                </FeedHealthTrigger>
-                <FeedHealthContent><FeedHealthDetails /></FeedHealthContent>
+                </FeedHealthTooltipTrigger>
+                <FeedHealthTooltipContent><FeedHealthDetails /></FeedHealthTooltipContent>
               </Tooltip>
             </FeedHealthItem>
           </div>)}

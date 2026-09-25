@@ -267,11 +267,11 @@
             "description": "One feed and its caller-owned presentation."
           },
           {
-            "title": "FeedHealthTrigger",
-            "description": "Accessible trigger paired with FeedHealthContent inside your Tooltip."
+            "title": "FeedHealthTooltipTrigger",
+            "description": "Accessible trigger paired with FeedHealthTooltipContent inside your Tooltip."
           },
           {
-            "title": "FeedHealthContent",
+            "title": "FeedHealthTooltipContent",
             "description": "Caller-owned tooltip content linked to the trigger."
           },
           {
@@ -2366,7 +2366,7 @@
           },
           {
             "title": "formatPosition",
-            "description": "The position signed in its unit: +5mm, −120."
+            "description": "The position signed in its unit: +5mm, \u2212120."
           },
           {
             "title": "positionSide",

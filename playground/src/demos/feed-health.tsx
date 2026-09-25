@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthTrigger, FeedHealthContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 
 export default function FeedHealthDemo() {
@@ -13,12 +13,12 @@ export default function FeedHealthDemo() {
       <FeedHealth thresholds={{ agingMs: 2000, staleMs: 10_000 }} className="w-fit max-w-full flex-wrap">
         <FeedHealthItem feed={feed}>
           <Tooltip>
-            <FeedHealthTrigger>
-              <FeedHealthIndicator /><span className="font-medium">{feed.label}</span>
+            <FeedHealthTooltipTrigger>
+              <span className="font-medium">{feed.label}</span><FeedHealthIndicator className="order-first" />
               <FeedHealthTier />
               <FeedAge feed={feed} />
-            </FeedHealthTrigger>
-            <FeedHealthContent><FeedHealthDetails /></FeedHealthContent>
+            </FeedHealthTooltipTrigger>
+            <FeedHealthTooltipContent><FeedHealthDetails /></FeedHealthTooltipContent>
           </Tooltip>
         </FeedHealthItem>
         <FeedHealthAnnouncer feeds={[feed]} />

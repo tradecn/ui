@@ -1,10 +1,10 @@
-import { createRef } from "react"
+import { Activity, StrictMode, Suspense, createRef } from "react"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTrigger, FeedHealthContent, FeedHealthDetails, FeedHealthPending, FeedHealthAnnouncer, useFeedActions, type FeedAction, type FeedHealthOptions, alwaysOpen, createClock, feedActionsFor, formatAge, stalenessTier, type FeedDescriptor, type SessionCalendar } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthPending, FeedHealthAnnouncer, useFeedActions, type FeedAction, type FeedHealthOptions, alwaysOpen, createClock, feedActionsFor, formatAge, stalenessTier, type FeedDescriptor, type SessionCalendar } from "@/registry/tradecn/ui/feed-health"
 
 function Strip({ feeds, actions = [], pendingMs, ...options }: FeedHealthOptions & { feeds: FeedDescriptor[]; actions?: FeedAction[]; pendingMs?: number }) {
   return <FeedHealth {...options}>
@@ -20,8 +20,8 @@ function Row({ feed, actions, pendingMs }: { feed: FeedDescriptor; actions: Feed
   const { actions: offered, pending, pendingLabel, run } = useFeedActions(feed, actions, { pendingMs })
   return <FeedHealthItem feed={feed} pending={pending}>
     <Tooltip>
-      <FeedHealthTrigger><FeedHealthIndicator /><span>{feed.label}</span><FeedHealthTier /><FeedAge feed={feed} /><FeedHealthLane /><FeedHealthPending>{pendingLabel}</FeedHealthPending></FeedHealthTrigger>
-      <FeedHealthContent><FeedHealthDetails>{pending && <><dt>Pending</dt><dd>{pendingLabel}</dd></>}</FeedHealthDetails></FeedHealthContent>
+      <FeedHealthTooltipTrigger><span>{feed.label}</span><FeedHealthIndicator className="order-first" /><FeedHealthTier /><FeedAge feed={feed} /><FeedHealthLane /><FeedHealthPending>{pendingLabel}</FeedHealthPending></FeedHealthTooltipTrigger>
+      <FeedHealthTooltipContent><FeedHealthDetails>{pending && <><dt>Pending</dt><dd>{pendingLabel}</dd></>}</FeedHealthDetails></FeedHealthTooltipContent>
     </Tooltip>
     {offered.length > 0 && <DropdownMenu>
       <DropdownMenuTrigger aria-label={`Actions: ${feed.label}`} data-feed-actions={feed.id} />
@@ -103,7 +103,7 @@ describe("FeedHealth", () => {
     expect(live()).toHaveTextContent("Market data aging, 2s")
     tick(5000)
     expect(item().dataset.tier).toBe("stale")
-    expect(item().className).toContain("bg-stale-soft")
+    expect(item().querySelector("button")).toHaveClass("bg-stale-soft")
     expect(live()).toHaveTextContent("Market data stale, 10s")
     expect(parentRenders).toBe(1)
   })
@@ -392,6 +392,43 @@ describe("useFeedActions", () => {
     act(() => vi.advanceTimersByTime(1000))
     expect(result.current.pending).toBeNull()
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each(["activity", "suspense"])("clears pending when %s hides its owner and ignores the canceled reply after reveal", async (boundary) => {
+    const replies: (() => void)[] = []
+    const actions = [{ id: "pause", label: "Pause", run: () => new Promise<void>((resolve) => replies.push(resolve)) }]
+    function Row({ descriptor }: { descriptor: FeedDescriptor }) {
+      const health = useFeedActions(descriptor, actions, { clock, pendingMs: 1000 })
+      return <><button onClick={() => health.run("pause")}>Pause</button><output aria-label="Pending request">{health.pending?.action ?? "idle"}</output></>
+    }
+    const gate = new Promise<void>(() => {})
+    function Sibling({ hidden }: { hidden: boolean }) {
+      if (hidden) throw gate
+      return null
+    }
+    function App({ hidden, descriptor = md }: { hidden: boolean; descriptor?: FeedDescriptor }) {
+      return boundary === "activity"
+        ? <Activity mode={hidden ? "hidden" : "visible"}><Row descriptor={descriptor} /></Activity>
+        : <Suspense fallback={<p>Loading</p>}><Row descriptor={descriptor} /><Sibling hidden={hidden} /></Suspense>
+    }
+    const { rerender } = render(<App hidden={false} />, { wrapper: StrictMode })
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }))
+    expect(screen.getByLabelText("Pending request")).toHaveTextContent("pause")
+    rerender(<App hidden />)
+    expect(vi.getTimerCount()).toBe(0)
+    rerender(<App hidden={false} />)
+    expect(screen.getByLabelText("Pending request")).toHaveTextContent("idle")
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }))
+    await act(async () => { replies[0]!() })
+    expect(screen.getByLabelText("Pending request")).toHaveTextContent("pause")
+    await act(async () => { replies[1]!() })
+    expect(screen.getByLabelText("Pending request")).toHaveTextContent("idle")
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }))
+    act(() => vi.advanceTimersByTime(1000))
+    expect(screen.getByLabelText("Pending request")).toHaveTextContent("idle")
+    rerender(<App hidden={false} descriptor={{ ...md, state: "connecting" }} />)
+    rerender(<App hidden={false} />)
+    expect(screen.getByLabelText("Pending request")).toHaveTextContent("idle")
   })
 
   it("shares pending between custom controls while other feed owners remain usable", () => {

@@ -21,7 +21,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
-import { chromium, type Locator, type Page } from "@playwright/test"
+import { chromium, expect, type Locator, type Page } from "@playwright/test"
 import { compareTags, DESK_DEMO, FONT_PACKAGES, HEADERS_FILE, PREVIEW_PATH, ROBOTS_FILE, SEARCH_INDEX, SITE_SCRIPT, SITE_URL, SITEMAP_FILE, THEME_ITEM, VERSIONS_INDEX } from "./build"
 import type { SearchPage } from "./build"
 
@@ -418,6 +418,10 @@ for (const item of items) {
     }
     // On a phone a path too long for the line beside the buttons breaks after a slash and goes on under them.
     await page.setViewportSize({ width: 390, height: 900 })
+    const splitIdentifiers = await page.locator("article .table code").evaluateAll((nodes) => nodes
+      .filter((node) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(node.textContent ?? "") && node.getClientRects().length > 1)
+      .map((node) => node.textContent))
+    if (splitIdentifiers.length) failures.push(`${item}: at 390px, table identifiers break across lines: ${splitIdentifiers.join(", ")}`)
     for (let i = 0; i < (await blocks.count()); i++) {
       const header = await headerProblem(blocks.nth(i))
       if (header) failures.push(`${item}: at 390px, Manual's block ${i + 1}'s header ${header}`)
@@ -425,6 +429,70 @@ for (const item of items) {
     console.log(`ok  ${item.padEnd(26)} ${Math.round(height)}px`)
   } catch (error) {
     failures.push(`${item}: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
+// These are the copyable recipes themselves: permissions can remove the focused control after a reply.
+if (items.includes("feed-health-card") && items.includes("feed-health-actions")) {
+  const page = await context.newPage()
+  watch(page, "feed-health recipes")
+  try {
+    await page.goto(`${base}/${PREVIEW_PATH}/feed-health-card/`)
+    const reconnect = page.getByRole("button", { name: "Reconnect", exact: true })
+    await reconnect.focus()
+    await page.keyboard.press("Enter")
+    await expect(reconnect).toHaveAttribute("aria-disabled", "true")
+    await expect(reconnect).toBeFocused()
+    await expect(page.getByRole("heading", { name: "RFQ connected" })).toBeFocused()
+    const resubscribe = page.getByRole("button", { name: "Resubscribe", exact: true })
+    await resubscribe.focus()
+    await page.keyboard.press("Enter")
+    await page.keyboard.press("Enter")
+    await expect(resubscribe).toHaveAttribute("aria-disabled", "false")
+    await expect(resubscribe).toBeFocused()
+    await expect(page.getByRole("status")).toHaveText("Resubscribed.")
+    await expect(page.locator("[data-slot='tradecn-feed-health-details'] dd").nth(3)).toHaveText("2")
+    await page.getByRole("button", { name: "Disconnect RFQ" }).click()
+    await reconnect.focus()
+    await page.keyboard.press("Enter")
+    await page.keyboard.press("Tab")
+    const link = page.getByRole("link", { name: "Feed API" })
+    await expect(link).toBeFocused()
+    await expect(page.getByRole("status")).toHaveText("Reconnected.")
+    await expect(link).toBeFocused()
+
+    // Check permission loss both while the trigger has focus and while its menu is reopened.
+    for (const reopen of [false, true]) {
+      await page.goto(`${base}/${PREVIEW_PATH}/feed-health-actions/`)
+      const menu = page.getByRole("button", { name: "Actions: RFQ" })
+      await menu.focus()
+      await page.keyboard.press("ArrowDown")
+      await expect(page.getByRole("menuitem", { name: "Reconnect", exact: true })).toBeFocused()
+      await page.keyboard.press("Enter")
+      await expect(page.getByRole("status")).toHaveText("Reconnected.")
+      await menu.focus()
+      await page.keyboard.press("ArrowDown")
+      await expect(page.getByRole("menuitem", { name: "Resubscribe", exact: true })).toBeFocused()
+      await page.keyboard.press("Enter")
+      await expect(menu).toBeFocused()
+      if (reopen) await page.keyboard.press("ArrowDown")
+      await expect(page.locator("p[role='status']")).toHaveText("Resubscribed. No actions are allowed now.")
+      if (reopen) {
+        await expect(page.getByText("No actions available.")).toBeVisible()
+        await page.keyboard.press("Escape")
+        await expect(page.locator("[data-slot='tooltip-trigger']")).toBeFocused()
+      } else {
+        await expect(menu).toBeFocused()
+        await page.keyboard.press("Shift+Tab")
+        await expect(page.locator("[data-slot='tooltip-trigger']")).toBeFocused()
+      }
+      await expect(menu).toHaveCount(0)
+    }
+    console.log("ok  feed-health recipes: pending focus, replacement focus, duplicate presses, and permission loss with a focused/open menu")
+  } catch (error) {
+    failures.push(`feed-health recipes: ${firstLine(error)}`)
   } finally {
     await page.close()
   }

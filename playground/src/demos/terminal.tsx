@@ -33,7 +33,7 @@ import { CommandPalette, createActionRegistry, type ActionRegistry, type Palette
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/registry/tradecn/ui/data-grid"
 import { DepthLadder, levelId, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
-import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTrigger, FeedHealthContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
+import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { FlashCell } from "@/registry/tradecn/ui/flash-cell"
 import { HotkeyEditor } from "@/registry/tradecn/ui/hotkey-editor"
@@ -1503,12 +1503,12 @@ function Feeds() {
       {index > 0 && <Separator orientation="vertical" className="h-3" />}
       <FeedHealthItem feed={feed}>
         <Tooltip>
-          <FeedHealthTrigger>
-            <FeedHealthIndicator /><span className="font-medium">{feed.label}</span>
+          <FeedHealthTooltipTrigger>
+            <span className="font-medium">{feed.label}</span><FeedHealthIndicator className="order-first" />
             <FeedHealthTier className="sr-only" />
             <FeedAge feed={feed} /><FeedHealthLane />
-          </FeedHealthTrigger>
-          <FeedHealthContent><FeedHealthDetails /></FeedHealthContent>
+          </FeedHealthTooltipTrigger>
+          <FeedHealthTooltipContent><FeedHealthDetails /></FeedHealthTooltipContent>
         </Tooltip>
       </FeedHealthItem>
     </div>)}

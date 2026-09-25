@@ -1302,7 +1302,7 @@ test("a feed composition describes tooltips and preserves compact state words", 
   await page.keyboard.press("Escape")
   await scene.getByRole("checkbox", { name: "Compact feeds" }).check()
   await expect(md.locator("[data-slot='tradecn-feed-health-tier']")).toHaveClass(/sr-only/)
-  await expect(trigger).toHaveAccessibleName(/connected.*Market data.*(?:live|aging|stale)/)
+  await expect(trigger).toHaveAccessibleName(/^Market data.*connected.*(?:live|aging|stale)/)
   await trigger.focus()
   await page.keyboard.press("Tab")
   await expect(scene.getByRole("button", { name: "Actions: Market data" })).toBeFocused()
