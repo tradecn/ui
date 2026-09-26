@@ -1774,6 +1774,21 @@ test("a price chart paints in the page's tokens, prints the last with its sign, 
     const point = (await chart.locator(".u-cursor-pt").first().boundingBox())!
     return Math.abs(line.x - (point.x + point.width / 2))
   }, { message: "the keyboard crosshair stays on the retained bar" }).toBeLessThan(2)
+  // The normalized index is retained too: End is a no-op here, and appended data must not
+  // resurrect the old tail selection. Feed updates leave focus and the pointer alone.
+  await page.keyboard.press("End")
+  await expect(scene.locator("[data-cursor-calls]")).toHaveAttribute("data-cursor-calls", calls!)
+  await scene.getByRole("button", { name: "new bar", exact: true }).evaluate((button: HTMLButtonElement) => button.click())
+  await expect(plot).toHaveAttribute("aria-valuemax", "1")
+  await expect(plot).toHaveAttribute("aria-valuenow", "0")
+  await expect(readout).toHaveText("09:30:00 110-17 V 10")
+  await expect.poll(async () => {
+    const area = (await chart.locator(".u-over").boundingBox())!
+    const line = (await chart.locator(".u-cursor-x").boundingBox())!
+    return Math.abs(line.x - area.x)
+  }, { message: "appending a bar keeps the crosshair on the first bar" }).toBeLessThan(2)
+  await expect(scene.locator("[data-cursor-calls]")).toHaveAttribute("data-cursor-calls", calls!)
+  await scene.getByRole("button", { name: "retain first bar" }).evaluate((button: HTMLButtonElement) => button.click())
   // Structural changes replace the canvas while the focused plot retains its keyboard selection.
   const canvas = await chart.locator("canvas").elementHandle()
   await scene.getByRole("button", { name: "toggle kind" }).click()

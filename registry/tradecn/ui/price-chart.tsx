@@ -375,7 +375,7 @@ interface ChartContext extends PriceChartState {
   zone: string | undefined
   crosshair: boolean
   lastLine: boolean
-  select: (index: number | null) => void
+  select: (index: number | null, fromPointer?: boolean) => void
 }
 
 const PriceChartContext = createContext<ChartContext | null>(null)
@@ -397,6 +397,7 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const overlayList = useMemo(() => overlays ?? [], [overlays])
   const [selection, setSelection] = useState<number | null>(null)
   const selectionRef = useRef<number | null>(null)
+  const interactionRef = useRef<number | null>(null)
   // The store's columns, once per applied batch: the meta's version is the one dependency, so the memo reruns on
   // a batch and on nothing else, and a batch with no bar change gives the same columns back.
   const meta = useStoreMeta(store)
@@ -407,15 +408,25 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const summary = useMemo(() => summarize(columns, ref), [columns, ref])
 
   // Notify in the event, never inside a state updater (which StrictMode may run twice).
-  const select = useCallback((index: number | null) => {
-    if (selectionRef.current === index) return
-    selectionRef.current = index
-    setSelection(index)
-    onCursor?.(index === null ? null : (columns.bars[index] ?? null))
+  const select = useCallback((index: number | null, fromPointer = false) => {
+    // A data clamp is silent, but the pointer must still report a newly resolved index.
+    const previous = fromPointer ? interactionRef.current : selectionRef.current
+    const changed = selectionRef.current !== index
+    interactionRef.current = index
+    if (changed) {
+      selectionRef.current = index
+      setSelection(index)
+    }
+    if (changed || previous !== index) onCursor?.(index === null ? null : (columns.bars[index] ?? null))
   }, [columns, onCursor])
 
   const count = columns.bars.length
   const cursor = selection === null || count === 0 ? null : clamp(selection, count - 1)
+  // Keep the clamped index when bars return; an empty store still retains its selection.
+  if (cursor !== null && cursor !== selection) setSelection(cursor)
+  useLayoutEffect(() => {
+    if (count > 0 && selectionRef.current !== null) selectionRef.current = clamp(selectionRef.current, count - 1)
+  }, [count])
   const at = cursor === null ? null : columns.bars[cursor]!
   const price = priceOf(convention)
   const time = timeFormatter(zone, locale)
@@ -576,7 +587,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
             pointerOwnsCursor.current = true
             lastCursorEvent.current = u.cursor.event
           }
-          if (pointerOwnsCursor.current) selectRef.current(u.cursor.idx ?? null)
+          if (pointerOwnsCursor.current) selectRef.current(u.cursor.idx ?? null, true)
           else syncPlotCursor(u, cursorBar.current)
         },
       }),

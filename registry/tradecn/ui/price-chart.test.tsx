@@ -338,6 +338,37 @@ describe("PriceChart composition", () => {
     expect(onCursor).toHaveBeenCalledOnce()
   })
 
+  it("retains a silently clamped keyboard selection as bars return and deduplicates keys", () => {
+    const store = seeded()
+    const onCursor = vi.fn()
+    function CursorIndex() {
+      const { cursor, bar: selected } = usePriceChart()
+      return <output>{cursor}:{selected?.time}</output>
+    }
+    render(<StrictMode><PriceChart store={store} convention={ZN} label="ZN" onCursor={onCursor}><PriceChartPlot /><PriceChartReadout /><CursorIndex /></PriceChart></StrictMode>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    expect(onCursor).toHaveBeenCalledOnce()
+    act(() => store.applyDeltas({ remove: [barId(T0 + MINUTE), barId(T0 + 2 * MINUTE)] }))
+    const readout = text("[data-chart-readout]")
+    for (let i = 1; i <= 3; i++) {
+      act(() => store.applyDeltas({ upsert: [bar(i, 110.5, 110.75)] }))
+      expect(screen.getByRole("status")).toHaveTextContent(`0:${T0}`)
+      expect(plot).toHaveAttribute("aria-valuenow", "0")
+      expect(text("[data-chart-readout]")).toBe(readout)
+      expect(onCursor).toHaveBeenCalledOnce()
+    }
+    fireEvent.keyDown(plot, { key: "Home" })
+    expect(onCursor).toHaveBeenCalledOnce()
+    fireEvent.keyDown(plot, { key: "End" })
+    expect(onCursor).toHaveBeenCalledTimes(2)
+    act(() => store.applyDeltas({ remove: [1, 2, 3].map((i) => barId(T0 + i * MINUTE)) }))
+    fireEvent.keyDown(plot, { key: "End" })
+    fireEvent.keyDown(plot, { key: "End" })
+    expect(plot).toHaveAttribute("aria-valuenow", "0")
+    expect(onCursor).toHaveBeenCalledTimes(2)
+  })
+
   it("reports a missing root for coordinated parts and leaves static headers independent", () => {
     render(<PriceChartHeader>Application content</PriceChartHeader>)
     expect(screen.getByText("Application content")).toBeInTheDocument()

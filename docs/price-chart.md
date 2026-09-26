@@ -202,7 +202,7 @@ Keep `values` pure: it runs when the plot is created or recreated and when its d
 
 Last's color alone does not tell every reader the direction. Keep `PriceChartChange` or your own sign beside it.
 
-The direction is the last close against the reference: up, down, or flat when equal, never up. It is on the root as `data-direction`, and the plot's accessible name says it in a word with the last, the change, the range, and the count: `ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars`.
+The direction is the last close against the reference: up, down, or flat when equal, never up. The root, Last and Change carry it as `data-direction`, and the plot's accessible name says it in a word with the last, the change, the range, and the count: `ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars`.
 
 ### Keyboard
 
@@ -219,7 +219,7 @@ With the crosshair on and at least one finite bar, the plot is a horizontal `sli
 
 The pointer moves the crosshair too, and the readout and `onCursor` follow whichever moved it last. Root handlers run around the plot and see each event after the plot handles it: a claimed key arrives with `defaultPrevented` set, every other key clean.
 
-A keyboard-selected crosshair follows its current index as data updates. If bars are removed, it clamps to the last remaining bar without a new `onCursor` call. Ordinary data updates keep a pointer-controlled crosshair at its pixel coordinates, so a scale change can select a different index and call `onCursor`. Updating the bar at an unchanged index changes the readout without a callback. It is not called simply because the component mounted, and unmount does not send `null`.
+A keyboard-selected crosshair follows its current index as data updates. If bars are removed, it clamps to the last remaining bar without a new `onCursor` call and keeps that index when bars are appended. Ordinary data updates keep a pointer-controlled crosshair at its pixel coordinates, so a scale change can select a different index and call `onCursor`. Updating the bar at an unchanged index changes the readout without a callback. It is not called simply because the component mounted, and unmount does not send `null`.
 
 Recreating the plot restores the selected bar without calling `onCursor`, including when the pointer selected it. The crosshair then follows that index until the next pointer movement takes control again.
 
@@ -228,7 +228,7 @@ Recreating the plot restores the selected bar without calling `onCursor`, includ
 | Attribute | Where | Meaning |
 |---|---|---|
 | `data-kind` | The root | `line` or `candles`. |
-| `data-direction` | The root | The last close against the reference. |
+| `data-direction` | The root, Last and Change | The last close against the reference. |
 | `data-empty` | The root | No finite bars to display. |
 | `data-slot="tradecn-price-chart"` | The root | Component marker. |
 | `data-chart-header` | Header | Caller-owned header content. |

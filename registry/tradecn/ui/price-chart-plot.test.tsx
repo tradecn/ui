@@ -102,7 +102,8 @@ describe("PriceChart plot lifecycle", () => {
   })
 
   it("moves the keyboard crosshair to the retained bar when the selected tail is removed", () => {
-    const { store } = setup()
+    const onCursor = vi.fn()
+    const { store } = setup({ onCursor })
     act(() => store.applyDeltas({ upsert: [{ ...first, time: 2_000 }, { ...first, time: 3_000 }] }))
     const plot = drawing.plots[0]!
     act(() => screen.getByRole("slider").focus())
@@ -110,6 +111,16 @@ describe("PriceChart plot lifecycle", () => {
     act(() => store.applyDeltas({ remove: [barId(2_000), barId(3_000)] }))
     expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "0")
     expect(plot.setCursor).toHaveBeenLastCalledWith({ left: first.time, top: first.close }, false)
+    for (const time of [2_000, 3_000, 4_000]) {
+      act(() => store.applyDeltas({ upsert: [{ ...first, time }] }))
+      act(() => plot.fireCursor())
+      expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "0")
+      expect(plot.setCursor).toHaveBeenLastCalledWith({ left: first.time, top: first.close }, false)
+    }
+    expect(onCursor).toHaveBeenCalledOnce()
+    expect(drawing.plots).toHaveLength(1)
+    expect(plot.destroy).not.toHaveBeenCalled()
+    expect(plot.setData).toHaveBeenCalledTimes(5)
   })
 
   it("resynchronizes keyboard coordinates after uPlot commits new scales without echoing callbacks", () => {
@@ -140,6 +151,8 @@ describe("PriceChart plot lifecycle", () => {
     expect(plot.setCursor).not.toHaveBeenCalled()
     expect(plot.cursor).toMatchObject({ left: 2_950, top: 9 })
     expect(onCursor).toHaveBeenCalledTimes(2)
+    act(() => plot.fireCursor())
+    expect(onCursor).toHaveBeenCalledTimes(2)
     fireEvent.keyDown(screen.getByRole("slider"), { key: "Escape" })
     expect(plot.setCursor).toHaveBeenLastCalledWith({ left: -10, top: -10 }, false)
     fireEvent.keyDown(screen.getByRole("slider"), { key: "Home" })
@@ -165,6 +178,52 @@ describe("PriceChart plot lifecycle", () => {
     act(() => current.fireCursor())
     expect(current.setCursor).toHaveBeenLastCalledWith({ left: 1_000, top: 11 }, false)
     expect(onCursor).toHaveBeenCalledOnce()
+  })
+
+  it("lets End claim the clamped bar before a pending pointer data hook without notifying again", () => {
+    const onCursor = vi.fn()
+    const { store } = setup({ onCursor })
+    act(() => store.applyDeltas({ upsert: [{ ...first, time: 2_000 }, { ...first, time: 3_000 }] }))
+    const plot = drawing.plots[0]!
+    Object.assign(plot.cursor, { idx: 2, event: new MouseEvent("mousemove") })
+    act(() => plot.fireCursor())
+    act(() => store.applyDeltas({ remove: [barId(2_000), barId(3_000)] }))
+    fireEvent.keyDown(screen.getByRole("slider"), { key: "End" })
+    plot.cursor.idx = 0
+    act(() => plot.fireCursor())
+    act(() => store.applyDeltas({ upsert: [{ ...first, time: 2_000 }, { ...first, time: 3_000 }] }))
+    act(() => plot.fireCursor())
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "0")
+    expect(plot.setCursor).toHaveBeenLastCalledWith({ left: first.time, top: first.close }, false)
+    expect(onCursor).toHaveBeenCalledOnce()
+  })
+
+  it.each([false, true])("reports pointer takeover of the former index after a silent clamp (recreate: %s)", (recreate) => {
+    const onCursor = vi.fn()
+    const { store, chart, rerender } = setup({ onCursor })
+    act(() => store.applyDeltas({ upsert: [{ ...first, time: 2_000 }, { ...first, time: 3_000 }] }))
+    if (recreate) {
+      const plot = drawing.plots[0]!
+      Object.assign(plot.cursor, { idx: 2, event: new MouseEvent("mousemove") })
+      act(() => plot.fireCursor())
+    } else {
+      act(() => screen.getByRole("slider").focus())
+    }
+    act(() => {
+      store.applyDeltas({ remove: [barId(2_000), barId(3_000)] })
+      if (recreate) rerender(chart({ kind: "candles" }))
+    })
+    act(() => store.applyDeltas({ upsert: [{ ...first, time: 2_000 }, { ...first, time: 3_000 }] }))
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "0")
+    expect(onCursor).toHaveBeenCalledOnce()
+    const plot = drawing.plots.at(-1)!
+    Object.assign(plot.cursor, { idx: 2, event: new MouseEvent("mousemove") })
+    act(() => plot.fireCursor())
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "2")
+    expect(onCursor).toHaveBeenCalledTimes(2)
+    expect(onCursor).toHaveBeenLastCalledWith(expect.objectContaining({ time: 3_000 }))
+    act(() => plot.fireCursor())
+    expect(onCursor).toHaveBeenCalledTimes(2)
   })
 
   it("recreates for structural changes and destroys on empty data before repopulation", () => {
