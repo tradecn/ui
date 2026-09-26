@@ -1,6 +1,6 @@
 # RulesEditor
 
-Edit one grid's highlights, filters, and sort order, with live match counts and an optional Columns tab for the column chooser.
+Edit one grid's highlights, filters, and sort order, with live match counts.
 
 ## Usage
 
@@ -97,7 +97,9 @@ Place items directly inside your layout when you do not need tabs.
 
 ## Tabs
 
-Compose installed [shadcn Tabs](https://ui.shadcn.com/docs/components/tabs) to group rules with a column chooser. Tab state belongs to your composition.
+Compose installed [shadcn Tabs](https://ui.shadcn.com/docs/components/tabs) to group rules with a column chooser. Select each tab on focus so arrow keys switch panels on either base.
+
+Control `Tabs` with `value` and `onValueChange` to drive panels from your own controls.
 
 <!-- demo: rules-editor-tabs -->
 
@@ -157,10 +159,6 @@ Select classes apply to the shadcn wrapper. Input classes apply to the input.
 Item fields, move/remove actions, problems, and match counts require `RulesEditorItem`. Fields for another rule kind render nothing.
 
 ### Keyboard and focus
-
-The Tabs recipe uses shadcn Tabs for focus and keyboard navigation. It selects a tab when its trigger receives focus, preserving arrow-key selection across supported bases.
-
-Control `Tabs` with `value` and `onValueChange` to drive panels from your own controls. `RulesEditor` owns no tab state.
 
 Drag an item onto another item of the same kind, or use Alt+Up/Down from the row or its fields. Reordering uses source indices, even when you render items in a different order.
 

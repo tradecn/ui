@@ -194,7 +194,7 @@ You can start with the complete [Usage example](rules-editor.md#usage), or copy 
 |---|---|
 | Self-closing `RulesEditor` | Required `children` containing your composition. |
 | Automatic tabs and panels | Compose installed shadcn `Tabs`, `TabsList`, `TabsTrigger`, and `TabsContent`. |
-| `defaultTab`, `RulesEditorTab` type | Move initial selection to `Tabs.defaultValue` or your controlled tab state. The editor no longer owns a tab value or exports its type. |
+| `defaultTab`, `RulesEditorTab` type | Move initial selection to `defaultValue` on `Tabs` or your controlled tab state. The editor no longer owns a tab value or exports its type. |
 | `columnState`, `onColumnStateChange` | Pass these to your own `ColumnChooserPanel` inside a Columns panel. Share the state with the grid. |
 | Automatic rule rows | Map each source list into `RulesEditorItem` with `kind` and its source `index`. Keep highlight keys as `rule.id`. |
 | Automatic condition fields | `RulesEditorColumn`, `RulesEditorOperator`, and `RulesEditorValue` for each field shape. |
@@ -228,4 +228,4 @@ Update selectors for the moved markers. `data-rule-row` and `data-dragging` move
 
 Moves use source indices and keep focus on the moved field when available. Drops are limited to the same rule kind in the same editor.
 
-Fixed `rules-tab-*` and `rules-panel-*` IDs and the root's `data-tab` marker are removed. Shadcn Tabs owns tab IDs and state. You can use role/name locators or set explicit IDs on your Tabs parts.
+Fixed `rules-tab-*` and `rules-panel-*` IDs and the root's `data-tab` marker are removed. Your installed `Tabs` owns tab IDs and state. You can use role/name locators or set explicit IDs on your Tabs parts.

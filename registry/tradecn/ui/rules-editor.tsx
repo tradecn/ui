@@ -276,10 +276,10 @@ function CountsProvider<T>({ store, columns, rules, children }: Pick<RulesEditor
 }
 
 const LIST_KEY = { highlights: "columns", filters: "filter", sort: "sort" } as const
-const DragContext = createContext<{ current: { kind: RulesEditorKind; index: number; type: string; clear: () => void } | null }>({ current: null })
+const DragContext = createContext<{ current: { kind: RulesEditorKind; index: number; list: readonly (ColumnRule | FilterRule | SortRule)[]; type: string; clear: () => void } | null }>({ current: null })
 
-// Controlled callers may copy the emitted rules. Compare their data only while a move or
-// removal awaits focus restoration; property order and extra application fields do not matter.
+// Controlled callers may copy rules. Compare their data while dragging or awaiting focus
+// restoration; property order and extra application fields do not matter.
 function sameRuleList(left: readonly (ColumnRule | FilterRule | SortRule)[] | undefined, right: readonly (ColumnRule | FilterRule | SortRule)[]) {
   const fields = ["id", "column", "when", "op", "value", "values", "tone", "target", "label", "key", "dir"]
   return left === right || JSON.stringify(left, fields) === JSON.stringify(right, fields)
@@ -306,9 +306,11 @@ export function RulesEditor<T>({ columns, rules, onRulesChange, store, labels: l
   const labels = { ...DEFAULT_RULES_EDITOR_LABELS, ...labelsProp }
   const root = useRef<HTMLDivElement>(null)
   const rootRef = useEditorRef(root, ref)
-  const dragging = useRef<{ kind: RulesEditorKind; index: number; type: string; clear: () => void } | null>(null)
+  const dragging = useRef<{ kind: RulesEditorKind; index: number; list: readonly (ColumnRule | FilterRule | SortRule)[]; type: string; clear: () => void } | null>(null)
   useLayoutEffect(() => {
-    dragging.current?.clear()
+    const drag = dragging.current
+    if (!drag || sameRuleList(rules[LIST_KEY[drag.kind]], drag.list)) return
+    drag.clear()
     dragging.current = null
   }, [rules])
   const focusAfter = useRef<{ rules: GridRules; kind: RulesEditorKind; index: number; list: readonly (ColumnRule | FilterRule | SortRule)[]; active: Element; field?: string } | null>(null)
@@ -451,7 +453,7 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
     onDragStart={(event) => {
       onDragStart?.(event)
       if (event.defaultPrevented) return
-      dragRef.current = { kind, index, type: dragType, clear: () => setDragging(false) }
+      dragRef.current = { kind, index, list: editor.rules[LIST_KEY[kind]]!, type: dragType, clear: () => setDragging(false) }
       event.dataTransfer?.setData?.("text/plain", String(index))
       event.dataTransfer?.setData?.(dragType, "")
       if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"

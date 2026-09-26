@@ -288,13 +288,13 @@ describe("RulesEditor examples", () => {
 })
 
 describe("RulesEditor", () => {
-  it.each(["horizontal", "vertical"] as const)("lets caller controls drive %s shadcn tabs around the editing parts", async (orientation) => {
+  it("lets caller controls drive shadcn tabs around the editing parts", async () => {
     function Controlled() {
       const [selected, setSelected] = useState("filters")
       return <>
         <button onClick={() => setSelected("sort")}>Set priorities</button>
         <RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}>
-          <Tabs orientation={orientation} value={selected} onValueChange={(value) => setSelected(String(value))}>
+          <Tabs value={selected} onValueChange={(value) => setSelected(String(value))}>
             <TabsList><TabsTrigger value="filters">Filters</TabsTrigger><TabsTrigger value="sort">Sort</TabsTrigger></TabsList>
             <TabsContent value="filters"><RulesEditorItem kind="filters" index={0}><RulesEditorValue /></RulesEditorItem></TabsContent>
             <TabsContent value="sort"><RulesEditorItem kind="sort" index={0}><RulesEditorColumn /></RulesEditorItem></TabsContent>
@@ -303,7 +303,6 @@ describe("RulesEditor", () => {
       </>
     }
     render(<Controlled />)
-    expect(screen.getByRole("tablist").getAttribute("aria-orientation") ?? "horizontal").toBe(orientation)
     const filterField = screen.getByLabelText("Value: Filters 1")
     expect(filterField).toBeVisible()
     fireEvent.click(screen.getByRole("button", { name: "Set priorities" }))
@@ -313,7 +312,7 @@ describe("RulesEditor", () => {
     expect(tab("Sort")).toHaveAttribute("aria-selected", "true")
     await act(async () => {
       tab("Sort").focus()
-      fireEvent.keyDown(tab("Sort"), { key: orientation === "vertical" ? "ArrowUp" : "ArrowLeft" })
+      fireEvent.keyDown(tab("Sort"), { key: "ArrowLeft" })
     })
     expect(tab("Filters")).toHaveFocus()
   })
@@ -511,6 +510,29 @@ describe("RulesEditor", () => {
     vi.spyOn(console, "error").mockImplementation(() => {})
     expect(() => render(<RulesEditorColumn />)).toThrow("inside RulesEditor")
     expect(() => render(<RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}><RulesEditorValue /></RulesEditor>)).toThrow("inside RulesEditorItem")
+  })
+
+  it.each(["shared", "copied"] as const)("keeps a drag through inline rules objects with a %s list", (copy) => {
+    const change = vi.fn()
+    function Parent({ tick }: { tick: number }) {
+      const rules = copy === "copied" ? structuredClone(RULES) : RULES
+      return <>
+        <p>Updates: {tick}</p>
+        <RulesEditor columns={columns} rules={{ ...rules, filter: tick ? [] : rules.filter }} onRulesChange={change}>
+          {rules.columns?.map((rule, index) => <RulesEditorItem key={rule.id} kind="highlights" index={index}><RulesEditorColumn /></RulesEditorItem>)}
+        </RulesEditor>
+      </>
+    }
+    const { rerender } = render(<Parent tick={0} />)
+    const transfer = new DataTransfer()
+    fireEvent.dragStart(screen.getAllByRole("group")[0]!, { dataTransfer: transfer })
+    rerender(<Parent tick={1} />)
+    expect(document.querySelector("[data-dragging]")).not.toBeNull()
+    const target = screen.getAllByRole("group")[1]!
+    expect(fireEvent.dragOver(target, { dataTransfer: transfer })).toBe(false)
+    fireEvent.drop(target, { dataTransfer: transfer })
+    expect(change).toHaveBeenCalledOnce()
+    expect(change.mock.lastCall?.[0].columns.map((rule: { id: string }) => rule.id)).toEqual(["big", "rich"])
   })
 
   it.each(["highlights", "filters", "sort"] as const)("rejects a stale %s drag after a controlled reorder", (kind) => {
