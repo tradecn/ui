@@ -31,7 +31,12 @@ export function HotkeyEditorScene() {
   return (
     <HotkeysProvider registry={registry} bindings={BINDINGS}>
       <div className="w-[36rem]" data-hotkey-saved={JSON.stringify(overrides)}>
-        <HotkeyEditor><HotkeyEditorGroups /></HotkeyEditor>
+        <HotkeyEditor>
+          <HotkeyEditorGroups onImport={() => {
+            registry.load({})
+            setOverrides(registry.overrides())
+          }} />
+        </HotkeyEditor>
         <p data-hotkey-background="">Shortcut settings</p>
         <ListenForShortcut />
       </div>
@@ -66,14 +71,14 @@ function ShortcutRow() {
   )
 }
 
-function HotkeyEditorGroups() {
-  const { groups, registry } = useHotkeyEditor()
+function HotkeyEditorGroups({ onImport }: { onImport: () => void }) {
+  const { groups } = useHotkeyEditor()
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
         <HotkeyEditorSearch />
         <div className="ml-auto flex flex-wrap gap-1">
-          <button type="button" onClick={() => registry.load({})}>Import defaults</button>
+          <button type="button" onClick={onImport}>Import defaults</button>
           <HotkeyEditorResetAll>Reset all</HotkeyEditorResetAll>
         </div>
       </div>

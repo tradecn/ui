@@ -696,6 +696,7 @@ for (const action of ["Reset all", "Import defaults"]) {
     await input.press("Enter")
     await row.getByRole("button", { name: "Reset: Go to the book" }).focus()
     await editor.getByRole("button", { name: action, exact: true }).click()
+    await expect(scene.locator("[data-hotkey-saved]")).toHaveAttribute("data-hotkey-saved", "{}")
     await scene.locator("[data-hotkey-background]").click()
     await expect(page.locator("body")).toBeFocused()
     await page.keyboard.press("g")

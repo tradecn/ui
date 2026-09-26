@@ -375,6 +375,7 @@ export function HotkeyEditorInput({ onChange, onKeyDown, onBlur, className, "ari
     if (event.defaultPrevented) return
     // Editing keys stay out of application hotkeys, including editing-scope bindings.
     event.stopPropagation()
+    if (event.nativeEvent.isComposing) return
     if (event.key === "Enter" || event.key === "Escape") {
       event.preventDefault()
       if (event.key === "Enter") commit(draft)

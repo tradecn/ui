@@ -303,6 +303,23 @@ describe("composition and migration", () => {
     expect(fired).not.toHaveBeenCalled()
   })
 
+  it.each(["Enter", "Escape"])("leaves composing %s to the text input without leaking application keys", (key) => {
+    const onKeyDown = vi.fn()
+    const { registry } = mount({ onKeyDown })
+    fireEvent.click(screen.getByRole("button", { name: "Type it: Go to the book" }))
+    const input = screen.getByLabelText("Keys for Go to the book")
+    fireEvent.compositionStart(input)
+    fireEvent.change(input, { target: { value: "g h" } })
+    expect(fireEvent.keyDown(input, { key, isComposing: true })).toBe(true)
+    expect(input).toHaveFocus()
+    expect(input).toHaveValue("g h")
+    expect(registry.overrides()).toEqual({})
+    expect(onKeyDown).not.toHaveBeenCalled()
+    fireEvent.compositionEnd(input)
+    fireEvent.keyDown(input, { key: "Enter" })
+    expect(registry.overrides()).toEqual({ "go.book": "g h" })
+  })
+
   it("links validation to the input and announces the problem", () => {
     mount()
     fireEvent.click(screen.getByRole("button", { name: "Type it: Go to the book" }))
