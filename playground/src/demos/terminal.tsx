@@ -38,6 +38,7 @@ import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHe
 import { Tooltip } from "@/components/ui/tooltip"
 import { FlashCell } from "@/registry/tradecn/ui/flash-cell"
 import { HotkeyEditor } from "@/registry/tradecn/ui/hotkey-editor"
+import { HotkeyEditorGroups } from "@/demos/hotkey-editor-groups"
 import { InstrumentSearch, toSymbolAdapter, type InstrumentHit, type InstrumentSearchFn } from "@/registry/tradecn/ui/instrument-search"
 import { LayoutManager, readLayoutTemplates, writeLayoutTemplates } from "@/registry/tradecn/ui/layout-manager"
 import { LinkGroupDot, PanelActions, PanelContent, PanelHeader, PanelTitle, SymbolTag } from "@/registry/tradecn/ui/panel"
@@ -1491,7 +1492,7 @@ function Dialogs({ dialog, setDialog, layout }: { dialog: DeskDialog | null; set
             <DialogTitle>Keys</DialogTitle>
             <DialogDescription>Every binding on this desk, the tickets' and the palette's included. Press a new one to remap it.</DialogDescription>
           </DialogHeader>
-          <HotkeyEditor />
+          <HotkeyEditor><HotkeyEditorGroups /></HotkeyEditor>
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === "rules"} onOpenChange={onOpenChange}>
