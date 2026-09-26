@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.0.0](https://github.com/tradecn/ui/compare/v1.4.13...v2.0.0) (2026-09-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **rules-editor:** RulesEditor requires children and no longer renders a default editor. Compose its items, fields, readings, actions, and empty states explicitly. Move columnState and onColumnStateChange to a caller-owned ColumnChooserPanel. Compose installed shadcn Tabs for navigation, moving defaultTab to defaultValue on Tabs or controlled tab state; RulesEditorTab is no longer exported. Update selectors for the moved item markers and removed fixed tab/panel IDs as described in the migration guide. Rule helpers and the remaining root inputs stay available.
+* **price-chart:** PriceChart requires children. Compose PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout and one PriceChartPlot explicitly; place PriceChartEmpty inside the plot when needed. Compose PriceChartLegend rows with PriceChartOverlaySwatch for overlays. All existing root plotting options remain available. See docs/migrating-v1-to-v2.md#pricechart.
+* **command-palette:** CommandPalette now requires children and no longer inserts its dialog, input, list or result markup. Compose CommandPaletteDialog and CommandPaletteContent with the public input/list/item parts, and render groups through CommandPaletteResults or useCommandPalette. Move className to Dialog or Content; replace labels.empty and labels.searching with caller-owned Empty content. Apply the former five-recent display limit in caller JSX. The registry no longer installs Badge. See docs/migrating-v1-to-v2.md for the complete mapping.
+* **feed-health:** FeedHealth requires both `feeds` and `children` and no longer generates its rows, tooltips, controls or announcements. The old self-closing call is a type error. Add `FeedHealthList` with a child callback returning `FeedHealthItem` and your readings; the list supplies keys from stable, unique feed ids. Mount one `FeedHealthAnnouncer` to inherit the collection. Direct-item layouts still pass `feeds={[feed]}`; pass `[]` and optionally compose `FeedHealthEmpty` when the collection is empty. Move `actions` and `pendingMs` into per-feed `useFeedActions` hooks; replace `compact` with caller styling that retains tier text. Replace `labels`, `FeedHealthLabels` and `DEFAULT_FEED_HEALTH_LABELS` with caller-owned accessible names and pending labels. Move feed selectors to the item div, add action data attributes yourself and apply destructive styling at the call site. Install `separator`, `dropdown-menu` or `button` separately when your layout uses them. See the FeedHealth section of the v1-to-v2 migration guide.
+* **alerts:** Replace `<Alerts alerts={...} actions={...} />` with caller-composed notice parts inside `<Alerts><AlertsList>…</AlertsList></Alerts>`. Subscribe in each row with `useAlert`, supply expiry there, and mount `AlertsAnnouncer` or an announcing toast adapter. Compose `AlertActionButton` instead of passing the removed `AlertAction[]` configuration. Move collection limits, timestamps, counts, empty content, clear controls, and overflow dialogs to the caller; slice to three notices and supply `Dismiss: {title}` names to preserve v1 defaults. Rename `AlertList` to `AlertHistory`. Replace `AlertsLabels` and `DEFAULT_ALERTS_LABELS` with the history-specific exports: map `listTitle` to `title`, use `noticeTitle` for the formerly hardcoded title-column header, and move strip/dialog labels into caller content. Install shadcn Dialog separately when needed. See `docs/migrating-v1-to-v2.md` for every removed prop, label mapping, and changed slot.
+
+### Maintenance
+
+* **alerts:** expose composable notice parts ([#221](https://github.com/tradecn/ui/issues/221)) ([b9ffda2](https://github.com/tradecn/ui/commit/b9ffda234591c6596474fcd5435872baeb87e497))
+* **command-palette:** expose composable search results and controls ([d23d4a5](https://github.com/tradecn/ui/commit/d23d4a572e7df48e03683532e66154d9aec76272))
+* **feed-health:** expose composable feed readings and actions ([#226](https://github.com/tradecn/ui/issues/226)) ([b29043a](https://github.com/tradecn/ui/commit/b29043aa074010e54f59422bcb516a9bef2930d1))
+* **price-chart:** expose composable chart parts ([#230](https://github.com/tradecn/ui/issues/230)) ([80d1b3a](https://github.com/tradecn/ui/commit/80d1b3a67085f9a59057604d8b5b138be7b1fc22))
+* **rules-editor:** expose composable rule fields and controls ([#232](https://github.com/tradecn/ui/issues/232)) ([315891d](https://github.com/tradecn/ui/commit/315891d8567907a49806ac6e4ebc40d461395c51))
+
+
+### Documentation
+
+* **alerts:** start with a single notice ([#224](https://github.com/tradecn/ui/issues/224)) ([33d1597](https://github.com/tradecn/ui/commit/33d1597378c7756912672275982296a8fc3d19d1))
+* **command-palette:** keep the dialog's focus docs base-agnostic ([#229](https://github.com/tradecn/ui/issues/229)) ([80a062b](https://github.com/tradecn/ui/commit/80a062b1432776cdcfaa920950e78b1b1c210a28))
+
 ## [1.4.13](https://github.com/tradecn/ui/compare/v1.4.12...v1.4.13) (2026-09-24)
 
 
