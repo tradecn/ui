@@ -651,6 +651,81 @@ test("a hotkey editor changes a shortcut by pressing it, by typing it, and reset
   await expect(saved).toHaveAttribute("data-hotkey-saved", "{}")
 })
 
+// These native focus transitions commit during blur. happy-dom and act() do not reproduce them.
+test("a hotkey editor leaves focus at the destination when editing blurs", async ({ page }) => {
+  await page.goto("/")
+  const editor = page.locator("section[data-scene='hotkey-editor']").getByRole("region", { name: "Keyboard shortcuts" })
+  const row = editor.locator("[data-hotkey-row='edit.go']")
+  await row.getByRole("button", { name: "Type it: Go to the blotter" }).click()
+  await row.getByLabel("Keys for Go to the blotter").press("Tab")
+  await expect(editor.getByRole("button", { name: "Change: Go to the book" })).toBeFocused()
+  await row.getByRole("button", { name: "Type it: Go to the blotter" }).click()
+  const input = row.getByLabel("Keys for Go to the blotter")
+  await input.fill("q")
+  await input.press("Enter")
+  await row.getByRole("button", { name: "Type it: Go to the blotter" }).click()
+  await input.press("Shift+Tab")
+  await expect(row.getByRole("button", { name: "Reset: Go to the blotter" })).toBeFocused()
+})
+
+for (const action of ["Type it", "Change"]) {
+  test(`a hotkey editor keeps search focused when ${action} blurs`, async ({ page }) => {
+    await page.goto("/")
+    const editor = page.locator("section[data-scene='hotkey-editor']").getByRole("region", { name: "Keyboard shortcuts" })
+    const row = editor.locator("[data-hotkey-row='edit.go']")
+    await row.getByRole("button", { name: `${action}: Go to the blotter` }).click()
+    const search = editor.getByLabel("Find a shortcut")
+    await search.click()
+    await expect(search).toBeFocused()
+    await page.keyboard.type("blotter")
+    await expect(search).toHaveValue("blotter")
+    await expect(row).toHaveAttribute("data-mode", "idle")
+    await expect(row.locator("[data-hotkey-keys]")).toHaveAttribute("data-hotkey-keys", "g b")
+  })
+}
+
+for (const action of ["Reset all", "Import defaults"]) {
+  test(`a hotkey editor forgets row focus after ${action} removes an unfocused reset`, async ({ page }) => {
+    await page.goto("/")
+    const scene = page.locator("section[data-scene='hotkey-editor']")
+    const editor = scene.getByRole("region", { name: "Keyboard shortcuts" })
+    const row = editor.locator("[data-hotkey-row='edit.book']")
+    await row.getByRole("button", { name: "Type it: Go to the book" }).click()
+    const input = row.getByLabel("Keys for Go to the book")
+    await input.fill("q")
+    await input.press("Enter")
+    await row.getByRole("button", { name: "Reset: Go to the book" }).focus()
+    await editor.getByRole("button", { name: action, exact: true }).click()
+    await expect(scene.locator("[data-hotkey-saved]")).toHaveAttribute("data-hotkey-saved", "{}")
+    await scene.locator("[data-hotkey-background]").click()
+    await expect(page.locator("body")).toBeFocused()
+    await page.keyboard.press("g")
+    // Let the chord's registry notification and native focus changes finish.
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+    await expect(page.locator("body")).toBeFocused()
+  })
+}
+
+test("a hotkey editor recovers focus when resets disappear or become disabled", async ({ page }) => {
+  await page.goto("/")
+  const editor = page.locator("section[data-scene='hotkey-editor']").getByRole("region", { name: "Keyboard shortcuts" })
+  for (const description of ["Go to the book", "Cancel the selected order"]) {
+    const row = editor.getByRole("group", { name: description, exact: true })
+    await row.getByRole("button", { name: `Type it: ${description}` }).click()
+    const input = row.getByLabel(`Keys for ${description}`)
+    await input.fill("q")
+    await input.press("Enter")
+    await row.getByRole("button", { name: `Reset: ${description}` }).click()
+    await expect(row).toBeFocused()
+  }
+  await editor.getByRole("button", { name: "Type it: Go to the book" }).click()
+  const input = editor.getByLabel("Keys for Go to the book")
+  await input.fill("q")
+  await input.press("Enter")
+  await editor.getByRole("button", { name: "Reset all", exact: true }).click()
+  await expect(editor.getByLabel("Find a shortcut")).toBeFocused()
+})
+
 // Rules as data through the installed lib: the tone classes live in lib/grid-rules.ts, so this is where
 // it shows whether the consumer's Tailwind found them there. A price rule typed in 32nds colors its cell
 // with the up token and a tint, a row rule marks the row, the filter drops the small inquiry, the sort
