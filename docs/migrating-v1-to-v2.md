@@ -117,7 +117,9 @@ Keep meaningful row text, shortcut hints, focusable application controls and sta
 
 ## PriceChart
 
-`PriceChart` now requires caller-owned children. All v1 root options, labels and plotting defaults remain available, but the header, plot, readout, empty state and legend must be composed explicitly. Replace self-closing calls even when they pass only `store`, `convention` and `label`.
+`PriceChart` now requires `children`. Root options, labels, and plotting defaults are unchanged.
+
+Replace self-closing calls with a plot and the optional parts you need:
 
 ```tsx
 import {
@@ -154,16 +156,30 @@ import {
 </PriceChart>
 ```
 
-This replacement assumes your existing `store`, `convention` and `overlays` variables; retain your other root options, such as `zone`, `baseline`, `kind`, height and cursor callback. Without overlays, omit both the prop and legend. The [PriceChart reference](price-chart.md) provides complete runnable examples.
+Use your existing `store`, `convention`, and `overlays`. Keep other root options such as `zone`, `baseline`, `kind`, `height`, and `onCursor`.
+
+Omit both the `overlays` prop and legend when you have no overlays. See the [PriceChart reference](price-chart.md) for complete examples.
 
 | v1 ownership | v2 replacement |
 |---|---|
 | Automatic header and last/change/readout text | Explicit `PriceChartHeader`, `PriceChartLast`, `PriceChartChange` and `PriceChartReadout`. Move or omit them independently. |
 | Automatic canvas and keyboard crosshair | Mount one `PriceChartPlot` inside the root. It retains the accessible summary even without visible readings. |
-| Automatic "No data" placeholder | Place `PriceChartEmpty` inside the plot. It still defaults to `labels.noData`; children replace that text. |
+| Automatic "No data" placeholder | Place `PriceChartEmpty` inside the plot. It defaults to `labels.noData`. Children replace only the visible text. Use `labels.noData` for the plot's accessible name. |
 | Automatic legend rows in overlay order | Compose `PriceChartLegend` with your rows and labels. Use `PriceChartOverlaySwatch overlayId={overlay.id}` to retain the plotted color when changing legend order. Hide an empty legend yourself. |
 | Header-specific numeric font inheritance | Each public numeric reading supplies its own convention's font and numeric variant wherever placed. |
 | Root native handlers | Retained. Plot handlers are also public and run before built-in behavior; `preventDefault()` cancels that behavior. |
 | `data-chart-*` markers | Retained on their public parts. The empty placeholder is now a `div`; replace element-specific `p[data-chart-empty]` selectors. Swatches add `data-chart-swatch`. |
 
-`PriceChartProps`, `PriceChartKind`, `PriceChartOverlay`, `PriceChartLabels`, `DEFAULT_PRICE_CHART_LABELS` and `CHART_TOKEN_CLASS` remain exported. `usePriceChart` exposes shared readings for custom content without another store subscription. `onCursor` reports cursor interaction and pointer-driven index changes, rather than updates to a selected bar. Keyboard selection clamps silently when data shrinks; programmatic plot synchronization does not echo a callback. Plot recreation restores the selected bar until the next pointer movement takes control again. Cursor callbacks no longer repeat under StrictMode. The root creates no timers or live announcements.
+`PriceChartProps`, `PriceChartKind`, `PriceChartOverlay`, `PriceChartLabels`, `DEFAULT_PRICE_CHART_LABELS`, and `CHART_TOKEN_CLASS` remain exported.
+
+Use `usePriceChart` for custom readings without another store subscription.
+
+`onCursor` reports cursor interaction and pointer-driven index changes. Updating the selected bar's data does not call it.
+
+When bars remain, an out-of-range keyboard selection clamps silently to the last bar. Appended bars keep the clamped index.
+
+Programmatic plot synchronization does not echo a callback.
+
+Plot recreation restores the selected bar until the next pointer movement. Cursor callbacks no longer repeat under StrictMode.
+
+The root creates no timers or live announcements.

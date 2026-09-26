@@ -1,6 +1,6 @@
 # PriceChart
 
-An intraday chart of one instrument: a line or candles over a store of bars, a crosshair moved by the pointer or arrow keys, the time axis in the venue's zone, and the last price with its signed change.
+Line and candlestick charts with composable readings, legends, and keyboard navigation.
 
 ## Usage
 
@@ -54,53 +54,69 @@ function SampleChart() {
 }
 ```
 
-This fixed sample contains six one-minute bars from September 22, 2026, starting at 09:00 in Chicago. The line joins their closes; `baseline` is the sample previous close. Move the pointer over the plot, or focus it and use the arrow keys, to inspect a bar's close and volume. Home and End reach the first and last bars.
+Keep the store stable across renders and key each bar by its start time with `barId`.
 
-Keep the store stable across renders and key each bar by its start time with `barId`. This example loads complete bars with `upsert`; the [incoming-ticks example](#incoming-ticks) shows how a feed can build them.
+Use `upsert` to load complete bars, or [build bars from incoming ticks](#incoming-ticks).
 
 ## Composition
 
-`PriceChart` shares the store snapshot and cursor. Compose one `PriceChartPlot` for the canvas and keyboard controls, then place the optional readings and legend wherever your layout needs them. `PriceChartHeader` is a plain layout container. You can use your own elements for application headings, actions and legend rows.
+Use the following composition to build a `PriceChart`:
+
+```text
+PriceChart
+├── PriceChartHeader
+│   ├── PriceChartLast
+│   ├── PriceChartChange
+│   └── PriceChartReadout
+└── PriceChartPlot
+    └── PriceChartEmpty
+```
+
+Mount one `PriceChartPlot` per root. Move or omit the readings, header, and legend to fit your layout.
+
+Use your own elements for headings, actions, and legend rows.
 
 ## Sidebar and footer
 
-This layout moves the prices and legend into an aside and the readout into a footer. The legend reverses the overlay order; each `PriceChartOverlaySwatch` still resolves its color by overlay id. `usePriceChart` supplies custom content from the same snapshot without another store subscription.
+Place the readings and legend in an aside and the readout in a footer.
+
+Use `usePriceChart` to add custom content.
 
 <!-- demo: price-chart-layout -->
 
 ## Candles
 
-Set `kind="candles"` for a candle per bar: the body from open to close, the wick from low to high. These six fixed ES bars span five-minute intervals and include rising, falling and unchanged closes relative to their opens. Each candle's color compares its own close with its open. The crosshair readout prints all four prices and volume.
+Use `kind="candles"` to display open, high, low, and close prices.
 
 <!-- demo: price-chart-candles -->
 
 ## Overlays
 
-`overlays` supplies one value per bar, with a label and a chart token for each line. This example reuses the opening chart's six bars. The three-bar close average leaves the first two values missing until there is enough history. Bar VWAP weights each bar's typical price, `(high + low + close) / 3`, by its volume; it covers this sample only, rather than a full trading session or every individual trade.
+Use `overlays` to add lines and `PriceChartLegend` to render their labels.
 
-Keep overlay functions pure and their definitions stable. Compose the legend explicitly: the caller owns its rows, labels, order and any extra content. A named swatch identifies each overlay, but matching a label to its plotted line still depends on color.
+The example's bar VWAP uses prices and volumes from the displayed sample, not a full trading session.
 
 <!-- demo: price-chart-overlays -->
 
 ## Incoming ticks
 
-The Apply next tick batch button stands in for a batch from a trade feed. `foldTicks` builds five-minute bars and returns deltas to apply to the store. The first batch opens and extends one bar, then opens the next. The second batch extends that second bar. The third contains a late print for the first bar: its low and volume change, while its close stays at the later print's price. Focus the plot and press Home to inspect that corrected bar.
+Use `foldTicks` to build five-minute bars from trade batches.
 
-The last state remains visible, with at most two bars. Clear bars returns to the empty chart so you can replay the batches. There is no background publisher. In a feed integration, call the same fold/apply pair for each received batch and choose a retention policy for old bars. A print for a missing historical bar inserts it; the chart sorts bars for display.
+Select **Apply next tick batch** to replay three batches, including a late correction. Updates run on demand and keep at most two bars.
+
+Focus the plot and press Home to inspect the corrected bar. Select **Clear bars** to restart.
 
 <!-- demo: price-chart-ticks -->
 
 ## API Reference
 
-The chart draws with uPlot on a canvas after `ResizeObserver` reports a positive box size and the store has a finite bar. It reads the store through `useStoreMeta` and refreshes columns when the store or its batch version changes. React can combine several synchronous batches into one render. Size changes resize the plot; clearing the bars or unmounting destroys it.
-
-Changing `kind`, `crosshair`, `lastLine`, `zone`, the serialized convention, or the overlays' ids, colors, widths, or order remakes the plot. Colors are read from your tokens when the plot is created and when `<html>`'s `class`, `style`, `data-theme`, or `data-accessibility` changes. A changed `--tradecn-font-mono` stack also remakes the plot because its axis font is fixed at creation.
-
-Changing only `baseline` updates the readout without recalculating the price scale, so a new reference outside the current range can stay offscreen. A data update or plot recreation recalculates the scale.
-
 ### Props
 
-`PriceChartProps` extends the root div's props and requires `children`. The root owns `role="group"`, `aria-label`, and chart data attributes; other div props, refs and handlers pass through. Mount one plot per root. Omitting a reading or legend omits only that presentation; the plot keeps its accessible summary and cursor value.
+`PriceChartProps` extends the native `div` props and requires `children`.
+
+The root sets `role="group"`, `aria-label`, and chart data attributes. Other props, refs, and handlers pass through.
+
+The plot keeps its accessible summary and cursor value when you omit visible readings or the legend.
 
 For v1 integrations, see the [migration guide](migrating-v1-to-v2.md#pricechart).
 
@@ -125,7 +141,9 @@ For v1 integrations, see the [migration guide](migrating-v1-to-v2.md#pricechart)
 
 ### Public parts
 
-Parts accept the native props and ref of the element below. They preserve their `data-chart-*` markers and merge `className`. Coordinated parts and `usePriceChart` must be inside `PriceChart`; `PriceChartHeader` can stand alone.
+Each part accepts its element's native props and ref. Use `className` to extend its styles.
+
+Place the parts and `usePriceChart` inside `PriceChart`. `PriceChartHeader` can also be used on its own.
 
 | Part | Element | Content and behavior |
 |---|---|---|
@@ -138,9 +156,47 @@ Parts accept the native props and ref of the element below. They preserve their 
 | `PriceChartLegend` | `ul` | Requires caller-owned children, usually `li` rows. Defaults its accessible name to `labels.overlays`; no automatic rows or hiding. |
 | `PriceChartOverlaySwatch` | `span` | Requires `overlayId: string`. Decorative swatch resolved from the plot's overlay order and color; unknown ids render nothing. |
 
-Last, Change, Readout and Empty use their default text only when `children` is `undefined`. Supply children to replace it, including `null` to leave the element empty. Numeric readings retain their convention's font when moved outside the header. Plot owns its slider/image role, accessible name, tab stop and value attributes. Its `onKeyDown`, `onFocus` and `onBlur` call your handler first; `preventDefault()` cancels its built-in behavior for that event.
+Pass children to `PriceChartLast`, `PriceChartChange`, `PriceChartReadout`, or `PriceChartEmpty` to replace the default text. Use `undefined` for the default or `null` for no content.
 
-`usePriceChart()` returns `PriceChartState`: `bars` (finite, time-sorted bars), `summary` (`SeriesSummary` from price-series), `cursor` (selected index clamped to the current bars, or null when unselected or empty), `bar` (the selected bar or null), `readout` (formatted cursor text), `overlays`, `convention` and merged `labels`. Treat these shared readings as read-only. The hook adds no subscription or effect; repeated readouts share the root's one store subscription. Keep data updates on the store and cursor interaction on the plot.
+Numeric readings keep their convention's font outside the header. Each part keeps its `data-chart-*` markers.
+
+`PriceChartPlot` sets its role, accessible name, tab stop, and value attributes.
+
+Its `onKeyDown`, `onFocus`, and `onBlur` call your handler first. Call `preventDefault()` to cancel the built-in behavior for that event.
+
+### usePriceChart
+
+Use `usePriceChart()` for custom readings. It returns the following read-only `PriceChartState`:
+
+| Field | Value |
+|---|---|
+| `bars` | Finite bars, sorted by time. |
+| `summary` | `SeriesSummary` from `price-series.ts`. |
+| `cursor` | Selected index clamped to the current bars. `null` when unselected or empty. |
+| `bar` | Selected bar, or `null`. |
+| `readout` | Formatted cursor text. |
+| `overlays` | Overlay definitions from the root. |
+| `convention` | Price or instrument convention from the root. |
+| `labels` | Labels with defaults and overrides merged. |
+
+The hook adds no subscription or effect. All readings share the root's one store subscription.
+
+Update data through the store and move the cursor through the plot.
+
+### Plot lifecycle
+
+`PriceChartPlot` draws with uPlot on a canvas. It waits for a positive `ResizeObserver` size and at least one finite bar.
+
+| Change | Behavior |
+|---|---|
+| Store or batch version | Refreshes columns through `useStoreMeta`. React may combine synchronous batches into one render. |
+| Box size | Resizes the existing plot. |
+| `kind`, `crosshair`, `lastLine`, `zone`, or serialized `convention` | Recreates the plot. |
+| Overlay ids, colors, widths, or order | Recreates the plot. |
+| `baseline` alone | Updates the readings without recalculating the price scale. An out-of-range reference can stay offscreen until data updates or the plot is recreated. |
+| `<html>` `class`, `style`, `data-theme`, or `data-accessibility` | Reads colors from the tokens again. Colors are also read when the plot is created. |
+| `--tradecn-font-mono` stack | Recreates the plot to update its axis font. |
+| Empty store or unmount | Destroys the plot. |
 
 ### Bars
 
@@ -159,7 +215,13 @@ Last, Change, Readout and Empty use their default text only when `children` is `
 | `price` | `number` | Yes | The traded price. |
 | `size` | `number \| null` | No | Traded size; absent, null, and non-finite sizes add no volume. |
 
-The helpers are in `price-series.ts`, with no React runtime dependency, so a feed layer or a worker can fold bars without the component. Use a positive finite `intervalMs` in milliseconds; the helpers do not validate it. `foldTicks` skips ticks with non-finite `at` or `price`, while `foldTick` expects valid inputs. Each `convention` parameter accepts `PriceConvention | InstrumentConvention`.
+Use the helpers in `price-series.ts` to build bars in a feed layer or worker without React.
+
+Pass a positive, finite `intervalMs` in milliseconds. The helpers do not validate it.
+
+`foldTicks` skips ticks with non-finite `at` or `price`. `foldTick` expects valid inputs.
+
+Each `convention` parameter accepts `PriceConvention | InstrumentConvention`.
 
 | Function | Returns | Purpose |
 |---|---|---|
@@ -178,9 +240,21 @@ The helpers are in `price-series.ts`, with no React runtime dependency, so a fee
 | `timeFormatter(zone?: string, locale?: string, seconds?: boolean)` | `(ms: number) => string` | A 24-hour clock reading, with seconds by default and locale `en-US`. An unknown zone falls back to the runtime's. |
 | `dayFormatter(zone?: string, locale?: string)` | `(ms: number) => string` | A month/day formatter with the same locale and zone defaults. Used on the axis when its span exceeds one day. |
 
-`foldTicks` returns a `DeltaBatch<Bar>`; apply it to the store as in the example. It sorts a frame's ticks by time before folding. A late print corrects its bar's high, low, and volume; an earlier print moves its open, and a print at or after its latest timestamp moves its close. A whole bar without `firstAt` or `lastAt` keeps its open, but the first tick folded into it can replace its close.
+Apply the `DeltaBatch<Bar>` returned by `foldTicks` to your store for each received batch. Choose a retention policy for older bars.
 
-`columnsOf` returns `BarColumns`: the filtered bars and arrays for `time`, `open`, `high`, `low`, `close`, and `volume`. It sorts on each call if the store's order is not chronological; it does not reorder the store. Invalid or absent volume becomes `null` in the volume column. `summarize` returns a `SeriesSummary`, measuring percent change as `change / Math.abs(reference) * 100`; a zero reference gives `null`. Empty input returns the exported `EMPTY_COLUMNS` or `EMPTY_SUMMARY` respectively, with a flat summary and no first or last bar.
+`foldTicks` sorts each batch by time before folding. A tick for a missing historical bar inserts it.
+
+Late ticks update the bar's high, low, and volume. Earlier ticks update its open, and ticks at or after its latest timestamp update its close.
+
+A whole bar without `firstAt` keeps its open. Without `lastAt`, its first folded tick replaces its close.
+
+`columnsOf` returns `BarColumns` with the filtered bars and arrays for `time`, `open`, `high`, `low`, `close`, and `volume`.
+
+Bars are sorted by time on each call if needed, without reordering the store. Invalid or absent volume becomes `null` in the volume column.
+
+`summarize` calculates percentage change as `change / Math.abs(reference) * 100`. A zero reference gives `null`.
+
+Empty input returns `EMPTY_COLUMNS` and `EMPTY_SUMMARY` respectively. The summary has a flat direction and no first or last bar.
 
 ### Overlays
 
@@ -192,21 +266,47 @@ The helpers are in `price-series.ts`, with no React runtime dependency, so a fee
 | `color` | `number` | Its place in the list, starting at 1 | Chart token index. Supply an integer; values outside 1–8 are clamped to that range. |
 | `width` | `number` | `1` | Line width in CSS px. |
 
-`CHART_TOKEN_CLASS` is the eight tokens as utilities, `bg-chart-1` to `bg-chart-8`, for a key of your own.
+Use `CHART_TOKEN_CLASS` for a custom key. It contains `bg-chart-1` through `bg-chart-8`.
 
-Keep `values` pure: it runs when the plot is created or recreated and when its data or overlay structure changes, including store batches that change only metadata. Replacing only a `values` function does not immediately recompute the line; the new function is used on the next such update. Missing or non-finite values become gaps, and extra values are ignored.
+Use `PriceChartOverlaySwatch` to keep each legend row's color when you reorder rows. Matching a label to its plotted line still depends on color.
+
+Keep `values` pure and overlay definitions stable. Values are recalculated when the plot is created or recreated, or its data or overlay structure changes.
+
+Batches that change only metadata also recalculate values. Replacing only a `values` function takes effect on the next such update.
+
+Return `null` to leave a gap. Missing and non-finite values also leave gaps, and extra values are ignored.
+
+The [overlays example](#overlays) includes a three-bar close average that leaves the first two values empty.
+
+Its bar VWAP weights `(high + low + close) / 3` by bar volume. It covers the displayed sample, not a full session or individual trades.
 
 ### The readout
 
-`PriceChartLast` prints the last close in the direction's color, and `PriceChartChange` prints the change from the reference with its sign in the convention (`+0-02` for a fraction, `+1.25` for a decimal) and in percent. `PriceChartReadout` prints the selected bar: the time in the zone, the close for a line or all four prices for candles, and the volume when there is one.
+Use `PriceChartLast` to display the last close in the direction's color.
 
-Last's color alone does not tell every reader the direction. Keep `PriceChartChange` or your own sign beside it.
+Use `PriceChartChange` for the signed change and percentage from the reference. It follows the convention, such as `+0-02` for fractions or `+1.25` for decimals.
 
-The direction is the last close against the reference: up, down, or flat when equal, never up. The root, Last and Change carry it as `data-direction`, and the plot's accessible name says it in a word with the last, the change, the range, and the count: `ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars`.
+Use `PriceChartReadout` for the selected bar's time, prices, and optional volume. It shows the close for a line, or all four prices for candles.
+
+A candle's body spans open to close, and its wick spans low to high. Its color compares that bar's close with its open.
+
+Keep `PriceChartChange` or your own sign beside `PriceChartLast`. Color alone does not tell every reader the direction.
+
+The last close determines direction against the reference. Equal prices are `flat`.
+
+The root, `PriceChartLast`, and `PriceChartChange` carry `data-direction`.
+
+The plot's accessible name includes the direction, last price, change, range, and bar count:
+
+```text
+ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars
+```
 
 ### Keyboard
 
-With the crosshair on and at least one finite bar, the plot is a horizontal `slider` over the bars. Focus selects the last bar if no bar is selected; an existing pointer selection stays selected. With no bars or `crosshair={false}`, the plot is an `img` without a tab stop.
+With a crosshair and at least one finite bar, the plot is a horizontal `slider`.
+
+Focus selects the last bar unless a bar is already selected. With no bars or `crosshair={false}`, the plot is an `img` without a tab stop.
 
 | Key | Action |
 |---|---|
@@ -214,14 +314,22 @@ With the crosshair on and at least one finite bar, the plot is a horizontal `sli
 | Right / Up | Forward one bar. |
 | PageDown / PageUp | Move ten bars. |
 | Home / End | The first and the last bar. |
-| Escape | Put the crosshair away. Leaving does too. |
+| Escape | Clear the crosshair. Blur also clears it. |
 | Ctrl, Cmd, or Alt with any key | Left to listeners above the chart, such as a hotkey registry. |
 
-The pointer moves the crosshair too, and the readout and `onCursor` follow whichever moved it last. Root handlers run around the plot and see each event after the plot handles it: a claimed key arrives with `defaultPrevented` set, every other key clean.
+Use the pointer or keyboard to move the crosshair. The readout and `onCursor` follow the most recent input.
 
-A keyboard-selected crosshair follows its current index as data updates. If bars are removed, it clamps to the last remaining bar without a new `onCursor` call and keeps that index when bars are appended. Ordinary data updates keep a pointer-controlled crosshair at its pixel coordinates, so a scale change can select a different index and call `onCursor`. Updating the bar at an unchanged index changes the readout without a callback. It is not called simply because the component mounted, and unmount does not send `null`.
+Root bubbling handlers receive events after the plot handles them. Handled keys have `defaultPrevented` set, leaving other keys available to application hotkeys.
 
-Recreating the plot restores the selected bar without calling `onCursor`, including when the pointer selected it. The crosshair then follows that index until the next pointer movement takes control again.
+Keyboard selection follows its index as data updates.
+
+If bars remain and the index is out of range, it clamps to the last bar without calling `onCursor`. Appended bars keep the clamped index.
+
+Data updates keep a pointer-controlled crosshair at its pixel coordinates. A scale change can select a different index and call `onCursor`.
+
+Updating a bar at the same index changes the readout without a callback. Mounting does not call `onCursor`, and unmounting does not send `null`.
+
+Recreating the plot restores the selected bar silently, including pointer selections. The crosshair follows the selected index until the pointer takes control again.
 
 ### Marks
 
@@ -251,14 +359,24 @@ Recreating the plot restores the selected bar without calling `onCursor`, includ
 | `up` / `down` / `flat` | `up` / `down` / `flat` | The direction word in the accessible name |
 | `bars` | `bars` | The count in the accessible name |
 
-The accessible name's words `last`, `low`, and `high` are fixed English text. `locale` changes the readout's clock; it does not translate those words or change the axis locale.
+Use `locale` to change the readout's clock format. It does not change the axis locale or translate the fixed words `last`, `low`, and `high` in the accessible name.
 
 ### Tokens
 
-The install adds `up`, `down`, and `flat` with their soft variants if you do not have them, plus `chart-1` to `chart-8`. The item palette adapts [Okabe and Ito's palette](https://jfly.uni-koeln.de/color/): orange, sky blue, bluish green, yellow, blue, vermilion, reddish purple, and your foreground for black, with lightness adjusted for each mode.
+The install adds missing `up`, `down`, and `flat` tokens with their soft variants, plus `chart-1` through `chart-8`.
 
-A shadcn project already carries the first five chart tokens, which an install leaves alone. Each tradecn theme sets all eight in its own palette. An overlay uses your palette's value at that slot; its legend label names the line. The axis and the tag use your `--tradecn-font-mono` stack for tabular canvas text.
+The item palette adapts [Okabe and Ito's palette](https://jfly.uni-koeln.de/color/) with lightness adjusted for each mode. It uses orange, sky blue, bluish green, yellow, blue, vermilion, reddish purple, and your foreground for black.
+
+Existing shadcn chart tokens are preserved during installation. Each tradecn theme sets all eight chart tokens.
+
+Overlays use your palette's value at their assigned slot. Use legend labels to name the lines.
+
+Set `--tradecn-font-mono` to change the axis and last-price tag's tabular canvas font.
 
 ### What it does not do
 
-Zoom, pan, indicators, a volume pane, or a second instrument on the same axis. It aggregates nothing: `foldTicks` is the one interval you give it, and a different interval is a different store. It decides nothing about the session: pass the venue's zone and the previous close, and it prints them.
+The chart does not provide zoom, pan, indicators, a volume pane, or multiple instruments on one axis.
+
+Use `foldTicks` to aggregate one interval and a separate store for each additional interval.
+
+Pass the venue's `zone` and previous close as `baseline`. The chart does not determine trading sessions.
