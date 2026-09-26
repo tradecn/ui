@@ -1,168 +1,307 @@
 # RulesEditor
 
-Edit one grid's highlights, filters, and sort order, with live match counts and an optional Columns tab for the column chooser.
+Edit one grid's highlights, filters, and sort order, with live match counts.
 
 ## Usage
 
 ```tsx
 import { useState } from "react"
-import { createInstrumentFormatter, formatNotional } from "@/lib/format"
 import type { GridRules } from "@/lib/grid-rules"
-import { createRowStore } from "@/lib/row-store"
-import { DataGrid, type ColumnDef, type ColumnState } from "@/components/ui/data-grid"
-import { RulesEditor } from "@/components/ui/rules-editor"
+import type { ColumnDef } from "@/components/ui/data-grid"
+import {
+  RulesEditor,
+  RulesEditorAdd,
+  RulesEditorColumn,
+  RulesEditorItem,
+  RulesEditorOperator,
+  RulesEditorProblem,
+  RulesEditorRemove,
+  RulesEditorTone,
+  RulesEditorValue,
+} from "@/components/ui/rules-editor"
 
-interface Rfq {
-  id: string
-  client: string
-  size: number
-  px: number | null
-}
-
-const ust = createInstrumentFormatter({ price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 })
-
-const columns: ColumnDef<Rfq>[] = [
-  { key: "client", header: "Client", width: 180, sortable: true, accessor: (r) => r.client },
-  { key: "size", header: "Size", width: 160, numeric: true, sortable: true, accessor: (r) => r.size, format: (v) => formatNotional(v as number, { unit: "mm" }) },
-  { key: "px", header: "Price", width: 170, numeric: true, font: "mono", sortable: true, accessor: (r) => r.px, format: (v) => ust.price(v as number | null), parse: ust.parsePrice },
+interface Quote { px: number }
+const columns: ColumnDef<Quote>[] = [
+  { key: "px", header: "Price", width: 100, numeric: true, accessor: (row) => row.px },
 ]
 
-const rows: Rfq[] = [
-  { id: "Q-1", client: "ALPHA", size: 5_000_000, px: 99.5 },
-  { id: "Q-2", client: "BETA", size: 25_000_000, px: 100.015625 },
-  { id: "Q-3", client: "GAMMA", size: 10_000_000, px: null },
-]
-
-// The editor and the grid share one rules object and one column state. Edit a rule and the grid follows the keystroke.
 function QuoteRules() {
-  const [store] = useState(() => {
-    const s = createRowStore<Rfq>({ getRowId: (r) => r.id })
-    s.applyDeltas({ upsert: rows })
-    return s
-  })
   const [rules, setRules] = useState<GridRules>({
-    columns: [{ id: "threshold", column: "px", when: { op: "gte", value: "100-00" }, tone: "primary", label: "Price threshold" }],
-    filter: [],
-    sort: [],
+    columns: [{ id: "price", column: "px", when: { op: "gte", value: "100" }, tone: "up" }],
   })
-  const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: {}, hidden: [] })
   return (
-    <div className="w-lg max-w-full space-y-3">
-      <RulesEditor className="overflow-x-auto" columns={columns} rules={rules} onRulesChange={setRules} store={store} columnState={columnState} onColumnStateChange={setColumnState} />
-      <div className="h-48">
-        <DataGrid store={store} columns={columns} preset="watchlist" label="Quotes with rules" rules={rules} columnState={columnState} onColumnStateChange={setColumnState} />
-      </div>
-    </div>
+    <RulesEditor columns={columns} rules={rules} onRulesChange={setRules} className="w-lg max-w-full">
+      {rules.columns?.length ? (
+        <ul className="space-y-2">
+          {rules.columns?.map((rule, index) => (
+            <li key={rule.id}>
+              <RulesEditorItem kind="highlights" index={index}>
+                <RulesEditorColumn />
+                <RulesEditorOperator />
+                <RulesEditorValue />
+                <RulesEditorValue field="low" />
+                <RulesEditorValue field="high" />
+                <RulesEditorValue field="values" />
+                <RulesEditorTone />
+                <RulesEditorRemove>Remove</RulesEditorRemove>
+                <RulesEditorProblem />
+              </RulesEditorItem>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-muted-foreground">No highlights.</p>
+      )}
+      <RulesEditorAdd kind="highlights">Add highlight</RulesEditorAdd>
+    </RulesEditor>
   )
 }
 ```
 
-The editor and grid share one controlled rules object. Change the price threshold from `100-00` to `99-00`: the match count grows from one to two, and both price cells highlight. The blank price stays unmatched. Filters and Sort start empty; add rules in those tabs to narrow or reorder the same three rows.
-
 ## Composition
 
-The first three tabs edit [`GridRules`](grid-rules.md): Highlights edits `columns`, Filters edits `filter`, and Sort edits `sort`. Columns embeds [`ColumnChooserPanel`](column-chooser.md) when both `columnState` and `onColumnStateChange` are supplied. The example shares that state with the grid too; omit both props from the editor when you do not need the Columns tab. The RulesEditor installation includes the grid, chooser, formatter, and store used here.
+Use the following composition to build a `RulesEditor`:
 
-Left/Right wrap through tabs; Home/End select the first/last. `defaultTab` chooses the initial tab only. If Columns is selected but unavailable, Highlights is shown; Columns returns when both props return unless another tab was selected.
+```text
+RulesEditor
+└── Tabs (optional)
+    ├── TabsList (optional)
+    │   └── TabsTrigger
+    │       └── RulesEditorRuleCount (optional)
+    ├── TabsContent (optional)
+    │   ├── Your list and empty state
+    │   │   └── RulesEditorItem
+    │   │       ├── RulesEditorColumn
+    │   │       ├── RulesEditorOperator (highlights and filters)
+    │   │       ├── RulesEditorValue
+    │   │       ├── RulesEditorValue field="low"
+    │   │       ├── RulesEditorValue field="high"
+    │   │       ├── RulesEditorValue field="values"
+    │   │       ├── RulesEditorTone (highlights)
+    │   │       ├── RulesEditorToneSwatch (optional)
+    │   │       ├── RulesEditorTarget (highlights)
+    │   │       ├── RulesEditorLabel (highlights)
+    │   │       ├── RulesEditorDirection (sort)
+    │   │       ├── RulesEditorMatchCount (optional)
+    │   │       ├── RulesEditorProblem
+    │   │       ├── RulesEditorMove direction="up" (optional)
+    │   │       ├── RulesEditorMove direction="down" (optional)
+    │   │       └── RulesEditorRemove
+    │   ├── RulesEditorAdd
+    │   └── RulesEditorFilterCount (optional)
+    └── TabsContent value="columns" (optional)
+        └── ColumnChooserPanel
+```
 
-Each rule list has draggable rows, `Move up`, `Move down`, `Remove`, and an add button. Drag onto another row to take its place, or use Alt+Up/Down on a focused row. Move buttons are disabled at the ends.
+Place items directly inside your layout when you do not need tabs.
+
+## Tabs
+
+Compose installed [shadcn Tabs](https://ui.shadcn.com/docs/components/tabs) to group rules with a column chooser. Select each tab on focus so arrow keys switch panels on either base.
+
+Control `Tabs` with `value` and `onValueChange` to drive panels from your own controls.
+
+<!-- demo: rules-editor-tabs -->
+
+## Settings layout
+
+Move fields and actions into cards with your own headings and content.
+
+<!-- demo: rules-editor-layout -->
 
 ## API Reference
 
 ### Props
 
-`RulesEditorProps<T>` uses the grid's row type. `RulesEditorTab` is `"highlights" | "filters" | "sort" | "columns"`.
+`RulesEditorProps<T>` extends native `div` props and requires `children`.
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `columns` | `ColumnDef<T>[]` | Required | Column definitions shared with the grid. |
-| `rules` | `GridRules` | Required | Controlled rules; omitted lists appear empty. |
-| `onRulesChange` | `(rules: GridRules) => void` | Required | Receives each rule edit. |
-| `store` | `RowStore<T>` | Omitted | Rows for match counts. |
-| `columnState` | `ColumnState` | Omitted | Chooser state. |
-| `onColumnStateChange` | `(state: ColumnState) => void` | Omitted | Chooser changes; enables Columns with `columnState`. |
-| `defaultTab` | `RulesEditorTab` | `"highlights"` | Initial tab. |
-| `labels` | `Partial<RulesEditorLabels>` | `DEFAULT_RULES_EDITOR_LABELS` | Label overrides. |
-| `className` | `string` | Omitted | Outer region classes. |
+| `rules` | `GridRules` | Required | Controlled rules. Omitted lists are empty. |
+| `onRulesChange` | `(rules: GridRules) => void` | Required | Receives each edit. |
+| `children` | `ReactNode` | Required | Your sections, items, controls, and empty states. |
+| `store` | `RowStore<T>` | - | Rows for match counts. |
+| `labels` | `Partial<RulesEditorLabels>` | `DEFAULT_RULES_EDITOR_LABELS` | Field, action, count, and region labels. |
+| `className` | `string` | - | Additional classes on the root. |
+
+`RulesEditorKind` is `"highlights" | "filters" | "sort"`.
+
+Each item indexes its source list: `"highlights"` uses `rules.columns`, `"filters"` uses `rules.filter`, and `"sort"` uses `rules.sort`.
+
+### Parts
+
+Parts forward refs, classes, and native attributes to their element or the corresponding shadcn control.
+
+| Part | Element | Description |
+|---|---|---|
+| `RulesEditorItem` | `div` | Requires `kind`, source `index`, and `children`. Coordinates fields and reordering. |
+| `RulesEditorColumn` | `NativeSelect` | Column choices from the root. |
+| `RulesEditorOperator` | `NativeSelect` | Operators supported by the current column. |
+| `RulesEditorValue` | `Input` | Optional `field: "value" \| "low" \| "high" \| "values"`, default `"value"`. Renders only for its operator shape. |
+| `RulesEditorTone` | `NativeSelect` | Highlight tone. |
+| `RulesEditorToneSwatch` | `span` | Decorative tone name in its color. |
+| `RulesEditorTarget` | `NativeSelect` | Highlight target, `"cell"` or `"row"`. |
+| `RulesEditorLabel` | `Input` | Highlight description. |
+| `RulesEditorDirection` | `NativeSelect` | Sort direction, `"asc"` or `"desc"`. |
+| `RulesEditorProblem` | `p` | Validation message when the item has a problem. |
+| `RulesEditorMatchCount` | `span` | Independent highlight or filter matches. Requires `store`. |
+| `RulesEditorFilterCount` | `span` | Combined filter matches and total rows. Requires `store`. |
+| `RulesEditorRuleCount` | `span` | Requires `kind`. Hides zero counts. |
+| `RulesEditorAdd` | `Button` | Requires `kind` and `children`. Appends a rule with the helper defaults. |
+| `RulesEditorMove` | `Button` | Requires `direction: "up" \| "down"` and `children`. Disabled at the corresponding end. |
+| `RulesEditorRemove` | `Button` | Requires `children`. Removes the current item. |
+
+Field values and options belong to the editor. Use `useRulesEditorItem` to replace a control, or cancel its event with `preventDefault()`.
+
+Select classes apply to the shadcn wrapper. Input classes apply to the input.
+
+Item fields, move/remove actions, problems, and match counts require `RulesEditorItem`. Fields for another rule kind render nothing.
+
+### Keyboard and focus
+
+Drag an item onto another item of the same kind, or use Alt+Up/Down from the row or its fields. Reordering uses source indices, even when you render items in a different order.
+
+Accepted moves keep focus on the corresponding field when available. Removal focuses the adjacent item or its remove action, then `RulesEditorAdd` when the list is empty.
+
+### useRulesEditor
+
+Use `useRulesEditor()` inside the root for custom lists and controls.
+
+| Field | Type | Description |
+|---|---|---|
+| `rules` | `GridRules` | Current controlled rules. |
+| `labels` | `RulesEditorLabels` | Merged labels. |
+| `columns` | `{ key: string; name: string; ops: readonly RuleOp[] }[]` | Column choices and supported operators. |
+| `problem` | `(rule: ColumnRule \| FilterRule) => string \| null` | Validation for the current columns. |
+| `change` | `(next: Partial<GridRules>) => void` | Merges changed lists into the controlled rules. |
+| `add` | `(kind: RulesEditorKind) => void` | Appends the corresponding new rule. |
+| `move` | `(kind: RulesEditorKind, from: number, to: number) => void` | Moves a rule by source index. |
+| `remove` | `(kind: RulesEditorKind, index: number) => void` | Removes a rule by source index. |
+
+### useRulesEditorItem
+
+Use `useRulesEditorItem()` inside an item to build a custom field.
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | `RulesEditorKind` | Item kind. |
+| `index` | `number` | Index in the source list. |
+| `name` | `string` | Highlight label or kind name and position. |
+| `columnKey` | `string` | Selected column. |
+| `condition` | `RuleCondition \| null` | Highlight or filter condition. |
+| `highlight` | `ColumnRule \| null` | Current highlight, if applicable. |
+| `sort` | `SortRule \| null` | Current sort key, if applicable. |
+| `problem` | `string \| null` | Current validation message. |
+| `setColumn` | `(key: string) => void` | Changes the column and resets unsupported operators. |
+| `setCondition` | `(condition: RuleCondition) => void` | Changes a highlight or filter condition. |
+| `updateHighlight` | `(patch: Partial<ColumnRule>) => void` | Updates highlight properties. |
+| `setDirection` | `(direction: "asc" \| "desc") => void` | Changes sort direction. |
 
 ### It produces rules and keeps nothing
 
-Each edit emits a new `GridRules` and edited list; untouched lists and unchanged rules retain their references. Accept the result into `rules` and share it with the grid for immediate updates. For a save step, keep a draft separate from the applied rules. The JSON shape can live in a preferences envelope, file, or server.
+Accept each `onRulesChange` result into `rules` and share it with the grid. Keep a separate draft for a save step.
 
-Replace changed arrays and objects: the editor and grid memoize by reference. The editor retains transient tab, drag, and comma-field state, preserving unfinished text such as `ALPHA,` while emitting parsed values.
+Edits create a new object and edited list. Untouched lists and rules retain their references.
+
+Replace changed arrays and objects. The editor retains transient drag and comma-field state, including unfinished text such as `ALPHA,`.
 
 ### A rule as it is typed
 
-Each highlight or filter has column, operator, and value controls. `opsFor` offers comparisons/ranges for `column.numeric`, text matching otherwise, and equality, sets, and null checks for both.
+`RulesEditorOperator` offers comparisons and ranges for numeric columns, text matching otherwise, and equality, sets, and null checks for both.
 
-| Operators | Fields |
+| Operators | `RulesEditorValue` fields |
 |---|---|
-| `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `startsWith` | One `value` |
-| `between` | Two `values`: inclusive low/high |
-| `in` | Comma-separated `values` |
+| `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `startsWith` | `"value"` |
+| `between` | `"low"` and `"high"`, inclusive |
+| `in` | `"values"`, comma separated |
 | `isNull`, `notNull` | None |
 
-`withOp` preserves values for the same field shape (`gt` to `lt`) and clears them otherwise (`gt` to `between`). `withColumn` keeps the condition if the new column offers its operator; otherwise it selects the first operator and drops values, even if the shape is unchanged.
+Render all four value fields: `<RulesEditorValue />`, `<RulesEditorValue field="low" />`, `<RulesEditorValue field="high" />`, and `<RulesEditorValue field="values" />`. Each renders only when the operator needs it.
 
-Values stay as typed strings, read through the column's `parse` or numerically for numeric columns without a parser. A 32nds parser accepts `100-00`. The set field trims items and drops empties, with no quoting or escaping: enter `1000000`, not `1,000,000`, for one numeric member.
+`withOp` keeps values for the same shape and clears them otherwise. `withColumn` keeps supported conditions, or selects the first operator and drops values.
+
+Values stay as typed strings, read through the column's `parse` function or numerically for numeric columns. A 32nds parser accepts `100-00`.
+
+The set field trims members and drops empties, without quoting or escaping. Enter `1000000` for one numeric member.
 
 ### Errors
 
-`ruleProblem` reports missing columns/values and unreadable values below highlights and filters without blocking edits or evaluation. An unreadable single numeric value matches nothing; a mixed valid/invalid `in` set can match valid members. Empty text can match despite a missing-value message.
+`RulesEditorProblem` reports missing columns, missing values, and unreadable values without blocking edits or evaluation.
 
-A missing column gives an individual match count of zero, but combined filtering skips that rule. Sort rows also report missing columns, which the comparator skips.
+| Condition | Evaluation |
+|---|---|
+| Unreadable single numeric value | Matches nothing. |
+| Mixed valid/invalid `in` set | Valid members can match. |
+| Empty text | Can match despite a missing-value message. |
+| Missing column | Individual count is zero. Combined filtering and sorting skip it. |
 
 ### Highlights
 
-Highlights add a tone swatch, a target (`"cell"` by default or `"row"`), and a label for the grid's accessible description and chooser badge. Blank labels fall back to `describeRule`. Tones are `up`, `down`, `flat`, `stale`, `expiring`, `primary`, and `destructive`.
+Use `RulesEditorTone`, `RulesEditorTarget`, and `RulesEditorLabel` for highlight properties.
 
-`Add highlight` appends `newHighlight(columns)`. The grid evaluates cell and row rules separately: the first matching cell rule for a column wins for that cell; the first matching row rule wins for the row. Reorder to change precedence.
+| Property | Values or behavior |
+|---|---|
+| Tone | `up`, `down`, `flat`, `stale`, `expiring`, `primary`, `destructive`. |
+| Target | `"cell"` by default, or `"row"`. |
+| Label | Grid description and chooser badge. Blank labels use `describeRule`. |
+| Precedence | First matching cell rule per column, and first matching row rule. |
 
 ### Filters and the count
 
-`Add filter` appends `newFilter(columns)`. Every filter on a known column must match; filter order does not affect that requirement.
+Use `RulesEditorMatchCount` for individual matches and `RulesEditorFilterCount` for the combined total.
 
-With `store`, highlights and filters show independent match counts across all store rows, including hidden rows and highlights that lose precedence. The Filters total reports combined rule matches out of all store ids, excluding any separate grid filter or custom view.
+Every filter on a known column must match.
 
-Counts recompute on mount and changes to their rule lists, columns, or store. Store notifications schedule updates at most once per 250 ms; edits are not throttled. Without `store`, match counts and the total disappear. Tab badges still show nonzero rule counts or `columnState.hidden.length`.
+Counts read all store rows, including hidden rows and highlights that lose precedence. Separate grid filters and custom views do not affect them.
+
+Counts recompute on mount and changes to their rule lists, columns, or store. Store notifications update counts at most once per 250 ms, while edits update immediately.
+
+Repeated count parts share one subscription. Feed updates rerender readings without rerendering editable fields, and pending updates are cancelled on store replacement or unmount.
 
 ### Sort
 
-Each sort key has a column and direction. The first key distinguishing two rows decides their order; reorder to change precedence. `Add sort key` appends `newSort(columns, rules.sort)`. Duplicates are allowed.
+Use `RulesEditorDirection` to set each key's direction. The first key that distinguishes two rows decides their order.
 
-For the grid's own view, the rule stack breaks header-sort ties. A caller-supplied `view` owns filtering and sorting instead.
+Duplicate keys are allowed. Grid rules break header-sort ties, while a caller-supplied `view` owns filtering and sorting.
 
 ### Helpers
 
-Import these from `@/components/ui/rules-editor`. Rule types, `opsFor`, `ruleProblem`, and `describeRule` come from [`grid-rules`](grid-rules.md). Here `columns` means `readonly ColumnDef<T>[]`, `condition` means `RuleCondition`, and `op` means `RuleOp`.
+Import these helpers from `@/components/ui/rules-editor`. Rule types, `opsFor`, `ruleProblem`, and `describeRule` come from [`grid-rules`](grid-rules.md).
+
+Here `columns` is `readonly ColumnDef<T>[]`, `condition` is `RuleCondition`, and `op` is `RuleOp`.
 
 | Helper | Return type | Behavior |
 |---|---|---|
 | `valueShape(op)` | `"one" \| "two" \| "many" \| "none"` | Shape in the operator table. |
 | `parseValues(text: string)` | `RuleValue[]` | Comma-separated, trimmed, nonempty strings. |
-| `valuesText(values: readonly RuleValue[] \| undefined)` | `string` | Joins with `", "`; `null` becomes empty text, `undefined` gives `""`. |
-| `withOp(condition, op)` | `RuleCondition` | Copies for the same shape; otherwise returns `{ op }`. |
-| `withColumn(condition, column: ColumnDef<T> \| undefined)` | `RuleCondition` | Same condition if supported; otherwise only the first operator. |
-| `moveItem<X>(list: readonly X[], from: number, to: number)` | `X[]` | Moves by index; equal/out-of-bounds indices return an unchanged copy. |
+| `valuesText(values: readonly RuleValue[] \| undefined)` | `string` | Joins with `", "`. `null` becomes empty text, and `undefined` gives `""`. |
+| `withOp(condition, op)` | `RuleCondition` | Copies for the same shape. Otherwise returns `{ op }`. |
+| `withColumn(condition, column: ColumnDef<T> \| undefined)` | `RuleCondition` | Same condition if supported. Otherwise only the first operator. |
+| `moveItem<X>(list: readonly X[], from: number, to: number)` | `X[]` | Moves by index. Equal or out-of-bounds indices return an unchanged copy. |
 | `newRuleId()` | `string` | Timestamp plus module-local counter. |
 | `newHighlight(columns)` | `ColumnRule` | First column/operator, fresh id, tone `"up"`. |
 | `newFilter(columns)` | `FilterRule` | First column/operator. |
-| `newSort(columns, existing: readonly SortRule[] = [])` | `SortRule` | First unused column, or first column if exhausted; `dir: "asc"`. |
+| `newSort(columns, existing: readonly SortRule[] = [])` | `SortRule` | First unused column, or first column if exhausted. Uses `dir: "asc"`. |
 
-With no columns, add buttons remain enabled and helpers use an empty key; highlights/filters start with `eq`.
+With no columns, add buttons stay enabled. Helpers use an empty key, with `eq` for highlights and filters.
 
 ### Labels
 
-`labels` covers the title, tabs, add/move/remove buttons, fields, target/direction choices, empty messages, drag hint, and counts (`{n}` matches; `{m}` total ids). The title names the outer region and tablist.
+Use `labels` to override field names, action names, count templates, and the region title.
 
-Fields use `<field>: <rule>`, such as `Value: Rich to the market`. Highlights use their nonblank label or tab name and number; filters/sorts use tab name and number.
+Move and remove actions use `<label>: <rule>`. Match their visible text to `labels.moveUp`, `labels.moveDown`, and `labels.remove`.
 
-Operator words use `RULE_OP_LABELS`. Tone names, errors, and the embedded chooser's labels are not overridden by `labels`.
+Fields use `<field>: <rule>`, such as `Value: Rich to the market`. Highlights use their nonblank label, while unnamed items use kind and position.
+
+Use `useRulesEditor().labels` for your tab text, action children, empty states, and drag hint. Count templates accept `{n}` matches and `{m}` total rows.
+
+Operator words use `RULE_OP_LABELS`. Tone names, validation messages, and `ColumnChooserPanel` labels have separate owners.
 
 ### What it does not do
 
-The editor emits rules and evaluates counts; the grid applies the rules to its display. The caller supplies row values, accepts changes, and decides where to persist them.
+The editor emits rules and evaluates counts. The grid applies them, and the caller owns persistence, list markup, empty states, and surrounding content.
 
 ### Tokens
 
-The install adds the grid's `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants if missing. Tone swatches and chooser badges use them; `primary` and `destructive` use the host theme's tokens.
+Installation adds missing `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants. `primary` and `destructive` use the host theme.

@@ -183,3 +183,49 @@ Programmatic plot synchronization does not echo a callback.
 Plot recreation restores the selected bar until the next pointer movement. Cursor callbacks no longer repeat under StrictMode.
 
 The root creates no timers or live announcements.
+
+## RulesEditor
+
+`RulesEditor` now requires `children`. Compose the sections, fields, readings, and actions you need.
+
+You can start with the complete [Usage example](rules-editor.md#usage), or copy [Tabs](rules-editor.md#tabs) to retain the four-tab editor.
+
+| Previous interface | Replacement |
+|---|---|
+| Self-closing `RulesEditor` | Required `children` containing your composition. |
+| Automatic tabs and panels | Compose installed shadcn `Tabs`, `TabsList`, `TabsTrigger`, and `TabsContent`. |
+| `defaultTab`, `RulesEditorTab` type | Move initial selection to `defaultValue` on `Tabs` or your controlled tab state. The editor no longer owns a tab value or exports its type. |
+| `columnState`, `onColumnStateChange` | Pass these to your own `ColumnChooserPanel` inside a Columns panel. Share the state with the grid. |
+| Automatic rule rows | Map each source list into `RulesEditorItem` with `kind` and its source `index`. Keep highlight keys as `rule.id`. |
+| Automatic condition fields | `RulesEditorColumn`, `RulesEditorOperator`, and `RulesEditorValue` for each field shape. |
+| Automatic highlight properties | `RulesEditorTone`, `RulesEditorToneSwatch`, `RulesEditorTarget`, and `RulesEditorLabel`. |
+| Automatic sort direction | `RulesEditorDirection` inside each sort item. |
+| Automatic validation | Place `RulesEditorProblem` inside each item. |
+| Match counts and filter total | `RulesEditorMatchCount` inside items and `RulesEditorFilterCount` anywhere under the root. Keep passing `store`. |
+| Tab badges | `RulesEditorRuleCount` for rule lists. Render the hidden-column count from your column state. |
+| Add, move, and remove controls | `RulesEditorAdd`, `RulesEditorMove`, and `RulesEditorRemove` with your button content. |
+| Empty states and drag hint | Render your own content, or read the retained words from `useRulesEditor().labels`. |
+
+Include all value fields to support every operator shape:
+
+```tsx
+<RulesEditorOperator />
+<RulesEditorValue />
+<RulesEditorValue field="low" />
+<RulesEditorValue field="high" />
+<RulesEditorValue field="values" />
+```
+
+Each value field renders only when its operator needs it. The parts retain comma drafts, column parsing, validation, and controlled edits.
+
+`columns`, `rules`, `onRulesChange`, `store`, `labels`, and `className` remain root props.
+
+`RulesEditorProps`, `RulesEditorLabels`, `DEFAULT_RULES_EDITOR_LABELS`, and all pure helpers remain exported.
+
+`RulesEditorItem` is a focusable `div`. You can wrap it in `li` for a list, or place it directly in a card layout.
+
+Update selectors for the moved markers. `data-rule-row` and `data-dragging` moved from the `li` to `RulesEditorItem`. `data-rule-id`, `data-filter-index`, and `data-sort-index` moved from the inner field wrapper to that same item element.
+
+Moves use source indices and keep focus on the moved field when available. Drops are limited to the same rule kind in the same editor.
+
+Fixed `rules-tab-*` and `rules-panel-*` IDs and the root's `data-tab` marker are removed. Your installed `Tabs` owns tab IDs and state. You can use role/name locators or set explicit IDs on your Tabs parts.

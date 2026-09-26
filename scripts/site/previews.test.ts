@@ -109,6 +109,8 @@ describe("the demo source shown under Code", () => {
       "blotter-reports",
       "perf-monitor-load",
       "rules-editor",
+      "rules-editor-tabs",
+      "rules-editor-layout",
       "audit-trail",
     ])
     for (const name of alignable) {
@@ -215,6 +217,8 @@ describe("the demo source shown under Code", () => {
       "row-store-batching",
       "row-store-deltas",
       "row-store-views",
+      "rules-editor-layout",
+      "rules-editor-tabs",
       "session-calendar-exceptions",
       "session-guard-replies",
       "session-guard-status",
@@ -379,6 +383,8 @@ describe("a theme on the site", () => {
       "row-store-batching",
       "row-store-deltas",
       "row-store-views",
+      "rules-editor-layout",
+      "rules-editor-tabs",
       "session-calendar-exceptions",
       "session-guard-replies",
       "session-guard-status",
