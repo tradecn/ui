@@ -14,7 +14,7 @@ Add an item to your shadcn project, pinned to a release tag:
 <!-- x-release-please-start-version -->
 
 ```bash
-npx shadcn@latest add tradecn/ui/data-grid#v1.4.13
+npx shadcn@latest add tradecn/ui/data-grid#v2.0.0
 ```
 
 <!-- x-release-please-end -->
@@ -33,7 +33,7 @@ npx shadcn@latest add @tradecn/data-grid
 
 <!-- x-release-please-start-version -->
 
-The namespace URL serves the latest release. To pin it, use `https://tradecn.dev/r/v1.4.13/{name}.json`. Both install paths provide the same tradecn files at the same tag.
+The namespace URL serves the latest release. To pin it, use `https://tradecn.dev/r/v2.0.0/{name}.json`. Both install paths provide the same tradecn files at the same tag.
 
 <!-- x-release-please-end -->
 
@@ -84,7 +84,7 @@ Review tradecn and shadcn updates separately. Replace the tag with the release y
 <!-- x-release-please-start-version -->
 
 ```bash
-npx shadcn@latest add tradecn/ui/data-grid#v1.4.13 --diff   # a tradecn change
+npx shadcn@latest add tradecn/ui/data-grid#v2.0.0 --diff   # a tradecn change
 npx shadcn@latest add tooltip --diff                       # a shadcn change underneath
 ```
 
