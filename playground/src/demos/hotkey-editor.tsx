@@ -1,29 +1,53 @@
-import { useState } from "react"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
-import { type HotkeyBinding, type HotkeyOverrides } from "@/registry/tradecn/lib/hotkeys"
-import { HotkeyEditor } from "@/registry/tradecn/ui/hotkey-editor"
+import type { HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
+import {
+  HotkeyEditor,
+  HotkeyEditorItem,
+  HotkeyEditorKeys,
+  HotkeyEditorChange,
+  HotkeyEditorEdit,
+  HotkeyEditorReset,
+  HotkeyEditorCapture,
+  HotkeyEditorInput,
+  HotkeyEditorProblem,
+  HotkeyEditorConflicts,
+  useHotkeyEditorItem,
+} from "@/registry/tradecn/ui/hotkey-editor"
 
 const BINDINGS: HotkeyBinding[] = [
-  { id: "palette.open", keys: "mod+k", scope: "editing", description: "Open the command palette", group: "General" },
-  { id: "go.blotter", keys: "g b", scope: "global", description: "Go to the blotter", group: "Go" },
-  { id: "go.inquiries", keys: "g i", scope: "global", description: "Go to the inquiries", group: "Go" },
-  { id: "rfq.send", keys: "mod+enter", scope: "editing", description: "Send the quote", group: "Inquiry" },
-  { id: "book.cancel", keys: "x", scope: "panel:book", description: "Cancel the selected order" },
+  { id: "palette.open", keys: "mod+k", scope: "editing", description: "Open the command palette" },
 ]
 
+function Shortcut() {
+  const { entry } = useHotkeyEditorItem()
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="min-w-0 flex-1">{entry.description}</span>
+        {entry.remapped && <span className="text-muted-foreground">changed</span>}
+        <HotkeyEditorKeys />
+      </div>
+      <div className="flex flex-wrap gap-1">
+        <HotkeyEditorChange>Change</HotkeyEditorChange>
+        <HotkeyEditorEdit>Type it</HotkeyEditorEdit>
+        {entry.remapped && <HotkeyEditorReset>Reset</HotkeyEditorReset>}
+      </div>
+      <HotkeyEditorCapture />
+      <HotkeyEditorInput />
+      <HotkeyEditorProblem />
+      <HotkeyEditorConflicts />
+    </>
+  )
+}
+
 export default function HotkeyEditorDemo() {
-  const [exported, setExported] = useState<HotkeyOverrides | null>(null)
   return (
     <HotkeysProvider bindings={BINDINGS}>
-      <div className="w-xl max-w-full space-y-3 text-xs lining-nums tabular-nums">
-        <HotkeyEditor onExport={setExported} />
-        {exported !== null && (
-          <section aria-label="Exported overrides" className="space-y-1">
-            <p className="text-muted-foreground">Exported overrides</p>
-            <pre tabIndex={0} role="region" aria-label="Exported overrides JSON" className="max-h-36 overflow-auto rounded-md border border-border bg-card p-2 font-(family-name:--tradecn-font-mono) text-xs">{JSON.stringify(exported, null, 2)}</pre>
-          </section>
-        )}
-      </div>
+      <HotkeyEditor className="w-sm max-w-full">
+        <HotkeyEditorItem bindingId="palette.open">
+          <Shortcut />
+        </HotkeyEditorItem>
+      </HotkeyEditor>
     </HotkeysProvider>
   )
 }

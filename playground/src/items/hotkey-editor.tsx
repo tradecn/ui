@@ -1,8 +1,9 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { HotkeysProvider, useHotkey } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry, type HotkeyBinding, type HotkeyOverrides } from "@/registry/tradecn/lib/hotkeys"
 import { HotkeyEditor } from "@/registry/tradecn/ui/hotkey-editor"
+import { HotkeyEditorGroups } from "@/demos/hotkey-editor-groups"
 
 // A registry with the bindings an app might declare, an editor over it, and beside it what the app
 // would persist: the override map the registry hands to onChange. Press keys on the page to see the
@@ -41,14 +42,17 @@ export function HotkeyEditorScene() {
           Every binding the registry holds, grouped, with its keys in force. Change one by pressing the new shortcut, type a chord as text, or reset it. Conflicts are said under the rows they touch. What the app would save is on the right, straight from the registry's <code>onChange</code>. Press a shortcut anywhere on the page and it
           fires below.
         </p>
-        <div className="grid grid-cols-[1fr_16rem] gap-6">
-          <HotkeyEditor
-            onExport={(o) => setOverrides(o)}
-            onImport={() => {
-              registry.load({ "go.blotter": "g l", "book.cancel": "backspace" })
-              setImported((n) => n + 1)
-            }}
-          />
+        <div className="grid min-w-0 md:grid-cols-[minmax(0,1fr)_16rem] gap-6">
+          <HotkeyEditor>
+            <HotkeyEditorGroups>
+              <Button type="button" size="sm" variant="outline" onClick={() => setOverrides(registry.overrides())}>Export</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => {
+                registry.load({ "go.blotter": "g l", "book.cancel": "backspace" })
+                setOverrides(registry.overrides())
+                setImported((n) => n + 1)
+              }}>Import</Button>
+            </HotkeyEditorGroups>
+          </HotkeyEditor>
           <div className="space-y-2">
             <p className="text-muted-foreground">what the app persists</p>
             <pre className="rounded-md border border-border bg-card p-2 text-xs" data-hotkey-overrides>
@@ -73,6 +77,6 @@ export function HotkeyEditorScene() {
 
 // The registry tells the app after a remap or a reset; the app writes the map wherever it keeps settings.
 function Persist({ registry, onChange }: { registry: ReturnType<typeof createHotkeyRegistry>; onChange: (o: HotkeyOverrides) => void }) {
-  useState(() => registry.onChange(onChange))
+  useEffect(() => registry.onChange(onChange), [registry, onChange])
   return null
 }

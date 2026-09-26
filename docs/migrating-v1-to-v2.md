@@ -229,3 +229,32 @@ Update selectors for the moved markers. `data-rule-row` and `data-dragging` move
 Moves use source indices and keep focus on the moved field when available. Drops are limited to the same rule kind in the same editor.
 
 Fixed `rules-tab-*` and `rules-panel-*` IDs and the root's `data-tab` marker are removed. Your installed `Tabs` owns tab IDs and state. You can use role/name locators or set explicit IDs on your Tabs parts.
+
+## HotkeyEditor
+
+`HotkeyEditor` now requires `children`. Compose an item for one binding, or map `useHotkeyEditor().groups` into your own sections and items. The [Usage example](hotkey-editor.md#usage) shows one shortcut; [Groups](hotkey-editor.md#groups) retains the grouped settings screen and export snapshot.
+
+| Previous interface | Replacement |
+|---|---|
+| `<HotkeyEditor />` and self-closing configured calls | Required children containing your composition. The root still needs `HotkeysProvider`. |
+| Automatic toolbar, groups, rows and empty state | `HotkeyEditorSearch`, caller sections mapped from `groups`, `HotkeyEditorItem bindingId={entry.id}`, and caller empty text. |
+| Fixed descriptions, changed badges and control placement | Caller markup, `HotkeyEditorKeys`, `HotkeyEditorChange`, `HotkeyEditorEdit`, conditional `HotkeyEditorReset`, and `HotkeyEditorResetAll`. Actions require children. |
+| Private capture, text input, errors and conflicts | `HotkeyEditorCapture`, `HotkeyEditorInput`, `HotkeyEditorProblem`, and `HotkeyEditorConflicts` inside each item. Mount the editing fields for the triggers you expose. |
+| `onExport`, `onImport` | Caller controls using `useHotkeyEditor().registry.overrides()` and `registry.load(overrides)`. Import still does not notify `onChange`; persist it separately. |
+| `labels.export`, `labels.import`, `labels.resetAll`, `labels.remapped`, `labels.empty` | Removed. Supply caller text; previous defaults were `Export`, `Import`, `Reset all`, `changed`, and `No shortcut matches.`. |
+| Remaining labels, `hide`, `className` | Retained. `hide` filters the hook's groups; direct items and the hook's full entries remain available. Native div props and refs are now forwarded. |
+| Implicit ordering | Hook groups retain named groups first, then scope-derived groups, sorted by group and description. Use them in order to preserve the arrangement. |
+| Private `data-hotkey-group` sections | Caller-owned sections; the Groups recipe retains these markers. Root, row, keys, capture, problem, conflicts and remapped markers remain on their corresponding parts. |
+| Installed `badge` dependency | Removed. Render a styled span as in the examples, or install Badge separately. |
+
+The `HotkeyEditorLabels` type and `DEFAULT_HOTKEY_EDITOR_LABELS` remain with the reduced fields above. `scopeWord`, `groupOf`, and `matchesQuery` are unchanged. Keep descriptions, visible changed cues, conflict text, and meaningful accessible names in custom compositions.
+
+Keys remain visible while editing in the new recipes; v1 replaced them with the field. Reset is now a public button that stays rendered when disabled; render it only when `entry.remapped` to preserve v1 visibility. Reset all still disables when no registered entry is remapped and clears all overrides, including hidden and unknown ids.
+
+Editing is shared within each item. Key, declaration-field, or registry changes cancel an open draft; unrelated registry updates preserve it.
+
+Text editing now keeps application hotkeys from firing while typing. Commit and Escape restore focus to the initiating control, falling back to the item; blur preserves the chosen destination.
+
+Removing a focused item falls back to search or the root. Validation now has an alert role and a linked field description. These are deliberate keyboard and accessibility improvements over v1.
+
+Use the public capture and input parts with custom controls to retain their event handling; the hooks expose editing state and operations without duplicating registry subscriptions. The underlying registry and its documented plus-key limitation are unchanged.
