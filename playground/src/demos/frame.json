@@ -48,6 +48,8 @@
     "blotter-reports",
     "perf-monitor-load",
     "rules-editor",
+    "rules-editor-tabs",
+    "rules-editor-layout",
     "audit-trail"
   ]
 }

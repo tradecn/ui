@@ -1806,7 +1806,7 @@
       "name": "rules-editor",
       "type": "registry:ui",
       "title": "Rules Editor",
-      "description": "The editor over one grid's rules: highlights, filters, and the sort stack as lists to add to, edit, reorder, and remove, each rule built from a column picker, an op picker narrowed by the column's kind, a value typed in the column's own format, and for a highlight a tone shown in its token. A live count beside each rule says how many rows it matches right now. The column chooser sits in a fourth tab. It produces the rules objects and stores nothing.",
+      "description": "Compose an editor for grid highlights, filters, and sort order with public fields, actions, validation, and live match counts.",
       "categories": [
         "grid"
       ],
@@ -1862,7 +1862,91 @@
         "components": [
           {
             "title": "RulesEditor",
-            "description": "The four tabs: highlights, filters, sort, and the column chooser."
+            "description": "Controlled rule state with caller-owned sections and rows."
+          },
+          {
+            "title": "RulesEditorTabList",
+            "description": "Keyboard navigation for caller-owned tabs."
+          },
+          {
+            "title": "RulesEditorTab",
+            "description": "A named tab with caller-owned content."
+          },
+          {
+            "title": "RulesEditorPanel",
+            "description": "Content for the selected tab."
+          },
+          {
+            "title": "RulesEditorItem",
+            "description": "Editing, keyboard reordering, and drag behavior for one source rule."
+          },
+          {
+            "title": "RulesEditorColumn",
+            "description": "Column choices for the current item."
+          },
+          {
+            "title": "RulesEditorOperator",
+            "description": "Operators supported by the selected column."
+          },
+          {
+            "title": "RulesEditorValue",
+            "description": "A single, range, or comma-separated value field."
+          },
+          {
+            "title": "RulesEditorTone",
+            "description": "Highlight tone selection."
+          },
+          {
+            "title": "RulesEditorToneSwatch",
+            "description": "The highlight tone in words and color."
+          },
+          {
+            "title": "RulesEditorTarget",
+            "description": "Highlight cell or row target."
+          },
+          {
+            "title": "RulesEditorLabel",
+            "description": "The highlight description."
+          },
+          {
+            "title": "RulesEditorDirection",
+            "description": "Sort direction selection."
+          },
+          {
+            "title": "RulesEditorProblem",
+            "description": "The current validation message."
+          },
+          {
+            "title": "RulesEditorMatchCount",
+            "description": "Independent matches for the current highlight or filter."
+          },
+          {
+            "title": "RulesEditorFilterCount",
+            "description": "Combined filter matches and total rows."
+          },
+          {
+            "title": "RulesEditorRuleCount",
+            "description": "A nonzero rule-list count."
+          },
+          {
+            "title": "RulesEditorAdd",
+            "description": "Append a rule using the helper defaults."
+          },
+          {
+            "title": "RulesEditorMove",
+            "description": "Move the current rule up or down."
+          },
+          {
+            "title": "RulesEditorRemove",
+            "description": "Remove the current rule."
+          },
+          {
+            "title": "useRulesEditor",
+            "description": "Read controlled rules and shared edit operations."
+          },
+          {
+            "title": "useRulesEditorItem",
+            "description": "Read or replace the current item fields."
           },
           {
             "title": "DEFAULT_RULES_EDITOR_LABELS",

@@ -3,7 +3,7 @@ import { createInstrumentFormatter, formatNotional } from "@/registry/tradecn/li
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createFrameBatcher, createRowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/registry/tradecn/ui/data-grid"
-import { RulesEditor } from "@/registry/tradecn/ui/rules-editor"
+import { TabbedRulesEditor } from "@/demos/rules-editor-tabs"
 
 // The editor over a live grid: prices move, so the counts beside the rules move with them on their
 // throttled beat, and a rule typed here colors, hides, or orders rows the moment it reads.
@@ -93,7 +93,7 @@ export function RulesEditorScene() {
           <DataGrid store={store} columns={columns} preset="rfq" label="Open RFQs" rules={rules} columnState={columnState} onColumnStateChange={setColumnState} />
         </div>
         <aside className="flex min-h-0 flex-col gap-3">
-          <RulesEditor columns={columns} rules={rules} onRulesChange={setRules} store={store} columnState={columnState} onColumnStateChange={setColumnState} className="rounded-md border border-border p-2" />
+          <TabbedRulesEditor columns={columns} rules={rules} onRulesChange={setRules} store={store} columnState={columnState} onColumnStateChange={setColumnState} className="rounded-md border border-border p-2" />
           <pre className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-card p-2 text-xs" data-rules={JSON.stringify(rules)}>
             {JSON.stringify(rules, null, 2)}
           </pre>
