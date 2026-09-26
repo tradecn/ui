@@ -390,6 +390,10 @@ export function RulesEditor<T>({ columns, rules, onRulesChange, store, defaultTa
   )
 }
 
+function availableTabs(node: HTMLElement) {
+  return Array.from(node.querySelectorAll<HTMLButtonElement>('[data-rules-tab]:not(:disabled)')).filter((tab) => !tab.closest("[hidden]"))
+}
+
 export function RulesEditorTabList({ className, onKeyDown, onFocusCapture, ref, ...props }: ComponentProps<"div">) {
   const { labels } = useRulesEditor()
   const { register, select, tab } = useTabs()
@@ -399,20 +403,21 @@ export function RulesEditorTabList({ className, onKeyDown, onFocusCapture, ref, 
   useLayoutEffect(() => {
     const node = list.current
     if (!node) return
-    register(Array.from(node.querySelectorAll<HTMLElement>('[data-rules-tab]:not(:disabled)')).map((t) => t.dataset.rulesTab as RulesEditorTab))
+    const items = availableTabs(node)
+    register(items.map((t) => t.dataset.rulesTab as RulesEditorTab))
     const active = node.ownerDocument.activeElement
-    if (focused.current && (!node.contains(focused.current) || focused.current.matches(":disabled")) && (active === node.ownerDocument.body || active === focused.current)) {
-      const next = node.querySelector<HTMLElement>('[aria-selected="true"]:not(:disabled)') ?? node.querySelector<HTMLElement>('[data-rules-tab]:not(:disabled)')
+    if (focused.current && (!node.contains(focused.current) || focused.current.matches(":disabled") || focused.current.closest("[hidden]")) && (active === node.ownerDocument.body || active === focused.current)) {
+      const next = items.find((item) => item.getAttribute("aria-selected") === "true") ?? items[0]
       next?.focus()
     }
   })
   useLayoutEffect(() => {
     const node = list.current
     if (!node) return
-    const sync = () => register(Array.from(node.querySelectorAll<HTMLElement>('[data-rules-tab]:not(:disabled)')).map((t) => t.dataset.rulesTab as RulesEditorTab))
+    const sync = () => register(availableTabs(node).map((t) => t.dataset.rulesTab as RulesEditorTab))
     sync()
     const observer = new MutationObserver(sync)
-    observer.observe(node, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "data-rules-tab"] })
+    observer.observe(node, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "hidden", "data-rules-tab"] })
     return () => observer.disconnect()
   }, [register])
   return <div role="tablist" aria-label={props["aria-labelledby"] ? undefined : labels.title} className={cn("flex flex-wrap items-center gap-1", className)} {...props} ref={listRef} onFocusCapture={(event) => {
@@ -421,7 +426,7 @@ export function RulesEditorTabList({ className, onKeyDown, onFocusCapture, ref, 
   }} onKeyDown={(event) => {
     onKeyDown?.(event)
     if (event.defaultPrevented || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
-    const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[data-rules-tab]:not(:disabled)'))
+    const items = availableTabs(event.currentTarget)
     const current = items.findIndex((item) => item === event.target)
     if (current < 0 || !items.length) return
     event.preventDefault()

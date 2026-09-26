@@ -502,6 +502,52 @@ it("moves focus to an enabled tab when the focused tab becomes disabled", () => 
   expect(screen.getByRole("button", { name: "Outside" })).toHaveFocus()
 })
 
+it.each(["tab", "wrapper"])("skips tabs inside a hidden %s and recovers selection and focus", async (target) => {
+  const view = (hidden: boolean) => <ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}>
+    <RulesEditorTabList>
+      <RulesEditorTab value="highlights">Highlights</RulesEditorTab>
+      <span hidden={hidden && target === "wrapper"}><RulesEditorTab value="filters" hidden={hidden && target === "tab"}>Filters</RulesEditorTab></span>
+      <RulesEditorTab value="sort">Sort</RulesEditorTab>
+    </RulesEditorTabList>
+    <RulesEditorPanel value="highlights">Highlights panel</RulesEditorPanel>
+    <RulesEditorPanel value="filters">Filters panel</RulesEditorPanel>
+    <RulesEditorPanel value="sort">Sort panel</RulesEditorPanel>
+  </ComposableRulesEditor>
+  const { rerender } = render(view(true))
+  fireEvent.keyDown(tab("Highlights"), { key: "ArrowRight" })
+  expect(tab("Sort")).toHaveFocus()
+  fireEvent.keyDown(tab("Sort"), { key: "ArrowLeft" })
+  expect(tab("Highlights")).toHaveFocus()
+  rerender(view(false))
+  fireEvent.keyDown(tab("Highlights"), { key: "ArrowRight" })
+  expect(tab("Filters")).toHaveFocus()
+  rerender(view(true))
+  expect(tab("Highlights")).toHaveFocus()
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Highlights panel")
+  rerender(view(false))
+  fireEvent.keyDown(tab("Highlights"), { key: "ArrowRight" })
+  await act(async () => {
+    const filters = tab("Filters")
+    const node = target === "tab" ? filters : filters.parentElement!
+    node.hidden = true
+  })
+  expect(tab("Highlights")).toHaveFocus()
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Highlights panel")
+})
+
+it("preserves focus on caller controls inside the tab list during rerenders", () => {
+  const view = (rules: GridRules) => <ComposableRulesEditor columns={columns} rules={rules} onRulesChange={() => {}}>
+    <RulesEditorTabList>
+      <RulesEditorTab value="highlights">Highlights</RulesEditorTab>
+      <button>Help</button>
+    </RulesEditorTabList>
+  </ComposableRulesEditor>
+  const { rerender } = render(view(RULES))
+  screen.getByRole("button", { name: "Help" }).focus()
+  rerender(view({ ...RULES, filter: [] }))
+  expect(screen.getByRole("button", { name: "Help" })).toHaveFocus()
+})
+
 it("keeps moved field focus when the caller accepts copied rules with reordered properties", () => {
   function Controlled() {
     const [rules, setRules] = useState(RULES)
