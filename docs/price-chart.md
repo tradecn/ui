@@ -9,7 +9,15 @@ import { useState } from "react"
 import type { InstrumentConvention } from "@/lib/format"
 import { barId, type Bar } from "@/lib/price-series"
 import { createRowStore } from "@/lib/row-store"
-import { PriceChart, PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty } from "@/components/ui/price-chart"
+import {
+  PriceChart,
+  PriceChartHeader,
+  PriceChartLast,
+  PriceChartChange,
+  PriceChartReadout,
+  PriceChartPlot,
+  PriceChartEmpty,
+} from "@/components/ui/price-chart"
 
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const start = Date.parse("2026-09-22T14:00:00Z")
@@ -124,9 +132,9 @@ Parts accept the native props and ref of the element below. They preserve their 
 | `PriceChartHeader` | `div` | Your children in a wrapping row. No store or cursor subscription. |
 | `PriceChartLast` | `span` | Last close, or `labels.noData`; direction color and numeric font follow the convention. |
 | `PriceChartChange` | `span` | Signed price and percentage change. Renders nothing with no bars. |
-| `PriceChartReadout` | `span` | Selected bar's formatted time, prices and optional volume; blank with no selection. |
+| `PriceChartReadout` | `span` | Selected bar's formatted time, prices and optional volume; blank with no selection. Defaults to `ml-auto` for a header row; use `ml-0` in other layouts. |
 | `PriceChartPlot` | `div` | Canvas, resize/theme observers and keyboard crosshair. Accepts children for an empty state. |
-| `PriceChartEmpty` | `div` | `labels.noData`, shown only with no finite bars. Positioned over the plot by default. |
+| `PriceChartEmpty` | `div` | `labels.noData`, shown only with no finite bars and positioned over the plot. Custom children replace only the visible text; the plot's accessible name uses `labels.noData`. |
 | `PriceChartLegend` | `ul` | Requires caller-owned children, usually `li` rows. Defaults its accessible name to `labels.overlays`; no automatic rows or hiding. |
 | `PriceChartOverlaySwatch` | `span` | Requires `overlayId: string`. Decorative swatch resolved from the plot's overlay order and color; unknown ids render nothing. |
 
@@ -191,6 +199,8 @@ Keep `values` pure: it runs when the plot is created or recreated and when its d
 ### The readout
 
 `PriceChartLast` prints the last close in the direction's color, and `PriceChartChange` prints the change from the reference with its sign in the convention (`+0-02` for a fraction, `+1.25` for a decimal) and in percent. `PriceChartReadout` prints the selected bar: the time in the zone, the close for a line or all four prices for candles, and the volume when there is one.
+
+Last's color alone does not tell every reader the direction. Keep `PriceChartChange` or your own sign beside it.
 
 The direction is the last close against the reference: up, down, or flat when equal, never up. It is on the root as `data-direction`, and the plot's accessible name says it in a word with the last, the change, the range, and the count: `ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars`.
 

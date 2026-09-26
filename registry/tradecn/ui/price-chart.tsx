@@ -11,6 +11,9 @@ import type { RowStore } from "@/registry/tradecn/lib/row-store"
 // The root reads the store once per batch. Public readings share that snapshot; the plot owns its
 // canvas, observers and keyboard crosshair. Moving surrounding content never remakes the plot.
 // Canvas colors are read from the page tokens at mount and whenever the page theme changes.
+// Direction has channels beyond hue (contract rule 15): Last and Change carry data-direction,
+// Change prints a sign, and the plot's accessible name says the direction in a word. Compose
+// Change or your own sign beside Last so its visible direction does not depend on color.
 
 export type PriceChartKind = "line" | "candles"
 
@@ -372,7 +375,7 @@ interface ChartContext extends PriceChartState {
   zone: string | undefined
   crosshair: boolean
   lastLine: boolean
-  moveCursor: (index: number | null) => void
+  select: (index: number | null) => void
 }
 
 const PriceChartContext = createContext<ChartContext | null>(null)
@@ -392,8 +395,8 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const labels = { ...DEFAULT_PRICE_CHART_LABELS, ...labelsProp }
   const ref = typeof baseline === "number" && Number.isFinite(baseline) ? baseline : null
   const overlayList = useMemo(() => overlays ?? [], [overlays])
-  const [selection, setCursor] = useState<number | null>(null)
-  const cursorRef = useRef<number | null>(null)
+  const [selection, setSelection] = useState<number | null>(null)
+  const selectionRef = useRef<number | null>(null)
   // The store's columns, once per applied batch: the meta's version is the one dependency, so the memo reruns on
   // a batch and on nothing else, and a batch with no bar change gives the same columns back.
   const meta = useStoreMeta(store)
@@ -404,10 +407,10 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const summary = useMemo(() => summarize(columns, ref), [columns, ref])
 
   // Notify in the event, never inside a state updater (which StrictMode may run twice).
-  const moveCursor = useCallback((index: number | null) => {
-    if (cursorRef.current === index) return
-    cursorRef.current = index
-    setCursor(index)
+  const select = useCallback((index: number | null) => {
+    if (selectionRef.current === index) return
+    selectionRef.current = index
+    setSelection(index)
     onCursor?.(index === null ? null : (columns.bars[index] ?? null))
   }, [columns, onCursor])
 
@@ -422,7 +425,7 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const readout = at ? `${time(at.time)} ${kind === "candles" ? `${labels.open} ${formatPrice(at.open, price)} ${labels.high} ${formatPrice(at.high, price)} ${labels.low} ${formatPrice(at.low, price)} ${labels.close} ${formatPrice(at.close, price)}` : formatPrice(at.close, price)}${typeof at.volume === "number" ? ` ${labels.volume} ${formatQuantity(at.volume)}` : ""}` : ""
   const sentence = last ? `${label}: ${word}, last ${formatPrice(last.close, price)}, ${formatChange(summary.change, convention)} (${formatPercent(summary.changePct, { signed: true })}), low ${formatPrice(summary.low, price)}, high ${formatPrice(summary.high, price)}, ${count} ${labels.bars}` : `${label}: ${labels.noData}`
 
-  const context: ChartContext = { bars: columns.bars, columns, summary, cursor, bar: at, readout, overlays: overlayList, convention, labels, label, sentence, kind, baseline: ref, zone, crosshair, lastLine, moveCursor }
+  const context: ChartContext = { bars: columns.bars, columns, summary, cursor, bar: at, readout, overlays: overlayList, convention, labels, label, sentence, kind, baseline: ref, zone, crosshair, lastLine, select }
 
   return (
     <PriceChartContext.Provider value={context}>
@@ -492,7 +495,7 @@ export function PriceChartOverlaySwatch({ overlayId, className, ...props }: Pric
 }
 
 export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDown: onKeyDownProp, onFocus, onBlur, ...props }: ComponentProps<"div">) {
-  const { columns, summary, cursor, bar, convention, overlays: overlayList, sentence, readout, kind, baseline, zone, crosshair, lastLine, moveCursor: selectCursor } = useChartContext()
+  const { columns, summary, cursor, bar, convention, overlays: overlayList, sentence, readout, kind, baseline, zone, crosshair, lastLine, select } = useChartContext()
   const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [fontEpoch, setFontEpoch] = useState(0)
@@ -502,21 +505,21 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   const live = useRef<Live>({ palette: UNREAD_PALETTE, columns: EMPTY_COLUMNS, summary, baseline })
   const overlaysRef = useRef(overlayList)
   const conventionRef = useRef(convention)
-  const onCursorRef = useRef(selectCursor)
+  const selectRef = useRef(select)
   const pointerOwnsCursor = useRef(false)
   const lastCursorEvent = useRef<uPlot.Cursor["event"]>(undefined)
   const cursorBar = useRef(bar)
   const moveCursor = (index: number | null) => {
     pointerOwnsCursor.current = false
     lastCursorEvent.current = plot.current?.cursor.event
-    onCursorRef.current(index)
+    selectRef.current(index)
     if (index === cursor && plot.current) syncPlotCursor(plot.current, cursorBar.current)
   }
 
   useLayoutEffect(() => {
     overlaysRef.current = overlayList
     conventionRef.current = convention
-    onCursorRef.current = selectCursor
+    selectRef.current = select
     cursorBar.current = bar
   })
   useLayoutEffect(() => {
@@ -573,7 +576,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
             pointerOwnsCursor.current = true
             lastCursorEvent.current = u.cursor.event
           }
-          if (pointerOwnsCursor.current) onCursorRef.current(u.cursor.idx ?? null)
+          if (pointerOwnsCursor.current) selectRef.current(u.cursor.idx ?? null)
           else syncPlotCursor(u, cursorBar.current)
         },
       }),
@@ -628,7 +631,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     onKeyDownProp?.(event)
     if (event.defaultPrevented || !interactive || event.metaKey || event.ctrlKey || event.altKey) return
-    const from = cursor === null ? count - 1 : clamp(cursor, count - 1)
+    const from = cursor ?? count - 1
     // The slider pattern's two pairs: Right and Up go forward a bar, Left and Down back one.
     const to = { ArrowLeft: from - 1, ArrowDown: from - 1, ArrowRight: from + 1, ArrowUp: from + 1, PageDown: from - 10, PageUp: from + 10, Home: 0, End: count - 1 }[event.key]
     if (to === undefined && event.key !== "Escape") return
@@ -647,7 +650,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       aria-orientation={interactive ? "horizontal" : undefined}
       aria-valuemin={interactive ? 0 : undefined}
       aria-valuemax={interactive ? count - 1 : undefined}
-      aria-valuenow={interactive ? cursor === null ? count - 1 : clamp(cursor, count - 1) : undefined}
+      aria-valuenow={interactive ? cursor ?? count - 1 : undefined}
       aria-valuetext={interactive ? readout || sentence : undefined}
       onKeyDown={onKeyDown}
       onFocus={(event) => {

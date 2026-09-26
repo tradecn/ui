@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { barId, type Bar } from "@/registry/tradecn/lib/price-series"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { PriceChart, usePriceChart, PriceChartLegend, PriceChartOverlaySwatch, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty, type PriceChartOverlay } from "@/registry/tradecn/ui/price-chart"
@@ -35,8 +35,8 @@ const overlays: PriceChartOverlay[] = [
 function CursorDetails() {
   const { bar, bars, readout } = usePriceChart()
   return (
-    <footer className="space-y-1 border-t pt-2 text-xs lining-nums tabular-nums sm:col-span-2">
-      <p className="text-muted-foreground">{bars.length} one-minute bars · Chicago time</p>
+    <footer className="space-y-1 border-t pt-2 text-xs sm:col-span-2">
+      <p className={`${NUMERIC_CLASS} text-muted-foreground`}>{bars.length} one-minute bars · Chicago time</p>
       <PriceChartReadout className="ml-0 block">{bar ? readout : "Focus the plot or point at a bar to inspect it."}</PriceChartReadout>
     </footer>
   )
@@ -50,9 +50,9 @@ export default function PriceChartLayoutDemo() {
   })
   return (
     <div className="w-2xl max-w-full">
-      <PriceChart store={store} convention={ZN} label="ZN sample, research layout" zone="America/Chicago" baseline={110.5} overlays={overlays} className="grid h-auto grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
+      <PriceChart store={store} convention={ZN} label="ZN · Session research" zone="America/Chicago" baseline={110.5} overlays={overlays} labels={{ noData: "Waiting for sample bars." }} className="grid h-auto grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
         <h3 className="text-sm font-semibold sm:col-span-2">ZN · Session research</h3>
-        <PriceChartPlot className="h-56"><PriceChartEmpty>Waiting for sample bars.</PriceChartEmpty></PriceChartPlot>
+        <PriceChartPlot className="h-56"><PriceChartEmpty /></PriceChartPlot>
         <aside className="space-y-3">
           <div className="flex flex-wrap items-baseline gap-2 sm:flex-col">
             <span className="text-muted-foreground">Last / change</span>

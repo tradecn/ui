@@ -120,7 +120,17 @@ Keep meaningful row text, shortcut hints, focusable application controls and sta
 `PriceChart` now requires caller-owned children. All v1 root options, labels and plotting defaults remain available, but the header, plot, readout, empty state and legend must be composed explicitly. Replace self-closing calls even when they pass only `store`, `convention` and `label`.
 
 ```tsx
-import { PriceChart, PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty, PriceChartLegend, PriceChartOverlaySwatch } from "@/components/ui/price-chart"
+import {
+  PriceChart,
+  PriceChartHeader,
+  PriceChartLast,
+  PriceChartChange,
+  PriceChartReadout,
+  PriceChartPlot,
+  PriceChartEmpty,
+  PriceChartLegend,
+  PriceChartOverlaySwatch,
+} from "@/components/ui/price-chart"
 
 <PriceChart store={store} convention={convention} label="ZN, today" overlays={overlays}>
   <PriceChartHeader>
