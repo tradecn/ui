@@ -8,7 +8,17 @@ Edit one grid's highlights, filters, and sort order, with live match counts and 
 import { useState } from "react"
 import type { GridRules } from "@/lib/grid-rules"
 import type { ColumnDef } from "@/components/ui/data-grid"
-import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorItem, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorTone, RulesEditorValue } from "@/components/ui/rules-editor"
+import {
+  RulesEditor,
+  RulesEditorAdd,
+  RulesEditorColumn,
+  RulesEditorItem,
+  RulesEditorOperator,
+  RulesEditorProblem,
+  RulesEditorRemove,
+  RulesEditorTone,
+  RulesEditorValue,
+} from "@/components/ui/rules-editor"
 
 interface Quote { px: number }
 const columns: ColumnDef<Quote>[] = [
@@ -21,24 +31,27 @@ function QuoteRules() {
   })
   return (
     <RulesEditor columns={columns} rules={rules} onRulesChange={setRules} className="w-lg max-w-full">
-      <ul className="space-y-2">
-        {rules.columns?.map((rule, index) => (
-          <li key={rule.id}>
-            <RulesEditorItem kind="highlights" index={index}>
-              <RulesEditorColumn />
-              <RulesEditorOperator />
-              <RulesEditorValue />
-              <RulesEditorValue field="low" />
-              <RulesEditorValue field="high" />
-              <RulesEditorValue field="values" />
-              <RulesEditorTone />
-              <RulesEditorRemove>Remove</RulesEditorRemove>
-              <RulesEditorProblem />
-            </RulesEditorItem>
-          </li>
-        ))}
-      </ul>
-      {!rules.columns?.length && <p className="text-muted-foreground">No highlights.</p>}
+      {rules.columns?.length ? (
+        <ul className="space-y-2">
+          {rules.columns?.map((rule, index) => (
+            <li key={rule.id}>
+              <RulesEditorItem kind="highlights" index={index}>
+                <RulesEditorColumn />
+                <RulesEditorOperator />
+                <RulesEditorValue />
+                <RulesEditorValue field="low" />
+                <RulesEditorValue field="high" />
+                <RulesEditorValue field="values" />
+                <RulesEditorTone />
+                <RulesEditorRemove>Remove</RulesEditorRemove>
+                <RulesEditorProblem />
+              </RulesEditorItem>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-muted-foreground">No highlights.</p>
+      )}
       <RulesEditorAdd kind="highlights">Add highlight</RulesEditorAdd>
     </RulesEditor>
   )
@@ -51,43 +64,44 @@ Use the following composition to build a `RulesEditor`:
 
 ```text
 RulesEditor
-├── RulesEditorTabList (optional)
-│   └── RulesEditorTab
-│       └── RulesEditorRuleCount (optional)
-├── RulesEditorPanel (optional)
-│   ├── Your list and empty state
-│   │   └── RulesEditorItem
-│   │       ├── RulesEditorColumn
-│   │       ├── RulesEditorOperator (highlights and filters)
-│   │       ├── RulesEditorValue
-│   │       ├── RulesEditorValue field="low"
-│   │       ├── RulesEditorValue field="high"
-│   │       ├── RulesEditorValue field="values"
-│   │       ├── RulesEditorTone (highlights)
-│   │       ├── RulesEditorToneSwatch (optional)
-│   │       ├── RulesEditorTarget (highlights)
-│   │       ├── RulesEditorLabel (highlights)
-│   │       ├── RulesEditorDirection (sort)
-│   │       ├── RulesEditorMatchCount (optional)
-│   │       ├── RulesEditorProblem
-│   │       ├── RulesEditorMove direction="up" (optional)
-│   │       ├── RulesEditorMove direction="down" (optional)
-│   │       └── RulesEditorRemove
-│   ├── RulesEditorAdd
-│   └── RulesEditorFilterCount (optional)
-└── RulesEditorPanel value="columns" (optional)
-    └── ColumnChooserPanel
+└── Tabs (optional)
+    ├── TabsList (optional)
+    │   └── TabsTrigger
+    │       └── RulesEditorRuleCount (optional)
+    ├── TabsContent (optional)
+    │   ├── Your list and empty state
+    │   │   └── RulesEditorItem
+    │   │       ├── RulesEditorColumn
+    │   │       ├── RulesEditorOperator (highlights and filters)
+    │   │       ├── RulesEditorValue
+    │   │       ├── RulesEditorValue field="low"
+    │   │       ├── RulesEditorValue field="high"
+    │   │       ├── RulesEditorValue field="values"
+    │   │       ├── RulesEditorTone (highlights)
+    │   │       ├── RulesEditorToneSwatch (optional)
+    │   │       ├── RulesEditorTarget (highlights)
+    │   │       ├── RulesEditorLabel (highlights)
+    │   │       ├── RulesEditorDirection (sort)
+    │   │       ├── RulesEditorMatchCount (optional)
+    │   │       ├── RulesEditorProblem
+    │   │       ├── RulesEditorMove direction="up" (optional)
+    │   │       ├── RulesEditorMove direction="down" (optional)
+    │   │       └── RulesEditorRemove
+    │   ├── RulesEditorAdd
+    │   └── RulesEditorFilterCount (optional)
+    └── TabsContent value="columns" (optional)
+        └── ColumnChooserPanel
 ```
 
 Place items directly inside your layout when you do not need tabs.
 
 ## Tabs
 
-Use `RulesEditorTabList`, `RulesEditorTab`, and `RulesEditorPanel` to group rules with a column chooser.
+Compose installed [shadcn Tabs](https://ui.shadcn.com/docs/components/tabs) to group rules with a column chooser. Tab state belongs to your composition.
 
 <!-- demo: rules-editor-tabs -->
 
-## Settings Layout
+## Settings layout
 
 Move fields and actions into cards with your own headings and content.
 
@@ -99,20 +113,19 @@ Move fields and actions into cards with your own headings and content.
 
 `RulesEditorProps<T>` extends native `div` props and requires `children`.
 
-| Prop | Type | Default | Description |
+| Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `columns` | `ColumnDef<T>[]` | Required | Column definitions shared with the grid. |
 | `rules` | `GridRules` | Required | Controlled rules. Omitted lists are empty. |
 | `onRulesChange` | `(rules: GridRules) => void` | Required | Receives each edit. |
 | `children` | `ReactNode` | Required | Your sections, items, controls, and empty states. |
 | `store` | `RowStore<T>` | - | Rows for match counts. |
-| `defaultTab` | `RulesEditorTab` | `"highlights"` | Initial selection when using tabs. |
 | `labels` | `Partial<RulesEditorLabels>` | `DEFAULT_RULES_EDITOR_LABELS` | Field, action, count, and region labels. |
 | `className` | `string` | - | Additional classes on the root. |
 
-`RulesEditorTab` is `"highlights" | "filters" | "sort" | "columns"`.
-
 `RulesEditorKind` is `"highlights" | "filters" | "sort"`.
+
+Each item indexes its source list: `"highlights"` uses `rules.columns`, `"filters"` uses `rules.filter`, and `"sort"` uses `rules.sort`.
 
 ### Parts
 
@@ -120,9 +133,6 @@ Parts forward refs, classes, and native attributes to their element or the corre
 
 | Part | Element | Description |
 |---|---|---|
-| `RulesEditorTabList` | `div` | Tab keyboard navigation in rendered order. Mount one per root. |
-| `RulesEditorTab` | `Button` | Requires `value: RulesEditorTab` and `children`. |
-| `RulesEditorPanel` | `div` | Requires `value: RulesEditorTab`. Mounts children only while selected. |
 | `RulesEditorItem` | `div` | Requires `kind`, source `index`, and `children`. Coordinates fields and reordering. |
 | `RulesEditorColumn` | `NativeSelect` | Column choices from the root. |
 | `RulesEditorOperator` | `NativeSelect` | Operators supported by the current column. |
@@ -148,9 +158,9 @@ Item fields, move/remove actions, problems, and match counts require `RulesEdito
 
 ### Keyboard and focus
 
-Tabs support Left/Right wrapping and Home/End. If the selected tab disappears, the first available tab is shown. No panel is mounted while all tabs are hidden or disabled.
+The Tabs recipe uses shadcn Tabs for focus and keyboard navigation. It selects a tab when its trigger receives focus, preserving arrow-key selection across supported bases.
 
-The previous selection returns if that tab returns before another selection is made.
+Control `Tabs` with `value` and `onValueChange` to drive panels from your own controls. `RulesEditor` owns no tab state.
 
 Drag an item onto another item of the same kind, or use Alt+Up/Down from the row or its fields. Reordering uses source indices, even when you render items in a different order.
 
@@ -196,7 +206,7 @@ Accept each `onRulesChange` result into `rules` and share it with the grid. Keep
 
 Edits create a new object and edited list. Untouched lists and rules retain their references.
 
-Replace changed arrays and objects. The editor retains transient tab, drag, and comma-field state, including unfinished text such as `ALPHA,`.
+Replace changed arrays and objects. The editor retains transient drag and comma-field state, including unfinished text such as `ALPHA,`.
 
 ### A rule as it is typed
 
@@ -208,6 +218,8 @@ Replace changed arrays and objects. The editor retains transient tab, drag, and 
 | `between` | `"low"` and `"high"`, inclusive |
 | `in` | `"values"`, comma separated |
 | `isNull`, `notNull` | None |
+
+Render all four value fields: `<RulesEditorValue />`, `<RulesEditorValue field="low" />`, `<RulesEditorValue field="high" />`, and `<RulesEditorValue field="values" />`. Each renders only when the operator needs it.
 
 `withOp` keeps values for the same shape and clears them otherwise. `withColumn` keeps supported conditions, or selects the first operator and drops values.
 
@@ -265,20 +277,22 @@ Here `columns` is `readonly ColumnDef<T>[]`, `condition` is `RuleCondition`, and
 |---|---|---|
 | `valueShape(op)` | `"one" \| "two" \| "many" \| "none"` | Shape in the operator table. |
 | `parseValues(text: string)` | `RuleValue[]` | Comma-separated, trimmed, nonempty strings. |
-| `valuesText(values: readonly RuleValue[] \| undefined)` | `string` | Joins with `", "`; `null` becomes empty text, `undefined` gives `""`. |
-| `withOp(condition, op)` | `RuleCondition` | Copies for the same shape; otherwise returns `{ op }`. |
-| `withColumn(condition, column: ColumnDef<T> \| undefined)` | `RuleCondition` | Same condition if supported; otherwise only the first operator. |
-| `moveItem<X>(list: readonly X[], from: number, to: number)` | `X[]` | Moves by index; equal/out-of-bounds indices return an unchanged copy. |
+| `valuesText(values: readonly RuleValue[] \| undefined)` | `string` | Joins with `", "`. `null` becomes empty text, and `undefined` gives `""`. |
+| `withOp(condition, op)` | `RuleCondition` | Copies for the same shape. Otherwise returns `{ op }`. |
+| `withColumn(condition, column: ColumnDef<T> \| undefined)` | `RuleCondition` | Same condition if supported. Otherwise only the first operator. |
+| `moveItem<X>(list: readonly X[], from: number, to: number)` | `X[]` | Moves by index. Equal or out-of-bounds indices return an unchanged copy. |
 | `newRuleId()` | `string` | Timestamp plus module-local counter. |
 | `newHighlight(columns)` | `ColumnRule` | First column/operator, fresh id, tone `"up"`. |
 | `newFilter(columns)` | `FilterRule` | First column/operator. |
-| `newSort(columns, existing: readonly SortRule[] = [])` | `SortRule` | First unused column, or first column if exhausted; `dir: "asc"`. |
+| `newSort(columns, existing: readonly SortRule[] = [])` | `SortRule` | First unused column, or first column if exhausted. Uses `dir: "asc"`. |
 
 With no columns, add buttons stay enabled. Helpers use an empty key, with `eq` for highlights and filters.
 
 ### Labels
 
 Use `labels` to override field names, action names, count templates, and the region title.
+
+Move and remove actions use `<label>: <rule>`. Match their visible text to `labels.moveUp`, `labels.moveDown`, and `labels.remove`.
 
 Fields use `<field>: <rule>`, such as `Value: Rich to the market`. Highlights use their nonblank label, while unnamed items use kind and position.
 

@@ -1,12 +1,15 @@
 import { StrictMode, createRef, useState } from "react"
-import { TabbedRulesEditor as RulesEditor } from "@/demos/rules-editor-tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TabbedRulesEditor } from "@/demos/rules-editor-tabs"
+import RulesEditorDemo from "@/demos/rules-editor"
+import RulesEditorLayoutDemo from "@/demos/rules-editor-layout"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { parsePrice } from "@/registry/tradecn/lib/format"
-import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
+import type { FilterRule, GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 import type { ColumnDef, ColumnState } from "@/registry/tradecn/ui/data-grid"
-import { RulesEditor as ComposableRulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorFilterCount, RulesEditorItem, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorPanel, RulesEditorProblem, RulesEditorRemove, RulesEditorTab, RulesEditorTabList, RulesEditorValue, useRulesEditor, useRulesEditorItem, DEFAULT_RULES_EDITOR_LABELS, moveItem, newFilter, newHighlight, newSort, parseValues, valueShape, valuesText, withColumn, withOp } from "@/registry/tradecn/ui/rules-editor"
+import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorFilterCount, RulesEditorItem, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorValue, useRulesEditor, useRulesEditorItem, DEFAULT_RULES_EDITOR_LABELS, moveItem, newFilter, newHighlight, newSort, parseValues, valueShape, valuesText, withColumn, withOp } from "@/registry/tradecn/ui/rules-editor"
 
 interface Rfq {
   id: string
@@ -91,12 +94,12 @@ describe("the helpers", () => {
   })
 })
 
-describe("RulesEditor", () => {
+describe("TabbedRulesEditor", () => {
   it("lists the highlights with their column, op, value, tone, target, and label, says a rule's problem, and counts the rows each matches", () => {
-    render(<RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={seeded()} />)
+    render(<TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={seeded()} />)
     const editor = screen.getByRole("region", { name: "Rules" })
     expect(editor.dataset.slot).toBe("tradecn-rules-editor")
-    expect(editor.dataset.tab).toBe("highlights")
+    expect(tab("Highlights")).toHaveAttribute("aria-selected", "true")
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Highlights2", "Filters1", "Sort2"])
     const rich = document.querySelector<HTMLElement>('[data-rule-id="rich"]')!
     expect(within(rich).getByLabelText("Column: Rich to the market")).toHaveValue("px")
@@ -118,7 +121,7 @@ describe("RulesEditor", () => {
 
   it("writes every edit through onRulesChange and keeps nothing: value, op, column, tone, target, label, add, move, remove", () => {
     const onChange = vi.fn()
-    render(<RulesEditor columns={columns} rules={RULES} onRulesChange={onChange} />)
+    render(<TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={onChange} />)
     const last = () => onChange.mock.lastCall?.[0] as GridRules
     fireEvent.change(screen.getByLabelText("Value: Rich to the market"), { target: { value: "101-00" } })
     expect(last().columns?.[0]?.when).toEqual({ op: "gte", value: "101-00" })
@@ -153,7 +156,7 @@ describe("RulesEditor", () => {
       ],
     }
     const onChange = vi.fn()
-    render(<RulesEditor columns={columns} rules={rules} onRulesChange={onChange} />)
+    render(<TabbedRulesEditor columns={columns} rules={rules} onRulesChange={onChange} />)
     expect(screen.getByLabelText("Low: Highlights 1")).toHaveValue("99-16")
     expect(screen.getByLabelText("High: Highlights 1")).toHaveValue("100-00")
     fireEvent.change(screen.getByLabelText("High: Highlights 1"), { target: { value: "100-16" } })
@@ -168,8 +171,8 @@ describe("RulesEditor", () => {
 
   it("has a filters tab with the same fields, a count per rule, and how many rows show under them all", () => {
     const onChange = vi.fn()
-    render(<RulesEditor columns={columns} rules={RULES} onRulesChange={onChange} store={seeded()} defaultTab="filters" />)
-    expect(screen.getByRole("region", { name: "Rules" }).dataset.tab).toBe("filters")
+    render(<TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={onChange} store={seeded()} defaultTab="filters" />)
+    expect(tab("Filters")).toHaveAttribute("aria-selected", "true")
     expect(screen.getByLabelText("Column: Filters 1")).toHaveValue("status")
     expect(screen.getByLabelText("Condition: Filters 1")).toHaveValue("ne")
     expect(screen.getByLabelText("Value: Filters 1")).toHaveValue("Done away")
@@ -185,7 +188,7 @@ describe("RulesEditor", () => {
 
   it("has a sort tab of keys with a direction each, in a drag-ordered stack", () => {
     const onChange = vi.fn()
-    render(<RulesEditor columns={columns} rules={RULES} onRulesChange={onChange} defaultTab="sort" />)
+    render(<TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={onChange} defaultTab="sort" />)
     const last = () => onChange.mock.lastCall?.[0] as GridRules
     expect(screen.getByLabelText("Column: Sort 1")).toHaveValue("size")
     expect(screen.getByLabelText("Direction: Sort 1")).toHaveValue("desc")
@@ -198,7 +201,7 @@ describe("RulesEditor", () => {
     const second = document.querySelector<HTMLElement>("[data-rule-row='1']")!
     fireEvent.keyDown(first, { key: "ArrowDown", altKey: true })
     expect(last().sort?.map((s) => s.key)).toEqual(["px", "size"])
-    const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => "1"), effectAllowed: "", dropEffect: "" }
+    const dataTransfer = new DataTransfer()
     fireEvent.dragStart(second, { dataTransfer })
     expect(second.dataset.dragging).toBe("true")
     fireEvent.dragOver(first, { dataTransfer })
@@ -207,34 +210,34 @@ describe("RulesEditor", () => {
     expect(second.dataset.dragging).toBeUndefined()
   })
 
-  it("switches tabs by click and by arrow keys, and shows the Columns tab with the chooser only when the grid's column state is given", () => {
+  it("switches tabs by click and by arrow keys, and shows the Columns tab with the chooser only when the grid's column state is given", async () => {
     const onColumnStateChange = vi.fn()
     const columnState: ColumnState = { order: [], widths: {}, hidden: ["status"] }
-    const { rerender } = render(<RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} />)
+    const { rerender } = render(<TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} />)
     expect(screen.queryByRole("tab", { name: /^Columns/ })).toBeNull()
-    rerender(<RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} columnState={columnState} onColumnStateChange={onColumnStateChange} />)
+    rerender(<TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} columnState={columnState} onColumnStateChange={onColumnStateChange} />)
     expect(screen.getAllByRole("tab")).toHaveLength(4)
     fireEvent.click(tab("Columns"))
-    expect(screen.getByRole("region", { name: "Rules" }).dataset.tab).toBe("columns")
+    expect(tab("Columns")).toHaveAttribute("aria-selected", "true")
     const chooser = screen.getByRole("group", { name: "Columns" })
     expect(chooser.dataset.slot).toBe("tradecn-column-chooser")
     // The chooser says the highlights beside their columns.
     expect(chooser.querySelector('[data-column-rule="rich"]')).toHaveTextContent("Rich to the market")
     fireEvent.click(within(chooser).getByRole("checkbox", { name: "Show Status" }))
     expect(onColumnStateChange).toHaveBeenCalledWith({ ...columnState, hidden: [] })
-    fireEvent.keyDown(tab("Columns"), { key: "ArrowRight" })
-    expect(screen.getByRole("region", { name: "Rules" }).dataset.tab).toBe("highlights")
-    fireEvent.keyDown(tab("Highlights"), { key: "End" })
-    expect(screen.getByRole("region", { name: "Rules" }).dataset.tab).toBe("columns")
-    fireEvent.keyDown(tab("Columns"), { key: "Home" })
-    expect(screen.getByRole("region", { name: "Rules" }).dataset.tab).toBe("highlights")
+    act(() => tab("Columns").focus())
+    await act(async () => { fireEvent.keyDown(tab("Columns"), { key: "ArrowRight" }) })
+    expect(tab("Highlights")).toHaveAttribute("aria-selected", "true")
+    await act(async () => { fireEvent.keyDown(tab("Highlights"), { key: "End" }) })
+    expect(tab("Columns")).toHaveAttribute("aria-selected", "true")
+    await act(async () => { fireEvent.keyDown(tab("Columns"), { key: "Home" }) })
     expect(tab("Highlights")).toHaveAttribute("aria-selected", "true")
     expect(tab("Filters")).toHaveAttribute("tabindex", "-1")
   })
 
   it("recounts on the store's beat, at most every 250 ms, and not on every batch", () => {
     const store = seeded()
-    render(<RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={store} />)
+    render(<TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={store} />)
     const count = () => document.querySelector('[data-rule-id="rich"] [data-rule-count]')!.getAttribute("data-rule-count")
     expect(count()).toBe("2")
     act(() => store.applyDeltas({ patch: [{ id: "a", fields: { px: 100.75 } }] }))
@@ -249,26 +252,92 @@ describe("RulesEditor", () => {
   })
 
   it("takes its words from labels and says when a list is empty", () => {
-    render(<RulesEditor columns={columns} rules={{}} onRulesChange={() => {}} labels={{ title: "Regeln", highlights: "Farben", noHighlights: "Keine." }} />)
+    render(<TabbedRulesEditor columns={columns} rules={{}} onRulesChange={() => {}} labels={{ title: "Regeln", highlights: "Farben", noHighlights: "Keine." }} />)
     expect(screen.getByRole("region", { name: "Regeln" })).toBeInTheDocument()
     expect(screen.getByRole("tab", { name: "Farben" })).toBeInTheDocument()
     expect(screen.getByText("Keine.")).toBeInTheDocument()
+    expect(screen.queryByRole("list")).toBeNull()
     fireEvent.click(tab("Filters"))
     expect(screen.getByText(DEFAULT_RULES_EDITOR_LABELS.noFilters)).toBeInTheDocument()
+    expect(screen.queryByRole("list")).toBeNull()
+    fireEvent.click(tab("Sort"))
+    expect(screen.getByText(DEFAULT_RULES_EDITOR_LABELS.noSort)).toBeInTheDocument()
+    expect(screen.queryByRole("list")).toBeNull()
   })
 })
 
+describe("RulesEditor examples", () => {
+  it("replaces the basic list with its empty state after removal", () => {
+    render(<RulesEditorDemo />)
+    fireEvent.click(screen.getByRole("button", { name: "Remove: Highlights 1" }))
+    expect(screen.getByText("No highlights.")).toBeVisible()
+    expect(screen.queryByRole("list")).toBeNull()
+  })
 
-describe("RulesEditor composition", () => {
+  it("names the settings regions and actions with their visible text", () => {
+    render(<RulesEditorLayoutDemo />)
+    expect(screen.getByRole("region", { name: "Order priority" })).toBeVisible()
+    expect(screen.getByRole("region", { name: "Include orders" })).toBeVisible()
+    expect(screen.getByRole("region", { name: "Priority" })).toBeVisible()
+    for (const word of ["Earlier", "Later"]) {
+      const actions = screen.getAllByRole("button", { name: new RegExp(`^${word}:`) })
+      expect(actions).toHaveLength(3)
+      for (const action of actions) expect(action).toHaveTextContent(word)
+    }
+  })
+})
+
+describe("RulesEditor", () => {
+  it("lets caller controls drive shadcn tabs around the editing parts", async () => {
+    function Controlled() {
+      const [selected, setSelected] = useState("filters")
+      return <>
+        <button onClick={() => setSelected("sort")}>Set priorities</button>
+        <RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}>
+          <Tabs value={selected} onValueChange={(value) => setSelected(String(value))}>
+            <TabsList><TabsTrigger value="filters">Filters</TabsTrigger><TabsTrigger value="sort">Sort</TabsTrigger></TabsList>
+            <TabsContent value="filters"><RulesEditorItem kind="filters" index={0}><RulesEditorValue /></RulesEditorItem></TabsContent>
+            <TabsContent value="sort"><RulesEditorItem kind="sort" index={0}><RulesEditorColumn /></RulesEditorItem></TabsContent>
+          </Tabs>
+        </RulesEditor>
+      </>
+    }
+    render(<Controlled />)
+    const filterField = screen.getByLabelText("Value: Filters 1")
+    expect(filterField).toBeVisible()
+    fireEvent.click(screen.getByRole("button", { name: "Set priorities" }))
+    await act(async () => { vi.runAllTimers() })
+    expect(screen.getByLabelText("Column: Sort 1")).toBeVisible()
+    expect(filterField).not.toBeVisible()
+    expect(tab("Sort")).toHaveAttribute("aria-selected", "true")
+  })
+
+  it.each<{ rule: FilterRule; field: string; text: string; expected: FilterRule }>([
+    { rule: { column: "client", op: "eq", value: "A" }, field: "Value", text: "B", expected: { column: "client", op: "eq", value: "B" } },
+    { rule: { column: "size", op: "between", values: ["1", "4"] }, field: "Low", text: "2", expected: { column: "size", op: "between", values: ["2", "4"] } },
+    { rule: { column: "client", op: "in", values: ["A"] }, field: "Values, comma separated", text: "A, B", expected: { column: "client", op: "in", values: ["A", "B"] } },
+  ])("preserves emitted filter keys when editing $rule.op", ({ rule, field, text, expected }) => {
+    const change = vi.fn()
+    render(<RulesEditor columns={columns} rules={{ filter: [rule] }} onRulesChange={change}>
+      <RulesEditorItem kind="filters" index={0}>
+        <RulesEditorValue /><RulesEditorValue field="low" /><RulesEditorValue field="high" /><RulesEditorValue field="values" />
+      </RulesEditorItem>
+    </RulesEditor>)
+    fireEvent.change(screen.getByLabelText(`${field}: Filters 1`), { target: { value: text } })
+    expect(change.mock.lastCall?.[0].filter[0]).toStrictEqual(expected)
+  })
+
   it("requires composition for all released call shapes", () => {
     // @ts-expect-error The minimal v1 call must migrate to explicit children.
-    const minimal = <ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} />
+    const minimal = <RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} />
     // @ts-expect-error Retained options do not supply a composition.
-    const configured = <ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={seeded()} defaultTab="sort" labels={{ title: "Desk" }} className="border" />
-    // @ts-expect-error Column chooser state now belongs to caller-owned ColumnChooserPanel.
-    const chooser = <ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} columnState={{ order: [], widths: {}, hidden: [] }} onColumnStateChange={() => {}}>{null}</ComposableRulesEditor>
-    const supported = [null, false, undefined, RULES.columns && <p key="empty">No rules</p>].map((children, index) => <ComposableRulesEditor key={index} columns={columns} rules={RULES} onRulesChange={() => {}}>{children}</ComposableRulesEditor>)
-    expect([minimal, configured, chooser, ...supported]).toHaveLength(7)
+    const configured = <RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={seeded()} labels={{ title: "Desk" }} className="border" />
+    // @ts-expect-error Tab state belongs to the caller
+    const tabbed = <RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} defaultTab="sort">{null}</RulesEditor>
+    // @ts-expect-error Column chooser state belongs to the caller
+    const chooser = <RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} columnState={{ order: [], widths: {}, hidden: [] }} onColumnStateChange={() => {}}>{null}</RulesEditor>
+    const supported = [null, false, undefined, RULES.columns && <p key="empty">No rules</p>].map((children, index) => <RulesEditor key={index} columns={columns} rules={RULES} onRulesChange={() => {}}>{children}</RulesEditor>)
+    expect([minimal, configured, tabbed, chooser, ...supported]).toHaveLength(8)
   })
 
   it("supports caller order, custom controls and application content without tabs", () => {
@@ -278,12 +347,12 @@ describe("RulesEditor composition", () => {
       return <button onClick={() => setCondition({ ...condition!, value: "101-00" })}>{name}: {rules.columns?.length}</button>
     }
     const change = vi.fn()
-    render(<ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={change}>
+    render(<RulesEditor columns={columns} rules={RULES} onRulesChange={change}>
       <h2>Desk limits</h2>
       <RulesEditorItem kind="highlights" index={1}><RulesEditorProblem /><RulesEditorColumn /></RulesEditorItem>
       <RulesEditorItem kind="highlights" index={0}><Custom /><RulesEditorValue /><RulesEditorRemove>Delete limit</RulesEditorRemove></RulesEditorItem>
       <RulesEditorAdd kind="filters">Include another account</RulesEditorAdd>
-    </ComposableRulesEditor>)
+    </RulesEditor>)
     expect(screen.queryByRole("tablist")).toBeNull()
     expect(screen.getAllByRole("group").map((item) => item.getAttribute("data-rule-row"))).toEqual(["1", "0"])
     fireEvent.click(screen.getByRole("button", { name: "Rich to the market: 2" }))
@@ -300,13 +369,13 @@ describe("RulesEditor composition", () => {
     const button = createRef<HTMLButtonElement>()
     const change = vi.fn()
     const click = vi.fn((event) => event.preventDefault())
-    render(<ComposableRulesEditor ref={root} title="Limits" aria-label="Desk" columns={columns} rules={RULES} onRulesChange={change}>
+    render(<RulesEditor ref={root} title="Limits" aria-label="Desk" columns={columns} rules={RULES} onRulesChange={change}>
       <RulesEditorItem kind="highlights" index={0} ref={item} className="custom-row">
         <RulesEditorColumn ref={select} aria-label="Instrument field" onChange={(event) => event.preventDefault()} />
         <RulesEditorValue ref={input} className="custom-field" onChange={(event) => event.preventDefault()} />
         <RulesEditorRemove ref={button} onClick={click}>Delete</RulesEditorRemove>
       </RulesEditorItem>
-    </ComposableRulesEditor>)
+    </RulesEditor>)
     expect(root.current).toBe(screen.getByRole("region", { name: "Desk" }))
     expect(item.current).toHaveClass("custom-row")
     expect(input.current).toHaveClass("custom-field")
@@ -321,7 +390,7 @@ describe("RulesEditor composition", () => {
   it("retains field focus through edits and moves, then finds a useful target after removal", () => {
     function Controlled() {
       const [rules, setRules] = useState(RULES)
-      return <RulesEditor columns={columns} rules={rules} onRulesChange={setRules} />
+      return <TabbedRulesEditor columns={columns} rules={rules} onRulesChange={setRules} />
     }
     render(<Controlled />)
     const value = screen.getByLabelText("Value: Rich to the market")
@@ -341,7 +410,7 @@ describe("RulesEditor composition", () => {
 
   it("retains controlled comma drafts, replaces external values, and clears drafts when shape changes", () => {
     const initial: GridRules = { filter: [{ column: "client", op: "in", values: ["ALPHA"] }] }
-    const view = (rules: GridRules) => <RulesEditor columns={columns} rules={rules} onRulesChange={() => {}} defaultTab="filters" />
+    const view = (rules: GridRules) => <TabbedRulesEditor columns={columns} rules={rules} onRulesChange={() => {}} defaultTab="filters" />
     const { rerender } = render(view(initial))
     const field = screen.getByLabelText("Values, comma separated: Filters 1")
     fireEvent.change(field, { target: { value: "ALPHA, " } })
@@ -355,37 +424,15 @@ describe("RulesEditor composition", () => {
     expect(screen.getByLabelText("Values, comma separated: Filters 1")).toHaveValue("ALPHA")
   })
 
-  it("keeps tabs in caller order with unique ids and falls back when a selected tab disappears", () => {
-    const view = (showColumns: boolean) => <>
-      <ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}>
-        <RulesEditorTabList><RulesEditorTab value="sort">Priority</RulesEditorTab><RulesEditorTab value="highlights">Paint</RulesEditorTab>{showColumns && <RulesEditorTab value="columns">Columns</RulesEditorTab>}</RulesEditorTabList>
-        <RulesEditorPanel value="sort">Sort panel</RulesEditorPanel><RulesEditorPanel value="highlights">Paint panel</RulesEditorPanel>{showColumns && <RulesEditorPanel value="columns">Column panel</RulesEditorPanel>}
-      </ComposableRulesEditor>
-      <RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} />
-    </>
-    const { rerender } = render(view(true))
-    const tabs = screen.getAllByRole("tab")
-    expect(new Set(tabs.map((tab) => tab.id)).size).toBe(tabs.length)
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Paint" }), { key: "Home" })
-    expect(screen.getByRole("tab", { name: "Priority" })).toHaveFocus()
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Priority" }), { key: "ArrowLeft" })
-    expect(screen.getByRole("tab", { name: "Columns" })).toHaveFocus()
-    rerender(view(false))
-    expect(screen.getByRole("tab", { name: "Priority" })).toHaveAttribute("aria-selected", "true")
-    expect(screen.getByRole("tab", { name: "Priority" })).toHaveFocus()
-    rerender(view(true))
-    expect(screen.getByRole("tab", { name: "Columns" })).toHaveAttribute("aria-selected", "true")
-  })
-
   it("recounts only readings on a feed beat and shares one subscription across repeated counts", () => {
     const store = seeded()
     const subscribe = vi.spyOn(store, "subscribeMeta")
     const fields = vi.fn()
     function Fields() { fields(); return <RulesEditorColumn /> }
-    render(<ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={store}>
+    render(<RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={store}>
       <RulesEditorItem kind="highlights" index={0}><Fields /><RulesEditorMatchCount /><RulesEditorMatchCount /></RulesEditorItem>
       <RulesEditorFilterCount />
-    </ComposableRulesEditor>)
+    </RulesEditor>)
     expect(fields).toHaveBeenCalledOnce()
     expect(subscribe).toHaveBeenCalledOnce()
     act(() => { store.applyDeltas({ patch: [{ id: "a", fields: { px: 101 } }] }); vi.advanceTimersByTime(250) })
@@ -400,7 +447,9 @@ describe("RulesEditor composition", () => {
     const stop = vi.fn()
     const subscribe = first.subscribeMeta
     vi.spyOn(first, "subscribeMeta").mockImplementation((callback) => { const unsubscribe = subscribe(callback); return () => { stop(); unsubscribe() } })
-    const view = (store?: RowStore<Rfq>) => <RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={store} />
+    const view = (store?: RowStore<Rfq>) => <RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={store}>
+      <RulesEditorItem kind="highlights" index={0}><RulesEditorMatchCount /></RulesEditorItem>
+    </RulesEditor>
     const { rerender, unmount } = render(view(first))
     act(() => first.applyDeltas({ patch: [{ id: "a", fields: { px: 101 } }] }))
     expect(vi.getTimerCount()).toBe(1)
@@ -416,9 +465,9 @@ describe("RulesEditor composition", () => {
 
   it("recounts edits immediately and follows store updates under StrictMode", () => {
     const store = seeded()
-    const { rerender } = render(<StrictMode><RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={store} /></StrictMode>)
+    const { rerender } = render(<StrictMode><TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={store} /></StrictMode>)
     const edited = { ...RULES, columns: [{ ...RULES.columns![0]!, when: { op: "gte" as const, value: "99-00" } }] }
-    rerender(<StrictMode><RulesEditor columns={columns} rules={edited} onRulesChange={() => {}} store={store} /></StrictMode>)
+    rerender(<StrictMode><TabbedRulesEditor columns={columns} rules={edited} onRulesChange={() => {}} store={store} /></StrictMode>)
     expect(document.querySelector("[data-rule-count]")).toHaveAttribute("data-rule-count", "3")
     act(() => { store.applyDeltas({ patch: [{ id: "c", fields: { px: 101 } }] }); vi.advanceTimersByTime(250) })
     expect(document.querySelector("[data-rule-count]")).toHaveAttribute("data-rule-count", "4")
@@ -426,7 +475,7 @@ describe("RulesEditor composition", () => {
 
   it("keeps validation editable and reports missing columns with zero individual matches", () => {
     const rules: GridRules = { filter: [{ column: "gone", op: "eq", value: "a" }] }
-    render(<RulesEditor columns={columns} rules={rules} onRulesChange={() => {}} store={seeded()} defaultTab="filters" />)
+    render(<TabbedRulesEditor columns={columns} rules={rules} onRulesChange={() => {}} store={seeded()} defaultTab="filters" />)
     expect(screen.getByLabelText("Column: Filters 1")).toHaveValue("gone")
     expect(document.querySelector("[data-rule-problem]")).toHaveTextContent('No column is named "gone".')
     expect(document.querySelector("[data-rule-count]")).toHaveAttribute("data-rule-count", "0")
@@ -436,13 +485,13 @@ describe("RulesEditor composition", () => {
 
   it("ignores cross-kind and external drops and honors cancelled keyboard moves", () => {
     const change = vi.fn()
-    render(<ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={change}>
+    render(<RulesEditor columns={columns} rules={RULES} onRulesChange={change}>
       <RulesEditorItem kind="highlights" index={0} onKeyDown={(event) => event.preventDefault()}><RulesEditorOperator /><RulesEditorMove direction="up">Earlier</RulesEditorMove></RulesEditorItem>
       <RulesEditorItem kind="filters" index={0}><RulesEditorValue /></RulesEditorItem>
       <RulesEditorItem kind="highlights" index={1}><RulesEditorRemove>Delete</RulesEditorRemove></RulesEditorItem>
-    </ComposableRulesEditor>)
+    </RulesEditor>)
     const groups = screen.getAllByRole("group")
-    const dataTransfer = { setData: vi.fn(), getData: () => "0", effectAllowed: "", dropEffect: "" }
+    const dataTransfer = new DataTransfer()
     fireEvent.drop(groups[2]!, { dataTransfer })
     fireEvent.dragStart(groups[0]!, { dataTransfer })
     fireEvent.drop(groups[1]!, { dataTransfer })
@@ -455,172 +504,82 @@ describe("RulesEditor composition", () => {
   it("reports misplaced behavior parts", () => {
     vi.spyOn(console, "error").mockImplementation(() => {})
     expect(() => render(<RulesEditorColumn />)).toThrow("inside RulesEditor")
-    expect(() => render(<ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}><RulesEditorValue /></ComposableRulesEditor>)).toThrow("inside RulesEditorItem")
+    expect(() => render(<RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}><RulesEditorValue /></RulesEditor>)).toThrow("inside RulesEditorItem")
   })
-})
 
-
-it("keeps root and tab-list callback refs attached across edits and respects cleanup", () => {
-  const rootCleanup = vi.fn()
-  const listCleanup = vi.fn()
-  const rootRef = vi.fn(() => rootCleanup)
-  const listRef = vi.fn(() => listCleanup)
-  const view = (rules: GridRules) => <ComposableRulesEditor ref={rootRef} columns={columns} rules={rules} onRulesChange={() => {}}>
-    <RulesEditorTabList ref={listRef}><RulesEditorTab value="highlights">Highlights</RulesEditorTab><RulesEditorTab value="filters">Filters</RulesEditorTab></RulesEditorTabList>
-    <RulesEditorPanel value="highlights"><RulesEditorItem kind="highlights" index={0}><RulesEditorValue /></RulesEditorItem></RulesEditorPanel>
-  </ComposableRulesEditor>
-  const { rerender, unmount } = render(view(RULES))
-  rerender(view({ ...RULES, sort: [] }))
-  fireEvent.click(screen.getByRole("tab", { name: "Filters" }))
-  expect(rootRef).toHaveBeenCalledOnce()
-  expect(listRef).toHaveBeenCalledOnce()
-  expect(rootCleanup).not.toHaveBeenCalled()
-  expect(listCleanup).not.toHaveBeenCalled()
-  unmount()
-  expect(rootCleanup).toHaveBeenCalledOnce()
-  expect(listCleanup).toHaveBeenCalledOnce()
-})
-
-
-it("moves focus to an enabled tab when the focused tab becomes disabled", () => {
-  const view = (disabled: boolean) => <>
-    <button>Outside</button>
-    <ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}>
-      <RulesEditorTabList><RulesEditorTab value="highlights">Highlights</RulesEditorTab><RulesEditorTab value="filters" disabled={disabled}>Filters</RulesEditorTab></RulesEditorTabList>
-      <RulesEditorPanel value="highlights">Highlights panel</RulesEditorPanel><RulesEditorPanel value="filters">Filters panel</RulesEditorPanel>
-    </ComposableRulesEditor>
-  </>
-  const { rerender } = render(view(false))
-  screen.getByRole("tab", { name: "Filters" }).focus()
-  fireEvent.click(screen.getByRole("tab", { name: "Filters" }))
-  rerender(view(true))
-  expect(screen.getByRole("tab", { name: "Highlights" })).toHaveFocus()
-  expect(screen.getByRole("tab", { name: "Highlights" })).toHaveAttribute("aria-selected", "true")
-  rerender(view(false))
-  screen.getByRole("button", { name: "Outside" }).focus()
-  rerender(view(true))
-  expect(screen.getByRole("button", { name: "Outside" })).toHaveFocus()
-})
-
-it.each(["tab", "wrapper"])("skips tabs inside a hidden %s and recovers selection and focus", async (target) => {
-  const view = (hidden: boolean) => <ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}>
-    <RulesEditorTabList>
-      <RulesEditorTab value="highlights">Highlights</RulesEditorTab>
-      <span hidden={hidden && target === "wrapper"}><RulesEditorTab value="filters" hidden={hidden && target === "tab"}>Filters</RulesEditorTab></span>
-      <RulesEditorTab value="sort">Sort</RulesEditorTab>
-    </RulesEditorTabList>
-    <RulesEditorPanel value="highlights">Highlights panel</RulesEditorPanel>
-    <RulesEditorPanel value="filters">Filters panel</RulesEditorPanel>
-    <RulesEditorPanel value="sort">Sort panel</RulesEditorPanel>
-  </ComposableRulesEditor>
-  const { rerender } = render(view(true))
-  fireEvent.keyDown(tab("Highlights"), { key: "ArrowRight" })
-  expect(tab("Sort")).toHaveFocus()
-  fireEvent.keyDown(tab("Sort"), { key: "ArrowLeft" })
-  expect(tab("Highlights")).toHaveFocus()
-  rerender(view(false))
-  fireEvent.keyDown(tab("Highlights"), { key: "ArrowRight" })
-  expect(tab("Filters")).toHaveFocus()
-  rerender(view(true))
-  expect(tab("Highlights")).toHaveFocus()
-  expect(screen.getByRole("tabpanel")).toHaveTextContent("Highlights panel")
-  rerender(view(false))
-  fireEvent.keyDown(tab("Highlights"), { key: "ArrowRight" })
-  await act(async () => {
-    const filters = tab("Filters")
-    const node = target === "tab" ? filters : filters.parentElement!
-    node.hidden = true
+  it("rejects an external or stale drop after the dragged item unmounts", () => {
+    const change = vi.fn()
+    const view = (rules: GridRules) => <RulesEditor columns={columns} rules={rules} onRulesChange={change}>
+      {rules.columns?.map((rule, index) => <RulesEditorItem key={rule.id} kind="highlights" index={index}><RulesEditorColumn /></RulesEditorItem>)}
+    </RulesEditor>
+    const { rerender } = render(view(RULES))
+    const original = new DataTransfer()
+    fireEvent.dragStart(screen.getAllByRole("group")[1]!, { dataTransfer: original })
+    rerender(view({ ...RULES, columns: RULES.columns?.slice(0, 1) }))
+    const external = new DataTransfer()
+    external.setData("text/plain", "1")
+    const target = screen.getByRole("group")
+    expect(fireEvent.dragOver(target, { dataTransfer: external })).toBe(true)
+    fireEvent.drop(target, { dataTransfer: external })
+    fireEvent.drop(target, { dataTransfer: original })
+    expect(change).not.toHaveBeenCalled()
   })
-  expect(tab("Highlights")).toHaveFocus()
-  expect(screen.getByRole("tabpanel")).toHaveTextContent("Highlights panel")
-})
 
-it("preserves focus on caller controls inside the tab list during rerenders", () => {
-  const view = (rules: GridRules) => <ComposableRulesEditor columns={columns} rules={rules} onRulesChange={() => {}}>
-    <RulesEditorTabList>
-      <RulesEditorTab value="highlights">Highlights</RulesEditorTab>
-      <button>Help</button>
-    </RulesEditorTabList>
-  </ComposableRulesEditor>
-  const { rerender } = render(view(RULES))
-  screen.getByRole("button", { name: "Help" }).focus()
-  rerender(view({ ...RULES, filter: [] }))
-  expect(screen.getByRole("button", { name: "Help" })).toHaveFocus()
-})
+  it("keeps the root callback ref attached across edits and respects cleanup", () => {
+    const cleanup = vi.fn()
+    const ref = vi.fn(() => cleanup)
+    const view = (rules: GridRules) => <RulesEditor ref={ref} columns={columns} rules={rules} onRulesChange={() => {}}>
+      <RulesEditorItem kind="highlights" index={0}><RulesEditorValue /></RulesEditorItem>
+    </RulesEditor>
+    const { rerender, unmount } = render(view(RULES))
+    rerender(view({ ...RULES, sort: [] }))
+    expect(ref).toHaveBeenCalledOnce()
+    expect(cleanup).not.toHaveBeenCalled()
+    unmount()
+    expect(cleanup).toHaveBeenCalledOnce()
+  })
 
-it.each(["hidden", "disabled"])("unmounts panels while the only tab is %s and restores it when available", (attribute) => {
-  const view = (unavailable: boolean) => <ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} defaultTab="filters">
-    <RulesEditorTabList><RulesEditorTab value="filters" hidden={attribute === "hidden" && unavailable} disabled={attribute === "disabled" && unavailable}>Filters</RulesEditorTab></RulesEditorTabList>
-    <RulesEditorPanel value="filters">Filters panel</RulesEditorPanel>
-  </ComposableRulesEditor>
-  const { rerender } = render(view(true))
-  expect(screen.queryByRole("tabpanel")).toBeNull()
-  expect(screen.getByRole("region", { name: "Rules" })).not.toHaveAttribute("data-tab")
-  expect(screen.getByText("Filters")).toHaveAttribute("aria-selected", "false")
-  rerender(view(false))
-  expect(screen.getByRole("tabpanel")).toHaveTextContent("Filters panel")
-  expect(tab("Filters")).toHaveAttribute("aria-selected", "true")
-  rerender(view(true))
-  expect(screen.queryByRole("tabpanel")).toBeNull()
-  expect(screen.getByRole("region", { name: "Rules" })).not.toHaveAttribute("data-tab")
-  rerender(view(false))
-  expect(screen.getByRole("tabpanel")).toHaveTextContent("Filters panel")
-})
+  it("keeps moved field focus when the caller accepts copied rules with reordered properties", () => {
+    function Controlled() {
+      const [rules, setRules] = useState(RULES)
+      return <TabbedRulesEditor columns={columns} rules={rules} defaultTab="sort" onRulesChange={(next) => setRules({ ...structuredClone(next), sort: next.sort?.map(({ key, dir }) => ({ dir, key })) })} />
+    }
+    render(<Controlled />)
+    screen.getByLabelText("Column: Sort 1").focus()
+    fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
+    expect(screen.getByLabelText("Column: Sort 2")).toHaveValue("size")
+    expect(screen.getByLabelText("Column: Sort 2")).toHaveFocus()
+  })
 
-it("unmounts the selected panel when its tab list is removed", () => {
-  const view = (show: boolean) => <ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}>
-    {show && <RulesEditorTabList><RulesEditorTab value="highlights">Highlights</RulesEditorTab></RulesEditorTabList>}
-    <RulesEditorPanel value="highlights">Highlights panel</RulesEditorPanel>
-  </ComposableRulesEditor>
-  const { rerender } = render(view(true))
-  expect(screen.getByRole("tabpanel")).toHaveTextContent("Highlights panel")
-  rerender(view(false))
-  expect(screen.queryByRole("tabpanel")).toBeNull()
-  rerender(view(true))
-  expect(screen.getByRole("tabpanel")).toHaveTextContent("Highlights panel")
-})
+  it("does not restore an ignored move's focus during a later unrelated edit", () => {
+    const view = (rules: GridRules) => <TabbedRulesEditor columns={columns} rules={rules} defaultTab="sort" onRulesChange={() => {}} />
+    const { rerender } = render(view(RULES))
+    screen.getByLabelText("Column: Sort 1").focus()
+    fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
+    screen.getByLabelText("Direction: Sort 1").focus()
+    rerender(view({ ...RULES, filter: [] }))
+    expect(screen.getByLabelText("Direction: Sort 1")).toHaveFocus()
+  })
 
-it("keeps moved field focus when the caller accepts copied rules with reordered properties", () => {
-  function Controlled() {
-    const [rules, setRules] = useState(RULES)
-    return <RulesEditor columns={columns} rules={rules} defaultTab="sort" onRulesChange={(next) => setRules({ ...structuredClone(next), sort: next.sort?.map(({ key, dir }) => ({ dir, key })) })} />
-  }
-  render(<Controlled />)
-  screen.getByLabelText("Column: Sort 1").focus()
-  fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
-  expect(screen.getByLabelText("Column: Sort 2")).toHaveValue("size")
-  expect(screen.getByLabelText("Column: Sort 2")).toHaveFocus()
-})
+  it("does not mistake an ignored duplicate-key move for a later accepted change", () => {
+    const rules: GridRules = { sort: [{ key: "size", dir: "asc" }, { key: "size", dir: "asc" }] }
+    const view = (value: GridRules) => <TabbedRulesEditor columns={columns} rules={value} defaultTab="sort" onRulesChange={() => {}} />
+    const { rerender } = render(view(rules))
+    screen.getByLabelText("Column: Sort 1").focus()
+    fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
+    screen.getByLabelText("Direction: Sort 1").focus()
+    rerender(view({ ...rules, filter: [] }))
+    expect(screen.getByLabelText("Direction: Sort 1")).toHaveFocus()
+  })
 
-it("does not restore an ignored move's focus during a later unrelated edit", () => {
-  const view = (rules: GridRules) => <RulesEditor columns={columns} rules={rules} defaultTab="sort" onRulesChange={() => {}} />
-  const { rerender } = render(view(RULES))
-  screen.getByLabelText("Column: Sort 1").focus()
-  fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
-  screen.getByLabelText("Direction: Sort 1").focus()
-  rerender(view({ ...RULES, filter: [] }))
-  expect(screen.getByLabelText("Direction: Sort 1")).toHaveFocus()
-})
-
-
-it("does not mistake an ignored duplicate-key move for a later accepted change", () => {
-  const rules: GridRules = { sort: [{ key: "size", dir: "asc" }, { key: "size", dir: "asc" }] }
-  const view = (value: GridRules) => <RulesEditor columns={columns} rules={value} defaultTab="sort" onRulesChange={() => {}} />
-  const { rerender } = render(view(rules))
-  screen.getByLabelText("Column: Sort 1").focus()
-  fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
-  screen.getByLabelText("Direction: Sort 1").focus()
-  rerender(view({ ...rules, filter: [] }))
-  expect(screen.getByLabelText("Direction: Sort 1")).toHaveFocus()
-})
-
-it("preserves focus chosen after a move while controlled acceptance is delayed", () => {
-  let pending: GridRules | undefined
-  const view = (rules: GridRules) => <><button>Outside</button><RulesEditor columns={columns} rules={rules} defaultTab="sort" onRulesChange={(next) => { pending = next }} /></>
-  const { rerender } = render(view(RULES))
-  screen.getByLabelText("Column: Sort 1").focus()
-  fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
-  screen.getByRole("button", { name: "Outside" }).focus()
-  rerender(view(pending!))
-  expect(screen.getByRole("button", { name: "Outside" })).toHaveFocus()
+  it("preserves focus chosen after a move while controlled acceptance is delayed", () => {
+    let pending: GridRules | undefined
+    const view = (rules: GridRules) => <><button>Outside</button><TabbedRulesEditor columns={columns} rules={rules} defaultTab="sort" onRulesChange={(next) => { pending = next }} /></>
+    const { rerender } = render(view(RULES))
+    screen.getByLabelText("Column: Sort 1").focus()
+    fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
+    screen.getByRole("button", { name: "Outside" }).focus()
+    rerender(view(pending!))
+    expect(screen.getByRole("button", { name: "Outside" })).toHaveFocus()
+  })
 })

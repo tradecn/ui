@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-20",
+  "generatedAt": "2026-09-26",
   "styles": [
     "radix-nova",
     "base-mira",
@@ -594,6 +594,44 @@
       "base-vega": {
         "exports": [
           "Spinner"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      }
+    },
+    "tabs": {
+      "radix-nova": {
+        "exports": [
+          "Tabs",
+          "TabsContent",
+          "TabsList",
+          "TabsTrigger",
+          "tabsListVariants"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-mira": {
+        "exports": [
+          "Tabs",
+          "TabsContent",
+          "TabsList",
+          "TabsTrigger",
+          "tabsListVariants"
+        ],
+        "dependencies": [
+          "cn"
+        ]
+      },
+      "base-vega": {
+        "exports": [
+          "Tabs",
+          "TabsContent",
+          "TabsList",
+          "TabsTrigger",
+          "tabsListVariants"
         ],
         "dependencies": [
           "cn"

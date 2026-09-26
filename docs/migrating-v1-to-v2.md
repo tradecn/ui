@@ -193,7 +193,8 @@ You can start with the complete [Usage example](rules-editor.md#usage), or copy 
 | Previous interface | Replacement |
 |---|---|
 | Self-closing `RulesEditor` | Required `children` containing your composition. |
-| Automatic tabs and panels | `RulesEditorTabList`, `RulesEditorTab`, and `RulesEditorPanel`. Pass each tab's text as children. |
+| Automatic tabs and panels | Compose installed shadcn `Tabs`, `TabsList`, `TabsTrigger`, and `TabsContent`. |
+| `defaultTab`, `RulesEditorTab` type | Move initial selection to `Tabs.defaultValue` or your controlled tab state. The editor no longer owns a tab value or exports its type. |
 | `columnState`, `onColumnStateChange` | Pass these to your own `ColumnChooserPanel` inside a Columns panel. Share the state with the grid. |
 | Automatic rule rows | Map each source list into `RulesEditorItem` with `kind` and its source `index`. Keep highlight keys as `rule.id`. |
 | Automatic condition fields | `RulesEditorColumn`, `RulesEditorOperator`, and `RulesEditorValue` for each field shape. |
@@ -217,12 +218,14 @@ Include all value fields to support every operator shape:
 
 Each value field renders only when its operator needs it. The parts retain comma drafts, column parsing, validation, and controlled edits.
 
-`columns`, `rules`, `onRulesChange`, `store`, `defaultTab`, `labels`, and `className` remain root props.
+`columns`, `rules`, `onRulesChange`, `store`, `labels`, and `className` remain root props.
 
-`RulesEditorProps`, `RulesEditorTab`, `RulesEditorLabels`, `DEFAULT_RULES_EDITOR_LABELS`, and all pure helpers remain exported.
+`RulesEditorProps`, `RulesEditorLabels`, `DEFAULT_RULES_EDITOR_LABELS`, and all pure helpers remain exported.
 
 `RulesEditorItem` is a focusable `div`. You can wrap it in `li` for a list, or place it directly in a card layout.
 
+Update selectors for the moved markers. `data-rule-row` and `data-dragging` moved from the `li` to `RulesEditorItem`. `data-rule-id`, `data-filter-index`, and `data-sort-index` moved from the inner field wrapper to that same item element.
+
 Moves use source indices and keep focus on the moved field when available. Drops are limited to the same rule kind in the same editor.
 
-Tab IDs are unique to each editor. If the selected tab disappears, the first available tab is shown until another selection is made or the previous tab returns.
+Fixed `rules-tab-*` and `rules-panel-*` IDs and the root's `data-tab` marker are removed. Shadcn Tabs owns tab IDs and state. You can use role/name locators or set explicit IDs on your Tabs parts.

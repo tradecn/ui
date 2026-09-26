@@ -28,8 +28,6 @@ import type { ColumnDef } from "@/registry/tradecn/ui/data-grid"
 // Callers own the sections and row markup. Items coordinate editing and reordering;
 // the counts provider isolates feed updates from the editable fields.
 
-export type RulesEditorTab = "highlights" | "filters" | "sort" | "columns"
-
 export interface RulesEditorLabels {
   title: string
   highlights: string
@@ -110,7 +108,6 @@ export interface RulesEditorProps<T> extends ComponentProps<"div"> {
   onRulesChange: (rules: GridRules) => void
   /** Rows for independent match counts and the combined filter total. */
   store?: RowStore<T>
-  defaultTab?: RulesEditorTab
   labels?: Partial<RulesEditorLabels>
   children: ReactNode
 }
@@ -244,19 +241,6 @@ export function useRulesEditor(): RulesEditorState {
   return value
 }
 
-interface TabsContextValue {
-  id: string
-  tab: RulesEditorTab | null
-  select: (tab: RulesEditorTab) => void
-  register: (tabs: RulesEditorTab[]) => void
-}
-const TabsContext = createContext<TabsContextValue | null>(null)
-function useTabs() {
-  const value = useContext(TabsContext)
-  if (!value) throw new Error("RulesEditor tabs must be inside RulesEditor")
-  return value
-}
-
 interface Counts {
   highlights: number[] | null
   filters: number[] | null
@@ -292,7 +276,7 @@ function CountsProvider<T>({ store, columns, rules, children }: Pick<RulesEditor
 }
 
 const LIST_KEY = { highlights: "columns", filters: "filter", sort: "sort" } as const
-const DragContext = createContext<{ current: { kind: RulesEditorKind; index: number; clear: () => void } | null }>({ current: null })
+const DragContext = createContext<{ current: { kind: RulesEditorKind; index: number; type: string; clear: () => void } | null }>({ current: null })
 
 // Controlled callers may copy the emitted rules. Compare their data only while a move or
 // removal awaits focus restoration; property order and extra application fields do not matter.
@@ -318,16 +302,11 @@ function useEditorRef<T>(localRef: { current: T | null }, forwardedRef: Ref<T> |
   }, [localRef, forwardedRef])
 }
 
-export function RulesEditor<T>({ columns, rules, onRulesChange, store, defaultTab = "highlights", labels: labelsProp, children, className, ref, ...props }: RulesEditorProps<T>) {
+export function RulesEditor<T>({ columns, rules, onRulesChange, store, labels: labelsProp, children, className, ref, ...props }: RulesEditorProps<T>) {
   const labels = { ...DEFAULT_RULES_EDITOR_LABELS, ...labelsProp }
-  const id = useId()
   const root = useRef<HTMLDivElement>(null)
   const rootRef = useEditorRef(root, ref)
-  const dragging = useRef<{ kind: RulesEditorKind; index: number; clear: () => void } | null>(null)
-  const [tab, select] = useState(defaultTab)
-  const [tabs, setTabs] = useState<RulesEditorTab[] | null>(null)
-  const register = useCallback((next: RulesEditorTab[]) => setTabs((previous) => previous?.join() === next.join() ? previous : next), [])
-  const shownTab = tabs === null ? tab : tabs.includes(tab) ? tab : tabs[0] ?? null
+  const dragging = useRef<{ kind: RulesEditorKind; index: number; type: string; clear: () => void } | null>(null)
   const focusAfter = useRef<{ rules: GridRules; kind: RulesEditorKind; index: number; list: readonly (ColumnRule | FilterRule | SortRule)[]; active: Element; field?: string } | null>(null)
   useLayoutEffect(() => {
     const pending = focusAfter.current
@@ -379,83 +358,16 @@ export function RulesEditor<T>({ columns, rules, onRulesChange, store, defaultTa
   }
   return (
     <EditorContext value={value}>
-      <TabsContext value={{ id, tab: shownTab, select, register }}>
-        <DragContext value={dragging}>
-          <div role="region" aria-label={props["aria-labelledby"] ? undefined : labels.title} data-slot="tradecn-rules-editor" data-tab={shownTab} className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} ref={rootRef}>
-            <CountsProvider store={store} columns={columns} rules={rules}>{children}</CountsProvider>
-          </div>
-        </DragContext>
-      </TabsContext>
+      <DragContext value={dragging}>
+        <div role="region" aria-label={props["aria-labelledby"] ? undefined : labels.title} data-slot="tradecn-rules-editor" className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} ref={rootRef}>
+          <CountsProvider store={store} columns={columns} rules={rules}>{children}</CountsProvider>
+        </div>
+      </DragContext>
     </EditorContext>
   )
 }
 
-function availableTabs(node: HTMLElement) {
-  return Array.from(node.querySelectorAll<HTMLButtonElement>('[data-rules-tab]:not(:disabled)')).filter((tab) => !tab.closest("[hidden]"))
-}
-
-export function RulesEditorTabList({ className, onKeyDown, onFocusCapture, ref, ...props }: ComponentProps<"div">) {
-  const { labels } = useRulesEditor()
-  const { register, select } = useTabs()
-  const list = useRef<HTMLDivElement>(null)
-  const listRef = useEditorRef(list, ref)
-  const focused = useRef<HTMLElement | null>(null)
-  useLayoutEffect(() => {
-    const node = list.current
-    if (!node) return
-    const items = availableTabs(node)
-    register(items.map((t) => t.dataset.rulesTab as RulesEditorTab))
-    const active = node.ownerDocument.activeElement
-    if (focused.current && (!node.contains(focused.current) || focused.current.matches(":disabled") || focused.current.closest("[hidden]")) && (active === node.ownerDocument.body || active === focused.current)) {
-      const next = items.find((item) => item.getAttribute("aria-selected") === "true") ?? items[0]
-      next?.focus()
-    }
-  })
-  useLayoutEffect(() => {
-    const node = list.current
-    if (!node) return
-    const sync = () => register(availableTabs(node).map((t) => t.dataset.rulesTab as RulesEditorTab))
-    sync()
-    const observer = new MutationObserver(sync)
-    observer.observe(node, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "hidden", "data-rules-tab"] })
-    return () => {
-      observer.disconnect()
-      register([])
-    }
-  }, [register])
-  return <div role="tablist" aria-label={props["aria-labelledby"] ? undefined : labels.title} className={cn("flex flex-wrap items-center gap-1", className)} {...props} ref={listRef} onFocusCapture={(event) => {
-    onFocusCapture?.(event)
-    focused.current = event.target as HTMLElement
-  }} onKeyDown={(event) => {
-    onKeyDown?.(event)
-    if (event.defaultPrevented || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
-    const items = availableTabs(event.currentTarget)
-    const current = items.findIndex((item) => item === event.target)
-    if (current < 0 || !items.length) return
-    event.preventDefault()
-    const index = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + items.length) % items.length
-    const next = items[index]!
-    select(next.dataset.rulesTab as RulesEditorTab)
-    next.focus()
-  }} />
-}
-
 type ActionProps = Omit<ComponentProps<typeof Button>, "children"> & { children: ReactNode }
-export type RulesEditorTabProps = ActionProps & { value: RulesEditorTab }
-export function RulesEditorTab({ value, className, onClick, ...props }: RulesEditorTabProps) {
-  const { id, tab, select } = useTabs()
-  return <Button type="button" role="tab" id={`${id}-tab-${value}`} aria-controls={`${id}-panel-${value}`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} data-rules-tab={value} variant={tab === value ? "secondary" : "ghost"} size="sm" className={cn("h-7 px-2 text-xs", className)} {...props} onClick={(event) => {
-    onClick?.(event)
-    if (!event.defaultPrevented) select(value)
-  }} />
-}
-
-export type RulesEditorPanelProps = ComponentProps<"div"> & { value: RulesEditorTab }
-export function RulesEditorPanel({ value, className, ...props }: RulesEditorPanelProps) {
-  const { id, tab } = useTabs()
-  if (value !== tab) return null
-  return <div role="tabpanel" id={`${id}-panel-${value}`} aria-labelledby={`${id}-tab-${value}`} className={cn("flex flex-col gap-2", className)} {...props} />
-}
 
 export interface RulesEditorItemState {
   kind: RulesEditorKind
@@ -486,14 +398,23 @@ export interface RulesEditorItemProps extends ComponentProps<"div"> {
 export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, ...props }: RulesEditorItemProps) {
   const editor = useRulesEditor()
   const dragRef = useContext(DragContext)
+  const dragType = `application/x-tradecn-rule-${useId()}`.toLowerCase()
   const [dragging, setDragging] = useState(false)
+  useEffect(() => () => {
+    if (dragRef.current?.type === dragType) dragRef.current = null
+  }, [dragRef, dragType])
   const highlight = kind === "highlights" ? editor.rules.columns?.[index] : undefined
   const filter = kind === "filters" ? editor.rules.filter?.[index] : undefined
   const sort = kind === "sort" ? editor.rules.sort?.[index] : undefined
   const rule = highlight ?? filter ?? sort
   if (!rule) return null
-  const columnKey = highlight?.column ?? filter?.column ?? sort!.key
-  const condition = highlight?.when ?? (filter ? { op: filter.op, value: filter.value, values: filter.values } : null)
+  let columnKey = highlight?.column ?? sort?.key ?? ""
+  let condition = highlight?.when ?? null
+  if (filter) {
+    const { column, ...rest } = filter
+    columnKey = column
+    condition = rest
+  }
   const name = highlight?.label?.trim() || `${editor.labels[kind]} ${index + 1}`
   const replace = (next: ColumnRule | FilterRule | SortRule) => {
     const key = LIST_KEY[kind]
@@ -526,20 +447,21 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
     onDragStart={(event) => {
       onDragStart?.(event)
       if (event.defaultPrevented) return
-      dragRef.current = { kind, index, clear: () => setDragging(false) }
+      dragRef.current = { kind, index, type: dragType, clear: () => setDragging(false) }
       event.dataTransfer?.setData?.("text/plain", String(index))
+      event.dataTransfer?.setData?.(dragType, "")
       if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
       setDragging(true)
     }}
     onDragOver={(event) => {
       onDragOver?.(event)
-      if (event.defaultPrevented || dragRef.current?.kind !== kind || dragRef.current.index === index) return
+      if (event.defaultPrevented || dragRef.current?.kind !== kind || dragRef.current.index === index || !event.dataTransfer?.types.includes(dragRef.current.type)) return
       event.preventDefault()
       if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
     }}
     onDrop={(event) => {
       onDrop?.(event)
-      if (event.defaultPrevented || dragRef.current?.kind !== kind) return
+      if (event.defaultPrevented || dragRef.current?.kind !== kind || !event.dataTransfer?.types.includes(dragRef.current.type)) return
       event.preventDefault()
       const from = dragRef.current.index
       dragRef.current.clear()

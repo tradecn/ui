@@ -1,10 +1,11 @@
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useState } from "react"
-import { createInstrumentFormatter, formatNotional } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, createInstrumentFormatter, formatNotional } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { ColumnChooserPanel } from "@/registry/tradecn/ui/column-chooser"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/registry/tradecn/ui/data-grid"
-import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorDirection, RulesEditorFilterCount, RulesEditorItem, RulesEditorLabel, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorPanel, RulesEditorProblem, RulesEditorRemove, RulesEditorRuleCount, RulesEditorTab, RulesEditorTabList, RulesEditorTarget, RulesEditorTone, RulesEditorToneSwatch, RulesEditorValue, useRulesEditor, type RulesEditorProps } from "@/registry/tradecn/ui/rules-editor"
+import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorDirection, RulesEditorFilterCount, RulesEditorItem, RulesEditorLabel, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorRuleCount, RulesEditorTarget, RulesEditorTone, RulesEditorToneSwatch, RulesEditorValue, useRulesEditor, type RulesEditorProps } from "@/registry/tradecn/ui/rules-editor"
 
 interface Rfq {
   id: string
@@ -50,104 +51,121 @@ export default function RulesEditorTabsDemo() {
   )
 }
 
-export function TabbedRulesEditor<T>({ columnState, onColumnStateChange, ...props }: Omit<RulesEditorProps<T>, "children"> & { columnState?: ColumnState; onColumnStateChange?: (state: ColumnState) => void }) {
+export function TabbedRulesEditor<T>({ columnState, onColumnStateChange, defaultTab = "highlights", ...props }: Omit<RulesEditorProps<T>, "children"> & { defaultTab?: string; columnState?: ColumnState; onColumnStateChange?: (state: ColumnState) => void }) {
   return (
     <RulesEditor {...props}>
-      <RulesEditorSections columns={props.columns} columnState={columnState} onColumnStateChange={onColumnStateChange} />
+      <RulesEditorSections defaultTab={defaultTab} columns={props.columns} columnState={columnState} onColumnStateChange={onColumnStateChange} />
     </RulesEditor>
   )
 }
 
-export function RulesEditorSections<T>({ columns, columnState, onColumnStateChange }: { columns: ColumnDef<T>[]; columnState?: ColumnState; onColumnStateChange?: (state: ColumnState) => void }) {
+export function RulesEditorSections<T>({ columns, columnState, onColumnStateChange, defaultTab = "highlights" }: { columns: ColumnDef<T>[]; defaultTab?: string; columnState?: ColumnState; onColumnStateChange?: (state: ColumnState) => void }) {
   const { rules, labels } = useRulesEditor()
+  const [tab, setTab] = useState(defaultTab)
   const hasColumns = columnState !== undefined && onColumnStateChange !== undefined
+  const selected = tab === "columns" && !hasColumns ? "highlights" : tab
   return (
-    <>
-      <RulesEditorTabList>
-        <RulesEditorTab value="highlights">{labels.highlights}<RulesEditorRuleCount kind="highlights" /></RulesEditorTab>
-        <RulesEditorTab value="filters">{labels.filters}<RulesEditorRuleCount kind="filters" /></RulesEditorTab>
-        <RulesEditorTab value="sort">{labels.sort}<RulesEditorRuleCount kind="sort" /></RulesEditorTab>
-        {hasColumns && <RulesEditorTab value="columns">{labels.columns}{columnState.hidden.length > 0 && <span className="lining-nums tabular-nums">{columnState.hidden.length}</span>}</RulesEditorTab>}
-      </RulesEditorTabList>
-      <RulesEditorPanel value="highlights">
-        {!rules.columns?.length && <p className="text-muted-foreground">{labels.noHighlights}</p>}
-        <ul className="flex flex-col gap-1">
-          {rules.columns?.map((rule, index) => (
-            <li key={rule.id}>
-              <RulesEditorItem kind="highlights" index={index}>
-                <span aria-hidden title={labels.dragHint} className="cursor-grab text-muted-foreground">⠿</span>
-                <RulesEditorColumn />
-                <RulesEditorOperator />
-                <RulesEditorValue />
-                <RulesEditorValue field="low" />
-                <RulesEditorValue field="high" />
-                <RulesEditorValue field="values" />
-                <RulesEditorTone />
-                <RulesEditorToneSwatch />
-                <RulesEditorTarget />
-                <RulesEditorLabel />
-                <RulesEditorMatchCount />
-                <RulesEditorMove direction="up"><span aria-hidden>▲</span></RulesEditorMove>
-                <RulesEditorMove direction="down"><span aria-hidden>▼</span></RulesEditorMove>
-                <RulesEditorRemove><span aria-hidden>×</span></RulesEditorRemove>
-                <RulesEditorProblem />
-              </RulesEditorItem>
-            </li>
-          ))}
-        </ul>
-        <RulesEditorAdd kind="highlights">{labels.addHighlight}</RulesEditorAdd>
-        <p className="text-muted-foreground">{labels.dragHint}</p>
-      </RulesEditorPanel>
-      <RulesEditorPanel value="filters">
-        {!rules.filter?.length && <p className="text-muted-foreground">{labels.noFilters}</p>}
-        <ul className="flex flex-col gap-1">
-          {rules.filter?.map((_, index) => (
-            <li key={index}>
-              <RulesEditorItem kind="filters" index={index}>
-                <span aria-hidden title={labels.dragHint} className="cursor-grab text-muted-foreground">⠿</span>
-                <RulesEditorColumn />
-                <RulesEditorOperator />
-                <RulesEditorValue />
-                <RulesEditorValue field="low" />
-                <RulesEditorValue field="high" />
-                <RulesEditorValue field="values" />
-                <RulesEditorMatchCount />
-                <RulesEditorMove direction="up"><span aria-hidden>▲</span></RulesEditorMove>
-                <RulesEditorMove direction="down"><span aria-hidden>▼</span></RulesEditorMove>
-                <RulesEditorRemove><span aria-hidden>×</span></RulesEditorRemove>
-                <RulesEditorProblem />
-              </RulesEditorItem>
-            </li>
-          ))}
-        </ul>
-        <div className="flex flex-wrap items-center gap-2">
-          <RulesEditorAdd kind="filters">{labels.addFilter}</RulesEditorAdd>
-          <RulesEditorFilterCount />
+    <Tabs value={selected} onValueChange={(value) => setTab(String(value))}>
+      <TabsList aria-label={labels.title} className="h-auto max-w-full flex-wrap">
+        <TabsTrigger value="highlights" onFocus={() => setTab("highlights")}>{labels.highlights}<RulesEditorRuleCount kind="highlights" /></TabsTrigger>
+        <TabsTrigger value="filters" onFocus={() => setTab("filters")}>{labels.filters}<RulesEditorRuleCount kind="filters" /></TabsTrigger>
+        <TabsTrigger value="sort" onFocus={() => setTab("sort")}>{labels.sort}<RulesEditorRuleCount kind="sort" /></TabsTrigger>
+        {hasColumns && <TabsTrigger value="columns" onFocus={() => setTab("columns")}>{labels.columns}{columnState.hidden.length > 0 && <span className={`${NUMERIC_CLASS} text-muted-foreground`}>{columnState.hidden.length}</span>}</TabsTrigger>}
+      </TabsList>
+      <TabsContent value="highlights">
+        <div className="flex flex-col gap-2">
+          {rules.columns?.length ? (
+            <ul className="flex flex-col gap-1">
+              {rules.columns?.map((rule, index) => (
+                <li key={rule.id}>
+                  <RulesEditorItem kind="highlights" index={index}>
+                    <span aria-hidden title={labels.dragHint} className="cursor-grab text-muted-foreground">⠿</span>
+                    <RulesEditorColumn />
+                    <RulesEditorOperator />
+                    <RulesEditorValue />
+                    <RulesEditorValue field="low" />
+                    <RulesEditorValue field="high" />
+                    <RulesEditorValue field="values" />
+                    <RulesEditorTone />
+                    <RulesEditorToneSwatch />
+                    <RulesEditorTarget />
+                    <RulesEditorLabel />
+                    <RulesEditorMatchCount />
+                    <RulesEditorMove direction="up"><span aria-hidden>▲</span></RulesEditorMove>
+                    <RulesEditorMove direction="down"><span aria-hidden>▼</span></RulesEditorMove>
+                    <RulesEditorRemove><span aria-hidden>×</span></RulesEditorRemove>
+                    <RulesEditorProblem />
+                  </RulesEditorItem>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground">{labels.noHighlights}</p>
+          )}
+          <RulesEditorAdd kind="highlights">{labels.addHighlight}</RulesEditorAdd>
+          <p className="text-muted-foreground">{labels.dragHint}</p>
         </div>
-        <p className="text-muted-foreground">{labels.dragHint}</p>
-      </RulesEditorPanel>
-      <RulesEditorPanel value="sort">
-        {!rules.sort?.length && <p className="text-muted-foreground">{labels.noSort}</p>}
-        <ol className="flex flex-col gap-1">
-          {rules.sort?.map((_, index) => (
-            <li key={index}>
-              <RulesEditorItem kind="sort" index={index}>
-                <span aria-hidden title={labels.dragHint} className="cursor-grab text-muted-foreground">⠿</span>
-                <span aria-hidden className="w-4 text-right text-muted-foreground lining-nums tabular-nums">{index + 1}</span>
-                <RulesEditorColumn />
-                <RulesEditorDirection />
-                <RulesEditorMove direction="up"><span aria-hidden>▲</span></RulesEditorMove>
-                <RulesEditorMove direction="down"><span aria-hidden>▼</span></RulesEditorMove>
-                <RulesEditorRemove><span aria-hidden>×</span></RulesEditorRemove>
-                <RulesEditorProblem />
-              </RulesEditorItem>
-            </li>
-          ))}
-        </ol>
-        <RulesEditorAdd kind="sort">{labels.addSort}</RulesEditorAdd>
-        <p className="text-muted-foreground">{labels.dragHint}</p>
-      </RulesEditorPanel>
-      {hasColumns && <RulesEditorPanel value="columns"><ColumnChooserPanel columns={columns} columnState={columnState} onColumnStateChange={onColumnStateChange} rules={rules.columns} /></RulesEditorPanel>}
-    </>
+      </TabsContent>
+      <TabsContent value="filters">
+        <div className="flex flex-col gap-2">
+          {rules.filter?.length ? (
+            <ul className="flex flex-col gap-1">
+              {rules.filter?.map((_, index) => (
+                <li key={index}>
+                  <RulesEditorItem kind="filters" index={index}>
+                    <span aria-hidden title={labels.dragHint} className="cursor-grab text-muted-foreground">⠿</span>
+                    <RulesEditorColumn />
+                    <RulesEditorOperator />
+                    <RulesEditorValue />
+                    <RulesEditorValue field="low" />
+                    <RulesEditorValue field="high" />
+                    <RulesEditorValue field="values" />
+                    <RulesEditorMatchCount />
+                    <RulesEditorMove direction="up"><span aria-hidden>▲</span></RulesEditorMove>
+                    <RulesEditorMove direction="down"><span aria-hidden>▼</span></RulesEditorMove>
+                    <RulesEditorRemove><span aria-hidden>×</span></RulesEditorRemove>
+                    <RulesEditorProblem />
+                  </RulesEditorItem>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground">{labels.noFilters}</p>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <RulesEditorAdd kind="filters">{labels.addFilter}</RulesEditorAdd>
+            <RulesEditorFilterCount />
+          </div>
+          <p className="text-muted-foreground">{labels.dragHint}</p>
+        </div>
+      </TabsContent>
+      <TabsContent value="sort">
+        <div className="flex flex-col gap-2">
+          {rules.sort?.length ? (
+            <ol className="flex flex-col gap-1">
+              {rules.sort?.map((_, index) => (
+                <li key={index}>
+                  <RulesEditorItem kind="sort" index={index}>
+                    <span aria-hidden title={labels.dragHint} className="cursor-grab text-muted-foreground">⠿</span>
+                    <span aria-hidden className={`${NUMERIC_CLASS} w-4 text-right text-muted-foreground`}>{index + 1}</span>
+                    <RulesEditorColumn />
+                    <RulesEditorDirection />
+                    <RulesEditorMove direction="up"><span aria-hidden>▲</span></RulesEditorMove>
+                    <RulesEditorMove direction="down"><span aria-hidden>▼</span></RulesEditorMove>
+                    <RulesEditorRemove><span aria-hidden>×</span></RulesEditorRemove>
+                    <RulesEditorProblem />
+                  </RulesEditorItem>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-muted-foreground">{labels.noSort}</p>
+          )}
+          <RulesEditorAdd kind="sort">{labels.addSort}</RulesEditorAdd>
+          <p className="text-muted-foreground">{labels.dragHint}</p>
+        </div>
+      </TabsContent>
+      {hasColumns && <TabsContent value="columns"><div className="flex flex-col gap-2"><ColumnChooserPanel columns={columns} columnState={columnState} onColumnStateChange={onColumnStateChange} rules={rules.columns} /></div></TabsContent>}
+    </Tabs>
   )
 }

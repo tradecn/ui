@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useId, useState } from "react"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import type { ColumnDef } from "@/registry/tradecn/ui/data-grid"
@@ -11,6 +11,7 @@ const columns: ColumnDef<Order>[] = [
 ]
 
 export default function RulesEditorLayoutDemo() {
+  const id = useId()
   const [store] = useState(() => {
     const store = createRowStore<Order>({ getRowId: (row) => row.id })
     store.applyDeltas({ upsert: [{ id: "a", account: "ALPHA", size: 500 }, { id: "b", account: "BETA", size: 200 }] })
@@ -21,14 +22,14 @@ export default function RulesEditorLayoutDemo() {
     sort: [{ key: "size", dir: "desc" }, { key: "account", dir: "asc" }],
   })
   return (
-    <RulesEditor columns={columns} rules={rules} onRulesChange={setRules} store={store} className="w-2xl max-w-full gap-4">
+    <RulesEditor columns={columns} rules={rules} onRulesChange={setRules} store={store} labels={{ moveUp: "Earlier", moveDown: "Later" }} aria-labelledby={`${id}-title`} className="w-2xl max-w-full gap-4">
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Order priority</h2>
+        <h2 id={`${id}-title`} className="text-sm font-semibold">Order priority</h2>
         <RulesEditorFilterCount />
       </header>
       <div className="grid gap-4 sm:grid-cols-2">
-        <section className="min-w-0 space-y-2" aria-label="Include orders">
-          <h3 className="font-medium">Include orders</h3>
+        <section className="min-w-0 space-y-2" aria-labelledby={`${id}-include`}>
+          <h3 id={`${id}-include`} className="font-medium">Include orders</h3>
           <p className="text-muted-foreground">Conditions apply to all accounts.</p>
           {!rules.filter?.length && <p>Every order is included.</p>}
           {rules.filter?.map((_, index) => (
@@ -54,8 +55,8 @@ export default function RulesEditorLayoutDemo() {
           ))}
           <RulesEditorAdd kind="filters">Add condition</RulesEditorAdd>
         </section>
-        <section className="min-w-0 space-y-2" aria-label="Priority">
-          <h3 className="font-medium">Priority</h3>
+        <section className="min-w-0 space-y-2" aria-labelledby={`${id}-priority`}>
+          <h3 id={`${id}-priority`} className="font-medium">Priority</h3>
           <p className="text-muted-foreground">Earlier keys take precedence.</p>
           {!rules.sort?.length && <p>Keep arrival order.</p>}
           {rules.sort?.map((_, index) => (

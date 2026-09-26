@@ -1822,7 +1822,8 @@
         "dialog",
         "dropdown-menu",
         "input",
-        "native-select"
+        "native-select",
+        "tabs"
       ],
       "files": [
         {
@@ -1863,18 +1864,6 @@
           {
             "title": "RulesEditor",
             "description": "Controlled rule state with caller-owned sections and rows."
-          },
-          {
-            "title": "RulesEditorTabList",
-            "description": "Keyboard navigation for caller-owned tabs."
-          },
-          {
-            "title": "RulesEditorTab",
-            "description": "A named tab with caller-owned content."
-          },
-          {
-            "title": "RulesEditorPanel",
-            "description": "Content for the selected tab."
           },
           {
             "title": "RulesEditorItem",
