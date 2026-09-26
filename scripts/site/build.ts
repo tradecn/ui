@@ -617,9 +617,9 @@ export function firstParagraph(markdown: string): string {
 }
 
 /**
- * Markdown to HTML with the first `#` as the title, an anchor on every heading, and a link to `x.md` pointing at
- * that page. A heading that is itself a link (the changelog's versions) keeps its own link and gets no anchor,
- * since a link inside a link is not HTML.
+ * Markdown to HTML with the first `#` as the title, an anchor on every heading, and a link to `x.md` or `x.md#y`
+ * pointing at that page and heading. A heading that is itself a link (the changelog's versions) keeps its own
+ * link and gets no anchor, since a link inside a link is not HTML.
  */
 export function renderMarkdown(markdown: string): RenderedDoc {
   const ids = new Set<string>()
@@ -665,8 +665,9 @@ export function renderMarkdown(markdown: string): RenderedDoc {
         return `<dl class="api-props">\n${rows.join("\n")}\n</dl>\n`
       },
       link(token) {
-        // A doc links a sibling as `data-grid.md`, which works on GitHub; here that page is /docs/data-grid/.
-        const href = /^[\w-]+\.md$/.test(token.href) ? `/docs/${token.href.slice(0, -".md".length)}/` : token.href
+        // A doc links a sibling as `data-grid.md` or `data-grid.md#usage`, which works on GitHub; here that page is
+        // /docs/data-grid/, and the heading keeps its anchor.
+        const href = token.href.replace(/^([\w-]+)\.md(#[\w-]+)?$/, "/docs/$1/$2")
         const title = token.title ? ` title="${escapeHtml(token.title)}"` : ""
         return `<a href="${escapeHtml(href)}"${title}>${this.parser.parseInline(token.tokens)}</a>`
       },
