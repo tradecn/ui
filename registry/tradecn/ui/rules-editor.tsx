@@ -307,6 +307,10 @@ export function RulesEditor<T>({ columns, rules, onRulesChange, store, labels: l
   const root = useRef<HTMLDivElement>(null)
   const rootRef = useEditorRef(root, ref)
   const dragging = useRef<{ kind: RulesEditorKind; index: number; type: string; clear: () => void } | null>(null)
+  useLayoutEffect(() => {
+    dragging.current?.clear()
+    dragging.current = null
+  }, [rules])
   const focusAfter = useRef<{ rules: GridRules; kind: RulesEditorKind; index: number; list: readonly (ColumnRule | FilterRule | SortRule)[]; active: Element; field?: string } | null>(null)
   useLayoutEffect(() => {
     const pending = focusAfter.current

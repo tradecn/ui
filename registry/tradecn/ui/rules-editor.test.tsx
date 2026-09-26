@@ -288,13 +288,13 @@ describe("RulesEditor examples", () => {
 })
 
 describe("RulesEditor", () => {
-  it("lets caller controls drive shadcn tabs around the editing parts", async () => {
+  it.each(["horizontal", "vertical"] as const)("lets caller controls drive %s shadcn tabs around the editing parts", async (orientation) => {
     function Controlled() {
       const [selected, setSelected] = useState("filters")
       return <>
         <button onClick={() => setSelected("sort")}>Set priorities</button>
         <RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}>
-          <Tabs value={selected} onValueChange={(value) => setSelected(String(value))}>
+          <Tabs orientation={orientation} value={selected} onValueChange={(value) => setSelected(String(value))}>
             <TabsList><TabsTrigger value="filters">Filters</TabsTrigger><TabsTrigger value="sort">Sort</TabsTrigger></TabsList>
             <TabsContent value="filters"><RulesEditorItem kind="filters" index={0}><RulesEditorValue /></RulesEditorItem></TabsContent>
             <TabsContent value="sort"><RulesEditorItem kind="sort" index={0}><RulesEditorColumn /></RulesEditorItem></TabsContent>
@@ -303,6 +303,7 @@ describe("RulesEditor", () => {
       </>
     }
     render(<Controlled />)
+    expect(screen.getByRole("tablist").getAttribute("aria-orientation") ?? "horizontal").toBe(orientation)
     const filterField = screen.getByLabelText("Value: Filters 1")
     expect(filterField).toBeVisible()
     fireEvent.click(screen.getByRole("button", { name: "Set priorities" }))
@@ -310,6 +311,11 @@ describe("RulesEditor", () => {
     expect(screen.getByLabelText("Column: Sort 1")).toBeVisible()
     expect(filterField).not.toBeVisible()
     expect(tab("Sort")).toHaveAttribute("aria-selected", "true")
+    await act(async () => {
+      tab("Sort").focus()
+      fireEvent.keyDown(tab("Sort"), { key: orientation === "vertical" ? "ArrowUp" : "ArrowLeft" })
+    })
+    expect(tab("Filters")).toHaveFocus()
   })
 
   it.each<{ rule: FilterRule; field: string; text: string; expected: FilterRule }>([
@@ -505,6 +511,30 @@ describe("RulesEditor", () => {
     vi.spyOn(console, "error").mockImplementation(() => {})
     expect(() => render(<RulesEditorColumn />)).toThrow("inside RulesEditor")
     expect(() => render(<RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}><RulesEditorValue /></RulesEditor>)).toThrow("inside RulesEditorItem")
+  })
+
+  it.each(["highlights", "filters", "sort"] as const)("rejects a stale %s drag after a controlled reorder", (kind) => {
+    const change = vi.fn()
+    const key = ({ highlights: "columns", filters: "filter", sort: "sort" } as const)[kind]
+    const initial: GridRules = { ...RULES, filter: [...RULES.filter!, { column: "client", op: "eq", value: "ALPHA" }] }
+    const view = (rules: GridRules) => <RulesEditor columns={columns} rules={rules} onRulesChange={change}>
+      {rules[key]?.map((rule, index) => <RulesEditorItem key={"id" in rule ? rule.id : index} kind={kind} index={index}><RulesEditorColumn /></RulesEditorItem>)}
+    </RulesEditor>
+    const { rerender } = render(view(initial))
+    const original = new DataTransfer()
+    fireEvent.dragStart(screen.getAllByRole("group")[0]!, { dataTransfer: original })
+    rerender(view(initial))
+    expect(document.querySelector("[data-dragging]")).not.toBeNull()
+    rerender(view({ ...initial, [key]: [...initial[key]!].reverse() }))
+    const target = screen.getAllByRole("group")[1]!
+    expect(fireEvent.dragOver(target, { dataTransfer: original })).toBe(true)
+    fireEvent.drop(target, { dataTransfer: original })
+    expect(change).not.toHaveBeenCalled()
+    expect(document.querySelector("[data-dragging]")).toBeNull()
+    const fresh = new DataTransfer()
+    fireEvent.dragStart(screen.getAllByRole("group")[0]!, { dataTransfer: fresh })
+    fireEvent.drop(target, { dataTransfer: fresh })
+    expect(change).toHaveBeenCalledOnce()
   })
 
   it("rejects an external or stale drop after the dragged item unmounts", () => {
