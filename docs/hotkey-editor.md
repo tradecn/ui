@@ -60,7 +60,9 @@ function ShortcutSettings() {
 }
 ```
 
-Keep bindings stable, as a module constant. Bindings declare the shortcuts; attach their handlers with [`useHotkey`](use-hotkeys.md). Reuse your application's `HotkeysProvider` when it already owns the registry.
+Keep bindings stable, as a module constant. Attach their handlers with [`useHotkey`](use-hotkeys.md).
+
+Reuse your application's `HotkeysProvider` when it already owns the registry.
 
 ## Composition
 
@@ -70,9 +72,9 @@ Use the following composition to build a `HotkeyEditor`:
 HotkeysProvider
 └── HotkeyEditor
     ├── HotkeyEditorSearch
-    ├── Caller groups and empty state
+    ├── Your groups and empty state
     │   └── HotkeyEditorItem
-    │       ├── Caller description and changed indicator
+    │       ├── Your description and changed indicator
     │       ├── HotkeyEditorKeys
     │       ├── HotkeyEditorChange
     │       ├── HotkeyEditorEdit
@@ -82,7 +84,7 @@ HotkeysProvider
     │       ├── HotkeyEditorProblem
     │       └── HotkeyEditorConflicts
     ├── HotkeyEditorResetAll
-    └── Caller import and export controls
+    └── Your import and export controls
 ```
 
 The root coordinates the registry and search. Each item coordinates one binding's editing state. Choose the readings and controls your layout needs, and supply descriptions, action text, group headings, and empty states in your JSX.
@@ -105,22 +107,22 @@ Arrange items in a card grid and use `HotkeyEditorEdit` with `HotkeyEditorInput`
 
 ### Props
 
-`HotkeyEditor` reads the nearest `HotkeysProvider` registry. It renders a `div` with a region role and accepts native div props and a ref.
+`HotkeyEditor` reads the nearest `HotkeysProvider` registry. It renders a `div` with a region role and `tabIndex={-1}`, and accepts native div props and a ref.
 
-| Prop | Type | Default | Description |
+| Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `children` | `ReactNode` | Required | The editor's composition. Conditional content is supported. |
 | `hide` | `(entry: HotkeyEntry) => boolean` | Show all | Exclude entries from `groups`. Direct items and `entries` remain available. |
 | `labels` | `Partial<HotkeyEditorLabels>` | `DEFAULT_HOTKEY_EDITOR_LABELS` | Accessible names and behavior messages. |
 | `className` | `string` | - | Additional classes to apply to the editor. |
 
-There is one registry subscription per root. Hooks and parts under it share that subscription; they add no timers or application shortcut handlers.
+There is one registry subscription per root. Hooks and parts under it share that subscription. They add no timers or application shortcut handlers.
 
 ### HotkeyEditorItem
 
-Coordinates capture, text editing, validation, and focus for one registered binding. It renders a named `div` group and accepts native div props and a ref. An unknown or removed binding renders nothing.
+Coordinates capture, text editing, validation, and focus for one registered binding. It renders a named `div` group with `tabIndex={-1}`, and accepts native div props and a ref. An unknown or removed binding renders nothing.
 
-| Prop | Type | Default | Description |
+| Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `bindingId` | `string` | Required | A registered binding's id. |
 | `children` | `ReactNode` | Required | The item's readings, controls, and application content. |
@@ -128,7 +130,7 @@ Coordinates capture, text editing, validation, and focus for one registered bind
 
 Keep React keys equal to binding ids when mapping items.
 
-Edit state belongs to each mounted item; two presentations share the registry but have separate drafts.
+Edit state belongs to each mounted item. Two presentations share the registry but have separate drafts.
 
 A change to the binding's keys, declaration fields, or provider registry cancels an open draft. Unrelated registry updates preserve it.
 
@@ -142,7 +144,7 @@ A change to the binding's keys, declaration fields, or provider registry cancels
 
 Inputs accept their installed component's props except `value` and `defaultValue`, which are coordinated. Capture accepts installed Button props.
 
-All three forward refs and native events. Caller handlers run first; `preventDefault()` skips the part's behavior for that event.
+All three forward refs and native events. Caller handlers run first. `preventDefault()` skips the part's behavior for that event.
 
 ### Actions
 
@@ -155,7 +157,7 @@ All three forward refs and native events. Caller handlers run first; `preventDef
 | `HotkeyEditorReset` | Remove this binding's override and end its edit. | The binding is not remapped. |
 | `HotkeyEditorResetAll` | Remove all overrides. | No registered entry is remapped. |
 
-Passing `disabled` also disables an action. Reset controls remain rendered when disabled; render Reset conditionally when you want it to appear only for changed bindings.
+Passing `disabled` also disables an action. Reset controls remain rendered when disabled. Render Reset conditionally when you want it to appear only for changed bindings.
 
 ### Readings
 
@@ -165,7 +167,7 @@ Passing `disabled` also disables an action. Reset controls remain rendered when 
 | `HotkeyEditorProblem` | `p`, except coordinated `id` | Current validation error, with an alert role and a generated id linked from the editing field. Renders nothing without an error. |
 | `HotkeyEditorConflicts` | `ul` | One message per conflict involving the item. Renders nothing without conflicts. |
 
-These readings supply their own content. Use `useHotkeyEditorItem` to write a different reading or conflict list.
+These readings supply their own content and omit `children` from their props. Use `useHotkeyEditorItem` to write a different reading or conflict list.
 
 ### Hooks
 
@@ -175,7 +177,7 @@ These readings supply their own content. Use `useHotkeyEditorItem` to write a di
 |---|---|---|
 | `registry` | `HotkeyRegistry` | Registry used for remapping, reset, import, and export. |
 | `entries` | `readonly HotkeyEntry[]` | All registered bindings in registry order. |
-| `groups` | `readonly HotkeyEditorGroup[]` | Filtered and sorted groups; each has `name: string` and `entries: readonly HotkeyEntry[]`. |
+| `groups` | `readonly HotkeyEditorGroup[]` | Filtered and sorted groups. Each has `name: string` and `entries: readonly HotkeyEntry[]`. |
 | `conflicts` | `readonly HotkeyConflict[]` | Conflicts across all bindings. |
 | `remapped` | `number` | Count of registered entries whose effective keys differ from defaults. |
 | `query`, `setQuery` | `string`, `(query: string) => void` | Shared search state. |
@@ -185,15 +187,15 @@ These readings supply their own content. Use `useHotkeyEditorItem` to write a di
 |---|---|---|
 | `entry` | `HotkeyEntry` | This binding's current effective keys, defaults, and remapped flag. |
 | `mode` | `"idle" \| "capture" \| "text"` | Current editing mode. |
-| `draft`, `setDraft` | `string`, `(draft: string) => void` | Text being edited; changes require an active edit. |
+| `draft`, `setDraft` | `string`, `(draft: string) => void` | Text being edited. Changes require an active edit. |
 | `problem`, `problemId` | `string \| null`, `string` | Validation error and its field-description id. |
 | `conflicts` | `readonly HotkeyConflict[]` | Conflicts involving this binding. |
 | `startCapture`, `startEdit` | `(trigger?: HTMLElement) => void` | Begin editing and remember the trigger for focus return. |
-| `commit` | `(keys: string) => void` | Remap during an active edit; remain open on invalid input. |
+| `commit` | `(keys: string) => void` | Remap during an active edit. Invalid input keeps the edit open. |
 | `cancel` | `() => void` | Discard the draft. |
 | `reset` | `() => void` | Remove the binding's override and end editing. |
 
-Use the public capture and input parts with custom triggers to retain keyboard handling and focus. Pass the trigger to `startCapture` or `startEdit`; without one, focus returns to the item.
+Use the public capture and input parts with custom triggers to retain keyboard handling and focus. Pass the trigger to `startCapture` or `startEdit` to return focus to it. Otherwise, focus returns to the item.
 
 ### The list
 
@@ -207,23 +209,25 @@ Search trims the query and matches case-insensitive substrings of the descriptio
 
 | Control | Behavior |
 |---|---|
-| Capture | Records one key with its modifiers through `keysFromEvent`. Bare modifiers and other ignored keys leave capture open. Escape cancels; Backspace or Delete unbinds, even with modifiers held. |
-| Text | Join modifiers and a key with `+` (`mod+k`); separate chord steps with spaces (`g b`). Enter commits, Escape cancels, and an empty field unbinds. Parse errors leave the binding unchanged. |
+| Capture | Records one key with its modifiers through `keysFromEvent`. Bare modifiers and other ignored keys leave capture open. Escape cancels. Backspace or Delete unbinds, even with modifiers held. |
+| Text | Join modifiers and a key with `+` (`mod+k`). Separate chord steps with spaces (`g b`). Enter commits, Escape cancels, and an empty field unbinds. Parse errors leave the binding unchanged. |
 | Reset | Removes the binding's override. Reset all also removes hidden and unregistered overrides. |
 
-Blur cancels an unfinished edit.
+Blur cancels an unfinished edit and clears its validation message.
 
 Capture consumes every keydown. Text editing stops keydown propagation to application handlers and prevents default behavior for Enter and Escape.
 
 Use text to enter chords or Escape, Backspace, and Delete bindings.
 
-Commit and Escape return focus to the initiating control, or the item if that control is unavailable. Blur preserves the destination's focus. Removing a focused item moves focus to the editor's search field, or its root when there is no search field.
+Commit and Escape return focus to the initiating control, or the item if that control is unavailable. Blur preserves the destination's focus.
+
+Removing a focused item moves focus to the editor's search field, or its root when there is no search field. A focused Reset that is removed or disabled moves focus to its item. A focused Reset all that becomes disabled moves focus to search or the root.
 
 Keep a public editing field mounted for every editing mode your triggers can start.
 
 The plus key retains a registry limitation: capture can produce `ctrl++`, which remapping rejects. Typing `ctrl+plus` for a binding whose default is `x` stores `ctrl++`, then falls back to `x` without an editor error. Declaring or loading `ctrl+plus` can produce effective keys the keycap formatter cannot display.
 
-See [remapping](use-hotkeys.md); neither entry method reliably supports plus-key shortcuts.
+Neither entry method reliably supports plus-key shortcuts. See [remapping](use-hotkeys.md).
 
 ### Conflicts
 
@@ -239,7 +243,7 @@ Each phrase names the other binding. Prefix and shadow messages use the same wor
 
 Reports compare declarations regardless of `when()`.
 
-Unbound bindings and different panel scope names are excluded. A pair is also excluded when all its handlers are fenced to elements that do not contain one another; that pair is reported until both sides have such handlers.
+Unbound bindings and different panel scope names are excluded. A pair is also excluded when all its handlers are fenced to elements that do not contain one another. That pair is reported until both sides have such handlers.
 
 Conflicts do not block remapping or decide which shortcut runs. See the registry's [conflict rules](use-hotkeys.md).
 
@@ -247,7 +251,7 @@ Conflicts do not block remapping or decide which shortcut runs. See the registry
 
 Use the hook's `registry.overrides()` in your own export button. `HotkeyOverrides` is `Record<string, string>`, keyed by binding id. Import with `registry.load(overrides)` after reading and validating your file.
 
-`load` replaces all overrides and refreshes the list, but does not call `onChange`. An override that fails to parse remains stored while the binding falls back to its defaults, so exported values can differ from the effective keys shown. The Groups example displays an export snapshot; export again after editing to refresh it.
+`load` replaces all overrides and refreshes the list, but does not call `onChange`. An override that fails to parse remains stored while the binding falls back to its defaults, so exported values can differ from the effective keys shown.
 
 For persistence, create a registry with `createHotkeyRegistry` and pass it to the provider.
 
@@ -272,9 +276,9 @@ The root's accessible name defaults to `title`. Search uses `search` for its nam
 
 Change, Edit, and Reset include the binding description in their accessible names. Input uses `keysFor` followed by the description. Capture links `cancelHint` as an accessible description, alongside any caller description and validation error.
 
-Override native accessible-name props when replacing visible control text.
+Match visible control text to `labels.change`, `labels.edit`, and `labels.reset`, or override the corresponding native accessible-name props.
 
-Problem supplies a live alert. Conflicts and changed indicators are ordinary text; add announcements at the call site if your application needs them.
+Problem supplies a live alert. Conflicts and changed indicators are ordinary text. Add announcements at the call site if your application needs them.
 
 ### Helpers
 
@@ -282,7 +286,7 @@ These pure helpers remain exported from `@/components/ui/hotkey-editor`.
 
 | Helper | Result |
 |---|---|
-| `scopeWord(scope: string)` | Removes a leading `panel:`; other names stay unchanged. |
+| `scopeWord(scope: string)` | Removes a leading `panel:`. Other names stay unchanged. |
 | `groupOf(entry: HotkeyEntry)` | `entry.group ?? scopeWord(entry.scope)`. |
 | `matchesQuery(entry: HotkeyEntry, query: string, platform: "mac" \| "other")` | Matches the fields described under The list. A blank query matches every entry. |
 

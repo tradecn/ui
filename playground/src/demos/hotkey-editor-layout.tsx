@@ -40,7 +40,7 @@ function ShortcutCards() {
       </div>
       {entries.length === 0 && <p className="text-muted-foreground">No shortcut matches.</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <a href="https://tradecn.dev/docs/use-hotkeys/" className="underline underline-offset-4">Shortcut reference</a>
+        <a href="https://tradecn.dev/docs/use-hotkeys/" target="_blank" rel="noreferrer" className="underline underline-offset-4">Shortcut reference</a>
         <HotkeyEditorResetAll>Reset all</HotkeyEditorResetAll>
       </div>
     </>

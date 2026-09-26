@@ -45,8 +45,8 @@ export function HotkeyEditorScene() {
         <div className="grid min-w-0 md:grid-cols-[minmax(0,1fr)_16rem] gap-6">
           <HotkeyEditor>
             <HotkeyEditorGroups>
-              <Button type="button" size="sm" variant="outline" onClick={() => setOverrides(registry.overrides())}>Export</Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => {
+              <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setOverrides(registry.overrides())}>Export</Button>
+              <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => {
                 registry.load({ "go.blotter": "g l", "book.cancel": "backspace" })
                 setOverrides(registry.overrides())
                 setImported((n) => n + 1)

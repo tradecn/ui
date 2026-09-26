@@ -15,7 +15,7 @@ import {
   useHotkeyEditor,
   useHotkeyEditorItem,
 } from "@/components/ui/hotkey-editor"
-import { HotkeysProvider } from "@/hooks/use-hotkeys"
+import { HotkeysProvider, useHotkey } from "@/hooks/use-hotkeys"
 import { createHotkeyRegistry, type HotkeyBinding, type HotkeyOverrides } from "@/lib/hotkeys"
 
 const BINDINGS: HotkeyBinding[] = [
@@ -32,9 +32,16 @@ export function HotkeyEditorScene() {
     <HotkeysProvider registry={registry} bindings={BINDINGS}>
       <div className="w-[36rem]" data-hotkey-saved={JSON.stringify(overrides)}>
         <HotkeyEditor><HotkeyEditorGroups /></HotkeyEditor>
+        <p data-hotkey-background="">Shortcut settings</p>
+        <ListenForShortcut />
       </div>
     </HotkeysProvider>
   )
+}
+
+function ListenForShortcut() {
+  useHotkey("edit.go", () => {})
+  return null
 }
 
 function ShortcutRow() {
@@ -48,7 +55,7 @@ function ShortcutRow() {
         <div className="flex flex-wrap gap-1">
           <HotkeyEditorChange>Change</HotkeyEditorChange>
           <HotkeyEditorEdit>Type it</HotkeyEditorEdit>
-          {entry.remapped && <HotkeyEditorReset>Reset</HotkeyEditorReset>}
+          {(entry.remapped || entry.id === "edit.cancel") && <HotkeyEditorReset>Reset</HotkeyEditorReset>}
         </div>
       </div>
       <HotkeyEditorCapture />
@@ -60,19 +67,20 @@ function ShortcutRow() {
 }
 
 function HotkeyEditorGroups() {
-  const { groups } = useHotkeyEditor()
+  const { groups, registry } = useHotkeyEditor()
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
         <HotkeyEditorSearch />
         <div className="ml-auto flex flex-wrap gap-1">
+          <button type="button" onClick={() => registry.load({})}>Import defaults</button>
           <HotkeyEditorResetAll>Reset all</HotkeyEditorResetAll>
         </div>
       </div>
       {groups.length === 0 && <p className="text-muted-foreground">No shortcut matches.</p>}
       {groups.map((group) => (
         <section key={group.name} aria-label={group.name} data-hotkey-group={group.name}>
-          <h3 className="mb-1 font-semibold text-muted-foreground">{group.name}</h3>
+          <h3 className="mb-1 font-semibold uppercase tracking-wide text-muted-foreground">{group.name}</h3>
           {group.entries.map((entry) => (
             <HotkeyEditorItem key={entry.id} bindingId={entry.id} className="border-b border-border py-2 last:border-b-0">
               <ShortcutRow />

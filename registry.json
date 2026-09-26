@@ -1620,7 +1620,7 @@
       "categories": [
         "hotkeys"
       ],
-      "docs": "Requires a HotkeysProvider and explicit children. Installs button, input and kbd. Compose public parts over shared registry and editing state; the application owns persistence and import/export. Adds the stale token for conflict messages.",
+      "docs": "Requires a HotkeysProvider and explicit children. Installs the hotkey registry (use-hotkeys.tsx and lib/hotkeys.ts), button, input and kbd. Compose public parts over shared registry and editing state; the application owns persistence and import/export. Adds the stale token for conflict messages.",
       "meta": {
         "components": [
           {
@@ -1637,7 +1637,7 @@
           },
           {
             "title": "HotkeyEditorKeys",
-            "description": "Displays the binding’s effective keys."
+            "description": "Displays the binding's effective keys."
           },
           {
             "title": "HotkeyEditorChange",
@@ -1689,11 +1689,11 @@
           },
           {
             "title": "groupOf",
-            "description": "Returns a binding’s group."
+            "description": "Returns a binding's group."
           },
           {
             "title": "scopeWord",
-            "description": "Names a binding’s scope."
+            "description": "Names a binding's scope."
           }
         ]
       },

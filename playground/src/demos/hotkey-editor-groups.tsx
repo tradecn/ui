@@ -63,7 +63,7 @@ export function HotkeyEditorGroups({ children }: { children?: ReactNode }) {
       {groups.length === 0 && <p className="text-muted-foreground">No shortcut matches.</p>}
       {groups.map((group) => (
         <section key={group.name} aria-label={group.name} data-hotkey-group={group.name}>
-          <h3 className="mb-1 font-semibold text-muted-foreground">{group.name}</h3>
+          <h3 className="mb-1 font-semibold uppercase tracking-wide text-muted-foreground">{group.name}</h3>
           {group.entries.map((entry) => (
             <HotkeyEditorItem key={entry.id} bindingId={entry.id} className="border-b border-border py-2 last:border-b-0">
               <ShortcutRow />
@@ -77,7 +77,7 @@ export function HotkeyEditorGroups({ children }: { children?: ReactNode }) {
 
 function ExportButton({ onExport }: { onExport: (overrides: HotkeyOverrides) => void }) {
   const { registry } = useHotkeyEditor()
-  return <Button type="button" size="sm" variant="outline" onClick={() => onExport(registry.overrides())}>Export</Button>
+  return <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => onExport(registry.overrides())}>Export</Button>
 }
 
 export default function HotkeyEditorGroupsDemo() {

@@ -85,6 +85,7 @@ function useEditorRef<T>(localRef: { current: T | null }, forwarded: Ref<T> | un
     }
   }, [localRef, forwarded])
 }
+
 /** The word for a scope on a row: "global", "editing", or a panel's kind. */
 export function scopeWord(scope: string): string {
   return scope.startsWith("panel:") ? scope.slice("panel:".length) : scope
@@ -116,6 +117,7 @@ export function HotkeyEditor({ hide, labels: labelsProp, className, children, re
     const target = search ?? node
     target.focus()
   }, [])
+  // The list's identity changes exactly when the registry emits, and the conflicts change with it.
   const conflicts = useMemo(() => {
     void entries
     return registry.conflicts()
@@ -158,6 +160,7 @@ export function HotkeyEditorSearch({ onChange, className, ...props }: InputProps
 }
 
 export type HotkeyEditorMode = "idle" | "capture" | "text"
+
 export interface HotkeyEditorItemState {
   entry: HotkeyEntry
   mode: HotkeyEditorMode
@@ -172,11 +175,17 @@ export interface HotkeyEditorItemState {
   cancel: () => void
   reset: () => void
 }
-const ItemContext = createContext<HotkeyEditorItemState | null>(null)
-export function useHotkeyEditorItem(): HotkeyEditorItemState {
+
+const ItemContext = createContext<(HotkeyEditorItemState & { blur: () => void }) | null>(null)
+
+function useItemContext() {
   const value = useContext(ItemContext)
   if (!value) throw new Error("Shortcut readings and controls must be inside HotkeyEditorItem")
   return value
+}
+
+export function useHotkeyEditorItem(): HotkeyEditorItemState {
+  return useItemContext()
 }
 
 export interface HotkeyEditorItemProps extends ComponentProps<"div"> {
@@ -202,12 +211,13 @@ function sameBinding(a: HotkeyEntry, b: HotkeyEntry): boolean {
   return a.id === b.id && a.keys === b.keys && a.defaultKeys === b.defaultKeys && a.scope === b.scope && a.description === b.description && a.group === b.group && a.when === b.when && a.repeat === b.repeat && a.preventDefault === b.preventDefault
 }
 
-function Item({ entry, className, ref, onFocusCapture, ...props }: ComponentProps<"div"> & { entry: HotkeyEntry }) {
+function Item({ entry, className, ref, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { entry: HotkeyEntry }) {
   const { registry, conflicts, labels } = useHotkeyEditor()
   const focusFallback = useContext(FocusContext)!
   const root = useRef<HTMLDivElement>(null)
   const rootRef = useEditorRef(root, ref)
   const origin = useRef<HTMLElement | null>(null)
+  const restoreFocus = useRef(true)
   const lastFocused = useRef<HTMLElement | null>(null)
   const previousMode = useRef<HotkeyEditorMode>("idle")
   const [session, setSession] = useState<EditSession | null>(null)
@@ -222,12 +232,13 @@ function Item({ entry, className, ref, onFocusCapture, ...props }: ComponentProp
     const active = node.ownerDocument.activeElement
     if (mode !== "idle" && mode !== previousMode.current) {
       node.querySelector<HTMLElement>(mode === "capture" ? "[data-hotkey-capture]" : "[data-hotkey-input]")?.focus()
-    } else if (mode === "idle" && previousMode.current !== "idle" && (active === node.ownerDocument.body || node.contains(active))) {
+    } else if (mode === "idle" && previousMode.current !== "idle" && restoreFocus.current && (active === node.ownerDocument.body || node.contains(active))) {
       const target = origin.current
       if (target?.isConnected && !target.matches(":disabled, [aria-disabled=true]")) target.focus()
       else node.focus()
     }
-    if (node.ownerDocument.activeElement === node.ownerDocument.body && lastFocused.current && !lastFocused.current.isConnected) node.focus()
+    const focused = lastFocused.current
+    if (focused && (!focused.isConnected || focused.matches(":disabled")) && (node.ownerDocument.activeElement === node.ownerDocument.body || node.ownerDocument.activeElement === focused)) node.focus()
     previousMode.current = mode
   })
   useLayoutEffect(() => {
@@ -240,6 +251,7 @@ function Item({ entry, className, ref, onFocusCapture, ...props }: ComponentProp
   const start = (mode: "capture" | "text", trigger?: HTMLElement) => {
     if (current) return
     origin.current = trigger ?? root.current
+    restoreFocus.current = true
     setSession({ registry, entry, mode, draft: entry.keys, problem: null })
   }
   const cancel = () => setSession(null)
@@ -263,13 +275,22 @@ function Item({ entry, className, ref, onFocusCapture, ...props }: ComponentProp
     },
     reset: () => { registry.reset(entry.id); cancel() },
   }
-  return <ItemContext value={state}><div role="group" tabIndex={-1} aria-label={props["aria-labelledby"] ? undefined : entry.description} data-slot="tradecn-hotkey-editor-item" data-hotkey-row={entry.id} data-remapped={entry.remapped || undefined} data-mode={mode} className={cn("flex min-w-0 flex-col gap-1.5", className)} {...props} ref={rootRef} onFocusCapture={(event) => {
+  const blur = () => {
+    // Blur can commit while activeElement is still body, before its destination receives focus.
+    restoreFocus.current = false
+    lastFocused.current = null
+    cancel()
+  }
+  return <ItemContext value={{ ...state, blur }}><div role="group" tabIndex={-1} aria-label={props["aria-labelledby"] ? undefined : entry.description} data-slot="tradecn-hotkey-editor-item" data-hotkey-row={entry.id} data-remapped={entry.remapped || undefined} data-mode={mode} className={cn("flex min-w-0 flex-col gap-1.5", className)} {...props} ref={rootRef} onFocusCapture={(event) => {
     lastFocused.current = event.target
     onFocusCapture?.(event)
+  }} onBlurCapture={(event) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) lastFocused.current = null
+    onBlurCapture?.(event)
   }} /></ItemContext>
 }
 
-export function HotkeyEditorKeys({ className, ...props }: ComponentProps<"span">) {
+export function HotkeyEditorKeys({ className, ...props }: Omit<ComponentProps<"span">, "children">) {
   const { entry } = useHotkeyEditorItem()
   const { registry, labels } = useHotkeyEditor()
   const steps = entry.keys ? formatKeys(entry.keys, registry.platform) : []
@@ -305,20 +326,27 @@ export function HotkeyEditorReset({ onClick, disabled, className, ...props }: Ac
   }} />
 }
 
-export function HotkeyEditorResetAll({ onClick, disabled, className, ...props }: ActionProps) {
+export function HotkeyEditorResetAll({ onClick, disabled, className, ref, ...props }: ActionProps) {
   const { registry, remapped } = useHotkeyEditor()
-  return <Button type="button" variant="outline" size="sm" className={cn("h-7 px-2 text-xs", className)} {...props} disabled={disabled || remapped === 0} onClick={(event) => {
+  const focusFallback = useContext(FocusContext)!
+  const button = useRef<HTMLButtonElement>(null)
+  const buttonRef = useEditorRef(button, ref)
+  useLayoutEffect(() => {
+    const node = button.current
+    if ((disabled || remapped === 0) && node && node.ownerDocument.activeElement === node) focusFallback()
+  }, [disabled, remapped, focusFallback])
+  return <Button type="button" variant="outline" size="sm" className={cn("h-7 px-2 text-xs", className)} {...props} ref={buttonRef} disabled={disabled || remapped === 0} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) registry.reset()
   }} />
 }
 
 export function HotkeyEditorCapture({ onKeyDown, onBlur, className, children, "aria-describedby": describedBy, ...props }: ComponentProps<typeof Button>) {
-  const { mode, commit, cancel, problem, problemId } = useHotkeyEditorItem()
+  const { mode, commit, cancel, blur, problem, problemId } = useItemContext()
   const { labels } = useHotkeyEditor()
   const hintId = useId()
   if (mode !== "capture") return null
-  return <><Button type="button" variant="outline" size="sm" aria-pressed aria-invalid={problem ? true : undefined} aria-describedby={[describedBy, hintId, problem ? problemId : null].filter(Boolean).join(" ")} data-hotkey-capture="" className={cn("h-auto min-h-7 self-start whitespace-normal px-2 text-start text-xs", className)} {...props} onKeyDown={(event) => {
+  return <><Button type="button" variant="outline" size="sm" aria-pressed aria-invalid={problem ? true : undefined} aria-describedby={[describedBy, hintId, problem ? problemId : null].filter(Boolean).join(" ")} data-hotkey-capture="true" className={cn("h-auto min-h-7 self-start whitespace-normal px-2 text-start text-xs", className)} {...props} onKeyDown={(event) => {
     onKeyDown?.(event)
     if (event.defaultPrevented) return
     event.preventDefault()
@@ -329,14 +357,14 @@ export function HotkeyEditorCapture({ onKeyDown, onBlur, className, children, "a
     if (keys) commit(keys)
   }} onBlur={(event) => {
     onBlur?.(event)
-    if (!event.defaultPrevented) cancel()
+    if (!event.defaultPrevented) blur()
   }}>
     {children ?? labels.pressKeys}
   </Button><span id={hintId} className="sr-only">{labels.cancelHint}</span></>
 }
 
 export function HotkeyEditorInput({ onChange, onKeyDown, onBlur, className, "aria-describedby": describedBy, ...props }: InputProps) {
-  const { entry, mode, draft, setDraft, commit, cancel, problem, problemId } = useHotkeyEditorItem()
+  const { entry, mode, draft, setDraft, commit, cancel, blur, problem, problemId } = useItemContext()
   const { labels } = useHotkeyEditor()
   if (mode !== "text") return null
   return <Input aria-label={`${labels.keysFor} ${entry.description}`} aria-invalid={problem ? true : undefined} aria-describedby={[describedBy, problem ? problemId : null].filter(Boolean).join(" ") || undefined} spellCheck={false} autoComplete="off" data-hotkey-input="" className={cn("h-7 w-40 font-(family-name:--tradecn-font-mono) text-xs md:text-xs", className)} {...props} value={draft} onChange={(event) => {
@@ -354,20 +382,20 @@ export function HotkeyEditorInput({ onChange, onKeyDown, onBlur, className, "ari
     }
   }} onBlur={(event) => {
     onBlur?.(event)
-    if (!event.defaultPrevented) cancel()
+    if (!event.defaultPrevented) blur()
   }} />
 }
 
-export function HotkeyEditorProblem({ className, ...props }: Omit<ComponentProps<"p">, "id">) {
+export function HotkeyEditorProblem({ className, ...props }: Omit<ComponentProps<"p">, "id" | "children">) {
   const { problem, problemId } = useHotkeyEditorItem()
-  return problem ? <p role="alert" data-hotkey-problem="" className={cn("text-destructive", className)} {...props} id={problemId}>{problem}</p> : null
+  return problem ? <p role="alert" data-hotkey-problem="true" className={cn("text-destructive", className)} {...props} id={problemId}>{problem}</p> : null
 }
 
-export function HotkeyEditorConflicts({ className, ...props }: ComponentProps<"ul">) {
+export function HotkeyEditorConflicts({ className, ...props }: Omit<ComponentProps<"ul">, "children">) {
   const { entry, conflicts } = useHotkeyEditorItem()
   const { entries, labels } = useHotkeyEditor()
   if (!conflicts.length) return null
-  return <ul data-hotkey-conflicts="" className={cn("text-stale", className)} {...props}>
+  return <ul data-hotkey-conflicts="true" className={cn("text-stale", className)} {...props}>
     {conflicts.map((conflict, index) => {
       const other = entries.find((candidate) => candidate.id === (conflict.ids[0] === entry.id ? conflict.ids[1] : conflict.ids[0]))
       return <li key={index}>{labels[conflict.kind]} {other ? `"${other.description}"` : conflict.ids.join(", ")}</li>

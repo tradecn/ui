@@ -5,7 +5,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry, type HotkeyBinding, type HotkeyEntry, type HotkeyOverrides } from "@/registry/tradecn/lib/hotkeys"
-import { HotkeyEditor, HotkeyEditorItem, HotkeyEditorKeys, HotkeyEditorChange, HotkeyEditorEdit, HotkeyEditorCapture, HotkeyEditorInput, HotkeyEditorProblem, HotkeyEditorResetAll, useHotkeyEditor, useHotkeyEditorItem, groupOf, matchesQuery, scopeWord, type HotkeyEditorProps } from "@/registry/tradecn/ui/hotkey-editor"
+import { HotkeyEditor, HotkeyEditorItem, HotkeyEditorKeys, HotkeyEditorChange, HotkeyEditorEdit, HotkeyEditorCapture, HotkeyEditorInput, HotkeyEditorProblem, HotkeyEditorConflicts, HotkeyEditorResetAll, useHotkeyEditor, useHotkeyEditorItem, groupOf, matchesQuery, scopeWord, type HotkeyEditorProps } from "@/registry/tradecn/ui/hotkey-editor"
 
 const BINDINGS: HotkeyBinding[] = [
   { id: "palette.open", keys: "mod+k", scope: "editing", description: "Open the command palette", group: "General" },
@@ -189,7 +189,6 @@ describe("HotkeyEditor", () => {
   })
 })
 
-
 describe("composition and migration", () => {
   it("requires composition for minimal and configured v1 calls", () => {
     // @ts-expect-error The released minimal call must migrate.
@@ -204,6 +203,16 @@ describe("composition and migration", () => {
     const composed = <HotkeyEditor>{show && <span />}</HotkeyEditor>
     const conditional = <HotkeyEditor>{null}</HotkeyEditor>
     expect([minimal, configured, exporting, importing, composed, conditional]).toHaveLength(6)
+  })
+
+  it("rejects replacement children on readings that own their content", () => {
+    // @ts-expect-error Use the item hook to render custom keys.
+    const keys = <HotkeyEditorKeys>Custom keys</HotkeyEditorKeys>
+    // @ts-expect-error The problem reading renders the coordinated validation message.
+    const problem = <HotkeyEditorProblem>Custom problem</HotkeyEditorProblem>
+    // @ts-expect-error Use the item hook to render a custom conflict list.
+    const conflicts = <HotkeyEditorConflicts>Custom conflicts</HotkeyEditorConflicts>
+    expect([keys, problem, conflicts]).toHaveLength(3)
   })
 
   it("forwards native refs and events, and allows a different collection order", () => {
@@ -332,6 +341,20 @@ describe("composition and migration", () => {
     act(() => registry.remap("go.book", "g j"))
     act(() => registry.reset("go.book"))
     expect(screen.queryByLabelText("Keys for Go to the book")).toBeNull()
+  })
+
+  it("forgets a reset button after focus leaves its item", () => {
+    const { registry } = mount()
+    act(() => registry.remap("go.book", "q"))
+    act(() => screen.getByRole("button", { name: "Reset: Go to the book" }).focus())
+    act(() => screen.getByRole("button", { name: "Reset all" }).focus())
+    fireEvent.click(screen.getByRole("button", { name: "Reset all" }))
+    act(() => screen.getByLabelText("Find a shortcut").blur())
+    expect(document.body).toHaveFocus()
+    let unbind = () => {}
+    act(() => { unbind = registry.bind("go.blotter", () => {}) })
+    expect(document.body).toHaveFocus()
+    act(unbind)
   })
 
   it("recovers focus when the caller removes a reset button after resetting", () => {
