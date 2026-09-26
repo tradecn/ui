@@ -1759,5 +1759,75 @@ test("a price chart paints in the page's tokens, prints the last with its sign, 
     return out
   })
   expect(swatch.swatch, "bg-chart-1 resolves to the token").toBe(swatch.token)
+  // Retention can remove the keyboard-selected tail without moving focus. The crosshair must
+  // follow the retained bar after uPlot commits its new scales, without echoing a cursor callback.
+  await plot.focus()
+  await page.keyboard.press("End")
+  const calls = await scene.locator("[data-cursor-calls]").getAttribute("data-cursor-calls")
+  await scene.getByRole("button", { name: "retain first bar" }).click()
+  await expect(plot).toBeFocused()
+  await expect(plot).toHaveAttribute("aria-valuenow", "0")
+  await expect(readout).toHaveText("09:30:00 110-17 V 10")
+  await expect(scene.locator("[data-cursor-calls]")).toHaveAttribute("data-cursor-calls", calls!)
+  await expect.poll(async () => {
+    const line = (await chart.locator(".u-cursor-x").boundingBox())!
+    const point = (await chart.locator(".u-cursor-pt").first().boundingBox())!
+    return Math.abs(line.x - (point.x + point.width / 2))
+  }, { message: "the keyboard crosshair stays on the retained bar" }).toBeLessThan(2)
+  // The normalized index is retained too: End is a no-op here, and appended data must not
+  // resurrect the old tail selection. Feed updates leave focus and the pointer alone.
+  await page.keyboard.press("End")
+  await expect(scene.locator("[data-cursor-calls]")).toHaveAttribute("data-cursor-calls", calls!)
+  await scene.getByRole("button", { name: "new bar", exact: true }).evaluate((button: HTMLButtonElement) => button.click())
+  await expect(plot).toHaveAttribute("aria-valuemax", "1")
+  await expect(plot).toHaveAttribute("aria-valuenow", "0")
+  await expect(readout).toHaveText("09:30:00 110-17 V 10")
+  await expect.poll(async () => {
+    const area = (await chart.locator(".u-over").boundingBox())!
+    const line = (await chart.locator(".u-cursor-x").boundingBox())!
+    return Math.abs(line.x - area.x)
+  }, { message: "appending a bar keeps the crosshair on the first bar" }).toBeLessThan(2)
+  await expect(scene.locator("[data-cursor-calls]")).toHaveAttribute("data-cursor-calls", calls!)
+  await scene.getByRole("button", { name: "retain first bar" }).evaluate((button: HTMLButtonElement) => button.click())
+  // Structural changes replace the canvas while the focused plot retains its keyboard selection.
+  const canvas = await chart.locator("canvas").elementHandle()
+  await scene.getByRole("button", { name: "toggle kind" }).click()
+  await expect(chart).toHaveAttribute("data-kind", "candles")
+  expect(await canvas!.evaluate((node) => node.isConnected)).toBe(false)
+  await expect(plot).toBeFocused()
+  await expect(plot).toHaveAttribute("aria-valuenow", "0")
+  await expect.poll(async () => {
+    const area = (await chart.locator(".u-over").boundingBox())!
+    const line = (await chart.locator(".u-cursor-x").boundingBox())!
+    return line.x >= area.x && line.x <= area.x + area.width
+  }, { message: "the recreated plot restores its keyboard crosshair" }).toBe(true)
+  await expect(scene.locator("[data-cursor-calls]")).toHaveAttribute("data-cursor-calls", calls!)
+  await scene.getByRole("button", { name: "toggle kind" }).click()
+  // A retention update while the pointer is still inside keeps its pixel coordinates. Trigger
+  // the feed control without moving the pointer, as a network update would arrive independently.
+  await scene.getByRole("button", { name: "new bar", exact: true }).click()
+  const nextBox = (await chart.locator(".u-over").boundingBox())!
+  await page.mouse.move(nextBox.x + nextBox.width - 8, nextBox.y + nextBox.height / 3)
+  const before = await chart.locator(".u-cursor-x, .u-cursor-y").evaluateAll((lines) => lines.map((line) => getComputedStyle(line).transform))
+  await scene.getByRole("button", { name: "retain first bar" }).evaluate((button: HTMLButtonElement) => button.click())
+  await expect(plot).toHaveAttribute("aria-valuemax", "0")
+  await expect.poll(() => chart.locator(".u-cursor-x, .u-cursor-y").evaluateAll((lines) => lines.map((line) => getComputedStyle(line).transform))).toEqual(before)
+  // Recreating a pointer-controlled plot retains the selected bar until a new pointer event.
+  const pointerCalls = await scene.locator("[data-cursor-calls]").getAttribute("data-cursor-calls")
+  await scene.getByRole("button", { name: "toggle kind" }).evaluate((button: HTMLButtonElement) => button.click())
+  await expect(chart).toHaveAttribute("data-kind", "candles")
+  await expect(plot).toHaveAttribute("aria-valuenow", "0")
+  await expect.poll(async () => {
+    const area = (await chart.locator(".u-over").boundingBox())!
+    const line = (await chart.locator(".u-cursor-x").boundingBox())!
+    return line.x >= area.x && line.x <= area.x + area.width
+  }, { message: "recreation retains the pointer-selected bar" }).toBe(true)
+  await expect(scene.locator("[data-cursor-calls]")).toHaveAttribute("data-cursor-calls", pointerCalls!)
+  const replacedBox = (await chart.locator(".u-over").boundingBox())!
+  await page.mouse.move(replacedBox.x + replacedBox.width / 3, replacedBox.y + 12)
+  await expect.poll(async () => {
+    const line = (await chart.locator(".u-cursor-y").boundingBox())!
+    return Math.abs(line.y - (replacedBox.y + 12))
+  }, { message: "the next pointer move controls the crosshair again" }).toBeLessThan(2)
   expect(errors).toEqual([])
 })

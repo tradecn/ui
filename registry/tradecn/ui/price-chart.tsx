@@ -1,6 +1,6 @@
 import "uplot/dist/uPlot.min.css"
 import { cn } from "cn"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent } from "react"
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNode } from "react"
 import uPlot from "uplot"
 import { directionClass, type Direction } from "@/registry/tradecn/hooks/use-flash"
 import { useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
@@ -8,19 +8,12 @@ import { formatPercent, formatPrice, formatQuantity, NUMERIC_CLASS, numericFontC
 import { columnsOf, dayFormatter, EMPTY_COLUMNS, formatChange, priceIncrements, priceOf, summarize, timeFormatter, type Bar, type BarColumns, type SeriesSummary } from "@/registry/tradecn/lib/price-series"
 import type { RowStore } from "@/registry/tradecn/lib/row-store"
 
-// An intraday price chart on uPlot: a line or candles over a store of bars, a crosshair the pointer and the
-// arrow keys both move, the time axis in the venue's zone, the last price printed with its sign and change,
-// and every color from the page's own tokens.
-//
-// The canvas cannot read a Tailwind class, so the tokens are read off the page when the chart mounts and
-// again when the class on <html> changes (a mode or a theme), and every stroke is a function uPlot asks at
-// draw time. The chart itself is an owned object: made in an effect once its box has a size and the store
-// has a bar, fed by setData once per applied batch, destroyed on the way out, never remade per update.
-// The store is read the way the grid's footer reads it, through useStoreMeta and a memo keyed on the batch
-// version, so the header commits in the same microtask flush as every other item on the screen; a plain
-// state set from the subscription would land a scheduler task later, which the bench caught.
-// Direction never rides on hue alone (contract rule 15): the last price prints its change with a sign, the
-// root carries data-direction, and the accessible name says the direction in a word.
+// The root reads the store once per batch. Public readings share that snapshot; the plot owns its
+// canvas, observers and keyboard crosshair. Moving surrounding content never remakes the plot.
+// Canvas colors are read from the page tokens at mount and whenever the page theme changes.
+// Direction has channels beyond hue (contract rule 15): Last and Change carry data-direction,
+// Change prints a sign, and the plot's accessible name says the direction in a word. Compose
+// Change or your own sign beside Last so its visible direction does not depend on color.
 
 export type PriceChartKind = "line" | "candles"
 
@@ -53,6 +46,8 @@ export interface PriceChartLabels {
 export const DEFAULT_PRICE_CHART_LABELS: PriceChartLabels = { noData: "No data", open: "O", high: "H", low: "L", close: "C", volume: "V", overlays: "Overlays", up: "up", down: "down", flat: "flat", bars: "bars" }
 
 export interface PriceChartProps extends Omit<ComponentProps<"div">, "children"> {
+  /** Compose the plot and any readings, legend or application content explicitly. */
+  children: ReactNode
   /** Bars keyed by `barId(time)`, fed with `foldTicks` or with whole bars. */
   store: RowStore<Bar>
   /** Prints the prices on the axis, in the readout, and on the last-price tag, and sets the axis grid. */
@@ -66,7 +61,7 @@ export interface PriceChartProps extends Omit<ComponentProps<"div">, "children">
   /** IANA zone for the time axis and the readout: the venue's. Default: the runtime's. */
   zone?: string
   locale?: string
-  /** Lines over the bars, each named in a legend and drawn in a chart token. */
+  /** Lines over the bars. Compose their legend with PriceChartLegend and PriceChartOverlaySwatch. */
   overlays?: readonly PriceChartOverlay[]
   /** The crosshair, moved by the pointer and by the arrow keys. Default true. */
   crosshair?: boolean
@@ -171,7 +166,7 @@ interface PlotArgs {
   convention: PriceConvention | InstrumentConvention
   overlays: readonly PriceChartOverlay[]
   live: () => Live
-  onCursor: (index: number | null) => void
+  onCursor: (plot: uPlot) => void
 }
 
 const noPaths = () => null
@@ -265,7 +260,7 @@ function plotOptions(a: PlotArgs): uPlot.Options {
           styleCursor(u, a.live().palette)
         },
       ],
-      setCursor: [(u) => a.onCursor(u.cursor.idx ?? null)],
+      setCursor: [a.onCursor],
       draw: [(u) => drawMarks(u, a)],
     },
   }
@@ -355,19 +350,54 @@ function drawTag(u: uPlot, text: string, y: number, fill: string, palette: Palet
 const clamp = (n: number, max: number) => Math.max(0, Math.min(max, n))
 const DAY_MS = 86_400_000
 
-export function PriceChart({ store, convention, label, kind = "line", baseline = null, zone, locale, overlays, crosshair = true, lastLine = true, height, labels: labelsProp, onCursor, className, style, ...props }: PriceChartProps) {
+/** Silent writes update uPlot's crosshair without echoing a programmatic move to the caller. */
+function syncPlotCursor(plot: uPlot, bar: Bar | null) {
+  plot.setCursor(bar ? { left: plot.valToPos(bar.time, "x"), top: plot.valToPos(bar.close, "y") } : { left: -10, top: -10 }, false)
+}
+
+export interface PriceChartState {
+  readonly bars: readonly Bar[]
+  readonly summary: SeriesSummary
+  readonly cursor: number | null
+  readonly bar: Bar | null
+  readonly readout: string
+  readonly overlays: readonly PriceChartOverlay[]
+  readonly convention: PriceConvention | InstrumentConvention
+  readonly labels: PriceChartLabels
+}
+
+interface ChartContext extends PriceChartState {
+  columns: BarColumns
+  label: string
+  sentence: string
+  kind: PriceChartKind
+  baseline: number | null
+  zone: string | undefined
+  crosshair: boolean
+  lastLine: boolean
+  select: (index: number | null, fromPointer?: boolean) => void
+}
+
+const PriceChartContext = createContext<ChartContext | null>(null)
+
+function useChartContext() {
+  const context = useContext(PriceChartContext)
+  if (!context) throw new Error("PriceChart parts require PriceChart")
+  return context
+}
+
+/** Shared readings for custom content; does not add a store subscription. */
+export function usePriceChart(): PriceChartState {
+  return useChartContext()
+}
+
+export function PriceChart({ store, convention, label, kind = "line", baseline = null, zone, locale, overlays, crosshair = true, lastLine = true, height, labels: labelsProp, onCursor, className, style, children, ...props }: PriceChartProps) {
   const labels = { ...DEFAULT_PRICE_CHART_LABELS, ...labelsProp }
   const ref = typeof baseline === "number" && Number.isFinite(baseline) ? baseline : null
   const overlayList = useMemo(() => overlays ?? [], [overlays])
-  // Structure, not identity: an inline overlays array is a new object per render and must not remake the plot.
-  const overlayKey = overlayList.map((o) => `${o.id}:${o.color ?? ""}:${o.width ?? ""}`).join("|")
-  const conventionKey = JSON.stringify(convention)
-
-  const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null)
-  const [cursor, setCursorState] = useState<number | null>(null)
-  // Bumped when the page's mono stack changes (the accessibility remap): the axis font is fixed at construction, so the plot is remade.
-  const [fontEpoch, setFontEpoch] = useState(0)
+  const [selection, setSelection] = useState<number | null>(null)
+  const selectionRef = useRef<number | null>(null)
+  const interactionRef = useRef<number | null>(null)
   // The store's columns, once per applied batch: the meta's version is the one dependency, so the memo reruns on
   // a batch and on nothing else, and a batch with no bar change gives the same columns back.
   const meta = useStoreMeta(store)
@@ -377,38 +407,147 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   }, [store, meta.version])
   const summary = useMemo(() => summarize(columns, ref), [columns, ref])
 
+  // Notify in the event, never inside a state updater (which StrictMode may run twice).
+  const select = useCallback((index: number | null, fromPointer = false) => {
+    // A data clamp is silent, but the pointer must still report a newly resolved index.
+    const previous = fromPointer ? interactionRef.current : selectionRef.current
+    const changed = selectionRef.current !== index
+    interactionRef.current = index
+    if (changed) {
+      selectionRef.current = index
+      setSelection(index)
+    }
+    if (changed || previous !== index) onCursor?.(index === null ? null : (columns.bars[index] ?? null))
+  }, [columns, onCursor])
+
+  const count = columns.bars.length
+  const cursor = selection === null || count === 0 ? null : clamp(selection, count - 1)
+  // Keep the clamped index when bars return; an empty store still retains its selection.
+  if (cursor !== null && cursor !== selection) setSelection(cursor)
+  useLayoutEffect(() => {
+    if (count > 0 && selectionRef.current !== null) selectionRef.current = clamp(selectionRef.current, count - 1)
+  }, [count])
+  const at = cursor === null ? null : columns.bars[cursor]!
+  const price = priceOf(convention)
+  const time = timeFormatter(zone, locale)
+  const direction = summary.direction
+  const word = labels[direction]
+  const last = summary.last
+  const readout = at ? `${time(at.time)} ${kind === "candles" ? `${labels.open} ${formatPrice(at.open, price)} ${labels.high} ${formatPrice(at.high, price)} ${labels.low} ${formatPrice(at.low, price)} ${labels.close} ${formatPrice(at.close, price)}` : formatPrice(at.close, price)}${typeof at.volume === "number" ? ` ${labels.volume} ${formatQuantity(at.volume)}` : ""}` : ""
+  const sentence = last ? `${label}: ${word}, last ${formatPrice(last.close, price)}, ${formatChange(summary.change, convention)} (${formatPercent(summary.changePct, { signed: true })}), low ${formatPrice(summary.low, price)}, high ${formatPrice(summary.high, price)}, ${count} ${labels.bars}` : `${label}: ${labels.noData}`
+
+  const context: ChartContext = { bars: columns.bars, columns, summary, cursor, bar: at, readout, overlays: overlayList, convention, labels, label, sentence, kind, baseline: ref, zone, crosshair, lastLine, select }
+
+  return (
+    <PriceChartContext.Provider value={context}>
+      <div
+        {...props}
+        data-slot="tradecn-price-chart"
+        data-kind={kind}
+        data-direction={direction}
+        data-empty={count === 0 ? "" : undefined}
+        role="group"
+        aria-label={label}
+        className={cn("flex h-64 w-full min-h-0 flex-col gap-1 text-xs text-foreground lining-nums tabular-nums", className)}
+        style={height === undefined ? style : { ...style, height }}
+      >
+        {children}
+      </div>
+    </PriceChartContext.Provider>
+  )
+}
+
+export function PriceChartHeader({ className, ...props }: ComponentProps<"div">) {
+  return <div {...props} data-chart-header="" className={cn("flex min-h-5 shrink-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 px-1", NUMERIC_CLASS, className)} />
+}
+
+export function PriceChartLast({ className, children, ...props }: ComponentProps<"span">) {
+  const { summary, convention, labels } = usePriceChart()
+  return <span {...props} data-chart-last="" data-direction={summary.direction} className={cn("text-sm font-semibold", numericFontClass(convention), directionClass(summary.direction), className)}>{children === undefined ? summary.last ? formatPrice(summary.last.close, priceOf(convention)) : labels.noData : children}</span>
+}
+
+export function PriceChartChange({ className, children, ...props }: ComponentProps<"span">) {
+  const { summary, convention } = usePriceChart()
+  if (!summary.last) return null
+  return <span {...props} data-chart-change="" data-direction={summary.direction} className={cn(numericFontClass(convention), directionClass(summary.direction), className)}>{children === undefined ? <>{formatChange(summary.change, convention)} <span className={NUMERIC_CLASS}>({formatPercent(summary.changePct, { signed: true })})</span></> : children}</span>
+}
+
+export function PriceChartReadout({ className, children, ...props }: ComponentProps<"span">) {
+  const { readout, convention } = usePriceChart()
+  return <span {...props} data-chart-readout="" className={cn("ml-auto text-muted-foreground", numericFontClass(convention), className)}>{children === undefined ? readout : children}</span>
+}
+
+export function PriceChartEmpty({ className, children, ...props }: ComponentProps<"div">) {
+  const { bars, labels } = usePriceChart()
+  if (bars.length > 0) return null
+  return <div {...props} data-chart-empty="" className={cn("absolute inset-0 flex items-center justify-center text-muted-foreground", className)}>{children === undefined ? labels.noData : children}</div>
+}
+
+export interface PriceChartLegendProps extends Omit<ComponentProps<"ul">, "children"> {
+  children: ReactNode
+}
+
+export function PriceChartLegend({ className, ...props }: PriceChartLegendProps) {
+  const { labels } = usePriceChart()
+  return <ul aria-label={labels.overlays} {...props} data-chart-legend="" className={cn("flex shrink-0 flex-wrap gap-x-3 gap-y-0.5 px-1 text-muted-foreground", className)} />
+}
+
+export interface PriceChartOverlaySwatchProps extends ComponentProps<"span"> {
+  overlayId: string
+}
+
+/** Resolves the plot's token by id, independent of the caller's legend order. */
+export function PriceChartOverlaySwatch({ overlayId, className, ...props }: PriceChartOverlaySwatchProps) {
+  const { overlays } = usePriceChart()
+  const index = overlays.findIndex((overlay) => overlay.id === overlayId)
+  const overlay = overlays[index]
+  if (!overlay) return null
+  return <span {...props} aria-hidden="true" data-chart-swatch="" className={cn("inline-block size-2 shrink-0 rounded-full", CHART_TOKEN_CLASS[Math.min(8, Math.max(1, overlay.color ?? index + 1)) - 1], className)} />
+}
+
+export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDown: onKeyDownProp, onFocus, onBlur, ...props }: ComponentProps<"div">) {
+  const { columns, summary, cursor, bar, convention, overlays: overlayList, sentence, readout, kind, baseline, zone, crosshair, lastLine, select } = useChartContext()
+  const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  const [fontEpoch, setFontEpoch] = useState(0)
+  const plotKey = JSON.stringify([kind, crosshair, lastLine, zone, convention, overlayList.map((o) => [o.id, o.color, o.width]), fontEpoch])
   const plot = useRef<uPlot | null>(null)
-  const live = useRef<Live>({ palette: UNREAD_PALETTE, columns: EMPTY_COLUMNS, summary, baseline: ref })
+  const plotKeyRef = useRef<string | null>(null)
+  const live = useRef<Live>({ palette: UNREAD_PALETTE, columns: EMPTY_COLUMNS, summary, baseline })
   const overlaysRef = useRef(overlayList)
   const conventionRef = useRef(convention)
-  const onCursorRef = useRef(onCursor)
-  const cursorFromPlot = useRef(false)
-  /** Moves the crosshair and tells the consumer, from a key, the focus, or the plot's own pointer; never on mount. */
-  const moveCursor = (index: number | null, fromPlot: boolean) => {
-    cursorFromPlot.current = fromPlot
-    setCursorState((previous) => {
-      if (previous === index) return previous
-      onCursorRef.current?.(index === null ? null : (live.current.columns.bars[index] ?? null))
-      return index
-    })
+  const selectRef = useRef(select)
+  const pointerOwnsCursor = useRef(false)
+  const lastCursorEvent = useRef<uPlot.Cursor["event"]>(undefined)
+  const cursorBar = useRef(bar)
+  const moveCursor = (index: number | null) => {
+    pointerOwnsCursor.current = false
+    lastCursorEvent.current = plot.current?.cursor.event
+    selectRef.current(index)
+    if (index === cursor && plot.current) syncPlotCursor(plot.current, cursorBar.current)
   }
 
   useLayoutEffect(() => {
     overlaysRef.current = overlayList
     conventionRef.current = convention
-    onCursorRef.current = onCursor
+    selectRef.current = select
+    cursorBar.current = bar
   })
   useLayoutEffect(() => {
     live.current.summary = summary
-    live.current.baseline = ref
+    live.current.baseline = baseline
     plot.current?.redraw(false, false)
-  }, [summary, ref])
+  }, [summary, baseline])
   // The plot takes the columns before the browser paints, so the picture and the header move in one frame.
   useLayoutEffect(() => {
     live.current.columns = columns
+    // Retire the old plot before its queued hooks can select against new data or incompatible columns.
+    if (plotKeyRef.current !== plotKey) {
+      plotKeyRef.current = null
+      return
+    }
     plot.current?.setData(alignedData(columns, kind, overlaysRef.current), true)
-    // overlayKey stands for the overlays' structure; their functions are read through the ref.
-  }, [columns, kind, overlayKey])
+  }, [columns, kind, plotKey])
 
   // The box's size, from a ResizeObserver; nothing is drawn before the first measurement.
   useLayoutEffect(() => {
@@ -427,6 +566,8 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
     if (!plotEl || !ready || !canDraw()) return
     live.current.palette = readPalette(plotEl)
     const box = plotEl.getBoundingClientRect()
+    pointerOwnsCursor.current = false
+    lastCursorEvent.current = undefined
     const u = new uPlot(
       plotOptions({
         width: box.width,
@@ -438,12 +579,24 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
         convention: conventionRef.current,
         overlays: overlaysRef.current,
         live: () => live.current,
-        onCursor: (index) => moveCursor(index, true),
+        onCursor: (u) => {
+          if (plot.current !== u || plotKeyRef.current !== plotKey) return
+          // uPlot also fires this hook after setData recalculates its scales. Only a new native
+          // event transfers ownership to the pointer; keyboard selection follows the retained bar.
+          if (u.cursor.event && u.cursor.event !== lastCursorEvent.current) {
+            pointerOwnsCursor.current = true
+            lastCursorEvent.current = u.cursor.event
+          }
+          if (pointerOwnsCursor.current) selectRef.current(u.cursor.idx ?? null, true)
+          else syncPlotCursor(u, cursorBar.current)
+        },
       }),
       alignedData(live.current.columns, kind, overlaysRef.current),
       plotEl,
     )
     plot.current = u
+    plotKeyRef.current = plotKey
+    syncPlotCursor(u, cursorBar.current)
     // A mode or a theme is a class on <html> and the accessibility remap a data attribute; the tokens are read again
     // and the picture redrawn, or, when the font stack itself changed, the plot remade with the new axis font.
     const observer = new MutationObserver(() => {
@@ -462,103 +615,67 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
       observer.disconnect()
       u.destroy()
       plot.current = null
+      plotKeyRef.current = null
     }
-    // conventionKey and overlayKey stand for the objects' structure; the objects themselves are read through refs, so an inline one does not remake the plot every render.
-  }, [plotEl, ready, kind, crosshair, lastLine, zone, conventionKey, overlayKey, fontEpoch])
+    // plotKey includes convention, overlay structure and font epoch; equal inline options do not remake the plot.
+  }, [plotEl, ready, kind, crosshair, lastLine, zone, plotKey])
 
   useEffect(() => {
     if (size && plot.current) plot.current.setSize(size)
   }, [size])
 
-  // The keyboard's cursor reaches the plot; the pointer's came from it and stays where the hand put it.
+  // Keys move the plot immediately. Its cursor hook repeats this after new scales are committed;
+  // pointer-owned coordinates stay where the hand put them. Silent writes cannot echo onCursor.
   useEffect(() => {
     const u = plot.current
-    if (!u) return
-    if (cursorFromPlot.current) {
-      cursorFromPlot.current = false
-      return
-    }
-    const bar = cursor === null ? undefined : live.current.columns.bars[cursor]
-    if (!bar) u.setCursor({ left: -10, top: -10 })
-    else u.setCursor({ left: u.valToPos(bar.time, "x"), top: u.valToPos(bar.close, "y") })
+    if (u && !pointerOwnsCursor.current) syncPlotCursor(u, cursorBar.current)
   }, [cursor])
 
+  const attachPlot = useCallback((node: HTMLDivElement | null) => {
+    setPlotEl(node)
+    if (typeof forwardedRef === "function") return forwardedRef(node)
+    if (forwardedRef) forwardedRef.current = node
+  }, [forwardedRef])
   const count = columns.bars.length
-  const at = cursor === null ? null : (columns.bars[clamp(cursor, count - 1)] ?? null)
-  const price = priceOf(convention)
-  const time = timeFormatter(zone, locale)
-  const direction = summary.direction
-  const word = labels[direction]
-  const last = summary.last
-  const readout = at ? `${time(at.time)} ${kind === "candles" ? `${labels.open} ${formatPrice(at.open, price)} ${labels.high} ${formatPrice(at.high, price)} ${labels.low} ${formatPrice(at.low, price)} ${labels.close} ${formatPrice(at.close, price)}` : formatPrice(at.close, price)}${typeof at.volume === "number" ? ` ${labels.volume} ${formatQuantity(at.volume)}` : ""}` : ""
-  const sentence = last ? `${label}: ${word}, last ${formatPrice(last.close, price)}, ${formatChange(summary.change, convention)} (${formatPercent(summary.changePct, { signed: true })}), low ${formatPrice(summary.low, price)}, high ${formatPrice(summary.high, price)}, ${count} ${labels.bars}` : `${label}: ${labels.noData}`
   const interactive = crosshair && count > 0
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    onKeyDownProp?.(event)
     if (event.defaultPrevented || !interactive || event.metaKey || event.ctrlKey || event.altKey) return
-    const from = cursor === null ? count - 1 : clamp(cursor, count - 1)
+    const from = cursor ?? count - 1
     // The slider pattern's two pairs: Right and Up go forward a bar, Left and Down back one.
     const to = { ArrowLeft: from - 1, ArrowDown: from - 1, ArrowRight: from + 1, ArrowUp: from + 1, PageDown: from - 10, PageUp: from + 10, Home: 0, End: count - 1 }[event.key]
     if (to === undefined && event.key !== "Escape") return
     // Claimed, so a hotkey registry or a panel further out leaves the key alone.
     event.preventDefault()
-    moveCursor(to === undefined ? null : clamp(to, count - 1), false)
+    moveCursor(to === undefined ? null : clamp(to, count - 1))
   }
 
   return (
     <div
       {...props}
-      data-slot="tradecn-price-chart"
-      data-kind={kind}
-      data-direction={direction}
-      data-empty={count === 0 ? "" : undefined}
-      role="group"
-      aria-label={label}
-      className={cn("flex h-64 w-full min-h-0 flex-col gap-1 text-xs text-foreground lining-nums tabular-nums", className)}
-      style={height === undefined ? style : { ...style, height }}
+      ref={attachPlot}
+      role={interactive ? "slider" : "img"}
+      aria-label={sentence}
+      tabIndex={interactive ? 0 : undefined}
+      aria-orientation={interactive ? "horizontal" : undefined}
+      aria-valuemin={interactive ? 0 : undefined}
+      aria-valuemax={interactive ? count - 1 : undefined}
+      aria-valuenow={interactive ? cursor ?? count - 1 : undefined}
+      aria-valuetext={interactive ? readout || sentence : undefined}
+      onKeyDown={onKeyDown}
+      onFocus={(event) => {
+        onFocus?.(event)
+        if (!event.defaultPrevented && interactive && cursor === null) moveCursor(count - 1)
+      }}
+      onBlur={(event) => {
+        onBlur?.(event)
+        if (!event.defaultPrevented) moveCursor(null)
+      }}
+      data-chart-plot=""
+      className={cn("relative min-h-0 flex-1 overflow-hidden rounded-sm outline-none", interactive && "cursor-crosshair focus-visible:ring-2 focus-visible:ring-ring/50", className)}
     >
-      <div data-chart-header="" className={cn("flex min-h-5 shrink-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 px-1", numericFontClass(convention))}>
-        <span data-chart-last="" className={cn("text-sm font-semibold", directionClass(direction))}>
-          {last ? formatPrice(last.close, price) : labels.noData}
-        </span>
-        {last && (
-          <span data-chart-change="" className={cn(directionClass(direction))}>
-            {formatChange(summary.change, convention)} <span className={NUMERIC_CLASS}>({formatPercent(summary.changePct, { signed: true })})</span>
-          </span>
-        )}
-        <span data-chart-readout="" className="ml-auto text-muted-foreground">
-          {readout}
-        </span>
-      </div>
-      <div
-        ref={setPlotEl}
-        role={interactive ? "slider" : "img"}
-        aria-label={sentence}
-        {...(interactive ? { tabIndex: 0, "aria-orientation": "horizontal" as const, "aria-valuemin": 0, "aria-valuemax": count - 1, "aria-valuenow": cursor === null ? count - 1 : clamp(cursor, count - 1), "aria-valuetext": readout || sentence } : {})}
-        onKeyDown={onKeyDown}
-        onFocus={() => {
-          if (interactive && cursor === null) moveCursor(count - 1, false)
-        }}
-        onBlur={() => moveCursor(null, false)}
-        data-chart-plot=""
-        className={cn("relative min-h-0 flex-1 overflow-hidden rounded-sm outline-none", interactive && "cursor-crosshair focus-visible:ring-2 focus-visible:ring-ring/50")}
-      >
-        {count === 0 && (
-          <p data-chart-empty="" className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-            {labels.noData}
-          </p>
-        )}
-      </div>
-      {overlayList.length > 0 && (
-        <ul data-chart-legend="" aria-label={labels.overlays} className="flex shrink-0 flex-wrap gap-x-3 gap-y-0.5 px-1 text-muted-foreground">
-          {overlayList.map((overlay, i) => (
-            <li key={overlay.id} className="flex items-center gap-1">
-              <span aria-hidden className={cn("inline-block size-2 rounded-full", CHART_TOKEN_CLASS[Math.min(8, Math.max(1, overlay.color ?? i + 1)) - 1])} />
-              {overlay.label}
-            </li>
-          ))}
-        </ul>
-      )}
+      {children}
     </div>
   )
 }

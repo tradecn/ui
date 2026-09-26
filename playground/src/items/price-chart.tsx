@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { barId, foldTicks, type Bar } from "@/registry/tradecn/lib/price-series"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
-import { PriceChart, type PriceChartKind, type PriceChartOverlay } from "@/registry/tradecn/ui/price-chart"
+import { PriceChart, PriceChartLegend, PriceChartOverlaySwatch, PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty, type PriceChartKind, type PriceChartOverlay } from "@/registry/tradecn/ui/price-chart"
 
 // One chart over ZN in one-minute bars, with the knobs: line or candles, the venue's zone, the overlays, a
 // resizable box, and a burst of a thousand ticks folded through the store a frame at a time, which is the
@@ -116,7 +116,17 @@ export function PriceChartScene() {
         </Button>
       </div>
       <div className="resize overflow-hidden rounded-md border border-border p-2" style={{ width: 720, height: 360 }}>
-        <PriceChart store={store} convention={ZN} kind={kind} label="ZN, today" zone={zone} baseline={CLOSE} overlays={overlays ? OVERLAYS : undefined} onCursor={setCursor} className="h-full" />
+        <PriceChart store={store} convention={ZN} kind={kind} label="ZN, today" zone={zone} baseline={CLOSE} overlays={overlays ? OVERLAYS : undefined} onCursor={setCursor} className="h-full">
+          <PriceChartHeader>
+            <PriceChartLast />
+            <PriceChartChange />
+            <PriceChartReadout />
+          </PriceChartHeader>
+          <PriceChartPlot>
+            <PriceChartEmpty />
+          </PriceChartPlot>
+          {overlays && <PriceChartLegend>{OVERLAYS.map((overlay) => <li key={overlay.id} className="flex items-center gap-1"><PriceChartOverlaySwatch overlayId={overlay.id} />{overlay.label}</li>)}</PriceChartLegend>}
+        </PriceChart>
       </div>
       <p className="text-muted-foreground" data-scene-cursor="">
         {cursor ? `onCursor: ${new Date(cursor.time).toISOString()} close ${cursor.close}` : "onCursor: null"}

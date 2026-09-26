@@ -2,7 +2,7 @@ import { useState } from "react"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { barId, foldTicks, type Bar, type PriceTick } from "@/registry/tradecn/lib/price-series"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { PriceChart } from "@/registry/tradecn/ui/price-chart"
+import { PriceChart, PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty } from "@/registry/tradecn/ui/price-chart"
 
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const start = Date.parse("2026-09-22T14:00:00Z")
@@ -32,7 +32,16 @@ export default function PriceChartTicksDemo() {
         <button type="button" className="rounded border px-2 py-1" onClick={reset}>Clear bars</button>
       </div>
       <div className="w-xl max-w-full space-y-2 text-xs lining-nums tabular-nums">
-        <PriceChart store={store} convention={ZN} kind="candles" label="ZN sample tick batches" zone="America/Chicago" baseline={110.5} className="h-72" />
+        <PriceChart store={store} convention={ZN} kind="candles" label="ZN sample tick batches" zone="America/Chicago" baseline={110.5} className="h-72">
+          <PriceChartHeader>
+            <PriceChartLast />
+            <PriceChartChange />
+            <PriceChartReadout />
+          </PriceChartHeader>
+          <PriceChartPlot>
+            <PriceChartEmpty />
+          </PriceChartPlot>
+        </PriceChart>
         <p role="status" className="text-muted-foreground">{batches[step - 1]?.message ?? "No ticks received."}</p>
       </div>
     </>

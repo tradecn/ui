@@ -3160,7 +3160,7 @@
       "name": "price-chart",
       "type": "registry:ui",
       "title": "Price Chart",
-      "description": "An intraday chart on uPlot: a line through the closes or a candle per bar, over a store of bars keyed by their start time, with a crosshair the pointer and the arrow keys both move, the time axis in the venue's zone, the last price printed with its sign and its change, and overlays named in a legend and drawn in the chart tokens. Every color is read from your own tokens when the chart mounts and again when the mode changes, so the canvas wears the theme the page wears. A frame of ticks folds into the open bar through the store, and the chart reads its columns once per applied batch.",
+      "description": "A composable intraday chart on uPlot. Arrange the header, price readings, cursor readout and overlay legend around a line or candle plot. One store subscription feeds the readings and canvas; the plot owns resize, theme updates and the pointer and keyboard crosshair.",
       "dependencies": [
         "cn@^0.3.0",
         "uplot@^1.6.32"
@@ -3200,15 +3200,51 @@
         "components": [
           {
             "title": "PriceChart",
-            "description": "The chart: a line or candles over the store's bars, the readout, the crosshair, the legend."
+            "description": "Coordinates the store snapshot, formatting and cursor; requires caller-owned children."
+          },
+          {
+            "title": "PriceChartHeader",
+            "description": "A wrapping header for caller-owned content."
+          },
+          {
+            "title": "PriceChartLast",
+            "description": "The last close in the instrument convention."
+          },
+          {
+            "title": "PriceChartChange",
+            "description": "The signed price and percentage change."
+          },
+          {
+            "title": "PriceChartReadout",
+            "description": "The selected bar time, prices and volume."
+          },
+          {
+            "title": "PriceChartPlot",
+            "description": "The canvas lifecycle and accessible pointer and keyboard crosshair."
+          },
+          {
+            "title": "PriceChartEmpty",
+            "description": "An optional empty state inside the plot."
+          },
+          {
+            "title": "PriceChartLegend",
+            "description": "A named list with caller-owned rows."
+          },
+          {
+            "title": "PriceChartOverlaySwatch",
+            "description": "An overlay token resolved by id, independent of legend order."
+          },
+          {
+            "title": "usePriceChart",
+            "description": "Shared readings for custom content without another subscription."
           },
           {
             "title": "CHART_TOKEN_CLASS",
-            "description": "The eight chart tokens as utilities, in Okabe and Ito's order."
+            "description": "The eight chart tokens as background utilities."
           },
           {
             "title": "DEFAULT_PRICE_CHART_LABELS",
-            "description": "Every word the chart says."
+            "description": "Default readout, direction, empty-state and legend labels."
           }
         ]
       },

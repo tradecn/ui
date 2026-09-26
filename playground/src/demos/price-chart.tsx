@@ -2,7 +2,7 @@ import { useState } from "react"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { barId, type Bar } from "@/registry/tradecn/lib/price-series"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { PriceChart } from "@/registry/tradecn/ui/price-chart"
+import { PriceChart, PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty } from "@/registry/tradecn/ui/price-chart"
 
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const start = Date.parse("2026-09-22T14:00:00Z")
@@ -22,5 +22,18 @@ export default function PriceChartDemo() {
     store.applyDeltas({ upsert: bars })
     return store
   })
-  return <div className="w-xl max-w-full"><PriceChart store={store} convention={ZN} label="ZN sample, one-minute bars" zone="America/Chicago" baseline={110.5} className="h-72" /></div>
+  return (
+    <div className="w-xl max-w-full">
+      <PriceChart store={store} convention={ZN} label="ZN sample, one-minute bars" zone="America/Chicago" baseline={110.5} className="h-72">
+        <PriceChartHeader>
+          <PriceChartLast />
+          <PriceChartChange />
+          <PriceChartReadout />
+        </PriceChartHeader>
+        <PriceChartPlot>
+          <PriceChartEmpty />
+        </PriceChartPlot>
+      </PriceChart>
+    </div>
+  )
 }

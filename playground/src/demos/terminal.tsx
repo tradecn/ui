@@ -44,7 +44,7 @@ import { LinkGroupDot, PanelActions, PanelContent, PanelHeader, PanelTitle, Symb
 import { ParameterGrid, type ParameterDef, type ParameterRow } from "@/registry/tradecn/ui/parameter-grid"
 import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
 import { Positions, type PositionRow } from "@/registry/tradecn/ui/positions"
-import { PriceChart } from "@/registry/tradecn/ui/price-chart"
+import { PriceChart, PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty } from "@/registry/tradecn/ui/price-chart"
 import { RfqStack, bySize, byTimeLeft, rfqStackColumns, stackOrder, useRfqStackView, type RfqStackRow } from "@/registry/tradecn/ui/rfq-stack"
 import { RulesEditor } from "@/registry/tradecn/ui/rules-editor"
 import { Sparkline } from "@/registry/tradecn/ui/sparkline"
@@ -1140,7 +1140,16 @@ function ChartPanel() {
         </PanelActions>
       </PanelHeader>
       <PanelContent className="p-1">
-        <PriceChart store={bars} convention={future.convention} label={`${future.symbol}, today`} zone="America/Chicago" baseline={market?.close ?? null} className="h-full" />
+        <PriceChart store={bars} convention={future.convention} label={`${future.symbol}, today`} zone="America/Chicago" baseline={market?.close ?? null} className="h-full">
+          <PriceChartHeader>
+            <PriceChartLast />
+            <PriceChartChange />
+            <PriceChartReadout />
+          </PriceChartHeader>
+          <PriceChartPlot>
+            <PriceChartEmpty />
+          </PriceChartPlot>
+        </PriceChart>
       </PanelContent>
     </>
   )

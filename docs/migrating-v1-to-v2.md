@@ -114,3 +114,72 @@ The live region is now atomic, so each batched transition is read as one message
 The action registry, recents persistence, action scoring, symbol types and primary/secondary callback shapes remain available. Keep one Content and one Input per root; share the registry between separate roots for a dialog and inline list. Group and result hooks do not duplicate requests. All symbol search belongs to Content, with cancellation on query/adapter changes, close and unmount.
 
 Keep meaningful row text, shortcut hints, focusable application controls and status announcements in your composition. Public parts retain keyboard selection, captured hotkey scopes, live remaps, early dialog input, inline focus retention, closure and recent updates. Use Item or the hook's `select`, rather than calling a row's raw callback, to keep those selection effects. Scope filtering does not replace permission checks in application actions. The migrated examples preserve the prior five-recent display cap and caller status messages.
+
+## PriceChart
+
+`PriceChart` now requires `children`. Root options, labels, and plotting defaults are unchanged.
+
+Replace self-closing calls with a plot and the optional parts you need:
+
+```tsx
+import {
+  PriceChart,
+  PriceChartHeader,
+  PriceChartLast,
+  PriceChartChange,
+  PriceChartReadout,
+  PriceChartPlot,
+  PriceChartEmpty,
+  PriceChartLegend,
+  PriceChartOverlaySwatch,
+} from "@/components/ui/price-chart"
+
+<PriceChart store={store} convention={convention} label="ZN, today" overlays={overlays}>
+  <PriceChartHeader>
+    <PriceChartLast />
+    <PriceChartChange />
+    <PriceChartReadout />
+  </PriceChartHeader>
+  <PriceChartPlot>
+    <PriceChartEmpty />
+  </PriceChartPlot>
+  {overlays.length > 0 && (
+    <PriceChartLegend>
+      {overlays.map((overlay) => (
+        <li key={overlay.id} className="flex items-center gap-1">
+          <PriceChartOverlaySwatch overlayId={overlay.id} />
+          {overlay.label}
+        </li>
+      ))}
+    </PriceChartLegend>
+  )}
+</PriceChart>
+```
+
+Use your existing `store`, `convention`, and `overlays`. Keep other root options such as `zone`, `baseline`, `kind`, `height`, and `onCursor`.
+
+Omit both the `overlays` prop and legend when you have no overlays. See the [PriceChart reference](price-chart.md) for complete examples.
+
+| v1 ownership | v2 replacement |
+|---|---|
+| Automatic header and last/change/readout text | Explicit `PriceChartHeader`, `PriceChartLast`, `PriceChartChange` and `PriceChartReadout`. Move or omit them independently. |
+| Automatic canvas and keyboard crosshair | Mount one `PriceChartPlot` inside the root. It retains the accessible summary even without visible readings. |
+| Automatic "No data" placeholder | Place `PriceChartEmpty` inside the plot. It defaults to `labels.noData`. Children replace only the visible text. Use `labels.noData` for the plot's accessible name. |
+| Automatic legend rows in overlay order | Compose `PriceChartLegend` with your rows and labels. Use `PriceChartOverlaySwatch overlayId={overlay.id}` to retain the plotted color when changing legend order. Hide an empty legend yourself. |
+| Header-specific numeric font inheritance | Each public numeric reading supplies its own convention's font and numeric variant wherever placed. |
+| Root native handlers | Retained. Plot handlers are also public and run before built-in behavior. `preventDefault()` cancels that behavior. |
+| `data-chart-*` markers | Retained on their public parts. The empty placeholder is now a `div`. Replace element-specific `p[data-chart-empty]` selectors. Swatches add `data-chart-swatch`. |
+
+`PriceChartProps`, `PriceChartKind`, `PriceChartOverlay`, `PriceChartLabels`, `DEFAULT_PRICE_CHART_LABELS`, and `CHART_TOKEN_CLASS` remain exported.
+
+Use `usePriceChart` for custom readings without another store subscription.
+
+`onCursor` reports cursor interaction and pointer-driven index changes. Updating the selected bar's data does not call it.
+
+When bars remain, an out-of-range keyboard selection clamps silently to the last bar. Appended bars keep the clamped index.
+
+Programmatic plot synchronization does not echo a callback.
+
+Plot recreation restores the selected bar until the next pointer movement. Cursor callbacks no longer repeat under StrictMode.
+
+The root creates no timers or live announcements.
