@@ -192,7 +192,7 @@ These readings supply their own content and omit `children` from their props. Us
 | `conflicts` | `readonly HotkeyConflict[]` | Conflicts involving this binding. |
 | `startCapture`, `startEdit` | `(trigger?: HTMLElement) => void` | Begin editing and remember the trigger for focus return. |
 | `commit` | `(keys: string) => void` | Remap during an active edit. Invalid input keeps the edit open. |
-| `cancel` | `() => void` | Discard the draft. |
+| `cancel` | `() => void` | Discard the draft and return focus to the trigger or item. Calling this on blur can override the destination's focus. |
 | `reset` | `() => void` | Remove the binding's override and end editing. |
 
 Use the public capture and input parts with custom triggers to retain keyboard handling and focus. Pass the trigger to `startCapture` or `startEdit` to return focus to it. Otherwise, focus returns to the item.
