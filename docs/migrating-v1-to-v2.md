@@ -167,8 +167,8 @@ Omit both the `overlays` prop and legend when you have no overlays. See the [Pri
 | Automatic "No data" placeholder | Place `PriceChartEmpty` inside the plot. It defaults to `labels.noData`. Children replace only the visible text. Use `labels.noData` for the plot's accessible name. |
 | Automatic legend rows in overlay order | Compose `PriceChartLegend` with your rows and labels. Use `PriceChartOverlaySwatch overlayId={overlay.id}` to retain the plotted color when changing legend order. Hide an empty legend yourself. |
 | Header-specific numeric font inheritance | Each public numeric reading supplies its own convention's font and numeric variant wherever placed. |
-| Root native handlers | Retained. Plot handlers are also public and run before built-in behavior; `preventDefault()` cancels that behavior. |
-| `data-chart-*` markers | Retained on their public parts. The empty placeholder is now a `div`; replace element-specific `p[data-chart-empty]` selectors. Swatches add `data-chart-swatch`. |
+| Root native handlers | Retained. Plot handlers are also public and run before built-in behavior. `preventDefault()` cancels that behavior. |
+| `data-chart-*` markers | Retained on their public parts. The empty placeholder is now a `div`. Replace element-specific `p[data-chart-empty]` selectors. Swatches add `data-chart-swatch`. |
 
 `PriceChartProps`, `PriceChartKind`, `PriceChartOverlay`, `PriceChartLabels`, `DEFAULT_PRICE_CHART_LABELS`, and `CHART_TOKEN_CLASS` remain exported.
 

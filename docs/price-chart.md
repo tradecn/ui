@@ -68,8 +68,10 @@ PriceChart
 │   ├── PriceChartLast
 │   ├── PriceChartChange
 │   └── PriceChartReadout
-└── PriceChartPlot
-    └── PriceChartEmpty
+├── PriceChartPlot
+│   └── PriceChartEmpty
+└── PriceChartLegend
+    └── PriceChartOverlaySwatch
 ```
 
 Mount one `PriceChartPlot` per root. Move or omit the readings, header, and legend to fit your layout.
@@ -88,6 +90,8 @@ Use `usePriceChart` to add custom content.
 
 Use `kind="candles"` to display open, high, low, and close prices.
 
+Each candle's color compares its close with its open.
+
 <!-- demo: price-chart-candles -->
 
 ## Overlays
@@ -100,11 +104,9 @@ The example's bar VWAP uses prices and volumes from the displayed sample, not a 
 
 ## Incoming ticks
 
-Use `foldTicks` to build five-minute bars from trade batches.
+Use `foldTicks` to fold trade batches into bars.
 
-Select **Apply next tick batch** to replay three batches, including a late correction. Updates run on demand and keep at most two bars.
-
-Focus the plot and press Home to inspect the corrected bar. Select **Clear bars** to restart.
+Select **Apply next tick batch** three times. Focus the plot and press Home to inspect the late correction.
 
 <!-- demo: price-chart-ticks -->
 
@@ -130,12 +132,12 @@ For v1 integrations, see the [migration guide](migrating-v1-to-v2.md#pricechart)
 | `baseline` | `number \| null` | `null` | A finite previous close: the change is measured from it and it is drawn as a dashed line. Otherwise, the change is from the first bar's open. |
 | `zone` | `string` | The runtime's | A runtime-supported IANA zone for the time axis and readout: the venue's. |
 | `locale` | `string` | `en-US` | Locale of the readout's clock. |
-| `overlays` | `readonly PriceChartOverlay[]` | None | Lines over the bars; compose their legend separately. |
+| `overlays` | `readonly PriceChartOverlay[]` | None | Lines over the bars. Compose their legend separately. |
 | `crosshair` | `boolean` | `true` | The crosshair, from the pointer and the keys. Off, the plot is an image. |
 | `lastLine` | `boolean` | `true` | The dashed line and the tag at the last close. |
 | `height` | `number` | Omitted | Root height in px, overriding `style.height`. Otherwise, `h-64` unless styled differently. |
 | `labels` | `Partial<PriceChartLabels>` | `DEFAULT_PRICE_CHART_LABELS` | Override the words listed below. |
-| `onCursor` | `(bar: Bar \| null) => void` | None | Receives the selected bar or `null` on cursor interaction and pointer-driven index changes. Data clamping is silent; see [Keyboard](#keyboard). |
+| `onCursor` | `(bar: Bar \| null) => void` | None | Receives the selected bar or `null` on cursor interaction and pointer-driven index changes. Data clamping is silent. See [Keyboard](#keyboard). |
 | `className` | `string` | None | Classes on the root. |
 | `style` | `CSSProperties` | None | Inline styles on the root. |
 
@@ -148,13 +150,13 @@ Place the parts and `usePriceChart` inside `PriceChart`. `PriceChartHeader` can 
 | Part | Element | Content and behavior |
 |---|---|---|
 | `PriceChartHeader` | `div` | Your children in a wrapping row. No store or cursor subscription. |
-| `PriceChartLast` | `span` | Last close, or `labels.noData`; direction color and numeric font follow the convention. |
+| `PriceChartLast` | `span` | Last close, or `labels.noData`. Direction color and numeric font follow the convention. |
 | `PriceChartChange` | `span` | Signed price and percentage change. Renders nothing with no bars. |
-| `PriceChartReadout` | `span` | Selected bar's formatted time, prices and optional volume; blank with no selection. Defaults to `ml-auto` for a header row; use `ml-0` in other layouts. |
+| `PriceChartReadout` | `span` | Selected bar's formatted time, prices and optional volume. Blank with no selection. Defaults to `ml-auto` for a header row. Use `ml-0` in other layouts. |
 | `PriceChartPlot` | `div` | Canvas, resize/theme observers and keyboard crosshair. Accepts children for an empty state. |
-| `PriceChartEmpty` | `div` | `labels.noData`, shown only with no finite bars and positioned over the plot. Custom children replace only the visible text; the plot's accessible name uses `labels.noData`. |
-| `PriceChartLegend` | `ul` | Requires caller-owned children, usually `li` rows. Defaults its accessible name to `labels.overlays`; no automatic rows or hiding. |
-| `PriceChartOverlaySwatch` | `span` | Requires `overlayId: string`. Decorative swatch resolved from the plot's overlay order and color; unknown ids render nothing. |
+| `PriceChartEmpty` | `div` | `labels.noData`, shown only with no finite bars and positioned over the plot. Custom children replace only the visible text. The plot's accessible name uses `labels.noData`. |
+| `PriceChartLegend` | `ul` | Requires caller-owned children, usually `li` rows. Defaults its accessible name to `labels.overlays`. No automatic rows or hiding. |
+| `PriceChartOverlaySwatch` | `span` | Requires `overlayId: string`. Decorative swatch resolved from the plot's overlay order and color. Unknown ids render nothing. |
 
 Pass children to `PriceChartLast`, `PriceChartChange`, `PriceChartReadout`, or `PriceChartEmpty` to replace the default text. Use `undefined` for the default or `null` for no content.
 
@@ -168,16 +170,16 @@ Its `onKeyDown`, `onFocus`, and `onBlur` call your handler first. Call `preventD
 
 Use `usePriceChart()` for custom readings. It returns the following read-only `PriceChartState`:
 
-| Field | Value |
-|---|---|
-| `bars` | Finite bars, sorted by time. |
-| `summary` | `SeriesSummary` from `price-series.ts`. |
-| `cursor` | Selected index clamped to the current bars. `null` when unselected or empty. |
-| `bar` | Selected bar, or `null`. |
-| `readout` | Formatted cursor text. |
-| `overlays` | Overlay definitions from the root. |
-| `convention` | Price or instrument convention from the root. |
-| `labels` | Labels with defaults and overrides merged. |
+| Field | Type | Description |
+|---|---|---|
+| `bars` | `readonly Bar[]` | Finite bars, sorted by time. |
+| `summary` | `SeriesSummary` | Summary from `price-series.ts`. |
+| `cursor` | `number \| null` | Selected index clamped to the current bars. `null` when unselected or empty. |
+| `bar` | `Bar \| null` | Selected bar, or `null`. |
+| `readout` | `string` | Formatted cursor text. |
+| `overlays` | `readonly PriceChartOverlay[]` | Overlay definitions from the root. |
+| `convention` | `PriceConvention \| InstrumentConvention` | Price or instrument convention from the root. |
+| `labels` | `PriceChartLabels` | Labels with defaults and overrides merged. |
 
 The hook adds no subscription or effect. All readings share the root's one store subscription.
 
@@ -189,12 +191,11 @@ Update data through the store and move the cursor through the plot.
 
 | Change | Behavior |
 |---|---|
-| Store or batch version | Refreshes columns through `useStoreMeta`. React may combine synchronous batches into one render. |
 | Box size | Resizes the existing plot. |
 | `kind`, `crosshair`, `lastLine`, `zone`, or serialized `convention` | Recreates the plot. |
 | Overlay ids, colors, widths, or order | Recreates the plot. |
 | `baseline` alone | Updates the readings without recalculating the price scale. An out-of-range reference can stay offscreen until data updates or the plot is recreated. |
-| `<html>` `class`, `style`, `data-theme`, or `data-accessibility` | Reads colors from the tokens again. Colors are also read when the plot is created. |
+| Theme or mode | Repaints the colors. |
 | `--tradecn-font-mono` stack | Recreates the plot to update its axis font. |
 | Empty store or unmount | Destroys the plot. |
 
@@ -261,7 +262,7 @@ Empty input returns `EMPTY_COLUMNS` and `EMPTY_SUMMARY` respectively. The summar
 | Field | Type | Default | Purpose |
 |---|---|---|---|
 | `id` | `string` | Required | The key. |
-| `label` | `string` | Required | The line name; use it in your legend rows. |
+| `label` | `string` | Required | The line name. Use it in your legend rows. |
 | `values` | `(bars: readonly Bar[]) => readonly (number \| null)[]` | Required | One value per bar in time order; null leaves a gap. |
 | `color` | `number` | Its place in the list, starting at 1 | Chart token index. Supply an integer; values outside 1–8 are clamped to that range. |
 | `width` | `number` | `1` | Line width in CSS px. |
@@ -276,10 +277,6 @@ Batches that change only metadata also recalculate values. Replacing only a `val
 
 Return `null` to leave a gap. Missing and non-finite values also leave gaps, and extra values are ignored.
 
-The [overlays example](#overlays) includes a three-bar close average that leaves the first two values empty.
-
-Its bar VWAP weights `(high + low + close) / 3` by bar volume. It covers the displayed sample, not a full session or individual trades.
-
 ### The readout
 
 Use `PriceChartLast` to display the last close in the direction's color.
@@ -287,8 +284,6 @@ Use `PriceChartLast` to display the last close in the direction's color.
 Use `PriceChartChange` for the signed change and percentage from the reference. It follows the convention, such as `+0-02` for fractions or `+1.25` for decimals.
 
 Use `PriceChartReadout` for the selected bar's time, prices, and optional volume. It shows the close for a line, or all four prices for candles.
-
-A candle's body spans open to close, and its wick spans low to high. Its color compares that bar's close with its open.
 
 Keep `PriceChartChange` or your own sign beside `PriceChartLast`. Color alone does not tell every reader the direction.
 
