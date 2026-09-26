@@ -548,6 +548,38 @@ it("preserves focus on caller controls inside the tab list during rerenders", ()
   expect(screen.getByRole("button", { name: "Help" })).toHaveFocus()
 })
 
+it.each(["hidden", "disabled"])("unmounts panels while the only tab is %s and restores it when available", (attribute) => {
+  const view = (unavailable: boolean) => <ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} defaultTab="filters">
+    <RulesEditorTabList><RulesEditorTab value="filters" hidden={attribute === "hidden" && unavailable} disabled={attribute === "disabled" && unavailable}>Filters</RulesEditorTab></RulesEditorTabList>
+    <RulesEditorPanel value="filters">Filters panel</RulesEditorPanel>
+  </ComposableRulesEditor>
+  const { rerender } = render(view(true))
+  expect(screen.queryByRole("tabpanel")).toBeNull()
+  expect(screen.getByRole("region", { name: "Rules" })).not.toHaveAttribute("data-tab")
+  expect(screen.getByText("Filters")).toHaveAttribute("aria-selected", "false")
+  rerender(view(false))
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Filters panel")
+  expect(tab("Filters")).toHaveAttribute("aria-selected", "true")
+  rerender(view(true))
+  expect(screen.queryByRole("tabpanel")).toBeNull()
+  expect(screen.getByRole("region", { name: "Rules" })).not.toHaveAttribute("data-tab")
+  rerender(view(false))
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Filters panel")
+})
+
+it("unmounts the selected panel when its tab list is removed", () => {
+  const view = (show: boolean) => <ComposableRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}>
+    {show && <RulesEditorTabList><RulesEditorTab value="highlights">Highlights</RulesEditorTab></RulesEditorTabList>}
+    <RulesEditorPanel value="highlights">Highlights panel</RulesEditorPanel>
+  </ComposableRulesEditor>
+  const { rerender } = render(view(true))
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Highlights panel")
+  rerender(view(false))
+  expect(screen.queryByRole("tabpanel")).toBeNull()
+  rerender(view(true))
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Highlights panel")
+})
+
 it("keeps moved field focus when the caller accepts copied rules with reordered properties", () => {
   function Controlled() {
     const [rules, setRules] = useState(RULES)

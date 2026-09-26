@@ -148,7 +148,7 @@ Item fields, move/remove actions, problems, and match counts require `RulesEdito
 
 ### Keyboard and focus
 
-Tabs support Left/Right wrapping and Home/End. If the selected tab disappears, the first available tab is shown.
+Tabs support Left/Right wrapping and Home/End. If the selected tab disappears, the first available tab is shown. No panel is mounted while all tabs are hidden or disabled.
 
 The previous selection returns if that tab returns before another selection is made.
 

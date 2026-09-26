@@ -188,7 +188,7 @@ The root creates no timers or live announcements.
 
 `RulesEditor` now requires `children`. Compose the sections, fields, readings, and actions you need.
 
-Start with the complete [Usage example](rules-editor.md#usage), or copy [Tabs](rules-editor.md#tabs) to retain the four-tab editor.
+You can start with the complete [Usage example](rules-editor.md#usage), or copy [Tabs](rules-editor.md#tabs) to retain the four-tab editor.
 
 | Previous interface | Replacement |
 |---|---|
@@ -221,7 +221,7 @@ Each value field renders only when its operator needs it. The parts retain comma
 
 `RulesEditorProps`, `RulesEditorTab`, `RulesEditorLabels`, `DEFAULT_RULES_EDITOR_LABELS`, and all pure helpers remain exported.
 
-`RulesEditorItem` is a focusable `div`. Wrap it in `li` for a list, or place it directly in a card layout.
+`RulesEditorItem` is a focusable `div`. You can wrap it in `li` for a list, or place it directly in a card layout.
 
 Moves use source indices and keep focus on the moved field when available. Drops are limited to the same rule kind in the same editor.
 

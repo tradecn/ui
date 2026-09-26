@@ -246,7 +246,7 @@ export function useRulesEditor(): RulesEditorState {
 
 interface TabsContextValue {
   id: string
-  tab: RulesEditorTab
+  tab: RulesEditorTab | null
   select: (tab: RulesEditorTab) => void
   register: (tabs: RulesEditorTab[]) => void
 }
@@ -325,9 +325,9 @@ export function RulesEditor<T>({ columns, rules, onRulesChange, store, defaultTa
   const rootRef = useEditorRef(root, ref)
   const dragging = useRef<{ kind: RulesEditorKind; index: number; clear: () => void } | null>(null)
   const [tab, select] = useState(defaultTab)
-  const [tabs, setTabs] = useState<RulesEditorTab[]>([])
-  const register = useCallback((next: RulesEditorTab[]) => setTabs((previous) => previous.join() === next.join() ? previous : next), [])
-  const shownTab = tabs.includes(tab) ? tab : tabs[0] ?? tab
+  const [tabs, setTabs] = useState<RulesEditorTab[] | null>(null)
+  const register = useCallback((next: RulesEditorTab[]) => setTabs((previous) => previous?.join() === next.join() ? previous : next), [])
+  const shownTab = tabs === null ? tab : tabs.includes(tab) ? tab : tabs[0] ?? null
   const focusAfter = useRef<{ rules: GridRules; kind: RulesEditorKind; index: number; list: readonly (ColumnRule | FilterRule | SortRule)[]; active: Element; field?: string } | null>(null)
   useLayoutEffect(() => {
     const pending = focusAfter.current
@@ -396,7 +396,7 @@ function availableTabs(node: HTMLElement) {
 
 export function RulesEditorTabList({ className, onKeyDown, onFocusCapture, ref, ...props }: ComponentProps<"div">) {
   const { labels } = useRulesEditor()
-  const { register, select, tab } = useTabs()
+  const { register, select } = useTabs()
   const list = useRef<HTMLDivElement>(null)
   const listRef = useEditorRef(list, ref)
   const focused = useRef<HTMLElement | null>(null)
@@ -418,7 +418,10 @@ export function RulesEditorTabList({ className, onKeyDown, onFocusCapture, ref, 
     sync()
     const observer = new MutationObserver(sync)
     observer.observe(node, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "hidden", "data-rules-tab"] })
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      register([])
+    }
   }, [register])
   return <div role="tablist" aria-label={props["aria-labelledby"] ? undefined : labels.title} className={cn("flex flex-wrap items-center gap-1", className)} {...props} ref={listRef} onFocusCapture={(event) => {
     onFocusCapture?.(event)
@@ -432,7 +435,7 @@ export function RulesEditorTabList({ className, onKeyDown, onFocusCapture, ref, 
     event.preventDefault()
     const index = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + items.length) % items.length
     const next = items[index]!
-    select((next.dataset.rulesTab ?? tab) as RulesEditorTab)
+    select(next.dataset.rulesTab as RulesEditorTab)
     next.focus()
   }} />
 }
