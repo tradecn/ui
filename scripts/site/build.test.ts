@@ -816,9 +816,10 @@ describe("markdown", () => {
     expect(doc.html).not.toContain("<DataGrid")
   })
 
-  it("points a link to a sibling doc at its page, and leaves other links alone", () => {
-    const doc = renderMarkdown("# x\n\nRead [data-grid](data-grid.md) and [the CLI](https://ui.shadcn.com/docs/cli).\n")
+  it("points a link to a sibling doc at its page and heading, and leaves other links alone", () => {
+    const doc = renderMarkdown("# x\n\nRead [data-grid](data-grid.md), [its API](row-store.md#api-reference) and [the CLI](https://ui.shadcn.com/docs/cli).\n")
     expect(doc.html).toContain('<a href="/docs/data-grid/">data-grid</a>')
+    expect(doc.html).toContain('<a href="/docs/row-store/#api-reference">its API</a>')
     expect(doc.html).toContain('<a href="https://ui.shadcn.com/docs/cli">the CLI</a>')
   })
 
@@ -966,6 +967,25 @@ describe("the docs pages", async () => {
       expect(html).toContain(`id="feedhealth-root-${prop}"`)
       expect(html).toContain(`href="#feedhealth-root-${prop}"`)
     }
+  })
+
+  it("lands every link between the docs pages on a page and heading that exist", () => {
+    const ids = new Map(pages.map((page) => [page.path, new Set([...page.html.matchAll(/ id="([^"]+)"/g)].map((match) => match[1]))]))
+    const broken: string[] = []
+    for (const page of pages) {
+      for (const [, href = ""] of page.html.matchAll(/<a [^>]*href="([^"]*)"/g)) {
+        if (/^[a-z][a-z\d+.-]*:/i.test(href)) continue
+        if (/\.md(?:#|$)/.test(href)) broken.push(`${page.path}: ${href} is still a Markdown path`)
+        // Only a docs page or an anchor on one; the registry, the previews and the opening page are other tests'.
+        const local = /^(?:\/docs\/(?:([\w-]+)\/)?)?(?:#([\w-]+))?$/.exec(href)
+        if (!local || href === "") continue
+        const [, slug, id] = local
+        const headings = ids.get(href.startsWith("#") ? page.path : slug ? `docs/${slug}/index.html` : "docs/index.html")
+        if (!headings) broken.push(`${page.path}: ${href} has no page`)
+        else if (id && !headings.has(id)) broken.push(`${page.path}: ${href} has no heading`)
+      }
+    }
+    expect(broken).toEqual([])
   })
 
   it("renders the site's own pages, then one page per docs/*.md, with no placeholder left", () => {
