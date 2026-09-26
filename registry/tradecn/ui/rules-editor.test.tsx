@@ -1,6 +1,6 @@
 import { StrictMode, createRef, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TabbedRulesEditor } from "@/demos/rules-editor-tabs"
+import { RulesEditorSections, TabbedRulesEditor } from "@/demos/rules-editor-tabs"
 import RulesEditorDemo from "@/demos/rules-editor"
 import RulesEditorLayoutDemo from "@/demos/rules-editor-layout"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
@@ -95,6 +95,17 @@ describe("the helpers", () => {
 })
 
 describe("TabbedRulesEditor", () => {
+  it("restricts both recipe entry points to supported initial tabs", () => {
+    // @ts-expect-error An unknown tab would have no trigger or panel.
+    const invalidEditor = <TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} defaultTab="filter" />
+    // @ts-expect-error Sections expose the same initial tab choices.
+    const invalidSections = <RulesEditorSections columns={columns} defaultTab="filter" />
+    const choices = ["highlights", "filters", "sort", "columns"] as const
+    const editors = choices.map((defaultTab) => <TabbedRulesEditor key={defaultTab} columns={columns} rules={RULES} onRulesChange={() => {}} defaultTab={defaultTab} />)
+    const sections = choices.map((defaultTab) => <RulesEditorSections key={defaultTab} columns={columns} defaultTab={defaultTab} />)
+    expect([invalidEditor, invalidSections, ...editors, ...sections]).toHaveLength(10)
+  })
+
   it("lists the highlights with their column, op, value, tone, target, and label, says a rule's problem, and counts the rows each matches", () => {
     render(<TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={seeded()} />)
     const editor = screen.getByRole("region", { name: "Rules" })

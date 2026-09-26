@@ -51,7 +51,9 @@ export default function RulesEditorTabsDemo() {
   )
 }
 
-export function TabbedRulesEditor<T>({ columnState, onColumnStateChange, defaultTab = "highlights", ...props }: Omit<RulesEditorProps<T>, "children"> & { defaultTab?: string; columnState?: ColumnState; onColumnStateChange?: (state: ColumnState) => void }) {
+type TabValue = "highlights" | "filters" | "sort" | "columns"
+
+export function TabbedRulesEditor<T>({ columnState, onColumnStateChange, defaultTab = "highlights", ...props }: Omit<RulesEditorProps<T>, "children"> & { defaultTab?: TabValue; columnState?: ColumnState; onColumnStateChange?: (state: ColumnState) => void }) {
   return (
     <RulesEditor {...props}>
       <RulesEditorSections defaultTab={defaultTab} columns={props.columns} columnState={columnState} onColumnStateChange={onColumnStateChange} />
@@ -59,9 +61,9 @@ export function TabbedRulesEditor<T>({ columnState, onColumnStateChange, default
   )
 }
 
-export function RulesEditorSections<T>({ columns, columnState, onColumnStateChange, defaultTab = "highlights" }: { columns: ColumnDef<T>[]; defaultTab?: string; columnState?: ColumnState; onColumnStateChange?: (state: ColumnState) => void }) {
+export function RulesEditorSections<T>({ columns, columnState, onColumnStateChange, defaultTab = "highlights" }: { columns: ColumnDef<T>[]; defaultTab?: TabValue; columnState?: ColumnState; onColumnStateChange?: (state: ColumnState) => void }) {
   const { rules, labels } = useRulesEditor()
-  const [tab, setTab] = useState(defaultTab)
+  const [tab, setTab] = useState<string>(defaultTab)
   const hasColumns = columnState !== undefined && onColumnStateChange !== undefined
   const selected = tab === "columns" && !hasColumns ? "highlights" : tab
   return (
