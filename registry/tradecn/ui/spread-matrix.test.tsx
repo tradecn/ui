@@ -294,8 +294,12 @@ describe("public composition", () => {
     const emptyRow = <SpreadMatrixRow instrument={INSTRUMENTS[0]!} />
     // @ts-expect-error Structure rows require caller-owned cells.
     const emptyStructure = <SpreadMatrixStructureRow structure={{ id: "curve", label: "Curve", legs: ["2Y", "10Y"] }} />
+    // @ts-expect-error The required label owns aria-label.
+    const nativeLabel = <SpreadMatrixTable label="Curve" aria-label="">{null}</SpreadMatrixTable>
+    // @ts-expect-error aria-labelledby cannot override the required label either.
+    const nativeLabelledBy = <SpreadMatrixTable label="Curve" aria-labelledby="other">{null}</SpreadMatrixTable>
     const conditional = <SpreadMatrix store={store} instruments={INSTRUMENTS}>{store.getIds().length > 0 && <SpreadMatrixTable label="Curve">{null}</SpreadMatrixTable>}</SpreadMatrix>
-    expect([oldMinimal, retainedMinimal, retainedConfigured, oldColumns, oldStructures, oldLabels, emptyTable, emptyRow, emptyStructure, conditional]).toHaveLength(10)
+    expect([oldMinimal, retainedMinimal, retainedConfigured, oldColumns, oldStructures, oldLabels, emptyTable, emptyRow, emptyStructure, nativeLabel, nativeLabelledBy, conditional]).toHaveLength(12)
   })
 
   it("supports reordered rectangular tables, application cells, native refs and keyboard controls", async () => {
@@ -504,5 +508,15 @@ describe("cell identity", () => {
     act(() => store.applyDeltas({ patch: [{ id: "2Y", fields: { price: 100.265625 } }] }))
     expect(button).toHaveTextContent("−48")
     expect(td).toHaveAttribute("data-direction", "down")
+  })
+})
+
+describe("table naming", () => {
+  it("keeps the dedicated label authoritative over forwarded native naming props", () => {
+    // @ts-expect-error Native naming props cannot replace the dedicated table label.
+    const table = <SpreadMatrixTable label="Price spreads" aria-label="" aria-labelledby="other-label"><tbody><tr><td>Quotes</td></tr></tbody></SpreadMatrixTable>
+    render(<><span id="other-label">Wrong table</span>{table}</>)
+    expect(screen.getByRole("table")).toHaveAccessibleName("Price spreads")
+    expect(screen.getByRole("table")).not.toHaveAttribute("aria-labelledby")
   })
 })

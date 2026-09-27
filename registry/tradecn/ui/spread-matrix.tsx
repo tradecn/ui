@@ -133,13 +133,15 @@ export function SpreadMatrix<T extends object = SpreadQuote>({ store, instrument
 }
 
 export interface SpreadMatrixTableProps extends ComponentProps<"table"> {
+  "aria-label"?: never
+  "aria-labelledby"?: never
   label: string
   children: ReactNode
 }
 
 /** A native table. Supply a caption describing the spread rule and unit. */
 export function SpreadMatrixTable({ label, className, ...props }: SpreadMatrixTableProps) {
-  return <table aria-label={label} className={cn("w-full border-collapse", className)} {...props} />
+  return <table {...props} aria-label={label} aria-labelledby={undefined} className={cn("w-full border-collapse", className)} />
 }
 
 /** A column header by default. Use scope="row" for row labels. */

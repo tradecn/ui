@@ -373,7 +373,7 @@ The [Usage example](spread-matrix.md#usage) includes the complete matrix. The [c
 | Previous interface | Replacement |
 |---|---|
 | Self-closing `<SpreadMatrix ... />` | Required children containing your table and collection markup. Calls with only retained props also require children. |
-| `label` on the root | Required `label` on `SpreadMatrixTable`. |
+| `label` on the root | Required `label` on `SpreadMatrixTable`. Native `aria-label` and `aria-labelledby` props are reserved. |
 | `instruments` selected rows and default columns | Map your row instruments into `SpreadMatrixRow` and your columns into `SpreadMatrixCell`. Keep root `instruments` for structure metadata. |
 | `columns` | Map the selected columns into headers and cells. For structure metadata, pass `[...instruments, ...columns]` to the root to preserve the old last-column-wins lookup. |
 | `structures` | Map into `SpreadMatrixStructureRow`, with `SpreadMatrixStructureCell` and optional `SpreadMatrixLegs`. An empty array previously showed the structures headers; retain those headers in your composition or supply an empty state. |

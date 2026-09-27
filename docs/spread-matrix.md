@@ -181,7 +181,7 @@ The hooks reuse their parent's state. Use them to place leg descriptions outside
 
 ### Accessibility
 
-`SpreadMatrixTable` renders a native table named by `label`. Keep `thead`, `tbody` and `tr` in their valid table positions. Supply column headers and `scope="row"` headers matching the visible collection.
+`SpreadMatrixTable` renders a native table named by `label`. Native `aria-label` and `aria-labelledby` props are reserved. Keep `thead`, `tbody` and `tr` in their valid table positions. Supply column headers and `scope="row"` headers matching the visible collection.
 
 Include a caption describing the calculation and unit, visually hidden with `sr-only` if the headings already explain them.
 
