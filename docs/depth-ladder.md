@@ -145,7 +145,7 @@ Use a nonnegative integer `depth`, a positive `rowHeight`, and nonnegative integ
 | `DepthLadderColumnHeader` | Native `div` props and required `column: LadderColumn`. | `labels[column]`. |
 | `DepthLadderViewport` | Native `div` props. | Caller-owned rows and empty state. |
 | `DepthLadderRows` | Native `div` props with required `children: (row: DepthLadderRowState) => ReactNode`. | One callback per mounted tick. |
-| `DepthLadderRow` | Native `div` props and required `children`. | Caller-owned cells. |
+| `DepthLadderRow` | Native `div` props except `id`, and required `children`. | Caller-owned cells. |
 | `DepthLadderSizeCell` | Native `div` props and required `side: "bid" \| "ask"`. | Own size followed by market size. |
 | `DepthLadderPriceCell` | Native `div` props. | The formatted price. |
 | `DepthLadderSize` | Native `span` props except `children`, and required `side`. | The formatted market size. |
@@ -167,7 +167,7 @@ The row height and transform, and the rows container height, are reserved for vi
 
 Set `--depth-ladder-columns` on the root's style to customize track widths consistently across headers and rows.
 
-Preserve generated row IDs when using the built-in keyboard navigation.
+Row IDs are generated and reserved for the grid’s active descendant. Use a data attribute to identify an application row.
 
 ### Hooks
 
@@ -293,7 +293,7 @@ Mounted rungs report their row indices. `aria-activedescendant` names the select
 
 A cell click focuses the grid.
 
-Nested controls keep their native keys, and composing keys are left alone.
+Nested controls keep their native keys, and composing keys are left alone. Removing a selected column hides its focus marks and reports `focusedColumn: null` to custom row content.
 
 Recenter does not reset keyboard focus. If the selected tick is no longer mounted, its focus mark and `aria-activedescendant` disappear, but Enter on the grid still stages that stored tick and side if the column remains in `columns`. Select a rung in the new range before using Enter.
 

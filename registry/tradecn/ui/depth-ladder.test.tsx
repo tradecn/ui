@@ -321,9 +321,11 @@ describe("composition", () => {
     const rows = <DepthLadderRows />
     // @ts-expect-error A row needs caller content.
     const row = <DepthLadderRow />
+    // @ts-expect-error The generated row ID is reserved for active descendants.
+    const customId = <DepthLadderRow id="custom"><span /></DepthLadderRow>
     const conditional = <DepthLadder {...rootProps}>{Boolean(vi.fn()()) && <DepthLadderEmpty />}</DepthLadder>
     const empty = <DepthLadder {...rootProps}>{null}</DepthLadder>
-    expect([minimal, configured, emptyState, rows, row, conditional, empty]).toHaveLength(7)
+    expect([minimal, configured, emptyState, rows, row, customId, conditional, empty]).toHaveLength(8)
   })
 
   it("supports ascending prices, reordered cells and readings, and caller controls without extra row subscriptions", () => {
@@ -505,5 +507,46 @@ describe("native control isolation", () => {
     expect(cleanup).toHaveBeenCalledTimes(1)
     view.unmount()
     expect(cleanup).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("changing a composed layout", () => {
+  it("removes the visible selection and custom row focus state when the selected column disappears", () => {
+    const stage = vi.fn()
+    const store = seed()
+    function Consumer({ showBid }: { showBid: boolean }) {
+      return <DepthLadder store={store} convention={ZN} mid={MID} label="Book" depth={0} initialRect={RECT} columns={showBid ? ["bid", "price", "ask"] : ["price", "ask"]} onStage={stage}>
+        <DepthLadderViewport><DepthLadderRows>{(row) => <DepthLadderRow>
+          {showBid && <DepthLadderSizeCell side="bid" />}
+          <DepthLadderPriceCell><span data-selected-column="">{row.focusedColumn ?? "none"}</span></DepthLadderPriceCell>
+          <DepthLadderSizeCell side="ask" />
+        </DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
+      </DepthLadder>
+    }
+    const view = render(<Consumer showBid />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(rung(6369)).toHaveAttribute("data-focused", "true")
+    view.rerender(<Consumer showBid={false} />)
+    expect(grid).not.toHaveAttribute("aria-activedescendant")
+    expect(rung(6369)).not.toHaveAttribute("data-focused")
+    expect(document.querySelector("[data-selected-column]")).toHaveTextContent("none")
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(stage).not.toHaveBeenCalled()
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(stage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ side: "sell", tick: 6369 }))
+  })
+
+  it("keeps generated row identity authoritative for active descendants", () => {
+    const legacyProps = { id: "application-row", "data-application-row": "yes" }
+    render(<DepthLadder store={seed()} convention={ZN} mid={MID} label="Book" depth={0} initialRect={RECT}>
+      <DepthLadderViewport><DepthLadderRows>{() => <DepthLadderRow {...legacyProps}><DepthLadderSizeCell side="bid" /><DepthLadderPriceCell /><DepthLadderSizeCell side="ask" /></DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
+    </DepthLadder>)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    const id = grid.getAttribute("aria-activedescendant")!
+    expect(document.getElementById(id)).toBe(rung(6369))
+    expect(rung(6369)).toHaveAttribute("data-application-row", "yes")
   })
 })

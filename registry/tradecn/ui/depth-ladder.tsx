@@ -380,15 +380,15 @@ export function DepthLadderRows({ children, className, style, ...props }: Omit<C
   return <div role="rowgroup" className={cn("relative", className)} style={{ ...style, height: state.totalSize }} {...props}>
     {state.items.map((item) => {
       const tick = state.tickAt(item.index)
-      return <RowScope key={item.key} config={state.config} tick={tick} index={item.index} start={item.start} height={item.size} domId={state.domId(tick)} isMid={tick === state.midTick} focusedColumn={state.focused?.tick === tick ? state.focused.col : null}>{children}</RowScope>
+      return <RowScope key={item.key} config={state.config} tick={tick} index={item.index} start={item.start} height={item.size} domId={state.domId(tick)} isMid={tick === state.midTick} focusedColumn={state.focused?.tick === tick && state.config.columns.includes(state.focused.col) ? state.focused.col : null}>{children}</RowScope>
     })}
   </div>
 }
 
-export function DepthLadderRow({ className, style, ...props }: ComponentProps<"div"> & { children: ReactNode }) {
+export function DepthLadderRow({ className, style, ...props }: Omit<ComponentProps<"div">, "id"> & { children: ReactNode }) {
   const row = useRowContext()
   const mine = row.myBid !== null ? row.myAsk !== null ? "both" : "bid" : row.myAsk !== null ? "ask" : undefined
-  return <div role="row" id={row.domId} data-tick={row.tick} data-mid={row.isMid ? "" : undefined} data-mine={mine} data-focused={row.focusedColumn !== null || undefined} aria-rowindex={row.index + row.config.headerRows + 1} aria-description={row.isMid ? row.config.labels.mid : undefined} className={cn("absolute top-0 left-0 grid w-full items-stretch border-b border-border/60", row.isMid && "border-y border-primary/60 bg-muted/60", row.focusedColumn !== null && "outline-1 -outline-offset-1 outline-ring", className)} style={{ gridTemplateColumns: "var(--depth-ladder-columns)", ...style, height: row.height, transform: `translateY(${row.start}px)` }} {...props} />
+  return <div role="row" data-tick={row.tick} data-mid={row.isMid ? "" : undefined} data-mine={mine} data-focused={row.focusedColumn !== null || undefined} aria-rowindex={row.index + row.config.headerRows + 1} aria-description={row.isMid ? row.config.labels.mid : undefined} className={cn("absolute top-0 left-0 grid w-full items-stretch border-b border-border/60", row.isMid && "border-y border-primary/60 bg-muted/60", row.focusedColumn !== null && "outline-1 -outline-offset-1 outline-ring", className)} style={{ gridTemplateColumns: "var(--depth-ladder-columns)", ...style, height: row.height, transform: `translateY(${row.start}px)` }} {...props} id={row.domId} />
 }
 
 type SideProps = { side: "bid" | "ask" }

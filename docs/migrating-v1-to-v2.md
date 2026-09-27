@@ -358,7 +358,7 @@ A focused Recenter returns focus to the grid when it disappears or becomes disab
 
 Keep the part mounted and let it manage visibility.
 
-`aria-activedescendant` now names only mounted rows.
+`aria-activedescendant` now names only mounted rows. `DepthLadderRow` reserves its generated `id`. Use a data attribute for application row identifiers.
 
 Recenter still retains the selected tick and column, and Enter on the grid can stage that tick after it leaves view. Choose a current row first when that is not intended.
 
