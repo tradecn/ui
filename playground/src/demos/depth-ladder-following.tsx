@@ -18,6 +18,23 @@ function renderLadderRow() {
   )
 }
 
+export function DepthLadderContent() {
+  return (
+    <>
+      <DepthLadderHeader>
+        <DepthLadderColumnHeader column="bid" />
+        <DepthLadderColumnHeader column="price" />
+        <DepthLadderColumnHeader column="ask" />
+      </DepthLadderHeader>
+      <DepthLadderViewport>
+        <DepthLadderEmpty />
+        <DepthLadderRows>{renderLadderRow}</DepthLadderRows>
+      </DepthLadderViewport>
+      <DepthLadderRecenter className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2" />
+    </>
+  )
+}
+
 export default function DepthLadderFollowingDemo() {
   const [store] = useState(() => {
     const store = createRowStore<DepthLevel>({ getRowId: (level) => levelId(level.tick) })
@@ -42,16 +59,7 @@ export default function DepthLadderFollowingDemo() {
       <div className="w-72 max-w-full space-y-2 text-xs lining-nums tabular-nums">
         <div className="h-64">
           <DepthLadder store={store} convention={ZN} mid={mid} label="ZN moving market" depth={12}>
-            <DepthLadderHeader>
-              <DepthLadderColumnHeader column="bid" />
-              <DepthLadderColumnHeader column="price" />
-              <DepthLadderColumnHeader column="ask" />
-            </DepthLadderHeader>
-            <DepthLadderViewport>
-              <DepthLadderEmpty />
-              <DepthLadderRows>{renderLadderRow}</DepthLadderRows>
-            </DepthLadderViewport>
-            <DepthLadderRecenter className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2" />
+            <DepthLadderContent />
           </DepthLadder>
         </div>
         <p role="status" className="text-muted-foreground">Market mid: {format.price(mid)}.</p>

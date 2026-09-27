@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { createInstrumentFormatter, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 import { DepthLadder, levelId, priceAtTick, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
-import { DepthLadderContent } from "@/demos/depth-ladder"
+import { DepthLadderContent } from "@/demos/depth-ladder-following"
 
 // Two ladders over pretend books, ZN in 32nds and a bill on a decimal tick, each fed by its own
 // simulated market: sizes change on a few levels every quarter second, and the market steps a tick

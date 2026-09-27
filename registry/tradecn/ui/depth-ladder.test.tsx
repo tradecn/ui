@@ -482,7 +482,6 @@ describe("native control isolation", () => {
     fireEvent.click(screen.getByText("Note"))
     expect(stage).not.toHaveBeenCalled()
   })
-
 })
 
 describe("Recenter refs", () => {
