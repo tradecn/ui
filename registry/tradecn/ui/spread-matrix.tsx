@@ -1,15 +1,13 @@
 import { cn } from "cn"
-import { memo, useMemo, useRef } from "react"
+import { createContext, memo, useContext, useImperativeHandle, useLayoutEffect, useMemo, useRef, type ComponentProps, type ReactNode, type RefObject } from "react"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { useRow } from "@/registry/tradecn/hooks/use-row-store"
 import { NULL_TOKEN, NUMERIC_CLASS, formatBps, formatTicks, ticksBetween, type InstrumentConvention, type Nullable } from "@/registry/tradecn/lib/format"
 import type { RowId, RowStore } from "@/registry/tradecn/lib/row-store"
 
-// A spread matrix: instruments down the side and across the top, each cell the spread of the row over the
-// column, in ticks of price or basis points of yield, printed with its sign and flashing by the direction it
-// moved. Every row reads its own quote and every cell the column's, so a quote that moves wakes the cells it
-// is part of and nothing else. Given a list of structures (curves and butterflies as weighted legs) the matrix
-// lists those as rows instead of the full grid. It reads quotes and prints spreads; it stages and sends nothing.
+// Callers own the table and its collection markup. Rows read their own quote and cells read the
+// column's quote, so a feed update wakes only the pairs it changes. Structures share their leg
+// subscriptions across readings; each value cell owns its flash.
 
 /** What a spread is measured in: ticks of price, or basis points of yield. */
 export type SpreadBasis = "ticks" | "bps"
@@ -44,51 +42,19 @@ export interface SpreadStructure {
   tick?: number
 }
 
-export interface SpreadMatrixLabels {
-  /** The corner header of the matrix, followed by the unit. */
-  instrument: string
-  /** Headers of the structures list. */
-  structure: string
-  legs: string
-  spread: string
-  /** The unit words. */
-  ticks: string
-  bps: string
-  /** Read to a screen reader as the table's caption: which side of a cell is which. */
-  rule: string
-}
-
-export const DEFAULT_SPREAD_MATRIX_LABELS: SpreadMatrixLabels = {
-  instrument: "Instrument",
-  structure: "Structure",
-  legs: "Legs",
-  spread: "Spread",
-  ticks: "ticks",
-  bps: "bp",
-  rule: "Each cell is the row less the column.",
-}
-
-export interface SpreadMatrixProps<T extends object = SpreadQuote> {
-  /** Quotes keyed by instrument id. */
+export interface SpreadMatrixProps<T extends object = SpreadQuote> extends Omit<ComponentProps<"div">, "children"> {
   store: RowStore<T>
-  /** The rows, and the columns unless `columns` is given, in this order. */
+  /** Instrument metadata for structure leg labels and fallback ticks. Last duplicate id wins. */
   instruments: readonly SpreadInstrument[]
-  /** A different set across the top, for a matrix of one set against another. */
-  columns?: readonly SpreadInstrument[]
-  /** Ticks of price or basis points of yield. Default `ticks`. */
+  children: ReactNode
+  /** Default ticks. Yield values are in percent when basis is bps. */
   basis?: SpreadBasis
-  /** Curves and butterflies. When given, the matrix lists these as rows instead of the full grid. */
-  structures?: readonly SpreadStructure[]
-  /** Read a quote's value in the basis. Default: `price` for ticks, `yield` for basis points. Keep it stable between renders. */
+  /** Read price for ticks or yield for bps by default. Keep stable between renders. */
   value?: (quote: T, basis: SpreadBasis) => Nullable
-  /** Print a spread. `formatSpread` by default. Keep it stable between renders. */
-  format?: (value: number, basis: SpreadBasis) => string
-  /** Accessible name of the table. */
-  label: string
-  labels?: Partial<SpreadMatrixLabels>
-  /** Cell flash duration in ms. Default 900. */
+  /** Format non-null, non-diagonal spreads. Default formatSpread. Keep stable between renders. */
+  format?: (value: number, basis: SpreadBasis) => ReactNode
+  /** Default 900ms. */
   flashWindowMs?: number
-  className?: string
 }
 
 const FILL_CLASSES = "data-[direction=up]:bg-up-soft data-[direction=down]:bg-down-soft data-[direction=flat]:bg-flat-soft"
@@ -143,146 +109,172 @@ function defaultValue(quote: object, basis: SpreadBasis): Nullable {
   return "price" in quote && typeof quote.price === "number" ? quote.price : null
 }
 
-interface CellProps<T extends object> {
-  store: RowStore<T>
-  rowId: RowId
-  columnId: RowId
-  /** The row's value in the basis, or null while its quote is missing. */
-  rowValue: number | null
-  tick: number
-  basis: SpreadBasis
-  read: (quote: T, basis: SpreadBasis) => Nullable
-  format: (value: number, basis: SpreadBasis) => string
-  windowMs: number
-}
-
-function MatrixCellInner<T extends object>(p: CellProps<T>) {
-  const quote = useRow(p.store, p.columnId)
-  const diagonal = p.rowId === p.columnId
-  const spread = diagonal ? null : spreadBetween(p.rowValue, quote === undefined ? null : p.read(quote, p.basis), p.basis, p.tick)
-  const ref = useRef<HTMLTableCellElement>(null)
-  // One flash per move: the spread between these two instruments changed.
-  useFlash(ref, spread, { windowMs: p.windowMs, variant: "fill", disabled: diagonal })
-  return (
-    <td ref={ref} data-row={p.rowId} data-column={p.columnId} data-diagonal={diagonal ? "" : undefined} data-numeric="" className={cn(CELL, NUMERIC_CLASS, FILL_CLASSES, diagonal && "bg-muted/40")}>
-      {diagonal ? "" : spread === null ? NULL_TOKEN : p.format(spread, p.basis)}
-    </td>
-  )
-}
-const MatrixCell = memo(MatrixCellInner) as typeof MatrixCellInner
-
-interface RowProps<T extends object> {
-  store: RowStore<T>
-  instrument: SpreadInstrument
-  columns: readonly SpreadInstrument[]
-  basis: SpreadBasis
-  read: (quote: T, basis: SpreadBasis) => Nullable
-  format: (value: number, basis: SpreadBasis) => string
-  windowMs: number
-}
-
-function MatrixRowInner<T extends object>(p: RowProps<T>) {
-  const quote = useRow(p.store, p.instrument.id)
-  const raw = quote === undefined ? null : p.read(quote, p.basis)
-  const rowValue = isNumber(raw) ? raw : null
-  return (
-    <tr data-row={p.instrument.id} className="border-t border-border/60">
-      <th scope="row" className={cn(HEAD, "text-left text-foreground")}>
-        {p.instrument.label}
-      </th>
-      {p.columns.map((column) => (
-        <MatrixCell key={column.id} store={p.store} rowId={p.instrument.id} columnId={column.id} rowValue={rowValue} tick={p.instrument.convention.tick} basis={p.basis} read={p.read} format={p.format} windowMs={p.windowMs} />
-      ))}
-    </tr>
-  )
-}
-const MatrixRow = memo(MatrixRowInner) as typeof MatrixRowInner
-
-interface StructureRowProps<T extends object> {
-  store: RowStore<T>
-  structure: SpreadStructure
+interface Configuration {
+  store: RowStore<object>
   instruments: ReadonlyMap<RowId, SpreadInstrument>
   basis: SpreadBasis
-  read: (quote: T, basis: SpreadBasis) => Nullable
-  format: (value: number, basis: SpreadBasis) => string
-  windowMs: number
+  read: (quote: object, basis: SpreadBasis) => Nullable
+  format: (value: number, basis: SpreadBasis) => ReactNode
+  flashWindowMs: number
 }
 
-function StructureRowInner<T extends object>(p: StructureRowProps<T>) {
-  const legs = p.structure.legs
-  const a = legs[0]
-  const b = legs[1]
-  const c = legs.length === 3 ? legs[2] : undefined
-  // Three subscriptions whatever the leg count, so the hook count never changes; a curve's third reads its second again.
-  const qa = useRow(p.store, a)
-  const qb = useRow(p.store, b)
-  const qc = useRow(p.store, c ?? b)
-  const values = (c === undefined ? [qa, qb] : [qa, qb, qc]).map((quote) => (quote === undefined ? null : p.read(quote, p.basis)))
-  const tick = p.structure.tick ?? p.instruments.get(a)?.convention.tick ?? NaN
-  const spread = structureSpread(values, p.structure.weights, p.basis, tick)
-  const ref = useRef<HTMLTableCellElement>(null)
-  useFlash(ref, spread, { windowMs: p.windowMs, variant: "fill" })
-  const legLabels = legs.map((id) => p.instruments.get(id)?.label ?? id).join(" / ")
-  const weights = (p.structure.weights ?? defaultWeights(legs.length)).join(" ")
-  return (
-    <tr data-structure={p.structure.id} data-weights={weights} className="border-t border-border/60">
-      <th scope="row" className={cn(HEAD, "text-left text-foreground")}>
-        {p.structure.label}
-      </th>
-      <td data-legs="" className={cn(HEAD, "text-left")}>
-        {legLabels}
-      </td>
-      <td ref={ref} data-spread="" data-numeric="" className={cn(CELL, NUMERIC_CLASS, FILL_CLASSES)}>
-        {spread === null ? NULL_TOKEN : p.format(spread, p.basis)}
-      </td>
-    </tr>
-  )
-}
-const StructureRow = memo(StructureRowInner) as typeof StructureRowInner
+const MatrixContext = createContext<Configuration | null>(null)
 
-export function SpreadMatrix<T extends object = SpreadQuote>({ store, instruments, columns, basis = "ticks", structures, value, format = formatSpread, label, labels: labelsProp, flashWindowMs = 900, className }: SpreadMatrixProps<T>) {
-  const labels = useMemo<SpreadMatrixLabels>(() => ({ ...DEFAULT_SPREAD_MATRIX_LABELS, ...labelsProp }), [labelsProp])
-  const read: (quote: T, basis: SpreadBasis) => Nullable = value ?? defaultValue
-  const across = columns ?? instruments
-  const byId = useMemo(() => new Map(instruments.concat(columns ?? []).map((i) => [i.id, i])), [instruments, columns])
-  const unit = labels[basis]
-  const mode = structures ? "structures" : "matrix"
-  return (
-    <div data-slot="tradecn-spread-matrix" data-basis={basis} data-mode={mode} className={cn("overflow-auto rounded-md border border-border bg-background text-xs text-foreground lining-nums tabular-nums", className)}>
-      <table aria-label={label} className="w-full border-collapse">
-        <caption className="sr-only">{mode === "matrix" ? `${labels.rule} ${unit}.` : `${labels.spread}: ${unit}.`}</caption>
-        <thead>
-          {mode === "matrix" ? (
-            <tr>
-              <th scope="col" data-unit={basis} className={cn(HEAD, "text-left")}>
-                {labels.instrument} <span className="text-muted-foreground/80">({unit})</span>
-              </th>
-              {across.map((column) => (
-                <th key={column.id} scope="col" data-column={column.id} className={HEAD}>
-                  {column.label}
-                </th>
-              ))}
-            </tr>
-          ) : (
-            <tr>
-              <th scope="col" className={cn(HEAD, "text-left")}>
-                {labels.structure}
-              </th>
-              <th scope="col" className={cn(HEAD, "text-left")}>
-                {labels.legs}
-              </th>
-              <th scope="col" data-unit={basis} className={HEAD}>
-                {labels.spread} <span className="text-muted-foreground/80">({unit})</span>
-              </th>
-            </tr>
-          )}
-        </thead>
-        <tbody>
-          {structures
-            ? structures.map((structure) => <StructureRow key={structure.id} store={store} structure={structure} instruments={byId} basis={basis} read={read} format={format} windowMs={flashWindowMs} />)
-            : instruments.map((instrument) => <MatrixRow key={instrument.id} store={store} instrument={instrument} columns={across} basis={basis} read={read} format={format} windowMs={flashWindowMs} />)}
-        </tbody>
-      </table>
-    </div>
-  )
+function useConfiguration() {
+  const config = useContext(MatrixContext)
+  if (!config) throw new Error("SpreadMatrix parts must be inside SpreadMatrix.")
+  return config
+}
+
+export function SpreadMatrix<T extends object = SpreadQuote>({ store, instruments, basis = "ticks", value, format = formatSpread, flashWindowMs = 900, children, className, ...props }: SpreadMatrixProps<T>) {
+  // The reader and store are erased together at the context boundary; only the matching reader sees a quote.
+  const config = useMemo<Configuration>(() => ({ store: store as RowStore<object>, instruments: new Map(instruments.map((instrument) => [instrument.id, instrument])), basis, read: (value ?? defaultValue) as Configuration["read"], format, flashWindowMs }), [store, instruments, basis, value, format, flashWindowMs])
+  return <MatrixContext value={config}><div {...props} data-slot="tradecn-spread-matrix" data-basis={basis} className={cn("overflow-auto rounded-md border border-border bg-background text-xs text-foreground lining-nums tabular-nums", className)}>{children}</div></MatrixContext>
+}
+
+export interface SpreadMatrixTableProps extends ComponentProps<"table"> {
+  label: string
+  children: ReactNode
+}
+
+/** A native table. Supply a caption describing the spread rule and unit. */
+export function SpreadMatrixTable({ label, className, ...props }: SpreadMatrixTableProps) {
+  return <table aria-label={label} className={cn("w-full border-collapse", className)} {...props} />
+}
+
+/** A column header by default. Use scope="row" for row labels. */
+export function SpreadMatrixHead({ scope = "col", className, ...props }: ComponentProps<"th">) {
+  return <th scope={scope} className={cn(HEAD, scope === "row" && "text-left text-foreground", className)} {...props} />
+}
+
+export interface SpreadMatrixRowState {
+  instrument: SpreadInstrument
+  value: number | null
+}
+const RowContext = createContext<SpreadMatrixRowState | null>(null)
+
+/** Read the current row without adding a subscription. */
+export function useSpreadMatrixRow(): SpreadMatrixRowState {
+  const row = useContext(RowContext)
+  if (!row) throw new Error("useSpreadMatrixRow must be inside SpreadMatrixRow.")
+  return row
+}
+
+export interface SpreadMatrixRowProps extends ComponentProps<"tr"> {
+  instrument: SpreadInstrument
+  children: ReactNode
+}
+
+export const SpreadMatrixRow = memo(function SpreadMatrixRow({ instrument, children, className, ...props }: SpreadMatrixRowProps) {
+  const config = useConfiguration()
+  const quote = useRow(config.store, instrument.id)
+  const raw = quote === undefined ? null : config.read(quote, config.basis)
+  const value = isNumber(raw) ? raw : null
+  const row = useMemo(() => ({ instrument, value }), [instrument, value])
+  return <RowContext value={row}><tr {...props} data-row={instrument.id} className={cn("border-t border-border/60", className)}>{children}</tr></RowContext>
+})
+
+export interface SpreadMatrixCellState {
+  spread: number | null
+  basis: SpreadBasis
+  diagonal: boolean
+}
+const CellContext = createContext<SpreadMatrixCellState | null>(null)
+
+/** Read a matrix or structure cell without adding subscriptions or flashes. */
+export function useSpreadMatrixCell(): SpreadMatrixCellState {
+  const cell = useContext(CellContext)
+  if (!cell) throw new Error("useSpreadMatrixCell must be inside SpreadMatrixCell or SpreadMatrixStructureCell.")
+  return cell
+}
+
+/** The signed reading, blank on the diagonal and an en dash when missing. */
+export function SpreadMatrixValue({ className, ...props }: Omit<ComponentProps<"span">, "children">) {
+  const config = useConfiguration()
+  const { spread, basis, diagonal } = useSpreadMatrixCell()
+  return <span {...props} data-numeric="" className={cn(NUMERIC_CLASS, className)}>{diagonal ? null : spread === null ? NULL_TOKEN : config.format(spread, basis)}</span>
+}
+
+// This effect follows the td so its ref is attached before the first layout effect. Only the flash
+// owner remounts on a new instrument pair; the native cell, caller content and focus stay in place.
+function CellFlash({ target, spread, diagonal }: { target: RefObject<HTMLTableCellElement | null>; spread: number | null; diagonal: boolean }) {
+  const { flashWindowMs } = useConfiguration()
+  useFlash(target, spread, { windowMs: flashWindowMs, variant: "fill", disabled: diagonal })
+  useLayoutEffect(() => {
+    const cell = target.current
+    return () => { if (cell) delete cell.dataset.direction }
+  }, [target])
+  return null
+}
+
+function ValueCell({ identity, spread, diagonal = false, ref, className, children, ...props }: ComponentProps<"td"> & { identity: string; spread: number | null; diagonal?: boolean }) {
+  const config = useConfiguration()
+  const local = useRef<HTMLTableCellElement>(null)
+  useImperativeHandle(ref, () => local.current!, [])
+  const state = useMemo(() => ({ spread, basis: config.basis, diagonal }), [spread, config.basis, diagonal])
+  return <CellContext value={state}>
+    <td {...props} ref={local} data-numeric="" data-diagonal={diagonal ? "" : undefined} className={cn(CELL, NUMERIC_CLASS, FILL_CLASSES, diagonal && "bg-muted/40", className)}>{children === undefined ? <SpreadMatrixValue /> : children}</td>
+    <CellFlash key={identity} target={local} spread={spread} diagonal={diagonal} />
+  </CellContext>
+}
+
+export interface SpreadMatrixCellProps extends ComponentProps<"td"> {
+  column: RowId
+}
+
+export const SpreadMatrixCell = memo(function SpreadMatrixCell({ column, ...props }: SpreadMatrixCellProps) {
+  const config = useConfiguration()
+  const row = useSpreadMatrixRow()
+  const quote = useRow(config.store, column)
+  const diagonal = row.instrument.id === column
+  const spread = diagonal ? null : spreadBetween(row.value, quote === undefined ? null : config.read(quote, config.basis), config.basis, row.instrument.convention.tick)
+  return <ValueCell {...props} data-row={row.instrument.id} data-column={column} identity={JSON.stringify([row.instrument.id, column])} spread={spread} diagonal={diagonal} />
+})
+
+export interface SpreadMatrixStructureState {
+  structure: SpreadStructure
+  legLabels: readonly string[]
+  weights: readonly number[]
+  spread: number | null
+  basis: SpreadBasis
+}
+const StructureContext = createContext<SpreadMatrixStructureState | null>(null)
+
+/** Read a structure and its legs without subscribing again. */
+export function useSpreadMatrixStructure(): SpreadMatrixStructureState {
+  const structure = useContext(StructureContext)
+  if (!structure) throw new Error("useSpreadMatrixStructure must be inside SpreadMatrixStructureRow.")
+  return structure
+}
+
+export interface SpreadMatrixStructureRowProps extends ComponentProps<"tr"> {
+  structure: SpreadStructure
+  children: ReactNode
+}
+
+export const SpreadMatrixStructureRow = memo(function SpreadMatrixStructureRow({ structure, children, className, ...props }: SpreadMatrixStructureRowProps) {
+  const config = useConfiguration()
+  const [a, b, c] = structure.legs
+  // Keep the hook count fixed when a curve becomes a butterfly; a curve reads its second leg twice.
+  const qa = useRow(config.store, a)
+  const qb = useRow(config.store, b)
+  const qc = useRow(config.store, c ?? b)
+  const values = (c === undefined ? [qa, qb] : [qa, qb, qc]).map((quote) => quote === undefined ? null : config.read(quote, config.basis))
+  const tick = structure.tick ?? config.instruments.get(a)?.convention.tick ?? NaN
+  const weights = structure.weights ?? defaultWeights(structure.legs.length)
+  const spread = structureSpread(values, weights, config.basis, tick)
+  const legLabels = structure.legs.map((id) => config.instruments.get(id)?.label ?? id)
+  const state = { structure, legLabels, weights, spread, basis: config.basis }
+  return <StructureContext value={state}><tr {...props} data-structure={structure.id} data-weights={weights.join(" ")} className={cn("border-t border-border/60", className)}>{children}</tr></StructureContext>
+})
+
+/** Optional legs column. For another placement, read legLabels with useSpreadMatrixStructure. */
+export function SpreadMatrixLegs({ children, className, ...props }: ComponentProps<"td">) {
+  const { legLabels } = useSpreadMatrixStructure()
+  return <td {...props} data-legs="" className={cn(HEAD, "text-left", className)}>{children === undefined ? legLabels.join(" / ") : children}</td>
+}
+
+export function SpreadMatrixStructureCell(props: ComponentProps<"td">) {
+  const { structure, spread } = useSpreadMatrixStructure()
+  return <ValueCell {...props} data-spread="" identity={structure.id} spread={spread} />
 }

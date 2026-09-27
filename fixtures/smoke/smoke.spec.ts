@@ -2050,3 +2050,26 @@ test("depth ladder page jumps keep an active descendant through every DOM update
     expect(await grid.locator("[data-tick]").count()).toBeLessThan(40)
   }
 })
+
+
+test("a spread matrix composes alternate tables with native keyboard controls and shared live readings", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='spread-matrix']")
+  const matrix = scene.getByRole("table", { name: "Alternate matrix", exact: true })
+  const structures = scene.getByRole("table", { name: "Alternate structures", exact: true })
+  await expect(matrix.getByRole("columnheader")).toHaveText(["Spread (bp)", "Instrument"])
+  await expect(matrix.getByRole("rowheader")).toHaveText(["10Y", "5Y"])
+  const button = matrix.getByRole("button", { name: "Select 10Y: +12.5" })
+  await expect(button).toHaveAccessibleName("Select 10Y: +12.5")
+  await button.focus()
+  await page.keyboard.press("Enter")
+  await expect(scene.getByRole("status")).toHaveText("10Y")
+  await page.keyboard.press("Tab")
+  await page.keyboard.press("Space")
+  await expect(scene.getByRole("status")).toHaveText("5Y")
+  await expect(structures.getByRole("rowheader")).toHaveText(["2s5s10s2Y / 5Y / 10Y", "2s10s2Y / 10Y"])
+  await expect(structures.locator("td[data-legs]")).toHaveCount(0)
+  await scene.getByRole("button", { name: "10Y cheapens" }).click()
+  await expect(matrix.getByRole("button", { name: "Select 10Y: +13.5" })).toHaveAccessibleName("Select 10Y: +13.5")
+  await expect(structures.locator("tr[data-structure='2s5s10s'] td[data-spread]")).toHaveText("−38.5")
+})

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { SpreadMatrix, type SpreadInstrument, type SpreadStructure } from "@/registry/tradecn/ui/spread-matrix"
+import { SpreadMatrix, SpreadMatrixTable, SpreadMatrixHead, SpreadMatrixStructureRow, SpreadMatrixLegs, SpreadMatrixStructureCell, type SpreadBasis, type SpreadInstrument, type SpreadStructure } from "@/registry/tradecn/ui/spread-matrix"
 
 const T32: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const instruments: SpreadInstrument[] = [
@@ -15,6 +15,31 @@ const structures: SpreadStructure[] = [
   { id: "2s5s10s", label: "2s5s10s", legs: ["2Y", "5Y", "10Y"] },
 ]
 
+export function SpreadStructuresContent({ structures, basis = "ticks", label }: { structures: readonly SpreadStructure[]; basis?: SpreadBasis; label: string }) {
+  const unit = basis === "ticks" ? "ticks" : "bp"
+  return (
+    <SpreadMatrixTable label={label}>
+      <caption className="sr-only">Spread: {unit}.</caption>
+      <thead>
+        <tr>
+          <SpreadMatrixHead className="text-left">Structure</SpreadMatrixHead>
+          <SpreadMatrixHead className="text-left">Legs</SpreadMatrixHead>
+          <SpreadMatrixHead>Spread ({unit})</SpreadMatrixHead>
+        </tr>
+      </thead>
+      <tbody>
+        {structures.map((structure) => (
+          <SpreadMatrixStructureRow key={structure.id} structure={structure}>
+            <SpreadMatrixHead scope="row">{structure.label}</SpreadMatrixHead>
+            <SpreadMatrixLegs />
+            <SpreadMatrixStructureCell />
+          </SpreadMatrixStructureRow>
+        ))}
+      </tbody>
+    </SpreadMatrixTable>
+  )
+}
+
 export default function SpreadMatrixStructuresDemo() {
   const [store] = useState(() => {
     const store = createRowStore<{ id: string; yield: number }>({ getRowId: (quote) => quote.id })
@@ -25,5 +50,5 @@ export default function SpreadMatrixStructuresDemo() {
     ] })
     return store
   })
-  return <SpreadMatrix store={store} instruments={instruments} structures={structures} basis="bps" label="Yield curves and butterflies" className="w-fit max-w-full" />
+  return <SpreadMatrix store={store} instruments={instruments} basis="bps" className="w-fit max-w-full"><SpreadStructuresContent structures={structures} basis="bps" label="Yield curves and butterflies" /></SpreadMatrix>
 }

@@ -3113,7 +3113,7 @@
       "name": "spread-matrix",
       "type": "registry:ui",
       "title": "Spread Matrix",
-      "description": "Instruments down the side and across the top, each cell the spread of the row over the column, in ticks of the row's price or in basis points of yield, printed with its sign and flashing by the direction it moved. Every row reads its own quote and every cell its column's, so a quote that moves wakes the cells it is part of and nothing else. Given a list of structures, curves and butterflies as two or three weighted legs, the table lists those as rows instead of the full matrix. It reads quotes and prints spreads; it stages and sends nothing.",
+      "description": "Composable spread tables for instruments, curves and butterflies, with signed readings in ticks or basis points and row/cell quote subscriptions.",
       "dependencies": [
         "cn@^0.3.0"
       ],
@@ -3149,27 +3149,67 @@
         "components": [
           {
             "title": "SpreadMatrix",
-            "description": "The table: instruments as rows and columns, or structures as rows, each cell a signed spread that flashes as it moves."
+            "description": "Coordinates quotes, instrument metadata, basis and formatting for caller-owned tables."
+          },
+          {
+            "title": "SpreadMatrixTable",
+            "description": "A named native table with caller-owned captions, headers and body."
+          },
+          {
+            "title": "SpreadMatrixHead",
+            "description": "A native header cell; column scope by default, row scope for row labels."
+          },
+          {
+            "title": "SpreadMatrixRow",
+            "description": "A matrix row with one subscription to its instrument."
+          },
+          {
+            "title": "SpreadMatrixCell",
+            "description": "A column quote subscription and flashing spread cell."
+          },
+          {
+            "title": "SpreadMatrixStructureRow",
+            "description": "Shared leg subscriptions and weights for a curve or butterfly."
+          },
+          {
+            "title": "SpreadMatrixStructureCell",
+            "description": "A flashing structure spread cell."
+          },
+          {
+            "title": "SpreadMatrixLegs",
+            "description": "An optional column naming a structure’s legs."
+          },
+          {
+            "title": "SpreadMatrixValue",
+            "description": "A signed reading within either kind of spread cell."
+          },
+          {
+            "title": "useSpreadMatrixRow",
+            "description": "The current instrument and row value without another subscription."
+          },
+          {
+            "title": "useSpreadMatrixCell",
+            "description": "The current calculated spread, basis and diagonal state."
+          },
+          {
+            "title": "useSpreadMatrixStructure",
+            "description": "The structure, named legs, weights and calculated spread."
           },
           {
             "title": "spreadBetween",
-            "description": "One value less another in ticks of a tick or in basis points; null when a side is missing."
+            "description": "Row less column in ticks or basis points."
           },
           {
             "title": "structureSpread",
-            "description": "A structure's spread: its legs' values weighted and summed, in the basis."
+            "description": "Weighted legs in ticks or basis points."
           },
           {
             "title": "formatSpread",
-            "description": "A spread with its sign and no unit."
+            "description": "A signed reading with no unit."
           },
           {
             "title": "defaultWeights",
-            "description": "The weights a curve or a butterfly takes when none are given."
-          },
-          {
-            "title": "DEFAULT_SPREAD_MATRIX_LABELS",
-            "description": "Every word the table says."
+            "description": "Default curve or butterfly weights."
           }
         ]
       },

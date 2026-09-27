@@ -3,6 +3,8 @@ import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { SpreadMatrix, type SpreadInstrument } from "@/registry/tradecn/ui/spread-matrix"
 
+import { SpreadMatrixContent } from "./spread-matrix-yields"
+
 const T32: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const instruments: SpreadInstrument[] = [
   { id: "2Y", label: "2Y", convention: { ...T32, tick: 1 / 128 } },
@@ -38,7 +40,7 @@ export default function SpreadMatrixUpdatesDemo() {
         <button type="button" className="rounded border px-2 py-1" onClick={restore}>Restore quotes</button>
       </div>
       <div className="w-fit max-w-full space-y-2 text-xs lining-nums tabular-nums">
-        <SpreadMatrix store={store} instruments={instruments} label="Updating price spreads" />
+        <SpreadMatrix store={store} instruments={instruments}><SpreadMatrixContent instruments={instruments} label="Updating price spreads" /></SpreadMatrix>
         <p role="status" className="text-muted-foreground">{moved ? "5Y price lowered by 1/64. Its row falls; its column rises." : "Initial quotes."}</p>
       </div>
     </>

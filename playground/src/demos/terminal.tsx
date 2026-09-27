@@ -54,6 +54,8 @@ import { RulesEditor } from "@/registry/tradecn/ui/rules-editor"
 import { Sparkline } from "@/registry/tradecn/ui/sparkline"
 import { SessionGuard, SessionStatus } from "@/registry/tradecn/ui/session-guard"
 import { SpreadMatrix, type SpreadInstrument, type SpreadStructure } from "@/registry/tradecn/ui/spread-matrix"
+import { SpreadMatrixContent } from "./spread-matrix-yields"
+import { SpreadStructuresContent } from "./spread-matrix-structures"
 import { StatusBar } from "@/registry/tradecn/ui/status-bar"
 import { Watchlist, watchlistColumns, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
 import { Workspace, useWorkspacePanel, type WorkspaceApi } from "@/registry/tradecn/ui/workspace"
@@ -1245,8 +1247,8 @@ function SpreadsPanel() {
         <span className="truncate text-muted-foreground">Row less column, in the row's ticks</span>
       </PanelHeader>
       <PanelContent className="flex flex-col gap-2 overflow-auto p-2">
-        <SpreadMatrix store={desk.quotes} instruments={CURVE} value={lastOf} label="Treasury futures spreads" className="w-fit" />
-        <SpreadMatrix store={desk.quotes} instruments={CURVE} structures={STRUCTURES} value={lastOf} label="Treasury futures structures" className="w-fit" />
+        <SpreadMatrix store={desk.quotes} instruments={CURVE} value={lastOf} className="w-fit"><SpreadMatrixContent instruments={CURVE} label="Treasury futures spreads" /></SpreadMatrix>
+        <SpreadMatrix store={desk.quotes} instruments={CURVE} value={lastOf} className="w-fit"><SpreadStructuresContent structures={STRUCTURES} label="Treasury futures structures" /></SpreadMatrix>
       </PanelContent>
     </>
   )

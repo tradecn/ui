@@ -23,6 +23,7 @@
     "depth-ladder-following",
     "depth-ladder-layout",
     "spread-matrix",
+    "spread-matrix-composition",
     "spread-matrix-yields",
     "spread-matrix-structures",
     "spread-matrix-updates",

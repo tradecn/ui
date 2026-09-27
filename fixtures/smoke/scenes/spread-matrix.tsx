@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { SpreadMatrix, type SpreadBasis, type SpreadInstrument, type SpreadStructure } from "@/components/ui/spread-matrix"
+import { SpreadMatrix, SpreadMatrixValue, useSpreadMatrixStructure, SpreadMatrixTable, SpreadMatrixHead, SpreadMatrixRow, SpreadMatrixCell, SpreadMatrixStructureRow, SpreadMatrixLegs, SpreadMatrixStructureCell, type SpreadBasis, type SpreadInstrument, type SpreadStructure } from "@/components/ui/spread-matrix"
 import type { InstrumentConvention } from "@/lib/format"
 import { createRowStore } from "@/lib/row-store"
 
@@ -35,14 +35,72 @@ export function SpreadMatrixScene() {
     return s
   })
   const [basis, setBasis] = useState<SpreadBasis>("ticks")
+  const [selected, setSelected] = useState("No selection")
   return (
     <div className="flex flex-col gap-1">
       <div className="w-[24rem]">
-        <SpreadMatrix store={store} instruments={CURVE} basis={basis} label="Curve spreads" flashWindowMs={3000} />
+        <SpreadMatrix store={store} instruments={CURVE} basis={basis} flashWindowMs={3000}>
+          <SpreadMatrixTable label="Curve spreads">
+            <caption className="sr-only">Each cell is the row less the column. {basis === "ticks" ? "ticks" : "bp"}.</caption>
+            <thead>
+              <tr>
+                <SpreadMatrixHead className="text-left">Instrument ({basis === "ticks" ? "ticks" : "bp"})</SpreadMatrixHead>
+                {CURVE.map((column) => <SpreadMatrixHead key={column.id} data-column={column.id}>{column.label}</SpreadMatrixHead>)}
+              </tr>
+            </thead>
+            <tbody>
+              {CURVE.map((instrument) => (
+                <SpreadMatrixRow key={instrument.id} instrument={instrument}>
+                  <SpreadMatrixHead scope="row">{instrument.label}</SpreadMatrixHead>
+                  {CURVE.map((column) => <SpreadMatrixCell key={column.id} column={column.id} />)}
+                </SpreadMatrixRow>
+              ))}
+            </tbody>
+          </SpreadMatrixTable>
+        </SpreadMatrix>
       </div>
       <div className="w-[24rem]">
-        <SpreadMatrix store={store} instruments={CURVE} structures={STRUCTURES} basis="bps" label="Curve structures" flashWindowMs={3000} />
+        <SpreadMatrix store={store} instruments={CURVE} basis="bps" flashWindowMs={3000}>
+          <SpreadMatrixTable label="Curve structures">
+            <caption className="sr-only">Spread: bp.</caption>
+            <thead>
+              <tr>
+                <SpreadMatrixHead className="text-left">Structure</SpreadMatrixHead>
+                <SpreadMatrixHead className="text-left">Legs</SpreadMatrixHead>
+                <SpreadMatrixHead>Spread (bp)</SpreadMatrixHead>
+              </tr>
+            </thead>
+            <tbody>
+              {STRUCTURES.map((structure) => (
+                <SpreadMatrixStructureRow key={structure.id} structure={structure}>
+                  <SpreadMatrixHead scope="row">{structure.label}</SpreadMatrixHead>
+                  <SpreadMatrixLegs />
+                  <SpreadMatrixStructureCell />
+                </SpreadMatrixStructureRow>
+              ))}
+            </tbody>
+          </SpreadMatrixTable>
+        </SpreadMatrix>
       </div>
+      <SpreadMatrix store={store} instruments={CURVE} basis="bps" className="w-fit">
+        <SpreadMatrixTable label="Alternate matrix">
+          <caption>Row less 2Y, bp.</caption>
+          <thead><tr><SpreadMatrixHead>Spread (bp)</SpreadMatrixHead><SpreadMatrixHead>Instrument</SpreadMatrixHead></tr></thead>
+          <tbody>{CURVE.slice(1).reverse().map((instrument) => <SpreadMatrixRow key={instrument.id} instrument={instrument}>
+            <SpreadMatrixCell column="2Y"><button onClick={() => setSelected(instrument.label)}><span className="sr-only">Select {instrument.label}: </span><SpreadMatrixValue /></button></SpreadMatrixCell>
+            <SpreadMatrixHead scope="row">{instrument.label}</SpreadMatrixHead>
+          </SpreadMatrixRow>)}</tbody>
+        </SpreadMatrixTable>
+        <SpreadMatrixTable label="Alternate structures">
+          <caption>Weighted yields, bp.</caption>
+          <thead><tr><SpreadMatrixHead>Spread (bp)</SpreadMatrixHead><SpreadMatrixHead>Structure</SpreadMatrixHead></tr></thead>
+          <tbody>{STRUCTURES.toReversed().map((structure) => <SpreadMatrixStructureRow key={structure.id} structure={structure}>
+            <SpreadMatrixStructureCell><strong><SpreadMatrixValue /></strong></SpreadMatrixStructureCell>
+            <SpreadMatrixHead scope="row">{structure.label}<StructureLegs /></SpreadMatrixHead>
+          </SpreadMatrixStructureRow>)}</tbody>
+        </SpreadMatrixTable>
+      </SpreadMatrix>
+      <p role="status">{selected}</p>
       <button type="button" onClick={() => store.applyDeltas({ patch: [{ id: "10Y", fields: { price: 99.484375, yield: 4.385 } }] })}>
         10Y cheapens
       </button>
@@ -51,4 +109,9 @@ export function SpreadMatrixScene() {
       </button>
     </div>
   )
+}
+
+function StructureLegs() {
+  const { legLabels } = useSpreadMatrixStructure()
+  return <span className="block">{legLabels.join(" / ")}</span>
 }
