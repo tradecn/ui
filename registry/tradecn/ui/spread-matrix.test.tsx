@@ -315,10 +315,11 @@ describe("public composition", () => {
       <p>Benchmark comparison</p>
       <SpreadMatrixTable ref={table} label="Long maturities">
         <caption>Row less 2Y, in ticks.</caption>
-        <thead><tr><SpreadMatrixHead>Spread (ticks)</SpreadMatrixHead><SpreadMatrixHead>Instrument</SpreadMatrixHead><SpreadMatrixHead>Desk</SpreadMatrixHead></tr></thead>
+        <thead><tr><SpreadMatrixHead>Instrument</SpreadMatrixHead><SpreadMatrixHead>Spread (ticks)</SpreadMatrixHead><SpreadMatrixHead>Desk</SpreadMatrixHead></tr></thead>
         <tbody>{INSTRUMENTS.slice(1).reverse().map((instrument) => <SpreadMatrixRow ref={row} key={instrument.id} instrument={instrument}>
+          <SpreadMatrixHead ref={head} scope="row">{instrument.label}</SpreadMatrixHead>
           <SpreadMatrixCell ref={valueCell} column="2Y" title="Compare" className="custom-cell"><button onClick={click}><SpreadMatrixValue ref={reading} /></button></SpreadMatrixCell>
-          <SpreadMatrixHead ref={head} scope="row">{instrument.label}</SpreadMatrixHead><td>Rates</td>
+          <td>Rates</td>
         </SpreadMatrixRow>)}</tbody>
       </SpreadMatrixTable>
     </SpreadMatrix>)
@@ -383,8 +384,8 @@ describe("public composition", () => {
     const structure: SpreadStructure = { id: "spread", label: "Spread", legs: ["2Y", "10Y"] }
     function Layout({ spec, instruments = INSTRUMENTS }: { spec: SpreadStructure; instruments?: SpreadInstrument[] }) {
       return <SpreadMatrix store={store} instruments={instruments} basis="bps"><SpreadMatrixTable label="Structures"><tbody><SpreadMatrixStructureRow structure={spec}>
-        <SpreadMatrixStructureCell><strong><SpreadMatrixValue /></strong></SpreadMatrixStructureCell>
         <SpreadMatrixHead scope="row">{spec.label}<StructureReading /></SpreadMatrixHead>
+        <SpreadMatrixStructureCell><strong><SpreadMatrixValue /></strong></SpreadMatrixStructureCell>
       </SpreadMatrixStructureRow></tbody></SpreadMatrixTable></SpreadMatrix>
     }
     const { rerender } = render(<Layout spec={structure} />)

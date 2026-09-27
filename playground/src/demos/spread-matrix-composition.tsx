@@ -50,24 +50,24 @@ export default function SpreadMatrixCompositionDemo() {
       <SpreadMatrix store={store} instruments={instruments} basis="bps" className="space-y-4 p-2">
         <SpreadMatrixTable label="Long maturities against 2Y">
           <caption className="pb-2 text-left">Row less 2Y, in bp.</caption>
-          <thead><tr><SpreadMatrixHead>Spread (bp)</SpreadMatrixHead><SpreadMatrixHead className="text-left">Instrument</SpreadMatrixHead></tr></thead>
+          <thead><tr><SpreadMatrixHead className="text-left">Instrument</SpreadMatrixHead><SpreadMatrixHead>Spread (bp)</SpreadMatrixHead></tr></thead>
           <tbody>
             {rows.map((instrument) => (
               <SpreadMatrixRow key={instrument.id} instrument={instrument}>
-                <SpreadMatrixCell column="2Y"><SpreadReadingButton label={`Select ${instrument.label} over 2Y`} onSelect={() => setSelected(`${instrument.label} over 2Y selected.`)} /></SpreadMatrixCell>
                 <SpreadMatrixHead scope="row">{instrument.label}</SpreadMatrixHead>
+                <SpreadMatrixCell column="2Y"><SpreadReadingButton label={`Select ${instrument.label} over 2Y`} onSelect={() => setSelected(`${instrument.label} over 2Y selected.`)} /></SpreadMatrixCell>
               </SpreadMatrixRow>
             ))}
           </tbody>
         </SpreadMatrixTable>
         <SpreadMatrixTable label="Selected curves and butterflies">
           <caption className="pb-2 text-left">Weighted yield spreads, in bp.</caption>
-          <thead><tr><SpreadMatrixHead>Spread (bp)</SpreadMatrixHead><SpreadMatrixHead className="text-left">Structure and legs</SpreadMatrixHead></tr></thead>
+          <thead><tr><SpreadMatrixHead className="text-left">Structure and legs</SpreadMatrixHead><SpreadMatrixHead>Spread (bp)</SpreadMatrixHead></tr></thead>
           <tbody>
             {structures.toReversed().map((structure) => (
               <SpreadMatrixStructureRow key={structure.id} structure={structure}>
-                <SpreadMatrixStructureCell><strong><SpreadMatrixValue /></strong></SpreadMatrixStructureCell>
                 <SpreadMatrixHead scope="row">{structure.label}<StructureLegDescription /></SpreadMatrixHead>
+                <SpreadMatrixStructureCell><strong><SpreadMatrixValue /></strong></SpreadMatrixStructureCell>
               </SpreadMatrixStructureRow>
             ))}
           </tbody>

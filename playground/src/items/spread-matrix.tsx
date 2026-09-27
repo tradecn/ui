@@ -4,8 +4,8 @@ import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 import { SpreadMatrix, type SpreadBasis, type SpreadInstrument, type SpreadStructure } from "@/registry/tradecn/ui/spread-matrix"
 
-import { SpreadMatrixContent } from "../demos/spread-matrix-yields"
-import { SpreadStructuresContent } from "../demos/spread-matrix-structures"
+import { SpreadMatrixContent } from "@/demos/spread-matrix-yields"
+import { SpreadStructuresContent } from "@/demos/spread-matrix-structures"
 
 // The cash curve as a spread matrix and as a list of structures, over one store of pretend quotes. A walk
 // moves one note a tick every half second; the buttons move a chosen note by hand, switch the basis between

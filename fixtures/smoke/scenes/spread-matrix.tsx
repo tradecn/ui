@@ -85,18 +85,18 @@ export function SpreadMatrixScene() {
       <SpreadMatrix store={store} instruments={CURVE} basis="bps" className="w-fit">
         <SpreadMatrixTable label="Alternate matrix">
           <caption>Row less 2Y, bp.</caption>
-          <thead><tr><SpreadMatrixHead>Spread (bp)</SpreadMatrixHead><SpreadMatrixHead>Instrument</SpreadMatrixHead></tr></thead>
+          <thead><tr><SpreadMatrixHead>Instrument</SpreadMatrixHead><SpreadMatrixHead>Spread (bp)</SpreadMatrixHead></tr></thead>
           <tbody>{CURVE.slice(1).reverse().map((instrument) => <SpreadMatrixRow key={instrument.id} instrument={instrument}>
-            <SpreadMatrixCell column="2Y"><button onClick={() => setSelected(instrument.label)}><span className="sr-only">Select {instrument.label}: </span><SpreadMatrixValue /></button></SpreadMatrixCell>
             <SpreadMatrixHead scope="row">{instrument.label}</SpreadMatrixHead>
+            <SpreadMatrixCell column="2Y"><button onClick={() => setSelected(instrument.label)}><span className="sr-only">Select {instrument.label}: </span><SpreadMatrixValue /></button></SpreadMatrixCell>
           </SpreadMatrixRow>)}</tbody>
         </SpreadMatrixTable>
         <SpreadMatrixTable label="Alternate structures">
           <caption>Weighted yields, bp.</caption>
-          <thead><tr><SpreadMatrixHead>Spread (bp)</SpreadMatrixHead><SpreadMatrixHead>Structure</SpreadMatrixHead></tr></thead>
+          <thead><tr><SpreadMatrixHead>Structure</SpreadMatrixHead><SpreadMatrixHead>Spread (bp)</SpreadMatrixHead></tr></thead>
           <tbody>{STRUCTURES.toReversed().map((structure) => <SpreadMatrixStructureRow key={structure.id} structure={structure}>
-            <SpreadMatrixStructureCell><strong><SpreadMatrixValue /></strong></SpreadMatrixStructureCell>
             <SpreadMatrixHead scope="row">{structure.label}<StructureLegs /></SpreadMatrixHead>
+            <SpreadMatrixStructureCell><strong><SpreadMatrixValue /></strong></SpreadMatrixStructureCell>
           </SpreadMatrixStructureRow>)}</tbody>
         </SpreadMatrixTable>
       </SpreadMatrix>

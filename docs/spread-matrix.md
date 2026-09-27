@@ -113,13 +113,13 @@ Use `SpreadMatrixStructureRow` for weighted legs and `SpreadMatrixStructureCell`
 
 ## Quote updates
 
-Reuse `SpreadMatrixContent` from the [yield example](#yield-basis) for feed updates. The controls here lower 5Y by one tick and restore the original quotes.
+Save the [yield example](#yield-basis) as `spread-matrix-yields.tsx` to reuse its `SpreadMatrixContent` here. The controls lower 5Y by one tick and restore the original quotes.
 
 <!-- demo: spread-matrix-updates -->
 
 ## Custom layout
 
-Move readings before labels, reorder the collection, and add application controls with `SpreadMatrixValue` and the shared state hooks.
+Reorder the collection, move leg descriptions into row headers, and add application controls with `SpreadMatrixValue` and the shared state hooks.
 
 <!-- demo: spread-matrix-composition -->
 
@@ -181,7 +181,7 @@ The hooks reuse their parent's state. Use them to place leg descriptions outside
 
 ### Accessibility
 
-`SpreadMatrixTable` renders a native table named by `label`. Native `aria-label` and `aria-labelledby` props are reserved. Keep `thead`, `tbody` and `tr` in their valid table positions. Supply column headers and `scope="row"` headers matching the visible collection.
+`SpreadMatrixTable` renders a native table named by `label`. Native `aria-label` and `aria-labelledby` props are reserved. Keep `thead`, `tbody` and `tr` in their valid table positions. Supply column headers and `scope="row"` headers matching the visible collection. Place row headers before the cells they label.
 
 Include a caption describing the calculation and unit, visually hidden with `sr-only` if the headings already explain them.
 
@@ -270,10 +270,12 @@ Helpers do not validate weight finiteness or guard every arithmetic overflow, so
 | Attribute | Where | Meaning |
 |---|---|---|
 | `data-basis` | The root | `ticks` or `bps`. |
+| `data-row` | Matrix rows | The row instrument's id. |
 | `data-row` and `data-column` | Matrix cells | The two instruments' ids. |
 | `data-diagonal` | Matrix cells | The row and the column are one instrument; the cell is blank. |
 | `data-structure` and `data-weights` | Structure rows | The structure's id and its weights. |
 | `data-spread` | A structure's value cell | The cell that flashes. |
+| `data-legs` | The optional legs cell | Joined leg labels or custom content. |
 | `data-direction` | A flashing value cell | `up` when the calculated spread rose, `down` when it fell, or `flat` for a change to or from a missing result or between signed zeros. Removed when the flash ends. |
 
 Initial values do not flash. A changed calculated spread starts a fill flash in the direction's soft token. Another change restarts it for `flashWindowMs`.

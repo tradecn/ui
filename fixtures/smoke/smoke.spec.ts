@@ -2057,7 +2057,10 @@ test("a spread matrix composes alternate tables with native keyboard controls an
   const scene = page.locator("section[data-scene='spread-matrix']")
   const matrix = scene.getByRole("table", { name: "Alternate matrix", exact: true })
   const structures = scene.getByRole("table", { name: "Alternate structures", exact: true })
-  await expect(matrix.getByRole("columnheader")).toHaveText(["Spread (bp)", "Instrument"])
+  await expect(matrix.getByRole("columnheader")).toHaveText(["Instrument", "Spread (bp)"])
+  await expect(structures.getByRole("columnheader")).toHaveText(["Structure", "Spread (bp)"])
+  // Native row-header association looks toward preceding cells.
+  for (const table of [matrix, structures]) await expect(table.locator("tbody tr > th[scope='row']:first-child")).toHaveCount(2)
   await expect(matrix.getByRole("rowheader")).toHaveText(["10Y", "5Y"])
   const button = matrix.getByRole("button", { name: "Select 10Y: +12.5" })
   await expect(button).toHaveAccessibleName("Select 10Y: +12.5")
