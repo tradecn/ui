@@ -22,7 +22,7 @@ const CHANNELS: Array<{ file: string; channel: string; proof: RegExp }> = [
   { file: "ui/sparkline.tsx", channel: "data-direction on the root and the direction in the words a screen reader hears", proof: /data-direction=\{tone\}/ },
   { file: "ui/price-chart.tsx", channel: "Last and Change each carry data-direction; Change prints a sign when composed, and the plot's accessible name says the direction in a word; the canvas takes the same tokens", proof: /data-chart-last="" data-direction=\{summary\.direction\}/ },
   { file: "ui/blotter.tsx", channel: "the side column's text is the word Buy or Sell", proof: /row\.side/ },
-  { file: "ui/depth-ladder.tsx", channel: "the columns are headed Bid and Ask, every size cell carries data-side, and a staged side reaches the consumer as the word buy or sell", proof: /data-side=\{p\.side\}/ },
+  { file: "ui/depth-ladder.tsx", channel: "the columns are headed Bid and Ask, every size cell carries data-side, and a staged side reaches the consumer as the word buy or sell", proof: /data-side=\{side\}/ },
   { file: "ui/spread-matrix.tsx", channel: "the flash writes data-direction for its window, and the spread it colors is printed with its sign through formatTicks or a signed formatBps", proof: /data-\[direction=/ },
   { file: "ui/feed-health.tsx", channel: "the dot is aria-hidden; omitted indicator children supply a screen-reader state word (feed-health.test.tsx checks this, and the feed-health smoke scene checks compact state and tier words)", proof: /className="sr-only">\{feed.state\}/ },
   { file: "blocks/ticket/ticket.tsx", channel: "the pressed side button says Buy or Sell, and aria-pressed says which", proof: /aria-pressed/ },

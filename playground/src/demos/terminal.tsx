@@ -34,7 +34,7 @@ import { ColumnChooser } from "@/registry/tradecn/ui/column-chooser"
 import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, createActionRegistry, type ActionRegistry, type PaletteAction } from "@/registry/tradecn/ui/command-palette"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/registry/tradecn/ui/data-grid"
-import { DepthLadder, levelId, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
+import { DepthLadder, DepthLadderHeader, DepthLadderColumnHeader, DepthLadderViewport, DepthLadderEmpty, DepthLadderRows, DepthLadderRow, DepthLadderSizeCell, DepthLadderPriceCell, DepthLadderRecenter, levelId, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
 import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { FlashCell } from "@/registry/tradecn/ui/flash-cell"
@@ -1180,7 +1180,18 @@ function LadderPanel() {
         <span className="truncate text-muted-foreground">Click a size to stage it</span>
       </PanelHeader>
       <PanelContent>
-        <DepthLadder store={book} convention={future.convention} mid={market?.last ?? market?.close ?? null} label={`${future.symbol} ladder`} depth={40} onStage={(stage) => desk.stage(future.symbol, stage)} className={GRID} />
+        <DepthLadder store={book} convention={future.convention} mid={market?.last ?? market?.close ?? null} label={`${future.symbol} ladder`} depth={40} onStage={(stage) => desk.stage(future.symbol, stage)} className={GRID}>
+          <DepthLadderHeader>
+            <DepthLadderColumnHeader column="bid" />
+            <DepthLadderColumnHeader column="price" />
+            <DepthLadderColumnHeader column="ask" />
+          </DepthLadderHeader>
+          <DepthLadderViewport>
+            <DepthLadderEmpty />
+            <DepthLadderRows>{renderLadderRow}</DepthLadderRows>
+          </DepthLadderViewport>
+          <DepthLadderRecenter className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2" />
+        </DepthLadder>
       </PanelContent>
     </>
   )
@@ -1582,6 +1593,16 @@ function Foot({ sessionEndsAt }: { sessionEndsAt: number }) {
 // The sign-in the desk pretends to have: twenty minutes a session, two of warning, and a renewal that lands after a
 // moment. The guard walls the desk at the end and unmounts nothing, so a half-typed ticket is still there after it.
 const SESSION_MS = 20 * 60_000
+
+function renderLadderRow() {
+  return (
+    <DepthLadderRow>
+      <DepthLadderSizeCell side="bid" />
+      <DepthLadderPriceCell />
+      <DepthLadderSizeCell side="ask" />
+    </DepthLadderRow>
+  )
+}
 
 export default function TerminalDemo() {
   const [desk] = useState(createDesk)
