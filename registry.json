@@ -2997,7 +2997,7 @@
         "grid",
         "ticket"
       ],
-      "docs": "Installs the row store, format and flash hooks, adds @tanstack/react-virtual and direction tokens, and composes the consumer’s Button. Supply headers, a viewport and virtual rows as children. Key the store by tick index with levelId; onStage hands the application a price and side without sending an order.",
+      "docs": "Installs the row store, format, and the flash hook, adds @tanstack/react-virtual and direction tokens, and composes the consumer's Button. Supply headers, a viewport and virtual rows as children. Key the store by tick index with levelId; onStage hands the application a price and side without sending an order.",
       "meta": {
         "components": [
           {
@@ -3038,7 +3038,7 @@
           },
           {
             "title": "DepthLadderOwnSize",
-            "description": "The desk’s own size reading."
+            "description": "The desk's own size reading."
           },
           {
             "title": "DepthLadderEmpty",

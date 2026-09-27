@@ -8,22 +8,22 @@ import { DepthLadder, DepthLadderHeader, DepthLadderColumnHeader, DepthLadderVie
 // The ordinary consumer owns the complete tree; the tests exercise its public parts.
 function Ladder({ emptyState, ...props }: Omit<DepthLadderProps, "children"> & { emptyState?: React.ReactNode }) {
   return <DepthLadder {...props}>
-  <DepthLadderHeader>
-    <DepthLadderColumnHeader column="bid" />
-    <DepthLadderColumnHeader column="price" />
-    <DepthLadderColumnHeader column="ask" />
-  </DepthLadderHeader>
-  <DepthLadderViewport>
-    <DepthLadderEmpty>{emptyState}</DepthLadderEmpty>
-    <DepthLadderRows>{() => (
-      <DepthLadderRow>
-        <DepthLadderSizeCell side="bid" />
-        <DepthLadderPriceCell />
-        <DepthLadderSizeCell side="ask" />
-      </DepthLadderRow>
-    )}</DepthLadderRows>
-  </DepthLadderViewport>
-  <DepthLadderRecenter className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2" />
+    <DepthLadderHeader>
+      <DepthLadderColumnHeader column="bid" />
+      <DepthLadderColumnHeader column="price" />
+      <DepthLadderColumnHeader column="ask" />
+    </DepthLadderHeader>
+    <DepthLadderViewport>
+      <DepthLadderEmpty>{emptyState}</DepthLadderEmpty>
+      <DepthLadderRows>{() => (
+        <DepthLadderRow>
+          <DepthLadderSizeCell side="bid" />
+          <DepthLadderPriceCell />
+          <DepthLadderSizeCell side="ask" />
+        </DepthLadderRow>
+      )}</DepthLadderRows>
+    </DepthLadderViewport>
+    <DepthLadderRecenter className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2" />
   </DepthLadder>
 }
 
@@ -77,17 +77,6 @@ describe("prices and ticks", () => {
 })
 
 describe("the ladder", () => {
-  it("leaves Enter on Recenter to the button without staging the selected size", () => {
-    const onStage = vi.fn()
-    render(<Ladder store={seed()} convention={ZN} mid={MID} label="ZN ladder" depth={4} initialRect={RECT} onStage={onStage} />)
-    const grid = screen.getByRole("grid", { name: "ZN ladder" })
-    fireEvent.keyDown(grid, { key: "ArrowLeft" })
-    const recenter = screen.getByRole("button", { name: "Recenter" })
-    recenter.focus()
-    expect(fireEvent.keyDown(recenter, { key: "Enter" })).toBe(true)
-    expect(onStage).not.toHaveBeenCalled()
-  })
-
   it("builds the rungs around the mid, high to low, prints each price in the convention, and marks the mid", () => {
     render(<Ladder store={seed()} convention={ZN} mid={MID} label="ZN ladder" depth={4} initialRect={RECT} />)
     const grid = screen.getByRole("grid", { name: "ZN ladder" })
@@ -323,9 +312,11 @@ describe("composition", () => {
     const row = <DepthLadderRow />
     // @ts-expect-error The generated row ID is reserved for active descendants.
     const customId = <DepthLadderRow id="custom"><span /></DepthLadderRow>
+    // @ts-expect-error The root owns its active descendant.
+    const customGrid = { ...rootProps, children: null, "aria-activedescendant": "application-row" } satisfies DepthLadderProps
     const conditional = <DepthLadder {...rootProps}>{Boolean(vi.fn()()) && <DepthLadderEmpty />}</DepthLadder>
     const empty = <DepthLadder {...rootProps}>{null}</DepthLadder>
-    expect([minimal, configured, emptyState, rows, row, customId, conditional, empty]).toHaveLength(8)
+    expect([minimal, configured, emptyState, rows, row, customId, customGrid, conditional, empty]).toHaveLength(9)
   })
 
   it("supports ascending prices, reordered cells and readings, and caller controls without extra row subscriptions", () => {
@@ -380,6 +371,17 @@ describe("composition", () => {
     expect(stage).not.toHaveBeenCalled()
     fireEvent.keyDown(root.current!, { key: "ArrowLeft" })
     expect(root.current).not.toHaveAttribute("aria-activedescendant")
+  })
+
+  it("leaves Enter on Recenter to the button without staging the selected size", () => {
+    const onStage = vi.fn()
+    render(<Ladder store={seed()} convention={ZN} mid={MID} label="ZN ladder" depth={4} initialRect={RECT} onStage={onStage} />)
+    const grid = screen.getByRole("grid", { name: "ZN ladder" })
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    const recenter = screen.getByRole("button", { name: "Recenter" })
+    recenter.focus()
+    expect(fireEvent.keyDown(recenter, { key: "Enter" })).toBe(true)
+    expect(onStage).not.toHaveBeenCalled()
   })
 
   it("restores grid focus when Recenter disappears, including loss of the market", () => {
@@ -466,7 +468,6 @@ describe("composition", () => {
   })
 })
 
-
 describe("native control isolation", () => {
   it("does not stage when nested labels, disclosures, or editable content are clicked", () => {
     const stage = vi.fn()
@@ -482,6 +483,9 @@ describe("native control isolation", () => {
     expect(stage).not.toHaveBeenCalled()
   })
 
+})
+
+describe("Recenter refs", () => {
   it("keeps Recenter focused across callback ref replacement and honors callback cleanup", () => {
     const cleanup = vi.fn()
     const blurred = vi.fn()
@@ -511,6 +515,52 @@ describe("native control isolation", () => {
 })
 
 describe("changing a composed layout", () => {
+  it("preserves managed grid semantics when extra props arrive through a spread", () => {
+    const extra = { role: "list", tabIndex: -1, "aria-label": "Other", "aria-rowcount": 1, "aria-colcount": 8, "aria-activedescendant": "missing", title: "Book detail" }
+    render(<Ladder {...extra} store={seed()} convention={ZN} mid={MID} label="Book" depth={0} initialRect={RECT} />)
+    const grid = screen.getByRole("grid", { name: "Book" })
+    expect(grid).toHaveAttribute("tabindex", "0")
+    expect(grid).toHaveAttribute("aria-rowcount", "2")
+    expect(grid).toHaveAttribute("aria-colcount", "3")
+    expect(grid).toHaveAttribute("title", "Book detail")
+    expect(grid).not.toHaveAttribute("aria-activedescendant")
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(document.getElementById(grid.getAttribute("aria-activedescendant")!)).toBe(rung(6369))
+  })
+
+  it("omits column indices for parts outside the declared columns", () => {
+    render(<Ladder store={seed()} convention={ZN} mid={MID} label="Book" depth={0} columns={["ask"]} initialRect={RECT} />)
+    expect(screen.getByRole("columnheader", { name: "Bid" })).not.toHaveAttribute("aria-colindex")
+    expect(screen.getByRole("columnheader", { name: "Price" })).not.toHaveAttribute("aria-colindex")
+    expect(cell(6369, "bid")).not.toHaveAttribute("aria-colindex")
+    expect(cell(6369, "price")).not.toHaveAttribute("aria-colindex")
+    expect(cell(6369, "ask")).toHaveAttribute("aria-colindex", "1")
+  })
+
+  it.each(["ascending", "descending"] as const)("keeps the selected row mounted across page jumps in %s order", (order) => {
+    render(<Ladder store={seed()} convention={ZN} mid={MID} label="Book" depth={40} order={order} initialRect={RECT} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    for (let page = 0; page < 3; page++) {
+      fireEvent.keyDown(grid, { key: "PageDown" })
+      const id = grid.getAttribute("aria-activedescendant")
+      expect(id).not.toBeNull()
+      expect(document.getElementById(id!)).toHaveAttribute("data-focused", "true")
+      expect(document.querySelectorAll("[data-tick]").length).toBeLessThan(40)
+    }
+  })
+
+  it("renders only the own-size chip when there is no market size", () => {
+    const store = seed()
+    store.applyDeltas({ upsert: [{ tick: 6369, myBid: 25, myAsk: 15 }] })
+    render(<Ladder store={store} convention={ZN} mid={MID} label="Book" depth={0} initialRect={RECT} />)
+    for (const side of ["bid", "ask"]) {
+      const sizeCell = cell(6369, side)!
+      expect(sizeCell.children).toHaveLength(1)
+      expect(sizeCell.firstElementChild).toHaveAttribute("data-mine-size")
+    }
+  })
+
   it("removes the visible selection and custom row focus state when the selected column disappears", () => {
     const stage = vi.fn()
     const store = seed()

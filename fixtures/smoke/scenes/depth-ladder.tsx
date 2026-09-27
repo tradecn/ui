@@ -10,6 +10,7 @@ const LEVELS: DepthLevel[] = [
   { tick: 6368, bidSize: 120, myBid: 5 },
   { tick: 6367, bidSize: 80 },
   { tick: 6366, bidSize: 210 },
+  { tick: 6365, myBid: 25, myAsk: 15 },
   { tick: 6370, askSize: 95 },
   { tick: 6371, askSize: 40, myAsk: 10 },
   { tick: 6372, askSize: 160 },

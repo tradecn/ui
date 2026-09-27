@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { createInstrumentFormatter, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, createInstrumentFormatter, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { DepthLadder, DepthLadderColumnHeader, DepthLadderEmpty, DepthLadderHeader, DepthLadderOwnSize, DepthLadderPriceCell, DepthLadderRecenter, DepthLadderRow, DepthLadderRows, DepthLadderSize, DepthLadderSizeCell, DepthLadderViewport, levelId, tickIndexOf, type DepthLevel, type LadderColumn, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
 
@@ -40,6 +40,6 @@ export default function DepthLadderLayoutDemo() {
         <DepthLadderRows>{renderRow}</DepthLadderRows>
       </DepthLadderViewport>
     </DepthLadder>
-    <p role="status" className="text-muted-foreground">{staged ? `Staged: ${staged.side} at ${format.price(staged.price)}.` : "Nothing staged."}</p>
+    <p role="status" className={`text-muted-foreground ${NUMERIC_CLASS}`}>{staged ? `Staged: ${staged.side} at ${format.price(staged.price)}.` : "Nothing staged."}</p>
   </div>
 }

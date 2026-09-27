@@ -8,7 +8,22 @@ A composable price ladder with virtual rows, size flashes, and order staging.
 import { useState } from "react"
 import { createInstrumentFormatter, type InstrumentConvention } from "@/lib/format"
 import { createRowStore } from "@/lib/row-store"
-import { DepthLadder, DepthLadderHeader, DepthLadderColumnHeader, DepthLadderViewport, DepthLadderEmpty, DepthLadderRows, DepthLadderRow, DepthLadderSizeCell, DepthLadderPriceCell, DepthLadderRecenter, levelId, tickIndexOf, type DepthLevel, type LadderStage } from "@/components/ui/depth-ladder"
+import {
+  DepthLadder,
+  DepthLadderHeader,
+  DepthLadderColumnHeader,
+  DepthLadderViewport,
+  DepthLadderEmpty,
+  DepthLadderRows,
+  DepthLadderRow,
+  DepthLadderSizeCell,
+  DepthLadderPriceCell,
+  DepthLadderRecenter,
+  levelId,
+  tickIndexOf,
+  type DepthLevel,
+  type LadderStage,
+} from "@/components/ui/depth-ladder"
 
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const format = createInstrumentFormatter(ZN)
@@ -63,7 +78,7 @@ Key levels with `levelId(tickIndexOf(price, convention.tick))`. Click a size cel
 
 ## Composition
 
-Compose the ladder with these parts:
+Use the following composition to build a `DepthLadder`:
 
 ```text
 DepthLadder
@@ -85,7 +100,11 @@ DepthLadder
 └── DepthLadderRecenter
 ```
 
-`DepthLadderRows` calls your render function for each mounted tick. Return one `DepthLadderRow` with cells in the same order as `columns`. Keep the render function, column array, convention, and formatters stable when the parent receives frequent updates.
+`DepthLadderRows` calls your render function for each mounted tick. Return one `DepthLadderRow` with cells in the same order as `columns`.
+
+Parts whose column is absent from `columns` omit `aria-colindex`. They do not change the declared navigation order.
+
+Keep the render function, `convention`, `columns`, `labels`, and `formatSize` stable when the parent receives frequent updates. New object or function identities re-render every mounted row.
 
 ## Book updates
 
@@ -107,7 +126,7 @@ Set `columns` and `order` to match your layout, and compose size readings and co
 
 ## API Reference
 
-The ladder defines `2 × depth + 1` rungs around a center and mounts the visible rungs plus overscan. Each mounted rung subscribes to its own level through `useRow`, so a store batch that changes one price updates that rung without rendering its neighbors.
+The ladder defines `2 × depth + 1` rungs around a center and mounts the visible rungs plus overscan and the selected rung while it remains in that range. Each mounted rung subscribes to its own level through `useRow`, so a store batch that changes one price updates that rung without rendering its neighbors.
 
 ### Props
 
@@ -117,21 +136,21 @@ The ladder defines `2 × depth + 1` rungs around a center and mounts the visible
 | `convention` | `InstrumentConvention` | Required | Prints prices and sets the tick size. |
 | `mid` | `number \| null \| undefined` | Required | The market's mid, as a price. Null, undefined, or nonfinite before the first finite mid shows the empty state. |
 | `label` | `string` | Required | Accessible name of the ladder. |
+| `children` | `ReactNode` | Required | The header, viewport, rows, controls, and application content. |
 | `depth` | `number` | `200` | Ticks above and below the center. |
 | `rowHeight` | `number` | `22` | Rung height in px. |
 | `overscan` | `number` | `8` | Extra rungs rendered beyond the viewport. |
 | `onStage` | `(stage: LadderStage) => void` | None | Receive a click or Enter on a size cell. |
 | `formatSize` | `(size: number) => string` | `formatQuantity` | Print market and own sizes. Keep it stable between renders. |
 | `flashWindowMs` | `number` | `900` | Cell flash duration in ms. |
-| `labels` | `Partial<DepthLadderLabels>` | [Default labels](#labels) | Override the words listed below. |
-| `children` | `ReactNode` | Required | The header, viewport, rows, controls, and application content. |
+| `labels` | `Partial<DepthLadderLabels>` | `DEFAULT_DEPTH_LADDER_LABELS` | Override the words listed below. |
 | `columns` | `readonly LadderColumn[]` | `["bid", "price", "ask"]` | Visual and keyboard column order. Use a nonempty array of distinct columns. |
 | `order` | `"ascending" \| "descending"` | `"descending"` | Price order from top to bottom. |
 | `headerRows` | `number` | `1` | Header rows included in accessible row indices. Set to `0` when omitting the header. |
 | `className` | `string` | None | Classes on the root. |
 | `initialRect` | `{ width: number; height: number }` | None | Viewport size in px before measurement, for tests or server rendering. |
 
-The root accepts native `div` props and a ref.
+The root accepts native `div` props and a ref, except for its managed `role`, `tabIndex`, `aria-label`, `aria-rowcount`, `aria-colcount`, and `aria-activedescendant`. Use `label`, `columns`, and `headerRows` to configure the grid.
 
 Give it a bounded height and mount one `DepthLadderViewport` containing one `DepthLadderRows`. Keep the viewport and rows mounted when the market is missing. `DepthLadderEmpty` handles the initial empty state.
 
@@ -148,7 +167,7 @@ Use a nonnegative integer `depth`, a positive `rowHeight`, and nonnegative integ
 | `DepthLadderRow` | Native `div` props except `id`, and required `children`. | Caller-owned cells. |
 | `DepthLadderSizeCell` | Native `div` props and required `side: "bid" \| "ask"`. | Own size followed by market size. |
 | `DepthLadderPriceCell` | Native `div` props. | The formatted price. |
-| `DepthLadderSize` | Native `span` props except `children`, and required `side`. | The formatted market size. |
+| `DepthLadderSize` | Native `span` props except `children`, and required `side`. | The formatted market size. Absent for a blank size. |
 | `DepthLadderOwnSize` | Native `span` props except `children`, and required `side`. | The own-size chip and `labels.mine`. Absent for a blank size. |
 | `DepthLadderEmpty` | Native `div` props. | `labels.noMarket`. Only before the first finite mid. |
 | `DepthLadderRecenter` | The installed shadcn `Button` props. | `labels.recenter`. Only while held with a finite mid. |
@@ -167,11 +186,21 @@ The row height and transform, and the rows container height, are reserved for vi
 
 Set `--depth-ladder-columns` on the root's style to customize track widths consistently across headers and rows.
 
-Row IDs are generated and reserved for the grid’s active descendant. Use a data attribute to identify an application row.
+Row IDs are generated and reserved for the grid's active descendant. Use a data attribute to identify an application row.
 
 ### Hooks
 
-`useDepthLadder()` reads the root's `following`, `hasMarket`, `hasRows`, and `labels`, with `hold()`, `recenter()`, and `focus()` for custom controls.
+`useDepthLadder()` returns shared root state and actions for custom controls.
+
+| Field | Type | Purpose |
+|---|---|---|
+| `following` | `boolean` | Whether the viewport follows the mid. |
+| `hasMarket` | `boolean` | Whether the current mid is finite. |
+| `hasRows` | `boolean` | Whether a range has been built. |
+| `labels` | `DepthLadderLabels` | Default labels with caller overrides. |
+| `hold` | `() => void` | Stop following and retain the current price range. |
+| `recenter` | `() => void` | Rebuild around a finite mid and follow it. Retains the selected tick and column. |
+| `focus` | `() => void` | Focus the grid without scrolling it. |
 
 A replacement control owns its native activation and any focus recovery when it disappears.
 
@@ -258,7 +287,7 @@ The ladder sends nothing. A ticket or your application decides what a staged pri
 
 | Attribute | Where | Meaning |
 |---|---|---|
-| `data-side="bid" \| "ask"` | Size cells | The side the size rests on. Bid sizes print in `up` and ask sizes in `down`, under headers that name them. |
+| `data-side="bid" \| "ask"` | Size cells | The side the size rests on. Bid sizes print in `up` and ask sizes in `down`. Headers belong to the caller. `DepthLadderColumnHeader` defaults to `labels.bid` and `labels.ask`. |
 | `data-mine="bid" \| "ask" \| "both"` | Rungs | The desk has size on this rung. The own size prints in a `primary` chip before the market's, followed by `yours` for a screen reader. |
 | `data-mid` | One rung | The market's mid. |
 | `data-focused` and `data-focused-col` | A rung and a cell | The keyboard focus. |
@@ -289,13 +318,13 @@ The root is a focusable grid named by `label`.
 
 Its column count follows `columns`. `aria-rowcount` includes `headerRows` and the full anchored range.
 
-Mounted rungs report their row indices. `aria-activedescendant` names the selected tick only while its row is mounted.
+Mounted rungs report their row indices. The selected rung stays mounted outside the viewport while it remains in the anchored range, so `aria-activedescendant` stays valid during page jumps.
 
 A cell click focuses the grid.
 
 Nested controls keep their native keys, and composing keys are left alone. Removing a selected column hides its focus marks and reports `focusedColumn: null` to custom row content.
 
-Recenter does not reset keyboard focus. If the selected tick is no longer mounted, its focus mark and `aria-activedescendant` disappear, but Enter on the grid still stages that stored tick and side if the column remains in `columns`. Select a rung in the new range before using Enter.
+Recenter does not reset keyboard focus. If recentering moves the selected tick outside the anchored range, its focus mark and `aria-activedescendant` disappear, but Enter on the grid still stages that stored tick and side if the column remains in `columns`. Select a rung in the new range before using Enter.
 
 ### Labels
 

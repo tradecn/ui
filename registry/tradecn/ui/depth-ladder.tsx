@@ -1,4 +1,4 @@
-import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual"
+import { defaultRangeExtractor, useVirtualizer, type Range, type VirtualItem } from "@tanstack/react-virtual"
 import { cn } from "cn"
 import { createContext, memo, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref, type RefObject, type UIEvent } from "react"
 import { Button } from "@/components/ui/button"
@@ -59,7 +59,7 @@ export const DEFAULT_DEPTH_LADDER_LABELS: DepthLadderLabels = {
   noMarket: "No market",
 }
 
-export interface DepthLadderProps extends ComponentProps<"div"> {
+export interface DepthLadderProps extends Omit<ComponentProps<"div">, "role" | "tabIndex" | "aria-label" | "aria-rowcount" | "aria-colcount" | "aria-activedescendant"> {
   children: ReactNode
   /** Visual column order. Render cells and headers in this order. */
   columns?: readonly LadderColumn[]
@@ -88,7 +88,6 @@ export interface DepthLadderProps extends ComponentProps<"div"> {
   /** Cell flash duration in ms. Default 900. */
   flashWindowMs?: number
   labels?: Partial<DepthLadderLabels>
-  className?: string
   /** Viewport size in px before measurement, for tests or server rendering. */
   initialRect?: { width: number; height: number }
 }
@@ -152,7 +151,7 @@ interface LadderContextValue extends DepthLadderState {
   tickAt: (index: number) => number
   domId: (tick: number) => string
   midTick: number | null
-  focused: Focus | null
+  selected: Focus | null
   onScroll: (event: UIEvent<HTMLDivElement>) => void
 }
 
@@ -193,6 +192,7 @@ function useLadderRef<T>(localRef: RefObject<T | null>, forwarded: Ref<T> | unde
   }, [localRef, forwarded])
 }
 
+/** Where the scroll box sits when the rung at `index` is in its middle, within its scrollable bounds. */
 function centeredTop(el: HTMLElement, index: number, rowHeight: number): number {
   const max = Math.max(0, el.scrollHeight - el.clientHeight)
   return Math.min(max, Math.max(0, index * rowHeight - (el.clientHeight - rowHeight) / 2))
@@ -213,6 +213,17 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
   const direction = order === "descending" ? -1 : 1
   const indexOf = (tick: number) => depth + (tick - (anchor ?? 0)) * direction
   const tickAt = (index: number) => (anchor ?? 0) + (index - depth) * direction
+  const selected = focused && columns.includes(focused.col) ? focused : null
+  const selectedIndex = selected ? indexOf(selected.tick) : -1
+  const rangeExtractor = useCallback((range: Range) => {
+    const indexes = defaultRangeExtractor(range)
+    // Keep the IDREF valid in the selection commit, before the scroll event updates the visible range.
+    if (selectedIndex >= 0 && selectedIndex < range.count && !indexes.includes(selectedIndex)) {
+      indexes.push(selectedIndex)
+      indexes.sort((a, b) => a - b)
+    }
+    return indexes
+  }, [selectedIndex])
   const root = useRef<HTMLDivElement>(null)
   const rootRef = useLadderRef(root, ref)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -222,14 +233,17 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan,
+    rangeExtractor,
     getItemKey: tickAt,
     initialRect,
+    // The mid starts at index `depth`, so the first frame is already centered.
     initialOffset: () => initialRect ? Math.max(0, depth * rowHeight - (initialRect.height - rowHeight) / 2) : 0,
   })
   const items = virtualizer.getVirtualItems()
   const uid = useId()
   const domId = (tick: number) => `${uid}-${tick}`
 
+  // Following centers the mid after each move and when following resumes. Handlers change the state.
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el || !following || midTick === null || anchor === null) return
@@ -259,6 +273,7 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
   const onScroll = (event: UIEvent<HTMLDivElement>) => {
     if (!following || midTick === null || anchor === null) return
     const el = event.currentTarget
+    // A scroll away from the centered offset is a hand on the ladder; allow subpixel rounding.
     if (Math.abs(el.scrollTop - centeredTop(el, indexOf(midTick), rowHeight)) > 1) hold()
   }
   const handleKey = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -270,14 +285,14 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
       return
     }
     if (event.key === "Enter") {
-      if (focused && columns.includes(focused.col) && focused.col !== "price") {
+      if (selected && selected.col !== "price") {
         event.preventDefault()
-        stage(focused.tick, focused.col)
+        stage(selected.tick, selected.col)
       }
       return
     }
     const clampTick = (tick: number) => Math.min(anchor + depth, Math.max(anchor - depth, tick))
-    const current: Focus = { tick: clampTick(focused?.tick ?? midTick ?? anchor), col: focused && columns.includes(focused.col) ? focused.col : columns.includes("price") ? "price" : columns[0] ?? "price" }
+    const current: Focus = { tick: clampTick(focused?.tick ?? midTick ?? anchor), col: selected?.col ?? (columns.includes("price") ? "price" : columns[0] ?? "price") }
     const pageRows = Math.max(1, Math.floor((scrollRef.current?.clientHeight || initialRect?.height || rowHeight * 10) / rowHeight))
     let next: Focus
     switch (event.key) {
@@ -294,10 +309,10 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
     setFocused(next)
     virtualizer.scrollToIndex(indexOf(next.tick), { align: "auto" })
   }
-  const focusedMounted = focused !== null && columns.includes(focused.col) && items.some((item) => tickAt(item.index) === focused.tick)
-  const state: LadderContextValue = { following, hasMarket: midTick !== null, hasRows: count > 0, labels, hold, recenter, focus, config, scrollRef, items, totalSize: virtualizer.getTotalSize(), tickAt, domId, midTick, focused, onScroll }
+  const selectedMounted = selected !== null && items.some((item) => item.index === selectedIndex)
+  const state: LadderContextValue = { following, hasMarket: midTick !== null, hasRows: count > 0, labels, hold, recenter, focus, config, scrollRef, items, totalSize: virtualizer.getTotalSize(), tickAt, domId, midTick, selected, onScroll }
   return <LadderContext value={state}><ConfigurationContext value={config}>
-    <div role="grid" tabIndex={0} aria-label={label} data-slot="tradecn-depth-ladder" data-following={following ? "true" : "false"} aria-rowcount={count + headerRows} aria-colcount={columns.length} aria-activedescendant={focusedMounted ? domId(focused.tick) : undefined} className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", className)} style={{ lineHeight: `${rowHeight}px`, "--depth-ladder-columns": columns.map((col) => `minmax(0, ${col === "price" ? 1.2 : 1}fr)`).join(" "), ...style } as CSSProperties} {...props} ref={rootRef} onKeyDown={(event) => { onKeyDown?.(event); handleKey(event) }}>{children}</div>
+    <div {...props} role="grid" tabIndex={0} aria-label={label} data-slot="tradecn-depth-ladder" data-following={following ? "true" : "false"} aria-rowcount={count + headerRows} aria-colcount={columns.length} aria-activedescendant={selectedMounted ? domId(selected.tick) : undefined} className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", className)} style={{ lineHeight: `${rowHeight}px`, "--depth-ladder-columns": columns.map((col) => `minmax(0, ${col === "price" ? 1.2 : 1}fr)`).join(" "), ...style } as CSSProperties} ref={rootRef} onKeyDown={(event) => { onKeyDown?.(event); handleKey(event) }}>{children}</div>
   </ConfigurationContext></LadderContext>
 }
 
@@ -308,7 +323,7 @@ export function DepthLadderHeader({ className, style, ...props }: ComponentProps
 
 export function DepthLadderColumnHeader({ column, className, children, ...props }: ComponentProps<"div"> & { column: LadderColumn }) {
   const { columns, labels } = useConfiguration()
-  return <div role="columnheader" aria-colindex={columns.indexOf(column) + 1} className={cn("flex min-w-0 items-center truncate px-2", column === "bid" ? "justify-end" : column === "ask" ? "justify-start" : "justify-center", className)} {...props}>{children === undefined ? labels[column] : children}</div>
+  return <div role="columnheader" aria-colindex={columns.indexOf(column) + 1 || undefined} className={cn("flex min-w-0 items-center truncate px-2", column === "bid" ? "justify-end" : column === "ask" ? "justify-start" : "justify-center", className)} {...props}>{children === undefined ? labels[column] : children}</div>
 }
 
 export function DepthLadderViewport({ ref, className, onPointerDownCapture, onWheel, onScroll, ...props }: ComponentProps<"div">) {
@@ -380,7 +395,7 @@ export function DepthLadderRows({ children, className, style, ...props }: Omit<C
   return <div role="rowgroup" className={cn("relative", className)} style={{ ...style, height: state.totalSize }} {...props}>
     {state.items.map((item) => {
       const tick = state.tickAt(item.index)
-      return <RowScope key={item.key} config={state.config} tick={tick} index={item.index} start={item.start} height={item.size} domId={state.domId(tick)} isMid={tick === state.midTick} focusedColumn={state.focused?.tick === tick && state.config.columns.includes(state.focused.col) ? state.focused.col : null}>{children}</RowScope>
+      return <RowScope key={item.key} config={state.config} tick={tick} index={item.index} start={item.start} height={item.size} domId={state.domId(tick)} isMid={tick === state.midTick} focusedColumn={state.selected?.tick === tick ? state.selected.col : null}>{children}</RowScope>
     })}
   </div>
 }
@@ -396,7 +411,8 @@ type SideProps = { side: "bid" | "ask" }
 export function DepthLadderSize({ side, className, ...props }: Omit<ComponentProps<"span">, "children"> & SideProps) {
   const row = useRowContext()
   const value = side === "bid" ? row.bidSize : row.askSize
-  return <span data-numeric="" className={cn(NUMERIC_CLASS, className)} {...props}>{value === null ? null : row.config.formatSize(value)}</span>
+  if (value === null) return null
+  return <span data-numeric="" className={cn(NUMERIC_CLASS, className)} {...props}>{row.config.formatSize(value)}</span>
 }
 
 export function DepthLadderOwnSize({ side, className, ...props }: Omit<ComponentProps<"span">, "children"> & SideProps) {
@@ -419,12 +435,12 @@ export function DepthLadderSizeCell({ side, ref, className, children, onClick, .
   const size = side === "bid" ? row.bidSize : row.askSize
   const mine = side === "bid" ? row.myBid : row.myAsk
   useFlash(local, size, { windowMs: row.config.flashWindowMs, variant: "fill" })
-  return <div role="gridcell" aria-colindex={row.config.columns.indexOf(side) + 1} data-col={side} data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} data-focused-col={row.focusedColumn === side || undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && "bg-muted/50", className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
+  return <div role="gridcell" aria-colindex={row.config.columns.indexOf(side) + 1 || undefined} data-col={side} data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} data-focused-col={row.focusedColumn === side || undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && "bg-muted/50", className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
 }
 
 export function DepthLadderPriceCell({ className, children, onClick, ...props }: ComponentProps<"div">) {
   const row = useRowContext()
-  return <div role="gridcell" aria-colindex={row.config.columns.indexOf("price") + 1} data-col="price" data-numeric="" data-focused-col={row.focusedColumn === "price" || undefined} className={cn("flex h-full min-w-0 items-center justify-center truncate px-2 text-foreground", numericFontClass(row.config.convention), row.focusedColumn === "price" && "bg-muted/50", className)} {...props} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select("price") }}>{children === undefined ? row.priceText : children}</div>
+  return <div role="gridcell" aria-colindex={row.config.columns.indexOf("price") + 1 || undefined} data-col="price" data-numeric="" data-focused-col={row.focusedColumn === "price" || undefined} className={cn("flex h-full min-w-0 items-center justify-center truncate px-2 text-foreground", numericFontClass(row.config.convention), row.focusedColumn === "price" && "bg-muted/50", className)} {...props} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select("price") }}>{children === undefined ? row.priceText : children}</div>
 }
 
 /** Hides while following or without a market; keep it mounted to retain focus recovery. */

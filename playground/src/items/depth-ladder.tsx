@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { createInstrumentFormatter, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
-import { DepthLadder, DepthLadderHeader, DepthLadderColumnHeader, DepthLadderViewport, DepthLadderEmpty, DepthLadderRows, DepthLadderRow, DepthLadderSizeCell, DepthLadderPriceCell, DepthLadderRecenter, levelId, priceAtTick, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
+import { DepthLadder, levelId, priceAtTick, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
+import { DepthLadderContent } from "@/demos/depth-ladder"
 
 // Two ladders over pretend books, ZN in 32nds and a bill on a decimal tick, each fed by its own
 // simulated market: sizes change on a few levels every quarter second, and the market steps a tick
@@ -84,29 +85,10 @@ function Ladder({ name, convention, market, onStage }: { name: string; conventio
       </div>
       <div className="min-h-0 w-72 flex-1">
         <DepthLadder store={market.store} convention={convention} mid={priceAtTick(market.midTick, convention.tick)} label={`${name} ladder`} depth={80} onStage={onStage}>
-          <DepthLadderHeader>
-            <DepthLadderColumnHeader column="bid" />
-            <DepthLadderColumnHeader column="price" />
-            <DepthLadderColumnHeader column="ask" />
-          </DepthLadderHeader>
-          <DepthLadderViewport>
-            <DepthLadderEmpty />
-            <DepthLadderRows>{renderLadderRow}</DepthLadderRows>
-          </DepthLadderViewport>
-          <DepthLadderRecenter className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2" />
+          <DepthLadderContent />
         </DepthLadder>
       </div>
     </div>
-  )
-}
-
-function renderLadderRow() {
-  return (
-    <DepthLadderRow>
-      <DepthLadderSizeCell side="bid" />
-      <DepthLadderPriceCell />
-      <DepthLadderSizeCell side="ask" />
-    </DepthLadderRow>
   )
 }
 
