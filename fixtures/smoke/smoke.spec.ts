@@ -1303,7 +1303,7 @@ test("a layout manager saves, loads, warns before loading a layout with an unkno
   const manager = scene.getByRole("region", { name: "Layouts" })
   const field = manager.getByRole("textbox", { name: "Layout name" })
   await field.fill("Morning")
-  await field.press("ControlOrMeta+k")
+  await field.press("ControlOrMeta+Shift+k")
   await expect(state).toHaveAttribute("data-lm-shortcuts", "1")
   await field.press("Enter")
   const morning = manager.locator("[data-layout-template='t-1']")
@@ -1333,7 +1333,7 @@ test("a layout manager saves, loads, warns before loading a layout with an unkno
   // Rename in place, duplicate beside, export the JSON.
   await morning.getByRole("button", { name: "Rename: Morning" }).click()
   const rename = manager.getByRole("textbox", { name: "Rename: Morning" })
-  await rename.press("ControlOrMeta+k")
+  await rename.press("ControlOrMeta+Shift+k")
   await expect(state).toHaveAttribute("data-lm-shortcuts", "2")
   await expect(rename).toBeFocused()
   await rename.fill("Open")

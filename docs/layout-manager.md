@@ -148,7 +148,7 @@ Install [`workspace`](workspace.md) to save and restore panel arrangements. This
 | `kinds` | `Iterable<string>` | - | Nonempty known kinds enable missing-kind warnings and confirmation. |
 | `activeId` | `string \| null` | `null` | Marks a template as loaded. |
 | `now` | `() => number` | `Date.now` | Clock in milliseconds since the epoch. |
-| `labels` | `Partial<LayoutManagerLabels>` | <code>DEFAULT_<wbr>LAYOUT_<wbr>MANAGER_<wbr>LABELS</code> | Label overrides shared with the parts and hooks. |
+| `labels` | `Partial<LayoutManagerLabels>` | `DEFAULT_LAYOUT_MANAGER_LABELS` | Label overrides shared with the parts and hooks. |
 | `className` | `string` | - | Additional classes to apply to the root. |
 
 ### LayoutManagerItem

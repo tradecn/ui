@@ -14,7 +14,8 @@ const CURRENT: WorkspaceLayout = {
   boundaries: WORKSPACE_PERSISTENCE_BOUNDARIES,
 }
 
-const BINDINGS: HotkeyBinding[] = [{ id: "layout.rename", keys: "mod+k", scope: "editing", description: "Name shortcut" }]
+// The command palette elsewhere on the smoke page owns mod+k.
+const BINDINGS: HotkeyBinding[] = [{ id: "layout.rename", keys: "mod+shift+k", scope: "editing", description: "Name shortcut" }]
 
 export function LayoutManagerScene() {
   return <HotkeysProvider bindings={BINDINGS}><Layouts /></HotkeysProvider>
