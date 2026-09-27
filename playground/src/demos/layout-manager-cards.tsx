@@ -19,7 +19,6 @@ const BOOK: WorkspaceLayout = {
   boundaries: WORKSPACE_PERSISTENCE_BOUNDARIES,
 }
 
-
 function ExportButton({ onExport }: { onExport: (text: string) => void }) {
   const { template } = useLayoutManagerItem()
   return <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" aria-label={`Export: ${template.name}`} onClick={() => onExport(exportTemplate(template))}>Export</Button>

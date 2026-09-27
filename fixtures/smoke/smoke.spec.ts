@@ -1303,6 +1303,8 @@ test("a layout manager saves, loads, warns before loading a layout with an unkno
   const manager = scene.getByRole("region", { name: "Layouts" })
   const field = manager.getByRole("textbox", { name: "Layout name" })
   await field.fill("Morning")
+  await field.press("ControlOrMeta+k")
+  await expect(state).toHaveAttribute("data-lm-shortcuts", "1")
   await field.press("Enter")
   const morning = manager.locator("[data-layout-template='t-1']")
   await expect(morning.locator("[data-layout-name]")).toHaveText("Morning")
@@ -1330,7 +1332,11 @@ test("a layout manager saves, loads, warns before loading a layout with an unkno
   await expect(state).toHaveAttribute("data-lm-loaded", "With ladder")
   // Rename in place, duplicate beside, export the JSON.
   await morning.getByRole("button", { name: "Rename: Morning" }).click()
-  await manager.getByRole("textbox", { name: "Rename: Morning" }).fill("Open")
+  const rename = manager.getByRole("textbox", { name: "Rename: Morning" })
+  await rename.press("ControlOrMeta+k")
+  await expect(state).toHaveAttribute("data-lm-shortcuts", "2")
+  await expect(rename).toBeFocused()
+  await rename.fill("Open")
   await page.keyboard.press("Enter")
   await expect(morning.locator("[data-layout-name]")).toHaveText("Open")
   await expect(morning.getByRole("button", { name: "Rename: Open" })).toBeFocused()
@@ -1353,6 +1359,36 @@ test("a layout manager saves, loads, warns before loading a layout with an unkno
   await manager.getByRole("button", { name: "Reset to default" }).click()
   await expect(state).toHaveAttribute("data-lm-resets", "1")
 })
+
+for (const activation of ["click", "Enter", "Space"]) {
+  test(`a layout manager retains focus after Save and permanent Add disable on ${activation}`, async ({ page }) => {
+    await page.goto("/")
+    const scene = page.locator("section[data-scene='layout-manager']")
+    for (const name of ["Layouts", "Layout cards"]) {
+      const manager = scene.getByRole("region", { name, exact: true })
+      const field = manager.getByRole("textbox", { name: "Layout name", exact: true })
+      const save = manager.getByRole("button", { name: "Save current" })
+      await field.fill(`${name} saved`)
+      if (activation === "click") await save.click()
+      else await save.press(activation)
+      await expect(manager.getByRole("group", { name: `${name} saved`, exact: true })).toBeVisible()
+      await expect(save).toBeDisabled()
+      await expect(field).toBeFocused()
+    }
+    const cards = scene.getByRole("region", { name: "Layout cards" })
+    const paste = cards.getByRole("textbox", { name: "Paste a layout's JSON" })
+    const add = cards.getByRole("button", { name: "Add", exact: true })
+    const layout = { version: 1, kind: "tradecn-workspace", dockview: { grid: { root: {} }, panels: {} }, panels: {} }
+    await paste.fill(JSON.stringify(layout))
+    await cards.getByRole("textbox", { name: "Imported layout name" }).fill("Imported")
+    if (activation === "click") await add.click()
+    else await add.press(activation)
+    await expect(cards.getByRole("group", { name: "Imported", exact: true })).toBeVisible()
+    await expect(add).toBeDisabled()
+    await expect(paste).toHaveValue("")
+    await expect(cards.getByRole("textbox", { name: "Layout name", exact: true })).toBeFocused()
+  })
+}
 
 // A feed's actions through the consumer's real dropdown menu: the market-data feed offers the two the server
 // allows, the RFQ feed has no menu, a press marks the feed pending with the tier untouched, and the pretend

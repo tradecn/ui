@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { LayoutManager, LayoutManagerActive, LayoutManagerDelete, LayoutManagerDuplicate, LayoutManagerImportContent, LayoutManagerImportName, LayoutManagerImportProblem, LayoutManagerImportSubmit, LayoutManagerImportText, LayoutManagerImportTrigger, LayoutManagerItem, LayoutManagerLoad, LayoutManagerName, LayoutManagerPanelCount, LayoutManagerRename, LayoutManagerRenameField, LayoutManagerSave, LayoutManagerSaveName, LayoutManagerSavedAt, LayoutManagerTaken, LayoutManagerUnknownKinds, exportTemplate, useLayoutManager, useLayoutManagerItem, type LayoutTemplate } from "@/components/ui/layout-manager"
+import { HotkeysProvider, useHotkey } from "@/hooks/use-hotkeys"
+import type { HotkeyBinding } from "@/lib/hotkeys"
 import { WORKSPACE_PERSISTENCE_BOUNDARIES, type WorkspaceLayout } from "@/lib/workspace-layout"
 
 // A layout as a workspace would hand it over, without the workspace: the manager never touches the dock.
@@ -12,20 +14,42 @@ const CURRENT: WorkspaceLayout = {
   boundaries: WORKSPACE_PERSISTENCE_BOUNDARIES,
 }
 
+const BINDINGS: HotkeyBinding[] = [{ id: "layout.rename", keys: "mod+k", scope: "editing", description: "Name shortcut" }]
+
 export function LayoutManagerScene() {
+  return <HotkeysProvider bindings={BINDINGS}><Layouts /></HotkeysProvider>
+}
+
+function Layouts() {
   const [templates, setTemplates] = useState<LayoutTemplate[]>([])
   const [loaded, setLoaded] = useState("")
   const [exported, setExported] = useState("")
   const [resets, setResets] = useState(0)
+  const [shortcuts, setShortcuts] = useState(0)
+  useHotkey("layout.rename", () => setShortcuts((count) => count + 1))
   return (
-    <div className="w-[44rem]" data-lm-loaded={loaded} data-lm-export={exported} data-lm-resets={resets}>
-      <LayoutManager templates={templates}
-          onTemplatesChange={setTemplates}
-          current={CURRENT}
-          kinds={["book", "chart"]}
-          onLoad={(_, template) => setLoaded(template.name)}
-          now={() => 1_700_000_000_000}><LayoutManagerControls onExport={setExported}
-          onReset={() => setResets((n) => n + 1)} /></LayoutManager>
+    <div className="w-[44rem] space-y-4" data-lm-loaded={loaded} data-lm-export={exported} data-lm-resets={resets} data-lm-shortcuts={shortcuts}>
+      <LayoutManager
+        templates={templates}
+        onTemplatesChange={setTemplates}
+        current={CURRENT}
+        kinds={["book", "chart"]}
+        onLoad={(_, template) => setLoaded(template.name)}
+        now={() => 1_700_000_000_000}
+      >
+        <LayoutManagerControls onExport={setExported} onReset={() => setResets((n) => n + 1)} />
+      </LayoutManager>
+      <LayoutManager aria-label="Layout cards" className="grid grid-cols-2 gap-3" templates={templates} onTemplatesChange={setTemplates} current={CURRENT} onLoad={(_, template) => setLoaded(template.name)}>
+        <aside className="flex min-w-0 flex-col gap-2">
+          <LayoutManagerSaveName /><LayoutManagerSave />
+          <LayoutManagerImportText /><LayoutManagerImportName aria-label="Imported layout name" /><LayoutManagerImportSubmit /><LayoutManagerImportProblem />
+        </aside>
+        <ul className="grid gap-2">
+          {templates.toReversed().map((template) => <li key={template.id}>
+            <LayoutManagerItem templateId={template.id} className="rounded border p-2"><LayoutManagerName /><LayoutManagerLoad /></LayoutManagerItem>
+          </li>)}
+        </ul>
+      </LayoutManager>
     </div>
   )
 }

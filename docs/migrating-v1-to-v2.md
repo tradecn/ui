@@ -273,7 +273,7 @@ Use the public capture and input parts with custom controls to retain their even
 
 `LayoutManager` now requires children. Compose save fields, template readings, editing controls, and import fields explicitly.
 
-See [LayoutManager](layout-manager.md) for complete list, card, and workspace examples.
+See the [list](layout-manager.md#usage), [card](layout-manager.md#cards), and [workspace](layout-manager.md#saving-and-restoring-a-workspace) examples for complete compositions.
 
 | v1 | v2 |
 |---|---|
@@ -287,9 +287,9 @@ See [LayoutManager](layout-manager.md) for complete list, card, and workspace ex
 | Root `onReset` | Put the callback on your own reset button. The root also excludes the native section `onReset` event to catch obsolete calls. |
 | Root `labels` | All keys remain. Read `empty`, `export`, and `reset` from `useLayoutManager().labels` when composing that content. |
 
-The data helpers, template shape, controlled callbacks, active marker, clock, and known-kind inputs remain. The root forwards section props and refs; `onLoad` keeps its workspace callback signature.
+The data helpers, template shape, controlled callbacks, active marker, clock, and known-kind inputs remain. The root forwards section props and refs. `onLoad` keeps its workspace callback signature.
 
-`useLayoutManager()` exposes save/import state, and `useLayoutManagerItem()` exposes template readings, editing, and confirmed actions. Readings manage their content; use a hook for custom output.
+`useLayoutManager()` exposes save/import state, and `useLayoutManagerItem()` exposes template readings, editing, and confirmed actions. Readings manage their content. Use a hook for custom output.
 
 The root retains `data-slot="tradecn-layout-manager"`. Row markers move from the internal `li` to the public item's named `div` group: `data-layout-template`, `data-active="true"`, and `data-unknown-kinds`.
 
@@ -299,14 +299,20 @@ There is no generated list, toolbar, empty state, reset control, or export contr
 
 Compose one save field and import editor per root, and one rename field per item. Pair the save field with its replacement warning, and the import text field with its error reading so their accessible descriptions resolve.
 
-Template groups use the template name by default; caller `aria-label` and `aria-labelledby` can override it. Native button children replace visible text; custom Load and Delete content must also show `asking` from the item hook.
+Template groups use the template name by default. Caller `aria-label` and `aria-labelledby` can override it.
+
+Native button children replace visible text. Custom Load and Delete content must also show `asking` from the item hook.
 
 Keep the unknown-kind reading when the load warning needs a visible explanation.
 
-Confirmation still belongs to one action across the manager. It now cancels when its target disappears or the target layout changes; equivalent copied layouts keep it.
+Confirmation still belongs to one action across the manager. It now cancels when its target disappears or the target layout changes. Equivalent copied layouts keep it.
 
-Rename cancels when the source name or layout changes. Enter and Escape preserve IME composition, and Save Enter prevents a surrounding form submission.
+Template names now wrap instead of truncating. Add `className="truncate"` to `LayoutManagerName` to retain truncation.
 
-Rename completion returns focus to its initiating control or item; blur preserves the destination. Removing a focused item falls back to the save field or root.
+Rename cancels when the source name or layout changes. Enter and Escape preserve IME composition. Enter in either the save or rename field now prevents a surrounding form submission.
 
-Successful built-in imports restore the trigger when focus would otherwise be lost. Custom dialogs own their focus behavior.
+The root and items now use `tabIndex={-1}` as programmatic focus targets, outside the Tab order. Override the native prop when needed.
+
+Rename completion returns focus to its initiating control or item. Blur preserves the destination. Removing a focused item falls back to the save field or root.
+
+A focused Save or always-visible Add button that disables itself moves focus to the save field or root. Successful built-in imports restore the trigger when focus would otherwise be lost. Custom dialogs own their focus behavior.

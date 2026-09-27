@@ -1,6 +1,6 @@
-import { LayoutManagerControls } from "@/demos/layout-manager-workspace"
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { LayoutManagerControls } from "@/demos/layout-manager-workspace"
 import { createPreferences, exportPreferences, parsePreferences, type Preferences } from "@/registry/tradecn/lib/preferences"
 import type { WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
 import { LayoutManager, readLayoutTemplates, writeLayoutTemplates } from "@/registry/tradecn/ui/layout-manager"

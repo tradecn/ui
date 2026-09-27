@@ -67,47 +67,45 @@ export default function LayoutManagerWorkspaceDemo() {
           onLayoutError={() => setMessage("Could not capture or restore the workspace.")}
           watermark="No panels. Reset to default to start again."
         />
-        <div>
-          <LayoutManager
-            templates={templates}
-            onTemplatesChange={(nextTemplates) => {
-              const previous = templates.find((template) => template.id === activeId)
-              const active = nextTemplates.find((template) => template.id === activeId)
-              const layout = JSON.stringify(active?.layout)
-              if (!active || (layout !== JSON.stringify(previous?.layout) && layout !== JSON.stringify(current))) setActiveId(null)
-              const next = writeLayoutTemplates(prefs, nextTemplates)
-              setPrefs(next)
-              try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-                setMessage("Template list saved in this browser.")
-              } catch {
-                setMessage("Template list changed, but browser storage is unavailable.")
-              }
-            }}
-            current={current}
-            kinds={Object.keys(PANELS)}
-            activeId={activeId}
-            onLoad={(layout, template) => {
+        <LayoutManager
+          templates={templates}
+          onTemplatesChange={(nextTemplates) => {
+            const previous = templates.find((template) => template.id === activeId)
+            const active = nextTemplates.find((template) => template.id === activeId)
+            const layout = JSON.stringify(active?.layout)
+            if (!active || (layout !== JSON.stringify(previous?.layout) && layout !== JSON.stringify(current))) setActiveId(null)
+            const next = writeLayoutTemplates(prefs, nextTemplates)
+            setPrefs(next)
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+              setMessage("Template list saved in this browser.")
+            } catch {
+              setMessage("Template list changed, but browser storage is unavailable.")
+            }
+          }}
+          current={current}
+          kinds={Object.keys(PANELS)}
+          activeId={activeId}
+          onLoad={(layout, template) => {
+            if (!api) return
+            const loaded = api.load(layout)
+            setCurrent(api.toLayout())
+            setActiveId(loaded ? template.id : null)
+            setMessage(loaded ? `Loaded ${template.name}.` : `Could not load ${template.name}.`)
+          }}
+        >
+          <LayoutManagerControls
+            onReset={() => {
               if (!api) return
-              const loaded = api.load(layout)
+              api.clear()
+              seed(api)
               setCurrent(api.toLayout())
-              setActiveId(loaded ? template.id : null)
-              setMessage(loaded ? `Loaded ${template.name}.` : `Could not load ${template.name}.`)
+              setActiveId(null)
+              setMessage("Default workspace restored. Saved templates are unchanged.")
             }}
-          >
-            <LayoutManagerControls
-              onReset={() => {
-                if (!api) return
-                api.clear()
-                seed(api)
-                setCurrent(api.toLayout())
-                setActiveId(null)
-                setMessage("Default workspace restored. Saved templates are unchanged.")
-              }}
-              onExport={(text, template) => { setExported(text); setMessage(`Exported ${template.name}.`) }}
-            />
-          </LayoutManager>
-        </div>
+            onExport={(text, template) => { setExported(text); setMessage(`Exported ${template.name}.`) }}
+          />
+        </LayoutManager>
         <p role="status" className="text-muted-foreground">{message}</p>
         {exported && <label className="flex flex-col gap-2">Exported layout JSON<textarea readOnly value={exported} rows={5} className="w-full rounded border border-input bg-background p-2 font-(family-name:--tradecn-font-mono) text-xs" /></label>}
       </div>

@@ -1,7 +1,7 @@
 import { createRef, useState } from "react"
-import { LayoutManagerControls } from "@/demos/layout-manager-workspace"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
+import { LayoutManagerControls } from "@/demos/layout-manager-workspace"
 import { createPreferences } from "@/registry/tradecn/lib/preferences"
 import { WORKSPACE_PERSISTENCE_BOUNDARIES, type WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
 import {
@@ -340,9 +340,10 @@ describe("composition and migration", () => {
     expect(text).toHaveValue("")
   })
 
-  it("preserves IME composition and prevents save Enter from submitting a surrounding form", () => {
+  it("preserves IME composition, prevents form submission, and claims only rename completion keys", () => {
     const changed = vi.fn()
-    render(<form onSubmit={(event) => event.preventDefault()}><LayoutManager {...rootProps} current={TWO} onTemplatesChange={changed}><LayoutManagerControls /></LayoutManager></form>)
+    const keyDown = vi.fn()
+    render(<form onKeyDown={keyDown} onSubmit={(event) => event.preventDefault()}><LayoutManager {...rootProps} current={TWO} onTemplatesChange={changed}><LayoutManagerControls /></LayoutManager></form>)
     const field = screen.getByRole("textbox", { name: "Layout name" })
     fireEvent.change(field, { target: { value: "Desk" } })
     fireEvent.keyDown(field, { key: "Enter", isComposing: true })
@@ -355,6 +356,16 @@ describe("composition and migration", () => {
     fireEvent.keyDown(rename, { key: "Escape", isComposing: true })
     expect(rename).toHaveFocus()
     expect(changed).toHaveBeenCalledOnce()
+    keyDown.mockClear()
+    fireEvent.keyDown(rename, { key: "k", ctrlKey: true })
+    expect(keyDown).toHaveBeenCalledOnce()
+    expect(rename).toHaveFocus()
+    expect(fireEvent.keyDown(rename, { key: "Enter" })).toBe(false)
+    expect(changed).toHaveBeenCalledTimes(2)
+    expect(keyDown).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole("button", { name: "Rename: Morning" }))
+    expect(fireEvent.keyDown(screen.getByRole("textbox", { name: "Rename: Morning" }), { key: "Escape" })).toBe(false)
+    expect(keyDown).toHaveBeenCalledOnce()
   })
 
   it("rejects parts outside their coordinating root or item", () => {
@@ -377,62 +388,70 @@ describe("composition and migration", () => {
     view.rerender(<LayoutManager {...rootProps} templates={[]}>{null}</LayoutManager>)
     expect(screen.getByRole("region")).toHaveFocus()
   })
-})
 
+  it("reuses rename focus behavior in a caller-owned native field", () => {
+    function CustomName() {
+      const item = useLayoutManagerItem()
+      return item.renaming ? <input data-layout-rename-field="" aria-label="Custom name" value={item.name} onChange={(event) => item.setName(event.target.value)} onBlur={() => item.commitRename({ restoreFocus: false })} onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) return
+        if (event.key === "Enter" || event.key === "Escape") {
+          event.preventDefault()
+          event.stopPropagation()
+          if (event.key === "Enter") item.commitRename()
+          else item.cancelRename()
+        }
+      }} /> : <span>{item.name}</span>
+    }
+    const changed = vi.fn()
+    render(<LayoutManager templates={saveTemplate([], "Morning", TWO, T)} onTemplatesChange={changed} onLoad={() => {}}>
+      <LayoutManagerItem templateId="t-1"><CustomName /><LayoutManagerRename /><LayoutManagerLoad /></LayoutManagerItem>
+    </LayoutManager>)
+    const trigger = screen.getByRole("button", { name: "Rename: Morning" })
+    const destination = screen.getByRole("button", { name: "Load" })
+    fireEvent.click(trigger)
+    const input = screen.getByRole("textbox", { name: "Custom name" })
+    expect(input).toHaveFocus()
+    fireEvent.change(input, { target: { value: "Changed" } })
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true })
+    fireEvent.keyDown(input, { key: "Escape", isComposing: true })
+    expect(input).toHaveFocus()
+    expect(changed).not.toHaveBeenCalled()
+    act(() => destination.focus())
+    expect(destination).toHaveFocus()
+    expect(changed).toHaveBeenCalledOnce()
+    fireEvent.click(trigger)
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Custom name" }), { key: "Enter" })
+    expect(trigger).toHaveFocus()
+  })
 
-it("reuses rename focus behavior in a caller-owned native field", () => {
-  function CustomName() {
-    const item = useLayoutManagerItem()
-    return item.renaming ? <input data-layout-rename-field="" aria-label="Custom name" value={item.name} onChange={(event) => item.setName(event.target.value)} onBlur={() => item.commitRename({ restoreFocus: false })} onKeyDown={(event) => {
-      if (event.key === "Enter") item.commitRename()
-      if (event.key === "Escape") item.cancelRename()
-    }} /> : <span>{item.name}</span>
-  }
-  const changed = vi.fn()
-  render(<LayoutManager templates={saveTemplate([], "Morning", TWO, T)} onTemplatesChange={changed} onLoad={() => {}}>
-    <LayoutManagerItem templateId="t-1"><CustomName /><LayoutManagerRename /><LayoutManagerLoad /></LayoutManagerItem>
-  </LayoutManager>)
-  const trigger = screen.getByRole("button", { name: "Rename: Morning" })
-  const destination = screen.getByRole("button", { name: "Load" })
-  fireEvent.click(trigger)
-  const input = screen.getByRole("textbox", { name: "Custom name" })
-  expect(input).toHaveFocus()
-  fireEvent.change(input, { target: { value: "Changed" } })
-  act(() => destination.focus())
-  expect(destination).toHaveFocus()
-  expect(changed).toHaveBeenCalledOnce()
-  fireEvent.click(trigger)
-  fireEvent.keyDown(screen.getByRole("textbox", { name: "Custom name" }), { key: "Enter" })
-  expect(trigger).toHaveFocus()
-})
-
-it("does not serialize saved layouts for unrelated typing or unchanged rename drafts", () => {
-  const first = layout({ book: "book" })
-  const second = layout({ chart: "chart" })
-  const readFirst = vi.fn(() => first)
-  const readSecond = vi.fn(() => second)
-  Object.defineProperty(first, "toJSON", { value: readFirst })
-  Object.defineProperty(second, "toJSON", { value: readSecond })
-  render(<LayoutManager templates={[{ id: "t-1", name: "First", layout: first, savedAt: T }, { id: "t-2", name: "Second", layout: second, savedAt: T }]} current={TWO} onTemplatesChange={() => {}} onLoad={() => {}}>
-    <LayoutManagerControls />
-  </LayoutManager>)
-  readFirst.mockClear()
-  readSecond.mockClear()
-  const save = screen.getByRole("textbox", { name: "Layout name" })
-  fireEvent.change(save, { target: { value: "A" } })
-  fireEvent.change(save, { target: { value: "AB" } })
-  expect(readFirst).not.toHaveBeenCalled()
-  expect(readSecond).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole("button", { name: "Rename: First" }))
-  expect(readFirst).toHaveBeenCalled()
-  readFirst.mockClear()
-  fireEvent.change(screen.getByRole("textbox", { name: "Rename: First" }), { target: { value: "Renamed" } })
-  expect(readFirst).not.toHaveBeenCalled()
-  expect(readSecond).not.toHaveBeenCalled()
-  fireEvent.keyDown(screen.getByRole("textbox", { name: "Rename: First" }), { key: "Escape" })
-  fireEvent.click(screen.getByRole("button", { name: "Delete: Second" }))
-  readSecond.mockClear()
-  fireEvent.change(save, { target: { value: "ABC" } })
-  expect(readFirst).not.toHaveBeenCalled()
-  expect(readSecond).not.toHaveBeenCalled()
+  it("does not serialize saved layouts for unrelated typing or unchanged rename drafts", () => {
+    const first = layout({ book: "book" })
+    const second = layout({ chart: "chart" })
+    const readFirst = vi.fn(() => first)
+    const readSecond = vi.fn(() => second)
+    Object.defineProperty(first, "toJSON", { value: readFirst })
+    Object.defineProperty(second, "toJSON", { value: readSecond })
+    render(<LayoutManager templates={[{ id: "t-1", name: "First", layout: first, savedAt: T }, { id: "t-2", name: "Second", layout: second, savedAt: T }]} current={TWO} onTemplatesChange={() => {}} onLoad={() => {}}>
+      <LayoutManagerControls />
+    </LayoutManager>)
+    readFirst.mockClear()
+    readSecond.mockClear()
+    const save = screen.getByRole("textbox", { name: "Layout name" })
+    fireEvent.change(save, { target: { value: "A" } })
+    fireEvent.change(save, { target: { value: "AB" } })
+    expect(readFirst).not.toHaveBeenCalled()
+    expect(readSecond).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Rename: First" }))
+    expect(readFirst).toHaveBeenCalled()
+    readFirst.mockClear()
+    fireEvent.change(screen.getByRole("textbox", { name: "Rename: First" }), { target: { value: "Renamed" } })
+    expect(readFirst).not.toHaveBeenCalled()
+    expect(readSecond).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Rename: First" }), { key: "Escape" })
+    fireEvent.click(screen.getByRole("button", { name: "Delete: Second" }))
+    readSecond.mockClear()
+    fireEvent.change(save, { target: { value: "ABC" } })
+    expect(readFirst).not.toHaveBeenCalled()
+    expect(readSecond).not.toHaveBeenCalled()
+  })
 })

@@ -328,9 +328,16 @@ export function LayoutManagerSaveName({ className, onChange, onKeyDown, "aria-de
   }} />
 }
 
-export function LayoutManagerSave({ className, children, disabled, onClick, ...props }: ButtonProps) {
+export function LayoutManagerSave({ className, children, disabled, onClick, ref, ...props }: ButtonProps) {
   const { labels, canSave, save } = useLayoutManager()
-  return <Button type="button" variant="outline" size="sm" data-layout-save="" className={cn("h-7 px-2 text-xs", className)} {...props} disabled={disabled || !canSave} onClick={(event) => {
+  const focusFallback = useContext(FocusContext)!
+  const button = useRef<HTMLButtonElement>(null)
+  const buttonRef = useManagerRef(button, ref)
+  useLayoutEffect(() => {
+    const node = button.current
+    if ((disabled || !canSave) && node && node.ownerDocument.activeElement === node) focusFallback()
+  }, [disabled, canSave, focusFallback])
+  return <Button type="button" variant="outline" size="sm" data-layout-save="" className={cn("h-7 px-2 text-xs", className)} {...props} ref={buttonRef} disabled={disabled || !canSave} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) save()
   }}>{children ?? labels.save}</Button>
@@ -370,9 +377,17 @@ export function LayoutManagerImportName({ className, onChange, ...props }: Input
   }} />
 }
 
-export function LayoutManagerImportSubmit({ className, children, disabled, onClick, ...props }: ButtonProps) {
+export function LayoutManagerImportSubmit({ className, children, disabled, onClick, ref, ...props }: ButtonProps) {
   const { labels, importText, add } = useLayoutManager()
-  return <Button type="button" variant="outline" size="sm" data-layout-add="" className={cn("h-7 px-2 text-xs", className)} {...props} disabled={disabled || !importText.trim()} onClick={(event) => {
+  const focusFallback = useContext(FocusContext)!
+  const button = useRef<HTMLButtonElement>(null)
+  const buttonRef = useManagerRef(button, ref)
+  const canAdd = Boolean(importText.trim())
+  useLayoutEffect(() => {
+    const node = button.current
+    if ((disabled || !canAdd) && node && node.ownerDocument.activeElement === node) focusFallback()
+  }, [disabled, canAdd, focusFallback])
+  return <Button type="button" variant="outline" size="sm" data-layout-add="" className={cn("h-7 px-2 text-xs", className)} {...props} ref={buttonRef} disabled={disabled || !canAdd} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) add()
   }}>{children ?? labels.add}</Button>
@@ -462,6 +477,7 @@ function Item({ template, className, ref, onFocusCapture, onBlurCapture, ...prop
     if (!current || committing.current) return
     committing.current = true
     restoreFocus.current = options?.restoreFocus ?? true
+    // Blur can commit while activeElement is still body, before its destination receives focus.
     if (!restoreFocus.current) lastFocused.current = null
     manager.change(renameTemplate(manager.templates, template.id, current.name))
     cancelRename()
@@ -536,9 +552,9 @@ export function LayoutManagerRenameField({ className, onChange, onKeyDown, onBlu
   }} onKeyDown={(event) => {
     onKeyDown?.(event)
     if (event.defaultPrevented) return
-    event.stopPropagation()
     if (event.nativeEvent.isComposing) return
     if (event.key === "Enter" || event.key === "Escape") {
+      event.stopPropagation()
       event.preventDefault()
       if (event.key === "Enter") commitRename()
       else cancelRename()
