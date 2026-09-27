@@ -6,6 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { LayoutManagerControls } from "@/demos/layout-manager-workspace"
 import { QuotePanel as TwoWayPanel, type QuoteAction, type QuoteRow } from "@/registry/tradecn/blocks/quote-panel/quote-panel"
 import { RfqTicket, type RfqAction, type RfqInquiry, type RfqLevels } from "@/registry/tradecn/blocks/rfq-ticket/rfq-ticket"
 import { Ticket, type TicketAction, type TicketDraft, type TicketInstrument } from "@/registry/tradecn/blocks/ticket/ticket"
@@ -1468,17 +1469,20 @@ function Dialogs({ dialog, setDialog, layout }: { dialog: DeskDialog | null; set
               setPrefs((p) => writeWindowSet(p, windowSetOf([{ id: "main", layoutId: template.id, main: true }])))
               close()
             }}
-            onReset={() => {
-              const api = desk.api()
-              if (!api) return
-              api.clear()
-              seed(api)
-              setActiveId(null)
-              setPrefs((p) => writeWindowSet(p, windowSetOf([{ id: "main", layoutId: "desk", main: true }])))
-              close()
-            }}
-            onExport={(text) => void navigator.clipboard?.writeText(text)}
-          />
+          >
+            <LayoutManagerControls
+              onReset={() => {
+                const api = desk.api()
+                if (!api) return
+                api.clear()
+                seed(api)
+                setActiveId(null)
+                setPrefs((p) => writeWindowSet(p, windowSetOf([{ id: "main", layoutId: "desk", main: true }])))
+                close()
+              }}
+              onExport={(text) => void navigator.clipboard?.writeText(text)}
+            />
+          </LayoutManager>
           {main && (
             <p data-desk-windows={main.layoutId} className="text-muted-foreground">
               In a shell this desk is one window set: <span className="text-foreground">{main.id}</span> showing <span className="text-foreground">{main.layoutId}</span>, restored on launch and snapshotted on quit.

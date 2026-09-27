@@ -1,5 +1,6 @@
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { LayoutManagerControls } from "@/demos/layout-manager-workspace"
 import { createPreferences, exportPreferences, parsePreferences, type Preferences } from "@/registry/tradecn/lib/preferences"
 import type { WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
 import { LayoutManager, readLayoutTemplates, writeLayoutTemplates } from "@/registry/tradecn/ui/layout-manager"
@@ -88,15 +89,18 @@ export function LayoutManagerScene() {
             setActiveId(ok ? template.id : null)
             setLog(ok ? `loaded ${template.name}` : `the workspace refused ${template.name}`)
           }}
-          onReset={() => {
-            if (!api.current) return
-            api.current.clear()
-            seed(api.current)
-            setActiveId(null)
-            setLog("back to the default")
-          }}
-          onExport={(text, template) => navigator.clipboard?.writeText(text).then(() => setLog(`${template.name} is on the clipboard`))}
-        />
+        >
+          <LayoutManagerControls
+            onReset={() => {
+              if (!api.current) return
+              api.current.clear()
+              seed(api.current)
+              setActiveId(null)
+              setLog("back to the default")
+            }}
+            onExport={(text, template) => navigator.clipboard?.writeText(text).then(() => setLog(`${template.name} is on the clipboard`))}
+          />
+        </LayoutManager>
       </div>
     </main>
   )

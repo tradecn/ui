@@ -2717,7 +2717,7 @@
       "name": "layout-manager",
       "type": "registry:ui",
       "title": "Layout Manager",
-      "description": "Named layouts for a workspace: save the current one under a name, load one (with a warning first when it asks for a panel kind the workspace lacks), rename, duplicate, delete with an ask-again, import and export the JSON, and go back to the default. The list is the consumer's, read from and written to a preferences slot by two functions; every change is a new list, and every load is a request the consumer answers with the workspace's api.",
+      "description": "Composable saved workspace layouts with public template readings, save and import fields, rename controls, and confirmed actions. The caller owns the list, persistence, export, reset, and workspace loading.",
       "dependencies": [
         "cn@^0.3.0"
       ],
@@ -2748,7 +2748,95 @@
         "components": [
           {
             "title": "LayoutManager",
-            "description": "The list with save, load, rename, duplicate, delete, import, export, and reset."
+            "description": "Coordinates a caller-owned layout composition."
+          },
+          {
+            "title": "useLayoutManager",
+            "description": "Save and import state for caller-owned controls."
+          },
+          {
+            "title": "LayoutManagerItem",
+            "description": "A named template group with shared editing behavior."
+          },
+          {
+            "title": "useLayoutManagerItem",
+            "description": "Template readings, editing, and confirmed actions."
+          },
+          {
+            "title": "LayoutManagerSaveName",
+            "description": "The save-name field."
+          },
+          {
+            "title": "LayoutManagerSave",
+            "description": "Saves the current snapshot."
+          },
+          {
+            "title": "LayoutManagerTaken",
+            "description": "The replacement warning."
+          },
+          {
+            "title": "LayoutManagerImportTrigger",
+            "description": "Toggles the import editor."
+          },
+          {
+            "title": "LayoutManagerImportContent",
+            "description": "Caller-owned import content."
+          },
+          {
+            "title": "LayoutManagerImportText",
+            "description": "The JSON field."
+          },
+          {
+            "title": "LayoutManagerImportName",
+            "description": "The optional import name."
+          },
+          {
+            "title": "LayoutManagerImportSubmit",
+            "description": "Validates and imports the JSON."
+          },
+          {
+            "title": "LayoutManagerImportProblem",
+            "description": "The linked import error."
+          },
+          {
+            "title": "LayoutManagerName",
+            "description": "The template name."
+          },
+          {
+            "title": "LayoutManagerRenameField",
+            "description": "The inline rename field."
+          },
+          {
+            "title": "LayoutManagerActive",
+            "description": "The loaded badge."
+          },
+          {
+            "title": "LayoutManagerPanelCount",
+            "description": "The panel count."
+          },
+          {
+            "title": "LayoutManagerSavedAt",
+            "description": "The localized saved timestamp."
+          },
+          {
+            "title": "LayoutManagerUnknownKinds",
+            "description": "The missing-kind warning."
+          },
+          {
+            "title": "LayoutManagerLoad",
+            "description": "Loads with missing-kind confirmation."
+          },
+          {
+            "title": "LayoutManagerRename",
+            "description": "Starts inline renaming."
+          },
+          {
+            "title": "LayoutManagerDuplicate",
+            "description": "Duplicates the template."
+          },
+          {
+            "title": "LayoutManagerDelete",
+            "description": "Deletes on the second press."
           },
           {
             "title": "readLayoutTemplates",
