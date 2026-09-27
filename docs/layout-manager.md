@@ -311,7 +311,7 @@ A new name appends a template. Save stores the supplied layout reference, so tre
 
 `Load` calls `onLoad(layout, template)`. Call the workspace's `api.load` there. The manager does not update `activeId` or verify that loading succeeded.
 
-Clear `activeId` when its saved layout is replaced with a different snapshot. Renaming can retain the loaded marker. Compose Reset to default as a caller-owned button that clears and reseeds the workspace.
+Clear `activeId` when its saved layout changes to a snapshot other than `current`. Renaming and saving the current snapshot can retain the loaded marker. Compose Reset to default as a caller-owned button that clears and reseeds the workspace.
 
 Refresh `current` from `api.toLayout()` on ready, after loading, and after reset so Save captures those changes immediately. The workspace does not emit `onLayoutChange` merely because a layout was restored.
 
