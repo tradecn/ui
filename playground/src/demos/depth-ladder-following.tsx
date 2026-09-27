@@ -1,12 +1,39 @@
 import { useState } from "react"
 import { createInstrumentFormatter, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { DepthLadder, levelId, priceAtTick, tickIndexOf, type DepthLevel } from "@/registry/tradecn/ui/depth-ladder"
+import { DepthLadder, DepthLadderHeader, DepthLadderColumnHeader, DepthLadderViewport, DepthLadderEmpty, DepthLadderRows, DepthLadderRow, DepthLadderSizeCell, DepthLadderPriceCell, DepthLadderRecenter, levelId, priceAtTick, tickIndexOf, type DepthLevel } from "@/registry/tradecn/ui/depth-ladder"
 
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const format = createInstrumentFormatter(ZN)
 const start = tickIndexOf(110.5, ZN.tick)
 const levelsAt = (mid: number): DepthLevel[] => [{ tick: mid - 1, bidSize: 220 }, { tick: mid + 1, askSize: 180 }]
+
+function renderLadderRow() {
+  return (
+    <DepthLadderRow>
+      <DepthLadderSizeCell side="bid" />
+      <DepthLadderPriceCell />
+      <DepthLadderSizeCell side="ask" />
+    </DepthLadderRow>
+  )
+}
+
+export function DepthLadderContent() {
+  return (
+    <>
+      <DepthLadderHeader>
+        <DepthLadderColumnHeader column="bid" />
+        <DepthLadderColumnHeader column="price" />
+        <DepthLadderColumnHeader column="ask" />
+      </DepthLadderHeader>
+      <DepthLadderViewport>
+        <DepthLadderEmpty />
+        <DepthLadderRows>{renderLadderRow}</DepthLadderRows>
+      </DepthLadderViewport>
+      <DepthLadderRecenter className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2" />
+    </>
+  )
+}
 
 export default function DepthLadderFollowingDemo() {
   const [store] = useState(() => {
@@ -31,7 +58,9 @@ export default function DepthLadderFollowingDemo() {
       </div>
       <div className="w-72 max-w-full space-y-2 text-xs lining-nums tabular-nums">
         <div className="h-64">
-          <DepthLadder store={store} convention={ZN} mid={mid} label="ZN moving market" depth={12} />
+          <DepthLadder store={store} convention={ZN} mid={mid} label="ZN moving market" depth={12}>
+            <DepthLadderContent />
+          </DepthLadder>
         </div>
         <p role="status" className="text-muted-foreground">Market mid: {format.price(mid)}.</p>
       </div>

@@ -316,3 +316,50 @@ The root and items now use `tabIndex={-1}` as programmatic focus targets, outsid
 Rename completion returns focus to its initiating control or item. Blur preserves the destination. Removing a focused item falls back to the save field or root.
 
 A focused Save or always-visible Add button that disables itself moves focus to the save field or root. Successful built-in imports restore the trigger when focus would otherwise be lost. Custom dialogs own their focus behavior.
+
+## DepthLadder
+
+Replace the self-closing `DepthLadder` with an explicit composition.
+
+The root keeps the book, formatting, virtualization, following, and keyboard inputs. Your JSX supplies the header, viewport, rows, and controls.
+
+See [DepthLadder Usage](depth-ladder.md#usage) for a complete replacement.
+
+| v1 interface or default | v2 replacement |
+|---|---|
+| `<DepthLadder store={store} convention={convention} mid={mid} label="Book" />` | `children` is required, including for calls using only these retained inputs. Compose the public parts. |
+| Automatic Bid / Price / Ask header and rows | Add `DepthLadderHeader`, three `DepthLadderColumnHeader` parts, and `DepthLadderViewport` containing `DepthLadderRows`. Return one `DepthLadderRow` with bid, price, and ask cells from its render callback. |
+| `emptyState` | Put the content in `DepthLadderEmpty` inside the viewport. Without children it still uses `labels.noMarket`. |
+| Floating Recenter button | Add `DepthLadderRecenter`. To preserve placement, pass `className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2"`. It now uses your installed shadcn `Button` with `size="sm"`. Its height, weight, and shadow follow that style (22px instead of 26px, weight 500, and no shadow). The registry installs that dependency. |
+| Own-size chip before market size | Still the default of `DepthLadderSizeCell`. Replace its children with `DepthLadderOwnSize` and `DepthLadderSize` to change the order or add content. |
+| Fixed descending prices and Bid / Price / Ask order | Still the defaults. Set `order` and `columns` when changing the visual layout, and render matching headers and cells. |
+
+Keep `store`, `convention`, `mid`, `label`, `depth`, `rowHeight`, `overscan`, `onStage`, `formatSize`, `flashWindowMs`, `labels`, `initialRect`, and `className` on the root.
+
+Their defaults are unchanged: 200 ticks on either side, 22px rows, eight overscan rows, `formatQuantity`, and 900ms flashes.
+
+`DepthLevel`, `LadderColumn`, `LadderStage`, `DepthLadderLabels`, `DEFAULT_DEPTH_LADDER_LABELS`, and the three tick helpers remain exported.
+
+Mount one viewport and one rows part.
+
+Keep the row callback, `convention`, `columns`, `labels`, and `formatSize` stable for frequent parent updates. Their object and function identities now reach every mounted row. In v1, an inline `convention` became formatted strings per rung. In v2, a new convention object re-renders every mounted row even when its values are unchanged.
+
+Each mounted tick still has one store subscription, and each size cell owns its flash.
+
+Custom readings use `useDepthLadderRow()` without adding subscriptions.
+
+The initial missing market uses your empty part. A market that disappears later leaves the built prices visible.
+
+Grid shortcuts now run only when the grid itself is the key event's target. Recenter and other nested controls keep all their native keys: Enter no longer stages the stored selection, arrows no longer move it, and Home no longer recenters from the button. Composing keys are also ignored.
+
+A focused Recenter returns focus to the grid when it disappears or becomes disabled.
+
+Keep the part mounted and let it manage visibility.
+
+`aria-activedescendant` stays valid during page jumps by keeping the selected row mounted while its tick remains in the anchored range. The root reserves its grid role, tab stop, accessible name, counts, and active descendant. `DepthLadderRow` reserves its generated `id`. Use a data attribute for application row identifiers.
+
+Recenter still retains the selected tick and column, and Enter on the grid can stage that tick after it leaves the anchored range. Choose a current row first when that is not intended.
+
+Preserve visible side headers, own-size descriptions, and your staging status or ticket when composing another layout.
+
+Order permissions and submission remain application-owned.

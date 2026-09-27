@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { createInstrumentFormatter, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 import { DepthLadder, levelId, priceAtTick, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
+import { DepthLadderContent } from "@/demos/depth-ladder-following"
 
 // Two ladders over pretend books, ZN in 32nds and a bill on a decimal tick, each fed by its own
 // simulated market: sizes change on a few levels every quarter second, and the market steps a tick
@@ -83,7 +84,9 @@ function Ladder({ name, convention, market, onStage }: { name: string; conventio
         </Button>
       </div>
       <div className="min-h-0 w-72 flex-1">
-        <DepthLadder store={market.store} convention={convention} mid={priceAtTick(market.midTick, convention.tick)} label={`${name} ladder`} depth={80} onStage={onStage} />
+        <DepthLadder store={market.store} convention={convention} mid={priceAtTick(market.midTick, convention.tick)} label={`${name} ladder`} depth={80} onStage={onStage}>
+          <DepthLadderContent />
+        </DepthLadder>
       </div>
     </div>
   )

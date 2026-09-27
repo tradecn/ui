@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore, type DeltaBatch } from "@/registry/tradecn/lib/row-store"
-import { DepthLadder, levelId, tickIndexOf, type DepthLevel } from "@/registry/tradecn/ui/depth-ladder"
+import { DepthLadder, DepthLadderHeader, DepthLadderColumnHeader, DepthLadderViewport, DepthLadderEmpty, DepthLadderRows, DepthLadderRow, DepthLadderSizeCell, DepthLadderPriceCell, DepthLadderRecenter, levelId, tickIndexOf, type DepthLevel } from "@/registry/tradecn/ui/depth-ladder"
 
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const mid = 110.5
@@ -18,6 +18,16 @@ const updates: { message: string; batch: DeltaBatch<DepthLevel> }[] = [
   { message: "New ask: 90 at 110-17+.", batch: { upsert: [{ tick: tick + 3, askSize: 90 }] } },
   { message: "Bid at 110-15+ removed. Its price rung remains.", batch: { remove: [levelId(tick - 1)] } },
 ]
+
+function renderLadderRow() {
+  return (
+    <DepthLadderRow>
+      <DepthLadderSizeCell side="bid" />
+      <DepthLadderPriceCell />
+      <DepthLadderSizeCell side="ask" />
+    </DepthLadderRow>
+  )
+}
 
 export default function DepthLadderUpdatesDemo() {
   const [store] = useState(() => {
@@ -44,7 +54,18 @@ export default function DepthLadderUpdatesDemo() {
       </div>
       <div className="w-72 max-w-full space-y-2 text-xs lining-nums tabular-nums">
         <div className="h-56">
-          <DepthLadder store={store} convention={ZN} mid={mid} label="ZN book updates" depth={4} />
+          <DepthLadder store={store} convention={ZN} mid={mid} label="ZN book updates" depth={4}>
+            <DepthLadderHeader>
+              <DepthLadderColumnHeader column="bid" />
+              <DepthLadderColumnHeader column="price" />
+              <DepthLadderColumnHeader column="ask" />
+            </DepthLadderHeader>
+            <DepthLadderViewport>
+              <DepthLadderEmpty />
+              <DepthLadderRows>{renderLadderRow}</DepthLadderRows>
+            </DepthLadderViewport>
+            <DepthLadderRecenter className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2" />
+          </DepthLadder>
         </div>
         <p role="status" className="text-muted-foreground">{step === 0 ? "Initial book." : `Update ${step} of ${updates.length}. ${updates[step - 1]!.message}`}</p>
       </div>

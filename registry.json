@@ -2963,12 +2963,14 @@
       "name": "depth-ladder",
       "type": "registry:ui",
       "title": "Depth Ladder",
-      "description": "A price ladder around the market: one rung per tick over a range of prices, the bid size to the left of the price and the ask size to its right, the desk's own resting size marked on its rung, and one flash per level change. Levels come from a row store keyed by tick index, so a change at one price wakes one rung. The mid stays in the middle until a key, a pointer, or a scroll touches the ladder; then the prices hold still and Recenter or Home puts the mid back. A click in the bid column stages a buy at that price and a click in the ask column a sell, handed to the consumer through onStage; the ladder sends nothing.",
+      "description": "A composable virtual price ladder with public headers, rows, cells, size readings, and recenter controls. Mounted rows subscribe to their own price level; shared behavior preserves following, keyboard navigation, and order staging.",
       "dependencies": [
         "cn@^0.3.0",
         "@tanstack/react-virtual@^3.14.13"
       ],
-      "registryDependencies": [],
+      "registryDependencies": [
+        "button"
+      ],
       "files": [
         {
           "path": "registry/tradecn/ui/depth-ladder.tsx",
@@ -2995,28 +2997,80 @@
         "grid",
         "ticket"
       ],
-      "docs": "Installs the row store, format, and the flash hook alongside, adds @tanstack/react-virtual and the up, down, and flat tokens the two size columns and the flashes use, and composes no shadcn component. Key the store by tick index with levelId; the ladder prints prices through the convention you pass and sends nothing itself: onStage hands you the price and the side.",
+      "docs": "Installs the row store, format, and the flash hook, adds @tanstack/react-virtual and direction tokens, and composes the consumer's Button. Supply headers, a viewport and virtual rows as children. Key the store by tick index with levelId; onStage hands the application a price and side without sending an order.",
       "meta": {
         "components": [
           {
             "title": "DepthLadder",
-            "description": "The ladder: bid sizes, prices, ask sizes, the mid in the middle, one flash per level change."
+            "description": "Coordinates caller-owned ladder content."
+          },
+          {
+            "title": "DepthLadderHeader",
+            "description": "The header row."
+          },
+          {
+            "title": "DepthLadderColumnHeader",
+            "description": "A named column header."
+          },
+          {
+            "title": "DepthLadderViewport",
+            "description": "The scrolling viewport."
+          },
+          {
+            "title": "DepthLadderRows",
+            "description": "Virtual rows with one subscription per mounted tick."
+          },
+          {
+            "title": "DepthLadderRow",
+            "description": "A positioned price rung."
+          },
+          {
+            "title": "DepthLadderSizeCell",
+            "description": "A flashing, staging bid or ask cell."
+          },
+          {
+            "title": "DepthLadderPriceCell",
+            "description": "A price cell."
+          },
+          {
+            "title": "DepthLadderSize",
+            "description": "The market size reading."
+          },
+          {
+            "title": "DepthLadderOwnSize",
+            "description": "The desk's own size reading."
+          },
+          {
+            "title": "DepthLadderEmpty",
+            "description": "Content before the first market."
+          },
+          {
+            "title": "DepthLadderRecenter",
+            "description": "Returns to following the mid."
+          },
+          {
+            "title": "useDepthLadder",
+            "description": "Shared following and recenter behavior."
+          },
+          {
+            "title": "useDepthLadderRow",
+            "description": "The current subscribed row."
           },
           {
             "title": "levelId",
-            "description": "The row id of a level: its tick index as a string."
+            "description": "The row id of a tick."
           },
           {
             "title": "tickIndexOf",
-            "description": "A price as a count of ticks from zero, rounded to the grid."
+            "description": "Rounds a price to its tick index."
           },
           {
             "title": "priceAtTick",
-            "description": "The price at a tick index, cleaned of float noise."
+            "description": "Converts a tick to its price."
           },
           {
             "title": "DEFAULT_DEPTH_LADDER_LABELS",
-            "description": "Every word the ladder says."
+            "description": "Default labels for the public parts."
           }
         ]
       },

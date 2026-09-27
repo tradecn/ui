@@ -35,6 +35,7 @@ import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPal
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/registry/tradecn/ui/data-grid"
 import { DepthLadder, levelId, tickIndexOf, type DepthLevel, type LadderStage } from "@/registry/tradecn/ui/depth-ladder"
+import { DepthLadderContent } from "@/demos/depth-ladder-following"
 import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { FlashCell } from "@/registry/tradecn/ui/flash-cell"
@@ -1180,7 +1181,9 @@ function LadderPanel() {
         <span className="truncate text-muted-foreground">Click a size to stage it</span>
       </PanelHeader>
       <PanelContent>
-        <DepthLadder store={book} convention={future.convention} mid={market?.last ?? market?.close ?? null} label={`${future.symbol} ladder`} depth={40} onStage={(stage) => desk.stage(future.symbol, stage)} className={GRID} />
+        <DepthLadder store={book} convention={future.convention} mid={market?.last ?? market?.close ?? null} label={`${future.symbol} ladder`} depth={40} onStage={(stage) => desk.stage(future.symbol, stage)} className={GRID}>
+          <DepthLadderContent />
+        </DepthLadder>
       </PanelContent>
     </>
   )

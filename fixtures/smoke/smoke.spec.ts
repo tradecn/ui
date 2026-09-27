@@ -1563,6 +1563,12 @@ test("a depth ladder centers on the mid, prints prices in 32nds, marks the desk'
   await expect(rung(6371)).toHaveAttribute("data-mine", "ask")
   await expect(rung(6369).locator("[data-col='bid']")).toHaveText("")
   await expect(ladder.getByRole("columnheader")).toHaveText(["Bid", "Price", "Ask"])
+  const ownOnlyBid = rung(6365).locator("[data-col='bid']")
+  const inset = await ownOnlyBid.evaluate((cell) => {
+    const chip = cell.querySelector("[data-mine-size]")!
+    return { actual: cell.getBoundingClientRect().right - chip.getBoundingClientRect().right, padding: parseFloat(getComputedStyle(cell).paddingRight) }
+  })
+  expect(inset.actual, "an off-book own-size chip has only the cell padding at the bid edge").toBeCloseTo(inset.padding, 1)
   const painted = await page.evaluate(() => {
     const bid = document.querySelector("section[data-scene='depth-ladder'] [data-tick='6367'] [data-col='bid']")!
     const probe = document.createElement("i")
@@ -1956,4 +1962,91 @@ test("a price chart paints in the page's tokens, prints the last with its sign, 
     return Math.abs(line.y - (replacedBox.y + 12))
   }, { message: "the next pointer move controls the crosshair again" }).toBeLessThan(2)
   expect(errors).toEqual([])
+})
+
+test("depth ladder Recenter keeps native Enter and Space, returns focus, and leaves order staging unchanged", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='depth-ladder']")
+  const grid = scene.getByRole("grid", { name: "ZN ladder", exact: true })
+  const count = scene.locator("[data-ladder-stage-count]")
+  await grid.locator("[data-tick='6368'] [data-col='bid']").click()
+  await expect(grid).toBeFocused()
+  await expect(count).toHaveText("1")
+  for (const key of ["Enter", "Space"]) {
+    await grid.focus()
+    await page.keyboard.press("ArrowLeft")
+    await scene.getByRole("button", { name: "mid moves up" }).click()
+    const recenter = grid.getByRole("button", { name: "Recenter", exact: true })
+    await recenter.focus()
+    const selected = await grid.getAttribute("aria-activedescendant")
+    for (const nestedKey of ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home"]) {
+      await page.keyboard.press(nestedKey)
+      await expect(grid).toHaveAttribute("aria-activedescendant", selected!)
+      await expect(grid).toHaveAttribute("data-following", "false")
+      await expect(recenter).toBeFocused()
+    }
+    await page.keyboard.press(key)
+    await expect(grid).toHaveAttribute("data-following", "true")
+    await expect(recenter).toHaveCount(0)
+    await expect(grid).toBeFocused()
+    await expect(count).toHaveText("1")
+  }
+  await page.keyboard.press("ArrowLeft")
+  await grid.getByRole("button", { name: "Recenter", exact: true }).focus()
+  await scene.getByRole("button", { name: "disable recenter" }).evaluate((button: HTMLButtonElement) => button.click())
+  await expect(grid.getByRole("button", { name: "Recenter", exact: true })).toBeDisabled()
+  await expect(grid).toBeFocused()
+  await scene.getByRole("button", { name: "enable recenter" }).evaluate((button: HTMLButtonElement) => button.click())
+  await grid.getByRole("button", { name: "Recenter", exact: true }).focus()
+  // Keep the button focused while the application removes the mid.
+  await scene.getByRole("button", { name: "clear market" }).evaluate((button: HTMLButtonElement) => button.click())
+  await expect(grid.getByRole("button", { name: "Recenter", exact: true })).toHaveCount(0)
+  await expect(grid).toBeFocused()
+  await expect(count).toHaveText("1")
+})
+
+test("depth ladder alternate layout navigates ascending rows and reordered columns with virtual row bounds", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='depth-ladder']")
+  const grid = scene.getByRole("grid", { name: "ZN alternate ladder" })
+  await expect(grid.getByRole("columnheader")).toHaveText(["Price", "Bid", "Ask"])
+  expect(await grid.locator("[data-tick]").count()).toBeLessThan(40)
+  await expect(grid.locator("[data-tick='6368'] [data-col='bid']")).toHaveText("1205 yours")
+  await grid.focus()
+  await page.keyboard.press("ArrowUp")
+  await expect(grid.locator("[data-tick='6368'] [data-col='price']")).toHaveAttribute("data-focused-col", "true")
+  await page.keyboard.press("ArrowRight")
+  await page.keyboard.press("Enter")
+  await expect(scene.locator("[data-ladder-staged]")).toHaveText("buy 99.5")
+  await grid.getByRole("button", { name: "Follow market" }).focus()
+  await page.keyboard.press("Enter")
+  await expect(grid).toBeFocused()
+  await expect(grid).toHaveAttribute("data-following", "true")
+  await expect(scene.locator("[data-ladder-stage-count]")).toHaveText("1")
+})
+
+test("depth ladder page jumps keep an active descendant through every DOM update", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='depth-ladder']")
+  for (const name of ["ZN ladder", "ZN alternate ladder"]) {
+    const grid = scene.getByRole("grid", { name, exact: true })
+    await grid.focus()
+    await page.keyboard.press("ArrowDown")
+    await grid.evaluate((node) => {
+      node.setAttribute("data-focus-gaps", "0")
+      const observer = new MutationObserver((records) => {
+        const id = node.getAttribute("aria-activedescendant")
+        if (records.some((record) => record.oldValue === null) || !id || !document.getElementById(id)) {
+          node.setAttribute("data-focus-gaps", String(Number(node.getAttribute("data-focus-gaps")) + 1))
+        }
+      })
+      observer.observe(node, { attributes: true, attributeFilter: ["aria-activedescendant"], attributeOldValue: true })
+    })
+    for (let jump = 0; jump < 3; jump++) {
+      await page.keyboard.press("PageDown")
+      await expect(grid).toHaveAttribute("data-focus-gaps", "0")
+      await expect(grid.locator("[data-focused='true']")).toHaveCount(1)
+    }
+    expect(await grid.locator("[data-tick]").count()).toBeLessThan(40)
+  }
 })
