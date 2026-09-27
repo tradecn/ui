@@ -9,7 +9,7 @@ import {
   LAYOUT_TEMPLATES_SLOT,
   LayoutManager,
   useLayoutManagerItem,
-  LayoutManagerItem, LayoutManagerName, LayoutManagerLoad, LayoutManagerSave, LayoutManagerSaveName, LayoutManagerRename, LayoutManagerDelete, LayoutManagerImportText, LayoutManagerImportSubmit,
+  LayoutManagerItem, LayoutManagerName, LayoutManagerLoad, LayoutManagerSave, LayoutManagerSaveName, LayoutManagerRename, LayoutManagerRenameField, LayoutManagerDelete, LayoutManagerImportText, LayoutManagerImportSubmit,
   deleteTemplate,
   duplicateTemplate,
   exportTemplate,
@@ -283,6 +283,46 @@ describe("composition and migration", () => {
     const saveName = screen.getByRole("textbox", { name: "Layout name" })
     act(() => saveName.focus())
     expect(saveName).toHaveFocus()
+  })
+
+  function renameItems() {
+    const items = new Map<string, ReturnType<typeof useLayoutManagerItem>>()
+    const changed = vi.fn()
+    function Controls() {
+      const item = useLayoutManagerItem()
+      items.set(item.template.id, item)
+      return <><LayoutManagerRename /><LayoutManagerRenameField /></>
+    }
+    render(<LayoutManager {...rootProps} onTemplatesChange={changed}>
+      {templates.map((template) => <LayoutManagerItem key={template.id} templateId={template.id}><Controls /></LayoutManagerItem>)}
+    </LayoutManager>)
+    return { items, changed }
+  }
+
+  it("keeps another item's rename draft and focus when an idle item cancels", () => {
+    const { items, changed } = renameItems()
+    act(() => items.get("t-2")!.rename())
+    const field = screen.getByRole("textbox", { name: "Rename: With ladder" })
+    fireEvent.change(field, { target: { value: "Draft" } })
+    act(() => items.get("t-1")!.cancelRename())
+    expect(field).toHaveValue("Draft")
+    expect(field).toHaveFocus()
+    expect(changed).not.toHaveBeenCalled()
+    act(() => items.get("t-2")!.cancelRename())
+    expect(screen.queryByRole("textbox")).toBeNull()
+    expect(screen.getByRole("group", { name: "With ladder" })).toHaveFocus()
+  })
+
+  it("keeps the next item's rename open when the previous item cancels in the same update", () => {
+    const { items, changed } = renameItems()
+    act(() => items.get("t-1")!.rename())
+    act(() => {
+      items.get("t-2")!.rename()
+      items.get("t-1")!.cancelRename()
+    })
+    expect(screen.queryByRole("textbox", { name: "Rename: Morning" })).toBeNull()
+    expect(screen.getByRole("textbox", { name: "Rename: With ladder" })).toHaveFocus()
+    expect(changed).not.toHaveBeenCalled()
   })
 
   it.each(["name", "layout"])("cancels rename after its source %s changes without writing the obsolete draft", (field) => {

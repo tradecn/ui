@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from "react"
+import { createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type ReactNode, type Ref, type SetStateAction } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -197,7 +197,7 @@ interface ManagerContextValue extends LayoutManagerState {
   asking: Confirmation | null
   setAsking: (asking: Confirmation | null) => void
   editingId: string | null
-  setEditingId: (id: string | null) => void
+  setEditingId: Dispatch<SetStateAction<string | null>>
   change: (templates: LayoutTemplate[]) => void
   onLoad: LayoutManagerProps["onLoad"]
   clock: () => number
@@ -472,7 +472,10 @@ function Item({ template, className, ref, onFocusCapture, onBlurCapture, ...prop
     return () => { if (node?.contains(node.ownerDocument.activeElement)) focusFallback() }
   }, [focusFallback])
 
-  const cancelRename = () => { setSession(null); manager.setEditingId(null) }
+  const cancelRename = () => {
+    setSession(null)
+    manager.setEditingId((id) => id === template.id ? null : id)
+  }
   const commitRename = (options?: { restoreFocus?: boolean }) => {
     if (!current || committing.current) return
     committing.current = true
