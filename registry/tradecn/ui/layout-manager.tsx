@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode, type Ref } from "react"
+import { createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -257,7 +257,9 @@ export function LayoutManager({ templates, onTemplatesChange, current = null, on
   }, [])
   // Preferences readers may copy the list on every render. Compare the target's content, not its identity.
   const target = asking ? templates.find((template) => template.id === asking.id) : null
-  const confirmation = target && asking?.layout === exportTemplate(target) ? asking : null
+  const targetLayout = target?.layout
+  const targetSource = useMemo(() => targetLayout ? JSON.stringify(targetLayout, null, 2) : null, [targetLayout])
+  const confirmation = target && asking?.layout === targetSource ? asking : null
   if (asking && !confirmation) setAsking(null)
   if (editingId && !templates.some((template) => template.id === editingId)) setEditingId(null)
 
@@ -428,8 +430,9 @@ function Item({ template, className, ref, onFocusCapture, onBlurCapture, ...prop
   const lastFocused = useRef<HTMLElement | null>(null)
   const committing = useRef(false)
   const [session, setSession] = useState<{ source: string; name: string } | null>(null)
-  const source = JSON.stringify([template.name, template.layout])
-  const current = manager.editingId === template.id && session?.source === source ? session : null
+  const editing = session !== null && manager.editingId === template.id
+  const source = useMemo(() => editing ? JSON.stringify([template.name, template.layout]) : null, [editing, template.name, template.layout])
+  const current = editing && session?.source === source ? session : null
   if (session && !current) setSession(null)
   const renaming = current !== null
   const missingKinds = manager.known.length ? unknownPanelKinds(template.layout, manager.known) : []
@@ -473,7 +476,7 @@ function Item({ template, className, ref, onFocusCapture, onBlurCapture, ...prop
       restoreFocus.current = true
       committing.current = false
       manager.setEditingId(template.id)
-      setSession({ source, name: template.name })
+      setSession({ source: JSON.stringify([template.name, template.layout]), name: template.name })
     },
     commitRename, cancelRename,
     load: () => {
