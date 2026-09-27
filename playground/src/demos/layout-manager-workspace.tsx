@@ -1,7 +1,8 @@
 import { useState } from "react"
+import { Button } from "@/components/ui/button"
 import { createPreferences, parsePreferences, withBoundary } from "@/registry/tradecn/lib/preferences"
 import type { WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
-import { LayoutManager, readLayoutTemplates, writeLayoutTemplates } from "@/registry/tradecn/ui/layout-manager"
+import { LayoutManager, readLayoutTemplates, writeLayoutTemplates, LayoutManagerActive, LayoutManagerDelete, LayoutManagerDuplicate, LayoutManagerImportContent, LayoutManagerImportName, LayoutManagerImportProblem, LayoutManagerImportSubmit, LayoutManagerImportText, LayoutManagerImportTrigger, LayoutManagerItem, LayoutManagerLoad, LayoutManagerName, LayoutManagerPanelCount, LayoutManagerRename, LayoutManagerRenameField, LayoutManagerSave, LayoutManagerSaveName, LayoutManagerSavedAt, LayoutManagerTaken, LayoutManagerUnknownKinds, exportTemplate, useLayoutManager, useLayoutManagerItem, type LayoutTemplate } from "@/registry/tradecn/ui/layout-manager"
 import { PanelContent } from "@/registry/tradecn/ui/panel"
 import { Workspace, useWorkspacePanel, type WorkspaceApi } from "@/registry/tradecn/ui/workspace"
 
@@ -66,9 +67,8 @@ export default function LayoutManagerWorkspaceDemo() {
           onLayoutError={() => setMessage("Could not capture or restore the workspace.")}
           watermark="No panels. Reset to default to start again."
         />
-        <div role="region" aria-label="Workspace layout controls" tabIndex={0} className="overflow-x-auto">
+        <div>
           <LayoutManager
-            className="min-w-[32rem]"
             templates={templates}
             onTemplatesChange={(nextTemplates) => {
               const previous = templates.find((template) => template.id === activeId)
@@ -94,20 +94,60 @@ export default function LayoutManagerWorkspaceDemo() {
               setActiveId(loaded ? template.id : null)
               setMessage(loaded ? `Loaded ${template.name}.` : `Could not load ${template.name}.`)
             }}
-            onReset={() => {
-              if (!api) return
-              api.clear()
-              seed(api)
-              setCurrent(api.toLayout())
-              setActiveId(null)
-              setMessage("Default workspace restored. Saved templates are unchanged.")
-            }}
-            onExport={(text, template) => { setExported(text); setMessage(`Exported ${template.name}.`) }}
-          />
+          >
+            <LayoutManagerControls
+              onReset={() => {
+                if (!api) return
+                api.clear()
+                seed(api)
+                setCurrent(api.toLayout())
+                setActiveId(null)
+                setMessage("Default workspace restored. Saved templates are unchanged.")
+              }}
+              onExport={(text, template) => { setExported(text); setMessage(`Exported ${template.name}.`) }}
+            />
+          </LayoutManager>
         </div>
         <p role="status" className="text-muted-foreground">{message}</p>
         {exported && <label className="flex flex-col gap-2">Exported layout JSON<textarea readOnly value={exported} rows={5} className="w-full rounded border border-input bg-background p-2 font-(family-name:--tradecn-font-mono) text-xs" /></label>}
       </div>
     </>
   )
+}
+
+export function LayoutManagerControls({ onReset, onExport }: { onReset?: () => void; onExport?: (text: string, template: LayoutTemplate) => void }) {
+  const { templates, labels } = useLayoutManager()
+  return <>
+    <div className="flex flex-wrap items-center gap-1">
+      <LayoutManagerSaveName className="min-w-40 flex-1" />
+      <LayoutManagerSave />
+      {onReset && <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" data-layout-reset="" onClick={onReset}>{labels.reset}</Button>}
+      <LayoutManagerImportTrigger />
+    </div>
+    <LayoutManagerTaken />
+    <LayoutManagerImportContent>
+      <LayoutManagerImportText />
+      <div className="flex items-center gap-1"><LayoutManagerImportName className="flex-1" /><LayoutManagerImportSubmit /></div>
+      <LayoutManagerImportProblem />
+    </LayoutManagerImportContent>
+    {templates.length === 0 ? <p className="text-muted-foreground">{labels.empty}</p> : <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
+      {templates.map((template) => <li key={template.id}>
+        <LayoutManagerItem templateId={template.id} className="px-2 py-1.5">
+          <LayoutManagerName /><LayoutManagerRenameField /><LayoutManagerActive />
+          <LayoutManagerPanelCount /><LayoutManagerSavedAt /><LayoutManagerUnknownKinds />
+          <span className="ms-auto flex flex-wrap items-center gap-0.5">
+            <LayoutManagerLoad /><LayoutManagerRename /><LayoutManagerDuplicate />
+            {onExport && <TemplateExport onExport={onExport} />}
+            <LayoutManagerDelete />
+          </span>
+        </LayoutManagerItem>
+      </li>)}
+    </ul>}
+  </>
+}
+
+function TemplateExport({ onExport }: { onExport: (text: string, template: LayoutTemplate) => void }) {
+  const { template } = useLayoutManagerItem()
+  const { labels } = useLayoutManager()
+  return <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" aria-label={`${labels.export}: ${template.name}`} onClick={() => onExport(exportTemplate(template), template)}>{labels.export}</Button>
 }

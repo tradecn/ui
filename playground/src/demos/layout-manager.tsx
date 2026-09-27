@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { WORKSPACE_PERSISTENCE_BOUNDARIES, type WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
-import { LayoutManager, type LayoutTemplate } from "@/registry/tradecn/ui/layout-manager"
+import { LayoutManager, LayoutManagerItem, LayoutManagerName, LayoutManagerRenameField, LayoutManagerActive, LayoutManagerPanelCount, LayoutManagerSavedAt, LayoutManagerUnknownKinds, LayoutManagerLoad, LayoutManagerRename, LayoutManagerDuplicate, LayoutManagerDelete, LayoutManagerSaveName, LayoutManagerSave, LayoutManagerTaken, type LayoutTemplate } from "@/registry/tradecn/ui/layout-manager"
 
 // A snapshot captured from a workspace with one Book panel.
 const BOOK: WorkspaceLayout = {
@@ -26,9 +26,8 @@ export default function LayoutManagerDemo() {
 
   return (
     <div className="w-[36rem] max-w-full space-y-3 text-xs lining-nums tabular-nums">
-      <div role="region" aria-label="Layout controls" tabIndex={0} className="overflow-x-auto">
+      <div>
         <LayoutManager
-          className="min-w-96"
           templates={templates}
           onTemplatesChange={(next) => {
             const previous = templates.find((template) => template.id === activeId)
@@ -45,7 +44,21 @@ export default function LayoutManagerDemo() {
             setActiveId(template.id)
             setMessage(`Selected ${template.name}.`)
           }}
-        />
+        >
+          <div className="flex items-center gap-1"><LayoutManagerSaveName className="min-w-40 flex-1" /><LayoutManagerSave /></div>
+          <LayoutManagerTaken />
+          {templates.length === 0 ? <p className="text-muted-foreground">No saved layouts. Save the current one under a name.</p> : <ul className="divide-y divide-border rounded-md border border-border">
+            {templates.map((template) => <li key={template.id}>
+              <LayoutManagerItem templateId={template.id} className="px-2 py-2">
+                <LayoutManagerName /><LayoutManagerRenameField /><LayoutManagerActive />
+                <LayoutManagerPanelCount /><LayoutManagerSavedAt /><LayoutManagerUnknownKinds />
+                <div className="flex w-full flex-wrap items-center gap-1">
+                  <LayoutManagerLoad /><LayoutManagerRename /><LayoutManagerDuplicate /><LayoutManagerDelete />
+                </div>
+              </LayoutManagerItem>
+            </li>)}
+          </ul>}
+        </LayoutManager>
       </div>
       <p role="status" className="text-muted-foreground">{message}</p>
     </div>

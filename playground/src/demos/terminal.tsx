@@ -1,3 +1,4 @@
+import { LayoutManagerControls } from "@/demos/layout-manager-workspace"
 import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "cn"
@@ -1468,17 +1469,20 @@ function Dialogs({ dialog, setDialog, layout }: { dialog: DeskDialog | null; set
               setPrefs((p) => writeWindowSet(p, windowSetOf([{ id: "main", layoutId: template.id, main: true }])))
               close()
             }}
-            onReset={() => {
-              const api = desk.api()
-              if (!api) return
-              api.clear()
-              seed(api)
-              setActiveId(null)
-              setPrefs((p) => writeWindowSet(p, windowSetOf([{ id: "main", layoutId: "desk", main: true }])))
-              close()
-            }}
-            onExport={(text) => void navigator.clipboard?.writeText(text)}
-          />
+          >
+            <LayoutManagerControls
+              onReset={() => {
+                const api = desk.api()
+                if (!api) return
+                api.clear()
+                seed(api)
+                setActiveId(null)
+                setPrefs((p) => writeWindowSet(p, windowSetOf([{ id: "main", layoutId: "desk", main: true }])))
+                close()
+              }}
+              onExport={(text) => void navigator.clipboard?.writeText(text)}
+            />
+          </LayoutManager>
           {main && (
             <p data-desk-windows={main.layoutId} className="text-muted-foreground">
               In a shell this desk is one window set: <span className="text-foreground">{main.id}</span> showing <span className="text-foreground">{main.layoutId}</span>, restored on launch and snapshotted on quit.
