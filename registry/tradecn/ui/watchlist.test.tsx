@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { createRef, useEffect, useMemo, useState } from "react"
+import { createRef, startTransition, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createRowStore, type RowId, type RowStore } from "@/registry/tradecn/lib/row-store"
 import { Watchlist, WatchlistGrid, WatchlistAddForm, WatchlistAddInput, WatchlistAddButton, WatchlistRemoveButton, WatchlistRemoveMenuItem, useWatchlist, useWatchlistAdd, watchlistColumns, watchlistRemoveColumn, type WatchlistActions, type WatchlistProps, type WatchlistGridProps, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
@@ -484,4 +484,83 @@ it("keeps add-button density when callers add a class and permits an explicit si
   view.rerender(<Form className="h-8" />)
   expect(screen.getByRole("button", { name: "Add" })).toHaveClass("h-8", "px-2", "text-xs")
   expect(screen.getByRole("button", { name: "Add" })).not.toHaveClass("h-6")
+})
+
+it.each([{ name: "layout effects", useCommit: useLayoutEffect }, { name: "passive effects", useCommit: useEffect }])("uses committed callbacks when descendants call commands from $name", ({ useCommit }) => {
+  const store = seeded()
+  const selection = new Set<RowId>()
+  const first = { onAdd: vi.fn(), onRemove: vi.fn(), normalize: vi.fn(() => "OLD"), validate: vi.fn(() => false), onSelectionChange: vi.fn(), onFocusedRowChange: vi.fn() }
+  const next = { onAdd: vi.fn(), onRemove: vi.fn(), normalize: vi.fn((raw: string) => raw.toUpperCase()), validate: vi.fn(() => true), onSelectionChange: vi.fn(), onFocusedRowChange: vi.fn() }
+  const observed = vi.fn()
+  function Commands({ revision }: { revision: number }) {
+    const { add, remove, select, focus, canAdd, canRemove } = useWatchlist()
+    useCommit(() => {
+      observed({ add, remove, select, focus, canAdd, canRemove })
+      if (!revision) return
+      add("gc")
+      add("es")
+      remove(["CL"])
+      select(new Set(["ZN"]))
+      focus("ZN")
+    }, [revision, add, remove, select, focus, canAdd, canRemove])
+    return null
+  }
+  const view = render(<Watchlist store={store} {...first} selection={selection} focusedRowId={null}><Commands revision={0} /></Watchlist>)
+  view.rerender(<Watchlist store={store} {...next} selection={selection} focusedRowId={null}><Commands revision={1} /></Watchlist>)
+  for (const callback of Object.values(first)) expect(callback).not.toHaveBeenCalled()
+  expect(next.onAdd).toHaveBeenCalledExactlyOnceWith("GC")
+  expect(next.validate).toHaveBeenCalledExactlyOnceWith("GC")
+  expect(next.onRemove).toHaveBeenCalledExactlyOnceWith(["CL"])
+  expect(next.onSelectionChange.mock.calls).toEqual([[new Set(["ES"])], [new Set(["ZN"])]])
+  expect(next.onFocusedRowChange.mock.calls).toEqual([["ES"], ["ZN"]])
+  expect(observed.mock.calls[1]![0]).toEqual(observed.mock.calls[0]![0])
+  view.rerender(<Watchlist store={store} selection={selection} focusedRowId={null}><Commands revision={2} /></Watchlist>)
+  expect(next.onAdd).toHaveBeenCalledTimes(1)
+  expect(next.onRemove).toHaveBeenCalledTimes(1)
+  expect(next.onSelectionChange).toHaveBeenCalledTimes(2)
+  expect(next.onFocusedRowChange).toHaveBeenCalledTimes(2)
+  expect(observed.mock.lastCall![0]).toMatchObject({ canAdd: false, canRemove: false })
+  view.rerender(<Watchlist store={store} {...next} selection={selection} focusedRowId={null}><Commands revision={3} /></Watchlist>)
+  expect(next.onAdd).toHaveBeenCalledTimes(2)
+  expect(next.onRemove).toHaveBeenCalledTimes(2)
+  expect(next.onSelectionChange).toHaveBeenCalledTimes(4)
+  expect(next.onFocusedRowChange).toHaveBeenCalledTimes(4)
+  expect(observed.mock.lastCall![0]).toEqual(observed.mock.calls[0]![0])
+})
+
+it("keeps commands on committed callbacks while a replacement render suspends", async () => {
+  const store = seeded()
+  const first = vi.fn()
+  const next = vi.fn()
+  const pending = new Promise<void>(() => {})
+  let add: WatchlistActions["add"] | undefined
+  function Commands() {
+    const actions = useWatchlist()
+    useLayoutEffect(() => { add = actions.add }, [actions.add])
+    return null
+  }
+  function Wait({ paused }: { paused: boolean }) {
+    if (paused) throw pending
+    return null
+  }
+  function Parent() {
+    const [revision, setRevision] = useState(0)
+    return <>
+      <button onClick={() => startTransition(() => setRevision(1))}>Suspend update</button>
+      <button onClick={() => setRevision(2)}>Commit update</button>
+      <Suspense fallback={<p>Waiting</p>}>
+        <Watchlist store={store} onAdd={revision ? next : first}><Commands /><Wait paused={revision === 1} /></Watchlist>
+      </Suspense>
+    </>
+  }
+  render(<Parent />)
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Suspend update" })) })
+  expect(screen.queryByText("Waiting")).toBeNull()
+  act(() => { add!("gc") })
+  expect(first).toHaveBeenCalledExactlyOnceWith("GC")
+  expect(next).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole("button", { name: "Commit update" }))
+  act(() => { add!("gc") })
+  expect(next).toHaveBeenCalledExactlyOnceWith("GC")
+  expect(first).toHaveBeenCalledTimes(1)
 })

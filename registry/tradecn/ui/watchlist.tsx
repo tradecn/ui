@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNode, type Ref } from "react"
+import { createContext, useCallback, useContext, useEffect, useInsertionEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNode, type Ref } from "react"
 import { Button } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { Input } from "@/components/ui/input"
@@ -111,7 +111,8 @@ export function Watchlist<T extends WatchlistRow = WatchlistRow>({ store, childr
   const selection = selectionProp ?? ownSelection
   const focusedRowId = focusedProp !== undefined ? focusedProp : ownFocused
   const latest = useRef({ onAdd, onRemove, normalize, validate, onSelectionChange, onFocusedRowChange })
-  useEffect(() => {
+  // Publish committed callbacks before descendants can invoke commands from layout effects.
+  useInsertionEffect(() => {
     latest.current = { onAdd, onRemove, normalize, validate, onSelectionChange, onFocusedRowChange }
   })
   const selectionControlled = selectionProp !== undefined
