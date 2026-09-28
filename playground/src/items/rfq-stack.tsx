@@ -5,7 +5,9 @@ import { useActiveInquiry } from "@/registry/tradecn/hooks/use-active-inquiry"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createInstrumentFormatter, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
+import { PerfMonitor, PerfMonitorLane } from "@/registry/tradecn/ui/perf-monitor"
+import { FrameReadings } from "@/demos/perf-monitor"
+import { LaneReadings } from "@/demos/perf-monitor-load"
 import { RfqStack, bySize, byTimeLeft, stackOrder, useRfqStackView, type RfqStackRow } from "@/registry/tradecn/ui/rfq-stack"
 
 // A pretend venue: inquiries arrive, most of them answered by a pretend auto-quoter, and each one
@@ -142,7 +144,7 @@ export function RfqStackScene() {
             <input type="range" min={0} max={50} value={rate} aria-label="arrivals per second" onChange={(e) => setRate(Number(e.target.value))} />
             <span className="w-6 text-right lining-nums tabular-nums">{rate}</span>
           </label>
-          <PerfMonitor compact lanes={[{ label: "Inquiries", store }]} className="ml-auto" />
+          <PerfMonitor className="ml-auto"><FrameReadings /><PerfMonitorLane store={store}><LaneReadings label="Inquiries" /></PerfMonitorLane></PerfMonitor>
         </div>
         <span className="text-muted-foreground" data-rfq-log>
           {log || " "}

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, type ColumnDef } from "@/registry/tradecn/ui/data-grid"
-import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
+import { PerfMonitor, PerfMonitorHistogram, PerfMonitorLane } from "@/registry/tradecn/ui/perf-monitor"
+import { FrameReadings } from "@/demos/perf-monitor"
+import { LaneReadings } from "@/demos/perf-monitor-load"
 
 // A grid under a load you set, with the monitor reading the frames above it. Turn the patches per
 // frame up until the p99 crosses the budget and the dropped count moves: that is the number this
@@ -65,7 +67,13 @@ export function PerfMonitorScene() {
         <input type="range" min={0} max={4000} step={100} value={patches} onChange={(event) => setPatches(Number(event.target.value))} className="w-64" />
         <span className="lining-nums tabular-nums">{patches}</span>
       </label>
-      <PerfMonitor lanes={[{ label: "Quotes", store }]} readouts={[{ label: "patches/frame", value: String(patches) }]} />
+      <PerfMonitor>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <PerfMonitorHistogram />
+          <FrameReadings><span data-perf-readout="patches/frame"><span className="text-muted-foreground">patches/frame </span>{patches}</span></FrameReadings>
+        </div>
+        <PerfMonitorLane store={store}><LaneReadings label="Quotes" /></PerfMonitorLane>
+      </PerfMonitor>
       <div className="min-h-0 flex-1">
         <DataGrid store={store} columns={columns} preset="watchlist" label="Quotes" announceRowCount="off" />
       </div>

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAge, FeedHealthLane, FeedHealthTooltipTrigger, FeedHealthTooltipContent, FeedHealthDetails, FeedHealthAnnouncer, type FeedDescriptor } from "@/registry/tradecn/ui/feed-health"
 import { Tooltip } from "@/components/ui/tooltip"
 import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
+import { FrameReadings } from "@/demos/perf-monitor"
 import { StatusBar, type StatusBarClock, type StatusBarEnvironment } from "@/registry/tradecn/ui/status-bar"
 
 // A screen's chrome, bottom edge: switch the environment and watch the badge change word and tone, add
@@ -102,7 +103,7 @@ export function StatusBarScene() {
           <FeedHealthAnnouncer />
         </FeedHealth> : undefined}
         center={slots.center ? <span className="text-muted-foreground">T 4 1/8 05/34 · 99-16+ / 99-17</span> : undefined}
-        right={slots.right ? <PerfMonitor compact /> : undefined}
+        right={slots.right ? <PerfMonitor><FrameReadings /></PerfMonitor> : undefined}
       />
     </main>
   )

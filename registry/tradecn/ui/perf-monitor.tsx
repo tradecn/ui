@@ -1,15 +1,9 @@
 import { cn } from "cn"
-import { useEffect, useState, useSyncExternalStore } from "react"
+import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from "react"
 import { createFrameSampler, formatMs, type FrameReport, type FrameSampler } from "@/registry/tradecn/lib/frame-stats"
 
-// The frame rate, on the screen it measures. A strip of numbers a per-frame core is judged by (frames
-// in the window, p50, p99, max, dropped, long tasks), a histogram of frame gaps against the budget,
-// and one line per lane from its store's meta: rows, batches a second, drops, sequence, gap, age.
-//
-// It costs almost nothing to watch. The sampler pushes one number into a ring per animation frame
-// and reports on a timer, so this component re-renders four times a second and never per frame, and
-// the lanes read their store's meta on the same beat. It decides nothing: the numbers are the numbers,
-// read on the machine that matters, and pass or fail is written down somewhere else, beforehand.
+// One sampler and report subscription per monitor; one metadata subscription per lane. Readings
+// share those snapshots while callers own the labels, collections, controls and surrounding markup.
 
 /** What a lane shows, the shape a row store's meta already has. */
 export interface LaneMeta {
@@ -30,100 +24,141 @@ export interface MetaSource {
   subscribeMeta(cb: () => void): () => void
 }
 
-export interface PerfMonitorLane {
-  label: string
-  store: MetaSource
-}
-
-export interface PerfReadout {
-  label: string
-  /** Printed as given: an IPC batch size, a queue depth, a socket's state. */
-  value: string
-}
-
-export interface PerfMonitorProps {
-  /** Stores whose lanes to show. */
-  lanes?: readonly PerfMonitorLane[]
-  /** The frame budget the histogram marks. Default 1000/60. */
+export interface PerfMonitorProps extends Omit<ComponentProps<"div">, "children" | "role" | "aria-label" | "aria-labelledby"> {
+  children: ReactNode
+  role?: never
+  "aria-label"?: never
+  "aria-labelledby"?: never
+  /** Histogram marker and initial budget for an internally created sampler. Default 1000/60. */
   budgetMs?: number
-  /** Frames kept. Default 600, ten seconds at 60 Hz. */
+  /** Frames retained by an internally created sampler. Default 600. */
   window?: number
-  /** How often the strip redraws. Default 250. */
+  /** Report interval for an internally created sampler. Default 250ms. */
   refreshMs?: number
-  /** Your own sampler, for a report you read elsewhere or write to a log. Made here otherwise. Started while mounted, stopped after. */
+  /** Started while mounted and stopped on replacement or unmount. */
   sampler?: FrameSampler
-  /** Numbers of your own beside the frame numbers. */
-  readouts?: readonly PerfReadout[]
-  /** Each report as it lands, for a log. */
+  /** Current report after mount and each report-object change. */
   onReport?: (report: FrameReport) => void
-  /** The numbers alone, no histogram. */
-  compact?: boolean
   label?: string
-  className?: string
 }
 
 const noop = () => () => {}
+const ReportContext = createContext<FrameReport | null>(null)
+const BudgetContext = createContext(1000 / 60)
 
-function useMeta(source: MetaSource): LaneMeta {
-  return useSyncExternalStore(source.subscribeMeta, source.getMeta, source.getMeta)
+/** The monitor's shared report; this hook adds no subscription or sampler. */
+export function usePerfReport(): FrameReport {
+  const report = useContext(ReportContext)
+  if (!report) throw new Error("PerfMonitor readings must be inside PerfMonitor.")
+  return report
 }
 
-interface LaneProps {
-  lane: PerfMonitorLane
-  /** The report's clock: when the strip last redrew. */
-  at: number
-}
+export function PerfMonitor({ budgetMs = 1000 / 60, window: frames = 600, refreshMs = 250, sampler: given, onReport, label = "Frame health", children, className, ...props }: PerfMonitorProps) {
+  const [own] = useState(() => given ?? createFrameSampler({ budgetMs, window: frames, refreshMs }))
+  const sampler = given ?? own
+  useEffect(() => {
+    sampler.start()
+    return () => sampler.stop()
+  }, [sampler])
+  const report = useSyncExternalStore(sampler.subscribe ?? noop, sampler.report, sampler.report)
+  useEffect(() => {
+    onReport?.(report)
+    // Callback replacement alone must not publish the current report again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report])
 
-function Lane({ lane, at }: LaneProps) {
-  const meta = useMeta(lane.store)
-  // Batches a second between two redraws: derived state, settled during render.
-  const [seen, setSeen] = useState({ at, version: meta.version, rate: 0 })
-  if (seen.at !== at) {
-    const seconds = (at - seen.at) / 1000
-    setSeen({ at, version: meta.version, rate: seconds > 0 ? Math.max(0, meta.version - seen.version) / seconds : 0 })
-  }
-  const age = meta.lastBatchAt === null ? null : Math.max(0, at - meta.lastBatchAt)
   return (
-    <div className="flex flex-wrap items-baseline gap-x-2 lining-nums tabular-nums" data-perf-lane={lane.label} data-lane={meta.lane} data-numeric="">
-      <span className="font-medium">{lane.label}</span>
-      <span className="text-muted-foreground">{meta.lane}</span>
-      <span>
-        <span className="text-muted-foreground">rows </span>
-        {meta.size.toLocaleString()}
-      </span>
-      <span>
-        <span className="text-muted-foreground">batches/s </span>
-        {seen.rate.toFixed(0)}
-      </span>
-      {meta.lane === "coalesced" && (
-        <span data-perf-dropped>
-          <span className="text-muted-foreground">drop </span>
-          {meta.dropped.toLocaleString()}
-        </span>
-      )}
-      {meta.lane === "ordered" && (
-        <span data-perf-seq>
-          <span className="text-muted-foreground">seq </span>
-          {meta.seq === null ? "–" : meta.seq.toLocaleString()}
-          {meta.gap && <span className="text-stale"> gap</span>}
-        </span>
-      )}
-      <span>
-        <span className="text-muted-foreground">age </span>
-        {age === null ? "–" : formatMs(age)}
-      </span>
-    </div>
+    <BudgetContext.Provider value={budgetMs}>
+      <ReportContext.Provider value={report}>
+        <div {...props} role="group" aria-label={label} aria-labelledby={undefined} data-slot="tradecn-perf-monitor" data-dropped={report.dropped} data-frames={report.frames} className={cn("flex flex-col gap-1 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums", className)}>
+          {children}
+        </div>
+      </ReportContext.Provider>
+    </BudgetContext.Provider>
   )
 }
 
-interface HistogramProps {
-  report: FrameReport
-  budgetMs: number
+export type PerfMetric = "frames" | "p50" | "p99" | "max" | "mean" | "dropped" | "long"
+
+export interface PerfMonitorValueProps extends Omit<ComponentProps<"span">, "children"> {
+  metric: PerfMetric
+  /** Null means long-task observation is unavailable. */
+  format?: (value: number | null, report: FrameReport) => ReactNode
 }
 
-// One series, one hue: how the frame gaps fell against the budget. The budget is a labeled line, the
-// numbers beside the chart are its table.
-function Histogram({ report, budgetMs }: HistogramProps) {
+export function PerfMonitorValue({ metric, format, className, ...props }: PerfMonitorValueProps) {
+  const report = usePerfReport()
+  const value = metric === "long" ? (report.longTasksObserved ? report.longTasks : null) : report[metric]
+  const text = value === null ? "n/a" : metric === "p50" || metric === "p99" || metric === "max" || metric === "mean" ? formatMs(value) : metric === "frames" ? value.toLocaleString() : String(value)
+  return <span data-slot="tradecn-perf-monitor-value" data-numeric="" className={cn("lining-nums tabular-nums", className)} {...props}>{format ? format(value, report) : text}</span>
+}
+
+export interface PerfMonitorLaneProps {
+  store: MetaSource
+  children: ReactNode
+}
+
+export interface PerfLaneState {
+  meta: LaneMeta
+  rate: number
+  age: number | null
+}
+
+const LaneContext = createContext<PerfLaneState | null>(null)
+
+/** A lane's shared metadata and report-clock readings, without another subscription. */
+export function usePerfLane(): PerfLaneState {
+  const lane = useContext(LaneContext)
+  if (!lane) throw new Error("PerfMonitor lane readings must be inside PerfMonitorLane.")
+  return lane
+}
+
+/** Coordinates lane readings without adding markup, including inside a table or list. */
+export function PerfMonitorLane({ store, children }: PerfMonitorLaneProps) {
+  const { until: at } = usePerfReport()
+  const meta = useSyncExternalStore(store.subscribeMeta, store.getMeta, store.getMeta)
+  const [seen, setSeen] = useState({ store, at, version: meta.version, rate: 0 })
+  if (seen.store !== store) {
+    setSeen({ store, at, version: meta.version, rate: 0 })
+  } else if (seen.at !== at) {
+    const seconds = (at - seen.at) / 1000
+    setSeen({ store, at, version: meta.version, rate: seconds > 0 ? Math.max(0, meta.version - seen.version) / seconds : 0 })
+  }
+  const age = meta.lastBatchAt === null ? null : Math.max(0, at - meta.lastBatchAt)
+  const state = useMemo(() => ({ meta, rate: seen.rate, age }), [meta, seen.rate, age])
+  return <LaneContext.Provider value={state}>{children}</LaneContext.Provider>
+}
+
+export type PerfLaneMetric = "kind" | "rows" | "rate" | "dropped" | "seq" | "gap" | "age"
+
+export interface PerfMonitorLaneValueProps extends Omit<ComponentProps<"span">, "children"> {
+  metric: PerfLaneMetric
+  /** Customize a reading from the shared lane state. */
+  format?: (state: PerfLaneState) => ReactNode
+}
+
+export function PerfMonitorLaneValue({ metric, format, className, ...props }: PerfMonitorLaneValueProps) {
+  const state = usePerfLane()
+  const { meta, rate, age } = state
+  let text: string
+  switch (metric) {
+    case "kind": text = meta.lane; break
+    case "rows": text = meta.size.toLocaleString(); break
+    case "rate": text = rate.toFixed(0); break
+    case "dropped": text = meta.dropped.toLocaleString(); break
+    case "seq": text = meta.seq === null ? "–" : meta.seq.toLocaleString(); break
+    case "gap": text = meta.gap ? "gap" : ""; break
+    case "age": text = age === null ? "–" : formatMs(age); break
+  }
+  return <span data-slot="tradecn-perf-monitor-lane-value" data-numeric="" className={cn("lining-nums tabular-nums", metric === "gap" && "text-stale", className)} {...props}>{format ? format(state) : text}</span>
+}
+
+export type PerfMonitorHistogramProps = Omit<ComponentProps<"svg">, "children">
+
+/** Frame gaps against the monitor's budget, with an accessible summary and per-bin titles. */
+export function PerfMonitorHistogram({ className, ...props }: PerfMonitorHistogramProps) {
+  const report = usePerfReport()
+  const budgetMs = useContext(BudgetContext)
   const bins = report.histogram
   const width = 160
   const height = 28
@@ -133,7 +168,7 @@ function Histogram({ report, budgetMs }: HistogramProps) {
   const budgetX = Math.min(width, (budgetMs / report.binMs) * barWidth)
   const end = report.binMs * (bins.length - 1)
   return (
-    <svg role="img" aria-label={`Frame time histogram, ${report.binMs} ms bins to ${end} ms and over: p50 ${formatMs(report.p50)}, p99 ${formatMs(report.p99)}, ${report.dropped} dropped`} viewBox={`0 0 ${width} ${height + 10}`} width={width} height={height + 10} className="shrink-0 overflow-visible" data-perf-histogram>
+    <svg role="img" aria-label={`Frame time histogram, ${report.binMs} ms bins to ${end} ms and over: p50 ${formatMs(report.p50)}, p99 ${formatMs(report.p99)}, ${report.dropped} dropped`} viewBox={`0 0 ${width} ${height + 10}`} width={width} height={height + 10} className={cn("shrink-0 overflow-visible", className)} data-perf-histogram {...props}>
       {bins.map((count, i) => {
         const h = count === 0 ? 0 : Math.max(1, Math.round((count / peak) * height))
         const from = i * report.binMs
@@ -149,50 +184,5 @@ function Histogram({ report, budgetMs }: HistogramProps) {
         {formatMs(budgetMs)}
       </text>
     </svg>
-  )
-}
-
-export function PerfMonitor({ lanes, budgetMs = 1000 / 60, window: frames = 600, refreshMs = 250, sampler: given, readouts, onReport, compact = false, label = "Frame health", className }: PerfMonitorProps) {
-  const [own] = useState(() => given ?? createFrameSampler({ budgetMs, window: frames, refreshMs }))
-  const sampler = given ?? own
-  useEffect(() => {
-    sampler.start()
-    return () => sampler.stop()
-  }, [sampler])
-  const report = useSyncExternalStore(sampler.subscribe ?? noop, sampler.report, sampler.report)
-  useEffect(() => {
-    onReport?.(report)
-    // The report is what changed; the callback is read as it is then.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [report])
-
-  const readout = (key: string, name: string, value: string) => (
-    <span data-perf={key}>
-      <span className="text-muted-foreground">{name} </span>
-      {value}
-    </span>
-  )
-
-  return (
-    <div role="group" aria-label={label} data-slot="tradecn-perf-monitor" data-dropped={report.dropped} data-frames={report.frames} className={cn("flex flex-col gap-1 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums", className)}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {!compact && <Histogram report={report} budgetMs={budgetMs} />}
-        <div className="flex flex-wrap items-baseline gap-x-2 lining-nums tabular-nums" data-numeric="">
-          {readout("frames", "frames", report.frames.toLocaleString())}
-          {readout("p50", "p50", formatMs(report.p50))}
-          {readout("p99", "p99", formatMs(report.p99))}
-          {readout("max", "max", formatMs(report.max))}
-          {readout("dropped", "dropped", String(report.dropped))}
-          {readout("long", "long", report.longTasksObserved ? String(report.longTasks) : "n/a")}
-          {readouts?.map((r) => (
-            <span key={r.label} data-perf-readout={r.label}>
-              <span className="text-muted-foreground">{r.label} </span>
-              {r.value}
-            </span>
-          ))}
-        </div>
-      </div>
-      {lanes?.map((lane) => <Lane key={lane.label} lane={lane} at={report.until} />)}
-    </div>
   )
 }
