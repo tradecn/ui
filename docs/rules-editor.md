@@ -98,7 +98,7 @@ Place items directly inside your layout when you do not need tabs.
 
 ## Tabs
 
-Compose installed [shadcn Tabs](https://ui.shadcn.com/docs/components/tabs) to group rules with a column chooser. Select each tab on focus so arrow keys switch panels on either base. Copy `ColumnSettingsPanel` and its helpers from the [ColumnChooser Usage example](column-chooser.md#usage) into `column-chooser.tsx` beside this example.
+Compose installed [shadcn Tabs](https://ui.shadcn.com/docs/components/tabs) to group rules with a column chooser. Select each tab on focus so arrow keys switch panels on either base. Copy `ColumnSettingsPanel` and its helpers from the [ColumnChooser Usage example](column-chooser.md#usage) into `column-chooser.tsx` beside this example, outside `components/ui`.
 
 Control `Tabs` with `value` and `onValueChange` to drive panels from your own controls.
 

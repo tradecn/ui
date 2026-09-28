@@ -31,8 +31,8 @@ function ColumnCards() {
             {row.rules.map(({ rule }, index) => <ColumnChooserRule key={`${rule.id}-${index}`} ruleIndex={index} />)}
           </div>
           <div className="flex flex-wrap gap-2">
-            <ColumnChooserMove direction="up">Earlier</ColumnChooserMove>
-            <ColumnChooserMove direction="down">Later</ColumnChooserMove>
+            <ColumnChooserMove direction="up" aria-label={`Earlier: ${row.name}`}>Earlier</ColumnChooserMove>
+            <ColumnChooserMove direction="down" aria-label={`Later: ${row.name}`}>Later</ColumnChooserMove>
             <ColumnChooserResetWidth>{labels.resetWidth}</ColumnChooserResetWidth>
           </div>
         </ColumnChooserItem>)}

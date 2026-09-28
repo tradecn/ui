@@ -109,7 +109,7 @@ export function ColumnSettings() {
 }
 ```
 
-The grid and chooser share one `ColumnState`. Save this example as `column-chooser.tsx` to reuse its exported `ColumnSettingsPanel`, `ColumnSettingsDialog`, and `ColumnSettings` compositions. The install includes the shadcn Dialog used here.
+The grid and chooser share one `ColumnState`. Save this example as `column-chooser.tsx` outside `components/ui` to reuse its exported `ColumnSettingsPanel`, `ColumnSettingsDialog`, and `ColumnSettings` compositions. The install includes the shadcn Dialog used here.
 
 ## Composition
 
@@ -152,7 +152,7 @@ Use cards to place descriptions beside column settings and move actions below ea
 
 ### Props
 
-`ColumnChooserProps<T>` extends native `div` props. Default words come from `DEFAULT_COLUMN_CHOOSER_LABELS`. The root is a group named by `labels.title`, with a programmatic focus target for fallback. Native props, refs, classes, and events pass through the public parts.
+`ColumnChooserProps<T>` extends native `div` props. Default words come from `DEFAULT_COLUMN_CHOOSER_LABELS`. The root defaults to `role="group"` and `tabIndex={-1}`, named by `labels.title` for focus fallback. Native props, refs, classes, and events pass through the public parts.
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
@@ -166,7 +166,7 @@ Use cards to place descriptions beside column settings and move actions below ea
 
 ### Public parts
 
-`ColumnChooserItem` renders a focusable, draggable `div` with `role="group"`, named by its column. Place it inside your `li` or card. Keep collection keys tied to the column key. A missing or definition-hidden key renders nothing.
+`ColumnChooserItem` renders a focusable, draggable `div` with `role="group"` and `tabIndex={0}`, named by its column. Place it inside your `li` or card. Keep collection keys tied to the column key. A missing or definition-hidden key renders nothing.
 
 | Part | Inputs | Description |
 |---|---|---|
@@ -181,6 +181,12 @@ Use cards to place descriptions beside column settings and move actions below ea
 | `ColumnChooserResetWidth` | Required `children`; installed Button props | Removes the item's width override. Invisible, disabled, and outside the tab order without an override. |
 | `ColumnChooserMove` | Required `direction: "up" \| "down"`, `children`; installed Button props | Moves within the column's frozen group. Disabled at its boundary. |
 | `ColumnChooserResetAll` | Required `children`; installed Button props | Restores the default column state. Disabled when already at the default. |
+
+Actions default to `type="button"`. Reset all uses `variant="outline"`; move and reset-width actions use `variant="ghost"`. Omitted or undefined `size` uses `sm` with compact classes. An explicit size, including `null`, passes through without those classes.
+
+Search defaults to the name in `labels.search`; visibility uses `Show <column>`. Move and reset-width actions use `Move up: <column>`, `Move down: <column>`, and `Reset width: <column>` from the labels. These names replace the action's visible text.
+
+Match custom visible text in the accessible name. Pass an `aria-label` containing it, such as `Earlier: Client`, or use `aria-labelledby`. Reset all takes its name from its children. Use a separate data attribute for application markers. The root and item reserve `data-slot` for event and focus ownership.
 
 Search, click, keyboard, and drag handlers run before the corresponding chooser behavior. Call `event.preventDefault()` to cancel that behavior. A visibility callback receives the installed Checkbox's arguments; use the item hook for a replacement control. Supply an accessible name when replacing an interactive part.
 
@@ -210,7 +216,7 @@ Drag an item onto another to take its place, shifting the items between them. Al
 
 `moveColumnTo` and `moveColumnBy` refuse moves across the frozen boundary. Moves use the full chooser order, including state-hidden columns and search-excluded rows, and write that order to the new state. A refused move emits no change. Presenting a different order does not change these grid-order neighbors.
 
-Focus recovery runs when chooser or item state updates. Focus stays with a reordered item. If its focused action becomes disabled or hidden, focus moves to the item. If the focused item disappears, focus moves to the search field or root. Keep the item's focusability when customizing its markup. A custom control that hides through private state or external DOM changes owns its focus handoff.
+Focus recovery runs when chooser or item state updates. Focus stays with a reordered item. If its focused action becomes disabled, hidden, or inert, focus moves to the item. Controls that remain in the tab order while `aria-disabled` keep focus. If the focused item disappears, focus moves to the search field or root. Keep the item's focusability when customizing its markup. A custom control that hides through private state or external DOM changes owns its focus handoff.
 
 ### Widths
 

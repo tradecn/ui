@@ -223,7 +223,8 @@ describe("public composition", () => {
     expect(toggle).not.toBeChecked()
     fireEvent.click(toggle)
     expect(toggle).toBeChecked()
-    fireEvent.click(screen.getByRole("button", { name: "Move down: Client" }))
+    expect(screen.getByRole("button", { name: "Earlier: Client" })).toHaveTextContent("Earlier")
+    fireEvent.click(screen.getByRole("button", { name: "Later: Client" }))
     expect([...document.querySelectorAll<HTMLElement>("[data-column]")].map(n => n.dataset.column)).toEqual(["id", "price", "client"])
     expect(screen.getByText("0 hidden")).toBeInTheDocument()
   })
@@ -386,6 +387,76 @@ describe("public composition", () => {
     expect(change).not.toHaveBeenCalled()
   })
 
+  it("keeps item keyboard and drag ownership when callers supply a slot marker", () => {
+    const change = vi.fn()
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={change}>
+      <ColumnChooserItem columnKey="px" data-slot="application-column"><ColumnChooserName /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="size"><ColumnChooserName /></ColumnChooserItem>
+    </ColumnChooser>)
+    const price = screen.getByRole("group", { name: "Price" })
+    const size = screen.getByRole("group", { name: "Size" })
+    fireEvent.keyDown(price, { key: "ArrowDown", altKey: true })
+    expect(change).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "size", "px", "status"] })
+    change.mockClear()
+    const dataTransfer = transfer()
+    fireEvent.dragStart(price, { dataTransfer })
+    fireEvent.drop(size, { dataTransfer })
+    expect(change).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "size", "px", "status"] })
+  })
+
+  it("keeps search focus fallback when callers supply a root slot marker", () => {
+    const view = (definitions: ColumnDef<Rfq>[]) => <ColumnChooser columns={definitions} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}} data-slot="application-settings">
+      <ColumnChooserSearch />
+      <ColumnChooserItem columnKey="px"><ColumnChooserVisibility /></ColumnChooserItem>
+    </ColumnChooser>
+    const { rerender } = render(view(columns))
+    screen.getByRole("checkbox", { name: "Show Price" }).focus()
+    rerender(view([]))
+    expect(screen.getByRole("textbox", { name: "Find a column" })).toHaveFocus()
+  })
+
+  it("allows dragging rendered full rows that do not match the search query", () => {
+    function FullRows() {
+      const { rows } = useColumnChooser()
+      return rows.map(row => <ColumnChooserItem key={row.key} columnKey={row.key}><ColumnChooserName /></ColumnChooserItem>)
+    }
+    const change = vi.fn()
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={change}><ColumnChooserSearch /><FullRows /></ColumnChooser>)
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Size" } })
+    const dataTransfer = transfer()
+    fireEvent.dragStart(screen.getByRole("group", { name: "Price" }), { dataTransfer })
+    fireEvent.drop(screen.getByRole("group", { name: "Size" }), { dataTransfer })
+    expect(change).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "size", "px", "status"] })
+  })
+
+  it("recovers focus when a custom control becomes inert during a chooser update", () => {
+    function Settings() {
+      const [inert, setInert] = useState(false)
+      return <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <ColumnChooserItem columnKey="px"><div inert={inert}><input aria-label="Price draft" onKeyDown={() => setInert(true)} /></div></ColumnChooserItem>
+      </ColumnChooser>
+    }
+    render(<Settings />)
+    const input = screen.getByRole("textbox", { name: "Price draft" })
+    input.focus()
+    fireEvent.keyDown(input, { key: "Enter" })
+    expect(screen.getByRole("group", { name: "Price" })).toHaveFocus()
+  })
+
+  it("retains focus on a disabled control that explicitly stays in the tab order", () => {
+    function Settings() {
+      const [disabled, setDisabled] = useState(false)
+      return <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <ColumnChooserItem columnKey="px"><button type="button" aria-disabled={disabled} onClick={() => setDisabled(true)}>Keep available for focus</button></ColumnChooserItem>
+      </ColumnChooser>
+    }
+    render(<Settings />)
+    const button = screen.getByRole("button", { name: "Keep available for focus" })
+    button.focus()
+    fireEvent.click(button)
+    expect(button).toHaveFocus()
+  })
+
   it("preserves explicit installed Button sizes for all actions", () => {
     const { container } = render(<>
       <Button size="lg" variant="ghost">Reference</Button>
@@ -483,7 +554,9 @@ export function columnChooserMigrationTypes() {
   // @ts-expect-error Required composition: the old minimal inline call must not render silently empty.
   const noChildren = <ColumnChooser {...base} />
   // @ts-expect-error Dialog state belongs to the consumer's primitive, even when children are supplied.
-  const oldDialog = <ColumnChooser {...base} open onOpenChange={() => {}}><span /></ColumnChooser>
+  const oldOpen = <ColumnChooser {...base} open><span /></ColumnChooser>
+  // @ts-expect-error Dialog callbacks belong to the consumer, independently of open.
+  const oldOpenChange = <ColumnChooser {...base} onOpenChange={() => {}}><span /></ColumnChooser>
   // @ts-expect-error Item content belongs to the caller.
   const emptyItem = <ColumnChooserItem columnKey="px" />
   // @ts-expect-error Action content is caller-owned.
@@ -492,5 +565,11 @@ export function columnChooserMigrationTypes() {
   const inputValue = <ColumnChooserSearch value="price" />
   // @ts-expect-error The item owns visibility.
   const checked = <ColumnChooserVisibility checked />
-  return [positive, noChildren, oldDialog, emptyItem, emptyMove, inputValue, checked]
+  // @ts-expect-error Initial query also belongs to the root.
+  const inputDefault = <ColumnChooserSearch defaultValue="price" />
+  // @ts-expect-error Initial visibility belongs to the controlled column state.
+  const defaultChecked = <ColumnChooserVisibility defaultChecked />
+  // @ts-expect-error A column has visible or hidden state, not an indeterminate state.
+  const indeterminate = <ColumnChooserVisibility indeterminate />
+  return [positive, noChildren, oldOpen, oldOpenChange, emptyItem, emptyMove, inputValue, checked, inputDefault, defaultChecked, indeterminate]
 }

@@ -212,7 +212,7 @@ function useChooserRef<T>(localRef: { current: T | null }, forwarded: Ref<T> | u
 }
 
 function unavailable(node: HTMLElement) {
-  if (!node.isConnected || node.matches(":disabled, [aria-disabled=true]") || node.closest("[hidden], [aria-hidden=true]")) return true
+  if (!node.isConnected || node.matches(":disabled") || (node.matches("[aria-disabled=true]") && node.tabIndex < 0) || node.closest("[hidden], [aria-hidden=true], [inert]")) return true
   const view = node.ownerDocument.defaultView
   const visibility = view?.getComputedStyle(node).visibility
   if (visibility === "hidden" || visibility === "collapse") return true
@@ -253,7 +253,7 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ru
   }, [])
   useLayoutEffect(() => {
     const current = drag.current
-    if (current && !shown.some((row) => row.key === current.key && row.frozen === current.frozen)) endDrag(current.key)
+    if (current && !rows.some((row) => row.key === current.key && row.frozen === current.frozen)) endDrag(current.key)
     const node = root.current
     const previous = focused.current
     if (node && previous && unavailable(previous) && (node.ownerDocument.activeElement === previous || node.ownerDocument.activeElement === node.ownerDocument.body)) focusFallback()
@@ -302,7 +302,7 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ru
       change(moveColumnTo(sourceRows, columnState, current.key, key))
     },
   }}>
-    <div role={role} tabIndex={tabIndex} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : labels.title)} data-slot="tradecn-column-chooser" data-hidden={hiddenCount} className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} ref={rootRef} onFocusCapture={(event) => {
+    <div role={role} tabIndex={tabIndex} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : labels.title)} data-hidden={hiddenCount} className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} data-slot="tradecn-column-chooser" ref={rootRef} onFocusCapture={(event) => {
       onFocusCapture?.(event)
       if (event.currentTarget.contains(event.target) && event.target.closest("[data-slot=tradecn-column-chooser]") === event.currentTarget) focused.current = event.target
     }} onBlurCapture={(event) => {
@@ -346,8 +346,13 @@ export function ColumnChooserItem({ columnKey, ...props }: ColumnChooserItemProp
   return item ? <ChooserItem key={columnKey} item={item} {...props} /> : null
 }
 
+function isElement(target: EventTarget): target is Element {
+  // Popouts can contain nodes created in either window, even after adoption back to the page.
+  return "nodeType" in target && target.nodeType === 1
+}
+
 function ownsItemEvent(event: { target: EventTarget; currentTarget: HTMLDivElement }) {
-  return event.target instanceof Element && event.currentTarget.contains(event.target) && event.target.closest("[data-slot=tradecn-column-chooser-item]") === event.currentTarget && event.target.closest("[data-slot=tradecn-column-chooser]") === event.currentTarget.closest("[data-slot=tradecn-column-chooser]")
+  return isElement(event.target) && event.currentTarget.contains(event.target) && event.target.closest("[data-slot=tradecn-column-chooser-item]") === event.currentTarget && event.target.closest("[data-slot=tradecn-column-chooser]") === event.currentTarget.closest("[data-slot=tradecn-column-chooser]")
 }
 
 function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, "aria-label": ariaLabel, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
@@ -370,7 +375,7 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, "aria
       if (node?.contains(node.ownerDocument.activeElement)) focusFallback()
     }
   }, [row.key, endDrag, focusFallback])
-  return <ItemContext value={item}><div role={role} tabIndex={tabIndex} draggable aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} data-slot="tradecn-column-chooser-item" className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} ref={rootRef} onFocusCapture={(event) => {
+  return <ItemContext value={item}><div role={role} tabIndex={tabIndex} draggable aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
     onFocusCapture?.(event)
     if (ownsItemEvent(event)) focused.current = event.target
   }} onBlurCapture={(event) => {

@@ -652,7 +652,7 @@ Use stable keys when reordering clock descriptors. The helpers, tone classes, de
 
 `ColumnChooser` now requires `children`. Compose its controls inside your own Dialog.
 
-Copy the complete [Usage example](column-chooser.md#usage) into `column-chooser.tsx`. It exports `ColumnSettingsPanel`, `ColumnSettingsDialog`, and `ColumnSettings`; the dialog primitive is included by the install.
+Copy the complete [Usage example](column-chooser.md#usage) into `column-chooser.tsx` outside `components/ui`. It exports `ColumnSettingsPanel`, `ColumnSettingsDialog`, and `ColumnSettings`. The install includes the dialog primitive.
 
 | Previous interface | Replacement |
 |---|---|
@@ -665,6 +665,8 @@ Copy the complete [Usage example](column-chooser.md#usage) into `column-chooser.
 | Visibility, column name, frozen and rule badges, width | `ColumnChooserVisibility`, `ColumnChooserName`, `ColumnChooserFrozen`, `ColumnChooserRule`, and `ColumnChooserWidth`. |
 | Reset and move controls | `ColumnChooserResetAll`, `ColumnChooserResetWidth`, and `ColumnChooserMove`, with required action content. |
 | Labels for surrounding content | Read `useColumnChooser().labels` for the description, empty state, action content, and hint. |
+
+The `data-column`, `data-visible`, `data-frozen`, and `data-dragging` markers now belong to `ColumnChooserItem`, not its caller-owned `li`. Update selectors such as `li[data-column]` to `[data-column]`.
 
 For a minimal inline replacement, install ColumnChooser and copy the shared file first:
 

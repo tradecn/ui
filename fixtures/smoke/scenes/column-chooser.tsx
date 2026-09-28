@@ -1,6 +1,8 @@
 import { cn } from "cn"
 import { buttonVariants } from "@/components/ui/button"
 import { useMemo, useState } from "react"
+import { PanelPopout } from "@/components/ui/panel"
+import { usePopout } from "@/hooks/use-popout"
 import { DialogTrigger } from "@/components/ui/dialog"
 import { ColumnSettingsDialog, ColumnSettingsPanel } from "./column-settings"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/components/ui/data-grid"
@@ -39,17 +41,22 @@ export function ColumnChooserScene() {
   }, [])
   const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: { px: 120 }, hidden: [] })
   const [open, setOpen] = useState(false)
+  const popout = usePopout({ title: "Column settings", width: 720, height: 520 })
   return (
-      <ColumnSettingsDialog open={open} onOpenChange={setOpen} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES}>
-    <div className="flex w-[52rem] flex-col gap-2" data-chooser-state={JSON.stringify(columnState)}>
-      <div style={{ height: 120 }}>
-        <DataGrid store={store} columns={columns} label="Chosen" columnState={columnState} onColumnStateChange={setColumnState} rules={{ columns: RULES }} />
+    <ColumnSettingsDialog open={open} onOpenChange={setOpen} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES}>
+      <div className="flex w-[52rem] flex-col gap-2" data-chooser-state={JSON.stringify(columnState)}>
+        <div style={{ height: 120 }}>
+          <DataGrid store={store} columns={columns} label="Chosen" columnState={columnState} onColumnStateChange={setColumnState} rules={{ columns: RULES }} />
+        </div>
+        <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "self-start")}>
+          open chooser
+        </DialogTrigger>
+        <button type="button" className="self-start" onClick={() => popout.open()}>pop out chooser</button>
+        <PanelPopout popout={popout}>
+          {popout.isOpen && <button type="button" onClick={popout.close}>bring chooser back</button>}
+          <ColumnSettingsPanel columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} />
+        </PanelPopout>
       </div>
-      <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "self-start")}>
-        open chooser
-      </DialogTrigger>
-      <ColumnSettingsPanel columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} />
-    </div>
     </ColumnSettingsDialog>
   )
 }

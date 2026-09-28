@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs"
-import { expect, test } from "@playwright/test"
+import { expect, test, type Locator } from "@playwright/test"
 
 // Every installed tradecn item renders, the page is error-free, and the tokens it declared exist.
 test("tradecn items render in this consumer", async ({ page }) => {
@@ -897,6 +897,69 @@ test("a column chooser hides, reorders, and resets through the grid's own column
   await expect(headers).toHaveCount(4)
   await page.keyboard.press("Escape")
   await expect(dialog).toHaveCount(0)
+  const trigger = scene.getByRole("button", { name: "open chooser" })
+  await expect(trigger).toBeFocused()
+  await trigger.click()
+  await dialog.getByRole("textbox", { name: "Find a column" }).fill("no matching column")
+  await expect(dialog.locator("[data-column]")).toHaveCount(0)
+  await page.keyboard.press("Escape")
+  await expect(dialog).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+  await trigger.click()
+  await expect(dialog.getByRole("textbox", { name: "Find a column" })).toHaveValue("")
+  await expect(dialog.locator("[data-column]")).toHaveCount(5)
+})
+
+// A shared React tree can contain nodes created in either window. Adoption changes the document,
+// but not a node's original constructor; exercise both kinds of row before and after returning.
+test("a column chooser keeps keyboard, drag, and focus behavior across popout row remounts", async ({ page }) => {
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='column-chooser']")
+  const [popup] = await Promise.all([page.waitForEvent("popup"), scene.getByRole("button", { name: "pop out chooser" }).click()])
+  popup.on("pageerror", (error) => errors.push(error.message))
+  const popupChooser = popup.locator("[data-slot='tradecn-column-chooser']")
+  await expect(popupChooser).toBeVisible()
+  const original = ["id", "client", "px", "size", "status"]
+  const moved = ["id", "px", "client", "size", "status"]
+  async function reorder(chooser: Locator) {
+    const client = chooser.locator("[data-column='client']")
+    const price = chooser.locator("[data-column='px']")
+    const order = () => chooser.locator("[data-column]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-column")))
+    await client.focus()
+    await client.press("Alt+ArrowDown")
+    await expect.poll(order).toEqual(moved)
+    await expect(client).toBeFocused()
+    await client.press("Alt+ArrowUp")
+    await expect.poll(order).toEqual(original)
+    await client.dragTo(price)
+    await expect.poll(order).toEqual(moved)
+    await price.dragTo(client)
+    await expect.poll(order).toEqual(original)
+  }
+  // These rows were created in the opener, then adopted into the popup's document.
+  expect(await popupChooser.locator("[data-column='client']").evaluate((row) => row instanceof Element)).toBe(false)
+  await reorder(popupChooser)
+  const search = popupChooser.getByRole("textbox", { name: "Find a column" })
+  await search.fill("Status")
+  await expect(popupChooser.locator("[data-column='client']")).toHaveCount(0)
+  await search.fill("")
+  await expect(popupChooser.locator("[data-column='client']")).toBeVisible()
+  // React recreates the filtered rows in the host's current document.
+  expect(await popupChooser.locator("[data-column='client']").evaluate((row) => row instanceof Element)).toBe(true)
+  await reorder(popupChooser)
+  const reset = popupChooser.getByRole("button", { name: "Reset width: Price" })
+  await reset.focus()
+  await reset.press("Enter")
+  await expect(reset).toBeHidden()
+  await expect(popupChooser.locator("[data-column='px']")).toBeFocused()
+  await popup.getByRole("button", { name: "bring chooser back" }).click()
+  const returned = scene.locator("[data-slot='tradecn-column-chooser']")
+  await expect(returned).toBeVisible()
+  expect(await returned.locator("[data-column='client']").evaluate((row) => row instanceof Element)).toBe(false)
+  await reorder(returned)
+  expect(errors).toEqual([])
 })
 
 // The editor's fields are the consumer's native-select and input, and every edit is a new rules object the
