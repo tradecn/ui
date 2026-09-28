@@ -580,3 +580,46 @@ it("uses the installed button's dimensions when an explicit size is supplied", (
   expect(screen.getByRole("button", { name: "Icon" }).className).toBe(screen.getByRole("button", { name: "Reference icon" }).className)
   expect(screen.getByRole("button", { name: "No size" }).className).toBe(screen.getByRole("button", { name: "Reference no size" }).className)
 })
+
+it("uses a newly enabled menu renderer for the already focused selection", async () => {
+  const store = seeded()
+  const onRemove = vi.fn()
+  const selection = new Set(["ES"])
+  function List({ active }: { active: boolean }) {
+    return <Watchlist store={store} onRemove={onRemove} selection={selection} focusedRowId="ES">
+      <WatchlistGrid initialRect={RECT} renderContextMenu={active ? (_, ids) => <WatchlistRemoveMenuItem ids={ids} /> : undefined} />
+    </Watchlist>
+  }
+  const view = render(<List active={false} />)
+  view.rerender(<List active />)
+  fireEvent.contextMenu(rowOf("ES"))
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Remove ES" }))
+  expect(onRemove).toHaveBeenCalledExactlyOnceWith(["ES"])
+})
+
+it("renders menus with current hook state without repainting rows for an inline renderer", async () => {
+  const store = seeded()
+  const onRemove = vi.fn()
+  let cellRenders = 0
+  const columns = [{ key: "symbol", header: "Symbol", width: 84, accessor: (row: WatchlistRow) => row.symbol, cell: ({ row }: { row: WatchlistRow }) => { cellRenders++; return row.symbol } }]
+  function Grid({ caption }: { caption: string }) {
+    const { targets } = useWatchlist()
+    return <WatchlistGrid columns={columns} initialRect={RECT} renderContextMenu={() => <>
+      <span>{caption}</span>
+      <WatchlistRemoveMenuItem ids={targets} />
+    </>} />
+  }
+  const view = render(<Watchlist store={store} onRemove={onRemove}><Grid caption="First" /></Watchlist>)
+  const before = cellRenders
+  view.rerender(<Watchlist store={store} onRemove={onRemove}><Grid caption="Current" /></Watchlist>)
+  expect(cellRenders).toBe(before)
+  fireEvent.pointerDown(rowOf("ES"), { button: 0 })
+  fireEvent.contextMenu(rowOf("CL"))
+  expect(await screen.findByText("Current")).toBeInTheDocument()
+  const opened = cellRenders
+  view.rerender(<Watchlist store={store} onRemove={onRemove}><Grid caption="Updated while open" /></Watchlist>)
+  expect(await screen.findByText("Updated while open")).toBeInTheDocument()
+  expect(cellRenders).toBe(opened)
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Remove CL" }))
+  expect(onRemove).toHaveBeenCalledExactlyOnceWith(["CL"])
+})

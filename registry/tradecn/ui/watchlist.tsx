@@ -166,14 +166,13 @@ export function WatchlistGrid<T extends WatchlistRow = WatchlistRow>({ columns, 
   const store = source as RowStore<T>
   const { selection, focusedRowId, targets, select, focus } = useSelection()
   const { canRemove, remove } = useActions()
-  const latest = useRef({ renderContextMenu, getRowProps })
-  useEffect(() => { latest.current = { renderContextMenu, getRowProps } })
+  const latest = useRef({ getRowProps })
+  useEffect(() => { latest.current = { getRowProps } })
   const all = useMemo(() => columns ?? watchlistColumns<T>({ price }), [columns, price])
   const rowProps = useCallback((row: T, id: RowId) => {
     const own = latest.current.getRowProps?.(row, id)
     return { ...own, className: cn("group/row", own?.className) }
   }, [])
-  const menu = useCallback((rows: T[], ids: RowId[]) => latest.current.renderContextMenu?.(rows, ids), [])
   function keyDown(event: KeyboardEvent<HTMLDivElement>) {
     onKeyDown?.(event)
     if (!canRemove || event.defaultPrevented || (event.key !== "Delete" && event.key !== "Backspace")) return
@@ -182,7 +181,7 @@ export function WatchlistGrid<T extends WatchlistRow = WatchlistRow>({ columns, 
     remove(targets)
   }
   return <div ref={ref} onKeyDown={keyDown} data-slot="tradecn-watchlist-grid" className={cn("h-full min-h-0 flex-1", className)}>
-    <DataGrid<T> {...grid} store={store} preset="watchlist" label={label} columns={all} selection={selection} onSelectionChange={select} focusedRowId={focusedRowId} onFocusedRowChange={focus} getRowProps={rowProps} renderContextMenu={renderContextMenu ? menu : undefined} />
+    <DataGrid<T> {...grid} store={store} preset="watchlist" label={label} columns={all} selection={selection} onSelectionChange={select} focusedRowId={focusedRowId} onFocusedRowChange={focus} getRowProps={rowProps} renderContextMenu={renderContextMenu} />
   </div>
 }
 
