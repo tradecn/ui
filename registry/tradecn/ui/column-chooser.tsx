@@ -223,7 +223,7 @@ function unavailable(node: HTMLElement) {
   return false
 }
 
-export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, rules, labels: labelsProp, children, className, ref, onFocusCapture, onBlurCapture, ...props }: ColumnChooserProps<T>) {
+export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, rules, labels: labelsProp, children, className, ref, role = "group", tabIndex = -1, "aria-label": ariaLabel, onFocusCapture, onBlurCapture, ...props }: ColumnChooserProps<T>) {
   const labels = { ...DEFAULT_COLUMN_CHOOSER_LABELS, ...labelsProp }
   const sourceRows = useMemo(() => chooserRows(columns, columnState, rules), [columns, columnState, rules])
   const rows = useMemo(() => sourceRows.map(({ column, rules, ...row }) => ({ ...row, rules: rules.map((rule) => ({ rule, description: describeRule(rule, [column]) })) })), [sourceRows])
@@ -302,7 +302,7 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ru
       change(moveColumnTo(sourceRows, columnState, current.key, key))
     },
   }}>
-    <div role="group" tabIndex={-1} aria-label={props["aria-labelledby"] ? undefined : labels.title} data-slot="tradecn-column-chooser" data-hidden={hiddenCount} className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} ref={rootRef} onFocusCapture={(event) => {
+    <div role={role} tabIndex={tabIndex} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : labels.title)} data-slot="tradecn-column-chooser" data-hidden={hiddenCount} className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} ref={rootRef} onFocusCapture={(event) => {
       onFocusCapture?.(event)
       if (event.currentTarget.contains(event.target) && event.target.closest("[data-slot=tradecn-column-chooser]") === event.currentTarget) focused.current = event.target
     }} onBlurCapture={(event) => {
@@ -312,9 +312,9 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ru
   </ChooserContext>
 }
 
-export function ColumnChooserSearch({ onChange, className, ...props }: Omit<ComponentProps<typeof Input>, "value" | "defaultValue">) {
+export function ColumnChooserSearch({ onChange, className, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<typeof Input>, "value" | "defaultValue">) {
   const { query, setQuery, labels } = useColumnChooser()
-  return <Input aria-label={props["aria-labelledby"] ? undefined : labels.search} placeholder={labels.search} spellCheck={false} autoComplete="off" data-column-search="" className={cn("h-7 max-w-56 text-xs md:text-xs", className)} {...props} value={query} onChange={(event) => {
+  return <Input aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : labels.search)} placeholder={labels.search} spellCheck={false} autoComplete="off" data-column-search="" className={cn("h-7 max-w-56 text-xs md:text-xs", className)} {...props} value={query} onChange={(event) => {
     onChange?.(event)
     if (!event.defaultPrevented) setQuery(event.target.value)
   }} />
@@ -350,7 +350,7 @@ function ownsItemEvent(event: { target: EventTarget; currentTarget: HTMLDivEleme
   return event.target instanceof Element && event.currentTarget.contains(event.target) && event.target.closest("[data-slot=tradecn-column-chooser-item]") === event.currentTarget && event.target.closest("[data-slot=tradecn-column-chooser]") === event.currentTarget.closest("[data-slot=tradecn-column-chooser]")
 }
 
-function ChooserItem({ item, className, ref, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
+function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, "aria-label": ariaLabel, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
   const { row, dragging, move } = item
   const { focusFallback, startDrag, dragOver, drop, endDrag } = useChooserContext()
   const root = useRef<HTMLDivElement>(null)
@@ -370,7 +370,7 @@ function ChooserItem({ item, className, ref, onKeyDown, onDragStart, onDragOver,
       if (node?.contains(node.ownerDocument.activeElement)) focusFallback()
     }
   }, [row.key, endDrag, focusFallback])
-  return <ItemContext value={item}><div role="group" tabIndex={0} draggable aria-label={props["aria-labelledby"] ? undefined : row.name} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} data-slot="tradecn-column-chooser-item" className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} ref={rootRef} onFocusCapture={(event) => {
+  return <ItemContext value={item}><div role={role} tabIndex={tabIndex} draggable aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} data-slot="tradecn-column-chooser-item" className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} ref={rootRef} onFocusCapture={(event) => {
     onFocusCapture?.(event)
     if (ownsItemEvent(event)) focused.current = event.target
   }} onBlurCapture={(event) => {
@@ -399,10 +399,10 @@ function ChooserItem({ item, className, ref, onKeyDown, onDragStart, onDragOver,
   }} /></ItemContext>
 }
 
-export function ColumnChooserVisibility({ onClick, onCheckedChange, ...props }: Omit<ComponentProps<typeof Checkbox>, "checked" | "defaultChecked" | "indeterminate">) {
+export function ColumnChooserVisibility({ onClick, onCheckedChange, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<typeof Checkbox>, "checked" | "defaultChecked" | "indeterminate">) {
   const { row, setVisible } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <Checkbox aria-label={props["aria-labelledby"] ? undefined : `${labels.show} ${row.name}`} {...props} checked={row.visible} onClick={(event) => {
+  return <Checkbox aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.show} ${row.name}`)} {...props} checked={row.visible} onClick={(event) => {
     onClick?.(event)
     // Some built-ins separate browser cancellation from their own click handler.
     if (event.defaultPrevented && "preventBaseUIHandler" in event && typeof event.preventBaseUIHandler === "function") event.preventBaseUIHandler()
@@ -433,25 +433,25 @@ export function ColumnChooserRule({ ruleIndex, className, ...props }: Omit<Compo
   return <Badge variant="outline" data-column-rule={rule.id} title={description} className={cn("h-4 min-w-0 shrink px-1.5 text-xs", RULE_TONE_CLASS[rule.tone], className)} {...props}><span className="min-w-0 truncate">{rule.label?.trim() || description}</span></Badge>
 }
 
-export function ColumnChooserWidth({ className, ...props }: Omit<ComponentProps<"span">, "children">) {
+export function ColumnChooserWidth({ className, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<"span">, "children">) {
   const { row } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <span aria-label={props["aria-labelledby"] ? undefined : `${labels.width} ${row.width}`} data-column-width={row.width} className={cn("w-14 shrink-0 text-right text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{row.width} px</span>
+  return <span aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.width} ${row.width}`)} data-column-width={row.width} className={cn("w-14 shrink-0 text-right text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{row.width} px</span>
 }
 
-export function ColumnChooserResetWidth({ type = "button", variant = "ghost", size, disabled, onClick, className, ...props }: ActionProps) {
+export function ColumnChooserResetWidth({ type = "button", variant = "ghost", size, disabled, onClick, className, "aria-label": ariaLabel, ...props }: ActionProps) {
   const { row, resetWidth } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={props["aria-labelledby"] ? undefined : `${labels.resetWidth}: ${row.name}`} aria-hidden={!row.resized || undefined} tabIndex={row.resized ? undefined : -1} className={cn(size === undefined && "h-6 px-1.5 text-xs", !row.resized && "invisible", className)} {...props} disabled={disabled || !row.resized} onClick={(event) => {
+  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.resetWidth}: ${row.name}`)} aria-hidden={!row.resized || undefined} tabIndex={row.resized ? undefined : -1} className={cn(size === undefined && "h-6 px-1.5 text-xs", !row.resized && "invisible", className)} {...props} disabled={disabled || !row.resized} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) resetWidth()
   }} />
 }
 
-export function ColumnChooserMove({ direction, type = "button", variant = "ghost", size, disabled, onClick, className, ...props }: ActionProps & { direction: "up" | "down" }) {
+export function ColumnChooserMove({ direction, type = "button", variant = "ghost", size, disabled, onClick, className, "aria-label": ariaLabel, ...props }: ActionProps & { direction: "up" | "down" }) {
   const { row, canMoveUp, canMoveDown, move } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={props["aria-labelledby"] ? undefined : `${direction === "up" ? labels.moveUp : labels.moveDown}: ${row.name}`} className={cn(size === undefined && "h-6 px-1.5 text-xs", className)} {...props} disabled={disabled || !(direction === "up" ? canMoveUp : canMoveDown)} onClick={(event) => {
+  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${direction === "up" ? labels.moveUp : labels.moveDown}: ${row.name}`)} className={cn(size === undefined && "h-6 px-1.5 text-xs", className)} {...props} disabled={disabled || !(direction === "up" ? canMoveUp : canMoveDown)} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) move(direction === "up" ? -1 : 1)
   }} />

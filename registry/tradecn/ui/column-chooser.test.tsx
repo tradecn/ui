@@ -246,10 +246,10 @@ describe("public composition", () => {
   it("forwards native refs, names and events and lets callers cancel edit commands", () => {
     const root = createRef<HTMLDivElement>(), item = createRef<HTMLDivElement>(), input = createRef<HTMLInputElement>(), name = createRef<HTMLSpanElement>(), width = createRef<HTMLSpanElement>(), button = createRef<HTMLButtonElement>()
     const change = vi.fn(), click = vi.fn(), key = vi.fn()
-    render(<ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={change} ref={root} id="columns" title="settings" aria-labelledby="heading" onClick={click}>
+    render(<ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={change} ref={root} id="columns" role="region" tabIndex={0} title="settings" aria-labelledby="heading" onClick={click}>
       <h2 id="heading">Quote fields</h2>
       <ColumnChooserSearch ref={input} onChange={event => event.preventDefault()} />
-      <ColumnChooserItem columnKey="px" ref={item} id="price" onKeyDown={event => { key(); event.preventDefault() }}>
+      <ColumnChooserItem columnKey="px" ref={item} id="price" role="article" tabIndex={-1} aria-label="Order price" onKeyDown={event => { key(); event.preventDefault() }}>
         <ColumnChooserName ref={name} title="Current price" />
         <ColumnChooserWidth ref={width} />
         <ColumnChooserVisibility onClick={event => event.preventDefault()} />
@@ -258,9 +258,11 @@ describe("public composition", () => {
       </ColumnChooserItem>
       <ColumnChooserResetAll onClick={event => event.preventDefault()}>Reset all</ColumnChooserResetAll>
     </ColumnChooser>)
-    expect(root.current).toBe(screen.getByRole("group", { name: "Quote fields" }))
+    expect(root.current).toBe(screen.getByRole("region", { name: "Quote fields" }))
+    expect(root.current).toHaveAttribute("tabindex", "0")
     expect(root.current).toHaveAttribute("title", "settings")
-    expect(item.current).toBe(screen.getByRole("group", { name: "Price" }))
+    expect(item.current).toBe(screen.getByRole("article", { name: "Order price" }))
+    expect(item.current).toHaveAttribute("tabindex", "-1")
     expect(name.current).toHaveAttribute("title", "Current price")
     expect(width.current).toHaveTextContent("140 px")
     fireEvent.change(input.current!, { target: { value: "ignored" } })
@@ -288,6 +290,43 @@ describe("public composition", () => {
     screen.getByRole("checkbox", { name: "Show Price" }).focus()
     rerender(<Controlled definitions={columns.filter(column => column.key !== "px")} />)
     expect(screen.getByRole("textbox")).toHaveFocus()
+  })
+
+  it("keeps the root focus fallback and name when optional native props are undefined", () => {
+    const optional = { role: undefined, tabIndex: undefined, "aria-label": undefined }
+    const view = (definitions: ColumnDef<Rfq>[]) => <ColumnChooser {...optional} columns={definitions} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+      <ColumnChooserItem columnKey="px"><ColumnChooserVisibility /></ColumnChooserItem>
+    </ColumnChooser>
+    const { rerender } = render(view(columns))
+    const root = screen.getByRole("group", { name: "Columns" })
+    screen.getByRole("checkbox", { name: "Show Price" }).focus()
+    rerender(view(columns.filter(column => column.key !== "px")))
+    expect(root).toHaveFocus()
+  })
+
+  it("keeps item focus recovery and public reading names when optional names are undefined", () => {
+    const optional = { role: undefined, tabIndex: undefined, "aria-label": undefined }
+    function Settings() {
+      const [state, setState] = useState<ColumnState>({ ...EMPTY_COLUMN_STATE, widths: { px: 140 } })
+      return <ColumnChooser columns={columns} columnState={state} onColumnStateChange={setState}>
+        <ColumnChooserSearch aria-label={undefined} />
+        <ColumnChooserItem {...optional} columnKey="px">
+          <ColumnChooserVisibility aria-label={undefined} />
+          <ColumnChooserWidth aria-label={undefined} />
+          <ColumnChooserResetWidth aria-label={undefined}>Reset width</ColumnChooserResetWidth>
+          <ColumnChooserMove direction="down" aria-label={undefined}>Later</ColumnChooserMove>
+        </ColumnChooserItem>
+      </ColumnChooser>
+    }
+    render(<Settings />)
+    expect(screen.getByRole("textbox", { name: "Find a column" })).toBeVisible()
+    expect(screen.getByRole("checkbox", { name: "Show Price" })).toBeVisible()
+    expect(screen.getByLabelText("Width 140")).toHaveTextContent("140 px")
+    expect(screen.getByRole("button", { name: "Move down: Price" })).toBeEnabled()
+    const reset = screen.getByRole("button", { name: "Reset width: Price" })
+    reset.focus()
+    fireEvent.click(reset)
+    expect(screen.getByRole("group", { name: "Price" })).toHaveFocus()
   })
 
   it("uses current rows and rules after replacement, and safely omits missing items", () => {
