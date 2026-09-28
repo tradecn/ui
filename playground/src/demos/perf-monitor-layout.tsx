@@ -14,10 +14,10 @@ export default function PerfMonitorLayoutDemo() {
 
   return (
     <PerfMonitor sampler={sampler} budgetMs={20} label="Desk measurements" className="w-80 max-w-full gap-3">
-      <header className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold">Desk measurements</h2>
         <button type="button" className="rounded border border-border px-2 py-1" onClick={() => sampler.reset()}>Reset measurements</button>
-      </header>
+      </div>
       <table className="w-full text-left">
         <caption className="text-left text-muted-foreground">Frame gaps</caption>
         <tbody>
@@ -37,10 +37,10 @@ export default function PerfMonitorLayoutDemo() {
           ))}
         </tbody>
       </table>
-      <footer className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span>Tail gap <PerfMonitorValue metric="p99" /></span>
         <PerfMonitorHistogram />
-      </footer>
+      </div>
     </PerfMonitor>
   )
 }
