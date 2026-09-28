@@ -3005,7 +3005,7 @@
       "name": "instrument-search",
       "type": "registry:ui",
       "title": "Instrument Search",
-      "description": "A typed field over your instrument search that reads what was typed first, a CUSIP with its check digit, an ISIN with its Luhn digit, a ticker, or a coupon and maturity the way a run prints it, hands the server the query with that hint, and lists what came back on your own command. Keyboard first; only answers to the query on screen; the identifier is checked here and resolved by the server. With it, the recognizers as a lib and an adapter for the palette's symbol rows.",
+      "description": "Composable instrument search with shared query recognition, debounced requests and selection. Arrange the input, results, recognition hints and application controls through public parts; choose each result row and its order.",
       "dependencies": [
         "cn@^0.3.0"
       ],
@@ -3027,28 +3027,52 @@
         "palette",
         "watchlist"
       ],
-      "docs": "Installs the recognizers (lib/instrument-query.ts) alongside and composes your command and badge. The search is yours: search(query, hint, signal). toSymbolAdapter(search) hands the same function to the command palette.",
+      "docs": "Installs cn, command, badge, the recognition library (lib/instrument-query.ts) and typography tokens. Compose InstrumentSearchContent, InstrumentSearchInput, InstrumentSearchList and caller-owned InstrumentSearchItem rows inside InstrumentSearch; add InstrumentSearchHint when needed. The complete Usage recipe retains the badge presentation. Your search receives the query, hint and abort signal; toSymbolAdapter reuses it in the command palette.",
       "meta": {
         "components": [
           {
             "title": "InstrumentSearch",
-            "description": "The field, the hint under it, and the list of the server's answers."
+            "description": "Shared query, recognized search and current-hit selection with caller-owned children."
+          },
+          {
+            "title": "InstrumentSearchContent",
+            "description": "The installed command with server filtering disabled and an accessible input name."
+          },
+          {
+            "title": "InstrumentSearchInput",
+            "description": "A field bound to the shared query and mounted recognition descriptions."
+          },
+          {
+            "title": "InstrumentSearchList",
+            "description": "The command listbox with results shown when the query meets the minimum length."
+          },
+          {
+            "title": "InstrumentSearchItem",
+            "description": "A selectable current hit with caller-owned row content."
+          },
+          {
+            "title": "InstrumentSearchHint",
+            "description": "An optional recognition reading associated with the search input."
+          },
+          {
+            "title": "useInstrumentSearchState",
+            "description": "The root reading and commands, without another request."
           },
           {
             "title": "useInstrumentSearch",
-            "description": "The debounced, abortable search over the recognized query."
+            "description": "The standalone debounced, abortable search hook."
           },
           {
             "title": "toSymbolAdapter",
-            "description": "The command palette's symbols adapter over the same search."
+            "description": "The command palette symbols adapter over the same search."
           },
           {
             "title": "matchedIdentifier",
-            "description": "The identifier on a hit that the query named."
+            "description": "The identifier on a hit named by the query kind."
           },
           {
             "title": "DEFAULT_INSTRUMENT_SEARCH_LABELS",
-            "description": "Every word on it, to replace in part."
+            "description": "Default field, recipe and recognition text."
           }
         ]
       },

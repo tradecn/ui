@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { InstrumentSearch, type InstrumentHit, type InstrumentSearchFn } from "@/components/ui/instrument-search"
+import { InstrumentSearch, InstrumentSearchContent, InstrumentSearchInput, InstrumentSearchList, InstrumentSearchHint, type InstrumentHit, type InstrumentSearchFn } from "@/components/ui/instrument-search"
+import { InstrumentOptions } from "./recipes/instrument-search"
 
 const MASTER: InstrumentHit[] = [
   { id: "t10", symbol: "T 4 1/8 05/34", name: "T 4 1/8 05/15/34", kind: "UST", cusip: "91282CKQ7", isin: "US91282CKQ71" },
@@ -24,7 +25,13 @@ export function InstrumentSearchScene() {
   const [picked, setPicked] = useState("")
   return (
     <div className="w-[36rem]" data-instrument-picked={picked}>
-      <InstrumentSearch search={search} onSelect={(hit, hint) => setPicked(`${hit.id}:${hint.kind}`)} />
+      <InstrumentSearch search={search} onSelect={(hit, hint) => setPicked(`${hit.id}:${hint.kind}`)}>
+        <InstrumentSearchContent>
+          <InstrumentSearchInput />
+          <InstrumentSearchList><InstrumentOptions /></InstrumentSearchList>
+        </InstrumentSearchContent>
+        <InstrumentSearchHint />
+      </InstrumentSearch>
     </div>
   )
 }

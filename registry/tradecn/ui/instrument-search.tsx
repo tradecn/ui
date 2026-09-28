@@ -1,8 +1,7 @@
 import { cn } from "cn"
-import { useEffect, useId, useMemo, useRef, useState } from "react"
-import { Badge } from "@/components/ui/badge"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { QUERY_KIND_LABELS, recognizeQuery, type QueryHint, type QueryKind } from "@/registry/tradecn/lib/instrument-query"
+import { createContext, useCallback, useContext, useEffect, useId, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react"
+import { Command, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { QUERY_KIND_LABELS, recognizeQuery, type QueryHint } from "@/registry/tradecn/lib/instrument-query"
 
 // A typed field over the consumer's instrument search: it recognizes what was typed (a CUSIP with its
 // check digit, an ISIN with its Luhn digit, a ticker, a coupon-and-maturity phrase) and hands the
@@ -53,16 +52,20 @@ export function useInstrumentSearch(search: InstrumentSearchFn | undefined, quer
   const minLength = options.minLength ?? 1
   const debounceMs = options.debounceMs ?? 150
   const hint = useMemo(() => recognizeQuery(query), [query])
-  const [found, setFound] = useState<{ query: string; hits: readonly InstrumentHit[] }>({ query: "", hits: NO_HITS })
+  const [found, setFound] = useState<{ search?: InstrumentSearchFn; query: string; hits: readonly InstrumentHit[] }>({ query: "", hits: NO_HITS })
   const active = search !== undefined && hint.kind !== "empty" && query.trim().length >= minLength
   useEffect(() => {
     if (!search || !active) return
     const controller = new AbortController()
     const settle = (hits: readonly InstrumentHit[]) => {
-      if (!controller.signal.aborted) setFound({ query, hits })
+      if (!controller.signal.aborted) setFound({ search, query, hits })
     }
-    const timer = setTimeout(() => {
-      search(query, hint, controller.signal).then(settle, () => settle(NO_HITS))
+    const timer = setTimeout(async () => {
+      try {
+        settle(await search(query, hint, controller.signal))
+      } catch {
+        settle(NO_HITS)
+      }
     }, debounceMs)
     return () => {
       clearTimeout(timer)
@@ -70,7 +73,7 @@ export function useInstrumentSearch(search: InstrumentSearchFn | undefined, quer
     }
   }, [search, active, query, hint, debounceMs])
   // Only answers to the query on screen. Enter on a row left over from three letters ago is how the wrong instrument gets loaded.
-  const current = active && found.query === query
+  const current = active && found.search === search && found.query === query
   return { hint, hits: current ? found.hits : NO_HITS, loading: active && !current }
 }
 
@@ -86,9 +89,10 @@ export function toSymbolAdapter(search: InstrumentSearchFn, options: { minLength
   }
 }
 
-export interface InstrumentSearchProps {
+export interface InstrumentSearchProps extends Omit<ComponentProps<"div">, "children" | "onSelect" | "autoFocus"> {
   search: InstrumentSearchFn
   onSelect: (hit: InstrumentHit, hint: QueryHint) => void
+  children: ReactNode
   /** Controlled query, with `onQueryChange`. */
   query?: string
   onQueryChange?: (query: string) => void
@@ -98,13 +102,7 @@ export interface InstrumentSearchProps {
   debounceMs?: number
   /** Clear the field after a pick. Default true. */
   clearOnSelect?: boolean
-  /** Show what the query was read as under the field. Default true. */
-  showHint?: boolean
-  autoFocus?: boolean
   labels?: Partial<InstrumentSearchLabels>
-  /** How a hit's row reads. Default: the symbol, the name, and the kind as a badge. */
-  renderHit?: (hit: InstrumentHit, hint: QueryHint) => React.ReactNode
-  className?: string
 }
 
 /** The identifier on a hit that the query named, for the row to show beside the name. */
@@ -114,72 +112,127 @@ export function matchedIdentifier(hit: InstrumentHit, hint: QueryHint): string |
   return null
 }
 
-export function InstrumentSearch({ search, onSelect, query: queryProp, onQueryChange, minLength, debounceMs, clearOnSelect = true, showHint = true, autoFocus, labels: labelsProp, renderHit, className }: InstrumentSearchProps) {
+export interface InstrumentSearchState {
+  query: string
+  setQuery: (query: string) => void
+  hint: QueryHint
+  hits: readonly InstrumentHit[]
+  /** The nonblank query meets minLength. */
+  active: boolean
+  loading: boolean
+  labels: InstrumentSearchLabels
+  emptyMessage: string
+  /** Select the currently offered hit with this id. Stale or missing ids do nothing. */
+  select: (hit: InstrumentHit) => void
+}
+
+interface SearchContextState extends InstrumentSearchState {
+  descriptions: readonly string[]
+  registerDescription: (id: string) => () => void
+}
+
+const SearchContext = createContext<SearchContextState | null>(null)
+
+function useSearchContext() {
+  const state = useContext(SearchContext)
+  if (!state) throw new Error("InstrumentSearch parts require InstrumentSearch")
+  return state
+}
+
+/** Share the root's reading and commands without starting another search. */
+export function useInstrumentSearchState(): InstrumentSearchState {
+  return useSearchContext()
+}
+
+export function InstrumentSearch({ search, onSelect, children, query: queryProp, onQueryChange, minLength = 1, debounceMs, clearOnSelect = true, labels: labelsProp, className, ...props }: InstrumentSearchProps) {
   const labels = { ...DEFAULT_INSTRUMENT_SEARCH_LABELS, ...labelsProp }
   const [ownQuery, setOwnQuery] = useState("")
   const query = queryProp ?? ownQuery
-  const latest = useRef({ onSelect, onQueryChange })
-  useEffect(() => {
-    latest.current = { onSelect, onQueryChange }
-  })
-  const setQuery = (next: string) => {
-    if (queryProp === undefined) setOwnQuery(next)
-    latest.current.onQueryChange?.(next)
-  }
   const { hint, hits, loading } = useInstrumentSearch(search, query, { minLength, debounceMs })
-  const hintId = useId()
-  const kind: QueryKind = hint.kind
-  const pick = (hit: InstrumentHit) => {
-    latest.current.onSelect(hit, hint)
-    if (clearOnSelect) setQuery("")
-  }
-  const showList = kind !== "empty" && query.trim().length >= (minLength ?? 1)
+  const active = hint.kind !== "empty" && query.trim().length >= minLength
+  const latest = useRef({ queryProp, onSelect, onQueryChange, clearOnSelect, hint, hits })
+  useInsertionEffect(() => {
+    latest.current = { queryProp, onSelect, onQueryChange, clearOnSelect, hint, hits }
+  })
+  const setQuery = useCallback((next: string) => {
+    const current = latest.current
+    if (current.queryProp === undefined) setOwnQuery(next)
+    current.onQueryChange?.(next)
+  }, [])
+  const select = useCallback((hit: InstrumentHit) => {
+    const current = latest.current
+    const offered = current.hits.find((candidate) => candidate.id === hit.id)
+    if (!offered) return
+    current.onSelect(offered, current.hint)
+    if (current.clearOnSelect) setQuery("")
+  }, [setQuery])
+  const [descriptions, setDescriptions] = useState<string[]>([])
+  const registerDescription = useCallback((id: string) => {
+    setDescriptions((ids) => [...ids, id])
+    return () => setDescriptions((ids) => {
+      const index = ids.indexOf(id)
+      return index < 0 ? ids : [...ids.slice(0, index), ...ids.slice(index + 1)]
+    })
+  }, [])
   return (
-    <div data-slot="tradecn-instrument-search" data-query-kind={kind === "empty" ? undefined : kind} className={cn("flex flex-col gap-1 text-xs lining-nums tabular-nums", className)}>
-      {/* The consumer's command does the filtering off: the server answered the query, and every answer stays. */}
-      <Command shouldFilter={false} className="rounded-md border border-border">
-        <CommandInput value={query} onValueChange={setQuery} placeholder={labels.placeholder} autoFocus={autoFocus} aria-describedby={showHint && kind !== "empty" ? hintId : undefined} className="h-8 text-xs" />
-        {showList && (
-          <CommandList>
-            {loading && hits.length === 0 && <div className="px-2 py-1.5 text-muted-foreground">{labels.searching}</div>}
-            {!loading && hits.length === 0 && <CommandEmpty>{fill(labels.empty, { query: query.trim() })}</CommandEmpty>}
-            {hits.length > 0 && (
-              <CommandGroup heading={labels.results}>
-                {hits.map((hit) => (
-                  <CommandItem key={hit.id} value={hit.id} data-instrument-hit={hit.id} onSelect={() => pick(hit)}>
-                    {renderHit ? (
-                      renderHit(hit, hint)
-                    ) : (
-                      <span className="flex min-w-0 flex-1 items-center gap-2">
-                        <span className="font-semibold">{hit.symbol}</span>
-                        {hit.name && <span className="min-w-0 truncate text-muted-foreground">{hit.name}</span>}
-                        {matchedIdentifier(hit, hint) && <span className="font-(family-name:--tradecn-font-mono) text-muted-foreground lining-nums tabular-nums">{matchedIdentifier(hit, hint)}</span>}
-                        {hit.kind && (
-                          <Badge variant="outline" className="ml-auto h-4 px-1 text-xs">
-                            {hit.kind}
-                          </Badge>
-                        )}
-                      </span>
-                    )}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-        )}
-      </Command>
-      {showHint && kind !== "empty" && (
-        <p id={hintId} data-instrument-hint={kind} className="px-1 text-muted-foreground">
-          {fill(labels.recognized, { kind: QUERY_KIND_LABELS[kind] })}
-          {kind === "coupon-maturity" && hint.coupon !== undefined && " "}
-          {kind === "coupon-maturity" && hint.coupon !== undefined && (
-            <span className="font-(family-name:--tradecn-font-mono) lining-nums tabular-nums">
-              {hint.ticker ? `${hint.ticker} ` : ""}
-              {hint.coupon} {hint.maturity}
-            </span>
-          )}
-        </p>
-      )}
-    </div>
+    <SearchContext value={{ query, setQuery, hint, hits, active, loading, labels, emptyMessage: fill(labels.empty, { query: query.trim() }), select, descriptions, registerDescription }}>
+      <div {...props} data-slot="tradecn-instrument-search" data-query-kind={hint.kind === "empty" ? undefined : hint.kind} className={cn("flex flex-col gap-1 text-xs lining-nums tabular-nums", className)}>{children}</div>
+    </SearchContext>
+  )
+}
+
+export type InstrumentSearchContentProps = Omit<ComponentProps<typeof Command>, "children" | "shouldFilter" | "filter"> & { children: ReactNode }
+
+/** The installed command owns keyboard navigation. Server results are never filtered again. */
+export function InstrumentSearchContent({ children, className, label = "Instrument search", ...props }: InstrumentSearchContentProps) {
+  useSearchContext()
+  return <Command {...props} label={label} shouldFilter={false} className={cn("rounded-md border border-border", className)}>{children}</Command>
+}
+
+type InputOwnedProps = "value" | "defaultValue" | "onValueChange" | "onChange" | "id" | "type" | "role" | "autoComplete" | "autoCorrect" | "spellCheck" | "aria-autocomplete" | "aria-expanded" | "aria-controls" | "aria-labelledby" | "aria-label" | "aria-activedescendant"
+
+export type InstrumentSearchInputProps = Omit<ComponentProps<typeof CommandInput>, InputOwnedProps> & Partial<Record<InputOwnedProps, never>>
+
+export function InstrumentSearchInput({ className, "aria-describedby": describedBy, ...props }: InstrumentSearchInputProps) {
+  const { query, setQuery, labels, descriptions } = useSearchContext()
+  const ids = [...new Set([describedBy, ...descriptions].flatMap((id) => id?.split(/\s+/).filter(Boolean) ?? []))]
+  return <CommandInput placeholder={labels.placeholder} {...props} value={query} onValueChange={setQuery} aria-describedby={ids.join(" ") || undefined} className={cn("h-8 text-xs", className)} />
+}
+
+type ListOwnedProps = "id" | "role" | "tabIndex" | "aria-activedescendant" | "aria-label"
+
+export type InstrumentSearchListProps = Omit<ComponentProps<typeof CommandList>, ListOwnedProps | "children"> & Partial<Record<ListOwnedProps, never>> & { children: ReactNode }
+
+export function InstrumentSearchList({ children, ...props }: InstrumentSearchListProps) {
+  const { active } = useSearchContext()
+  // cmdk exposes an expanded inline combobox, so retain its listbox target even before a query.
+  return <CommandList {...props}>{active ? children : null}</CommandList>
+}
+
+type ItemOwnedProps = "value" | "onSelect" | "onClick" | "onPointerMove" | "id" | "role" | "aria-disabled" | "aria-selected"
+
+export type InstrumentSearchItemProps = Omit<ComponentProps<typeof CommandItem>, ItemOwnedProps | "children"> & Partial<Record<ItemOwnedProps, never>> & { hit: InstrumentHit; children: ReactNode }
+
+export function InstrumentSearchItem({ hit, children, disabled, ...props }: InstrumentSearchItemProps) {
+  const { select } = useSearchContext()
+  return <CommandItem {...props} disabled={disabled} value={hit.id} data-instrument-hit={hit.id} onSelect={() => { if (!disabled) select(hit) }}>{children}</CommandItem>
+}
+
+export function InstrumentSearchHint({ id: idProp, children, className, ...props }: ComponentProps<"p">) {
+  const { hint, labels, registerDescription } = useSearchContext()
+  const generatedId = useId()
+  const id = idProp ?? generatedId
+  const shown = hint.kind !== "empty"
+  useLayoutEffect(() => {
+    if (shown) return registerDescription(id)
+  }, [shown, id, registerDescription])
+  if (!shown) return null
+  return (
+    <p {...props} id={id} data-slot="tradecn-instrument-hint" data-instrument-hint={hint.kind} className={cn("px-1 text-muted-foreground lining-nums tabular-nums", className)}>
+      {children !== undefined ? children : <>
+        {fill(labels.recognized, { kind: QUERY_KIND_LABELS[hint.kind] })}
+        {hint.kind === "coupon-maturity" && hint.coupon !== undefined && <> <span className="font-(family-name:--tradecn-font-mono) lining-nums tabular-nums">{hint.ticker ? `${hint.ticker} ` : ""}{hint.coupon} {hint.maturity}</span></>}
+      </>}
+    </p>
   )
 }

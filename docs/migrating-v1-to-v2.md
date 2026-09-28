@@ -550,3 +550,43 @@ Selection, default columns, time/value formatting and cumulative calculations ar
 Changes and CSV still use the supplied view or raw store order, independent of grid-local sorting and filtering. Keep selected ids within that view and retain the preceding history needed for comparisons. Column-state hiding and reordering do not affect CSV.
 
 Each changes scope owns its subscriptions and shares one reading with all descendants. Export reads current snapshots at activation, without subscribing the root or controls to store updates. Custom controls can use `useAuditTrail().select(next)` and `useAuditTrail().exportCsv()`.
+
+## InstrumentSearch
+
+`InstrumentSearch` now requires children. Compose the command, input and result list explicitly, and add the recognition hint where your layout needs it. Save the complete [Usage recipe](instrument-search.md#usage) as `instrument-search.tsx` outside `components/ui` before copying this migration:
+
+```tsx
+import { InstrumentSearch, InstrumentSearchContent, InstrumentSearchInput, InstrumentSearchList, InstrumentSearchHint, type InstrumentSearchProps } from "@/components/ui/instrument-search"
+import { InstrumentOptions } from "./instrument-search"
+
+export function FindInstrument(props: Omit<InstrumentSearchProps, "children">) {
+  return <InstrumentSearch {...props}>
+    <InstrumentSearchContent>
+      <InstrumentSearchInput />
+      <InstrumentSearchList><InstrumentOptions /></InstrumentSearchList>
+    </InstrumentSearchContent>
+    <InstrumentSearchHint />
+  </InstrumentSearch>
+}
+```
+
+| Previous interface | Replacement |
+|---|---|
+| Self-closing root, including calls with only retained props | Required children with Content, Input and List. |
+| Root `autoFocus` | `InstrumentSearchInput autoFocus`. |
+| `showHint={false}` | Omit `InstrumentSearchHint`. |
+| `renderHit(hit, hint)` | Write Item children; read `hint` with `useInstrumentSearchState`. |
+| Private loading, empty and results group | Caller-owned recipe using shared `loading`, `hits`, `labels` and `emptyMessage`. |
+| Root search, query, callbacks, limits and clear behavior | Keep them on the root. |
+
+The Usage recipe preserves server order, matched identifiers, kind badges, recognition text and default labels. The existing Command and Badge dependencies remain installed. `useInstrumentSearch`, `toSymbolAdapter`, `matchedIdentifier`, labels and all `instrument-query` helpers remain available.
+
+Content now names its field with `label`, defaulting to `"Instrument search"`. The released field referenced an empty label.
+
+The empty List stays mounted to provide cmdk's expanded combobox with a valid target. Results still wait for the minimum query length, and blank layout dimensions are unchanged.
+
+Same-query cache reuse is retained for the same search function. Replacing that function now removes its old hits immediately. Synchronous throws settle as empty results like rejected promises, and selection callbacks use the current committed props even when invoked from a child layout effect.
+
+Use each primitive's supported props: Content `label` names the input, List `label` names its listbox, and the root owns query edits. cmdk-owned IDs, roles, ARIA and overwritten events are excluded from the corresponding part types.
+
+Native root props and refs are now forwarded. Input and Item keep their command semantics.

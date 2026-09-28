@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { InstrumentSearch, type InstrumentHit, type InstrumentSearchFn } from "@/registry/tradecn/ui/instrument-search"
+import { InstrumentSearch, InstrumentSearchContent, InstrumentSearchInput, InstrumentSearchList, InstrumentSearchHint, type InstrumentHit, type InstrumentSearchFn } from "@/registry/tradecn/ui/instrument-search"
+import { InstrumentOptions } from "./instrument-search"
 
 type SampleInstrument = InstrumentHit & {
   ticker?: string
@@ -51,7 +52,13 @@ export default function InstrumentSearchHintsDemo() {
         {queries.map((example) => <button key={example.label} type="button" className="rounded border border-border px-2 py-1" onClick={() => setQuery(example.query)}>{example.label}</button>)}
       </div>
       <div className="min-h-56 w-sm max-w-full space-y-2 text-xs lining-nums tabular-nums">
-        <InstrumentSearch search={search} query={query} onQueryChange={setQuery} onSelect={(hit, hint) => setSelected(`${hit.symbol} (${hint.kind})`)} labels={{ placeholder: "Identifier or coupon and maturity" }} />
+        <InstrumentSearch search={search} query={query} onQueryChange={setQuery} onSelect={(hit, hint) => setSelected(`${hit.symbol} (${hint.kind})`)} labels={{ placeholder: "Identifier or coupon and maturity" }}>
+          <InstrumentSearchContent>
+            <InstrumentSearchInput />
+            <InstrumentSearchList><InstrumentOptions /></InstrumentSearchList>
+          </InstrumentSearchContent>
+          <InstrumentSearchHint />
+        </InstrumentSearch>
         <p role="status">Selected: {selected}</p>
       </div>
     </>

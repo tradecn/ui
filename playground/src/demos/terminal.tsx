@@ -43,7 +43,8 @@ import { Tooltip } from "@/components/ui/tooltip"
 import { FlashCell } from "@/registry/tradecn/ui/flash-cell"
 import { HotkeyEditor } from "@/registry/tradecn/ui/hotkey-editor"
 import { HotkeyEditorGroups } from "@/demos/hotkey-editor-groups"
-import { InstrumentSearch, toSymbolAdapter, type InstrumentHit, type InstrumentSearchFn } from "@/registry/tradecn/ui/instrument-search"
+import { InstrumentSearch, InstrumentSearchContent, InstrumentSearchInput, InstrumentSearchList, InstrumentSearchHint, toSymbolAdapter, type InstrumentHit, type InstrumentSearchFn } from "@/registry/tradecn/ui/instrument-search"
+import { InstrumentOptions } from "./instrument-search"
 import { LayoutManager, readLayoutTemplates, writeLayoutTemplates } from "@/registry/tradecn/ui/layout-manager"
 import { LinkGroupDot, PanelActions, PanelContent, PanelHeader, PanelTitle, SymbolTag } from "@/registry/tradecn/ui/panel"
 import { ParameterGrid, type ParameterDef, type ParameterRow } from "@/registry/tradecn/ui/parameter-grid"
@@ -1466,13 +1467,18 @@ function Dialogs({ dialog, setDialog, layout }: { dialog: DeskDialog | null; set
           </DialogHeader>
           <InstrumentSearch
             search={search}
-            autoFocus
             onSelect={(hit) => {
               desk.watch(hit.symbol)
               link.setSymbol(hit.symbol)
               close()
             }}
-          />
+          >
+            <InstrumentSearchContent>
+              <InstrumentSearchInput autoFocus />
+              <InstrumentSearchList><InstrumentOptions /></InstrumentSearchList>
+            </InstrumentSearchContent>
+            <InstrumentSearchHint />
+          </InstrumentSearch>
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === "layouts"} onOpenChange={onOpenChange}>
