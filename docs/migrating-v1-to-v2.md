@@ -541,6 +541,8 @@ export function OrderHistory({ store, onExport }: { store: RowStore<AuditEvent>;
 }
 ```
 
+When omitting the changes section from the side-by-side recipe, remove its two-column wrapper too so `AuditTrailGrid` fills the available width.
+
 Use the responsive layout in [Usage](audit-trail.md#usage) to stack the pane below the grid on narrow screens.
 
 Selection, default columns, time/value formatting and cumulative calculations are retained. `foldChanges`, `diffEvents`, `formatAuditValue`, `auditTrailColumns` and `DEFAULT_AUDIT_TRAIL_LABELS` remain available.

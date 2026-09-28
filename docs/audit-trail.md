@@ -178,7 +178,9 @@ Each `AuditChange` has a required `field: string` and optional `from` and `to` v
 
 The tape defaults to 22 px rows, arrival highlights, and debounced row-count announcements. It follows the tail until keyboard or pointer interaction, or scrolling away, pauses it. While paused, a pill shows any net increase in displayed row count; pressing it or scrolling back to the end resumes following.
 
-Arrow keys move focus. Space toggles the focused row's selection, Shift+Up/Down extends a range, and Escape clears selection.
+Arrow keys move focus. Home and End jump to the first and last rows; PageUp and PageDown move by a page.
+
+Space toggles the focused row's selection. Hold Shift with Up/Down, Home/End or PageUp/PageDown to add a range to the selection. Ctrl/Cmd+A selects all rows in the grid's current view, and Escape clears selection.
 
 Without a supplied view or grid sorting/filtering, rows follow the store's order, not the `at` timestamps. Use the ordered lane for a sequenced feed. Default columns disable value flashes, including when an event is corrected. The changes column shows the number of changes, or the null token when there are none.
 
