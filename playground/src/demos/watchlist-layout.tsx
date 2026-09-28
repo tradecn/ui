@@ -46,7 +46,7 @@ export default function WatchlistLayoutDemo() {
   }}>
     <aside className="grid shrink-0 content-start gap-2 sm:w-36">
       <p className="font-medium">Metals & futures</p>
-      <WatchlistAddForm className="flex-col items-stretch gap-2">
+      <WatchlistAddForm onSubmit={() => symbolInput.current?.focus()} className="flex-col items-stretch gap-2">
         <SymbolSelect ref={symbolInput} />
         <WatchlistAddButton>Add to watchlist</WatchlistAddButton>
       </WatchlistAddForm>
