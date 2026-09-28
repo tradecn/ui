@@ -372,7 +372,12 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, "aria
     const node = root.current
     return () => {
       endDrag(row.key)
-      if (node?.contains(node.ownerDocument.activeElement)) focusFallback()
+      if (node?.contains(node.ownerDocument.activeElement)) {
+        const ownerDocument = node.ownerDocument
+        queueMicrotask(() => {
+          if (!node.isConnected && ownerDocument.activeElement === ownerDocument.body) focusFallback()
+        })
+      }
     }
   }, [row.key, endDrag, focusFallback])
   return <ItemContext value={item}><div role={role} tabIndex={tabIndex} draggable aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {

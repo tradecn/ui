@@ -1,9 +1,9 @@
-import { createRef, useState } from "react"
+import { createRef, StrictMode, useState } from "react"
 import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { ColumnSettingsPanel, ColumnSettingsDialog } from "@/demos/column-chooser"
 import ColumnChooserInlineDemo from "@/demos/column-chooser-inline"
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ColumnRule } from "@/registry/tradecn/lib/grid-rules"
 import {
@@ -455,6 +455,36 @@ describe("public composition", () => {
     button.focus()
     fireEvent.click(button)
     expect(button).toHaveFocus()
+  })
+
+  it("preserves autofocus during StrictMode replay and hands off only real item removal", async () => {
+    function Items() {
+      const [shown, setShown] = useState(false)
+      return <>
+        <button type="button" onClick={() => setShown(true)}>Add draft</button>
+        {shown && <ColumnChooserItem columnKey="px"><input autoFocus aria-label="Price draft" onKeyDown={(event) => {
+          if (event.key === "Escape") setShown(false)
+        }} /></ColumnChooserItem>}
+      </>
+    }
+    render(<StrictMode>
+      <button type="button">Outside</button>
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}><ColumnChooserSearch /><Items /></ColumnChooser>
+    </StrictMode>)
+    const add = screen.getByRole("button", { name: "Add draft" })
+    fireEvent.click(add)
+    const draft = screen.getByRole("textbox", { name: "Price draft" })
+    expect(draft).toHaveFocus()
+    fireEvent.keyDown(draft, { key: "Escape" })
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Find a column" })).toHaveFocus())
+    fireEvent.click(add)
+    const next = screen.getByRole("textbox", { name: "Price draft" })
+    expect(next).toHaveFocus()
+    fireEvent.keyDown(next, { key: "Escape" })
+    const outside = screen.getByRole("button", { name: "Outside" })
+    outside.focus()
+    await Promise.resolve()
+    expect(outside).toHaveFocus()
   })
 
   it("preserves explicit installed Button sizes for all actions", () => {
