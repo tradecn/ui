@@ -8,6 +8,7 @@ import { LinkGroupDot, Panel, PanelActions, PanelContent, PanelHeader, PanelTitl
 import { Watchlist, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
 // As text, so the playground's tsconfig does not need JSON modules for one demo.
 import registryText from "../../../registry.json?raw"
+import { WatchlistAddControls, RemovableWatchlistGrid } from "../demos/watchlist"
 
 interface ThemeItem {
   name: string
@@ -69,7 +70,10 @@ function Book() {
         </PanelActions>
       </PanelHeader>
       <PanelContent className="p-2">
-        <Watchlist store={store} onAdd={(symbol) => store.applyDeltas({ upsert: [{ symbol, last: 100, change: 0, changePct: 0 }] })} onRemove={(symbols) => store.applyDeltas({ remove: symbols })} onRowActivate={(row) => link.setSymbol(row.symbol)} />
+        <Watchlist store={store} onAdd={(symbol) => store.applyDeltas({ upsert: [{ symbol, last: 100, change: 0, changePct: 0 }] })} onRemove={(symbols) => store.applyDeltas({ remove: symbols })}>
+          <WatchlistAddControls />
+          <RemovableWatchlistGrid onRowActivate={(row) => link.setSymbol(row.symbol)} />
+        </Watchlist>
       </PanelContent>
     </Panel>
   )

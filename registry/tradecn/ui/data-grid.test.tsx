@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { StrictMode } from "react"
+import { createPortal } from "react-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatPrice, parsePrice } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
@@ -641,4 +642,25 @@ describe("editing", () => {
     fireEvent.keyDown(grid, { key: "9" })
     expect(screen.queryByRole("textbox")).toBeNull()
   })
+})
+
+it("leaves portaled controls' keys out of grid navigation and activation", () => {
+  const store = createRowStore<Quote>({ getRowId: row => row.id })
+  seed(2, store)
+  const onActivate = vi.fn()
+  const onFocus = vi.fn()
+  const portalKeys = vi.fn()
+  const portalColumns: ColumnDef<Quote>[] = [...columns, {
+    key: "action", header: "Action", width: 80, accessor: () => null,
+    cell: ({ row }) => row.id === "r0" ? createPortal(<button onKeyDown={portalKeys}>Portaled action</button>, document.body) : null,
+  }]
+  render(<DataGrid store={store} columns={portalColumns} label="Quotes" initialRect={RECT} focusedRowId="r0" onFocusedRowChange={onFocus} onRowActivate={onActivate} />)
+  const button = screen.getByRole("button", { name: "Portaled action" })
+  fireEvent.keyDown(button, { key: "ArrowDown" })
+  fireEvent.keyDown(button, { key: "Enter" })
+  expect(portalKeys).toHaveBeenCalledTimes(2)
+  expect(onFocus).not.toHaveBeenCalled()
+  expect(onActivate).not.toHaveBeenCalled()
+  fireEvent.keyDown(screen.getByRole("grid"), { key: "ArrowDown" })
+  expect(onFocus).toHaveBeenCalledWith("r1")
 })

@@ -6,6 +6,7 @@ import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { FlashCell } from "@/registry/tradecn/ui/flash-cell"
 import { LinkGroupDot, Panel, PanelActions, PanelContent, PanelHeader, PanelTitle, SymbolTag } from "@/registry/tradecn/ui/panel"
 import { Watchlist, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
+import { WatchlistAddControls, RemovableWatchlistGrid } from "../watchlist"
 
 // The same components every other page shows, drawn from the theme's variables. A theme changes
 // nothing else, so this is the whole demonstration; the docs page around it wears the theme too.
@@ -53,7 +54,10 @@ function Book() {
         </PanelActions>
       </PanelHeader>
       <PanelContent className="p-2">
-        <Watchlist store={store} onAdd={(symbol) => store.applyDeltas({ upsert: [{ symbol, last: 100, change: 0, changePct: 0 }] })} onRemove={(symbols) => store.applyDeltas({ remove: symbols })} onRowActivate={(row) => link.setSymbol(row.symbol)} />
+        <Watchlist store={store} onAdd={(symbol) => store.applyDeltas({ upsert: [{ symbol, last: 100, change: 0, changePct: 0 }] })} onRemove={(symbols) => store.applyDeltas({ remove: symbols })}>
+          <WatchlistAddControls />
+          <RemovableWatchlistGrid onRowActivate={(row) => link.setSymbol(row.symbol)} />
+        </Watchlist>
       </PanelContent>
     </Panel>
   )

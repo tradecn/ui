@@ -1,13 +1,27 @@
 # Watchlist
 
-A watchlist backed by a row store, with price columns, an optional add field, and three ways to request removal.
+Composable add controls, removal actions, and a virtual price grid.
 
 ## Usage
 
 ```tsx
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import { ContextMenuSeparator } from "@/components/ui/context-menu"
 import { createRowStore } from "@/lib/row-store"
-import { Watchlist, type WatchlistRow } from "@/components/ui/watchlist"
+import { Watchlist, WatchlistGrid, WatchlistAddForm, WatchlistAddInput, WatchlistAddButton, WatchlistRemoveMenuItem, watchlistColumns, watchlistRemoveColumn, type WatchlistGridProps, type WatchlistRow } from "@/components/ui/watchlist"
+
+export function WatchlistAddControls() {
+  return <WatchlistAddForm><WatchlistAddInput /><WatchlistAddButton /></WatchlistAddForm>
+}
+
+export function RemovableWatchlistGrid<T extends WatchlistRow>({ columns, price, renderContextMenu, ...props }: WatchlistGridProps<T>) {
+  const all = useMemo(() => [...(columns ?? watchlistColumns<T>({ price })), watchlistRemoveColumn<T>()], [columns, price])
+  return <WatchlistGrid {...props} columns={all} renderContextMenu={(rows, ids) => <>
+    {renderContextMenu?.(rows, ids)}
+    {renderContextMenu && <ContextMenuSeparator />}
+    <WatchlistRemoveMenuItem ids={ids} />
+  </>} />
+}
 
 const quotes: WatchlistRow[] = [
   { symbol: "ES", last: 5012.25, bid: 5012, ask: 5012.5, change: -12.5, changePct: -0.25, volume: 980_000 },
@@ -15,7 +29,7 @@ const quotes: WatchlistRow[] = [
   { symbol: "GC", last: 2380.4, bid: 2380.3, ask: 2380.5, change: 0, changePct: 0, volume: 42_000 },
 ]
 
-function MyWatchlist() {
+export default function WatchlistDemo() {
   const [store] = useState(() => {
     const store = createRowStore<WatchlistRow>({ getRowId: (row) => row.symbol })
     store.applyDeltas({ upsert: quotes.slice(0, 2) })
@@ -29,7 +43,10 @@ function MyWatchlist() {
   return (
     <div className="w-fit max-w-full space-y-2 text-xs lining-nums tabular-nums">
       <div className="h-48">
-        <Watchlist store={store} label="Market watchlist" validate={(symbol) => quotes.some((row) => row.symbol === symbol)} onAdd={add} onRemove={(symbols) => store.applyDeltas({ remove: symbols })} onRowActivate={(row) => setActivated(row.symbol)} />
+        <Watchlist store={store} validate={(symbol) => quotes.some((row) => row.symbol === symbol)} onAdd={add} onRemove={(symbols) => store.applyDeltas({ remove: symbols })}>
+          <WatchlistAddControls />
+          <RemovableWatchlistGrid label="Market watchlist" onRowActivate={(row) => setActivated(row.symbol)} />
+        </Watchlist>
       </div>
       <p role="status" className="text-muted-foreground">{activated ? `Last activated: ${activated}.` : "Nothing activated."}</p>
     </div>
@@ -37,52 +54,117 @@ function MyWatchlist() {
 }
 ```
 
-This sample accepts ES, CL and GC. Type `gc` and press Enter to add the third quote; input is trimmed and uppercased. Adding an existing symbol selects it instead of adding another row. Unknown symbols remain in the field, marked invalid. The callbacks update this local store directly; a real application would connect them to its watch subscriptions.
+The example accepts ES, CL and GC. Add a symbol with Enter or the Add button. Select a row and press Delete, use its hover button, or choose Remove from its context menu. Activate a row with Enter or a double-click to update the caption.
 
-Select a row and press Delete or Backspace to remove it, use its hover button, or choose Remove from its context menu. Add it again to restore the fixed quote. Press Enter on a focused row or double-click it to update the activation caption. The caption records the last activation, even if that symbol is later removed. It stands in for your application's navigation or linked-symbol action.
+`WatchlistAddControls` and `RemovableWatchlistGrid` are application recipes built from the public parts. Save Usage as `watchlist.tsx` beside examples that import these recipes, outside `components/ui` so the installed component keeps its own file.
+
+## Composition
+
+Use the following composition to build a `Watchlist`:
+
+```text
+Watchlist
+├── WatchlistAddForm
+│   ├── WatchlistAddInput
+│   └── WatchlistAddButton
+├── WatchlistGrid
+│   ├── watchlistColumns
+│   ├── watchlistRemoveColumn → WatchlistRemoveButton
+│   └── renderContextMenu → WatchlistRemoveMenuItem
+└── Application content
+```
+
+Choose the controls, columns and menu content at the call site. Use `useWatchlist` for selection and commands, and `useWatchlistAdd` inside an add form to replace its input or button.
 
 ## Prices by instrument
 
-Keep a stable `price` function when a list mixes price conventions. This example prints ZN in 32nds with half-ticks and ES with two decimals. Only last, bid and ask use that function; change and percentage change retain their own signed decimal formats. No add or remove controls appear because those callbacks are omitted.
+Use a stable `price` function to print ZN in 32nds and ES in decimals. Change and percentage change keep their signed decimal formats.
 
 <!-- demo: watchlist-prices -->
 
 ## Trend column
 
-Install [sparkline](sparkline.md) alongside watchlist for this example. Keep the symbol and last columns from `watchlistColumns`, then append a custom cell. Each row supplies six fixed readings and a previous close as the baseline; Watchlist does not build that history. The last price matches the final reading. Fixed chart dimensions avoid measuring each cell, and the charts stay inert so the grid keeps its keyboard controls.
+Install [sparkline](sparkline.md) alongside watchlist, then append a custom cell to the symbol and last columns. Each row supplies fixed readings and a previous close; the inert charts preserve the grid's keyboard controls.
 
 <!-- demo: watchlist-trends -->
 
+## Custom layout
+
+Place a native select beside the grid and bulk removal below it. The select shares add and duplicate-selection behavior; GC demonstrates a missing price.
+
+<!-- demo: watchlist-layout -->
+
 ## API Reference
 
-`Watchlist<T>` uses the `watchlist` grid preset: 22 px rows, single selection, fill flashes, and no reorder hold, arrival highlight, viewport pinning, or row-count announcements. The preset is fixed; individual grid options such as `rowHeight` and `selectionMode` can override its defaults. Give the watchlist a container with a height.
+### Watchlist
 
-`T` extends `WatchlistRow` and defaults to it. `RowId` is a string. These are the watchlist's own inputs and the grid inputs it wraps:
+`Watchlist<T>` coordinates the store, selection, focus and commands. It accepts native `div` props, events, classes and a ref. `T` extends `WatchlistRow`; row ids are strings. Give its grid a container with a height.
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `store` | `RowStore<T>` | Required | Rows keyed by `symbol`. |
-| `columns` | `ColumnDef<T>[]` | `watchlistColumns({ price })` | Replace the built-in columns; removal still appends its own column when enabled. |
-| `price` | `(value: number, row: T) => string` | Two decimals | Format built-in last, bid, and ask cells. Unused when `columns` is supplied. |
-| `label` | `string` | `"Watchlist"` | Accessible name of the grid. |
-| `onAdd` | `(symbol: string) => void` | None | Receive add requests; enables the add field. |
-| `onRemove` | `(symbols: RowId[]) => void` | None | Receive removal requests; enables all three removal controls. |
-| `normalize` | `(raw: string) => string` | Trim and uppercase | Normalize add-field input before lookup and validation. |
+| `children` | `ReactNode` | Required | Controls, grid and application content, including conditional content. |
+| `onAdd` | `(symbol: string) => void` | None | Receive add requests; enables add commands. |
+| `onRemove` | `(symbols: RowId[]) => void` | None | Receive removal requests; enables removal commands and grid deletion keys. |
+| `normalize` | `(raw: string) => string` | Trim and uppercase | Normalize input before lookup and validation. |
 | `validate` | `(symbol: string) => boolean` | None | Synchronously accept or reject a new symbol. |
-| `addPlaceholder` | `string` | `"Add symbol"` | Placeholder and accessible name of the add field. |
-| `selection` | `ReadonlySet<RowId>` | Internally owned empty set | Control selected rows. |
-| `onSelectionChange` | `(selection: ReadonlySet<RowId>) => void` | None | Receive grid selection changes and duplicate-add selection requests. |
-| `focusedRowId` | `RowId \| null` | Internally owned `null` | Control the grid's focused row. |
-| `onFocusedRowChange` | `(id: RowId \| null) => void` | None | Receive grid focus changes and duplicate-add focus requests. |
-| `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Add row decoration; Watchlist merges `group/row` into its class. |
-| `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Custom menu items, followed by a separator and Remove when removal is enabled. |
-| `className` | `string` | None | Classes on the outer `data-slot="tradecn-watchlist"` wrapper. |
+| `selection` | `ReadonlySet<RowId>` | Internal empty set | Control selected rows. |
+| `onSelectionChange` | `(selection: ReadonlySet<RowId>) => void` | None | Receive grid and duplicate-add selection requests. |
+| `focusedRowId` | `RowId \| null` | Internal `null` | Control the focused row. |
+| `onFocusedRowChange` | `(id: RowId \| null) => void` | None | Receive grid and duplicate-add focus requests. |
+| `className` | `string` | None | Classes on the outer `tradecn-watchlist` container. |
 
-Other [`data-grid`](data-grid.md) inputs pass through, including sorting, column state, filtering, editing, and row activation. Selection and row focus are managed by Watchlist when omitted; when controlled, apply the corresponding callback's value. The callbacks also work with internal state. Watchlist uses the same shared files as `data-grid`.
+Apply callbacks when controlling selection or focus. With internal state, callbacks still receive changes.
+
+### WatchlistGrid
+
+`WatchlistGrid<T>` supplies the `watchlist` preset: 22 px rows, single selection, fill flashes, and no reorder hold, arrival highlight, viewport pinning or row-count announcements. Individual grid options can override preset defaults.
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `columns` | `ColumnDef<T>[]` | `watchlistColumns({ price })` | Choose columns and their order. |
+| `price` | `(value: number, row: T) => string` | Two decimals | Format default last, bid and ask cells; unused with explicit columns. |
+| `label` | `string` | `"Watchlist"` | Accessible name of the grid. |
+| `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Row decoration, merged with `group/row`. |
+| `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Complete menu content, including any removal action. |
+| `className` | `string` | None | Classes on the grid's sizing wrapper. |
+| `ref` | `Ref<HTMLDivElement>` | None | Ref to the sizing wrapper. |
+| `onKeyDown` | `(event: KeyboardEvent<HTMLDivElement>) => void` | None | Runs before removal keys; prevent the event to cancel removal. |
+
+Other [data-grid](data-grid.md) options pass through, including sorting, column state, filtering, editing and row activation. Store, preset, selection and row focus come from the Watchlist composition. Use the same row type on the root and grid when supplying custom columns.
+
+### Add controls
+
+`WatchlistAddForm` requires children and accepts native form props and a ref. Its `onSubmit` runs first and can prevent submission. Each form owns an independent draft and invalid state.
+
+`WatchlistAddInput` binds the installed Input to that draft. It accepts native input props, a ref, classes and a cancellable `onChange`; `value`, `defaultValue` and `aria-invalid` are reserved for the form. `placeholder` defaults to `"Add symbol"` and supplies the default accessible name; set `aria-label` or `aria-labelledby` when another name is needed. Omitting `onAdd` disables the input.
+
+`WatchlistAddButton` accepts the installed Button's props and ref. It defaults to a compact submit button with an outline style and `Add` text. An explicit `size` uses the installed Button’s dimensions; `className` can override either. It is disabled when adding is unavailable or the draft is blank. Supply children to change its text.
+
+### Removal controls
+
+`WatchlistRemoveButton` accepts native button props and a ref. `WatchlistRemoveMenuItem` accepts the installed ContextMenuItem's props and ref. Both require `ids: readonly RowId[]`, default their text to `Remove SYMBOL` or `Remove N`, and accept custom children. They are disabled without `onRemove` or ids. Their `onClick` runs first and can prevent removal.
+
+Add `watchlistRemoveColumn<T>()` to your columns for the ordinary hover button, and place `WatchlistRemoveMenuItem` in your menu renderer for the ordinary menu action. The Usage recipe includes both.
+
+### Hooks
+
+`useWatchlist()` shares selection, focus and commands without subscribing to the row store.
+
+| Member | Type | Purpose |
+|---|---|---|
+| `selection`, `focusedRowId` | `ReadonlySet<RowId>`, `RowId \| null` | Current selection and focus. |
+| `targets` | `readonly RowId[]` | Selection, or the focused row when selection is empty. |
+| `select`, `focus` | `(selection: ReadonlySet<RowId>) => void`, `(id: RowId \| null) => void` | Request selection or focus changes. |
+| `canAdd`, `canRemove` | `boolean` | Whether the corresponding callback exists. |
+| `add` | `(raw: string) => boolean` | Normalize, select a duplicate or request an addition; false means refused. |
+| `remove` | `(ids: readonly RowId[]) => void` | Request removal of explicit ids without editing the store. |
+
+`useWatchlistAdd()` must be inside `WatchlistAddForm`. It returns `draft`, `invalid`, `canAdd`, `canSubmit`, `setDraft(text)` and `submit()`. Custom controls supply their own labels and bind their value and invalid state to these readings. `submit()` uses the current rendered draft; use `useWatchlist().add(raw)` for a direct request.
 
 ### The list is yours
 
-`Watchlist` does not keep the list, fetch it, or decide what belongs on it. `onAdd(symbol)` and `onRemove(symbols)` say what was asked for; the rows are whatever is in the store you pass. A symbol shows up when your feed upserts it and leaves when you remove it. Leave `onAdd` out and there is no field. Leave `onRemove` out and there is no remove of any kind.
+`Watchlist` does not keep the list, fetch it, or decide what belongs on it. `onAdd(symbol)` and `onRemove(symbols)` say what was asked for; the rows are whatever is in the store you pass. A symbol shows up when your feed upserts it and leaves when you remove it. The root renders only its children. Omit optional parts to hide them; omitting a callback disables its public controls and commands.
 
 Rows are keyed by `symbol`, so create the store with `getRowId: (r) => r.symbol`.
 
@@ -111,15 +193,15 @@ Type a symbol and press Enter, or click Add. Whitespace-only input is ignored be
 
 An existing symbol is looked up in the whole store before validation. Watchlist requests selection and row focus for that symbol, clears the field, and skips `validate` and `onAdd`. Controlled selection and focus need their callbacks applied. This changes grid state; it does not move keyboard focus into the grid or scroll the row into view.
 
-For a new symbol, `validate` returning false preserves the typed text and marks the field `aria-invalid` until the text changes. Validation is synchronous. On acceptance, Watchlist calls `onAdd` and clears the field when the callback returns; it does not await a returned promise or handle its rejection. Handle asynchronous lookup and errors in the application.
+For a new symbol, `validate` returning false preserves the typed text and marks the field `aria-invalid` until the text changes or a later submission succeeds. Validation is synchronous. On acceptance, Watchlist calls `onAdd` and clears the field when the callback returns; it does not await a returned promise or handle its rejection. Handle asynchronous lookup and errors in the application.
 
 Submitting with Enter leaves focus in the input for the next symbol. Clicking Add does not explicitly restore input focus.
 
 ### Removing
 
-Delete or Backspace on the grid requests removal of the selection, or the focused row when nothing is selected. It does nothing when neither exists or the event was already prevented. Each row has a `×` that shows on hover and requests removal of only that row. All three controls call `onRemove` with symbols; none changes the store.
+Delete or Backspace on the grid requests removal of the selection, or the focused row when nothing is selected. It does nothing when neither exists or the event was already prevented. `watchlistRemoveColumn` adds a `×` that shows on hover and requests removal of only that row. All three controls call `onRemove` with symbols; none changes the store.
 
-The menu also uses the current selection, falling back to the focused row. Right-click requests focus for the targeted row and, when selection is enabled, replaces the selection if that row was not already selected. Apply these requests when controlling selection or focus; until then, the menu uses the existing values.
+The grid passes the current selection, falling back to the focused row, to your menu renderer. Right-click requests focus for the targeted row and, when selection is enabled, replaces the selection if that row was not already selected. Apply these requests when controlling selection or focus; until then, the menu uses the existing values.
 
 The `×` is out of the tab order on purpose. The grid is one tab stop with its own arrow keys, and the keyboard's way to remove is Delete. In the add field, Delete and Backspace edit text and remove nothing.
 
@@ -127,7 +209,7 @@ With custom editable columns and `onRemove`, Delete and Backspace in a cell edit
 
 ### What it costs
 
-The add field keeps its own state, so typing re-renders the field without re-rendering grid rows. `onRemove`, `renderContextMenu`, `getRowProps`, `onSelectionChange`, and `onFocusedRowChange` are read through a ref; `onAdd` stays outside the grid. These callbacks can be inline without changing the callbacks passed to memoized rows.
+The add form keeps its own state, so typing re-renders its controls without re-rendering grid rows. Selection, focus and removal callbacks use stable commands, and `getRowProps` has a stable wrapper. `renderContextMenu` runs with current props and is not passed to memoized rows. The root adds no store subscriptions or timers; the grid owns its subscriptions and cleanup.
 
 With stable grid inputs, a value update that leaves view membership and order unchanged re-renders only the affected visible row. The watchlist tests count cell renders during typing, parent renders, and a single-row update.
 

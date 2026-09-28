@@ -61,6 +61,7 @@ import { SpreadStructuresContent } from "./spread-matrix-structures"
 import { StatusBar } from "@/registry/tradecn/ui/status-bar"
 import { Watchlist, watchlistColumns, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
 import { Workspace, useWorkspacePanel, type WorkspaceApi } from "@/registry/tradecn/ui/workspace"
+import { WatchlistAddControls, RemovableWatchlistGrid } from "./watchlist"
 
 // One desk, every item. A workspace of fourteen panels over one pretend venue and one pretend server, which decide
 // every status and every allowed action the way real ones do; the components print the words and offer what
@@ -851,7 +852,10 @@ function WatchlistPanel() {
         </PanelActions>
       </PanelHeader>
       <PanelContent>
-        <Watchlist store={desk.quotes} columns={columns} className={GRID} validate={(symbol) => symbol in FUTURES} onAdd={desk.watch} onRemove={(ids) => desk.quotes.applyDeltas({ remove: ids })} onRowActivate={(row) => link.setSymbol(row.symbol)} />
+        <Watchlist store={desk.quotes} className={GRID} validate={(symbol) => symbol in FUTURES} onAdd={desk.watch} onRemove={(ids) => desk.quotes.applyDeltas({ remove: ids })}>
+          <WatchlistAddControls />
+          <RemovableWatchlistGrid columns={columns} onRowActivate={(row) => link.setSymbol(row.symbol)} />
+        </Watchlist>
       </PanelContent>
     </>
   )

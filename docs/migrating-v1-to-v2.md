@@ -424,3 +424,31 @@ Initial settings configure an owned sampler once; remount or supply a replacemen
 Each lane provider subscribes once to its store and shares rate/age calculations. Keep repeated readings under that provider, and use stable keys for lane collections. Replacing its store resets the rate to zero.
 
 Custom table layouts need native headers and labels; custom controls need accessible names. See [Custom layout](perf-monitor.md#custom-layout) for a complete example.
+
+## Watchlist
+
+`Watchlist` now requires children. Use the complete [Usage composition](watchlist.md#usage) to retain the add field and all three removal routes, or choose another layout from its public parts.
+
+| Previous interface | Replacement |
+|---|---|
+| Self-closing `<Watchlist store={store} />` | Required children, including `WatchlistGrid` for the price grid. Retained props alone still require composition. |
+| `columns`, `price`, `label`, `renderContextMenu`, `getRowProps` and other grid options on the root | Move them to `WatchlistGrid`. Keep store, add/remove callbacks, normalization, validation, selection and focus on the root. |
+| Implicit add field when `onAdd` exists | Compose `WatchlistAddForm`, `WatchlistAddInput` and `WatchlistAddButton`. Omit the form to hide it; without `onAdd`, mounted controls are disabled. |
+| `addPlaceholder` | `placeholder` on `WatchlistAddInput`; set an explicit accessible name when needed. |
+| Automatic removal column | Add `watchlistRemoveColumn()` to your columns, or place `WatchlistRemoveButton` with explicit ids elsewhere. |
+| Automatic removal menu item and separator | Compose your menu content, optional `ContextMenuSeparator`, and `WatchlistRemoveMenuItem` with the renderer's ids. |
+| Custom add or bulk controls | Use `useWatchlistAdd()` inside the form and `useWatchlist()` inside the root. |
+
+The Usage example exports `WatchlistAddControls` and `RemovableWatchlistGrid` as application recipes. Save it as `watchlist.tsx` beside consumers that import them, outside `components/ui`.
+
+Root `className` still styles the outer container. `WatchlistGrid` adds a sizing wrapper with its own classes, ref and cancellable key handler. The root slot, preset, price formatting, normalization, duplicate lookup, validation order, controlled selection/focus and callback behavior are retained.
+
+Delete and Backspace on the grid still request removal when `onRemove` exists, even without visible removal parts. They use the selection or, when empty, the focused row. Custom editable grid cells retain the existing deletion-key limitation. Preventing the key event also prevents native text deletion.
+
+The root adds no row subscriptions. Form drafts remain local, and stable grid inputs preserve per-row updates. Keep shared recipes, columns and formatters stable where they feed memoized rows.
+
+Portaled menu keys no longer change DataGrid selection, navigation or row activation. In Radix, ArrowDown inside a removal menu previously moved the underlying selection and could change the row being removed. Menu navigation now keeps its original target.
+
+A successful add-form submission now clears both its draft and invalid state. A previously refused draft can succeed without another edit when validation changes or its symbol arrives in the store.
+
+Menu renderers now use current props when enabled or replaced, including while a menu is open. The renderer is not passed to memoized rows.
