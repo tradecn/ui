@@ -215,9 +215,9 @@ export function WatchlistAddForm({ children, onSubmit, className, ...props }: Wa
   const canSubmit = canAdd && Boolean(draft.trim())
   const submit = useCallback(() => {
     if (!canSubmit) return
-    if (add(draft)) setText("")
+    if (add(draft)) setDraft("")
     else setInvalid(true)
-  }, [canSubmit, add, draft])
+  }, [canSubmit, add, draft, setDraft])
   const state = useMemo(() => ({ draft, invalid, canAdd, canSubmit, setDraft, submit }), [draft, invalid, canAdd, canSubmit, setDraft, submit])
   return <AddContext.Provider value={state}><form {...props} className={cn("flex shrink-0 items-center gap-1", className)} onSubmit={event => {
     onSubmit?.(event)

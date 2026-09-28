@@ -193,7 +193,7 @@ Type a symbol and press Enter, or click Add. Whitespace-only input is ignored be
 
 An existing symbol is looked up in the whole store before validation. Watchlist requests selection and row focus for that symbol, clears the field, and skips `validate` and `onAdd`. Controlled selection and focus need their callbacks applied. This changes grid state; it does not move keyboard focus into the grid or scroll the row into view.
 
-For a new symbol, `validate` returning false preserves the typed text and marks the field `aria-invalid` until the text changes. Validation is synchronous. On acceptance, Watchlist calls `onAdd` and clears the field when the callback returns; it does not await a returned promise or handle its rejection. Handle asynchronous lookup and errors in the application.
+For a new symbol, `validate` returning false preserves the typed text and marks the field `aria-invalid` until the text changes or a later submission succeeds. Validation is synchronous. On acceptance, Watchlist calls `onAdd` and clears the field when the callback returns; it does not await a returned promise or handle its rejection. Handle asynchronous lookup and errors in the application.
 
 Submitting with Enter leaves focus in the input for the next symbol. Clicking Add does not explicitly restore input focus.
 

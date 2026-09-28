@@ -318,6 +318,7 @@ describe("Watchlist composition", () => {
     fireEvent.submit(input.closest("form")!)
     expect(second).toHaveBeenCalledWith("GC")
     expect(input).toHaveValue("")
+    expect(input).not.toHaveAttribute("aria-invalid")
   })
 
   it("preserves normalization order, controlled duplicate requests and thrown callbacks", () => {
@@ -453,4 +454,22 @@ it("uses the latest removal callback and disables an already open menu when remo
   expect(remove).toHaveAttribute("aria-disabled", "true")
   fireEvent.click(remove)
   expect(second).toHaveBeenCalledTimes(1)
+})
+
+it("clears a rejected draft's invalid state when that symbol arrives before resubmission", () => {
+  const store = seeded()
+  const onAdd = vi.fn()
+  const validate = vi.fn(() => false)
+  render(<Harness store={store} onAdd={onAdd} validate={validate} />)
+  const input = screen.getByRole("textbox")
+  fireEvent.change(input, { target: { value: "gc" } })
+  fireEvent.submit(input.closest("form")!)
+  expect(input).toHaveAttribute("aria-invalid", "true")
+  act(() => store.applyDeltas({ upsert: [{ symbol: "GC", last: null }] }))
+  fireEvent.submit(input.closest("form")!)
+  expect(input).toHaveValue("")
+  expect(input).not.toHaveAttribute("aria-invalid")
+  expect(validate).toHaveBeenCalledTimes(1)
+  expect(onAdd).not.toHaveBeenCalled()
+  expect(rowOf("GC")).toHaveAttribute("aria-selected", "true")
 })
