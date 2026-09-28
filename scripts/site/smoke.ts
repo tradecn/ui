@@ -459,6 +459,53 @@ if (items.includes("feed-health-empty")) {
   }
 }
 
+// The copied order recipes keep a keyboard destination when server permissions remove an action.
+if (items.includes("blotter-actions") && items.includes("blotter-layout")) {
+  const page = await context.newPage()
+  watch(page, "blotter recipes")
+  try {
+    await page.goto(`${base}/${PREVIEW_PATH}/blotter-actions/`)
+    const first = page.locator('[data-row-id="O-1"]')
+    await first.getByRole("checkbox").click()
+    await page.getByRole("button", { name: "Cancel 1", exact: true }).focus()
+    await page.keyboard.press("Enter")
+    await expect(page.getByRole("toolbar", { name: "Orders" })).toBeFocused()
+    await expect(first).toContainText("Cancelled")
+    await page.getByRole("button", { name: "Restore orders" }).click()
+    await first.click({ button: "right" })
+    await page.getByRole("menuitem", { name: "Cancel", exact: true }).focus()
+    // Simulate a feed update without moving focus away from the open menu.
+    await page.getByRole("button", { name: "Finish first order", includeHidden: true }).evaluate((element: HTMLButtonElement) => element.click())
+    await expect(page.getByRole("menuitem", { name: "Nothing to do here" })).toBeVisible()
+    await expect(page.getByRole("menu")).toBeFocused()
+    await page.getByRole("button", { name: "Restore orders", includeHidden: true }).evaluate((element: HTMLButtonElement) => element.click())
+    await expect(page.getByRole("menuitem", { name: "Cancel", exact: true })).toBeFocused()
+    await page.keyboard.press("ArrowDown")
+    await expect(page.getByRole("menuitem", { name: "Amend", exact: true })).toBeFocused()
+    await page.keyboard.press("Enter")
+    await expect(page.getByRole("status").filter({ hasText: "Amend requested" })).toHaveText("Amend requested: O-1")
+    await expect(page.getByRole("menu")).toBeHidden()
+
+    await page.goto(`${base}/${PREVIEW_PATH}/blotter-layout/`)
+    await page.locator('[data-row-id="O-1"]').click()
+    const picker = page.getByRole("combobox", { name: "Order action" })
+    await picker.selectOption("amend")
+    await page.getByRole("button", { name: "Remove Amend" }).click()
+    await expect(picker).toHaveValue("cancel")
+    await page.getByRole("button", { name: "Apply action" }).focus()
+    await page.keyboard.press("Enter")
+    await expect(picker).toBeFocused()
+    await expect(page.getByRole("button", { name: "Apply action" })).toBeDisabled()
+    await page.getByRole("button", { name: "Clear orders" }).click()
+    await expect(page.locator("[data-row-id]")).toHaveCount(0)
+    console.log("ok  blotter recipes: action focus, revoked/restored menu permissions, keyboard and native picker")
+  } catch (error) {
+    failures.push(`blotter recipes: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
 // These are the copyable recipes themselves: permissions can remove the focused control after a reply.
 if (items.includes("feed-health-card") && items.includes("feed-health-actions")) {
   const page = await context.newPage()

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { Blotter, blotterColumns, type BlotterRow } from "@/registry/tradecn/ui/blotter"
+import { Blotter, BlotterGrid, blotterColumns, type BlotterRow } from "@/registry/tradecn/ui/blotter"
 
 const order: BlotterRow = { id: "O-1", time: 1, symbol: "ES", side: "buy", quantity: 4, filled: 0, status: "Working" }
 const reports = [
@@ -33,7 +33,9 @@ export default function BlotterReportsDemo() {
         <span role="status">Reports received: {step}</span>
       </div>
       <div className="h-40 w-fit max-w-full">
-        <Blotter store={store} columns={columns} selectionColumn={false} label="Order reports" />
+        <Blotter store={store}>
+          <BlotterGrid columns={columns} selectionColumn={false} label="Order reports" />
+        </Blotter>
       </div>
     </>
   )

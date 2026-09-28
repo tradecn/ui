@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { Blotter, type BlotterRow } from "@/registry/tradecn/ui/blotter"
+import { Blotter, BlotterGrid, type BlotterRow } from "@/registry/tradecn/ui/blotter"
 
 const TIME = Date.UTC(2026, 8, 23, 14, 30)
 
@@ -16,7 +16,9 @@ export default function BlotterDemo() {
 
   return (
     <div className="h-40 w-fit max-w-full">
-      <Blotter store={store} sort={{ key: "time", dir: "desc" }} />
+      <Blotter store={store}>
+        <BlotterGrid sort={{ key: "time", dir: "desc" }} />
+      </Blotter>
     </div>
   )
 }

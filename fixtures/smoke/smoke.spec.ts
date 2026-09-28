@@ -294,12 +294,14 @@ test("a blotter offers an action only for the orders the server allows, and says
   // All three, through the consumer's checkbox. One of them is filled and does not allow a cancel.
   for (const id of ["o1", "o2", "o3"]) await row(id).getByRole("checkbox").click()
   await expect(action).toHaveText("Cancel 2 of 3")
-  await action.click()
+  await action.focus()
+  await page.keyboard.press("Enter")
   await expect(row("o1")).toContainText("Cancelled")
   await expect(row("o2")).toContainText("Cancelled")
   // The filled order was left alone, and nothing allows a cancel any more.
   await expect(row("o3")).toContainText("Filled")
   await expect(action).toBeDisabled()
+  await expect(blotter.getByRole("toolbar", { name: "Orders" })).toBeFocused()
   // The menu has nothing to offer for a filled order, and says so.
   await row("o3").click({ button: "right" })
   await expect(page.getByRole("menuitem", { name: "Nothing to do here" })).toBeVisible()

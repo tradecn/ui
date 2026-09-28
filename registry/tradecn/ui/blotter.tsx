@@ -1,18 +1,14 @@
 import { cn } from "cn"
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react"
+import { createContext, memo, useCallback, useContext, useInsertionEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type KeyboardEvent, type ReactNode, type Ref } from "react"
 import { Button } from "@/components/ui/button"
-import { ContextMenuItem, ContextMenuSeparator } from "@/components/ui/context-menu"
+import { ContextMenuItem } from "@/components/ui/context-menu"
 import { NULL_TOKEN, formatPrice, formatQuantity } from "@/registry/tradecn/lib/format"
 import type { RowId, RowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, type ColumnDef, type DataGridProps } from "@/registry/tradecn/ui/data-grid"
 
-// An order blotter: the data grid with a blotter's columns, a button that starts a new order, and
-// actions on the orders you have in hand.
-//
-// Two rules hold it together. The status is the server's word: it is printed as it arrives and never
-// worked out from fills or anything else. And an action is on offer only for the orders whose
-// `allowedActions` the server put it in, checked again against the store at the moment of the click,
-// because an order can fill between the render and the press.
+// The caller owns the layout. The root coordinates selection and commands; each action scope
+// listens only to its target rows. Status and permissions belong to the server, and permissions
+// are checked again at invocation because an order can fill between the render and the press.
 
 export type BlotterSide = "buy" | "sell"
 
@@ -85,172 +81,238 @@ export function allowedRows<T extends BlotterRow>(store: RowStore<T>, ids: reado
   return { rows, ids: allowed }
 }
 
-// Wakes when any of these rows changes or leaves, and for nothing else. The grid does not re-render
-// on a delta, so whatever counts what the selection allows has to listen for itself.
-function useRowsVersion<T>(store: RowStore<T>, ids: readonly RowId[]): number {
-  const key = ids.join("\u0000")
-  const source = useMemo(() => {
-    let version = 0
-    const watched = key ? key.split("\u0000") : []
-    return {
-      subscribe(cb: () => void) {
-        const offs = watched.map((id) =>
-          store.subscribeRow(id, () => {
-            version++
-            cb()
-          }),
-        )
-        return () => offs.forEach((off) => off())
-      },
-      get: () => version,
-    }
-  }, [store, key])
-  return useSyncExternalStore(source.subscribe, source.get, source.get)
-}
-
-interface ToolbarProps<T extends BlotterRow> {
+export interface BlotterProps<T extends BlotterRow = BlotterRow> extends Omit<ComponentProps<"div">, "children"> {
   store: RowStore<T>
-  ids: readonly RowId[]
-  actions: readonly BlotterAction<T>[]
-  newLabel: string
+  children: ReactNode
   onNew?: () => void
-  onRun: (action: string) => void
-}
-
-// Its own component: a fill that changes what the selection allows re-renders these buttons and not the grid.
-function Toolbar<T extends BlotterRow>({ store, ids, actions, newLabel, onNew, onRun }: ToolbarProps<T>) {
-  useRowsVersion(store, ids)
-  return (
-    <div role="toolbar" aria-label="Orders" className="flex shrink-0 items-center gap-1">
-      {onNew && (
-        <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={onNew}>
-          {newLabel}
-        </Button>
-      )}
-      <span aria-live="polite" data-numeric="" className="ml-auto text-xs text-muted-foreground lining-nums tabular-nums">
-        {ids.length > 0 ? `${ids.length} selected` : ""}
-      </span>
-      {actions.map((action) => {
-        const allowed = allowedRows(store, ids, action.id).ids.length
-        return (
-          <Button key={action.id} type="button" variant={action.destructive ? "destructive" : "outline"} size="sm" className="h-6 px-2 text-xs" disabled={allowed === 0} data-action={action.id} onClick={() => onRun(action.id)}>
-            {allowed === 0 ? action.label : allowed === ids.length ? `${action.label} ${allowed}` : `${action.label} ${allowed} of ${ids.length}`}
-          </Button>
-        )
-      })}
-    </div>
-  )
-}
-
-export interface BlotterProps<T extends BlotterRow = BlotterRow> extends Omit<DataGridProps<T>, "columns" | "preset" | "label" | "renderContextMenu">, BlotterColumnOptions<T> {
-  /** `blotterColumns()` by default. */
-  columns?: ColumnDef<T>[]
-  label?: string
-  /** Start a new order: open your ticket. Leave it out and there is no button. */
-  onNew?: () => void
-  newLabel?: string
-  /** What can be done to orders. Each shows in the toolbar and the right-click menu, for the orders that allow it. */
+  /** Available commands. Callers choose which controls and menu items to render. */
   actions?: readonly BlotterAction<T>[]
-  /** The action Delete and Backspace run on the grid. None by default: a key that cancels orders is yours to turn on. */
-  deleteAction?: string
-  /** Your items for the right-click menu. The actions go under them. */
-  renderContextMenu?: (rows: T[], ids: RowId[]) => ReactNode
+  selection?: ReadonlySet<RowId>
+  onSelectionChange?: (selection: ReadonlySet<RowId>) => void
+  focusedRowId?: RowId | null
+  onFocusedRowChange?: (id: RowId | null) => void
+}
+
+export interface BlotterState {
+  selection: ReadonlySet<RowId>
+  focusedRowId: RowId | null
+  /** Selection, or the focused row when nothing is selected. */
+  targets: readonly RowId[]
+  select: (selection: ReadonlySet<RowId>) => void
+  focus: (id: RowId | null) => void
+}
+
+export interface BlotterCommands {
+  canNew: boolean
+  newOrder: () => void
+  /** Rechecks the current definition and store permissions before calling the action. */
+  run: (action: string, ids: readonly RowId[]) => void
+}
+
+export interface BlotterActionState {
+  id: string
+  label: string
+  destructive?: boolean
+  readonly allowedIds: readonly RowId[]
+}
+
+export interface BlotterActionsState {
+  readonly ids: readonly RowId[]
+  readonly actions: readonly BlotterActionState[]
+  run: (action: string) => void
 }
 
 const NO_ACTIONS: readonly BlotterAction<never>[] = []
+const StoreContext = createContext<RowStore<BlotterRow> | null>(null)
+const StateContext = createContext<BlotterState | null>(null)
+const CommandsContext = createContext<BlotterCommands | null>(null)
+const DefinitionsContext = createContext<readonly Pick<BlotterAction, "id" | "label" | "destructive">[] | null>(null)
+const ActionsContext = createContext<BlotterActionsState | null>(null)
 
-export function Blotter<T extends BlotterRow = BlotterRow>({ columns, price, time, label = "Blotter", onNew, newLabel = "New order", actions = NO_ACTIONS as readonly BlotterAction<T>[], deleteAction, renderContextMenu, className, store, selection: selectionProp, onSelectionChange, focusedRowId: focusedProp, onFocusedRowChange, selectionColumn = true, ...grid }: BlotterProps<T>) {
+function useSelection() {
+  const state = useContext(StateContext)
+  if (!state) throw new Error("Blotter parts must be inside Blotter.")
+  return state
+}
+
+function useCommands() {
+  const commands = useContext(CommandsContext)
+  if (!commands) throw new Error("Blotter parts must be inside Blotter.")
+  return commands
+}
+
+/** Selection and commands, without a store subscription. */
+export function useBlotter(): BlotterState & BlotterCommands {
+  const state = useSelection()
+  const commands = useCommands()
+  return useMemo(() => ({ ...state, ...commands }), [state, commands])
+}
+
+export function Blotter<T extends BlotterRow = BlotterRow>({ store, children, onNew, actions = NO_ACTIONS as readonly BlotterAction<T>[], selection: selectionProp, onSelectionChange, focusedRowId: focusedProp, onFocusedRowChange, className, ...props }: BlotterProps<T>) {
   const [ownSelection, setOwnSelection] = useState<ReadonlySet<RowId>>(() => new Set())
   const [ownFocused, setOwnFocused] = useState<RowId | null>(null)
   const selection = selectionProp ?? ownSelection
-  const focused = focusedProp !== undefined ? focusedProp : ownFocused
-
-  // The grid's rows are memoized, so what it is handed has to keep its identity from one render of
-  // this component to the next. Your callbacks are read through a ref, and may be inline.
-  const latest = useRef({ actions, renderContextMenu, onSelectionChange, onFocusedRowChange })
-  useEffect(() => {
-    latest.current = { actions, renderContextMenu, onSelectionChange, onFocusedRowChange }
-  })
+  const focusedRowId = focusedProp !== undefined ? focusedProp : ownFocused
+  const latest = useRef({ actions, onNew, onSelectionChange, onFocusedRowChange })
+  // Publish committed callbacks before descendants can invoke commands from layout effects.
+  useInsertionEffect(() => { latest.current = { actions, onNew, onSelectionChange, onFocusedRowChange } })
   const selectionControlled = selectionProp !== undefined
   const focusControlled = focusedProp !== undefined
-  const select = useCallback(
-    (next: ReadonlySet<RowId>) => {
-      if (!selectionControlled) setOwnSelection(next)
-      latest.current.onSelectionChange?.(next)
-    },
-    [selectionControlled],
-  )
-  const focus = useCallback(
-    (next: RowId | null) => {
-      if (!focusControlled) setOwnFocused(next)
-      latest.current.onFocusedRowChange?.(next)
-    },
-    [focusControlled],
-  )
+  const select = useCallback((next: ReadonlySet<RowId>) => {
+    if (!selectionControlled) setOwnSelection(next)
+    latest.current.onSelectionChange?.(next)
+  }, [selectionControlled])
+  const focus = useCallback((next: RowId | null) => {
+    if (!focusControlled) setOwnFocused(next)
+    latest.current.onFocusedRowChange?.(next)
+  }, [focusControlled])
+  const newOrder = useCallback(() => { latest.current.onNew?.() }, [])
+  const run = useCallback((actionId: string, ids: readonly RowId[]) => {
+    const action = latest.current.actions.find(action => action.id === actionId)
+    if (!action) return
+    const allowed = allowedRows(store, ids, actionId)
+    if (allowed.ids.length) action.run(allowed.rows, allowed.ids)
+  }, [store])
+  const canNew = Boolean(onNew)
+  const commands = useMemo(() => ({ canNew, newOrder, run }), [canNew, newOrder, run])
+  const state = useMemo(() => ({ selection, focusedRowId, targets: selection.size ? [...selection] : focusedRowId !== null ? [focusedRowId] : [], select, focus }), [selection, focusedRowId, select, focus])
+  // The grid restores its row type at this boundary; public hooks expose no unchecked row handlers.
+  return <StoreContext.Provider value={store as RowStore<BlotterRow>}><CommandsContext.Provider value={commands}><DefinitionsContext.Provider value={actions}><StateContext.Provider value={state}>
+    <div {...props} data-slot="tradecn-blotter" className={cn("flex h-full min-h-0 min-w-0 flex-col gap-1 lining-nums tabular-nums", className)}>{children}</div>
+  </StateContext.Provider></DefinitionsContext.Provider></CommandsContext.Provider></StoreContext.Provider>
+}
 
-  // The orders in hand: the selection, or the focused row when nothing is selected.
-  const inHand = useMemo<readonly RowId[]>(() => (selection.size ? [...selection] : focused !== null ? [focused] : []), [selection, focused])
+export interface BlotterGridProps<T extends BlotterRow = BlotterRow> extends Omit<DataGridProps<T>, "store" | "preset" | "columns" | "label" | "selection" | "onSelectionChange" | "focusedRowId" | "onFocusedRowChange">, BlotterColumnOptions<T> {
+  columns?: ColumnDef<T>[]
+  label?: string
+  /** Opt in to Delete and Backspace dispatching this action inside the grid. */
+  deleteAction?: string
+  /** Ref and key handler on the grid's sizing wrapper. */
+  ref?: Ref<HTMLDivElement>
+  onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void
+}
 
-  const run = useCallback(
-    (actionId: string, ids: readonly RowId[]) => {
-      const action = latest.current.actions.find((a) => a.id === actionId)
-      if (!action) return
-      // Asked of the store now, not of what was on screen when the button was drawn.
-      const allowed = allowedRows(store, ids, actionId)
-      if (allowed.ids.length) action.run(allowed.rows, allowed.ids)
-    },
-    [store],
-  )
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (!deleteAction || event.defaultPrevented || (event.key !== "Delete" && event.key !== "Backspace")) return
-    if (!(event.target as Element).closest?.('[role="grid"]') || !inHand.length) return
-    event.preventDefault()
-    run(deleteAction, inHand)
-  }
-
+export function BlotterGrid<T extends BlotterRow = BlotterRow>({ columns, price, time, label = "Blotter", selectionColumn = true, deleteAction, className, ref, onKeyDown, ...grid }: BlotterGridProps<T>) {
+  const source = useContext(StoreContext)
+  if (!source) throw new Error("BlotterGrid must be inside Blotter.")
+  const store = source as RowStore<T>
+  const { selection, focusedRowId, targets, select, focus } = useSelection()
+  const { run } = useCommands()
   const all = useMemo(() => columns ?? blotterColumns<T>({ price, time }), [columns, price, time])
-  const actionKey = actions.map((a) => `${a.id}\u0000${a.label}`).join("\u0001")
-  const hasOwnMenu = Boolean(renderContextMenu)
-  const menu = useCallback(
-    (rows: T[], ids: RowId[]) => {
-      const offered = latest.current.actions.map((action) => ({ action, allowed: allowedRows(store, ids, action.id).ids.length })).filter((o) => o.allowed > 0)
-      return (
-        <>
-          {latest.current.renderContextMenu?.(rows, ids)}
-          {hasOwnMenu && offered.length > 0 && <ContextMenuSeparator />}
-          {offered.map(({ action, allowed }) => (
-            <ContextMenuItem key={action.id} onClick={() => run(action.id, ids)}>
-              {allowed === ids.length ? (ids.length > 1 ? `${action.label} ${allowed}` : action.label) : `${action.label} ${allowed} of ${ids.length}`}
-            </ContextMenuItem>
-          ))}
-          {!hasOwnMenu && offered.length === 0 && <ContextMenuItem disabled>Nothing to do here</ContextMenuItem>}
-        </>
-      )
-    },
-    // The labels are in the key, so a relabeled action rebuilds the menu.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [store, run, hasOwnMenu, actionKey],
-  )
+  function keyDown(event: KeyboardEvent<HTMLDivElement>) {
+    onKeyDown?.(event)
+    if (!deleteAction || event.defaultPrevented || (event.key !== "Delete" && event.key !== "Backspace")) return
+    if (!event.currentTarget.contains(event.target as Node) || !(event.target as Element).closest?.('[role="grid"]') || !targets.length) return
+    event.preventDefault()
+    run(deleteAction, targets)
+  }
+  return <div ref={ref} onKeyDown={keyDown} data-slot="tradecn-blotter-grid" className={cn("h-full min-h-0 min-w-0 flex-1", className)}>
+    <DataGrid<T> {...grid} store={store} preset="blotter" label={label} columns={all} selectionColumn={selectionColumn} selection={selection} onSelectionChange={select} focusedRowId={focusedRowId} onFocusedRowChange={focus} />
+  </div>
+}
 
-  return (
-    <div data-slot="tradecn-blotter" onKeyDown={onKeyDown} className={cn("flex h-full min-h-0 flex-col gap-1 lining-nums tabular-nums", className)}>
-      {(onNew || actions.length > 0) && <Toolbar store={store} ids={inHand} actions={actions} newLabel={newLabel} onNew={onNew} onRun={(id) => run(id, inHand)} />}
-      <div className="min-h-0 flex-1">
-        <DataGrid<T>
-          {...grid}
-          store={store}
-          preset="blotter"
-          label={label}
-          columns={all}
-          selectionColumn={selectionColumn}
-          selection={selection}
-          onSelectionChange={select}
-          focusedRowId={focused}
-          onFocusedRowChange={focus}
-          renderContextMenu={actions.length > 0 || hasOwnMenu ? menu : undefined}
-        />
-      </div>
-    </div>
-  )
+export interface BlotterActionScopeProps {
+  children: ReactNode
+  /** Omit to use root selection/focus. Explicit ids can target a row or a context menu. */
+  ids?: readonly RowId[]
+}
+
+/** Shares one row subscription set across any number of controls, without adding markup. */
+export function BlotterActionScope({ ids, children }: BlotterActionScopeProps) {
+  const { targets } = useSelection()
+  return <ActionsForIds ids={ids ?? targets}>{children}</ActionsForIds>
+}
+
+function actionRowsSource(store: RowStore<BlotterRow>, key: string) {
+  const watched: RowId[] = JSON.parse(key)
+  let version = -1
+  let rows: (BlotterRow | undefined)[] = []
+  return {
+    ids: watched,
+    subscribe(cb: () => void) {
+      const offs = [...new Set(watched)].map(id => store.subscribeRow(id, cb))
+      return () => offs.forEach(off => off())
+    },
+    get() {
+      // Cache scans within a batch, but keep the snapshot stable when only unrelated rows change.
+      // Reading current rows also closes the gap between rendering and subscribing.
+      const nextVersion = store.getMeta().version
+      if (nextVersion !== version) {
+        const next = watched.map(id => store.getRow(id))
+        if (next.length !== rows.length || next.some((row, index) => row !== rows[index])) rows = next
+        version = nextVersion
+      }
+      return rows
+    },
+  }
+}
+
+const ActionsForIds = memo(function ActionsForIds({ ids, children }: { ids: readonly RowId[]; children: ReactNode }) {
+  const store = useContext(StoreContext)
+  const definitions = useContext(DefinitionsContext)
+  const commands = useCommands()
+  if (!store || !definitions) throw new Error("BlotterActionScope must be inside Blotter.")
+  // A lossless key avoids resubscribing to equal arrays, including empty and delimiter-bearing ids.
+  const key = JSON.stringify(ids)
+  const source = useMemo(() => actionRowsSource(store, key), [store, key])
+  const rows = useSyncExternalStore(source.subscribe, source.get, source.get)
+  const run = useCallback((action: string) => commands.run(action, source.ids), [commands, source])
+  const actions = useMemo(() => definitions.map(({ id, label, destructive }) => ({ id, label, destructive, allowedIds: source.ids.filter((_, index) => rows[index]?.allowedActions?.includes(id)) })), [definitions, source, rows])
+  const state = useMemo(() => ({ ids: source.ids, actions, run }), [source, actions, run])
+  return <ActionsContext.Provider value={state}>{children}</ActionsContext.Provider>
+})
+
+/** Live permission readings and checked dispatch from the nearest action scope. */
+export function useBlotterActions(): BlotterActionsState {
+  const state = useContext(ActionsContext)
+  if (!state) throw new Error("Blotter action controls must be inside BlotterActionScope.")
+  return state
+}
+
+export function BlotterNewButton({ children = "New order", disabled, onClick, size, className, ...props }: ComponentProps<typeof Button>) {
+  const { canNew, newOrder } = useCommands()
+  return <Button type="button" variant="outline" size={size === undefined ? "sm" : size} {...props} className={cn(size === undefined && "h-6 px-2 text-xs", className)} disabled={disabled || !canNew} onClick={event => {
+    onClick?.(event)
+    if (!event.defaultPrevented && !disabled && canNew) newOrder()
+  }}>{children}</Button>
+}
+
+/** The root target count, including the focused-row fallback, regardless of any enclosing scope. */
+export function BlotterSelection({ children, className, ...props }: ComponentProps<"span">) {
+  const { targets } = useSelection()
+  return <span aria-live="polite" data-numeric="" {...props} className={cn("ml-auto text-xs text-muted-foreground lining-nums tabular-nums", className)}>{children === undefined ? (targets.length ? `${targets.length} selected` : "") : children}</span>
+}
+
+function actionLabel(action: BlotterActionState | undefined, id: string, count: number, menu = false) {
+  const label = action?.label ?? id
+  const allowed = action?.allowedIds.length ?? 0
+  return allowed === 0 || (menu && count === 1) ? label : allowed === count ? `${label} ${allowed}` : `${label} ${allowed} of ${count}`
+}
+
+export interface BlotterActionButtonProps extends ComponentProps<typeof Button> {
+  action: string
+}
+
+export function BlotterActionButton({ action: id, children, disabled, onClick, size, className, ...props }: BlotterActionButtonProps) {
+  const { ids, actions, run } = useBlotterActions()
+  const action = actions.find(action => action.id === id)
+  const allowed = Boolean(action?.allowedIds.length)
+  return <Button type="button" variant={action?.destructive ? "destructive" : "outline"} size={size === undefined ? "sm" : size} data-action={id} {...props} className={cn(size === undefined && "h-6 px-2 text-xs", className)} disabled={disabled || !allowed} onClick={event => {
+    onClick?.(event)
+    if (!event.defaultPrevented && !disabled && allowed) run(id)
+  }}>{children === undefined ? actionLabel(action, id, ids.length) : children}</Button>
+}
+
+export interface BlotterActionMenuItemProps extends ComponentProps<typeof ContextMenuItem> {
+  action: string
+}
+
+export function BlotterActionMenuItem({ action: id, children, disabled, onClick, ...props }: BlotterActionMenuItemProps) {
+  const { ids, actions, run } = useBlotterActions()
+  const action = actions.find(action => action.id === id)
+  const allowed = Boolean(action?.allowedIds.length)
+  return <ContextMenuItem data-action={id} {...props} disabled={disabled || !allowed} onClick={event => {
+    onClick?.(event)
+    if (!event.defaultPrevented && !disabled && allowed) run(id)
+  }}>{children === undefined ? actionLabel(action, id, ids.length, true) : children}</ContextMenuItem>
 }

@@ -48,6 +48,7 @@
     "column-chooser",
     "blotter",
     "blotter-actions",
+    "blotter-layout",
     "blotter-reports",
     "perf-monitor-load",
     "rules-editor",

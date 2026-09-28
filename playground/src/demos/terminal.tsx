@@ -29,7 +29,8 @@ import { WINDOW_SET_SLOT, mainWindow, readWindowSet, windowSetOf, writeWindowSet
 import type { WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
 import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertActionButton, AlertDismiss, AlertHistory, useAlert, useAlertView } from "@/registry/tradecn/ui/alerts"
 import { AuditTrail, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
-import { Blotter, blotterColumns, type BlotterAction, type BlotterRow } from "@/registry/tradecn/ui/blotter"
+import { Blotter, BlotterActionScope, BlotterGrid, blotterColumns, type BlotterAction, type BlotterRow } from "@/registry/tradecn/ui/blotter"
+import { OrderMenu, OrderToolbar } from "./blotter-actions"
 import { ColumnChooser } from "@/registry/tradecn/ui/column-chooser"
 import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, createActionRegistry, type ActionRegistry, type PaletteAction } from "@/registry/tradecn/ui/command-palette"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
@@ -1063,7 +1064,10 @@ function BlotterPanel() {
       </PanelHeader>
       <ColumnChooser open={chooser} onOpenChange={setChooser} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} />
       <PanelContent>
-        <Blotter store={desk.orders} columns={columns} className={GRID} sort={BY_TIME} actions={actions} deleteAction="cancel" columnState={columnState} onColumnStateChange={setColumnState} onNew={() => desk.api()?.focusPanel("order-1")} />
+        <Blotter store={desk.orders} className={GRID} actions={actions} onNew={() => desk.api()?.focusPanel("order-1")}>
+          <OrderToolbar />
+          <BlotterGrid columns={columns} sort={BY_TIME} deleteAction="cancel" columnState={columnState} onColumnStateChange={setColumnState} renderContextMenu={(_, ids) => <BlotterActionScope ids={ids}><OrderMenu /></BlotterActionScope>} />
+        </Blotter>
       </PanelContent>
     </>
   )

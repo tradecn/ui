@@ -452,3 +452,30 @@ Portaled menu keys no longer change DataGrid selection, navigation or row activa
 A successful add-form submission now clears both its draft and invalid state. A previously refused draft can succeed without another edit when validation changes or its symbol arrives in the store.
 
 Menu renderers now use current props when enabled or replaced, including while a menu is open. The renderer is not passed to memoized rows.
+
+## Blotter
+
+`Blotter` now requires children. Replace a self-closing call with `<Blotter store={store}><BlotterGrid /></Blotter>` and add the controls your layout needs. The complete [Usage example](blotter.md#usage) preserves the ordinary grid. [Permission-filtered actions](blotter.md#permission-filtered-actions) supplies the toolbar and menu recipes.
+
+| Previous interface | Replacement |
+|---|---|
+| Root grid inputs, including `columns`, `price`, `time`, `label`, `sort`, `selectionColumn` and `deleteAction` | Move them to `BlotterGrid`. Its preset, default checkbox column and default `Blotter` accessible name remain unchanged. |
+| `store`, `actions`, `onNew`, selection/focus and their callbacks | Keep them on `Blotter`. They coordinate behavior without generating controls. |
+| Automatic New button | Compose `BlotterNewButton` when `useBlotter().canNew` is true to preserve the former conditional visibility. Its default text is `New order`. |
+| `newLabel` | Supply children to `BlotterNewButton`, or the shared `OrderToolbar` recipe's `newLabel`. |
+| Automatic selected-count reading | Compose `BlotterSelection` for the same polite root-target count, including focused-row fallback. |
+| Automatic action buttons | Use one `BlotterActionScope` around mapped `BlotterActionButton` controls, or copy `OrderToolbar`. |
+| Automatic permission-filtered menu and custom-items separator | Pass `renderContextMenu` to `BlotterGrid`. Wrap its ids in `BlotterActionScope` and compose `BlotterActionMenuItem`, or copy `OrderMenu`. Put custom content inside `OrderMenu`. Pass `hasCustom` when the custom renderer can return `null`. |
+| Root `className` | Still styles the outer container. `BlotterGrid.className` styles its sizing wrapper. Give a separate wrapper a height when relocating the grid. |
+
+Save the complete actions example as `blotter-actions.tsx` beside consumers that import `OrderToolbar` and `OrderMenu`, outside `components/ui`.
+
+These application recipes preserve the former button counts, destructive button styling, menu counts and empty fallback. They also retain a useful focus destination when live permissions disable or remove an active action.
+
+`BlotterAction`, `BlotterRow`, `BlotterSide`, `BlotterColumnOptions`, `blotterColumns` and `allowedRows` remain available. Order status and action permissions still come from the server. Commands recheck current permissions before invoking handlers.
+
+Delete and Backspace remain opt-in, and request pending/error handling remains application-owned.
+
+The shared scope fixes stale permission readings for empty or NUL-containing ids and for updates between rendering and subscription. It subscribes once per distinct target id, cleans up when targets change, and leaves unrelated rows alone.
+
+See [Custom layout](blotter.md#custom-layout) for a native picker using the same readings and dispatch.
