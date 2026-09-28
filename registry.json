@@ -1582,6 +1582,14 @@
           {
             "title": "PerfMonitorLaneValue",
             "description": "A lane reading in a native span."
+          },
+          {
+            "title": "usePerfReport",
+            "description": "Reads the shared frame report without another subscription."
+          },
+          {
+            "title": "usePerfLane",
+            "description": "Reads the shared lane metadata, rate, and age."
           }
         ]
       },

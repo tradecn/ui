@@ -413,7 +413,9 @@ Flashes stay on the cell and clean up on unmount. Components add no order action
 | Private lane rows | Copy `LaneReadings` from [Measuring a grid](perf-monitor.md#measuring-a-grid), including its stated prerequisites. Preserve coalesced drops versus ordered sequence/gap, rate, and age where needed. |
 | `data-perf`, `data-perf-readout`, `data-perf-lane`, `data-lane`, `data-perf-dropped`, `data-perf-seq` | Add these application selectors to your composition. The supplied recipes retain them. |
 
-Keep `sampler`, `budgetMs`, `window`, `refreshMs`, `onReport`, `label`, and `className` on the root. Defaults remain a 600-gap window, 250ms reports, a `1000 / 60` budget, and the accessible name “Frame health.” Root slot/frame/drop attributes and histogram marks are retained. `label` remains authoritative; use it instead of native ARIA naming props.
+Keep `sampler`, `budgetMs`, `window`, `refreshMs`, `onReport`, `label`, and `className` on the root. Defaults remain a 600-gap window, 250ms reports, a `1000 / 60` budget, and the accessible name “Frame health.”
+
+Root slot/frame/drop attributes and histogram marks are retained. The root remains a group; `role` cannot be overridden. `label` remains authoritative; use it instead of native ARIA naming props.
 
 Mount one root for presentations sharing a sampler lifetime. It starts the selected sampler, stops it on replacement or unmount, and retains the initial sampler as its fallback.
 

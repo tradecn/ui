@@ -24,8 +24,9 @@ export interface MetaSource {
   subscribeMeta(cb: () => void): () => void
 }
 
-export interface PerfMonitorProps extends Omit<ComponentProps<"div">, "children" | "aria-label" | "aria-labelledby"> {
+export interface PerfMonitorProps extends Omit<ComponentProps<"div">, "children" | "role" | "aria-label" | "aria-labelledby"> {
   children: ReactNode
+  role?: never
   "aria-label"?: never
   "aria-labelledby"?: never
   /** Histogram marker and initial budget for an internally created sampler. Default 1000/60. */

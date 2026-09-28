@@ -139,13 +139,15 @@ describe("PerfMonitor composition", () => {
     const named = <PerfMonitor aria-label="Other"><FrameReadings /></PerfMonitor>
     // @ts-expect-error aria-labelledby cannot replace label either.
     const referenced = <PerfMonitor aria-labelledby="other"><FrameReadings /></PerfMonitor>
+    // @ts-expect-error The root's group semantics cannot be replaced.
+    const role = <PerfMonitor role="status"><FrameReadings /></PerfMonitor>
     // @ts-expect-error Lane composition is required.
     const emptyLane = <PerfMonitorLane store={store} />
     const show = store.getIds().length > 0
     const conditional = <PerfMonitor>{show && <FrameReadings />}</PerfMonitor>
     const empty = <PerfMonitor>{null}</PerfMonitor>
     const lane = <PerfMonitorLane store={store}>{show && <LaneReadings label="Quotes" />}</PerfMonitorLane>
-    expect([minimal, retained, compact, lanes, readouts, named, referenced, emptyLane, conditional, empty, lane]).toHaveLength(11)
+    expect([minimal, retained, compact, lanes, readouts, named, referenced, role, emptyLane, conditional, empty, lane]).toHaveLength(12)
   })
 
   it("shares one subscription and sampler while keeping static content and other lanes asleep", () => {
@@ -371,9 +373,9 @@ describe("PerfMonitor composition", () => {
     expect(screen.getByRole("button")).toHaveFocus()
   })
 
-  it("keeps the group name authoritative for untyped callers", () => {
+  it("keeps the group role and name authoritative for untyped callers", () => {
     const overrides = { "aria-label": "Wrong", "aria-labelledby": "wrong", role: "status" }
-    // @ts-expect-error Exercise an untyped caller overriding the reserved naming props.
+    // @ts-expect-error Exercise an untyped caller overriding the reserved role and naming props.
     render(<PerfMonitor {...overrides} label="Frames"><span id="wrong">Other</span></PerfMonitor>)
     expect(screen.getByRole("group", { name: "Frames" })).not.toHaveAttribute("aria-labelledby")
     expect(screen.queryByRole("status")).toBeNull()

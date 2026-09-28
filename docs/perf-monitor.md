@@ -72,7 +72,7 @@ Compose native tables, reorder lane readings, and place a reset control beside t
 
 ### Props
 
-`PerfMonitor` accepts native `div` props and a ref, with `label` owning the accessible name. The root always uses `role="group"`.
+`PerfMonitor` accepts native `div` props and a ref, except `role`, `aria-label`, and `aria-labelledby`. The root always uses `role="group"`, with `label` owning the accessible name.
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
