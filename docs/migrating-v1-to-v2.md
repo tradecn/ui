@@ -455,7 +455,9 @@ Menu renderers now use current props when enabled or replaced, including while a
 
 ## Blotter
 
-`Blotter` now requires children. Replace a self-closing call with `<Blotter store={store}><BlotterGrid /></Blotter>` and add the controls your layout needs. The complete [Usage example](blotter.md#usage) preserves the ordinary grid. [Permission-filtered actions](blotter.md#permission-filtered-actions) supplies the toolbar and menu recipes.
+`Blotter` now requires children. Replace a self-closing call with `<Blotter store={store}><BlotterGrid /></Blotter>` and add the controls your layout needs.
+
+The complete [Usage example](blotter.md#usage) preserves the ordinary grid. [Permission-filtered actions](blotter.md#permission-filtered-actions) supplies the toolbar and menu recipes.
 
 | Previous interface | Replacement |
 |---|---|
@@ -470,9 +472,13 @@ Menu renderers now use current props when enabled or replaced, including while a
 
 The root no longer creates a toolbar when `onNew` or actions are supplied. To retain v1 visibility, render `OrderToolbar` only when `onNew` exists or `actions.length` is nonzero.
 
+To retain v1 menu visibility, pass `undefined` for `renderContextMenu` when actions are empty and no custom renderer exists. Supplying a renderer enables the grid menu even when it returns no items.
+
 Save the complete actions example as `blotter-actions.tsx` beside consumers that import `OrderToolbar` and `OrderMenu`, outside `components/ui`.
 
-These application recipes preserve the former button counts, destructive button styling, menu counts and empty fallback. Available buttons retain focus after activation. Unavailable actions recover to a visible toolbar or menu focus target.
+These application recipes preserve the former button counts, destructive button styling, menu counts and empty fallback.
+
+Available buttons retain focus after activation. Unavailable toolbar buttons return focus to the toolbar. A revoked menu item keeps focus with a visible ring; Enter stays inert until that same action is restored or you navigate elsewhere.
 
 An open `OrderMenu` retains its offered action positions and disables revoked items. Reopen it to see newly permitted actions. The custom picker clears a removed choice and requires reselection before submission.
 

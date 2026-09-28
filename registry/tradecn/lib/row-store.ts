@@ -36,7 +36,7 @@ export interface DeltaBatch<T> {
 }
 
 export interface StoreMeta {
-  /** Increments once per applied batch. */
+  /** Increments per batch or clear, before any subscriber is notified. */
   version: number
   size: number
   lane: Lane
@@ -75,6 +75,7 @@ export interface RowView<T> {
   isDisposed(): boolean
 }
 
+/** Publish current row, order and metadata snapshots before notifying any subscriber. */
 export interface RowStore<T> {
   /** Stable object reference until the row is replaced or patched. */
   getRow(id: RowId): T | undefined

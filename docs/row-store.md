@@ -102,6 +102,8 @@ For a manually created view, call `view.dispose()` when finished. `view.isDispos
 
 `useStoreMeta(store)` returns a new snapshot for each batch, including empty batches, and for `clear()`. Producer fields omitted from `applyDeltas` metadata retain their previous values.
 
+`applyDeltas` and `clear` publish current row, order and metadata snapshots, including the advanced version, before notifying any subscriber. Custom `RowStore` implementations must preserve this ordering so subscribers can read a consistent batch.
+
 | Field | Type | Initial value | Meaning |
 |---|---|---|---|
 | `version` | `number` | `0` | Increments per batch or `clear()`. |

@@ -6,7 +6,7 @@ import { Blotter, BlotterActionButton, BlotterActionMenuItem, BlotterActionScope
 const unavailable = (node: HTMLElement) => !node.isConnected || node.matches(':disabled, [aria-disabled="true"], [data-disabled]')
 
 // Recover only while an action owns focus; an ordinary blur releases that ownership.
-export function useOrderActionFocus<T extends HTMLElement = HTMLDivElement>(focusFallback?: (container: T) => void) {
+export function useOrderActionFocus<T extends HTMLElement = HTMLDivElement>(focusFallback?: (container: T, action: HTMLElement) => void) {
   const ref = useRef<T>(null)
   const focused = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
@@ -15,11 +15,11 @@ export function useOrderActionFocus<T extends HTMLElement = HTMLDivElement>(focu
     if (document.activeElement === node || document.activeElement === document.body) {
       const target = ref.current
       if (target) {
-        if (focusFallback) focusFallback(target)
+        if (focusFallback) focusFallback(target, node)
         else target.focus()
       }
     }
-    focused.current = null
+    focused.current = document.activeElement === node ? node : null
   })
   return {
     ref,
@@ -54,22 +54,15 @@ export function OrderMenu({ children, hasCustom = children !== undefined }: { ch
   const [menu, setMenu] = useState(() => ({ key, items: offered() }))
   // Keep open-menu positions stable under the pointer; live parts disable revoked commands.
   if (menu.key !== key) setMenu({ key, items: offered() })
-  const recovering = useRef(false)
-  const focus = useOrderActionFocus(container => {
-    recovering.current = true
-    container.closest<HTMLElement>('[role="menu"]')?.focus()
+  const focus = useOrderActionFocus((container, action) => {
+    // Keep the revoked command inert under the keyboard, just as it stays under the pointer.
+    if (action.isConnected) action.focus()
+    else container.closest<HTMLElement>('[role="menu"]')?.focus()
   })
-  useLayoutEffect(() => {
-    if (!recovering.current) return
-    const menu = focus.ref.current?.closest<HTMLElement>('[role="menu"]')
-    if (document.activeElement !== menu) { recovering.current = false; return }
-    const item = menu?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"]):not([data-disabled])')
-    if (item) { recovering.current = false; item.focus() }
-  })
-  return <div {...focus} role="group" aria-label="Order actions" className="outline-none">
+  return <div {...focus} role="group" aria-label="Order menu" className="outline-none">
     {children}
     {hasCustom && menu.items.length > 0 && <ContextMenuSeparator />}
-    {menu.items.map(item => <BlotterActionMenuItem key={item.id} action={item.id}>{actions.some(action => action.id === item.id) ? undefined : item.label}</BlotterActionMenuItem>)}
+    {menu.items.map(item => <BlotterActionMenuItem key={item.id} action={item.id} className="focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">{actions.some(action => action.id === item.id) ? undefined : item.label}</BlotterActionMenuItem>)}
     {!hasCustom && menu.items.length === 0 && <ContextMenuItem disabled>Nothing to do here</ContextMenuItem>}
   </div>
 }

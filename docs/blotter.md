@@ -53,9 +53,9 @@ The root coordinates selection and commands. Add, move or omit controls in your 
 
 ## Permission-filtered actions
 
-Use `BlotterActionButton` and `BlotterActionMenuItem` to show permitted counts and recheck permissions when invoked. Cancel simulates an immediate server response. Amend and New order record requests.
+Use `BlotterActionButton` and `BlotterActionMenuItem` to show permitted counts and recheck permissions when invoked. Cancel simulates an immediate server response. Amend and New order record requests. **Finish first order** revokes its permissions; **Restore orders** resets the data.
 
-Save this complete example as `blotter-actions.tsx` beside consumers that import its `OrderToolbar` and `OrderMenu` recipes, outside `components/ui`. The recipes preserve custom menu content and keep focus within their control group when an action becomes unavailable.
+Save this complete example as `blotter-actions.tsx` beside consumers that import its `OrderToolbar` and `OrderMenu` recipes, outside `components/ui`. The recipes preserve custom menu content. Unavailable toolbar buttons return focus to the toolbar; a revoked menu item keeps focus and becomes inert.
 
 <!-- demo: blotter-actions -->
 
@@ -69,7 +69,7 @@ Save the preceding actions example as `blotter-actions.tsx` beside this file. It
 
 ## Server reports and status
 
-Apply partial and complete fills independently of the server's status report. A fully filled order remains `PartiallyFilled` until the final report changes it. **Reset reports** replays the sequence.
+**Receive report** applies the next server report. The second fills the order while its status remains `PartiallyFilled`; the third reports `Filled`. **Reset reports** starts the sequence again.
 
 <!-- demo: blotter-reports -->
 
@@ -141,7 +141,7 @@ Explicit ids preserve input order and duplicates in counts and dispatched rows. 
 
 All controls forward refs, classes, events and children.
 
-Button parts default to compact styling and `type="button"`. An explicit `size`, including `null`, uses the installed Button's sizing. `BlotterActionButton` uses the destructive variant when its definition requests it, unless you override the variant.
+Button parts default to compact styling and `type="button"`. Explicit sizes pass through to the installed Button; `size={null}` suppresses its size-variant classes. `BlotterActionButton` uses the destructive variant when its definition requests it, unless you override the variant.
 
 The menu item keeps the installed default variant.
 
@@ -151,7 +151,7 @@ Use the shared recipes above for ordinary controls and menus.
 
 Your layout owns grouping, accessible names for custom controls, and a useful focus destination when live permissions remove or disable the active control.
 
-Available buttons retain focus after activation. When an active action becomes unavailable, the ordinary recipes recover to their toolbar or menu. The custom picker keeps its select available.
+Available buttons retain focus after activation. Unavailable toolbar buttons return focus to the toolbar. A revoked menu item keeps focus with a visible ring, and Enter does nothing until that same action is restored or you navigate to another item. The custom picker keeps its select available.
 
 A labelled toolbar groups the ordinary buttons, which remain reachable with Tab.
 
@@ -161,9 +161,13 @@ A labelled toolbar groups the ordinary buttons, which remain reachable with Tab.
 
 | Member | Type | Meaning |
 |---|---|---|
-| `selection`, `focusedRowId`, `targets` | `ReadonlySet<RowId>`, `RowId \| null`, `readonly RowId[]` | Current state and effective root targets. |
-| `select`, `focus` | `(selection: ReadonlySet<RowId>) => void`, `(id: RowId \| null) => void` | Request state changes through the root. |
-| `canNew`, `newOrder` | `boolean`, `() => void` | Availability and invocation of the current new-order callback. |
+| `selection` | `ReadonlySet<RowId>` | Current selection. |
+| `focusedRowId` | `RowId \| null` | Current focused row. |
+| `targets` | `readonly RowId[]` | Selection, or the focused row when selection is empty. |
+| `select` | `(selection: ReadonlySet<RowId>) => void` | Request a selection change. |
+| `focus` | `(id: RowId \| null) => void` | Request a focus change. |
+| `canNew` | `boolean` | Whether a new-order callback exists. |
+| `newOrder` | `() => void` | Invoke the current new-order callback. |
 | `run` | `(action: string, ids: readonly RowId[]) => void` | Dispatch a defined action after checking current store permissions. |
 
 `useBlotterActions()` requires `BlotterActionScope` and returns `{ ids, actions, run }`. `ids` is the scope's ordered target list.

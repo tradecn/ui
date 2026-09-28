@@ -86,6 +86,20 @@ describe("order", () => {
 })
 
 describe("meta", () => {
+  it("publishes rows, order and the batch version before row listeners run", () => {
+    const store = createRowStore<{ id: string; value: number }>({ getRowId: row => row.id })
+    const seen: unknown[] = []
+    store.subscribeRow("a", () => seen.push([store.getRow("a"), store.getIds(), store.getMeta().version]))
+    store.applyDeltas({ upsert: [{ id: "a", value: 1 }] })
+    store.applyDeltas({ patch: [{ id: "a", fields: { value: 2 } }] })
+    store.clear()
+    expect(seen).toEqual([
+      [{ id: "a", value: 1 }, ["a"], 1],
+      [{ id: "a", value: 2 }, ["a"], 2],
+      [undefined, [], 3],
+    ])
+  })
+
   it("counts versions and accumulates drops, keeps the last seq and gap", () => {
     const store = make("ordered")
     store.applyDeltas({ upsert: [q("a", 1)], meta: { dropped: 3, seq: 10 } })
