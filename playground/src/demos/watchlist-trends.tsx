@@ -2,7 +2,7 @@ import { useState } from "react"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import type { ColumnDef } from "@/registry/tradecn/ui/data-grid"
 import { Sparkline } from "@/registry/tradecn/ui/sparkline"
-import { Watchlist, watchlistColumns, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
+import { Watchlist, watchlistColumns, type WatchlistRow, WatchlistGrid } from "@/registry/tradecn/ui/watchlist"
 
 type TrendRow = WatchlistRow & { close: number; closes: number[] }
 
@@ -20,5 +20,5 @@ export default function WatchlistTrendsDemo() {
     ] })
     return store
   })
-  return <div className="h-40 w-fit max-w-full"><Watchlist store={store} columns={columns} label="Watchlist with trends" /></div>
+  return <div className="h-40 w-fit max-w-full"><Watchlist store={store}><WatchlistGrid columns={columns} label="Watchlist with trends" /></Watchlist></div>
 }

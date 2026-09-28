@@ -654,7 +654,7 @@
       "name": "watchlist",
       "type": "registry:ui",
       "title": "Watchlist",
-      "description": "The data grid as a watchlist: symbol, last, bid, ask, change, change %, and volume, with prices printed through your convention per row. A field that adds a symbol and goes to it instead when it is already there, and three ways to take one off: Delete, a button on the row, and the right-click menu. The list stays yours.",
+      "description": "A watchlist with composable add controls, removal actions and a virtual grid. Reuse symbol normalization, validation and selection in your own layout; the list stays in your row store.",
       "dependencies": [
         "cn@^0.3.0",
         "@tanstack/react-virtual@^3.14.13"
@@ -705,11 +705,47 @@
         "components": [
           {
             "title": "Watchlist",
-            "description": "The grid, the add field, and the remove affordances."
+            "description": "Container for the row store, selection and shared commands."
+          },
+          {
+            "title": "WatchlistGrid",
+            "description": "The watchlist grid preset with caller-owned columns and context-menu content."
+          },
+          {
+            "title": "WatchlistAddForm",
+            "description": "Form-local draft and validation state."
+          },
+          {
+            "title": "WatchlistAddInput",
+            "description": "Input bound to its form draft."
+          },
+          {
+            "title": "WatchlistAddButton",
+            "description": "Submit control bound to its form availability."
+          },
+          {
+            "title": "WatchlistRemoveButton",
+            "description": "Button requesting removal of explicit row ids."
+          },
+          {
+            "title": "WatchlistRemoveMenuItem",
+            "description": "Context-menu item requesting removal of explicit row ids."
+          },
+          {
+            "title": "useWatchlist",
+            "description": "Shared selection, focus and add/remove commands."
+          },
+          {
+            "title": "useWatchlistAdd",
+            "description": "Form draft, validation and submission for custom controls."
           },
           {
             "title": "watchlistColumns",
-            "description": "The default columns, as a list to spread into your own."
+            "description": "Default price columns to spread into your own list."
+          },
+          {
+            "title": "watchlistRemoveColumn",
+            "description": "Optional row removal column composed from the public button."
           }
         ]
       },

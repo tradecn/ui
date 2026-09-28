@@ -1090,6 +1090,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    // Portaled menus own their keys even though React bubbles them through the grid.
+    if (!e.currentTarget.contains(e.target as Node)) return
     // The editor owns its keys; what it lets through (a modifier-held arrow) is for the listeners above the grid.
     if ((e.target as HTMLElement).closest?.("[data-cell-editor]")) return
     view.touch()

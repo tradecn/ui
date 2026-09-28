@@ -3,6 +3,7 @@ import { formatPrice, type PriceConvention } from "@/registry/tradecn/lib/format
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { Sparkline } from "@/registry/tradecn/ui/sparkline"
 import { Watchlist, watchlistColumns, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
+import { WatchlistAddControls, RemovableWatchlistGrid } from "../demos/watchlist"
 
 interface Row extends WatchlistRow {
   close: number
@@ -53,14 +54,10 @@ export function WatchlistScene() {
       <h1 className="text-sm font-semibold">watchlist</h1>
       <p className="text-muted-foreground">Add one of {Object.keys(UNIVERSE).join(", ")}. Add one that is already there and it goes to that row instead. Anything else is refused. Delete removes the row in hand, so does the × on hover and the right-click menu. Treasuries print in 32nds and the rest in decimals, through one `price` function. The trend column is a sparkline spread into the default columns.</p>
       <div className="h-72">
-        <Watchlist
-          store={store}
-          columns={columns}
-          validate={(symbol) => symbol in UNIVERSE}
-          onAdd={(symbol) => store.applyDeltas({ upsert: [seed(symbol)] })}
-          onRemove={(symbols) => store.applyDeltas({ remove: symbols })}
-          onRowActivate={(row) => setLog(`load ${row.symbol}`)}
-        />
+        <Watchlist store={store} validate={(symbol) => symbol in UNIVERSE} onAdd={(symbol) => store.applyDeltas({ upsert: [seed(symbol)] })} onRemove={(symbols) => store.applyDeltas({ remove: symbols })}>
+          <WatchlistAddControls />
+          <RemovableWatchlistGrid columns={columns} onRowActivate={(row) => setLog(`load ${row.symbol}`)} />
+        </Watchlist>
       </div>
       <p className="text-muted-foreground">{log}</p>
     </main>

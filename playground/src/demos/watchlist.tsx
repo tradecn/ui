@@ -1,6 +1,20 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import { ContextMenuSeparator } from "@/components/ui/context-menu"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { Watchlist, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
+import { Watchlist, WatchlistGrid, WatchlistAddForm, WatchlistAddInput, WatchlistAddButton, WatchlistRemoveMenuItem, watchlistColumns, watchlistRemoveColumn, type WatchlistGridProps, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
+
+export function WatchlistAddControls() {
+  return <WatchlistAddForm><WatchlistAddInput /><WatchlistAddButton /></WatchlistAddForm>
+}
+
+export function RemovableWatchlistGrid<T extends WatchlistRow>({ columns, price, renderContextMenu, ...props }: WatchlistGridProps<T>) {
+  const all = useMemo(() => [...(columns ?? watchlistColumns<T>({ price })), watchlistRemoveColumn<T>()], [columns, price])
+  return <WatchlistGrid {...props} columns={all} renderContextMenu={(rows, ids) => <>
+    {renderContextMenu?.(rows, ids)}
+    {renderContextMenu && <ContextMenuSeparator />}
+    <WatchlistRemoveMenuItem ids={ids} />
+  </>} />
+}
 
 const quotes: WatchlistRow[] = [
   { symbol: "ES", last: 5012.25, bid: 5012, ask: 5012.5, change: -12.5, changePct: -0.25, volume: 980_000 },
@@ -22,7 +36,10 @@ export default function WatchlistDemo() {
   return (
     <div className="w-fit max-w-full space-y-2 text-xs lining-nums tabular-nums">
       <div className="h-48">
-        <Watchlist store={store} label="Market watchlist" validate={(symbol) => quotes.some((row) => row.symbol === symbol)} onAdd={add} onRemove={(symbols) => store.applyDeltas({ remove: symbols })} onRowActivate={(row) => setActivated(row.symbol)} />
+        <Watchlist store={store} validate={(symbol) => quotes.some((row) => row.symbol === symbol)} onAdd={add} onRemove={(symbols) => store.applyDeltas({ remove: symbols })}>
+          <WatchlistAddControls />
+          <RemovableWatchlistGrid label="Market watchlist" onRowActivate={(row) => setActivated(row.symbol)} />
+        </Watchlist>
       </div>
       <p role="status" className="text-muted-foreground">{activated ? `Last activated: ${activated}.` : "Nothing activated."}</p>
     </div>
