@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { Blotter, type BlotterAction, type BlotterRow } from "@/registry/tradecn/ui/blotter"
+import { Blotter, BlotterActionScope, BlotterGrid, type BlotterAction, type BlotterRow } from "@/registry/tradecn/ui/blotter"
+import { OrderMenu, OrderToolbar } from "../demos/blotter-actions"
 
 const SYMBOLS = ["ZN", "ZB", "ES", "NQ", "CL", "GC"]
 const PX: Record<string, number> = { ZN: 110.5, ZB: 118.75, ES: 5012.25, NQ: 17650.5, CL: 78.1, GC: 2380.4 }
@@ -57,15 +58,16 @@ export function BlotterScene() {
       <div className="h-80">
         <Blotter
           store={store}
-          sort={{ key: "time", dir: "desc" }}
           actions={actions}
-          deleteAction="cancel"
           onNew={() => {
             const o = order()
             store.applyDeltas({ upsert: [o] })
             say(`new ${o.side} ${o.quantity} ${o.symbol}`)
           }}
-        />
+        >
+          <OrderToolbar />
+          <BlotterGrid sort={{ key: "time", dir: "desc" }} deleteAction="cancel" renderContextMenu={(_, ids) => <BlotterActionScope ids={ids}><OrderMenu /></BlotterActionScope>} />
+        </Blotter>
       </div>
       <ol className="text-muted-foreground">
         {log.map((line, i) => (

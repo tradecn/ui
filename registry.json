@@ -846,7 +846,39 @@
         "components": [
           {
             "title": "Blotter",
-            "description": "The grid, the toolbar, and the actions."
+            "description": "Selection and checked commands for caller-owned children."
+          },
+          {
+            "title": "BlotterGrid",
+            "description": "The virtualized order grid, inheriting selection and store."
+          },
+          {
+            "title": "BlotterActionScope",
+            "description": "Shared permission readings for selected or explicit targets."
+          },
+          {
+            "title": "BlotterNewButton",
+            "description": "A new-order request button."
+          },
+          {
+            "title": "BlotterSelection",
+            "description": "A live root-target count."
+          },
+          {
+            "title": "BlotterActionButton",
+            "description": "A button with the permitted action count."
+          },
+          {
+            "title": "BlotterActionMenuItem",
+            "description": "A checked action in caller-owned menu content."
+          },
+          {
+            "title": "useBlotter",
+            "description": "Selection and stable commands without row subscriptions."
+          },
+          {
+            "title": "useBlotterActions",
+            "description": "Scoped permission readings and checked dispatch."
           },
           {
             "title": "blotterColumns",

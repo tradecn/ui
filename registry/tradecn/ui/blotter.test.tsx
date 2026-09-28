@@ -2,8 +2,10 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useState } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { ContextMenuItem } from "@/components/ui/context-menu"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
-import { Blotter, allowedRows, blotterColumns, type BlotterAction, type BlotterProps, type BlotterRow } from "@/registry/tradecn/ui/blotter"
+import { Blotter, BlotterActionScope, BlotterGrid, allowedRows, blotterColumns, type BlotterAction, type BlotterGridProps, type BlotterProps, type BlotterRow } from "@/registry/tradecn/ui/blotter"
+import { OrderMenu, OrderToolbar } from "@/demos/blotter-actions"
 
 const RECT = { width: 900, height: 240 }
 const saved = new Map<string, PropertyDescriptor | undefined>()
@@ -44,10 +46,13 @@ function seeded(): RowStore<BlotterRow> {
   return store
 }
 
-function Harness({ store, ...props }: Partial<BlotterProps> & { store: RowStore<BlotterRow> }) {
+function Harness({ store, actions, onNew, newLabel, selection, onSelectionChange, focusedRowId, onFocusedRowChange, renderContextMenu, ...grid }: Omit<Partial<BlotterProps>, "children"> & BlotterGridProps & { newLabel?: string; store: RowStore<BlotterRow> }) {
   return (
     <div style={{ height: 320 }}>
-      <Blotter store={store} initialRect={RECT} time={(ms) => `t${ms}`} {...props} />
+      <Blotter store={store} actions={actions} onNew={onNew} selection={selection} onSelectionChange={onSelectionChange} focusedRowId={focusedRowId} onFocusedRowChange={onFocusedRowChange}>
+        {(onNew || Boolean(actions?.length)) && <OrderToolbar newLabel={newLabel} />}
+        <BlotterGrid initialRect={RECT} time={(ms) => `t${ms}`} {...grid} renderContextMenu={actions?.length || renderContextMenu ? (rows, ids) => <BlotterActionScope ids={ids}><OrderMenu hasCustom={Boolean(renderContextMenu)}>{renderContextMenu?.(rows, ids)}</OrderMenu></BlotterActionScope> : undefined} />
+      </Blotter>
     </div>
   )
 }
@@ -209,5 +214,100 @@ describe("Blotter", () => {
     const before = cellRenders
     await user.click(screen.getByRole("button", { name: /parent/ }))
     expect(cellRenders).toBe(before)
+  })
+
+  it("keeps custom menu items with current targets, labels, handlers and live permissions", async () => {
+    const store = seeded()
+    const old = vi.fn()
+    const next = vi.fn()
+    const menu = (_rows: BlotterRow[], ids: string[]) => <ContextMenuItem>Inspect {ids.join(",")}</ContextMenuItem>
+    const view = render(<Harness store={store} actions={[cancel(old)]} renderContextMenu={menu} />)
+    fireEvent.contextMenu(rowOf("o1"))
+    expect(await screen.findByRole("menuitem", { name: "Inspect o1" })).toBeInTheDocument()
+    expect(screen.getByRole("separator")).toBeInTheDocument()
+    const action = screen.getByRole("menuitem", { name: "Cancel" })
+    action.focus()
+    act(() => store.applyDeltas({ patch: [{ id: "o1", fields: { allowedActions: [] } }] }))
+    expect(screen.getByRole("menuitem", { name: "Cancel" })).toHaveAttribute("aria-disabled", "true")
+    expect(screen.getByRole("separator")).toBeInTheDocument()
+    expect(action).toHaveFocus()
+    act(() => store.applyDeltas({ patch: [{ id: "o1", fields: { allowedActions: ["cancel"] } }] }))
+    view.rerender(<Harness store={store} actions={[{ ...cancel(next), label: "Stop" }]} renderContextMenu={menu} />)
+    fireEvent.click(screen.getByRole("menuitem", { name: "Stop" }))
+    expect(next.mock.calls[0]![1]).toEqual(["o1"])
+    expect(old).not.toHaveBeenCalled()
+    fireEvent.contextMenu(rowOf("o3"))
+    expect(await screen.findByRole("menuitem", { name: "Inspect o3" })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "Nothing to do here" })).toBeNull()
+  })
+
+  it("keeps a revoked menu action inert instead of choosing another command", async () => {
+    const user = userEvent.setup()
+    const store = seeded()
+    const cancelRun = vi.fn()
+    const amendRun = vi.fn()
+    render(<Harness store={store} selection={new Set(["o1", "o2"])} actions={[cancel(cancelRun), { id: "amend", label: "Amend", run: amendRun }]} />)
+    fireEvent.contextMenu(rowOf("o1"))
+    const amend = await screen.findByRole("menuitem", { name: "Amend 1 of 2" })
+    amend.focus()
+    act(() => store.applyDeltas({ patch: [{ id: "o1", fields: { allowedActions: [] } }] }))
+    expect(amend).toHaveFocus()
+    expect(amend).toHaveAttribute("aria-disabled", "true")
+    await user.keyboard("{Enter}")
+    expect(cancelRun).not.toHaveBeenCalled()
+    expect(amendRun).not.toHaveBeenCalled()
+    act(() => store.applyDeltas({ patch: [{ id: "o2", fields: { allowedActions: [] } }] }))
+    act(() => store.applyDeltas({ patch: [{ id: "o2", fields: { allowedActions: ["cancel"] } }] }))
+    expect(amend).toHaveFocus()
+    await user.keyboard("{Enter}")
+    expect(cancelRun).not.toHaveBeenCalled()
+    act(() => store.applyDeltas({ patch: [{ id: "o1", fields: { allowedActions: ["amend"] } }] }))
+    expect(amend).toHaveFocus()
+    expect(amend).not.toHaveAttribute("aria-disabled", "true")
+    act(() => store.applyDeltas({ patch: [{ id: "o1", fields: { allowedActions: [] } }] }))
+    expect(amend).toHaveFocus()
+    await user.keyboard("{Enter}")
+    expect(cancelRun).not.toHaveBeenCalled()
+    expect(amendRun).not.toHaveBeenCalled()
+    act(() => store.applyDeltas({ patch: [{ id: "o1", fields: { allowedActions: ["amend"] } }] }))
+    await user.keyboard("{Enter}")
+    expect(amendRun).toHaveBeenCalledTimes(1)
+    expect(amendRun.mock.calls[0]![1]).toEqual(["o1"])
+    expect(cancelRun).not.toHaveBeenCalled()
+  })
+
+  it("keeps an open menu's action positions when permissions disappear", async () => {
+    const store = seeded()
+    const run = vi.fn()
+    render(<Harness store={store} actions={[cancel(run), { id: "amend", label: "Amend", run }]} />)
+    fireEvent.contextMenu(rowOf("o1"))
+    const action = await screen.findByRole("menuitem", { name: "Cancel" })
+    act(() => store.applyDeltas({ patch: [{ id: "o1", fields: { allowedActions: ["amend"] } }] }))
+    expect(action).toBeInTheDocument()
+    expect(action).toHaveAttribute("aria-disabled", "true")
+    expect(screen.getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Cancel", "Amend"])
+    fireEvent.click(action)
+    expect(run).not.toHaveBeenCalled()
+    fireEvent.contextMenu(rowOf("o2"))
+    expect(screen.getByRole("menuitem", { name: "Cancel" })).not.toHaveAttribute("aria-disabled", "true")
+    expect(screen.queryByRole("menuitem", { name: "Amend" })).toBeNull()
+    fireEvent.contextMenu(rowOf("o3"))
+    expect(screen.getByRole("menuitem", { name: "Nothing to do here" })).toBeInTheDocument()
+    act(() => store.applyDeltas({ patch: [{ id: "o3", fields: { allowedActions: ["cancel"] } }] }))
+    expect(screen.getByRole("menuitem", { name: "Nothing to do here" })).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" })
+    fireEvent.contextMenu(rowOf("o3"))
+    expect(await screen.findByRole("menuitem", { name: "Cancel" })).not.toHaveAttribute("aria-disabled", "true")
+  })
+
+  it("does not turn a prevented Delete or a portaled menu key into a grid action", async () => {
+    const run = vi.fn()
+    const view = render(<Harness store={seeded()} actions={[cancel(run)]} focusedRowId="o1" deleteAction="cancel" onKeyDown={event => event.preventDefault()} />)
+    fireEvent.keyDown(screen.getByRole("grid"), { key: "Delete" })
+    expect(run).not.toHaveBeenCalled()
+    view.rerender(<Harness store={seeded()} actions={[cancel(run)]} focusedRowId="o1" deleteAction="cancel" />)
+    fireEvent.contextMenu(rowOf("o1"))
+    fireEvent.keyDown(await screen.findByRole("menuitem", { name: "Cancel" }), { key: "Delete" })
+    expect(run).not.toHaveBeenCalled()
   })
 })

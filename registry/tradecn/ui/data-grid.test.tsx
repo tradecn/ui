@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { StrictMode } from "react"
+import { StrictMode, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatPrice, parsePrice } from "@/registry/tradecn/lib/format"
@@ -161,6 +161,40 @@ describe("DataGrid", () => {
     const r3 = document.querySelector<HTMLElement>('[data-row-id="r3"]')!
     fireEvent.contextMenu(r3.firstElementChild!)
     expect(menu).toHaveBeenLastCalledWith([expect.objectContaining({ id: "r3" })], ["r3"])
+  })
+
+  it("keeps menu drafts while open and starts fresh on rapid reopening without redrawing rows", async () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(5, store)
+    const cleanup = vi.fn()
+    const cell = vi.fn(({ row }: { row: Quote }) => <span>{row.sym}</span>)
+    const counted = [{ ...columns[0]!, cell }, ...columns.slice(1)]
+    const selection = new Set(["r0"])
+    function Menu() {
+      const [draft, setDraft] = useState("")
+      useEffect(() => () => cleanup(), [])
+      return <input aria-label="Menu note" value={draft} onChange={event => setDraft(event.target.value)} />
+    }
+    const menu = (rows: Quote[]) => <><span>Menu price: {rows[0]?.px}</span><Menu /></>
+    const layout = (className?: string) => <DataGrid store={store} columns={counted} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} selection={selection} focusedRowId="r0" renderContextMenu={menu} className={className} />
+    const view = render(layout())
+    const before = cell.mock.calls.length
+    const row = document.querySelector<HTMLElement>('[data-row-id="r0"]')!
+    fireEvent.contextMenu(row)
+    const input = await screen.findByRole("textbox", { name: "Menu note" })
+    fireEvent.change(input, { target: { value: "Pending note" } })
+    view.rerender(layout("border"))
+    expect(screen.getByRole("textbox", { name: "Menu note" })).toBe(input)
+    expect(input).toHaveValue("Pending note")
+    expect(cleanup).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" })
+    act(() => store.applyDeltas({ patch: [{ id: "r0", fields: { px: 123 } }] }))
+    expect(cell).toHaveBeenCalledTimes(before + 1)
+    fireEvent.contextMenu(row)
+    expect(await screen.findByRole("textbox", { name: "Menu note" })).toHaveValue("")
+    expect(screen.getByText("Menu price: 123")).toBeInTheDocument()
+    expect(cleanup).toHaveBeenCalledTimes(1)
+    expect(cell).toHaveBeenCalledTimes(before + 1)
   })
 
   it("sorting cycles asc, desc, off from the header, and hides and reorders from column state", () => {

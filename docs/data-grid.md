@@ -101,6 +101,8 @@ Scroll down before receiving a batch to see the RFQ preset keep the first visibl
 | `className` | `string` | None | Classes on the grid root. |
 | `initialRect` | `{ width: number; height: number }` | None | Viewport size in px before measurement, for tests or server rendering. |
 
+Each context-menu opening remounts its content and supplies a fresh snapshot of target rows, including reopening during a closing animation. Ordinary rerenders within an opening preserve content state. Subscribe inside custom content for values that must update while it stays open.
+
 `RowDecoration` accepts optional string fields: `className`, `data-state`, `data-rule`, `data-tone`, and `aria-description`.
 
 ### State and callbacks

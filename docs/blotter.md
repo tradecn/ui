@@ -7,11 +7,11 @@ An order blotter backed by a row store, with server-provided status and actions 
 ```tsx
 import { useState } from "react"
 import { createRowStore } from "@/lib/row-store"
-import { Blotter, type BlotterRow } from "@/components/ui/blotter"
+import { Blotter, BlotterGrid, type BlotterRow } from "@/components/ui/blotter"
 
 const TIME = Date.UTC(2026, 8, 23, 14, 30)
 
-function OrderBlotter() {
+export default function BlotterDemo() {
   const [store] = useState(() => {
     const rows = createRowStore<BlotterRow>({ getRowId: (row) => row.id, lane: "ordered" })
     rows.applyDeltas({ upsert: [
@@ -23,62 +23,164 @@ function OrderBlotter() {
 
   return (
     <div className="h-40 w-fit max-w-full">
-      <Blotter store={store} sort={{ key: "time", dir: "desc" }} />
+      <Blotter store={store}>
+        <BlotterGrid sort={{ key: "time", dir: "desc" }} />
+      </Blotter>
     </div>
   )
 }
 ```
 
-Give the blotter a stable row store and a container with a height. These two supplied orders use the built-in columns and decimal price format. Their timestamps are fixed; the time column displays them in your local timezone. The sort puts the newest order first.
+Give the grid a stable row store and a container with a height. The timestamps are fixed and display in your local timezone. Your feed owns subsequent updates. Use the shared preview alignment control to keep the left edge fixed while resizing columns.
 
-The component prints the supplied status. Your feed owns order updates; no order changes in this basic example. Use the shared preview alignment control to keep the left edge fixed while resizing columns.
+## Composition
+
+Compose the grid and order controls beneath `Blotter`:
+
+```text
+Blotter
+├── BlotterNewButton
+├── BlotterSelection
+├── BlotterActionScope
+│   └── BlotterActionButton
+└── BlotterGrid
+    └── renderContextMenu
+        └── BlotterActionScope with explicit ids
+            └── BlotterActionMenuItem
+```
+
+The root coordinates selection and commands. Add, move or omit controls in your own markup. Each action scope shares permission readings across its children without adding an element.
 
 ## Permission-filtered actions
 
-Select all three orders. **Cancel 2 of 3** and **Amend 1 of 3** reflect their `allowedActions`. Choose **Finish first order** to simulate a server update while the selection stays in place; Cancel then permits only the second order. **Restore orders** restores the original rows and permissions without clearing the selection.
+Use `BlotterActionButton` and `BlotterActionMenuItem` to show permitted counts and recheck permissions when invoked. Cancel simulates an immediate server response. Amend and New order record requests. **Finish first order** revokes its permissions; **Restore orders** resets the data.
 
-Cancel simulates an immediate server response and writes `Cancelled` back to the permitted rows. Amend and New order only record requests; an application opens its ticket or calls its service there. The same actions appear in the context menu, and this example explicitly enables Delete and Backspace as Cancel shortcuts. The readout identifies the rows that reached each handler. On narrow screens, scroll the specimen to reach the whole toolbar.
+Save this complete example as `blotter-actions.tsx` beside consumers that import its `OrderToolbar` and `OrderMenu` recipes, outside `components/ui`. The recipes preserve custom menu content. Unavailable toolbar buttons return focus to the toolbar; a revoked menu item keeps focus and becomes inert.
 
 <!-- demo: blotter-actions -->
 
+## Custom layout
+
+Use `useBlotterActions` for a native action picker beside the grid, with New above it and the target count below. The picker focuses its select before dispatch. When the chosen definition disappears, it clears the choice and disables submission until you select again.
+
+Save the preceding actions example as `blotter-actions.tsx` beside this file. Its `useOrderActionFocus` helper returns focus to the select if an external update disables the active submit button.
+
+<!-- demo: blotter-layout -->
+
 ## Server reports and status
 
-Choose **Receive report** to apply three supplied updates. The first is a partial fill. The second fills all four units but still says `PartiallyFilled`; the final report changes the status to `Filled`. The blotter never infers that last transition from quantity.
-
-The Filled and Status cells flash when their values change. The last report stays visible, and **Reset reports** starts the sequence again. There is no background publisher.
+**Receive report** applies the next server report. The second fills the order while its status remains `PartiallyFilled`; the third reports `Filled`. **Reset reports** starts the sequence again.
 
 <!-- demo: blotter-reports -->
 
 ## API Reference
 
-`Blotter<T>` uses the `blotter` grid preset: 24 px rows, multiple selection, fill flashes, a 750 ms reorder hold, arrival highlights, viewport pinning, and debounced row-count announcements. It enables a checkbox column. The preset is fixed; individual grid options can override its defaults. Give the blotter a container with a height.
+### Blotter
 
-`T` extends `BlotterRow` and defaults to it. `RowId` is a string. These are the blotter's own inputs and the grid inputs it wraps:
+`Blotter<T>` is a native `div` with required children. `T` extends `BlotterRow` and defaults to it. `RowId` is a string.
+
+The root forwards native props, refs and events and renders only the children you supply.
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `store` | `RowStore<T>` | Required | Orders, keyed by a stable row id. |
-| `columns` | `ColumnDef<T>[]` | `blotterColumns({ price, time })` | Replace the built-in columns. |
-| `price` | `(value: number, row: T) => string` | Two decimals | Format built-in price cells. Unused when `columns` is supplied. |
-| `time` | `(ms: number) => string` | Local `HH:MM:SS` | Format built-in timestamps. Unused when `columns` is supplied. |
-| `label` | `string` | `"Blotter"` | Accessible name of the grid. |
-| `onNew` | `() => void` | None | Receive new-order requests; enables the new-order button. |
-| `newLabel` | `string` | `"New order"` | Text on the new-order button. |
-| `actions` | `readonly BlotterAction<T>[]` | Empty list | Actions in the toolbar and context menu. |
-| `deleteAction` | `string` | None | Action id for Delete and Backspace on the grid. |
+| `children` | `ReactNode` | Required | Your grid, controls and surrounding content. |
+| `onNew` | `() => void` | None | Receive new-order requests. |
+| `actions` | `readonly BlotterAction<T>[]` | Empty list | Available command definitions without generated controls. |
 | `selection` | `ReadonlySet<RowId>` | Internally owned empty set | Control selected rows. |
 | `onSelectionChange` | `(selection: ReadonlySet<RowId>) => void` | None | Receive selection changes. |
-| `focusedRowId` | `RowId \| null` | Internally owned `null` | Control the grid's focused row. |
-| `onFocusedRowChange` | `(id: RowId \| null) => void` | None | Receive row-focus changes. |
-| `selectionColumn` | `boolean` | `true` | Show checkboxes when `selectionMode` is `"multi"`. |
-| `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Custom menu items, followed by a separator and available actions. |
-| `className` | `string` | None | Classes on the outer `data-slot="tradecn-blotter"` wrapper. |
+| `focusedRowId` | `RowId \| null` | Internally owned `null` | Control row focus. |
+| `onFocusedRowChange` | `(id: RowId \| null) => void` | None | Receive focus changes. |
+| `className` | `string` | None | Classes on the outer `tradecn-blotter` container. |
 
-Other [`data-grid`](data-grid.md) inputs pass through, including sorting, column state, filtering, editing, footer totals, and row activation. Selection and row focus are managed by Blotter when omitted; when controlled, apply the corresponding callback's value. The callbacks also work with internal state. Blotter uses the same shared files as `data-grid` and `watchlist`.
+Selection and focus callbacks work in either mode. When controlled, apply the corresponding callback's value.
+
+The root does not subscribe to row updates.
+
+### BlotterGrid
+
+`BlotterGrid<T>` uses the `blotter` preset: 24 px rows, multiple selection, fill flashes, a 750 ms reorder hold, arrival highlights, viewport pinning and debounced row-count announcements. The checkbox column is enabled by default. Individual grid options can override preset defaults.
+
+Use the same row type for `Blotter<T>` and `BlotterGrid<T>` when supplying custom columns. Context cannot infer a generic row type from the parent JSX.
+
+| Prop | Type | Default | Purpose |
+|---|---|---|---|
+| `columns` | `ColumnDef<T>[]` | Built-in columns | Replace the built-in columns. |
+| `price` | `(value: number, row: T) => string` | Two decimals | Format built-in price cells, unused with custom columns. |
+| `time` | `(ms: number) => string` | Local `HH:MM:SS` | Format built-in timestamps, unused with custom columns. |
+| `label` | `string` | `"Blotter"` | Accessible grid name. |
+| `selectionColumn` | `boolean` | `true` | Show checkboxes in multiple-selection mode. |
+| `deleteAction` | `string` | None | Action id for Delete and Backspace inside the grid. |
+| `renderContextMenu` | `(rows, ids) => ReactNode` | None | Complete caller-owned menu content. |
+| `className` | `string` | None | Classes on the `tradecn-blotter-grid` sizing wrapper. |
+| `ref` | `Ref<HTMLDivElement>` | None | Ref to the sizing wrapper. |
+| `onKeyDown` | `(event) => void` | None | Runs before the optional Delete handler. Prevent default to cancel it. |
+
+Omitting `columns` builds `blotterColumns({ price, time })`. The menu renderer receives `rows: T[]` and `ids: RowId[]`. `onKeyDown` receives a React `KeyboardEvent<HTMLDivElement>` from the sizing wrapper.
+
+Other [DataGrid](data-grid.md) inputs pass through, including sorting, column state, filtering, editing, footer totals and activation. Store, preset, selection and focus come from the root.
+
+The wrapper fills its parent's height and can flex within the root. Give a separate block wrapper a height when moving the grid into another layout.
+
+Blotter installs the same shared files as DataGrid and Watchlist.
+
+### Action scope and controls
+
+`BlotterActionScope` requires `children` and accepts optional `ids: readonly RowId[]`. Omit `ids` to use root targets: the selection, or the focused row when nothing is selected. Pass explicit ids for a context menu or an individual order.
+
+One scope subscribes once per distinct target id, including missing rows that may return. Multiple controls share those subscriptions.
+
+Explicit ids preserve input order and duplicates in counts and dispatched rows. Only listeners are deduplicated. Pass unique ids when each order should appear once.
+
+| Part | Own props | Default content | Behavior |
+|---|---|---|---|
+| `BlotterNewButton` | Installed Button props | `New order` | Calls `onNew`, disabled when absent. |
+| `BlotterSelection` | Native span props | `{n} selected`, empty at zero | Polite live reading of root targets, even inside an explicit scope. |
+| `BlotterActionButton` | Required `action: string`, installed Button props | Label and permitted count | Requires a scope, disabled for unknown or unavailable actions. |
+| `BlotterActionMenuItem` | Required `action: string`, installed ContextMenuItem props | Label, omitting the count for one target | Requires a scope, disabled for unknown or unavailable actions. |
+
+All controls forward refs, classes, events and children.
+
+Button parts default to compact styling and `type="button"`. Explicit sizes pass through to the installed Button; `size={null}` suppresses its size-variant classes. `BlotterActionButton` uses the destructive variant when its definition requests it, unless you override the variant.
+
+The menu item keeps the installed default variant.
+
+Prevent default in `onClick` to cancel dispatch. Custom children replace generated labels, including explicit `null`.
+
+Use the shared recipes above for ordinary controls and menus.
+
+Your layout owns grouping, accessible names for custom controls, and a useful focus destination when live permissions remove or disable the active control.
+
+Available buttons retain focus after activation. Unavailable toolbar buttons return focus to the toolbar. A revoked menu item keeps focus with a visible ring, and Enter does nothing until that same action is restored or you navigate to another item. The custom picker keeps its select available.
+
+A labelled toolbar groups the ordinary buttons, which remain reachable with Tab.
+
+### Hooks
+
+`useBlotter()` returns selection and commands without subscribing to rows. It requires `Blotter`.
+
+| Member | Type | Meaning |
+|---|---|---|
+| `selection` | `ReadonlySet<RowId>` | Current selection. |
+| `focusedRowId` | `RowId \| null` | Current focused row. |
+| `targets` | `readonly RowId[]` | Selection, or the focused row when selection is empty. |
+| `select` | `(selection: ReadonlySet<RowId>) => void` | Request a selection change. |
+| `focus` | `(id: RowId \| null) => void` | Request a focus change. |
+| `canNew` | `boolean` | Whether a new-order callback exists. |
+| `newOrder` | `() => void` | Invoke the current new-order callback. |
+| `run` | `(action: string, ids: readonly RowId[]) => void` | Dispatch a defined action after checking current store permissions. |
+
+`useBlotterActions()` requires `BlotterActionScope` and returns `{ ids, actions, run }`. `ids` is the scope's ordered target list.
+
+Each `BlotterActionState` contains `id`, `label`, optional `destructive`, and `allowedIds: readonly RowId[]`. It exposes no raw handler.
+
+Its `run(action: string)` uses the scope's current ids and the same checked root command. Permission readings are display state, never authorization for later dispatch.
+
+### BlotterRow
 
 | `BlotterRow` field | Type | Required | Meaning |
 |---|---|---|---|
-| `id` | `string` | Yes | Order id; used as the store key in the example. |
+| `id` | `string` | Yes | Order id, used as the store key in the example. |
 | `time` | `number` | Yes | Timestamp in milliseconds since the Unix epoch. |
 | `symbol` | `string` | Yes | Instrument symbol. |
 | `side` | `BlotterSide` (`"buy" \| "sell"`) | Yes | Order side. |
@@ -91,34 +193,54 @@ Other [`data-grid`](data-grid.md) inputs pass through, including sorting, column
 
 ### The status is the server's
 
-Blotter never derives status from quantities. An order filled 5,000 of 5,000 still says `PartiallyFilled` until the server changes it; the server may know about a bust, correction, or fill still in flight. A status change flashes flat because it has no numeric direction.
+Blotter never derives status from quantities. An order filled 5,000 of 5,000 still says `PartiallyFilled` until the server changes it. The server may know about a bust, correction, or fill still in flight.
+
+A status change flashes flat because it has no numeric direction.
 
 ### Actions are the server's too
 
-Each order's `allowedActions` lists the actions the server permits now. An absent or empty list permits none. Define the available controls with `BlotterAction<T>`:
+Each order's `allowedActions` lists the actions the server permits now. An absent or empty list permits none. Define available commands with `BlotterAction<T>`:
 
 | Field | Type | Required | Purpose |
 |---|---|---|---|
 | `id` | `string` | Yes | Match against each order's `allowedActions`. |
 | `label` | `string` | Yes | Action verb, such as `"Cancel"`; controls add the count. |
 | `run` | `(rows: T[], ids: RowId[]) => void` | Yes | Receive only currently permitted rows and their store ids. |
-| `destructive` | `boolean` | No | Use the destructive toolbar-button style; does not change the menu item. |
+| `destructive` | `boolean` | No | Use the destructive toolbar-button style without changing the menu item. |
 
-The orders in hand are the selection, or the focused row when nothing is selected. The toolbar shows `Cancel 3` when all three allow it, `Cancel 2 of 3` when one does not, and a disabled `Cancel` when none do. The toolbar appears when `onNew` or at least one action is supplied. Its polite live region reports the number in hand as "selected", including a focused-row fallback.
+The ordinary button shows `Cancel 3` when all three targets allow it, `Cancel 2 of 3` when one does not, and a disabled `Cancel` when none do. `BlotterSelection` reports the number of root targets as "selected", including a focused-row fallback.
 
-Permissions are checked when controls render and again against the store when invoked. Only the second check's permitted rows reach `run`; if none remain, it is not called. `allowedActions` is the server's last report, not a guarantee. Handle confirmation, submission, and rejection in `run`: Blotter does not await a returned promise, show pending state, or handle errors.
+Permissions are checked when controls render and again against the store when invoked. Only the second check's permitted rows reach `run`. If none remain, it is not called. `allowedActions` is the server's last report, not a guarantee.
 
-The toolbar subscribes to the orders in hand. A row update that removes permission changes its count without a grid-wide render.
+Handle confirmation, submission and rejection in `run`. Blotter does not await a returned promise, show pending state or handle errors.
 
-The context menu is enabled when at least one action or a custom renderer is supplied. It offers only actions permitted for at least one target row. A single permitted target shows `Cancel`; multiple or mixed targets get counts. With at least one action but none permitted and no custom menu, it shows a disabled "Nothing to do here" item. Custom items receive the grid's target rows and ids without action-permission filtering.
+An action scope listens to its target rows. A row update changes permission readings and the affected grid row without a grid-wide render. Unrelated updates do not wake the scope.
 
-Right-click requests focus for the targeted row and, when selection is enabled, replaces the selection if that row was not already selected. The menu uses the resulting selection, falling back to row focus. Apply these requests when controlling selection or focus; until then, the menu uses the existing values. Action invocation rechecks the store even if the displayed count has become stale.
+Pass `renderContextMenu` to enable a menu. The shared `OrderMenu` recipe captures actions permitted for at least one target when opened. It shows a disabled "Nothing to do here" item if none are offered.
 
-`allowedRows<T>(store: RowStore<T>, ids: readonly RowId[], action: string): { rows: T[]; ids: RowId[] }` exposes the same filter for your own hotkeys or menus. It reads the store immediately, skips missing or disallowed rows, and preserves input order. It does not run an action or change the store.
+An open menu keeps its action positions stable. Permission loss disables an item, and restoration enables it again. Newly offered actions appear when the menu reopens or its targets change.
+
+A single target shows `Cancel`. Multiple or mixed targets get counts.
+
+Place custom content inside `OrderMenu` to keep it before a conditional separator and the permitted actions.
+
+Set `hasCustom` when a supplied renderer can return `undefined`. Explicit `null` counts as custom content by default. Pass `hasCustom={false}` to request the fallback for empty output.
+
+The renderer receives the grid's target rows and ids without action-permission filtering.
+
+Right-click requests focus for the targeted row and, when selection is enabled, replaces the selection if that row was not already selected. The menu uses the resulting selection, falling back to row focus.
+
+Apply these requests when controlling selection or focus. Until then, the menu uses the existing values.
+
+Action invocation rechecks the store even if the displayed count has become stale.
+
+`allowedRows<T>(store: RowStore<T>, ids: readonly RowId[], action: string): { rows: T[]; ids: RowId[] }` exposes the same filter for your own hotkeys or menus. It reads the store immediately, skips missing or disallowed rows, and preserves input order and duplicates. It does not run an action or change the store.
 
 ### Delete cancels nothing by default
 
-`deleteAction="cancel"` makes Delete and Backspace on the grid run the matching action on the orders in hand, through the same permission check. It is off by default. Nothing runs if the event was already prevented, no rows are in hand, or the id has no matching action. From the toolbar's buttons those keys do nothing.
+`deleteAction="cancel"` makes Delete and Backspace on the grid run the matching action on the orders in hand, through the same permission check. It is off by default. Nothing runs if the event was already prevented, no rows are in hand, or the id has no matching action.
+
+From the shared toolbar's buttons those keys do nothing.
 
 With custom editable columns and `deleteAction`, Delete and Backspace in a cell editor can also run the action.
 
@@ -126,16 +248,24 @@ With custom editable columns and `deleteAction`, Delete and Backspace in a cell 
 
 `blotterColumns<T>(options?: BlotterColumnOptions<T>): ColumnDef<T>[]` accepts optional `price` and `time` callbacks with the signatures above. It returns time, symbol, side, quantity, filled, price, status, and account. Spread the list into your own to add a column, drop one, or reorder.
 
-`price` gets the order because instruments print differently. Quantity and filled use `formatQuantity`; missing price, filled, or account values display `NULL_TOKEN` (`–`). Side displays as `BUY` or `SELL`, with the `up` and `down` colors respectively. The words identify the side without relying on color.
+`price` gets the order because instruments print differently. Quantity and filled use `formatQuantity`. Missing price, filled, or account values display `NULL_TOKEN` (`–`).
 
-Filled and price flash on change. Quantity and time do not. The default view uses store order; pass `sort={{ key: "time", dir: "desc" }}` for newest first.
+Side displays as `BUY` or `SELL`, with the `up` and `down` colors respectively. The words identify the side without relying on color.
 
-Keep `columns`, `price`, and `time` stable with a module constant, `useMemo`, or `useCallback`. New columns can re-render rows; when using built-in columns, changing `price` or `time` rebuilds the list. `actions`, `renderContextMenu`, `onSelectionChange`, and `onFocusedRowChange` are read through a ref and can be inline; changing action ids or labels rebuilds the menu callback.
+Filled and price flash on change. Quantity and time do not.
+
+The default view uses store order. Pass `sort={{ key: "time", dir: "desc" }}` for newest first.
+
+Keep `columns`, `price`, and `time` stable with a module constant, `useMemo`, or `useCallback`. New columns can re-render rows. When using built-in columns, changing `price` or `time` rebuilds the list.
+
+`actions`, `renderContextMenu`, `onSelectionChange` and `onFocusedRowChange` can be inline without repainting grid rows. Commands use the latest committed definitions, and the grid receives the current menu renderer directly.
 
 ### Adding
 
-`onNew` reports a new-order request. Open your ticket there; the order appears when your feed upserts it. Blotter does not await a promise returned by `onNew` or handle its errors.
+`onNew` reports a new-order request. Open your ticket there. The order appears when your feed upserts it.
+
+Blotter does not await a promise returned by `onNew` or handle its errors.
 
 ### What it does not do
 
-Build or send an order, confirm a cancel, group by parent order, or calculate order-specific totals. Use the grid's `footer` for totals you define. It has no notion of fills as rows of their own; use a second blotter over a second store.
+Build or send an order, confirm a cancel, group by parent order, or calculate order-specific totals. Use the grid's `footer` for totals you define. It has no notion of fills as rows of their own. Use a second blotter over a second store.
