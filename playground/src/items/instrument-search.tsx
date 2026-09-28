@@ -2,7 +2,8 @@ import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { useMemo, useState } from "react"
 import { QUERY_KIND_LABELS, recognizeQuery } from "@/registry/tradecn/lib/instrument-query"
 import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, createActionRegistry } from "@/registry/tradecn/ui/command-palette"
-import { InstrumentSearch, toSymbolAdapter, type InstrumentHit, type InstrumentSearchFn } from "@/registry/tradecn/ui/instrument-search"
+import { InstrumentSearch, InstrumentSearchContent, InstrumentSearchInput, InstrumentSearchList, InstrumentSearchHint, toSymbolAdapter, type InstrumentHit, type InstrumentSearchFn } from "@/registry/tradecn/ui/instrument-search"
+import { InstrumentOptions } from "../demos/instrument-search"
 
 // One search function, three places: the field, the palette's symbol rows (mod+k), and a raw readout of what the
 // recognizer makes of the text as it is typed. A pretend instrument master 300 ms away answers all of them.
@@ -59,7 +60,13 @@ export function InstrumentSearchScene() {
         <h1 className="text-sm font-semibold">instrument-search</h1>
         <span className="text-muted-foreground">Type a ticker (zn, brk.b), a CUSIP (037833100), an ISIN (US0378331005), or a run's phrase (4 1/8 05/34, T 4 5/8 05/15/54). The same search answers the palette on mod+k.</span>
       </div>
-      <InstrumentSearch search={search} query={query} onQueryChange={setQuery} onSelect={(hit, h) => say(`picked ${hit.symbol} (${hit.id}), read as ${QUERY_KIND_LABELS[h.kind]}`)} autoFocus clearOnSelect={false} />
+      <InstrumentSearch search={search} query={query} onQueryChange={setQuery} onSelect={(hit, h) => say(`picked ${hit.symbol} (${hit.id}), read as ${QUERY_KIND_LABELS[h.kind]}`)} clearOnSelect={false}>
+        <InstrumentSearchContent>
+          <InstrumentSearchInput autoFocus />
+          <InstrumentSearchList><InstrumentOptions /></InstrumentSearchList>
+        </InstrumentSearchContent>
+        <InstrumentSearchHint />
+      </InstrumentSearch>
       <div className="rounded-md border border-border bg-card p-2 text-muted-foreground" data-recognized={hint.kind}>
         <div className="font-medium text-foreground">recognizeQuery</div>
         <pre className="whitespace-pre-wrap">{JSON.stringify(hint, null, 1)}</pre>
