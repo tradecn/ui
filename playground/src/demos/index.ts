@@ -8,8 +8,8 @@ import type { ComponentType } from "react"
 // since a screen reader walks them as a list. frame.json beside the demos names the frame contract they are
 // written to (centered: a demo that wants the frame's width says w-full on its root, and its controls come first
 // in a data-demo-controls element the frame pins in a bar), since tradecn.dev builds every tag's pages with main's
-// template and a republished older tag, which has no marker, gets its demos stretched instead. Anything shared
-// lives under demos/shared/, which the glob skips. frame.json's alignable list opts individual demos into the
+// template and a republished older tag, which has no marker, gets its demos stretched instead. Helper-only files
+// live under demos/shared/, which the glob skips; a demo can also export recipes for other demos. frame.json's alignable list opts individual demos into the
 // embed's placement controls; these sit beside demo controls and never enter the source the reader copies.
 type Loader = () => Promise<{ default: ComponentType }>
 

@@ -16,11 +16,14 @@ export function WatchlistScene() {
     return s
   })
   return (
-    <div style={{ height: 160, width: 640 }}>
-      <Watchlist store={store} onAdd={(symbol) => store.applyDeltas({ upsert: [{ symbol, last: 1 }] })} onRemove={(symbols) => store.applyDeltas({ remove: symbols })}>
-        <WatchlistAddForm><WatchlistAddInput /><WatchlistAddButton /></WatchlistAddForm>
-        <WatchlistGrid columns={columns} renderContextMenu={(_, ids) => <WatchlistRemoveMenuItem ids={ids} />} />
-      </Watchlist>
+    <div style={{ width: 640 }}>
+      <button onClick={() => { store.applyDeltas({ remove: store.getIds(), upsert: Array.from({ length: 500 }, (_, i) => ({ symbol: `SYM${i}`, last: i })) }) }}>Load 500 quotes</button>
+      <div style={{ height: 160 }}>
+        <Watchlist store={store} onAdd={(symbol) => store.applyDeltas({ upsert: [{ symbol, last: 1 }] })} onRemove={(symbols) => store.applyDeltas({ remove: symbols })}>
+          <WatchlistAddForm><WatchlistAddInput /><WatchlistAddButton /></WatchlistAddForm>
+          <div className="h-32"><WatchlistGrid columns={columns} renderContextMenu={(_, ids) => <WatchlistRemoveMenuItem ids={ids} />} /></div>
+        </Watchlist>
+      </div>
     </div>
   )
 }

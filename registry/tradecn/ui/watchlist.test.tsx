@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { createRef, startTransition, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Button } from "@/components/ui/button"
 import { createRowStore, type RowId, type RowStore } from "@/registry/tradecn/lib/row-store"
 import { Watchlist, WatchlistGrid, WatchlistAddForm, WatchlistAddInput, WatchlistAddButton, WatchlistRemoveButton, WatchlistRemoveMenuItem, useWatchlist, useWatchlistAdd, watchlistColumns, watchlistRemoveColumn, type WatchlistActions, type WatchlistProps, type WatchlistGridProps, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
 
@@ -563,4 +564,19 @@ it("keeps commands on committed callbacks while a replacement render suspends", 
   act(() => { add!("gc") })
   expect(next).toHaveBeenCalledExactlyOnceWith("GC")
   expect(first).toHaveBeenCalledTimes(1)
+})
+
+
+it("uses the installed button's dimensions when an explicit size is supplied", () => {
+  render(<Watchlist store={seeded()} onAdd={vi.fn()}><WatchlistAddForm>
+    <WatchlistAddButton size="lg">Large</WatchlistAddButton>
+    <WatchlistAddButton size="icon-sm" aria-label="Icon">+</WatchlistAddButton>
+    <WatchlistAddButton size={null}>No size</WatchlistAddButton>
+    <Button variant="outline" size="lg">Reference large</Button>
+    <Button variant="outline" size="icon-sm" aria-label="Reference icon">+</Button>
+    <Button variant="outline" size={null}>Reference no size</Button>
+  </WatchlistAddForm></Watchlist>)
+  expect(screen.getByRole("button", { name: "Large" }).className).toBe(screen.getByRole("button", { name: "Reference large" }).className)
+  expect(screen.getByRole("button", { name: "Icon" }).className).toBe(screen.getByRole("button", { name: "Reference icon" }).className)
+  expect(screen.getByRole("button", { name: "No size" }).className).toBe(screen.getByRole("button", { name: "Reference no size" }).className)
 })

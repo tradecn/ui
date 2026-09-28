@@ -4,7 +4,7 @@ import WatchlistLayoutDemo from "./demos/watchlist-layout"
 
 it("keeps the alternate watchlist's bulk action tied to selected rows and clears removed selections", () => {
   render(<WatchlistLayoutDemo />)
-  const grid = screen.getByRole("grid", { name: "Selected instruments" })
+  const grid = screen.getByRole("grid", { name: "Watchlist instruments" })
   const remove = screen.getByRole("button", { name: "Remove selected" })
   fireEvent.keyDown(grid, { key: "ArrowDown" })
   expect(screen.getByText("0 selected")).toBeInTheDocument()
@@ -14,8 +14,10 @@ it("keeps the alternate watchlist's bulk action tied to selected rows and clears
   fireEvent.change(select, { target: { value: "ES" } })
   fireEvent.submit(select.closest("form")!)
   expect(screen.getByText("1 selected")).toBeInTheDocument()
+  remove.focus()
   fireEvent.click(remove)
   expect(grid).toHaveAttribute("aria-rowcount", "2")
   expect(screen.getByText("0 selected")).toBeInTheDocument()
   expect(remove).toBeDisabled()
+  expect(select).toHaveFocus()
 })

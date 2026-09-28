@@ -181,7 +181,7 @@ export function WatchlistGrid<T extends WatchlistRow = WatchlistRow>({ columns, 
     event.preventDefault()
     remove(targets)
   }
-  return <div ref={ref} onKeyDown={keyDown} data-slot="tradecn-watchlist-grid" className={cn("min-h-0 flex-1", className)}>
+  return <div ref={ref} onKeyDown={keyDown} data-slot="tradecn-watchlist-grid" className={cn("h-full min-h-0 flex-1", className)}>
     <DataGrid<T> {...grid} store={store} preset="watchlist" label={label} columns={all} selection={selection} onSelectionChange={select} focusedRowId={focusedRowId} onFocusedRowChange={focus} getRowProps={rowProps} renderContextMenu={renderContextMenu ? menu : undefined} />
   </div>
 }
@@ -238,9 +238,9 @@ export function WatchlistAddInput({ onChange, placeholder = "Add symbol", disabl
   }} />
 }
 
-export function WatchlistAddButton({ children = "Add", disabled, className, ...props }: ComponentProps<typeof Button>) {
+export function WatchlistAddButton({ children = "Add", disabled, size, className, ...props }: ComponentProps<typeof Button>) {
   const { canSubmit } = useWatchlistAdd()
-  return <Button type="submit" variant="outline" size="sm" {...props} className={cn("h-6 px-2 text-xs", className)} disabled={disabled || !canSubmit}>{children}</Button>
+  return <Button type="submit" variant="outline" size={size === undefined ? "sm" : size} {...props} className={cn(size === undefined && "h-6 px-2 text-xs", className)} disabled={disabled || !canSubmit}>{children}</Button>
 }
 
 const removeLabel = (ids: readonly RowId[]) => ids.length > 1 ? `Remove ${ids.length}` : `Remove ${ids[0] ?? ""}`

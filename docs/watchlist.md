@@ -139,7 +139,7 @@ Other [data-grid](data-grid.md) options pass through, including sorting, column 
 
 `WatchlistAddInput` binds the installed Input to that draft. It accepts native input props, a ref, classes and a cancellable `onChange`; `value`, `defaultValue` and `aria-invalid` are reserved for the form. `placeholder` defaults to `"Add symbol"` and supplies the default accessible name; set `aria-label` or `aria-labelledby` when another name is needed. Omitting `onAdd` disables the input.
 
-`WatchlistAddButton` accepts the installed Button's props and ref. It defaults to a submit button with an outline style, small size and `Add` text. It is disabled when adding is unavailable or the draft is blank. Supply children to change its text.
+`WatchlistAddButton` accepts the installed Button's props and ref. It defaults to a compact submit button with an outline style and `Add` text. An explicit `size` uses the installed Button’s dimensions; `className` can override either. It is disabled when adding is unavailable or the draft is blank. Supply children to change its text.
 
 ### Removal controls
 
@@ -160,7 +160,7 @@ Add `watchlistRemoveColumn<T>()` to your columns for the ordinary hover button, 
 | `add` | `(raw: string) => boolean` | Normalize, select a duplicate or request an addition; false means refused. |
 | `remove` | `(ids: readonly RowId[]) => void` | Request removal of explicit ids without editing the store. |
 
-`useWatchlistAdd()` must be inside `WatchlistAddForm`. It returns `draft`, `invalid`, `canAdd`, `canSubmit`, `setDraft(text)` and `submit()`. Custom controls supply their own labels and bind their value and invalid state to these readings.
+`useWatchlistAdd()` must be inside `WatchlistAddForm`. It returns `draft`, `invalid`, `canAdd`, `canSubmit`, `setDraft(text)` and `submit()`. Custom controls supply their own labels and bind their value and invalid state to these readings. `submit()` uses the current rendered draft; use `useWatchlist().add(raw)` for a direct request.
 
 ### The list is yours
 

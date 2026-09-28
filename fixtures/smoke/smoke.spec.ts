@@ -236,6 +236,46 @@ test("a watchlist adds through the field, finds a symbol it already has, and rem
   expect(errors).toEqual([])
 })
 
+test("watchlist menus own navigation and activate removal with Enter and Space", async ({ page }) => {
+  await page.goto("/")
+  const list = page.locator("[data-slot='tradecn-watchlist']")
+  const grid = list.getByRole("grid", { name: "Watchlist" })
+  const row = (symbol: string) => list.locator(`[data-row-id='${symbol}']`)
+  await row("ZN").click({ button: "right" })
+  await page.getByRole("menuitem", { name: "Remove ZN" }).waitFor()
+  await expect.poll(() => page.getByRole("menu").evaluate(element => element.contains(document.activeElement))).toBe(true)
+  await page.keyboard.press("ArrowDown")
+  await expect(page.getByRole("menuitem", { name: "Remove ZN" })).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("menu")).toBeHidden()
+  await expect(row("ZN")).toHaveAttribute("aria-selected", "true")
+  await expect(grid).toHaveAttribute("aria-rowcount", "3")
+  for (const { symbol, key, remaining } of [{ symbol: "ZN", key: "Enter", remaining: "2" }, { symbol: "ES", key: "Space", remaining: "1" }]) {
+    await row(symbol).click({ button: "right" })
+    await page.getByRole("menuitem", { name: `Remove ${symbol}` }).waitFor()
+    await expect.poll(() => page.getByRole("menu").evaluate(element => element.contains(document.activeElement))).toBe(true)
+    await page.keyboard.press("ArrowDown")
+    await expect(page.getByRole("menuitem", { name: `Remove ${symbol}` })).toBeFocused()
+    await page.keyboard.press(key)
+    await expect(page.getByRole("menu")).toBeHidden()
+    await expect(row(symbol)).toHaveCount(0)
+    await expect(grid).toHaveAttribute("aria-rowcount", remaining)
+  }
+})
+
+test("a watchlist grid remains virtual inside a plain bounded container", async ({ page }) => {
+  await page.goto("/")
+  await page.getByRole("button", { name: "Load 500 quotes" }).click()
+  const grid = page.locator("[data-slot='tradecn-watchlist']").getByRole("grid")
+  await expect(grid).toHaveAttribute("aria-rowcount", "501")
+  await expect.poll(() => grid.evaluate(element => element.getBoundingClientRect().height)).toBe(128)
+  await expect.poll(() => grid.locator("[data-row-id]").count()).toBeLessThan(50)
+  const viewport = grid.locator(".overflow-auto")
+  await viewport.evaluate(element => { element.scrollTop = element.scrollHeight })
+  await expect(grid.locator('[data-row-id="SYM499"]')).toBeVisible()
+  await expect.poll(() => grid.locator("[data-row-id]").count()).toBeLessThan(50)
+})
+
 // The blotter's selection goes through the consumer's checkbox, and its actions through their button
 // and their context menu. Two orders allow a cancel and one is already filled.
 test("a blotter offers an action only for the orders the server allows, and says how many", async ({ page }) => {

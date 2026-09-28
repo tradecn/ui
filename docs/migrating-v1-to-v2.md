@@ -443,10 +443,10 @@ The Usage example exports `WatchlistAddControls` and `RemovableWatchlistGrid` as
 
 Root `className` still styles the outer container. `WatchlistGrid` adds a sizing wrapper with its own classes, ref and cancellable key handler. The root slot, preset, price formatting, normalization, duplicate lookup, validation order, controlled selection/focus and callback behavior are retained.
 
-Delete and Backspace on the grid still request removal when `onRemove` exists, even without visible removal parts. They use the selection or, when empty, the focused row. Custom editable grid cells retain the existing deletion-key limitation; prevent the event in `WatchlistGrid.onKeyDown` when the editor should keep it.
+Delete and Backspace on the grid still request removal when `onRemove` exists, even without visible removal parts. They use the selection or, when empty, the focused row. Custom editable grid cells retain the existing deletion-key limitation. Preventing the key event also prevents native text deletion.
 
 The root adds no row subscriptions. Form drafts remain local, and stable grid inputs preserve per-row updates. Keep shared recipes, columns and formatters stable where they feed memoized rows.
 
-Portaled menu keys no longer reach DataGrid navigation or row activation. In Radix, ArrowDown inside a removal menu previously moved the underlying selection and could change the row being removed. Menu navigation now keeps its original target.
+Portaled menu keys no longer change DataGrid selection, navigation or row activation. In Radix, ArrowDown inside a removal menu previously moved the underlying selection and could change the row being removed. Menu navigation now keeps its original target.
 
 A successful add-form submission now clears both its draft and invalid state. A previously refused draft can succeed without another edit when validation changes or its symbol arrives in the store.
