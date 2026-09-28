@@ -3,7 +3,7 @@ import { FeedHealth, FeedHealthItem, FeedHealthIndicator, FeedHealthTier, FeedAg
 import { Tooltip } from "@/components/ui/tooltip"
 import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
 import { FrameReadings } from "./perf-monitor"
-import { StatusBar } from "@/registry/tradecn/ui/status-bar"
+import { StatusBar, StatusBarEnvironmentBadge, StatusBarUser } from "@/registry/tradecn/ui/status-bar"
 
 export default function StatusBarSlotsDemo() {
   const [lastMessageAt, setLastMessageAt] = useState(Date.now)
@@ -16,10 +16,10 @@ export default function StatusBarSlotsDemo() {
         <button type="button" className="rounded border border-border px-2 py-1" onClick={() => setLastMessageAt(Date.now())}>Receive message</button>
       </div>
       <div className="w-3xl max-w-full">
-        <StatusBar
-          environment={{ label: "UAT", tone: "stale" }}
-          user="jdoe"
-          left={<FeedHealth feeds={[feed]}><FeedHealthItem feed={feed}>
+        <StatusBar data-environment="UAT">
+          <StatusBarEnvironmentBadge label="UAT" tone="stale" />
+          <div className="flex shrink-0 items-center gap-2" data-status-slot="left">
+            <FeedHealth feeds={[feed]}><FeedHealthItem feed={feed}>
             <Tooltip>
               <FeedHealthTooltipTrigger>
                 <span className="font-medium">{feed.label}</span><FeedHealthIndicator className="order-first" />
@@ -28,9 +28,14 @@ export default function StatusBarSlotsDemo() {
               </FeedHealthTooltipTrigger>
               <FeedHealthTooltipContent><FeedHealthDetails /></FeedHealthTooltipContent>
             </Tooltip>
-          </FeedHealthItem><FeedHealthAnnouncer /></FeedHealth>}
-          right={<PerfMonitor className="w-56"><FrameReadings /></PerfMonitor>}
-        />
+          </FeedHealthItem><FeedHealthAnnouncer /></FeedHealth>
+          </div>
+          <div className="min-w-4 flex-1" data-status-slot="center" />
+          <StatusBarUser user="jdoe" />
+          <div className="flex shrink-0 items-center gap-2" data-status-slot="right">
+            <PerfMonitor className="w-56"><FrameReadings /></PerfMonitor>
+          </div>
+        </StatusBar>
       </div>
     </>
   )
