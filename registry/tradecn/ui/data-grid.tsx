@@ -1,6 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { cn } from "cn"
 import {
+  Fragment,
   memo,
   useCallback,
   useEffect,
@@ -1257,6 +1258,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   const toggle = useCallback((id: RowId) => select([id], "toggle"), [select])
 
+  // A rapid reopen must get fresh content even while the previous popup is still exiting.
+  const [menuOpening, setMenuOpening] = useState(0)
   const contextRows = useMemo(() => {
     const targets = selection.size ? [...selection] : focusedRowId !== null ? [focusedRowId] : []
     return { ids: targets, rows: targets.map((id) => store.getRow(id)).filter((r): r is T => r !== undefined) }
@@ -1360,9 +1363,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       style={{ lineHeight: `${rowHeight}px` } as CSSProperties}
     >
       {renderContextMenu ? (
-        <ContextMenu>
+        <ContextMenu onOpenChange={open => { if (open) setMenuOpening(value => value + 1) }}>
           <ContextMenuTrigger className="contents">{body}</ContextMenuTrigger>
-          <ContextMenuContent>{renderContextMenu(contextRows.rows, contextRows.ids)}</ContextMenuContent>
+          <ContextMenuContent><Fragment key={menuOpening}>{renderContextMenu(contextRows.rows, contextRows.ids)}</Fragment></ContextMenuContent>
         </ContextMenu>
       ) : (
         body

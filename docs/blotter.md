@@ -61,7 +61,7 @@ Save this complete example as `blotter-actions.tsx` beside consumers that import
 
 ## Custom layout
 
-Use `useBlotterActions` for a native action picker beside the grid, with New above it and the target count below. The picker focuses its select before dispatch and follows the remaining definitions when an action is removed.
+Use `useBlotterActions` for a native action picker beside the grid, with New above it and the target count below. The picker focuses its select before dispatch. When the chosen definition disappears, it clears the choice and disables submission until you select again.
 
 Save the preceding actions example as `blotter-actions.tsx` beside this file. Its `useOrderActionFocus` helper returns focus to the select if an external update disables the active submit button.
 
@@ -130,6 +130,8 @@ Blotter installs the same shared files as DataGrid and Watchlist.
 
 One scope subscribes once per distinct target id, including missing rows that may return. Multiple controls share those subscriptions.
 
+Explicit ids preserve input order and duplicates in counts and dispatched rows. Only listeners are deduplicated. Pass unique ids when each order should appear once.
+
 | Part | Own props | Default content | Behavior |
 |---|---|---|---|
 | `BlotterNewButton` | Installed Button props | `New order` | Calls `onNew`, disabled when absent. |
@@ -139,7 +141,7 @@ One scope subscribes once per distinct target id, including missing rows that ma
 
 All controls forward refs, classes, events and children.
 
-Button parts default to compact styling. An explicit `size`, including `null`, uses the installed Button's sizing. `BlotterActionButton` uses the destructive variant when its definition requests it, unless you override the variant.
+Button parts default to compact styling and `type="button"`. An explicit `size`, including `null`, uses the installed Button's sizing. `BlotterActionButton` uses the destructive variant when its definition requests it, unless you override the variant.
 
 The menu item keeps the installed default variant.
 
@@ -149,7 +151,7 @@ Use the shared recipes above for ordinary controls and menus.
 
 Your layout owns grouping, accessible names for custom controls, and a useful focus destination when live permissions remove or disable the active control.
 
-The ordinary recipes return focus to their toolbar or menu. The custom picker keeps its select available.
+Available buttons retain focus after activation. When an active action becomes unavailable, the ordinary recipes recover to their toolbar or menu. The custom picker keeps its select available.
 
 A labelled toolbar groups the ordinary buttons, which remain reachable with Tab.
 
@@ -206,19 +208,21 @@ The ordinary button shows `Cancel 3` when all three targets allow it, `Cancel 2 
 
 Permissions are checked when controls render and again against the store when invoked. Only the second check's permitted rows reach `run`. If none remain, it is not called. `allowedActions` is the server's last report, not a guarantee.
 
-Handle confirmation, submission, and rejection in `run`:
-
-Blotter does not await a returned promise, show pending state, or handle errors.
+Handle confirmation, submission and rejection in `run`. Blotter does not await a returned promise, show pending state or handle errors.
 
 An action scope listens to its target rows. A row update changes permission readings and the affected grid row without a grid-wide render. Unrelated updates do not wake the scope.
 
-Pass `renderContextMenu` to enable a menu. The shared `OrderMenu` recipe shows only actions permitted for at least one target and a disabled "Nothing to do here" item when none are permitted.
+Pass `renderContextMenu` to enable a menu. The shared `OrderMenu` recipe captures actions permitted for at least one target when opened. It shows a disabled "Nothing to do here" item if none are offered.
+
+An open menu keeps its action positions stable. Permission loss disables an item, and restoration enables it again. Newly offered actions appear when the menu reopens or its targets change.
 
 A single target shows `Cancel`. Multiple or mixed targets get counts.
 
 Place custom content inside `OrderMenu` to keep it before a conditional separator and the permitted actions.
 
-Pass `hasCustom` when a custom renderer can return `null`, so the empty fallback stays omitted. The renderer receives the grid's target rows and ids without action-permission filtering.
+Set `hasCustom` when a supplied renderer can return `undefined`. Explicit `null` counts as custom content by default. Pass `hasCustom={false}` to request the fallback for empty output.
+
+The renderer receives the grid's target rows and ids without action-permission filtering.
 
 Right-click requests focus for the targeted row and, when selection is enabled, replaces the selection if that row was not already selected. The menu uses the resulting selection, falling back to row focus.
 
@@ -226,13 +230,13 @@ Apply these requests when controlling selection or focus. Until then, the menu u
 
 Action invocation rechecks the store even if the displayed count has become stale.
 
-`allowedRows<T>(store: RowStore<T>, ids: readonly RowId[], action: string): { rows: T[]; ids: RowId[] }` exposes the same filter for your own hotkeys or menus. It reads the store immediately, skips missing or disallowed rows, and preserves input order. It does not run an action or change the store.
+`allowedRows<T>(store: RowStore<T>, ids: readonly RowId[], action: string): { rows: T[]; ids: RowId[] }` exposes the same filter for your own hotkeys or menus. It reads the store immediately, skips missing or disallowed rows, and preserves input order and duplicates. It does not run an action or change the store.
 
 ### Delete cancels nothing by default
 
 `deleteAction="cancel"` makes Delete and Backspace on the grid run the matching action on the orders in hand, through the same permission check. It is off by default. Nothing runs if the event was already prevented, no rows are in hand, or the id has no matching action.
 
-From the toolbar's buttons those keys do nothing.
+From the shared toolbar's buttons those keys do nothing.
 
 With custom editable columns and `deleteAction`, Delete and Backspace in a cell editor can also run the action.
 

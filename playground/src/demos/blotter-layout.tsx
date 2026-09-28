@@ -14,8 +14,9 @@ export function OrderActionPicker() {
   const focus = useOrderActionFocus<HTMLFormElement>(() => select.current?.focus())
   const { ids, actions, run } = useBlotterActions()
   const [actionId, setActionId] = useState("cancel")
-  // A removed definition falls back to the first available action in both display and dispatch.
-  const action = actions.find(action => action.id === actionId) ?? actions[0]
+  const action = actions.find(action => action.id === actionId)
+  // A disappearing choice must not silently select or later restore another command.
+  if (actionId && !action) setActionId("")
   return <form {...focus} className="grid content-start gap-2 text-xs lining-nums tabular-nums" onSubmit={event => {
     event.preventDefault()
     select.current?.focus()
@@ -23,11 +24,12 @@ export function OrderActionPicker() {
   }}>
     <label className="grid gap-1">Order action
       <select ref={select} value={action?.id ?? ""} onChange={event => setActionId(event.target.value)} className="min-w-0 rounded border border-border bg-background px-2 py-1">
-        {actions.length ? actions.map(action => <option key={action.id} value={action.id}>{action.label}</option>) : <option value="">No actions available</option>}
+        <option value="">{actions.length ? "Choose an action" : "No actions available"}</option>
+        {actions.map(action => <option key={action.id} value={action.id}>{action.label}</option>)}
       </select>
     </label>
-    <p aria-live="polite">{action?.allowedIds.length ?? 0} of {ids.length} orders permit this action.</p>
-    <button type="submit" data-action={action?.id ?? ""} disabled={!action?.allowedIds.length} className="rounded border border-border px-2 py-1 disabled:opacity-50">Apply action</button>
+    <p aria-live="polite" aria-atomic="true">{action ? `${action.allowedIds.length} of ${ids.length} orders permit ${action.label}.` : actions.length ? "Choose an action." : "No actions available."}</p>
+    <button type="submit" data-action={action?.id ?? ""} disabled={!action?.allowedIds.length} className="rounded border border-border px-2 py-1 disabled:opacity-50">{action ? `Apply ${action.label}` : "Apply action"}</button>
   </form>
 }
 

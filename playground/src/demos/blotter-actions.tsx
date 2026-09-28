@@ -23,7 +23,6 @@ export function useOrderActionFocus<T extends HTMLElement = HTMLDivElement>(focu
   })
   return {
     ref,
-    tabIndex: -1,
     onFocusCapture(event: FocusEvent<T>) { focused.current = (event.target as HTMLElement).closest<HTMLElement>("[data-action]") },
     onBlurCapture(event: FocusEvent<T>) {
       const node = focused.current
@@ -40,17 +39,21 @@ function OrderControls({ newLabel }: { newLabel: ReactNode }) {
   const { canNew } = useBlotter()
   const { actions } = useBlotterActions()
   const focus = useOrderActionFocus()
-  return <div {...focus} role="toolbar" aria-label="Orders" className="flex shrink-0 flex-wrap items-center gap-1 outline-none">
+  return <div {...focus} tabIndex={-1} role="toolbar" aria-label="Orders" className="flex shrink-0 flex-wrap items-center gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
     {canNew && <BlotterNewButton>{newLabel}</BlotterNewButton>}
     <BlotterSelection />
-    {actions.map(action => <BlotterActionButton key={action.id} action={action.id} onClick={() => focus.ref.current?.focus()} />)}
+    {actions.map(action => <BlotterActionButton key={action.id} action={action.id} />)}
   </div>
 }
 
-/** Custom content precedes the permitted actions. Pass hasCustom when a renderer can return null. */
+/** Custom content precedes the permitted actions. Pass hasCustom when a renderer can return undefined. */
 export function OrderMenu({ children, hasCustom = children !== undefined }: { children?: ReactNode; hasCustom?: boolean }) {
-  const { actions } = useBlotterActions()
-  const offered = actions.filter(action => action.allowedIds.length > 0)
+  const { ids, actions } = useBlotterActions()
+  const key = JSON.stringify(ids)
+  const offered = () => actions.filter(action => action.allowedIds.length > 0).map(({ id, label }) => ({ id, label }))
+  const [menu, setMenu] = useState(() => ({ key, items: offered() }))
+  // Keep open-menu positions stable under the pointer; live parts disable revoked commands.
+  if (menu.key !== key) setMenu({ key, items: offered() })
   const recovering = useRef(false)
   const focus = useOrderActionFocus(container => {
     recovering.current = true
@@ -65,9 +68,9 @@ export function OrderMenu({ children, hasCustom = children !== undefined }: { ch
   })
   return <div {...focus} role="group" aria-label="Order actions" className="outline-none">
     {children}
-    {hasCustom && offered.length > 0 && <ContextMenuSeparator />}
-    {offered.map(action => <BlotterActionMenuItem key={action.id} action={action.id} />)}
-    {!hasCustom && offered.length === 0 && <ContextMenuItem disabled>Nothing to do here</ContextMenuItem>}
+    {hasCustom && menu.items.length > 0 && <ContextMenuSeparator />}
+    {menu.items.map(item => <BlotterActionMenuItem key={item.id} action={item.id}>{actions.some(action => action.id === item.id) ? undefined : item.label}</BlotterActionMenuItem>)}
+    {!hasCustom && menu.items.length === 0 && <ContextMenuItem disabled>Nothing to do here</ContextMenuItem>}
   </div>
 }
 

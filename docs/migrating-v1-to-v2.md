@@ -465,12 +465,18 @@ Menu renderers now use current props when enabled or replaced, including while a
 | `newLabel` | Supply children to `BlotterNewButton`, or the shared `OrderToolbar` recipe's `newLabel`. |
 | Automatic selected-count reading | Compose `BlotterSelection` for the same polite root-target count, including focused-row fallback. |
 | Automatic action buttons | Use one `BlotterActionScope` around mapped `BlotterActionButton` controls, or copy `OrderToolbar`. |
-| Automatic permission-filtered menu and custom-items separator | Pass `renderContextMenu` to `BlotterGrid`. Wrap its ids in `BlotterActionScope` and compose `BlotterActionMenuItem`, or copy `OrderMenu`. Put custom content inside `OrderMenu`. Pass `hasCustom` when the custom renderer can return `null`. |
+| Automatic permission-filtered menu and custom-items separator | Pass `renderContextMenu` to `BlotterGrid`. Wrap its ids in `BlotterActionScope` and compose `BlotterActionMenuItem`, or copy `OrderMenu`. Put custom content inside `OrderMenu`. Pass `hasCustom` when the custom renderer can return `undefined`. Explicit `null` counts as custom content by default. |
 | Root `className` | Still styles the outer container. `BlotterGrid.className` styles its sizing wrapper. Give a separate wrapper a height when relocating the grid. |
+
+The root no longer creates a toolbar when `onNew` or actions are supplied. To retain v1 visibility, render `OrderToolbar` only when `onNew` exists or `actions.length` is nonzero.
 
 Save the complete actions example as `blotter-actions.tsx` beside consumers that import `OrderToolbar` and `OrderMenu`, outside `components/ui`.
 
-These application recipes preserve the former button counts, destructive button styling, menu counts and empty fallback. They also retain a useful focus destination when live permissions disable or remove an active action.
+These application recipes preserve the former button counts, destructive button styling, menu counts and empty fallback. Available buttons retain focus after activation. Unavailable actions recover to a visible toolbar or menu focus target.
+
+An open `OrderMenu` retains its offered action positions and disables revoked items. Reopen it to see newly permitted actions. The custom picker clears a removed choice and requires reselection before submission.
+
+DataGrid now starts fresh menu content on every opening, including a rapid reopen during the closing animation. Content state remains intact while the menu is open.
 
 `BlotterAction`, `BlotterRow`, `BlotterSide`, `BlotterColumnOptions`, `blotterColumns` and `allowedRows` remain available. Order status and action permissions still come from the server. Commands recheck current permissions before invoking handlers.
 

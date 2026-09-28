@@ -269,9 +269,9 @@ export function useBlotterActions(): BlotterActionsState {
   return state
 }
 
-export function BlotterNewButton({ children = "New order", disabled, onClick, size, className, ...props }: ComponentProps<typeof Button>) {
+export function BlotterNewButton({ children = "New order", disabled, onClick, type = "button", variant = "outline", size, className, ...props }: ComponentProps<typeof Button>) {
   const { canNew, newOrder } = useCommands()
-  return <Button type="button" variant="outline" size={size === undefined ? "sm" : size} {...props} className={cn(size === undefined && "h-6 px-2 text-xs", className)} disabled={disabled || !canNew} onClick={event => {
+  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} {...props} className={cn(size === undefined && "h-6 px-2 text-xs", className)} disabled={disabled || !canNew} onClick={event => {
     onClick?.(event)
     if (!event.defaultPrevented && !disabled && canNew) newOrder()
   }}>{children}</Button>
@@ -293,11 +293,11 @@ export interface BlotterActionButtonProps extends ComponentProps<typeof Button> 
   action: string
 }
 
-export function BlotterActionButton({ action: id, children, disabled, onClick, size, className, ...props }: BlotterActionButtonProps) {
+export function BlotterActionButton({ action: id, children, disabled, onClick, type = "button", variant, size, className, ...props }: BlotterActionButtonProps) {
   const { ids, actions, run } = useBlotterActions()
   const action = actions.find(action => action.id === id)
   const allowed = Boolean(action?.allowedIds.length)
-  return <Button type="button" variant={action?.destructive ? "destructive" : "outline"} size={size === undefined ? "sm" : size} data-action={id} {...props} className={cn(size === undefined && "h-6 px-2 text-xs", className)} disabled={disabled || !allowed} onClick={event => {
+  return <Button type={type} variant={variant === undefined ? (action?.destructive ? "destructive" : "outline") : variant} size={size === undefined ? "sm" : size} data-action={id} {...props} className={cn(size === undefined && "h-6 px-2 text-xs", className)} disabled={disabled || !allowed} onClick={event => {
     onClick?.(event)
     if (!event.defaultPrevented && !disabled && allowed) run(id)
   }}>{children === undefined ? actionLabel(action, id, ids.length) : children}</Button>

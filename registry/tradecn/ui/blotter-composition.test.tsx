@@ -232,19 +232,77 @@ describe("Blotter commands and composition", () => {
     expect(screen.getByRole("toolbar", { name: "Orders" })).toHaveFocus()
   })
 
-  it("keeps the custom picker on its displayed action after definition removal and focuses it before dispatch", () => {
+  it("keeps an activated action focused until a later reply makes it unavailable", () => {
+    const store = seeded()
+    const run = vi.fn()
+    render(<Blotter store={store} actions={[cancel(run)]} selection={new Set(["a"])}><OrderToolbar /></Blotter>)
+    const button = screen.getByRole("button", { name: "Cancel 1" })
+    button.focus()
+    fireEvent.click(button)
+    expect(button).toHaveFocus()
+    fireEvent.click(button)
+    expect(run).toHaveBeenCalledTimes(2)
+    act(() => store.applyDeltas({ patch: [{ id: "a", fields: { allowedActions: [] } }] }))
+    expect(screen.getByRole("toolbar", { name: "Orders" })).toHaveFocus()
+  })
+
+  it("requires a fresh picker choice when the selected definition disappears", () => {
+    const store = seeded()
+    const run = vi.fn()
+    const amend = { id: "amend", label: "Amend", run }
+    const layout = (actions: BlotterAction[]) => <Controls store={store} actions={actions} selection={new Set(["a"])}><OrderActionPicker /></Controls>
+    const view = render(layout([cancel(run), amend]))
+    const picker = screen.getByRole("combobox", { name: "Order action" })
+    fireEvent.change(picker, { target: { value: "amend" } })
+    screen.getByRole("button").focus()
+    view.rerender(layout([cancel(run)]))
+    expect(picker).toHaveValue("")
+    expect(picker).toHaveFocus()
+    expect(screen.getByRole("button")).toBeDisabled()
+    fireEvent.submit(screen.getByRole("button").closest("form")!)
+    expect(run).not.toHaveBeenCalled()
+    view.rerender(layout([cancel(run), amend]))
+    expect(picker).toHaveValue("")
+    expect(screen.getByRole("button")).toBeDisabled()
+  })
+
+  it("keeps button defaults when optional native props are explicitly undefined", () => {
+    const submit = vi.fn(event => event.preventDefault())
+    const view = render(<form onSubmit={submit}><Controls store={seeded()} actions={[{ ...cancel(), destructive: true }]} selection={new Set(["a"])} onNew={() => {}}>
+      <BlotterNewButton type={undefined} variant={undefined} />
+      <BlotterActionButton action="cancel" type={undefined} variant={undefined} />
+    </Controls></form>)
+    const button = screen.getByRole("button", { name: "Cancel 1" })
+    expect(button).toHaveClass("text-destructive")
+    expect(screen.getByRole("button", { name: "New order" })).not.toHaveClass("bg-primary")
+    for (const control of screen.getAllByRole("button")) {
+      expect(control).toHaveAttribute("type", "button")
+      fireEvent.click(control)
+    }
+    expect(submit).not.toHaveBeenCalled()
+    view.rerender(<Controls store={seeded()} actions={[{ ...cancel(), destructive: true }]} selection={new Set(["a"])} onNew={() => {}}>
+      <BlotterNewButton type="submit" variant="secondary" />
+      <BlotterActionButton action="cancel" type="reset" variant={null} />
+    </Controls>)
+    expect(screen.getByRole("button", { name: "New order" })).toHaveAttribute("type", "submit")
+    expect(screen.getByRole("button", { name: "New order" })).toHaveClass("bg-secondary")
+    expect(screen.getByRole("button", { name: "Cancel 1" })).toHaveAttribute("type", "reset")
+    expect(screen.getByRole("button", { name: "Cancel 1" })).not.toHaveClass("text-destructive")
+  })
+
+  it("dispatches the chosen picker action and focuses the select before dispatch", () => {
     const store = seeded()
     const run = vi.fn(() => store.clear())
     const layout = (actions: BlotterAction[]) => <Controls store={store} actions={actions} selection={new Set(["a"])}><OrderActionPicker /></Controls>
     const view = render(layout([cancel(), { id: "amend", label: "Amend", run: vi.fn() }]))
-    fireEvent.change(screen.getByRole("combobox", { name: "Order action" }), { target: { value: "amend" } })
+    fireEvent.change(screen.getByRole("combobox", { name: "Order action" }), { target: { value: "cancel" } })
     view.rerender(layout([cancel(run)]))
     expect(screen.getByRole("combobox")).toHaveValue("cancel")
-    screen.getByRole("button", { name: "Apply action" }).focus()
-    fireEvent.submit(screen.getByRole("button", { name: "Apply action" }).closest("form")!)
+    screen.getByRole("button", { name: /^Apply / }).focus()
+    fireEvent.submit(screen.getByRole("button", { name: /^Apply / }).closest("form")!)
     expect(run).toHaveBeenCalledTimes(1)
     expect(screen.getByRole("combobox")).toHaveFocus()
-    expect(screen.getByRole("button", { name: "Apply action" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /^Apply / })).toBeDisabled()
     view.rerender(layout([]))
     expect(screen.getByRole("combobox")).toHaveValue("")
     expect(screen.getByRole("option", { name: "No actions available" })).toBeInTheDocument()
@@ -254,7 +312,7 @@ describe("Blotter commands and composition", () => {
     const store = seeded()
     const layout = (actions = [cancel()]) => <Controls store={store} actions={actions} selection={new Set(["a"])}><OrderActionPicker /><button>Elsewhere</button></Controls>
     const view = render(layout())
-    const submit = () => screen.getByRole("button", { name: "Apply action" })
+    const submit = () => screen.getByRole("button", { name: /^Apply / })
     for (const fields of [{ allowedActions: [] }, { status: "Filled", allowedActions: [] }]) {
       submit().focus()
       act(() => store.applyDeltas({ patch: [{ id: "a", fields }] }))
@@ -278,7 +336,7 @@ describe("Blotter commands and composition", () => {
   it.each(["toolbar", "picker"])("does not reclaim focus after deliberately leaving the %s", kind => {
     const store = seeded()
     render(<Blotter store={store} actions={[cancel()]} selection={new Set(["a"])}>{kind === "toolbar" ? <OrderToolbar /> : <BlotterActionScope><OrderActionPicker /></BlotterActionScope>}</Blotter>)
-    const button = screen.getByRole("button", { name: kind === "toolbar" ? "Cancel 1" : "Apply action" })
+    const button = screen.getByRole("button", { name: kind === "toolbar" ? "Cancel 1" : /^Apply / })
     button.focus()
     button.blur()
     expect(document.body).toHaveFocus()
