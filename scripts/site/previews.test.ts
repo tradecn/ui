@@ -116,6 +116,8 @@ describe("the demo source shown under Code", () => {
       "rules-editor-tabs",
       "rules-editor-layout",
       "audit-trail",
+      "audit-trail-history",
+      "audit-trail-layout",
     ])
     for (const name of alignable) {
       expect(demos.has(name), name).toBe(true)
@@ -166,6 +168,8 @@ describe("the demo source shown under Code", () => {
       "alerts-bridge",
       "alerts-collection",
       "alerts-history",
+      "audit-trail-history",
+      "audit-trail-layout",
       "blotter-actions",
       "blotter-layout",
       "blotter-reports",
@@ -340,6 +344,8 @@ describe("a theme on the site", () => {
       "alerts-bridge",
       "alerts-collection",
       "alerts-history",
+      "audit-trail-history",
+      "audit-trail-layout",
       "blotter-actions",
       "blotter-layout",
       "blotter-reports",

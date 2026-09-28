@@ -1,7 +1,9 @@
+import { createRef, StrictMode, useLayoutEffect, type ReactNode } from "react"
+import { AuditChangesTable } from "@/demos/audit-trail"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { AuditTrail, DEFAULT_AUDIT_TRAIL_LABELS, auditTrailColumns, diffEvents, foldChanges, formatAuditValue, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
+import { AuditTrail, AuditTrailChanges, AuditTrailGrid, AuditTrailExportButton, useAuditTrail, useAuditTrailChanges, DEFAULT_AUDIT_TRAIL_LABELS, auditTrailColumns, diffEvents, foldChanges, formatAuditValue, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
 
 const T0 = 1_700_000_000_000
 const EVENTS: AuditEvent[] = [
@@ -14,6 +16,7 @@ const EVENTS: AuditEvent[] = [
 
 const RECT = { width: 900, height: 200 }
 
+const descriptors = new Map(["animate", "offsetWidth", "offsetHeight"].map(key => [key, Object.getOwnPropertyDescriptor(HTMLElement.prototype, key)]))
 beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, writable: true, value: vi.fn(() => ({ cancel: vi.fn(), currentTime: 0, onfinish: null })) })
   for (const [prop, size] of [["offsetWidth", RECT.width], ["offsetHeight", RECT.height]] as const) {
@@ -25,7 +28,13 @@ beforeEach(() => {
     })
   }
 })
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  for (const [key, descriptor] of descriptors) {
+    if (descriptor) Object.defineProperty(HTMLElement.prototype, key, descriptor)
+    else Reflect.deleteProperty(HTMLElement.prototype, key)
+  }
+})
 
 describe("the pure parts", () => {
   it("folds the changes up to an event into the state at that moment", () => {
@@ -68,7 +77,11 @@ describe("AuditTrail", () => {
   function setup(onExport?: (csv: string) => void) {
     const store = createRowStore<AuditEvent>({ getRowId: (e) => e.id, lane: "ordered" })
     store.applyDeltas({ upsert: EVENTS })
-    render(<AuditTrail store={store} initialRect={RECT} time={(ms) => `t${ms - T0}`} onExport={onExport} />)
+    render(<AuditTrail store={store} time={(ms) => `t${ms - T0}`}>
+      {onExport && <AuditTrailExportButton onExport={onExport} />}
+      <AuditTrailGrid initialRect={RECT} />
+      <AuditChangesTable />
+    </AuditTrail>)
     const grid = screen.getByRole("grid", { name: "Audit trail" })
     const pane = screen.getByRole("region", { name: "Changes" })
     const row = (id: string) => document.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!
@@ -130,12 +143,205 @@ describe("AuditTrail", () => {
   it("takes the desk's own value formatter and hides the pane", () => {
     const store = createRowStore<AuditEvent>({ getRowId: (e) => e.id })
     store.applyDeltas({ upsert: EVENTS })
-    const { rerender } = render(<AuditTrail store={store} initialRect={RECT} value={(field, v) => (field === "quantity" ? `${Number(v) / 1000}k` : formatAuditValue(v))} selection={new Set(["e1"])} />)
+    const { rerender } = render(<AuditTrail store={store} value={(field, v) => (field === "quantity" ? `${Number(v) / 1000}k` : formatAuditValue(v))} selection={new Set(["e1"])}><AuditTrailGrid initialRect={RECT} /><AuditChangesTable /></AuditTrail>)
     const pane = screen.getByRole("region", { name: "Changes" })
     expect(pane.querySelector("[data-audit-change='quantity'] [data-audit-to]")).toHaveTextContent("5k")
     expect(pane.querySelector("[data-audit-change='price'] [data-audit-to]")).toHaveTextContent("99-16+")
     expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull()
-    rerender(<AuditTrail store={store} initialRect={RECT} pane={false} />)
+    rerender(<AuditTrail store={store}><AuditTrailGrid initialRect={RECT} /></AuditTrail>)
     expect(screen.queryByRole("region", { name: "Changes" })).toBeNull()
   })
 })
+
+function seeded() {
+  const store = createRowStore<AuditEvent>({ getRowId: event => event.id, lane: "ordered" })
+  store.applyDeltas({ upsert: EVENTS })
+  return store
+}
+
+function Reading({ children }: { children?: ReactNode }) {
+  const state = useAuditTrailChanges()
+  return <output data-kind={state.kind}>{state.title}|{state.emptyMessage}|{state.changes.map(change => `${change.field}:${state.formatValue(change.field, change.from)}>${state.formatValue(change.field, change.to)}`).join(",")}{children}</output>
+}
+
+describe("composition and shared behavior", () => {
+  it("forwards native refs and events, and gives the ordinary table real column and row headers", () => {
+    const root = createRef<HTMLDivElement>()
+    const section = createRef<HTMLElement>()
+    const button = createRef<HTMLButtonElement>()
+    const key = vi.fn()
+    const clicked = vi.fn()
+    const store = seeded()
+    render(<AuditTrail ref={root} store={store} selection={new Set(["e1"])} onKeyDown={key} aria-label="Order history">
+      <AuditChangesTable />
+      <AuditTrailChanges ref={section} aria-label="Notes" onClick={clicked}><Reading /></AuditTrailChanges>
+      <AuditTrailExportButton ref={button} onExport={() => {}} title="Download">Save</AuditTrailExportButton>
+    </AuditTrail>)
+    expect(root.current).toHaveAttribute("aria-label", "Order history")
+    fireEvent.keyDown(root.current!, { key: "Escape" })
+    expect(key).toHaveBeenCalledOnce()
+    fireEvent.click(section.current!)
+    expect(clicked).toHaveBeenCalledOnce()
+    expect(button.current).toHaveAccessibleName("Save")
+    expect(button.current).toHaveAttribute("type", "button")
+    const table = screen.getByRole("table", { name: "Changes" })
+    expect(within(table).getAllByRole("columnheader").map(header => header.textContent)).toEqual(["Field", "From", "To"])
+    for (const header of within(table).getAllByRole("columnheader")) expect(header).toHaveAttribute("scope", "col")
+    for (const header of within(table).getAllByRole("rowheader")) expect(header).toHaveAttribute("scope", "row")
+  })
+
+  it("keeps the root and export controls out of store subscriptions, reads current CSV, and respects cancellation and disabled", () => {
+    const store = seeded()
+    const meta = vi.spyOn(store, "subscribeMeta")
+    const order = vi.spyOn(store, "subscribeOrder")
+    const renderRoot = vi.fn()
+    function Controls() {
+      renderRoot()
+      const { exportCsv } = useAuditTrail()
+      return <button onClick={() => custom(exportCsv())}>Custom export</button>
+    }
+    const custom = vi.fn()
+    const exported = vi.fn()
+    const { rerender } = render(<AuditTrail store={store}><Controls /><AuditTrailExportButton onExport={exported} /></AuditTrail>)
+    act(() => store.applyDeltas({ patch: [{ id: "e1", fields: { message: "corrected" } }], upsert: [{ id: "e6", at: T0 + 12000, event: "Filled" }] }))
+    expect(meta).not.toHaveBeenCalled()
+    expect(order).not.toHaveBeenCalled()
+    expect(renderRoot).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }))
+    expect(exported.mock.calls[0]![0]).toContain("corrected")
+    expect(exported.mock.calls[0]![0]).toContain("Filled")
+    fireEvent.click(screen.getByRole("button", { name: "Custom export" }))
+    expect(custom.mock.calls[0]![0]).toBe(exported.mock.calls[0]![0])
+    rerender(<AuditTrail store={store}><AuditTrailExportButton onExport={exported} onClick={event => event.preventDefault()} /></AuditTrail>)
+    fireEvent.click(screen.getByRole("button"))
+    rerender(<AuditTrail store={store}><AuditTrailExportButton onExport={exported} disabled /></AuditTrail>)
+    fireEvent.click(screen.getByRole("button"))
+    expect(exported).toHaveBeenCalledOnce()
+  })
+
+  it("uses the current view, columns and callbacks before descendant layout effects run", () => {
+    const store = seeded()
+    const view = store.createView({ filter: event => event.id === "e2" })
+    const first = vi.fn()
+    const second = vi.fn()
+    const columns = auditTrailColumns<AuditEvent>({ time: ms => `t${ms - T0}` }).filter(column => column.key === "event")
+    const csv = vi.fn()
+    function Commands({ tick }: { tick: number }) {
+      const { select, exportCsv } = useAuditTrail()
+      useLayoutEffect(() => { select(new Set(["e2"])); csv(exportCsv()) }, [select, exportCsv, tick])
+      return null
+    }
+    const { rerender, unmount } = render(<AuditTrail store={store} selection={new Set()} onSelectionChange={first}><Commands tick={0} /></AuditTrail>)
+    rerender(<AuditTrail store={store} view={view} columns={columns} selection={new Set()} onSelectionChange={second}><Commands tick={1} /></AuditTrail>)
+    expect(first).toHaveBeenCalledOnce()
+    expect(second).toHaveBeenCalledWith(new Set(["e2"]))
+    expect(csv.mock.calls[1]![0]).toBe("Event\r\nAcknowledged\r\n")
+    unmount()
+    expect(view.isDisposed()).toBe(false)
+    view.dispose()
+  })
+
+  it("shares one scope subscription with any number of readings and cleans up StrictMode/store/view changes", () => {
+    const store = seeded()
+    const other = seeded()
+    const active = new Set<() => void>()
+    for (const source of [store, other]) {
+      for (const method of ["subscribeMeta", "subscribeOrder"] as const) {
+        const subscribe = source[method].bind(source)
+        vi.spyOn(source, method).mockImplementation(callback => {
+          active.add(callback)
+          const off = subscribe(callback)
+          return () => { active.delete(callback); off() }
+        })
+      }
+    }
+    const selected = new Set(["e3"])
+    const content = <><Reading /><Reading /></>
+    const { rerender, unmount } = render(<StrictMode><AuditTrail store={store} selection={selected}><AuditTrailChanges>{content}</AuditTrailChanges></AuditTrail></StrictMode>)
+    expect(active.size).toBe(2)
+    act(() => store.applyDeltas({ patch: [{ id: "e3", fields: { changes: [{ field: "filled", from: 0, to: 2100 }] } }] }))
+    for (const output of screen.getAllByRole("status")) expect(output).toHaveTextContent("filled:0>2100")
+    const view = other.createView({ filter: event => event.id !== "e5" })
+    rerender(<StrictMode><AuditTrail store={other} view={view} selection={selected}><AuditTrailChanges>{content}</AuditTrailChanges></AuditTrail></StrictMode>)
+    // The caller-owned view has its own subscription; the changes scope owns only metadata now.
+    expect(active.size).toBe(1)
+    for (const output of screen.getAllByRole("status")) expect(output).toHaveTextContent("filled:0>2000")
+    unmount()
+    expect(active.size).toBe(0)
+    expect(view.isDisposed()).toBe(false)
+    view.dispose()
+  })
+
+  it("updates a comparison when preceding history changes, preserves ordering, and ignores missing rows", () => {
+    const store = seeded()
+    const value = vi.fn((field: string, raw: unknown, event: AuditEvent) => `${field}=${formatAuditValue(raw)}@${event.id}`)
+    const { rerender } = render(<AuditTrail store={store} value={value} selection={new Set(["e5", "e3", "missing"])} time={ms => `t${ms - T0}`}><AuditTrailChanges><Reading /></AuditTrailChanges></AuditTrail>)
+    expect(screen.getByRole("status")).toHaveTextContent("PartiallyFilled t4000 to Heartbeat t9500")
+    expect(screen.getByRole("status")).toHaveTextContent("price:price=99-16+@e5>price=99-17@e5")
+    act(() => store.applyDeltas({ patch: [{ id: "e1", fields: { changes: [{ field: "price", to: "98-00" }] } }] }))
+    expect(screen.getByRole("status")).toHaveTextContent("price=98-00@e5")
+    act(() => store.applyDeltas({ remove: ["e5"] }))
+    expect(screen.getByRole("status")).toHaveAttribute("data-kind", "event")
+    act(() => store.applyDeltas({ remove: ["e3"] }))
+    expect(screen.getByRole("status")).toHaveAttribute("data-kind", "none")
+    rerender(<AuditTrail store={store} selection={new Set(["e1", "e4"])}><AuditTrailChanges>{({ changes }) => <ol>{[...changes].reverse().map((change, index) => <li key={index}>{change.field}</li>)}</ol>}</AuditTrailChanges></AuditTrail>)
+    expect(screen.getAllByRole("listitem").map(item => item.textContent)).toEqual(["status", "price"])
+  })
+
+  it("lets callers select without a grid, keeps controlled selection authoritative and shares localized empty readings", () => {
+    const store = seeded()
+    const selected = vi.fn()
+    function Select() {
+      const { select } = useAuditTrail()
+      return <button onClick={() => select(new Set(["e5"]))}>Choose heartbeat</button>
+    }
+    const parts = <><Select /><AuditTrailChanges><Reading /></AuditTrailChanges></>
+    const { rerender } = render(<AuditTrail store={store} onSelectionChange={selected} labels={{ noChanges: "No fields" }}>{parts}</AuditTrail>)
+    fireEvent.click(screen.getByRole("button"))
+    expect(selected).toHaveBeenCalledWith(new Set(["e5"]))
+    expect(screen.getByRole("status")).toHaveTextContent("No fields")
+    rerender(<AuditTrail store={store} selection={new Set(["e4", "e5"])} labels={{ same: "No difference" }}>{parts}</AuditTrail>)
+    fireEvent.click(screen.getByRole("button"))
+    expect(screen.getByRole("status")).toHaveAttribute("data-kind", "diff")
+    expect(screen.getByRole("status")).toHaveTextContent("No difference")
+  })
+
+  it("preserves repeated fields as separate entries in the shared table", () => {
+    const store = seeded()
+    store.applyDeltas({ patch: [{ id: "e1", fields: { changes: [{ field: "status", from: "New", to: "Working" }, { field: "status", from: "Working", to: "Filled" }] } }] })
+    render(<AuditTrail store={store} selection={new Set(["e1"])}><AuditChangesTable /></AuditTrail>)
+    expect(screen.getAllByRole("rowheader", { name: "status" })).toHaveLength(2)
+    expect(screen.getByRole("table")).toHaveTextContent("NewWorkingstatusWorkingFilled")
+  })
+})
+
+// Checked by the real TypeScript compiler as part of the repository typecheck.
+export function auditTrailCallShapes(store: ReturnType<typeof seeded>) {
+  // @ts-expect-error Released minimal calls need explicit composition.
+  const minimal = <AuditTrail store={store} />
+  // @ts-expect-error Retained inputs must not allow an obsolete empty root.
+  const retained = <AuditTrail store={store} time={String} columns={auditTrailColumns()} selection={new Set()} />
+  // @ts-expect-error Export callback belongs to the export control.
+  const exported = <AuditTrail store={store} onExport={() => {}}><AuditTrailGrid /></AuditTrail>
+  // @ts-expect-error Pane visibility is caller-owned composition.
+  const pane = <AuditTrail store={store} pane={false}><AuditTrailGrid /></AuditTrail>
+  // @ts-expect-error Grid options moved to AuditTrailGrid.
+  const checkbox = <AuditTrail store={store} selectionColumn><AuditTrailGrid /></AuditTrail>
+  // @ts-expect-error Grid labels moved to AuditTrailGrid.
+  const label = <AuditTrail store={store} label="Events"><AuditTrailGrid /></AuditTrail>
+  // @ts-expect-error Context menus moved to AuditTrailGrid.
+  const menu = <AuditTrail store={store} renderContextMenu={() => null}><AuditTrailGrid /></AuditTrail>
+  // @ts-expect-error Sorting moved to AuditTrailGrid.
+  const sort = <AuditTrail store={store} sort={{ key: "at", dir: "desc" }}><AuditTrailGrid /></AuditTrail>
+  // @ts-expect-error Changes require caller-owned content.
+  const changes = <AuditTrailChanges />
+  // @ts-expect-error CSV needs a destination callback.
+  const button = <AuditTrailExportButton />
+  // @ts-expect-error The inherited root mode was always ignored and is removed.
+  const mode = <AuditTrail store={store} selectionMode="single"><AuditTrailGrid /></AuditTrail>
+  // @ts-expect-error AuditTrailGrid fixes multi-selection.
+  const gridMode = <AuditTrailGrid selectionMode="single" />
+  const replacement = <AuditTrail store={store} ref={createRef()} onKeyDown={() => {}}><AuditTrailGrid selectionColumn label="Events" renderContextMenu={rows => rows[0]?.event} sort={{ key: "at", dir: "desc" }} /><AuditChangesTable /><AuditTrailExportButton onExport={() => {}} /></AuditTrail>
+  const conditional = <AuditTrail store={store}>{store.getIds().length > 0 && <AuditTrailGrid />}</AuditTrail>
+  return { minimal, retained, exported, pane, checkbox, label, menu, sort, changes, button, mode, gridMode, replacement, conditional }
+}

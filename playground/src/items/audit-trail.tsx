@@ -1,8 +1,9 @@
 import { useState } from "react"
+import { AuditChangesTable } from "../demos/audit-trail"
 import { Button } from "@/components/ui/button"
 import { createInstrumentFormatter } from "@/registry/tradecn/lib/format"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { AuditTrail, formatAuditValue, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
+import { AuditTrail, AuditTrailGrid, AuditTrailExportButton, formatAuditValue, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
 
 // One order's life as a pretend server reports it, one event per press, and a correction the server
 // sends for an event already on the tape. The trail prints the words and folds the changes; it decides
@@ -51,7 +52,13 @@ export function AuditTrailScene() {
         </Button>
       </div>
       <div className="min-h-0 flex-1">
-        <AuditTrail store={store} value={value} onExport={setCsv} />
+        <AuditTrail store={store} value={value}>
+          <div className="flex justify-end"><AuditTrailExportButton onExport={setCsv} /></div>
+          <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)] gap-2">
+            <AuditTrailGrid />
+            <AuditChangesTable />
+          </div>
+        </AuditTrail>
       </div>
       <pre className="h-24 overflow-auto rounded-md border border-border bg-card p-2 text-muted-foreground">{csv || "the CSV lands here"}</pre>
     </main>

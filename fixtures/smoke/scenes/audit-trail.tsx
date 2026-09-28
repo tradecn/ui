@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { AuditTrail, type AuditEvent } from "@/components/ui/audit-trail"
+import { AuditChangesTable } from "./recipes/audit-trail"
+import { AuditTrail, AuditTrailGrid, AuditTrailExportButton, type AuditEvent } from "@/components/ui/audit-trail"
 import { createRowStore } from "@/lib/row-store"
 
 const T0 = 1_700_000_000_000
@@ -21,7 +22,13 @@ export function AuditTrailScene() {
   return (
     <div className="flex flex-col gap-1" data-audit-csv={csv}>
       <div className="w-[60rem]" style={{ height: 180 }}>
-        <AuditTrail store={store} time={(ms) => `t${ms - T0}`} onExport={setCsv} />
+        <AuditTrail store={store} time={(ms) => `t${ms - T0}`}>
+          <div className="flex justify-end"><AuditTrailExportButton onExport={setCsv} /></div>
+          <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)] gap-2">
+            <AuditTrailGrid />
+            <AuditChangesTable />
+          </div>
+        </AuditTrail>
       </div>
       <button type="button" onClick={() => store.applyDeltas({ upsert: [{ id: "e5", at: T0 + 12_000, event: "Filled", by: "venue", changes: [{ field: "filled", from: 2000, to: 5000 }, { field: "status", from: "PartiallyFilled", to: "Filled" }] }] })}>
         next event
