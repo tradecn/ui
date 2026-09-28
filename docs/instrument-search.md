@@ -32,7 +32,7 @@ export default function InstrumentSearchDemo() {
 
 export function InstrumentOptions() {
   const { hits, loading, labels, emptyMessage } = useInstrumentSearchState()
-  if (loading) return <p className="px-2 py-1.5 text-muted-foreground">{labels.searching}</p>
+  if (loading) return <div className="px-2 py-1.5 text-muted-foreground">{labels.searching}</div>
   if (!hits.length) return <CommandEmpty>{emptyMessage}</CommandEmpty>
   return <CommandGroup heading={labels.results}>
     {hits.map((hit) => <InstrumentSearchItem key={hit.id} hit={hit}><InstrumentHitContent hit={hit} /></InstrumentSearchItem>)}
@@ -80,7 +80,7 @@ This example adds a 300 ms request delay after the debounce. Its local lookup ma
 
 <!-- demo: instrument-search-hints -->
 
-## Custom Layout
+## Custom layout
 
 Move the input and hint beside a reordered result list. The clear action shares query state and returns focus to the input; selection retains the query.
 
@@ -169,6 +169,8 @@ Reads the nearest root without starting another request. Use it for your own sta
 
 The field waits for the debounce before searching. A query change cancels the pending timer and aborts the previous request; unmounting does the same. Responses from an aborted request are ignored even if your search does not honor the signal. Stored hits appear only when their query string equals the current input, so rows from a different query cannot be selected. A stored result for the exact same query and search function can remain visible while a new request runs. Replacing the search function removes the previous provider's hits immediately.
 
+Keep `search` stable: define it at module scope or memoize it with `useCallback`. An inline function changes identity on each parent render and restarts the search. Standalone `useInstrumentSearch` cannot settle visible results when each render supplies a new function.
+
 The searching label appears during the debounce and request when there is no stored result for that query. A rejected promise or synchronous throw becomes an empty result; the Usage recipe shows the empty label. There is no separate error display.
 
 ### InstrumentHit
@@ -179,7 +181,7 @@ The searching label appears during the debounce and request when there is no sto
 | `symbol` | `string` | Yes | Ticker or short form shown at the start of the row. |
 | `name` | `string` | No | Long name shown after the symbol. |
 | `kind` | `string` | No | Asset class or instrument type shown as a badge. |
-| `exchange` | `string` | No | Passed through the symbol adapter; not shown by the default row. |
+| `exchange` | `string` | No | Passed through the symbol adapter; not shown by the Usage recipe. |
 | `cusip` | `string` | No | Shown when the query hint is `cusip`. |
 | `isin` | `string` | No | Shown when the query hint is `isin`. |
 

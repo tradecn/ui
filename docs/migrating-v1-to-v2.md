@@ -587,6 +587,8 @@ The empty List stays mounted to provide cmdk's expanded combobox with a valid ta
 
 Same-query cache reuse is retained for the same search function. Replacing that function now removes its old hits immediately. Synchronous throws settle as empty results like rejected promises, and selection callbacks use the current committed props even when invoked from a child layout effect.
 
+Define `search` at module scope or memoize it with `useCallback`. Its identity is now part of the stored result's key. An inline function passed to standalone `useInstrumentSearch` restarts on every answer, so results never become visible.
+
 Use each primitive's supported props: Content `label` names the input, List `label` names its listbox, and the root owns query edits. cmdk-owned IDs, roles, ARIA and overwritten events are excluded from the corresponding part types.
 
 Native root props and refs are now forwarded. Input and Item keep their command semantics.

@@ -1,6 +1,6 @@
 import { StrictMode, createRef, useLayoutEffect, type ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { act, fireEvent, render, renderHook, screen } from "@testing-library/react"
+import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { isCusip, isIsin, parseCoupon, parseCouponMaturity, parseMaturity, recognizeQuery } from "@/registry/tradecn/lib/instrument-query"
 import { InstrumentSearch, InstrumentSearchContent, InstrumentSearchInput, InstrumentSearchList, InstrumentSearchItem, InstrumentSearchHint, useInstrumentSearchState, matchedIdentifier, toSymbolAdapter, useInstrumentSearch, type InstrumentHit, type InstrumentSearchFn, type InstrumentSearchProps, type InstrumentSearchState } from "@/registry/tradecn/ui/instrument-search"
@@ -140,6 +140,7 @@ describe("InstrumentSearch", () => {
     // Before the debounce lands the old rows are gone, not left to be picked.
     expect(document.querySelector("[data-instrument-hit='t10']")).toBeNull()
     expect(screen.getByText("Searching…")).toBeInTheDocument()
+    expect(within(screen.getByRole("listbox")).queryByRole("paragraph")).toBeNull()
     act(() => {
       vi.advanceTimersByTime(150)
     })

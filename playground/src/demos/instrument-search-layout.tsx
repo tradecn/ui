@@ -33,7 +33,7 @@ function ClearQuery({ input }: { input: RefObject<HTMLInputElement | null> }) {
 
 function ContractOptions() {
   const { hits, loading, labels, emptyMessage } = useInstrumentSearchState()
-  if (loading) return <p className="text-muted-foreground">{labels.searching}</p>
+  if (loading) return <div className="text-muted-foreground">{labels.searching}</div>
   if (!hits.length) return <CommandEmpty>{emptyMessage}</CommandEmpty>
   return <CommandGroup heading="Contracts">
     {hits.toReversed().map((hit) => <InstrumentSearchItem key={hit.id} hit={hit} className="items-start">

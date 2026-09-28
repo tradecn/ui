@@ -25,7 +25,7 @@ export default function InstrumentSearchDemo() {
 
 export function InstrumentOptions() {
   const { hits, loading, labels, emptyMessage } = useInstrumentSearchState()
-  if (loading) return <p className="px-2 py-1.5 text-muted-foreground">{labels.searching}</p>
+  if (loading) return <div className="px-2 py-1.5 text-muted-foreground">{labels.searching}</div>
   if (!hits.length) return <CommandEmpty>{emptyMessage}</CommandEmpty>
   return <CommandGroup heading={labels.results}>
     {hits.map((hit) => <InstrumentSearchItem key={hit.id} hit={hit}><InstrumentHitContent hit={hit} /></InstrumentSearchItem>)}
