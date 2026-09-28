@@ -16,7 +16,7 @@ const time = (ms: number) => new Date(ms).toISOString().slice(11, 23)
 export function AuditChangesTable() {
   return <AuditTrailChanges>{({ title, changes, emptyMessage, formatValue, labels }) => <>
     {title && <h3 className="font-medium">{title}</h3>}
-    {emptyMessage ? <p className="text-muted-foreground">{emptyMessage}</p> : (
+    {changes.length === 0 ? <p className="text-muted-foreground">{emptyMessage}</p> : (
       <table aria-label={labels.changes} className="w-full border-separate border-spacing-x-2 text-left">
         <thead><tr className="text-muted-foreground">
           <th scope="col" className="font-normal">{labels.field}</th>
@@ -25,8 +25,8 @@ export function AuditChangesTable() {
         </tr></thead>
         <tbody>{changes.map((change, index) => <tr key={index} data-audit-change={change.field}>
           <th scope="row" className="font-medium">{change.field}</th>
-          <td data-audit-from className={`${NUMERIC_CLASS} text-muted-foreground line-through decoration-muted-foreground/60`}>{formatValue(change.field, change.from)}</td>
-          <td data-audit-to className={NUMERIC_CLASS}>{formatValue(change.field, change.to)}</td>
+          <td data-audit-from="" className={`${NUMERIC_CLASS} text-muted-foreground line-through decoration-muted-foreground/60`}>{formatValue(change.field, change.from)}</td>
+          <td data-audit-to="" className={NUMERIC_CLASS}>{formatValue(change.field, change.to)}</td>
         </tr>)}</tbody>
       </table>
     )}
@@ -102,7 +102,7 @@ The value formatter has the signature `(field: string, value: unknown, event: T)
 | `children` | `ReactNode` | Required | Your composition. |
 | `view` | `RowView<T>` | - | Shared row IDs and order for the grid, comparisons and export. The caller owns its disposal. |
 | `columns` | `ColumnDef<T>[]` | Event columns | Shared event columns for the grid and export. |
-| `time` | `(ms: number) => string` | Local `HH:MM:SS.mmm` | Format default time cells and comparison titles. |
+| `time` | `(ms: number) => string` | Local `HH:MM:SS.mmm` | Format default time cells, event titles and comparison titles. |
 | `value` | `(field, value, event) => string` | `formatAuditValue` | Format before and after values. |
 | `labels` | `Partial<AuditTrailLabels>` | Default labels | Override column, changes and export text. |
 | `selection` | `ReadonlySet<RowId>` | Internal empty set | Control the selected events. |

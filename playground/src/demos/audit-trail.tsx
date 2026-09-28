@@ -9,7 +9,7 @@ const time = (ms: number) => new Date(ms).toISOString().slice(11, 23)
 export function AuditChangesTable() {
   return <AuditTrailChanges>{({ title, changes, emptyMessage, formatValue, labels }) => <>
     {title && <h3 className="font-medium">{title}</h3>}
-    {emptyMessage ? <p className="text-muted-foreground">{emptyMessage}</p> : (
+    {changes.length === 0 ? <p className="text-muted-foreground">{emptyMessage}</p> : (
       <table aria-label={labels.changes} className="w-full border-separate border-spacing-x-2 text-left">
         <thead><tr className="text-muted-foreground">
           <th scope="col" className="font-normal">{labels.field}</th>
@@ -18,8 +18,8 @@ export function AuditChangesTable() {
         </tr></thead>
         <tbody>{changes.map((change, index) => <tr key={index} data-audit-change={change.field}>
           <th scope="row" className="font-medium">{change.field}</th>
-          <td data-audit-from className={`${NUMERIC_CLASS} text-muted-foreground line-through decoration-muted-foreground/60`}>{formatValue(change.field, change.from)}</td>
-          <td data-audit-to className={NUMERIC_CLASS}>{formatValue(change.field, change.to)}</td>
+          <td data-audit-from="" className={`${NUMERIC_CLASS} text-muted-foreground line-through decoration-muted-foreground/60`}>{formatValue(change.field, change.from)}</td>
+          <td data-audit-to="" className={NUMERIC_CLASS}>{formatValue(change.field, change.to)}</td>
         </tr>)}</tbody>
       </table>
     )}

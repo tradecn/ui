@@ -337,6 +337,23 @@ describe("composition and shared behavior", () => {
     render(<AuditTrail store={store} selection={new Set(["e1"])}><AuditChangesTable /></AuditTrail>)
     expect(screen.getAllByRole("rowheader", { name: "status" })).toHaveLength(2)
     expect(screen.getByRole("table")).toHaveTextContent("NewWorkingstatusWorkingFilled")
+    expect(document.querySelectorAll('[data-audit-from=""], [data-audit-to=""]')).toHaveLength(4)
+  })
+
+  it.each([
+    ["none", []],
+    ["event", ["e5"]],
+    ["diff", ["e4", "e5"]],
+  ] as const)("keeps a %s reading empty when its message is blank", (kind, ids) => {
+    const store = seeded()
+    const labels = { select: "", noChanges: "", same: "" }
+    const { rerender } = render(<AuditTrail store={store} selection={new Set(ids)} labels={labels}><AuditChangesTable /></AuditTrail>)
+    expect(screen.getByRole("region", { name: "Changes" })).toHaveAttribute("data-audit-pane", kind)
+    expect(screen.queryByRole("table")).toBeNull()
+    expect(screen.queryByRole("columnheader")).toBeNull()
+    rerender(<AuditTrail store={store} selection={new Set(["e1"])} labels={labels}><AuditChangesTable /></AuditTrail>)
+    expect(screen.getAllByRole("columnheader")).toHaveLength(3)
+    expect(screen.getAllByRole("rowheader")).toHaveLength(3)
   })
 })
 

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
+import { MONO_NUMERIC_CLASS, NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
 import { AuditTrail, AuditTrailChanges, AuditTrailExportButton, AuditTrailGrid, auditTrailColumns, useAuditTrailChanges } from "@/registry/tradecn/ui/audit-trail"
 import { auditTime, auditValue, createAuditHistory } from "./audit-trail-history"
 
@@ -9,12 +9,12 @@ function ChangeCards() {
   const { title, changes, emptyMessage, formatValue } = useAuditTrailChanges()
   return <>
     <h2 className="font-medium">{title || "Review an event"}</h2>
-    {emptyMessage ? <p className="text-muted-foreground">{emptyMessage}</p> : <ol className="grid gap-2 sm:grid-cols-2">
+    {changes.length === 0 ? <p className="text-muted-foreground">{emptyMessage}</p> : <ol className="grid gap-2 sm:grid-cols-2">
       {[...changes].reverse().map((change, index) => <li key={index} data-audit-change={change.field} className="rounded border border-border p-2">
         <h3 className="font-medium">{change.field}</h3>
         <dl className="mt-1 grid grid-cols-2 gap-x-2 break-words">
-          <dt className="text-muted-foreground">Previous</dt><dd data-audit-from className={`${NUMERIC_CLASS} line-through`}>{formatValue(change.field, change.from)}</dd>
-          <dt className="text-muted-foreground">Current</dt><dd data-audit-to className={NUMERIC_CLASS}>{formatValue(change.field, change.to)}</dd>
+          <dt className="text-muted-foreground">Previous</dt><dd data-audit-from="" className={`${NUMERIC_CLASS} line-through`}>{formatValue(change.field, change.from)}</dd>
+          <dt className="text-muted-foreground">Current</dt><dd data-audit-to="" className={NUMERIC_CLASS}>{formatValue(change.field, change.to)}</dd>
         </dl>
       </li>)}
     </ol>}
@@ -40,7 +40,7 @@ export default function AuditTrailLayoutDemo() {
           <AuditTrailExportButton onExport={setCsv}>Export history</AuditTrailExportButton>
         </div>
       </AuditTrail>
-      {csv && <pre role="region" aria-label="Exported CSV" tabIndex={0} className="max-h-32 overflow-auto rounded border border-border p-2">{csv}</pre>}
+      {csv && <pre role="region" aria-label="Exported CSV" tabIndex={0} className={`max-h-32 overflow-auto rounded border border-border p-2 ${MONO_NUMERIC_CLASS}`}>{csv}</pre>}
     </div>
   </>
 }

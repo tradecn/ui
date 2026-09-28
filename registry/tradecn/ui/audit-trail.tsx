@@ -6,6 +6,9 @@ import { NULL_TOKEN } from "@/registry/tradecn/lib/format"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, exportCsv, type ColumnDef, type DataGridProps } from "@/registry/tradecn/ui/data-grid"
 
+// The caller owns the layout and change markup. The root coordinates selection and export;
+// each changes scope shares one live reading. History order comes from the supplied view or store.
+
 export interface AuditChange {
   field: string
   from?: unknown
