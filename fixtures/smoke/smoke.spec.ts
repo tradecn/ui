@@ -615,6 +615,27 @@ test("a perf monitor counts real frames, draws the histogram against the budget,
   await expect(monitor.locator("[data-perf-readout='ipc batch']")).toHaveText("ipc batch 2 rows")
 })
 
+test("a perf monitor shares lane readings in native tables through keyboard updates and missing data", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='perf-monitor']")
+  const table = scene.getByRole("table", { name: "Feed readings" })
+  await expect(table.getByRole("columnheader")).toHaveText(["Feed", "Rows", "Age"])
+  await expect(table.getByRole("rowheader")).toHaveText("Quotes")
+  await expect(table.locator("tbody tr > :first-child")).toHaveAttribute("scope", "row")
+  await expect(table.getByRole("cell").first()).toHaveText("2")
+  const clear = scene.getByRole("button", { name: "Clear quotes" })
+  await clear.focus()
+  await page.keyboard.press("Enter")
+  await expect(clear).toBeFocused()
+  await expect(table.getByRole("cell").first()).toHaveText("0")
+  await expect(scene.locator("[data-perf-lane='Quotes']")).toContainText("rows 0")
+  await page.keyboard.press("Tab")
+  await expect(scene.getByRole("button", { name: "Receive quote" })).toBeFocused()
+  await page.keyboard.press("Space")
+  await expect(table.getByRole("cell").first()).toHaveText("1")
+  await expect(scene.locator("[data-perf-seq]")).toContainText("seq 9 gap")
+})
+
 // Real keys through the consumer's button: a shortcut changed by pressing it, said back as key caps,
 // handed to the app's persistence, then typed as a chord, then reset.
 test("a hotkey editor changes a shortcut by pressing it, by typing it, and resets it, and the app hears each change", async ({ page }) => {

@@ -20,17 +20,27 @@ function TerminalStatus() {
 }
 ```
 
-The application supplies the environment and user text. The clock shows the current time in New York and ticks once a second. This example bounds the bar's width; place it at the bottom of your own layout. The bar wraps when space runs out.
+The application supplies the environment and user text. The clock shows the current time in New York and ticks once a second.
+
+This example bounds the bar's width; place it at the bottom of your own layout. The bar wraps when space runs out.
 
 ## Composition
 
-The order is environment badge, `left`, `center`, clocks, user, `right`. The center wrapper always remains as a flexible spacer, even without content. The left and right wrappers disappear only when their props are `undefined`; passing `null` or `false` leaves an empty wrapper.
+The order is environment badge, `left`, `center`, clocks, user, `right`. The center wrapper always remains as a growing spacer, even without content. The left and right wrappers disappear only when their props are `undefined`; passing `null` or `false` leaves an empty wrapper.
 
 ## Feed and frame health
 
-The bar imports none of the items in its slots. Install [`feed-health`](feed-health.md) and [`perf-monitor`](perf-monitor.md) separately for this example. A supplied feed goes on the left and actual frame measurements on the right. The monitor's bounded width lets its readouts wrap within the slot on narrow screens.
+The bar imports none of the items in its slots. Install [`feed-health`](feed-health.md) and [`perf-monitor`](perf-monitor.md) separately for this example.
 
-Choose **Receive message** to update the sample feed's timestamp. With no further messages, its age increases; the default thresholds mark it aging after two seconds and stale after ten. The compact composition visually hides the tier badge with `sr-only`, preserving its accessible word; the feed's tooltip reports the tier. The monitor continues measuring while mounted. There is no demo publisher or load generator.
+A supplied feed goes on the left and actual frame measurements on the right. Save the [PerfMonitor Usage example](perf-monitor.md#usage) as `perf-monitor.tsx` beside this example to supply `FrameReadings`.
+
+The monitor's bounded width lets its readouts wrap within the slot on narrow screens.
+
+Choose **Receive message** to update the sample feed's timestamp. With no further messages, its age increases; the default thresholds mark it aging after two seconds and stale after ten.
+
+The compact composition visually hides the tier badge with `sr-only`, preserving its accessible word; the feed's tooltip reports the tier. The monitor continues measuring while mounted.
+
+There is no demo publisher or load generator.
 
 <!-- demo: status-bar-slots -->
 
@@ -46,7 +56,7 @@ All props are optional. `StatusBarProps` accepts the following inputs; it does n
 | `clocks` | `StatusBarClock[]` | Omitted | Clock readouts in array order; an empty array hides the group. |
 | `user` | `string` | Omitted | Signed-in user text; an empty string hides it. |
 | `left` | `ReactNode` | `undefined` | Content before the center spacer. |
-| `center` | `ReactNode` | `undefined` | Centered content in the flexible spacer. |
+| `center` | `ReactNode` | `undefined` | Centered content in the growing spacer. |
 | `right` | `ReactNode` | `undefined` | Content after the user. |
 | `clock` | `Clock` | Shared one-second clock | Time source for every clock readout. |
 | `labels` | `Partial<StatusBarLabels>` | `DEFAULT_STATUS_BAR_LABELS` | Overrides for the built-in labels. |
@@ -78,11 +88,17 @@ Each entry is a `StatusBarClock`:
 | `seconds` | `boolean` | `true` | Include seconds in the displayed time. |
 | `hourCycle` | `"h23" \| "h12"` | `"h23"` | Use a 24-hour or 12-hour clock. |
 
-Every readout subscribes to the shared one-second clock from [`countdown`](countdown.md)'s `lib/clock.ts`, so three clocks use one timer. The timer runs while it has subscribers. Setting `seconds: false` on a clock entry changes formatting, not the tick rate. No clock readouts means no subscriptions from the bar.
+Every readout subscribes to the shared one-second clock from [`countdown`](countdown.md)'s `lib/clock.ts`, so three clocks use one timer. The timer runs while it has subscribers.
+
+Setting `seconds: false` on a clock entry changes formatting, not the tick rate. No clock readouts means no subscriptions from the bar.
 
 The `clock` prop replaces that source. Its `Clock` interface has `now(): number`, returning the last tick's epoch milliseconds, and `subscribe(callback: () => void): () => void`, returning an unsubscribe function. Keep `now()` stable between ticks and supply a valid timestamp within JavaScript's date range.
 
-The nonempty clocks group is named by `labels.clocks`. Each time uses a `<time>` element with lining, tabular figures and the instant's ISO timestamp in `dateTime`; its wrapper's `title` contains the zone. Formatting uses the runtime's default locale. An unknown zone prints `NULL_TOKEN` (`–`). Keep each label/zone pair unique: the pair is the readout's React key.
+The nonempty clocks group is named by `labels.clocks`. Each time uses a `<time>` element with lining, tabular figures and the instant's ISO timestamp in `dateTime`; its wrapper's `title` contains the zone.
+
+Formatting uses the runtime's default locale. An unknown zone prints `NULL_TOKEN` (`–`).
+
+Keep each label/zone pair unique: the pair is the readout's React key.
 
 #### Clock helpers
 
@@ -112,7 +128,9 @@ The unknown-zone fallback does not validate timestamps. `formatClock` can throw 
 
 ### What it does not do
 
-Your application owns environment, session, and feed state; the bar displays the props you supply. Items in its slots own their own behavior. It reads no feed and counts no frames. It does not fix itself to the window; place it at the bottom of your layout.
+Your application owns environment, session, and feed state; the bar displays the props you supply. Items in its slots own their own behavior.
+
+It reads no feed and counts no frames. It does not fix itself to the window; place it at the bottom of your layout.
 
 ### Tokens
 

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react"
 import { createFrameSampler } from "@/registry/tradecn/lib/frame-stats"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, type ColumnDef } from "@/registry/tradecn/ui/data-grid"
-import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
+import { PerfMonitor, PerfMonitorHistogram, PerfMonitorLane, PerfMonitorLaneValue, usePerfLane } from "@/registry/tradecn/ui/perf-monitor"
+import { FrameReadings } from "./perf-monitor"
 
 type Row = { id: string; bid: number; ask: number; size: number }
 const ROWS = 300
@@ -12,6 +13,21 @@ const columns: ColumnDef<Row>[] = [
   { key: "ask", header: "Ask", width: 80, numeric: true, accessor: (row) => row.ask, format: (value) => Number(value).toFixed(3) },
   { key: "size", header: "Size", width: 80, numeric: true, accessor: (row) => row.size },
 ]
+
+export function LaneReadings({ label }: { label: string }) {
+  const { meta } = usePerfLane()
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 lining-nums tabular-nums" data-perf-lane={label} data-lane={meta.lane} data-numeric="">
+      <span className="font-medium">{label}</span>
+      <PerfMonitorLaneValue metric="kind" className="text-muted-foreground" />
+      <span><span className="text-muted-foreground">rows </span><PerfMonitorLaneValue metric="rows" /></span>
+      <span><span className="text-muted-foreground">batches/s </span><PerfMonitorLaneValue metric="rate" /></span>
+      {meta.lane === "coalesced" && <span data-perf-dropped><span className="text-muted-foreground">drop </span><PerfMonitorLaneValue metric="dropped" /></span>}
+      {meta.lane === "ordered" && <span data-perf-seq><span className="text-muted-foreground">seq </span><PerfMonitorLaneValue metric="seq" />{meta.gap && <> <PerfMonitorLaneValue metric="gap" /></>}</span>}
+      <span><span className="text-muted-foreground">age </span><PerfMonitorLaneValue metric="age" /></span>
+    </div>
+  )
+}
 
 export default function PerfMonitorLoadDemo() {
   const [store] = useState(() => {
@@ -49,7 +65,13 @@ export default function PerfMonitorLoadDemo() {
         <button type="button" className="rounded border border-border px-2 py-1" onClick={() => sampler.reset()}>Reset measurements</button>
       </div>
       <div className="w-fit max-w-full space-y-2">
-        <PerfMonitor sampler={sampler} lanes={[{ label: "Quotes", store }]} readouts={[{ label: "patches/frame", value: String(patches) }]} className="w-80 max-w-full" />
+        <PerfMonitor sampler={sampler} className="w-80 max-w-full">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <PerfMonitorHistogram />
+            <FrameReadings><span data-perf-readout="patches/frame"><span className="text-muted-foreground">patches/frame </span>{patches}</span></FrameReadings>
+          </div>
+          <PerfMonitorLane store={store}><LaneReadings label="Quotes" /></PerfMonitorLane>
+        </PerfMonitor>
         <div className="h-48 w-fit max-w-full">
           <DataGrid store={store} columns={columns} preset="watchlist" label="Measured quotes" announceRowCount="off" />
         </div>

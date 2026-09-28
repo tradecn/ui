@@ -399,3 +399,26 @@ Rows and cells retain their quote subscriptions. `SpreadMatrixValue` and the sta
 Custom cell children replace the default reading, including on missing and diagonal cells, so include `SpreadMatrixValue` or handle those states with `useSpreadMatrixCell`.
 
 Flashes stay on the cell and clean up on unmount. Components add no order actions or keyboard shortcuts.
+
+## PerfMonitor
+
+`PerfMonitor` now requires children. Replace self-closing calls with the complete [Usage composition](perf-monitor.md#usage), which retains the histogram and six frame readings. The sampler and frame-statistics exports are unchanged.
+
+| Previous interface | Replacement |
+|---|---|
+| Implicit histogram and frame statistics | Compose `PerfMonitorHistogram` and `PerfMonitorValue` with labels at the call site. The old order was frames, p50, p99, max, dropped, long. |
+| `compact` | Omit `PerfMonitorHistogram`; retain the readings you need. |
+| `lanes` and the `PerfMonitorLane` descriptor type | Map your own descriptors to the new `PerfMonitorLane` provider with `store` and required children. Use `PerfMonitorLaneValue` and `usePerfLane()` for readings. |
+| `readouts` and `PerfReadout` | Render application content directly. Values can include elements and controls. |
+| Private lane rows | Copy `LaneReadings` from [Measuring a grid](perf-monitor.md#measuring-a-grid), including its stated prerequisites. Preserve coalesced drops versus ordered sequence/gap, rate, and age where needed. |
+| `data-perf`, `data-perf-readout`, `data-perf-lane`, `data-lane`, `data-perf-dropped`, `data-perf-seq` | Add these application selectors to your composition. The supplied recipes retain them. |
+
+Keep `sampler`, `budgetMs`, `window`, `refreshMs`, `onReport`, `label`, and `className` on the root. Defaults remain a 600-gap window, 250ms reports, a `1000 / 60` budget, and the accessible name “Frame health.” Root slot/frame/drop attributes and histogram marks are retained. `label` remains authoritative; use it instead of native ARIA naming props.
+
+Mount one root for presentations sharing a sampler lifetime. It starts the selected sampler, stops it on replacement or unmount, and retains the initial sampler as its fallback.
+
+Initial settings configure an owned sampler once; remount or supply a replacement to change its sampling settings. `budgetMs` still moves the histogram marker. Repeated readings share snapshots without adding samplers, report subscriptions, or callbacks.
+
+Each lane provider subscribes once to its store and shares rate/age calculations. Keep repeated readings under that provider, and use stable keys for lane collections. Replacing its store resets the rate to zero.
+
+Custom table layouts need native headers and labels; custom controls need accessible names. See [Custom layout](perf-monitor.md#custom-layout) for a complete example.

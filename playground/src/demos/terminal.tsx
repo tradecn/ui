@@ -45,7 +45,9 @@ import { InstrumentSearch, toSymbolAdapter, type InstrumentHit, type InstrumentS
 import { LayoutManager, readLayoutTemplates, writeLayoutTemplates } from "@/registry/tradecn/ui/layout-manager"
 import { LinkGroupDot, PanelActions, PanelContent, PanelHeader, PanelTitle, SymbolTag } from "@/registry/tradecn/ui/panel"
 import { ParameterGrid, type ParameterDef, type ParameterRow } from "@/registry/tradecn/ui/parameter-grid"
-import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
+import { PerfMonitor, PerfMonitorHistogram, PerfMonitorLane } from "@/registry/tradecn/ui/perf-monitor"
+import { FrameReadings } from "./perf-monitor"
+import { LaneReadings } from "./perf-monitor-load"
 import { Positions, type PositionRow } from "@/registry/tradecn/ui/positions"
 import { PriceChart, PriceChartHeader, PriceChartLast, PriceChartChange, PriceChartReadout, PriceChartPlot, PriceChartEmpty } from "@/registry/tradecn/ui/price-chart"
 import { RfqStack, bySize, byTimeLeft, rfqStackColumns, stackOrder, useRfqStackView, type RfqStackRow } from "@/registry/tradecn/ui/rfq-stack"
@@ -1223,7 +1225,10 @@ function FramesPanel() {
         <span className="truncate text-muted-foreground">What the desk costs the browser, and each feed's lane</span>
       </PanelHeader>
       <PanelContent className="p-2">
-        <PerfMonitor lanes={lanes} />
+        <PerfMonitor>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><PerfMonitorHistogram /><FrameReadings /></div>
+          {lanes.map(({ label, store }) => <PerfMonitorLane key={label} store={store}><LaneReadings label={label} /></PerfMonitorLane>)}
+        </PerfMonitor>
       </PanelContent>
     </>
   )
