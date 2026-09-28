@@ -25,20 +25,22 @@ export default function AuditTrailLayoutDemo() {
   const [store] = useState(createAuditHistory)
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set(["e1", "e4"]))
   const [csv, setCsv] = useState("")
-  return <div className="w-[32rem] max-w-full space-y-3 text-xs">
-    <div data-demo-controls className="flex flex-wrap gap-2">
+  return <>
+    <div data-demo-controls className="flex flex-wrap gap-2 text-xs">
       <button type="button" className="rounded border border-border px-2 py-1" onClick={() => store.applyDeltas({ patch: [{ id: "e4", fields: { changes: [{ field: "price", from: 99.515625, to: 99.546875 }] } }] })}>Correct price</button>
       <button type="button" className="rounded border border-border px-2 py-1" onClick={() => store.clear()}>Clear history</button>
       <button type="button" className="rounded border border-border px-2 py-1" onClick={() => { const original = createAuditHistory(); store.applyDeltas({ upsert: original.getIds().map(id => original.getRow(id)!) }) }}>Restore history</button>
     </div>
-    <AuditTrail store={store} columns={columns} time={auditTime} value={auditValue} selection={selection} onSelectionChange={setSelection} className="h-auto gap-3">
-      <div className="h-44"><AuditTrailGrid label="Review events" selectionColumn /></div>
-      <AuditTrailChanges className="max-h-64"><ChangeCards /></AuditTrailChanges>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-muted-foreground">Order history · UTC</p>
-        <AuditTrailExportButton onExport={setCsv}>Export history</AuditTrailExportButton>
-      </div>
-    </AuditTrail>
-    {csv && <pre role="region" aria-label="Exported CSV" tabIndex={0} className="max-h-32 overflow-auto rounded border border-border p-2">{csv}</pre>}
-  </div>
+    <div className="w-[32rem] max-w-full space-y-3 text-xs">
+      <AuditTrail store={store} columns={columns} time={auditTime} value={auditValue} selection={selection} onSelectionChange={setSelection} className="h-auto gap-3">
+        <div className="h-44"><AuditTrailGrid label="Review events" selectionColumn /></div>
+        <AuditTrailChanges className="max-h-64"><ChangeCards /></AuditTrailChanges>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-muted-foreground">Order history · UTC</p>
+          <AuditTrailExportButton onExport={setCsv}>Export history</AuditTrailExportButton>
+        </div>
+      </AuditTrail>
+      {csv && <pre role="region" aria-label="Exported CSV" tabIndex={0} className="max-h-32 overflow-auto rounded border border-border p-2">{csv}</pre>}
+    </div>
+  </>
 }

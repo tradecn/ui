@@ -224,7 +224,7 @@ export interface AuditTrailChangesState {
   /** Selection prompt, no-changes message or unchanged-comparison message; empty when there are changes. */
   emptyMessage: string
   labels: AuditTrailLabels
-  /** Uses the root formatter with the selected or latter event on either side. */
+  /** Uses the root formatter with the selected or latter event, or formatAuditValue without an event. */
   formatValue: (field: string, value: unknown) => string
 }
 
@@ -243,7 +243,7 @@ export function AuditTrailChanges({ children, className, ...props }: AuditTrailC
     const chosen = [...selection].map(id => store.getRow(id)).filter((event): event is AuditEvent => event !== undefined).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
     if (!chosen.length) return { kind: "none" as const, event: null, title: "", changes: [], emptyMessage: labels.select }
     const first = chosen[0]!
-    if (chosen.length === 1) return { kind: "event" as const, event: first, title: fill(labels.eventTitle, { event: first.event, time: time(first.at) }), changes: first.changes ?? [], emptyMessage: first.changes?.length ? "" : labels.noChanges }
+    if (chosen.length === 1) return { kind: "event" as const, event: first, title: fill(labels.eventTitle, { event: first.event, time: time(first.at) }), changes: [...(first.changes ?? [])], emptyMessage: first.changes?.length ? "" : labels.noChanges }
     const last = chosen[chosen.length - 1]!
     const events = ids.map(id => store.getRow(id)).filter((event): event is AuditEvent => event !== undefined)
     const changes = diffEvents(events, first.id, last.id)
@@ -252,7 +252,7 @@ export function AuditTrailChanges({ children, className, ...props }: AuditTrailC
   const formatValue = useCallback((field: string, raw: unknown) => reading.event ? value(field, raw, reading.event) : formatAuditValue(raw), [reading.event, value])
   const state = useMemo(() => ({ ...reading, labels, formatValue }), [reading, labels, formatValue])
   return <ChangesContext.Provider value={state}>
-    <section aria-label={labels.changes} {...props} data-audit-pane={reading.kind} className={cn("flex min-h-0 min-w-0 flex-col gap-1 overflow-auto rounded-md border border-border bg-background p-2 text-xs", className)}>
+    <section aria-label={labels.changes} {...props} data-slot="tradecn-audit-trail-changes" data-audit-pane={reading.kind} className={cn("flex min-h-0 min-w-0 flex-col gap-1 overflow-auto rounded-md border border-border bg-background p-2 text-xs lining-nums tabular-nums", className)}>
       {typeof children === "function" ? children(state) : children}
     </section>
   </ChangesContext.Provider>

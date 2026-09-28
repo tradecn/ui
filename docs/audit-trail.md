@@ -141,9 +141,11 @@ A render callback receives the following state. Descendant components can also r
 | `changes` | `readonly AuditChange[]` | Event changes or calculated differences. Render, filter or reorder them in your own markup. |
 | `emptyMessage` | `string` | Selection prompt, no-changes message or unchanged-comparison message; empty when there are changes. |
 | `labels` | `AuditTrailLabels` | Resolved labels. |
-| `formatValue` | `(field: string, value: unknown) => string` | Applies the root formatter with the selected or latter event. |
+| `formatValue` | `(field: string, value: unknown) => string` | Applies the root formatter with the selected or latter event; uses `formatAuditValue` without an event. |
 
 Place repeated readings inside one scope to share its calculation. Each mounted `AuditTrailChanges` owns its subscriptions and releases them on unmount or source replacement. The root, export controls and hooks add no store subscriptions.
+
+The section carries `data-slot="tradecn-audit-trail-changes"` and its own lining, tabular figures, including when rendered through a portal.
 
 ### AuditTrailExportButton
 
@@ -175,6 +177,8 @@ Each `AuditChange` has a required `field: string` and optional `from` and `to` v
 ### The tape
 
 The tape defaults to 22 px rows, arrival highlights, and debounced row-count announcements. It follows the tail until keyboard or pointer interaction, or scrolling away, pauses it. While paused, a pill shows any net increase in displayed row count; pressing it or scrolling back to the end resumes following.
+
+Arrow keys move focus. Space toggles the focused row's selection, Shift+Up/Down extends a range, and Escape clears selection.
 
 Without a supplied view or grid sorting/filtering, rows follow the store's order, not the `at` timestamps. Use the ordered lane for a sequenced feed. Default columns disable value flashes, including when an event is corrected. The changes column shows the number of changes, or the null token when there are none.
 

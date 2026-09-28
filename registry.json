@@ -2733,7 +2733,7 @@
         "grid",
         "blotter"
       ],
-      "docs": "Compose AuditTrailGrid, AuditTrailChanges and AuditTrailExportButton inside AuditTrail. Supply change markup through the changes render callback or useAuditTrailChanges. The item installs DataGrid, RowStore, format helpers and the grid’s built-in dependencies.",
+      "docs": "Compose AuditTrailGrid, AuditTrailChanges and AuditTrailExportButton inside AuditTrail. Supply change markup through the changes render callback or useAuditTrailChanges. Installs DataGrid, RowStore, format helpers, cn and @tanstack/react-virtual; adds the up/down/flat/stale/expiring tokens and your style’s Button, checkbox, context-menu and dropdown-menu primitives.",
       "meta": {
         "components": [
           {

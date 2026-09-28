@@ -1,4 +1,5 @@
 import { createRef, StrictMode, useLayoutEffect, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import { AuditChangesTable } from "@/demos/audit-trail"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -304,6 +305,30 @@ describe("composition and shared behavior", () => {
     fireEvent.click(screen.getByRole("button"))
     expect(screen.getByRole("status")).toHaveAttribute("data-kind", "diff")
     expect(screen.getByRole("status")).toHaveTextContent("No difference")
+  })
+
+  it("keeps the event array intact when untyped consumer code reorders a reading", () => {
+    const store = seeded()
+    store.applyDeltas({ patch: [{ id: "e1", fields: { changes: [{ field: "alpha", to: 1 }, { field: "beta", to: 2 }] } }] })
+    render(<AuditTrail store={store} selection={new Set(["e1"])}><AuditTrailChanges>{({ changes }) => (
+      <button onClick={() => { Reflect.apply(Array.prototype.reverse, changes, []) }}>Reverse displayed changes</button>
+    )}</AuditTrailChanges></AuditTrail>)
+    fireEvent.click(screen.getByRole("button", { name: "Reverse displayed changes" }))
+    expect(store.getRow("e1")?.changes?.map(change => change.field)).toEqual(["alpha", "beta"])
+  })
+
+  it("carries its own numeric styling and slot through a portal", () => {
+    const store = seeded()
+    const { unmount } = render(<AuditTrail store={store} selection={new Set(["e1"])} time={String}>
+      {createPortal(<AuditTrailChanges aria-label="Detached changes">{({ title }) => <h2>{title}</h2>}</AuditTrailChanges>, document.body)}
+    </AuditTrail>)
+    const region = screen.getByRole("region", { name: "Detached changes" })
+    expect(region.closest('[data-slot="tradecn-audit-trail"]')).toBeNull()
+    expect(region).toHaveAttribute("data-slot", "tradecn-audit-trail-changes")
+    expect(region).toHaveClass("lining-nums", "tabular-nums")
+    expect(within(region).getByRole("heading")).toHaveTextContent(`New at ${T0}`)
+    unmount()
+    expect(screen.queryByRole("region", { name: "Detached changes" })).toBeNull()
   })
 
   it("preserves repeated fields as separate entries in the shared table", () => {
