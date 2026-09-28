@@ -595,7 +595,7 @@ Native root props and refs are now forwarded. Input and Item keep their command 
 
 ## StatusBar
 
-`StatusBar` now requires children. Place the environment, clocks, user and application content explicitly. The complete [Usage example](status-bar.md#usage) shows the ordinary strip; this recipe preserves the former optional slots and labels:
+`StatusBar` now requires children. Place the environment, clocks, user and application content explicitly. The complete [Usage example](status-bar.md#usage) shows the ordinary strip; this recipe retains the former slot layout and maps its labels to the parts:
 
 ```tsx
 import type { ReactNode } from "react"
@@ -641,6 +641,8 @@ Install `status-bar` before copying this recipe; its installation includes `lib/
 | Root `className` | Retained; native props and refs are also forwarded. |
 
 The recipe retains the original order, center spacer, nonempty clock group, truthy user condition, and left/right wrappers for any value other than `undefined`. It also retains `data-environment` and the left/center/right `data-status-slot` markers, which are now caller-owned. Public readings preserve their environment, tone, user, clock and time markers.
+
+Explicit `undefined` values for `labels.environment` or `labels.user` now use the default prefixes. The released root let them erase prefix text and could print `undefined` in the user tooltip. Empty strings still leave the prefix text empty; set a part's native `title` to customize its tooltip.
 
 Each clock readout retains its local subscription, including when used outside the root. Default readings share one timer; a custom source still changes formatting and timestamps on its own cadence.
 
