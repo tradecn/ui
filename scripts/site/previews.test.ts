@@ -694,6 +694,11 @@ it("keeps the chooser's installed shared recipe aligned with the complete Usage 
   const docs = readFileSync(resolve(root, "docs/column-chooser.md"), "utf8")
   const fixture = readFileSync(resolve(root, "fixtures/smoke/scenes/column-settings.tsx"), "utf8")
   expect(docs.match(/```tsx\n([\s\S]*?)\n```/)?.[1]?.trim()).toBe(consumerImports(demo).trim())
-  const exported = demo.slice(demo.indexOf("export function ColumnSettingsDialog"))
-  expect(fixture.slice(fixture.indexOf("export function ColumnSettingsDialog"))).toBe(consumerImports(exported))
+  const marker = "export function ColumnSettingsDialog"
+  const demoStart = demo.indexOf(marker)
+  const fixtureStart = fixture.indexOf(marker)
+  expect(demoStart).toBeGreaterThanOrEqual(0)
+  expect(fixtureStart).toBeGreaterThanOrEqual(0)
+  const exported = demo.slice(demoStart)
+  expect(fixture.slice(fixtureStart)).toBe(consumerImports(exported))
 })

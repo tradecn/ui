@@ -355,7 +355,7 @@ function ownsItemEvent(event: { target: EventTarget; currentTarget: HTMLDivEleme
   return isElement(event.target) && event.currentTarget.contains(event.target) && event.target.closest("[data-slot=tradecn-column-chooser-item]") === event.currentTarget && event.target.closest("[data-slot=tradecn-column-chooser]") === event.currentTarget.closest("[data-slot=tradecn-column-chooser]")
 }
 
-function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, "aria-label": ariaLabel, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
+function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, draggable = true, "aria-label": ariaLabel, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
   const { row, dragging, move } = item
   const { focusFallback, startDrag, dragOver, drop, endDrag } = useChooserContext()
   const root = useRef<HTMLDivElement>(null)
@@ -380,7 +380,7 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, "aria
       }
     }
   }, [row.key, endDrag, focusFallback])
-  return <ItemContext value={item}><div role={role} tabIndex={tabIndex} draggable aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
+  return <ItemContext value={item}><div role={role} tabIndex={tabIndex} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
     onFocusCapture?.(event)
     if (ownsItemEvent(event)) focused.current = event.target
   }} onBlurCapture={(event) => {

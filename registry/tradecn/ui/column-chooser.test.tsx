@@ -250,7 +250,7 @@ describe("public composition", () => {
     render(<ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={change} ref={root} id="columns" role="region" tabIndex={0} title="settings" aria-labelledby="heading" onClick={click}>
       <h2 id="heading">Quote fields</h2>
       <ColumnChooserSearch ref={input} onChange={event => event.preventDefault()} />
-      <ColumnChooserItem columnKey="px" ref={item} id="price" role="article" tabIndex={-1} aria-label="Order price" onKeyDown={event => { key(); event.preventDefault() }}>
+      <ColumnChooserItem columnKey="px" ref={item} id="price" role="article" tabIndex={-1} draggable={false} aria-label="Order price" onKeyDown={event => { key(); event.preventDefault() }}>
         <ColumnChooserName ref={name} title="Current price" />
         <ColumnChooserWidth ref={width} />
         <ColumnChooserVisibility onClick={event => event.preventDefault()} />
@@ -264,6 +264,7 @@ describe("public composition", () => {
     expect(root.current).toHaveAttribute("title", "settings")
     expect(item.current).toBe(screen.getByRole("article", { name: "Order price" }))
     expect(item.current).toHaveAttribute("tabindex", "-1")
+    expect(item.current).toHaveAttribute("draggable", "false")
     expect(name.current).toHaveAttribute("title", "Current price")
     expect(width.current).toHaveTextContent("140 px")
     fireEvent.change(input.current!, { target: { value: "ignored" } })
@@ -305,8 +306,8 @@ describe("public composition", () => {
     expect(root).toHaveFocus()
   })
 
-  it("keeps item focus recovery and public reading names when optional names are undefined", () => {
-    const optional = { role: undefined, tabIndex: undefined, "aria-label": undefined }
+  it("keeps item behavior and public reading names when optional native props are undefined", () => {
+    const optional = { role: undefined, tabIndex: undefined, draggable: undefined, "aria-label": undefined }
     function Settings() {
       const [state, setState] = useState<ColumnState>({ ...EMPTY_COLUMN_STATE, widths: { px: 140 } })
       return <ColumnChooser columns={columns} columnState={state} onColumnStateChange={setState}>
@@ -320,6 +321,7 @@ describe("public composition", () => {
       </ColumnChooser>
     }
     render(<Settings />)
+    expect(screen.getByRole("group", { name: "Price" })).toHaveAttribute("draggable", "true")
     expect(screen.getByRole("textbox", { name: "Find a column" })).toBeVisible()
     expect(screen.getByRole("checkbox", { name: "Show Price" })).toBeVisible()
     expect(screen.getByLabelText("Width 140")).toHaveTextContent("140 px")
