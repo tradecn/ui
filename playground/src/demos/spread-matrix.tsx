@@ -1,7 +1,14 @@
 import { useState } from "react"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { SpreadMatrix, type SpreadInstrument } from "@/registry/tradecn/ui/spread-matrix"
+import {
+  SpreadMatrix,
+  SpreadMatrixTable,
+  SpreadMatrixHead,
+  SpreadMatrixRow,
+  SpreadMatrixCell,
+  type SpreadInstrument,
+} from "@/registry/tradecn/ui/spread-matrix"
 
 const T32: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const instruments: SpreadInstrument[] = [
@@ -20,5 +27,25 @@ export default function SpreadMatrixDemo() {
     ] })
     return store
   })
-  return <SpreadMatrix store={store} instruments={instruments} label="Price spreads" className="w-fit max-w-full" />
+  return (
+    <SpreadMatrix store={store} instruments={instruments} className="w-fit max-w-full">
+      <SpreadMatrixTable label="Price spreads">
+        <caption className="sr-only">Each cell is the row less the column. ticks.</caption>
+        <thead>
+          <tr>
+            <SpreadMatrixHead className="text-left">Instrument (ticks)</SpreadMatrixHead>
+            {instruments.map((column) => <SpreadMatrixHead key={column.id} data-column={column.id}>{column.label}</SpreadMatrixHead>)}
+          </tr>
+        </thead>
+        <tbody>
+          {instruments.map((instrument) => (
+            <SpreadMatrixRow key={instrument.id} instrument={instrument}>
+              <SpreadMatrixHead scope="row">{instrument.label}</SpreadMatrixHead>
+              {instruments.map((column) => <SpreadMatrixCell key={column.id} column={column.id} />)}
+            </SpreadMatrixRow>
+          ))}
+        </tbody>
+      </SpreadMatrixTable>
+    </SpreadMatrix>
+  )
 }

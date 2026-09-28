@@ -4,6 +4,9 @@ import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 import { SpreadMatrix, type SpreadBasis, type SpreadInstrument, type SpreadStructure } from "@/registry/tradecn/ui/spread-matrix"
 
+import { SpreadMatrixContent } from "@/demos/spread-matrix-yields"
+import { SpreadStructuresContent } from "@/demos/spread-matrix-structures"
+
 // The cash curve as a spread matrix and as a list of structures, over one store of pretend quotes. A walk
 // moves one note a tick every half second; the buttons move a chosen note by hand, switch the basis between
 // ticks and basis points, and swap the matrix for the structures.
@@ -106,7 +109,9 @@ export function SpreadMatrixScene() {
           a tick cheaper
         </Button>
       </div>
-      <SpreadMatrix store={store} instruments={CURVE} basis={basis} structures={mode === "structures" ? STRUCTURES : undefined} label={mode === "matrix" ? "Curve spreads" : "Curve structures"} className="w-fit" />
+      <SpreadMatrix store={store} instruments={CURVE} basis={basis} className="w-fit">
+        {mode === "matrix" ? <SpreadMatrixContent instruments={CURVE} basis={basis} label="Curve spreads" /> : <SpreadStructuresContent structures={STRUCTURES} basis={basis} label="Curve structures" />}
+      </SpreadMatrix>
     </main>
   )
 }

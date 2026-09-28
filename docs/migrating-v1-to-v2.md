@@ -363,3 +363,39 @@ Recenter still retains the selected tick and column, and Enter on the grid can s
 Preserve visible side headers, own-size descriptions, and your staging status or ticket when composing another layout.
 
 Order permissions and submission remain application-owned.
+
+## SpreadMatrix
+
+`SpreadMatrix` now requires children. Compose a named `SpreadMatrixTable` with native table sections, `SpreadMatrixHead`, and either matrix rows/cells or structure rows/cells.
+
+The [Usage example](spread-matrix.md#usage) includes the complete matrix. The [curves and butterflies example](spread-matrix.md#curves-and-butterflies) supplies the structure composition.
+
+| Previous interface | Replacement |
+|---|---|
+| Self-closing `<SpreadMatrix ... />` | Required children containing your table and collection markup. Calls with only retained props also require children. |
+| `label` on the root | Required `label` on `SpreadMatrixTable`. Native `aria-label` and `aria-labelledby` props are reserved. |
+| `instruments` selected rows and default columns | Map your row instruments into `SpreadMatrixRow` and your columns into `SpreadMatrixCell`. Keep root `instruments` for structure metadata. |
+| `columns` | Map the selected columns into headers and cells. For structure metadata, pass `[...instruments, ...columns]` to the root to preserve the old last-column-wins lookup. |
+| `structures` | Map into `SpreadMatrixStructureRow`, with `SpreadMatrixStructureCell` and optional `SpreadMatrixLegs`. An empty array previously showed the structures headers; retain those headers in your composition or supply an empty state. |
+| `labels`, `SpreadMatrixLabels`, `DEFAULT_SPREAD_MATRIX_LABELS` | Caller-owned headings, captions and unit text. These props and exports are removed. |
+| String-only `format` | Retained and widened to `ReactNode`. It is called by `SpreadMatrixValue`, the default cell reading. |
+| Root `data-mode` | Caller-owned. A root can contain both matrix and structure tables. |
+| Generated `data-unit` and header `data-column` | Add these selectors to your headings if you use them. Cell and row data marks remain. |
+
+Keep the previous labels by writing Instrument, Structure, Legs, Spread, ticks and bp in their corresponding headers.
+
+The matrix caption was "Each cell is the row less the column." followed by the unit and a period; the structures caption was "Spread: bp." or "Spread: ticks.".
+
+Use `scope="row"` on row headers, keep column headers in the same order as cells, and give each table a name. `SpreadMatrixHead` defaults to column scope.
+
+The root retains the `ticks` basis, the price/yield reader, `formatSpread`, the 900ms flash duration, scrolling classes and `tradecn-spread-matrix` slot.
+
+Arithmetic helpers, weights, rounding, signed formatting, missing values and blank diagonal defaults are unchanged. The row's instrument supplies its tick; structure fallback ticks come from root metadata.
+
+Keep stable instrument objects, metadata arrays, readers and formatters for update isolation.
+
+Rows and cells retain their quote subscriptions. `SpreadMatrixValue` and the state hooks share those readings without additional subscriptions.
+
+Custom cell children replace the default reading, including on missing and diagonal cells, so include `SpreadMatrixValue` or handle those states with `useSpreadMatrixCell`.
+
+Flashes stay on the cell and clean up on unmount. Components add no order actions or keyboard shortcuts.
