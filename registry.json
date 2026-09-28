@@ -2688,7 +2688,7 @@
       "name": "audit-trail",
       "type": "registry:ui",
       "title": "Audit Trail",
-      "description": "The life of one order or inquiry as events on a tape: when, the server's word for what happened, who, a line of the server's, and how many fields changed, following its tail as events land. Beside it a pane that lists one selected event's changes as field, before, and after, or the difference between two selected events, every field whose value at the later one differs from its value at the earlier one. Export the events shown as CSV. The words and the values are the server's; nothing here decides what an event means.",
+      "description": "Composable event history with a tape grid, selected-event changes, cumulative comparisons and CSV export.",
       "dependencies": [
         "cn@^0.3.0",
         "@tanstack/react-virtual@^3.14.13"
@@ -2733,12 +2733,32 @@
         "grid",
         "blotter"
       ],
-      "docs": "Installs the data grid, the row store, and format alongside, adds @tanstack/react-virtual and the up, down, flat, stale, and expiring tokens the grid carries, and composes your button plus the checkbox, context-menu, and dropdown-menu the grid uses. Pass value(field, value, event) for the desk's notation and onExport for the CSV.",
+      "docs": "Compose AuditTrailGrid, AuditTrailChanges and AuditTrailExportButton inside AuditTrail. Supply change markup through the changes render callback or useAuditTrailChanges. Installs DataGrid, RowStore, format helpers, cn and @tanstack/react-virtual; adds the up/down/flat/stale/expiring tokens and your style’s Button, checkbox, context-menu and dropdown-menu primitives.",
       "meta": {
         "components": [
           {
             "title": "AuditTrail",
-            "description": "The tape of events with the changes pane beside it and the export button."
+            "description": "Coordinates history, selection, formatting and columns for caller-owned layouts."
+          },
+          {
+            "title": "AuditTrailGrid",
+            "description": "The tape grid with shared selection, columns and view."
+          },
+          {
+            "title": "AuditTrailChanges",
+            "description": "Shares one live change reading with caller-owned content."
+          },
+          {
+            "title": "AuditTrailExportButton",
+            "description": "Exports the current history to the supplied callback."
+          },
+          {
+            "title": "useAuditTrail",
+            "description": "Reads selection, labels and the current CSV export command."
+          },
+          {
+            "title": "useAuditTrailChanges",
+            "description": "Reads the nearest changes scope without another subscription."
           },
           {
             "title": "auditTrailColumns",

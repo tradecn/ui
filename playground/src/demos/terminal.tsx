@@ -28,7 +28,8 @@ import { createSessionCalendar } from "@/registry/tradecn/lib/session-calendar"
 import { WINDOW_SET_SLOT, mainWindow, readWindowSet, windowSetOf, writeWindowSet } from "@/registry/tradecn/lib/window-set"
 import type { WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
 import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertActionButton, AlertDismiss, AlertHistory, useAlert, useAlertView } from "@/registry/tradecn/ui/alerts"
-import { AuditTrail, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
+import { AuditChangesTable } from "./audit-trail"
+import { AuditTrail, AuditTrailGrid, AuditTrailExportButton, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
 import { Blotter, BlotterActionScope, BlotterGrid, blotterColumns, type BlotterAction, type BlotterRow } from "@/registry/tradecn/ui/blotter"
 import { OrderMenu, OrderToolbar } from "./blotter-actions"
 import { ColumnChooser } from "@/registry/tradecn/ui/column-chooser"
@@ -1085,11 +1086,16 @@ function AuditPanel() {
         <AuditTrail
           store={desk.events}
           className={GRID}
-          onExport={(csv) => {
+        >
+          <div className="flex justify-end"><AuditTrailExportButton onExport={(csv) => {
             void navigator.clipboard?.writeText(csv)
             desk.alerts.push({ severity: "info", title: "Audit trail copied", message: `${Math.max(0, csv.split("\n").length - 1)} events as CSV` })
-          }}
-        />
+          }} /></div>
+          <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)] gap-2">
+            <AuditTrailGrid />
+            <AuditChangesTable />
+          </div>
+        </AuditTrail>
       </PanelContent>
     </>
   )

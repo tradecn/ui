@@ -491,3 +491,62 @@ Delete and Backspace remain opt-in, and request pending/error handling remains a
 The shared scope fixes stale permission readings for empty or NUL-containing ids and for updates between rendering and subscription. It subscribes once per distinct target id, cleans up when targets change, and leaves unrelated rows alone.
 
 See [Custom layout](blotter.md#custom-layout) for a native picker using the same readings and dispatch.
+
+## AuditTrail
+
+`AuditTrail` now requires children. Replace a self-closing call with `<AuditTrail store={store}><AuditTrailGrid /></AuditTrail>` and add the changes section and export control your layout needs.
+
+The complete [Usage example](audit-trail.md#usage) exports `AuditChangesTable`. Save it as `audit-trail.tsx` outside `components/ui` and import that recipe to retain the selected-event and comparison presentation.
+
+| Previous interface | Replacement |
+|---|---|
+| Self-closing root, including calls with only retained props | Required children. Compose `AuditTrailGrid` for the tape and `AuditChangesTable` for the changes. |
+| `store`, `view`, `columns`, `time`, `value`, `labels`, selection and its callback | Keep them on `AuditTrail`. Columns serve the grid and CSV; the view also supplies the changes pane's order. |
+| `label`, `selectionColumn`, `renderContextMenu`, sorting, filtering, column state, focus and other grid inputs on the root | Move them to `AuditTrailGrid`. The tape preset, multi-selection and default accessible name remain unchanged. |
+| `pane={false}` | Omit `AuditTrailChanges` or the table recipe. |
+| Root `onExport` and automatic export toolbar | Compose `AuditTrailExportButton onExport={onExport}` when export is available. The callback is required on the button. |
+| Fixed pane layout | Use the `AuditTrailChanges` render callback or `useAuditTrailChanges()` in a descendant. Supply your title, empty state and collection markup. |
+| Root `className` | Still styles the outer container. `AuditTrailGrid.className` styles its sizing wrapper. Give a separate wrapper a height when relocating the grid. |
+| Inherited `selectionMode` | Removed. The grid still uses multi-selection. |
+
+The root forwards native div props and refs. The changes scope forwards native section props and refs, and the export button uses your installed Button's props and composition support.
+
+Keep the same extended event type on the root and grid when providing typed row callbacks. `useAuditTrailChanges()` exposes the base event fields; your root `value` formatter still receives the full typed event.
+
+The table recipe preserves labels, field order, numeric typography and struck-through before values. Repeated changes to the same field remain separate entries.
+
+It now uses native column and row headers and shows full field names and values instead of truncating them. Long content can wrap or scroll inside the changes section.
+
+`data-audit-pane` stays on `AuditTrailChanges`, and `data-audit-export` stays on `AuditTrailExportButton`. The recipe now owns `data-audit-change`, `data-audit-from` and `data-audit-to` on native table rows and cells. Update selectors that depend on the former `dl`, `dt`, `dd` or nested `span` elements, and add these markers to custom markup when your tests need them.
+
+To retain the former toolbar and side-by-side layout, use the shared `AuditChangesTable` recipe saved above:
+
+```tsx
+import { AuditTrail, AuditTrailExportButton, AuditTrailGrid, type AuditEvent } from "@/components/ui/audit-trail"
+import type { RowStore } from "@/lib/row-store"
+import { AuditChangesTable } from "./audit-trail"
+
+export function OrderHistory({ store, onExport }: { store: RowStore<AuditEvent>; onExport?: (csv: string) => void }) {
+  return <div className="h-72">
+    <AuditTrail store={store}>
+      {onExport && <div className="flex items-center justify-end gap-2">
+        <AuditTrailExportButton onExport={onExport} />
+      </div>}
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)] gap-2">
+        <AuditTrailGrid />
+        <AuditChangesTable />
+      </div>
+    </AuditTrail>
+  </div>
+}
+```
+
+When omitting the changes section from the side-by-side recipe, remove its two-column wrapper too so `AuditTrailGrid` fills the available width.
+
+Use the responsive layout in [Usage](audit-trail.md#usage) to stack the pane below the grid on narrow screens.
+
+Selection, default columns, time/value formatting and cumulative calculations are retained. `foldChanges`, `diffEvents`, `formatAuditValue`, `auditTrailColumns` and `DEFAULT_AUDIT_TRAIL_LABELS` remain available.
+
+Changes and CSV still use the supplied view or raw store order, independent of grid-local sorting and filtering. Keep selected ids within that view and retain the preceding history needed for comparisons. Column-state hiding and reordering do not affect CSV.
+
+Each changes scope owns its subscriptions and shares one reading with all descendants. Export reads current snapshots at activation, without subscribing the root or controls to store updates. Custom controls can use `useAuditTrail().select(next)` and `useAuditTrail().exportCsv()`.

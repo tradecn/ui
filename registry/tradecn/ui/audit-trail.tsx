@@ -1,16 +1,13 @@
 import { cn } from "cn"
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useInsertionEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from "react"
 import { Button } from "@/components/ui/button"
 import { useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
-import { NULL_TOKEN, NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
-import type { RowId, RowStore } from "@/registry/tradecn/lib/row-store"
+import { NULL_TOKEN } from "@/registry/tradecn/lib/format"
+import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, exportCsv, type ColumnDef, type DataGridProps } from "@/registry/tradecn/ui/data-grid"
 
-// The life of one order or inquiry as events: when, the server's word for what happened, who, and what
-// changed. The grid is the tape, one event per row, following its tail as events arrive. Rows have one
-// height, so the changes live in a pane beside the grid: one event's changes as a two-column table, or
-// the difference between two selected events, each field's value at one against its value at the other.
-// Nothing here decides what an event means: the word is the server's, and so is every value.
+// The caller owns the layout and change markup. The root coordinates selection and export;
+// each changes scope shares one live reading. History order comes from the supplied view or store.
 
 export interface AuditChange {
   field: string
@@ -137,121 +134,148 @@ export function diffEvents<T extends AuditEvent>(events: readonly T[], a: RowId,
   return out
 }
 
-interface PaneProps<T extends AuditEvent> {
+export interface AuditTrailProps<T extends AuditEvent = AuditEvent> extends Omit<ComponentProps<"div">, "children">, AuditTrailColumnOptions<T> {
   store: RowStore<T>
-  ids: readonly RowId[]
-  selection: readonly RowId[]
+  /** Shared by the grid, changes and CSV. Keep selected ids within this view. */
+  view?: RowView<T>
+  /** Shared by the grid and CSV; defaults to auditTrailColumns. */
+  columns?: ColumnDef<T>[]
+  selection?: ReadonlySet<RowId>
+  onSelectionChange?: (selection: ReadonlySet<RowId>) => void
+  children: ReactNode
+}
+
+export interface AuditTrailState {
+  selection: ReadonlySet<RowId>
+  select: (selection: ReadonlySet<RowId>) => void
+  labels: AuditTrailLabels
+  /** Current view/store order and column definitions, independent of grid-local sort/filter/columnState. */
+  exportCsv: () => string
+}
+
+interface Configuration {
+  store: RowStore<AuditEvent>
+  view?: RowView<AuditEvent>
+  columns: ColumnDef<AuditEvent>[]
   time: (ms: number) => string
-  value: (field: string, value: unknown, event: T) => string
+  value: (field: string, value: unknown, event: AuditEvent) => string
   labels: AuditTrailLabels
 }
 
-// The pane: one event's changes, or the difference between two. Its own component on the store's meta,
-// so a batch that touches the selected events redraws it and a batch elsewhere does not redraw the grid.
-function ChangesPane<T extends AuditEvent>({ store, ids, selection, time, value, labels }: PaneProps<T>) {
-  const meta = useStoreMeta(store)
-  const view = useMemo(() => {
-    void meta.version
-    const events = ids.map((id) => store.getRow(id)).filter((e): e is T => e !== undefined)
-    const chosen = selection.map((id) => store.getRow(id)).filter((e): e is T => e !== undefined).sort((x, y) => ids.indexOf(x.id) - ids.indexOf(y.id))
-    if (chosen.length === 0) return null
-    if (chosen.length === 1) {
-      const event = chosen[0]!
-      return { kind: "event" as const, event, title: fill(labels.eventTitle, { event: event.event, time: time(event.at) }), changes: [...(event.changes ?? [])] }
-    }
-    const a = chosen[0]!
-    const b = chosen[chosen.length - 1]!
-    return { kind: "diff" as const, event: b, title: fill(labels.diffTitle, { a: `${a.event} ${time(a.at)}`, b: `${b.event} ${time(b.at)}` }), changes: diffEvents(events, a.id, b.id) }
-  }, [meta.version, store, ids, selection, time, labels])
-  return (
-    <section aria-label={labels.changes} data-audit-pane={view?.kind ?? "none"} className="flex min-h-0 flex-col gap-1 overflow-auto rounded-md border border-border bg-background p-2 text-xs">
-      {view === null ? (
-        <p className="text-muted-foreground">{labels.select}</p>
-      ) : (
-        <>
-          <h3 className="font-medium">{view.title}</h3>
-          {view.changes.length === 0 ? (
-            <p className="text-muted-foreground">{view.kind === "diff" ? labels.same : labels.noChanges}</p>
-          ) : (
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-              <dt className="text-muted-foreground">{labels.field}</dt>
-              <dd className="grid grid-cols-2 gap-x-2 text-muted-foreground">
-                <span>{labels.from}</span>
-                <span>{labels.to}</span>
-              </dd>
-              {view.changes.map((change) => (
-                <div key={change.field} className="contents" data-audit-change={change.field}>
-                  <dt className="truncate font-medium">{change.field}</dt>
-                  <dd className={cn("grid grid-cols-2 gap-x-2", NUMERIC_CLASS)}>
-                    <span data-audit-from="" className="truncate text-muted-foreground line-through decoration-muted-foreground/60">
-                      {value(change.field, change.from, view.event)}
-                    </span>
-                    <span data-audit-to="" className="truncate">
-                      {value(change.field, change.to, view.event)}
-                    </span>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </>
-      )}
-    </section>
-  )
+const ConfigurationContext = createContext<Configuration | null>(null)
+const StateContext = createContext<AuditTrailState | null>(null)
+const ChangesContext = createContext<AuditTrailChangesState | null>(null)
+const defaultValue = (_field: string, value: unknown) => formatAuditValue(value)
+
+function useConfiguration() {
+  const state = useContext(ConfigurationContext)
+  if (!state) throw new Error("AuditTrail parts must be inside AuditTrail.")
+  return state
 }
 
-export interface AuditTrailProps<T extends AuditEvent = AuditEvent> extends Omit<DataGridProps<T>, "columns" | "preset" | "label" | "renderContextMenu">, AuditTrailColumnOptions<T> {
-  /** `auditTrailColumns(options)` by default. */
-  columns?: ColumnDef<T>[]
-  label?: string
-  /** Given the CSV of the events shown, in the grid's columns, when the export button is pressed. No button without it. */
-  onExport?: (csv: string) => void
-  /** The pane beside the grid. `false` hides it. */
-  pane?: boolean
-  /** Your items for the right-click menu. */
-  renderContextMenu?: (rows: T[], ids: RowId[]) => ReactNode
+/** Selection and snapshot export, without subscribing to store updates. */
+export function useAuditTrail(): AuditTrailState {
+  const state = useContext(StateContext)
+  if (!state) throw new Error("AuditTrail parts must be inside AuditTrail.")
+  return state
 }
 
-export function AuditTrail<T extends AuditEvent = AuditEvent>({ columns, time, labels: labelsProp, value, label = "Audit trail", onExport, pane = true, renderContextMenu, className, store, selection: selectionProp, onSelectionChange, view: viewProp, ...grid }: AuditTrailProps<T>) {
+export function AuditTrail<T extends AuditEvent = AuditEvent>({ store, view, columns, time = localTime, value = defaultValue, labels: labelsProp, selection: selectionProp, onSelectionChange, children, className, ...props }: AuditTrailProps<T>) {
   const labels = useMemo(() => ({ ...DEFAULT_AUDIT_TRAIL_LABELS, ...labelsProp }), [labelsProp])
-  const timeFn = time ?? localTime
-  const valueFn = useMemo(() => value ?? ((_: string, v: unknown) => formatAuditValue(v)), [value])
+  const all = useMemo(() => columns ?? auditTrailColumns<T>({ time, labels }), [columns, time, labels])
   const [ownSelection, setOwnSelection] = useState<ReadonlySet<RowId>>(() => new Set())
   const selection = selectionProp ?? ownSelection
-  // The grid's rows are memoized, so what it is handed keeps its identity from one render to the next; your callbacks are read through a ref.
-  const latest = useRef({ onSelectionChange, onExport, renderContextMenu })
-  useEffect(() => {
-    latest.current = { onSelectionChange, onExport, renderContextMenu }
-  })
   const controlled = selectionProp !== undefined
-  const select = useCallback(
-    (next: ReadonlySet<RowId>) => {
-      if (!controlled) setOwnSelection(next)
-      latest.current.onSelectionChange?.(next)
-    },
-    [controlled],
-  )
-  const all = useMemo(() => columns ?? auditTrailColumns<T>({ time: timeFn, labels }), [columns, timeFn, labels])
-  const shown = useRowIds(viewProp ?? store)
-  const selected = useMemo(() => [...selection], [selection])
-  const hasOwnMenu = Boolean(renderContextMenu)
-  const menu = useCallback((rows: T[], ids: RowId[]) => latest.current.renderContextMenu?.(rows, ids), [])
-  const exportShown = () => latest.current.onExport?.(exportCsv(store, all, shown))
-  return (
-    <div data-slot="tradecn-audit-trail" className={cn("flex h-full min-h-0 flex-col gap-1 lining-nums tabular-nums", className)}>
-      {onExport && (
-        <div className="flex shrink-0 items-center">
-          <Button type="button" variant="outline" size="sm" className="ml-auto h-6 px-2 text-xs" data-audit-export="" onClick={exportShown}>
-            {labels.export}
-          </Button>
-        </div>
-      )}
-      <div className={cn("grid min-h-0 flex-1 gap-2", pane && "grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]")}>
-        <div className="min-h-0">
-          <DataGrid<T> {...grid} store={store} view={viewProp} preset="tape" selectionMode="multi" label={label} columns={all} selection={selection} onSelectionChange={select} renderContextMenu={hasOwnMenu ? menu : undefined} />
-        </div>
-        {pane && <ChangesPane store={store} ids={shown} selection={selected} time={timeFn} value={valueFn} labels={labels} />}
-      </div>
-    </div>
-  )
+  const latest = useRef({ onSelectionChange, store, view, all })
+  useInsertionEffect(() => { latest.current = { onSelectionChange, store, view, all } })
+  const select = useCallback((next: ReadonlySet<RowId>) => {
+    if (!controlled) setOwnSelection(next)
+    latest.current.onSelectionChange?.(next)
+  }, [controlled])
+  const csv = useCallback(() => {
+    const { store, view, all } = latest.current
+    return exportCsv(store, all, (view ?? store).getIds())
+  }, [])
+  const state = useMemo(() => ({ selection, select, labels, exportCsv: csv }), [selection, select, labels, csv])
+  const configuration = useMemo(() => ({ store, view, columns: all, time, value, labels }), [store, view, all, time, value, labels])
+  // The grid restores the caller's row type; public hooks expose no unchecked row callbacks.
+  return <ConfigurationContext.Provider value={configuration as Configuration}><StateContext.Provider value={state}>
+    <div {...props} data-slot="tradecn-audit-trail" className={cn("flex h-full min-h-0 min-w-0 flex-col gap-1 lining-nums tabular-nums", className)}>{children}</div>
+  </StateContext.Provider></ConfigurationContext.Provider>
+}
+
+export interface AuditTrailGridProps<T extends AuditEvent = AuditEvent> extends Omit<DataGridProps<T>, "store" | "view" | "columns" | "preset" | "selectionMode" | "selection" | "onSelectionChange" | "label"> {
+  label?: string
+  /** Ref on the grid's sizing wrapper. */
+  ref?: Ref<HTMLDivElement>
+}
+
+export function AuditTrailGrid<T extends AuditEvent = AuditEvent>({ label = "Audit trail", className, ref, ...props }: AuditTrailGridProps<T>) {
+  const { store, view, columns } = useConfiguration()
+  const { selection, select } = useAuditTrail()
+  return <div ref={ref} data-slot="tradecn-audit-trail-grid" className={cn("h-full min-h-0 min-w-0 flex-1", className)}>
+    <DataGrid<T> {...props} store={store as RowStore<T>} view={view as RowView<T> | undefined} columns={columns as ColumnDef<T>[]} preset="tape" selectionMode="multi" selection={selection} onSelectionChange={select} label={label} />
+  </div>
+}
+
+export interface AuditTrailChangesState {
+  kind: "none" | "event" | "diff"
+  /** Selected event, or the latter event in a comparison. */
+  event: AuditEvent | null
+  title: string
+  changes: readonly AuditChange[]
+  /** Selection prompt, no-changes message or unchanged-comparison message; empty when there are changes. */
+  emptyMessage: string
+  labels: AuditTrailLabels
+  /** Uses the root formatter with the selected or latter event, or formatAuditValue without an event. */
+  formatValue: (field: string, value: unknown) => string
+}
+
+export interface AuditTrailChangesProps extends Omit<ComponentProps<"section">, "children"> {
+  children: ReactNode | ((state: AuditTrailChangesState) => ReactNode)
+}
+
+/** One subscription scope and reading shared by all of its children. Callers own the change markup. */
+export function AuditTrailChanges({ children, className, ...props }: AuditTrailChangesProps) {
+  const { store, view, time, value, labels } = useConfiguration()
+  const { selection } = useAuditTrail()
+  const ids = useRowIds(view ?? store)
+  const meta = useStoreMeta(store)
+  const reading = useMemo(() => {
+    void meta.version
+    const chosen = [...selection].map(id => store.getRow(id)).filter((event): event is AuditEvent => event !== undefined).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
+    if (!chosen.length) return { kind: "none" as const, event: null, title: "", changes: [], emptyMessage: labels.select }
+    const first = chosen[0]!
+    if (chosen.length === 1) return { kind: "event" as const, event: first, title: fill(labels.eventTitle, { event: first.event, time: time(first.at) }), changes: [...(first.changes ?? [])], emptyMessage: first.changes?.length ? "" : labels.noChanges }
+    const last = chosen[chosen.length - 1]!
+    const events = ids.map(id => store.getRow(id)).filter((event): event is AuditEvent => event !== undefined)
+    const changes = diffEvents(events, first.id, last.id)
+    return { kind: "diff" as const, event: last, title: fill(labels.diffTitle, { a: `${first.event} ${time(first.at)}`, b: `${last.event} ${time(last.at)}` }), changes, emptyMessage: changes.length ? "" : labels.same }
+  }, [meta.version, store, ids, selection, time, labels])
+  const formatValue = useCallback((field: string, raw: unknown) => reading.event ? value(field, raw, reading.event) : formatAuditValue(raw), [reading.event, value])
+  const state = useMemo(() => ({ ...reading, labels, formatValue }), [reading, labels, formatValue])
+  return <ChangesContext.Provider value={state}>
+    <section aria-label={labels.changes} {...props} data-slot="tradecn-audit-trail-changes" data-audit-pane={reading.kind} className={cn("flex min-h-0 min-w-0 flex-col gap-1 overflow-auto rounded-md border border-border bg-background p-2 text-xs lining-nums tabular-nums", className)}>
+      {typeof children === "function" ? children(state) : children}
+    </section>
+  </ChangesContext.Provider>
+}
+
+/** Reuses the nearest changes scope; adds no subscription or history scan. */
+export function useAuditTrailChanges(): AuditTrailChangesState {
+  const state = useContext(ChangesContext)
+  if (!state) throw new Error("useAuditTrailChanges must be inside AuditTrailChanges.")
+  return state
+}
+
+export interface AuditTrailExportButtonProps extends ComponentProps<typeof Button> {
+  onExport: (csv: string) => void
+}
+
+export function AuditTrailExportButton({ onExport, children, onClick, disabled, type = "button", variant = "outline", size, className, ...props }: AuditTrailExportButtonProps) {
+  const { exportCsv, labels } = useAuditTrail()
+  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} data-audit-export="" {...props} disabled={disabled} className={cn(size === undefined && "h-6 px-2 text-xs", className)} onClick={event => {
+    onClick?.(event)
+    if (!event.defaultPrevented && !disabled) onExport(exportCsv())
+  }}>{children === undefined ? labels.export : children}</Button>
 }

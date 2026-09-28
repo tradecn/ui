@@ -54,6 +54,8 @@
     "rules-editor",
     "rules-editor-tabs",
     "rules-editor-layout",
-    "audit-trail"
+    "audit-trail",
+    "audit-trail-history",
+    "audit-trail-layout"
   ]
 }
