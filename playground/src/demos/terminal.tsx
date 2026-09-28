@@ -61,7 +61,7 @@ import { SessionGuard, SessionStatus } from "@/registry/tradecn/ui/session-guard
 import { SpreadMatrix, type SpreadInstrument, type SpreadStructure } from "@/registry/tradecn/ui/spread-matrix"
 import { SpreadMatrixContent } from "./spread-matrix-yields"
 import { SpreadStructuresContent } from "./spread-matrix-structures"
-import { StatusBar } from "@/registry/tradecn/ui/status-bar"
+import { StatusBar, StatusBarEnvironmentBadge, StatusBarClocks, StatusBarClockReadout, StatusBarUser } from "@/registry/tradecn/ui/status-bar"
 import { Watchlist, watchlistColumns, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
 import { Workspace, useWorkspacePanel, type WorkspaceApi } from "@/registry/tradecn/ui/workspace"
 import { WatchlistAddControls, RemovableWatchlistGrid } from "./watchlist"
@@ -1594,18 +1594,17 @@ function Session() {
 
 function Foot({ sessionEndsAt }: { sessionEndsAt: number }) {
   return (
-    <StatusBar
-      environment={{ label: "SANDBOX", tone: "primary" }}
-      clocks={CLOCKS}
-      user="you"
-      left={
-        <>
-          <Feeds />
-          <Session />
-        </>
-      }
-      right={<SessionStatus expiresAt={sessionEndsAt} />}
-    />
+    <StatusBar data-environment="SANDBOX">
+      <StatusBarEnvironmentBadge label="SANDBOX" tone="primary" />
+      <div className="flex shrink-0 items-center gap-2" data-status-slot="left">
+        <Feeds />
+        <Session />
+      </div>
+      <div className="min-w-4 flex-1" data-status-slot="center" />
+      <StatusBarClocks>{CLOCKS.map((clock) => <StatusBarClockReadout key={`${clock.label}|${clock.zone}`} {...clock} />)}</StatusBarClocks>
+      <StatusBarUser user="you" />
+      <div className="flex shrink-0 items-center gap-2" data-status-slot="right"><SessionStatus expiresAt={sessionEndsAt} /></div>
+    </StatusBar>
   )
 }
 

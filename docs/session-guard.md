@@ -50,7 +50,7 @@ Acceptance updates the expiry and closes the dialog. Refusal leaves it open with
 
 `SessionStatus` can show the same expiry elsewhere on the desk, independently of the guard. This comparison uses one fixed clock to keep all four phases available to inspect. Real sessions use the shared ticking clock by default.
 
-To place a readout in [`StatusBar`](status-bar.md), install that component separately and pass the readout to one of its slots.
+To place a readout in [`StatusBar`](status-bar.md), install that component separately and place the readout in its children.
 
 <!-- demo: session-guard-status -->
 

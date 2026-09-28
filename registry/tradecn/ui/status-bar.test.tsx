@@ -1,8 +1,9 @@
-import { act, render, screen, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, within } from "@testing-library/react"
+import { createRef, StrictMode, type ReactNode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { createClock } from "@/registry/tradecn/lib/clock"
 import { NULL_TOKEN } from "@/registry/tradecn/lib/format"
-import { DEFAULT_STATUS_BAR_LABELS, STATUS_TONE_CLASS, StatusBar, clockFormat, formatClock } from "@/registry/tradecn/ui/status-bar"
+import { DEFAULT_STATUS_BAR_LABELS, STATUS_TONE_CLASS, StatusBar, StatusBarEnvironmentBadge, StatusBarClocks, StatusBarClockReadout, StatusBarUser, clockFormat, formatClock } from "@/registry/tradecn/ui/status-bar"
 
 afterEach(() => {
   vi.useRealTimers()
@@ -27,7 +28,7 @@ describe("the clocks", () => {
     vi.useFakeTimers()
     let t = T
     const clock = createClock(1000, () => t)
-    render(<StatusBar clocks={[{ label: "New York", zone: "America/New_York" }, { label: "London", zone: "Europe/London" }]} clock={clock} />)
+    render(<StatusBar><StatusBarClocks><StatusBarClockReadout label="New York" zone="America/New_York" source={clock} /><StatusBarClockReadout label="London" zone="Europe/London" source={clock} /></StatusBarClocks></StatusBar>)
     const ny = screen.getByTitle("America/New_York")
     const ldn = screen.getByTitle("Europe/London")
     expect(within(ny).getByText("10:30:05")).toBeInTheDocument()
@@ -45,8 +46,12 @@ describe("the clocks", () => {
 })
 
 describe("StatusBar", () => {
-  it("names itself, prints the environment as a word in its tone, the user, and puts your children in the slots", () => {
-    render(<StatusBar environment={{ label: "PRODUCTION", tone: "destructive" }} user="jdoe" left={<span>feeds</span>} center={<span>middle</span>} right={<span>frames</span>} />)
+  it("preserves the terminal composition, environment tone, user and application wrappers", () => {
+    render(<StatusBar data-environment="PRODUCTION">
+      <StatusBarEnvironmentBadge label="PRODUCTION" tone="destructive" />
+      <div data-status-slot="left">feeds</div><div data-status-slot="center">middle</div>
+      <StatusBarUser user="jdoe" /><div data-status-slot="right">frames</div>
+    </StatusBar>)
     const bar = screen.getByRole("group", { name: "Status" })
     expect(bar.dataset.slot).toBe("tradecn-status-bar")
     expect(bar.dataset.environment).toBe("PRODUCTION")
@@ -66,8 +71,8 @@ describe("StatusBar", () => {
     expect(order).toEqual(["PRODUCTION", "left", "center", "jdoe", "right"])
   })
 
-  it("leaves out what it is not given, and takes its words from labels", () => {
-    render(<StatusBar labels={{ title: "Statusleiste", environment: "Umgebung", user: "Angemeldet als" }} environment={{ label: "UAT" }} user="jdoe" />)
+  it("omits absent parts and localizes readings independently", () => {
+    render(<StatusBar aria-label="Statusleiste"><StatusBarEnvironmentBadge label="UAT" prefix="Umgebung" /><StatusBarUser user="jdoe" prefix="Angemeldet als" /></StatusBar>)
     const bar = screen.getByRole("group", { name: "Statusleiste" })
     expect(bar.querySelector("[data-status-slot='left']")).toBeNull()
     expect(bar.querySelector("[data-status-slot='right']")).toBeNull()
@@ -80,3 +85,104 @@ describe("StatusBar", () => {
     expect(DEFAULT_STATUS_BAR_LABELS.title).toBe("Status")
   })
 })
+
+
+describe("public composition", () => {
+  it("forwards native props, refs and events and permits independent reading order", () => {
+    const root = createRef<HTMLDivElement>(), clocks = createRef<HTMLDivElement>()
+    const env = createRef<HTMLSpanElement>(), user = createRef<HTMLSpanElement>(), clock = createRef<HTMLSpanElement>()
+    const key = vi.fn(), click = vi.fn()
+    render(<StatusBar id="desk" ref={root} aria-labelledby="desk-name" className="grid" onKeyDown={key}>
+      <h2 id="desk-name">Desk</h2>
+      <StatusBarUser ref={user} user="ana" className="font-bold" title="Operator" onClick={click} />
+      <StatusBarClocks ref={clocks} aria-label="Markets" className="grid">
+        <StatusBarClockReadout ref={clock} label="UTC" zone="UTC" title="Coordinated time" className="justify-between" />
+      </StatusBarClocks>
+      <button type="button">Reconnect</button>
+      <StatusBarEnvironmentBadge ref={env} label="UAT" className="rounded" title="Testing" />
+    </StatusBar>)
+    expect(root.current).toBe(screen.getByRole("group", { name: "Desk" }))
+    expect(root.current).toHaveClass("grid")
+    expect(clocks.current).toBe(screen.getByRole("group", { name: "Markets" }))
+    expect(env.current).toBe(screen.getByTitle("Testing"))
+    expect(user.current).toBe(screen.getByTitle("Operator"))
+    expect(clock.current).toBe(screen.getByTitle("Coordinated time"))
+    expect(clock.current).toHaveClass("justify-between")
+    fireEvent.click(user.current!)
+    fireEvent.keyDown(screen.getByRole("button"), { key: "Enter" })
+    expect(click).toHaveBeenCalledOnce()
+    expect(key).toHaveBeenCalledOnce()
+    expect(root.current?.lastElementChild).toBe(env.current)
+    expect(root.current?.querySelector("[aria-live], [role=status]")).toBeNull()
+  })
+
+  it("keeps ticking local, switches sources, and cleans up the last subscription in StrictMode", () => {
+    vi.useFakeTimers()
+    let t = T
+    const first = createClock(1000, () => t), second = createClock(500, () => t + 5000)
+    const sibling = vi.fn(() => <button type="button">Account</button>)
+    function Sibling() { return sibling() }
+    function Layout({ source = first, count = 2 }) {
+      return <StrictMode><StatusBar><Sibling />{Array.from({ length: count }, (_, i) => <StatusBarClockReadout key={i} label={`Market ${i}`} zone="UTC" source={source} seconds={i === 0} />)}</StatusBar></StrictMode>
+    }
+    const view = render(<Layout />)
+    const rendered = sibling.mock.calls.length
+    expect(vi.getTimerCount()).toBe(1)
+    act(() => { t += 1000; vi.advanceTimersByTime(1000) })
+    expect(sibling).toHaveBeenCalledTimes(rendered)
+    expect(screen.getByText("14:30:06")).toBeInTheDocument()
+    view.rerender(<Layout source={second} count={1} />)
+    expect(vi.getTimerCount()).toBe(1)
+    expect(screen.getByText("14:30:11")).toBeInTheDocument()
+    view.rerender(<Layout count={0} />)
+    expect(vi.getTimerCount()).toBe(0)
+    view.rerender(<Layout count={1} />)
+    expect(vi.getTimerCount()).toBe(1)
+    view.unmount()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("updates clock options and standalone readings without a root", () => {
+    const source = createClock(1000, () => T)
+    const view = render(<StatusBarClockReadout label="NY" zone="America/New_York" source={source} />)
+    expect(screen.getByText("10:30:05")).toBeInTheDocument()
+    view.rerender(<StatusBarClockReadout label="Tokyo" zone="Asia/Tokyo" seconds={false} source={source} />)
+    expect(screen.getByText("23:30")).toBeInTheDocument()
+    view.rerender(<StatusBarClockReadout label="Unknown" zone="Nowhere/Land" source={source} />)
+    expect(screen.getByText(NULL_TOKEN)).toBeInTheDocument()
+    expect(screen.getByTitle("Nowhere/Land").querySelector("time")).toHaveAttribute("dateTime", new Date(T).toISOString())
+    expect(() => formatClock(NaN, { label: "UTC", zone: "UTC" })).toThrow(RangeError)
+    expect(formatClock(NaN, { label: "?", zone: "Nowhere/Land" })).toBe(NULL_TOKEN)
+  })
+})
+
+// Real-compiler migration checks: an obsolete call must not compile as an empty bar.
+function publicComposition(children: ReactNode) {
+  const ref = createRef<HTMLDivElement>()
+  const valid = <StatusBar ref={ref} onKeyDown={() => {}}>{children}</StatusBar>
+  const conditional = <StatusBar>{false}</StatusBar>
+  // @ts-expect-error A root now requires explicit content.
+  const empty = <StatusBar />
+  // @ts-expect-error Styling alone no longer supplies a composition.
+  const styled = <StatusBar className="border-0" />
+  // @ts-expect-error Environment moves into StatusBarEnvironmentBadge.
+  const environment = <StatusBar environment={{ label: "UAT" }}>{children}</StatusBar>
+  // @ts-expect-error Clock entries move into StatusBarClocks/StatusBarClockReadout.
+  const clocks = <StatusBar clocks={[]}>{children}</StatusBar>
+  // @ts-expect-error User moves into StatusBarUser.
+  const user = <StatusBar user="me">{children}</StatusBar>
+  // @ts-expect-error Left content moves into caller JSX.
+  const left = <StatusBar left="feeds">{children}</StatusBar>
+  // @ts-expect-error Center content and the spacer move into caller JSX.
+  const center = <StatusBar center="session">{children}</StatusBar>
+  // @ts-expect-error Right content moves into caller JSX.
+  const right = <StatusBar right="frames">{children}</StatusBar>
+  // @ts-expect-error Source moves onto each ClockReadout.
+  const clock = <StatusBar clock={createClock()}>{children}</StatusBar>
+  // @ts-expect-error Names move to native aria props and reading prefixes.
+  const labels = <StatusBar labels={{ title: "Desk" }}>{children}</StatusBar>
+  // @ts-expect-error The clocks group requires caller-owned readings.
+  const group = <StatusBarClocks />
+  return [valid, conditional, empty, styled, environment, clocks, user, left, center, right, clock, labels, group]
+}
+void publicComposition

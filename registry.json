@@ -2356,7 +2356,7 @@
       "name": "status-bar",
       "type": "registry:ui",
       "title": "Status Bar",
-      "description": "The strip at the bottom of every terminal: which environment this is, in a word and a tone that reads at a glance; what time it is where the markets are, on one shared one-second clock; who is signed in; and your own readouts in the slots between. Every string is the consumer's, and it imports none of the items that usually sit in it.",
+      "description": "Composable environment, market clock and account readings for terminal bars and custom layouts.",
       "categories": [
         "chrome"
       ],
@@ -2388,7 +2388,23 @@
         "components": [
           {
             "title": "StatusBar",
-            "description": "The bar: environment, your left, your center, the clocks, the user, your right."
+            "description": "A native container for caller-owned status content."
+          },
+          {
+            "title": "StatusBarEnvironmentBadge",
+            "description": "The environment word and tone."
+          },
+          {
+            "title": "StatusBarClocks",
+            "description": "A named group for caller-owned clock readings."
+          },
+          {
+            "title": "StatusBarClockReadout",
+            "description": "A market clock with its own shared-clock subscription."
+          },
+          {
+            "title": "StatusBarUser",
+            "description": "The signed-in user and accessible prefix."
           },
           {
             "title": "STATUS_TONE_CLASS",
@@ -2404,11 +2420,11 @@
           },
           {
             "title": "DEFAULT_STATUS_BAR_LABELS",
-            "description": "Every word on it, to replace in part."
+            "description": "Default group names and reading prefixes."
           }
         ]
       },
-      "docs": "Installs the shared clock and format alongside and composes your badge. Adds the up, down, flat, stale, and expiring tokens for the environment's tone. Put feed-health and perf-monitor in its slots yourself; it does not import them.",
+      "docs": "Installs the shared clock and format helpers and composes your Badge. Adds environment tone tokens. Place feed-health and perf-monitor in its children after installing those items separately.",
       "cssVars": {
         "light": {
           "down": "oklch(0.46 0.19 40)",

@@ -4,7 +4,7 @@ import { FeedHealth, FeedHealthList, FeedHealthItem, FeedHealthIndicator, FeedHe
 import { Tooltip } from "@/components/ui/tooltip"
 import { PerfMonitor } from "@/registry/tradecn/ui/perf-monitor"
 import { FrameReadings } from "@/demos/perf-monitor"
-import { StatusBar, type StatusBarClock, type StatusBarEnvironment } from "@/registry/tradecn/ui/status-bar"
+import { StatusBar, StatusBarEnvironmentBadge, StatusBarClocks, StatusBarClockReadout, StatusBarUser, type StatusBarClock, type StatusBarEnvironment } from "@/registry/tradecn/ui/status-bar"
 
 // A screen's chrome, bottom edge: switch the environment and watch the badge change word and tone, add
 // a clock and watch it join the one timer the others tick on, drop the user, fill or empty the slots.
@@ -82,11 +82,9 @@ export function StatusBarScene() {
           ))}
         </div>
       </div>
-      <StatusBar
-        environment={ENVIRONMENTS[env]}
-        clocks={clocks}
-        user={user}
-        left={slots.left ? <FeedHealth feeds={feeds}>
+      <StatusBar data-environment={ENVIRONMENTS[env]?.label}>
+        {ENVIRONMENTS[env] && <StatusBarEnvironmentBadge {...ENVIRONMENTS[env]} />}
+        {slots.left && <div className="flex shrink-0 items-center gap-2" data-status-slot="left"> <FeedHealth feeds={feeds}>
           <FeedHealthList>{(feed, index) => <div className="inline-flex items-center gap-1">
             {index > 0 && <Separator orientation="vertical" className="h-3" />}
             <FeedHealthItem feed={feed}>
@@ -101,10 +99,14 @@ export function StatusBarScene() {
             </FeedHealthItem>
           </div>}</FeedHealthList>
           <FeedHealthAnnouncer />
-        </FeedHealth> : undefined}
-        center={slots.center ? <span className="text-muted-foreground">T 4 1/8 05/34 · 99-16+ / 99-17</span> : undefined}
-        right={slots.right ? <PerfMonitor><FrameReadings /></PerfMonitor> : undefined}
-      />
+        </FeedHealth></div>}
+        <div className="flex min-w-4 flex-1 items-center justify-center gap-2" data-status-slot="center">
+          {slots.center && <span className="text-muted-foreground">T 4 1/8 05/34 · 99-16+ / 99-17</span>}
+        </div>
+        {clocks.length > 0 && <StatusBarClocks>{clocks.map((clock) => <StatusBarClockReadout key={`${clock.label}|${clock.zone}`} {...clock} />)}</StatusBarClocks>}
+        {user && <StatusBarUser user={user} />}
+        {slots.right && <div className="flex shrink-0 items-center gap-2" data-status-slot="right"><PerfMonitor><FrameReadings /></PerfMonitor></div>}
+      </StatusBar>
     </main>
   )
 }

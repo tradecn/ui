@@ -592,3 +592,58 @@ Define `search` at module scope or memoize it with `useCallback`. Its identity i
 Use each primitive's supported props: Content `label` names the input, List `label` names its listbox, and the root owns query edits. cmdk-owned IDs, roles, ARIA and overwritten events are excluded from the corresponding part types.
 
 Native root props and refs are now forwarded. Input and Item keep their command semantics.
+
+## StatusBar
+
+`StatusBar` now requires children. Place the environment, clocks, user and application content explicitly. The complete [Usage example](status-bar.md#usage) shows the ordinary strip; this recipe retains the former slot layout and maps its labels to the parts:
+
+```tsx
+import type { ReactNode } from "react"
+import type { Clock } from "@/lib/clock"
+import { StatusBar, StatusBarClocks, StatusBarClockReadout, StatusBarEnvironmentBadge, StatusBarUser, DEFAULT_STATUS_BAR_LABELS, type StatusBarClock, type StatusBarEnvironment, type StatusBarLabels } from "@/components/ui/status-bar"
+
+export function TerminalStatus({ environment, clocks = [], user, left, center, right, clock, labels: overrides, className }: {
+  environment?: StatusBarEnvironment
+  clocks?: StatusBarClock[]
+  user?: string
+  left?: ReactNode
+  center?: ReactNode
+  right?: ReactNode
+  clock?: Clock
+  labels?: Partial<StatusBarLabels>
+  className?: string
+}) {
+  const labels = { ...DEFAULT_STATUS_BAR_LABELS, ...overrides }
+  return <StatusBar aria-label={labels.title} data-environment={environment?.label} className={className}>
+    {environment && <StatusBarEnvironmentBadge {...environment} prefix={labels.environment} />}
+    {left !== undefined && <div className="flex shrink-0 items-center gap-2" data-status-slot="left">{left}</div>}
+    <div className="flex min-w-4 flex-1 items-center justify-center gap-2" data-status-slot="center">{center}</div>
+    {clocks.length > 0 && <StatusBarClocks aria-label={labels.clocks}>
+      {clocks.map((entry) => <StatusBarClockReadout key={`${entry.label}|${entry.zone}`} {...entry} source={clock} />)}
+    </StatusBarClocks>}
+    {user && <StatusBarUser user={user} prefix={labels.user} />}
+    {right !== undefined && <div className="flex shrink-0 items-center gap-2" data-status-slot="right">{right}</div>}
+  </StatusBar>
+}
+```
+
+Install `status-bar` before copying this recipe; its installation includes `lib/clock.ts`. Save the recipe outside `components/ui`.
+
+| Previous interface | Replacement |
+|---|---|
+| Self-closing root, including `<StatusBar />` and class-only calls | Required children; use `children={null}` for an intentionally empty container. |
+| `environment` | `StatusBarEnvironmentBadge` with `label` and optional `tone`. |
+| `clocks` | Map descriptors into `StatusBarClockReadout` inside `StatusBarClocks`. |
+| `clock` | Pass `source` to each readout that uses the custom clock. |
+| `user` | Conditionally render `StatusBarUser user={user}`. |
+| `left`, `center`, `right` | Caller-owned content, wrappers and spacer. |
+| `labels` | Group `aria-label` and environment/user `prefix`. |
+| Root `className` | Retained; native props and refs are also forwarded. |
+
+The recipe retains the original order, center spacer, nonempty clock group, truthy user condition, and left/right wrappers for any value other than `undefined`. It also retains `data-environment` and the left/center/right `data-status-slot` markers, which are now caller-owned. Public readings preserve their environment, tone, user, clock and time markers.
+
+Explicit `undefined` values for `labels.environment` or `labels.user` now use the default prefixes. The released root let them erase prefix text and could print `undefined` in the user tooltip. Empty strings still leave the prefix text empty; set a part's native `title` to customize its tooltip.
+
+Each clock readout retains its local subscription, including when used outside the root. Default readings share one timer; a custom source still changes formatting and timestamps on its own cadence.
+
+Use stable keys when reordering clock descriptors. The helpers, tone classes, descriptor types and default labels remain available.
