@@ -1,24 +1,15 @@
 import { cn } from "cn"
-import { useMemo, useState, type DragEvent, type KeyboardEvent } from "react"
+import { createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type DragEvent, type ReactNode, type Ref } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
 import { RULE_TONE_CLASS, columnName, describeRule, type ColumnRule } from "@/registry/tradecn/lib/grid-rules"
 import { EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState } from "@/registry/tradecn/ui/data-grid"
 
-// The surface over one grid's columns: every column with show and hide, reorder by drag or by
-// keyboard, a width reset where a column was resized, a search box, frozen columns marked, and
-// reset all. It reads and writes the grid's own `ColumnState` through `columnState` and
-// `onColumnStateChange` and stores nothing, so what it shows is what the grid shows, and where the
-// state is kept (a panel's state, a preferences envelope) stays the consumer's. A rule that names a
-// column is said in words beside it, so a highlight can be read without the color.
-//
-// `ColumnChooser` is the dialog, a hotkey wall like any dialog: with focus inside it only its own
-// scopes run, so a grid's single-key bindings do not fire while a column is being found by typing.
-// `ColumnChooserPanel` is the same list inline, for a sheet, a tab, or a settings page.
+// The root coordinates controlled grid edits, search, drag ownership and focus.
+// Callers own the collection, row contents and any surrounding dialog.
 
 export interface ColumnChooserLabels {
   title: string
@@ -54,19 +45,14 @@ export const DEFAULT_COLUMN_CHOOSER_LABELS: ColumnChooserLabels = {
   dragHint: "Drag a column, or hold Alt with an arrow key, to reorder. Frozen columns stay first.",
 }
 
-export interface ColumnChooserPanelProps<T> {
+export interface ColumnChooserProps<T> extends ComponentProps<"div"> {
   columns: ColumnDef<T>[]
   columnState: ColumnState
   onColumnStateChange: (state: ColumnState) => void
   /** Rules that name columns, said in words beside the columns they touch. */
   rules?: ColumnRule[]
   labels?: Partial<ColumnChooserLabels>
-  className?: string
-}
-
-export interface ColumnChooserProps<T> extends ColumnChooserPanelProps<T> {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  children: ReactNode
 }
 
 /** One column as the chooser lists it. */
@@ -154,173 +140,319 @@ export function moveColumnBy<T>(rows: readonly ChooserRow<T>[], state: ColumnSta
   return moveColumnTo(rows, state, key, target.key)
 }
 
-interface RowProps<T> {
-  row: ChooserRow<T>
+/** Readings for a column, without accessors tied to the grid's row type. */
+export interface ColumnChooserEntry extends Omit<ChooserRow<unknown>, "column" | "rules"> {
+  rules: { rule: ColumnRule; description: string }[]
+}
+
+export interface ColumnChooserState {
+  rows: readonly ColumnChooserEntry[]
+  shown: readonly ColumnChooserEntry[]
+  query: string
+  setQuery: (query: string) => void
+  labels: ColumnChooserLabels
+  hiddenCount: number
+  isDefault: boolean
+  reset: () => void
+}
+
+interface ChooserContextValue extends ColumnChooserState {
+  byKey: ReadonlyMap<string, ColumnChooserItemState>
+  startDrag: (key: string, event: DragEvent<HTMLDivElement>) => void
+  dragOver: (key: string, event: DragEvent<HTMLDivElement>) => void
+  drop: (key: string, event: DragEvent<HTMLDivElement>) => void
+  endDrag: (key?: string) => void
+  focusFallback: () => void
+}
+
+const ChooserContext = createContext<ChooserContextValue | null>(null)
+const ItemContext = createContext<ColumnChooserItemState | null>(null)
+
+function useChooserContext() {
+  const value = useContext(ChooserContext)
+  if (!value) throw new Error("ColumnChooser parts must be inside ColumnChooser")
+  return value
+}
+
+export function useColumnChooser(): ColumnChooserState {
+  return useChooserContext()
+}
+
+export interface ColumnChooserItemState {
+  row: ColumnChooserEntry
   canMoveUp: boolean
   canMoveDown: boolean
   dragging: boolean
-  labels: ColumnChooserLabels
-  onVisible: (visible: boolean) => void
-  onMove: (delta: -1 | 1) => void
-  onResetWidth: () => void
-  onDragStart: (event: DragEvent<HTMLLIElement>) => void
-  onDragOver: (event: DragEvent<HTMLLIElement>) => void
-  onDrop: (event: DragEvent<HTMLLIElement>) => void
-  onDragEnd: () => void
+  setVisible: (visible: boolean) => void
+  move: (delta: -1 | 1) => void
+  resetWidth: () => void
 }
 
-function Row<T>({ row, canMoveUp, canMoveDown, dragging, labels, onVisible, onMove, onResetWidth, onDragStart, onDragOver, onDrop, onDragEnd }: RowProps<T>) {
-  const onKeyDown = (event: KeyboardEvent<HTMLLIElement>) => {
-    if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return
-    event.preventDefault()
-    event.stopPropagation()
-    onMove(event.key === "ArrowUp" ? -1 : 1)
+export function useColumnChooserItem(): ColumnChooserItemState {
+  const value = useContext(ItemContext)
+  if (!value) throw new Error("Column readings and controls must be inside ColumnChooserItem")
+  return value
+}
+
+function assignRef<T>(ref: Ref<T> | undefined, node: T | null) {
+  if (typeof ref === "function") return ref(node)
+  if (ref) ref.current = node
+}
+
+function useChooserRef<T>(localRef: { current: T | null }, forwarded: Ref<T> | undefined) {
+  return useCallback((node: T | null) => {
+    localRef.current = node
+    const cleanup = assignRef(forwarded, node)
+    return () => {
+      localRef.current = null
+      if (typeof cleanup === "function") cleanup()
+      else assignRef(forwarded, null)
+    }
+  }, [localRef, forwarded])
+}
+
+function unavailable(node: HTMLElement) {
+  if (!node.isConnected || node.matches(":disabled, [aria-disabled=true]") || node.closest("[hidden], [aria-hidden=true]")) return true
+  const view = node.ownerDocument.defaultView
+  const visibility = view?.getComputedStyle(node).visibility
+  if (visibility === "hidden" || visibility === "collapse") return true
+  for (let ancestor: HTMLElement | null = node; ancestor; ancestor = ancestor.parentElement) {
+    const style = view?.getComputedStyle(ancestor)
+    if (style?.display === "none" || style?.contentVisibility === "hidden") return true
   }
-  return (
-    <li
-      tabIndex={0}
-      draggable
-      data-column={row.key}
-      data-visible={row.visible ? "true" : "false"}
-      data-frozen={row.frozen || undefined}
-      data-dragging={dragging || undefined}
-      aria-label={row.name}
-      className={cn(
-        "group flex items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50",
-        !row.visible && "text-muted-foreground",
-      )}
-      onKeyDown={onKeyDown}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      onDragEnd={onDragEnd}
-    >
-      <span aria-hidden className="cursor-grab select-none text-muted-foreground" title={labels.dragHint}>
-        <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
-          <circle cx="2" cy="2" r="1.2" />
-          <circle cx="6" cy="2" r="1.2" />
-          <circle cx="2" cy="6" r="1.2" />
-          <circle cx="6" cy="6" r="1.2" />
-          <circle cx="2" cy="10" r="1.2" />
-          <circle cx="6" cy="10" r="1.2" />
-        </svg>
-      </span>
-      <Checkbox checked={row.visible} onCheckedChange={() => onVisible(!row.visible)} aria-label={`${labels.show} ${row.name}`} />
-      <span className="min-w-20 flex-1 truncate font-medium" title={row.name}>
-        {row.name}
-      </span>
-      {row.frozen && (
-        <Badge variant="outline" className="h-4 px-1.5 text-xs" data-column-frozen>
-          {labels.frozen}
-        </Badge>
-      )}
-      {/* A rule's words give way before the column's name does: the badge shrinks and its text ellipsizes (the badge is a flex box, so the text needs its own span to truncate), the name keeps its minimum. */}
-      {row.rules.map((rule) => (
-        <Badge key={rule.id} variant="outline" className={cn("h-4 min-w-0 shrink px-1.5 text-xs", RULE_TONE_CLASS[rule.tone])} data-column-rule={rule.id} title={describeRule(rule, [row.column])}>
-          <span className="min-w-0 truncate">{rule.label?.trim() || describeRule(rule, [row.column])}</span>
-        </Badge>
-      ))}
-      <span className={cn("w-14 shrink-0 text-right text-muted-foreground", NUMERIC_CLASS)} aria-label={`${labels.width} ${row.width}`} data-column-width={row.width}>
-        {row.width} px
-      </span>
-      <Button type="button" variant="ghost" size="sm" className={cn("h-6 px-1.5 text-xs", !row.resized && "invisible")} aria-label={`${labels.resetWidth}: ${row.name}`} aria-hidden={!row.resized || undefined} tabIndex={row.resized ? undefined : -1} onClick={onResetWidth}>
-        {labels.resetWidth}
-      </Button>
-      <span className="flex shrink-0 items-center">
-        <Button type="button" variant="ghost" size="sm" className="h-6 w-6 px-0 text-xs" aria-label={`${labels.moveUp}: ${row.name}`} disabled={!canMoveUp} onClick={() => onMove(-1)}>
-          <span aria-hidden>▲</span>
-        </Button>
-        <Button type="button" variant="ghost" size="sm" className="h-6 w-6 px-0 text-xs" aria-label={`${labels.moveDown}: ${row.name}`} disabled={!canMoveDown} onClick={() => onMove(1)}>
-          <span aria-hidden>▼</span>
-        </Button>
-      </span>
-    </li>
-  )
+  return false
 }
 
-/** The list inline: for a sheet, a tab, or a settings page of your own. */
-export function ColumnChooserPanel<T>({ columns, columnState, onColumnStateChange, rules, labels: labelsProp, className }: ColumnChooserPanelProps<T>) {
+export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, rules, labels: labelsProp, children, className, ref, onFocusCapture, onBlurCapture, ...props }: ColumnChooserProps<T>) {
   const labels = { ...DEFAULT_COLUMN_CHOOSER_LABELS, ...labelsProp }
-  const rows = useMemo(() => chooserRows(columns, columnState, rules), [columns, columnState, rules])
+  const sourceRows = useMemo(() => chooserRows(columns, columnState, rules), [columns, columnState, rules])
+  const rows = useMemo(() => sourceRows.map(({ column, rules, ...row }) => ({ ...row, rules: rules.map((rule) => ({ rule, description: describeRule(rule, [column]) })) })), [sourceRows])
   const [query, setQuery] = useState("")
   const [dragging, setDragging] = useState<string | null>(null)
+  const drag = useRef<{ key: string; frozen: boolean } | null>(null)
+  const id = useId()
+  const dragType = `application/x-tradecn-column-${id.replace(/[^a-z0-9]/gi, "").toLowerCase()}`
+  const root = useRef<HTMLDivElement>(null)
+  const rootRef = useChooserRef(root, ref)
+  const focused = useRef<HTMLElement | null>(null)
   const q = query.trim().toLowerCase()
   const shown = q ? rows.filter((row) => row.name.toLowerCase().includes(q) || row.key.toLowerCase().includes(q)) : rows
   const hiddenCount = rows.filter((row) => !row.visible).length
-  const sideOf = (key: string) => rows.find((row) => row.key === key)?.frozen
+  const isDefault = isDefaultColumnState(columnState)
+  const focusFallback = useCallback(() => {
+    const node = root.current
+    if (!node?.isConnected) return
+    const search = [...node.querySelectorAll<HTMLInputElement>("[data-column-search]:not(:disabled):not([hidden])")].find(input => input.closest("[data-slot=tradecn-column-chooser]") === node)
+    const target = search && !unavailable(search) ? search : node
+    target.focus()
+  }, [])
+  const endDrag = useCallback((key?: string) => {
+    if (!drag.current || (key !== undefined && drag.current.key !== key)) return
+    drag.current = null
+    setDragging(null)
+  }, [])
+  useLayoutEffect(() => {
+    const current = drag.current
+    if (current && !shown.some((row) => row.key === current.key && row.frozen === current.frozen)) endDrag(current.key)
+    const node = root.current
+    const previous = focused.current
+    if (node && previous && unavailable(previous) && (node.ownerDocument.activeElement === previous || node.ownerDocument.activeElement === node.ownerDocument.body)) focusFallback()
+  })
   const change = (next: ColumnState) => {
     if (next !== columnState) onColumnStateChange(next)
   }
-  return (
-    <div role="group" aria-label={labels.title} data-slot="tradecn-column-chooser" data-hidden={hiddenCount} className={cn("flex flex-col gap-2 text-xs lining-nums tabular-nums", className)}>
-      <div className="flex flex-wrap items-center gap-2">
-        <Input value={query} aria-label={labels.search} placeholder={labels.search} spellCheck={false} autoComplete="off" className="h-7 max-w-56 text-xs md:text-xs" onChange={(event) => setQuery(event.target.value)} />
-        <span className={cn("text-muted-foreground", NUMERIC_CLASS)} data-column-hidden-count={hiddenCount}>
-          {hiddenCount} {labels.hidden}
-        </span>
-        <Button type="button" variant="outline" size="sm" className="ml-auto h-7 px-2 text-xs" disabled={isDefaultColumnState(columnState)} onClick={() => change(EMPTY_COLUMN_STATE)}>
-          {labels.resetAll}
-        </Button>
-      </div>
-      {shown.length === 0 ? (
-        <p className="text-muted-foreground">{labels.empty}</p>
-      ) : (
-        <ul className="flex flex-col" aria-label={labels.title}>
-          {shown.map((row) => {
-            const index = rows.indexOf(row)
-            const up = rows[index - 1]
-            const down = rows[index + 1]
-            return (
-              <Row
-                key={row.key}
-                row={row}
-                canMoveUp={up !== undefined && up.frozen === row.frozen}
-                canMoveDown={down !== undefined && down.frozen === row.frozen}
-                dragging={dragging === row.key}
-                labels={labels}
-                onVisible={(visible) => change(setColumnVisible(columnState, row.key, visible))}
-                onMove={(delta) => change(moveColumnBy(rows, columnState, row.key, delta))}
-                onResetWidth={() => change(resetColumnWidth(columnState, row.key))}
-                onDragStart={(event) => {
-                  event.dataTransfer?.setData?.("text/plain", row.key)
-                  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
-                  setDragging(row.key)
-                }}
-                onDragOver={(event) => {
-                  const from = dragging
-                  if (from === null || from === row.key || sideOf(from) !== row.frozen) return
-                  event.preventDefault()
-                  if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
-                }}
-                onDrop={(event) => {
-                  event.preventDefault()
-                  const from = dragging ?? event.dataTransfer?.getData?.("text/plain") ?? null
-                  setDragging(null)
-                  if (from) change(moveColumnTo(rows, columnState, from, row.key))
-                }}
-                onDragEnd={() => setDragging(null)}
-              />
-            )
-          })}
-        </ul>
-      )}
-      <p className="text-muted-foreground">{labels.dragHint}</p>
-    </div>
-  )
+  const byKey = new Map(rows.map((row, index): [string, ColumnChooserItemState] => [row.key, {
+    row,
+    canMoveUp: index > 0 && rows[index - 1]!.frozen === row.frozen,
+    canMoveDown: index < rows.length - 1 && rows[index + 1]!.frozen === row.frozen,
+    dragging: dragging === row.key,
+    setVisible: (visible) => change(setColumnVisible(columnState, row.key, visible)),
+    move: (delta) => change(moveColumnBy(sourceRows, columnState, row.key, delta)),
+    resetWidth: () => change(resetColumnWidth(columnState, row.key)),
+  }]))
+  const accepts = (key: string, event: DragEvent<HTMLDivElement>) => {
+    const current = drag.current
+    const from = current && byKey.get(current.key)?.row
+    const target = byKey.get(key)?.row
+    return !!(current && from && target && current.key !== key && from.frozen === current.frozen && from.frozen === target.frozen && event.dataTransfer.types.includes(dragType))
+  }
+  return <ChooserContext value={{
+    rows, shown, query, setQuery, labels, hiddenCount, isDefault, byKey, focusFallback, endDrag,
+    reset: () => change(EMPTY_COLUMN_STATE),
+    startDrag: (key, event) => {
+      const row = byKey.get(key)?.row
+      if (!row) return
+      event.dataTransfer.setData(dragType, key)
+      event.dataTransfer.setData("text/plain", key)
+      event.dataTransfer.effectAllowed = "move"
+      drag.current = { key, frozen: row.frozen }
+      setDragging(key)
+    },
+    dragOver: (key, event) => {
+      if (!accepts(key, event)) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = "move"
+    },
+    drop: (key, event) => {
+      const current = drag.current
+      const accepted = accepts(key, event)
+      if (current) endDrag(current.key)
+      if (!accepted || !current) return
+      event.preventDefault()
+      change(moveColumnTo(sourceRows, columnState, current.key, key))
+    },
+  }}>
+    <div role="group" tabIndex={-1} aria-label={props["aria-labelledby"] ? undefined : labels.title} data-slot="tradecn-column-chooser" data-hidden={hiddenCount} className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} ref={rootRef} onFocusCapture={(event) => {
+      onFocusCapture?.(event)
+      if (event.currentTarget.contains(event.target) && event.target.closest("[data-slot=tradecn-column-chooser]") === event.currentTarget) focused.current = event.target
+    }} onBlurCapture={(event) => {
+      onBlurCapture?.(event)
+      if (!event.currentTarget.contains(event.relatedTarget) && (event.relatedTarget || !unavailable(event.target))) focused.current = null
+    }}>{children}</div>
+  </ChooserContext>
 }
 
-/** The dialog: the panel under a title, over the page, a hotkey wall while it is open. */
-export function ColumnChooser<T>({ open, onOpenChange, labels: labelsProp, className, ...panel }: ColumnChooserProps<T>) {
-  const labels = { ...DEFAULT_COLUMN_CHOOSER_LABELS, ...labelsProp }
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("sm:max-w-lg", className)}>
-        <DialogHeader>
-          <DialogTitle>{labels.title}</DialogTitle>
-          <DialogDescription>{labels.description}</DialogDescription>
-        </DialogHeader>
-        <ColumnChooserPanel {...panel} labels={labels} />
-      </DialogContent>
-    </Dialog>
-  )
+export function ColumnChooserSearch({ onChange, className, ...props }: Omit<ComponentProps<typeof Input>, "value" | "defaultValue">) {
+  const { query, setQuery, labels } = useColumnChooser()
+  return <Input aria-label={props["aria-labelledby"] ? undefined : labels.search} placeholder={labels.search} spellCheck={false} autoComplete="off" data-column-search="" className={cn("h-7 max-w-56 text-xs md:text-xs", className)} {...props} value={query} onChange={(event) => {
+    onChange?.(event)
+    if (!event.defaultPrevented) setQuery(event.target.value)
+  }} />
+}
+
+export function ColumnChooserHiddenCount({ className, ...props }: Omit<ComponentProps<"span">, "children">) {
+  const { hiddenCount, labels } = useColumnChooser()
+  return <span data-column-hidden-count={hiddenCount} className={cn("text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{hiddenCount} {labels.hidden}</span>
+}
+
+type ActionProps = Omit<ComponentProps<typeof Button>, "children"> & { children: ReactNode }
+
+export function ColumnChooserResetAll({ type = "button", variant = "outline", size, disabled, onClick, className, ...props }: ActionProps) {
+  const { isDefault, reset } = useColumnChooser()
+  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} className={cn(size === undefined && "h-7 px-2 text-xs", className)} {...props} disabled={disabled || isDefault} onClick={(event) => {
+    onClick?.(event)
+    if (!event.defaultPrevented) reset()
+  }} />
+}
+
+export interface ColumnChooserItemProps extends ComponentProps<"div"> {
+  columnKey: string
+  children: ReactNode
+}
+
+export function ColumnChooserItem({ columnKey, ...props }: ColumnChooserItemProps) {
+  const { byKey } = useChooserContext()
+  const item = byKey.get(columnKey)
+  return item ? <ChooserItem key={columnKey} item={item} {...props} /> : null
+}
+
+function ownsItemEvent(event: { target: EventTarget; currentTarget: HTMLDivElement }) {
+  return event.target instanceof Element && event.currentTarget.contains(event.target) && event.target.closest("[data-slot=tradecn-column-chooser-item]") === event.currentTarget && event.target.closest("[data-slot=tradecn-column-chooser]") === event.currentTarget.closest("[data-slot=tradecn-column-chooser]")
+}
+
+function ChooserItem({ item, className, ref, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
+  const { row, dragging, move } = item
+  const { focusFallback, startDrag, dragOver, drop, endDrag } = useChooserContext()
+  const root = useRef<HTMLDivElement>(null)
+  const rootRef = useChooserRef(root, ref)
+  const focused = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const node = root.current
+    const previous = focused.current
+    if (node && previous && unavailable(previous) && (node.ownerDocument.activeElement === previous || node.ownerDocument.activeElement === node.ownerDocument.body)) node.focus()
+    // Keyed DOM moves can return focus to body without removing the focused control.
+    else if (node && previous && node.contains(previous) && node.ownerDocument.activeElement === node.ownerDocument.body) previous.focus()
+  })
+  useLayoutEffect(() => {
+    const node = root.current
+    return () => {
+      endDrag(row.key)
+      if (node?.contains(node.ownerDocument.activeElement)) focusFallback()
+    }
+  }, [row.key, endDrag, focusFallback])
+  return <ItemContext value={item}><div role="group" tabIndex={0} draggable aria-label={props["aria-labelledby"] ? undefined : row.name} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} data-slot="tradecn-column-chooser-item" className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} ref={rootRef} onFocusCapture={(event) => {
+    onFocusCapture?.(event)
+    if (ownsItemEvent(event)) focused.current = event.target
+  }} onBlurCapture={(event) => {
+    onBlurCapture?.(event)
+    if (!event.currentTarget.contains(event.relatedTarget) && (event.relatedTarget || !unavailable(event.target))) focused.current = null
+  }} onKeyDown={(event) => {
+    onKeyDown?.(event)
+    if (!ownsItemEvent(event) || event.defaultPrevented || event.nativeEvent.isComposing || !event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return
+    event.preventDefault()
+    event.stopPropagation()
+    move(event.key === "ArrowUp" ? -1 : 1)
+  }} onDragStart={(event) => {
+    onDragStart?.(event)
+    if (ownsItemEvent(event) && !event.defaultPrevented) startDrag(row.key, event)
+  }} onDragOver={(event) => {
+    onDragOver?.(event)
+    if (ownsItemEvent(event) && !event.defaultPrevented) dragOver(row.key, event)
+  }} onDrop={(event) => {
+    onDrop?.(event)
+    if (!ownsItemEvent(event)) return
+    if (!event.defaultPrevented) drop(row.key, event)
+    else endDrag()
+  }} onDragEnd={(event) => {
+    onDragEnd?.(event)
+    if (ownsItemEvent(event)) endDrag(row.key)
+  }} /></ItemContext>
+}
+
+export function ColumnChooserVisibility({ onClick, onCheckedChange, ...props }: Omit<ComponentProps<typeof Checkbox>, "checked" | "defaultChecked" | "indeterminate">) {
+  const { row, setVisible } = useColumnChooserItem()
+  const { labels } = useColumnChooser()
+  return <Checkbox aria-label={props["aria-labelledby"] ? undefined : `${labels.show} ${row.name}`} {...props} checked={row.visible} onClick={(event) => {
+    onClick?.(event)
+    // Some built-ins separate browser cancellation from their own click handler.
+    if (event.defaultPrevented && "preventBaseUIHandler" in event && typeof event.preventBaseUIHandler === "function") event.preventBaseUIHandler()
+  }} onCheckedChange={(...args) => {
+    onCheckedChange?.(...args)
+    const details: unknown = args.slice(1)[0]
+    if (details && typeof details === "object" && "isCanceled" in details && details.isCanceled) return
+    setVisible(args[0] === true)
+  }} />
+}
+
+export function ColumnChooserName({ className, ...props }: Omit<ComponentProps<"span">, "children">) {
+  const { row } = useColumnChooserItem()
+  return <span title={row.name} className={cn("min-w-20 flex-1 truncate font-medium", className)} {...props}>{row.name}</span>
+}
+
+export function ColumnChooserFrozen({ className, ...props }: Omit<ComponentProps<typeof Badge>, "children">) {
+  const { row } = useColumnChooserItem()
+  const { labels } = useColumnChooser()
+  return row.frozen ? <Badge variant="outline" data-column-frozen className={cn("h-4 px-1.5 text-xs", className)} {...props}>{labels.frozen}</Badge> : null
+}
+
+export function ColumnChooserRule({ ruleIndex, className, ...props }: Omit<ComponentProps<typeof Badge>, "children"> & { ruleIndex: number }) {
+  const { row } = useColumnChooserItem()
+  const reading = row.rules[ruleIndex]
+  if (!reading) return null
+  const { rule, description } = reading
+  return <Badge variant="outline" data-column-rule={rule.id} title={description} className={cn("h-4 min-w-0 shrink px-1.5 text-xs", RULE_TONE_CLASS[rule.tone], className)} {...props}><span className="min-w-0 truncate">{rule.label?.trim() || description}</span></Badge>
+}
+
+export function ColumnChooserWidth({ className, ...props }: Omit<ComponentProps<"span">, "children">) {
+  const { row } = useColumnChooserItem()
+  const { labels } = useColumnChooser()
+  return <span aria-label={props["aria-labelledby"] ? undefined : `${labels.width} ${row.width}`} data-column-width={row.width} className={cn("w-14 shrink-0 text-right text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{row.width} px</span>
+}
+
+export function ColumnChooserResetWidth({ type = "button", variant = "ghost", size, disabled, onClick, className, ...props }: ActionProps) {
+  const { row, resetWidth } = useColumnChooserItem()
+  const { labels } = useColumnChooser()
+  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={props["aria-labelledby"] ? undefined : `${labels.resetWidth}: ${row.name}`} aria-hidden={!row.resized || undefined} tabIndex={row.resized ? undefined : -1} className={cn(size === undefined && "h-6 px-1.5 text-xs", !row.resized && "invisible", className)} {...props} disabled={disabled || !row.resized} onClick={(event) => {
+    onClick?.(event)
+    if (!event.defaultPrevented) resetWidth()
+  }} />
+}
+
+export function ColumnChooserMove({ direction, type = "button", variant = "ghost", size, disabled, onClick, className, ...props }: ActionProps & { direction: "up" | "down" }) {
+  const { row, canMoveUp, canMoveDown, move } = useColumnChooserItem()
+  const { labels } = useColumnChooser()
+  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={props["aria-labelledby"] ? undefined : `${direction === "up" ? labels.moveUp : labels.moveDown}: ${row.name}`} className={cn(size === undefined && "h-6 px-1.5 text-xs", className)} {...props} disabled={disabled || !(direction === "up" ? canMoveUp : canMoveDown)} onClick={(event) => {
+    onClick?.(event)
+    if (!event.defaultPrevented) move(direction === "up" ? -1 : 1)
+  }} />
 }

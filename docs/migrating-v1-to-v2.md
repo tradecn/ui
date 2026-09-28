@@ -195,7 +195,7 @@ You can start with the complete [Usage example](rules-editor.md#usage), or copy 
 | Self-closing `RulesEditor` | Required `children` containing your composition. |
 | Automatic tabs and panels | Compose installed shadcn `Tabs`, `TabsList`, `TabsTrigger`, and `TabsContent`. |
 | `defaultTab`, `RulesEditorTab` type | Move initial selection to `defaultValue` on `Tabs` or your controlled tab state. The editor no longer owns a tab value or exports its type. |
-| `columnState`, `onColumnStateChange` | Pass these to your own `ColumnChooserPanel` inside a Columns panel. Share the state with the grid. |
+| `columnState`, `onColumnStateChange` | Pass these to a composed `ColumnChooser` inside a Columns panel. Share the state with the grid. |
 | Automatic rule rows | Map each source list into `RulesEditorItem` with `kind` and its source `index`. Keep highlight keys as `rule.id`. |
 | Automatic condition fields | `RulesEditorColumn`, `RulesEditorOperator`, and `RulesEditorValue` for each field shape. |
 | Automatic highlight properties | `RulesEditorTone`, `RulesEditorToneSwatch`, `RulesEditorTarget`, and `RulesEditorLabel`. |
@@ -647,3 +647,44 @@ Explicit `undefined` values for `labels.environment` or `labels.user` now use th
 Each clock readout retains its local subscription, including when used outside the root. Default readings share one timer; a custom source still changes formatting and timestamps on its own cadence.
 
 Use stable keys when reordering clock descriptors. The helpers, tone classes, descriptor types and default labels remain available.
+
+## ColumnChooser
+
+`ColumnChooser` now requires `children`. Compose its controls inside your own Dialog.
+
+Copy the complete [Usage example](column-chooser.md#usage) into `column-chooser.tsx`. It exports `ColumnSettingsPanel`, `ColumnSettingsDialog`, and `ColumnSettings`; the dialog primitive is included by the install.
+
+| Previous interface | Replacement |
+|---|---|
+| Self-closing `ColumnChooser` | Your Dialog containing a composed `ColumnChooser`. The shared `ColumnSettingsDialog` recipe retains the ordinary layout. |
+| `ColumnChooserPanel`, `ColumnChooserPanelProps<T>` | `ColumnChooser`, `ColumnChooserProps<T>` with required `children`. Use the shared `ColumnSettingsPanel` recipe for the ordinary list. |
+| `open`, `onOpenChange` | Move them to your Dialog. Place `DialogTrigger` inside it for return focus, and mount the chooser inside `DialogContent` to reset search on a completed close. |
+| Dialog `className` | Move it to `DialogContent`. Root classes now style the inline group. |
+| Automatic toolbar, list, empty state, and hint | Compose these around `useColumnChooser().shown` and the public parts. |
+| Private row | `ColumnChooserItem columnKey={key}` with required children, inside your `li` or card. Keep keys stable. |
+| Visibility, column name, frozen and rule badges, width | `ColumnChooserVisibility`, `ColumnChooserName`, `ColumnChooserFrozen`, `ColumnChooserRule`, and `ColumnChooserWidth`. |
+| Reset and move controls | `ColumnChooserResetAll`, `ColumnChooserResetWidth`, and `ColumnChooserMove`, with required action content. |
+| Labels for surrounding content | Read `useColumnChooser().labels` for the description, empty state, action content, and hint. |
+
+For a minimal inline replacement, install ColumnChooser and copy the shared file first:
+
+```tsx
+import { useState } from "react"
+import { ColumnSettingsPanel } from "./column-chooser"
+import { EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState } from "@/components/ui/data-grid"
+
+const columns: ColumnDef<{ id: string }>[] = [{ key: "id", header: "RFQ", width: 80, accessor: (row) => row.id }]
+
+export function QuoteColumns() {
+  const [columnState, setColumnState] = useState<ColumnState>(EMPTY_COLUMN_STATE)
+  return <ColumnSettingsPanel columns={columns} columnState={columnState} onColumnStateChange={setColumnState} />
+}
+```
+
+The pure helpers, `ChooserRow<T>`, label type, and default labels remain exported. Search, full-order neighbors, frozen boundaries, visibility, width calculations, and controlled callbacks retain their behavior.
+
+The parts add native props, refs, names, and event handlers. Supply your action content and surrounding Dialog.
+
+Items are named groups inside your collection. A focus target that becomes hidden, disabled, or removed falls back to its item, search, or root.
+
+Drag sessions reject foreign and cross-chooser drops, accept empty string column keys, and clear when their source disappears. These correct the released drag and focus defects.

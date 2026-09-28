@@ -688,3 +688,12 @@ describe("the preview card", () => {
     expect(embed).toContain("event.source === window.parent")
   })
 })
+
+it("keeps the chooser's installed shared recipe aligned with the complete Usage composition", () => {
+  const demo = readFileSync(resolve(root, "playground/src/demos/column-chooser.tsx"), "utf8")
+  const docs = readFileSync(resolve(root, "docs/column-chooser.md"), "utf8")
+  const fixture = readFileSync(resolve(root, "fixtures/smoke/scenes/column-settings.tsx"), "utf8")
+  expect(docs.match(/```tsx\n([\s\S]*?)\n```/)?.[1]?.trim()).toBe(consumerImports(demo).trim())
+  const exported = demo.slice(demo.indexOf("export function ColumnSettingsDialog"))
+  expect(fixture.slice(fixture.indexOf("export function ColumnSettingsDialog"))).toBe(consumerImports(exported))
+})

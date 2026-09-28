@@ -1,9 +1,11 @@
+import { cn } from "cn"
+import { buttonVariants } from "@/components/ui/button"
 import { useMemo, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { DialogTrigger } from "@/components/ui/dialog"
 import { createInstrumentFormatter, formatNotional } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { ColumnChooser, ColumnChooserPanel } from "@/registry/tradecn/ui/column-chooser"
+import { ColumnSettingsDialog, ColumnSettingsPanel } from "@/demos/column-chooser"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/registry/tradecn/ui/data-grid"
 
 // One grid, one ColumnState, three writers: the grid's header menus, the panel inline beside it, and
@@ -59,26 +61,27 @@ export function ColumnChooserScene() {
   const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: {}, hidden: [] })
   const [open, setOpen] = useState(false)
   return (
+      <ColumnSettingsDialog open={open} onOpenChange={setOpen} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES.columns}>
     <main className="flex h-screen flex-col gap-3 p-4 font-(family-name:--tradecn-font-mono) text-xs">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-sm font-semibold">column-chooser</h1>
         <span className="text-muted-foreground">The grid, the panel beside it, and the dialog from the button all write one ColumnState. Hide a column here and it leaves the grid; drag its edge in the grid and the width shows here.</span>
-        <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={() => setOpen(true)}>
+        <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "ml-auto")}>
           Columns…
-        </Button>
+        </DialogTrigger>
       </div>
-      <ColumnChooser open={open} onOpenChange={setOpen} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES.columns} />
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_28rem]">
         <div className="min-h-0">
           <DataGrid store={store} columns={columns} preset="rfq" label="Open RFQs" columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} />
         </div>
         <aside className="flex min-h-0 flex-col gap-3">
-          <ColumnChooserPanel columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES.columns} className="rounded-md border border-border p-2" />
+          <ColumnSettingsPanel columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES.columns} className="rounded-md border border-border p-2" />
           <pre className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-card p-2 text-xs" data-column-state={JSON.stringify(columnState)}>
             {JSON.stringify(columnState, null, 2)}
           </pre>
         </aside>
       </div>
     </main>
+    </ColumnSettingsDialog>
   )
 }

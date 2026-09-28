@@ -32,7 +32,7 @@ import { AuditChangesTable } from "./audit-trail"
 import { AuditTrail, AuditTrailGrid, AuditTrailExportButton, type AuditEvent } from "@/registry/tradecn/ui/audit-trail"
 import { Blotter, BlotterActionScope, BlotterGrid, blotterColumns, type BlotterAction, type BlotterRow } from "@/registry/tradecn/ui/blotter"
 import { OrderMenu, OrderToolbar } from "./blotter-actions"
-import { ColumnChooser } from "@/registry/tradecn/ui/column-chooser"
+import { ColumnSettingsDialog } from "./column-chooser"
 import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, createActionRegistry, type ActionRegistry, type PaletteAction } from "@/registry/tradecn/ui/command-palette"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/registry/tradecn/ui/data-grid"
@@ -1054,24 +1054,23 @@ function BlotterPanel() {
     return desk.orders.getIds().filter((id) => desk.orders.getRow(id)?.allowedActions?.includes("cancel")).length
   }, [desk, meta.version])
   return (
-    <>
+      <ColumnSettingsDialog open={chooser} onOpenChange={setChooser} columns={columns} columnState={columnState} onColumnStateChange={setColumnState}>
       <PanelHeader>
         <PanelTitle>Blotter</PanelTitle>
         <span className="text-muted-foreground">{working} working</span>
         <PanelActions>
-          <Button size="sm" variant="ghost" className={ACTION} onClick={() => setChooser(true)}>
+          <DialogTrigger className={cn(buttonVariants({ variant: "ghost", size: "sm" }), ACTION)}>
             Columns
-          </Button>
+          </DialogTrigger>
         </PanelActions>
       </PanelHeader>
-      <ColumnChooser open={chooser} onOpenChange={setChooser} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} />
       <PanelContent>
         <Blotter store={desk.orders} className={GRID} actions={actions} onNew={() => desk.api()?.focusPanel("order-1")}>
           <OrderToolbar />
           <BlotterGrid columns={columns} sort={BY_TIME} deleteAction="cancel" columnState={columnState} onColumnStateChange={setColumnState} renderContextMenu={(_, ids) => <BlotterActionScope ids={ids}><OrderMenu /></BlotterActionScope>} />
         </Blotter>
       </PanelContent>
-    </>
+    </ColumnSettingsDialog>
   )
 }
 

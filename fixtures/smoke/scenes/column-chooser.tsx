@@ -1,6 +1,8 @@
+import { cn } from "cn"
+import { buttonVariants } from "@/components/ui/button"
 import { useMemo, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { ColumnChooser, ColumnChooserPanel } from "@/components/ui/column-chooser"
+import { DialogTrigger } from "@/components/ui/dialog"
+import { ColumnSettingsDialog, ColumnSettingsPanel } from "./column-settings"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/components/ui/data-grid"
 import type { ColumnRule } from "@/lib/grid-rules"
 import { createRowStore } from "@/lib/row-store"
@@ -38,15 +40,16 @@ export function ColumnChooserScene() {
   const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: { px: 120 }, hidden: [] })
   const [open, setOpen] = useState(false)
   return (
+      <ColumnSettingsDialog open={open} onOpenChange={setOpen} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES}>
     <div className="flex w-[52rem] flex-col gap-2" data-chooser-state={JSON.stringify(columnState)}>
       <div style={{ height: 120 }}>
         <DataGrid store={store} columns={columns} label="Chosen" columnState={columnState} onColumnStateChange={setColumnState} rules={{ columns: RULES }} />
       </div>
-      <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setOpen(true)}>
+      <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "self-start")}>
         open chooser
-      </Button>
-      <ColumnChooser open={open} onOpenChange={setOpen} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} />
-      <ColumnChooserPanel columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} />
+      </DialogTrigger>
+      <ColumnSettingsPanel columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} />
     </div>
+    </ColumnSettingsDialog>
   )
 }

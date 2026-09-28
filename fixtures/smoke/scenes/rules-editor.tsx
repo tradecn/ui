@@ -1,6 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useMemo, useState } from "react"
-import { ColumnChooserPanel } from "@/components/ui/column-chooser"
+import { ColumnSettingsPanel } from "./column-settings"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/components/ui/data-grid"
 import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorDirection, RulesEditorFilterCount, RulesEditorItem, RulesEditorLabel, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorRuleCount, RulesEditorTarget, RulesEditorTone, RulesEditorToneSwatch, RulesEditorValue, useRulesEditor, type RulesEditorProps } from "@/components/ui/rules-editor"
 import { NUMERIC_CLASS } from "@/lib/format"
@@ -165,7 +165,7 @@ function EditorSections<T>({ columns, columnState, onColumnStateChange, defaultT
           <p className="text-muted-foreground">{labels.dragHint}</p>
         </div>
       </TabsContent>
-      {hasColumns && <TabsContent value="columns"><div className="flex flex-col gap-2"><ColumnChooserPanel columns={columns} columnState={columnState} onColumnStateChange={onColumnStateChange} rules={rules.columns} /></div></TabsContent>}
+      {hasColumns && <TabsContent value="columns"><div className="flex flex-col gap-2"><ColumnSettingsPanel columns={columns} columnState={columnState} onColumnStateChange={onColumnStateChange} rules={rules.columns} /></div></TabsContent>}
     </Tabs>
   )
 }

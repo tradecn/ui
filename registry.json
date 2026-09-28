@@ -1814,7 +1814,7 @@
       "name": "column-chooser",
       "type": "registry:ui",
       "title": "Column Chooser",
-      "description": "The dialog over one grid's columns: every column with show and hide, reorder by drag or by keyboard, a width reset where a column was resized, a search box, frozen columns marked, and reset all. It reads and writes the grid's own column state and stores nothing, and a rule that names a column is said in words beside it.",
+      "description": "Compose column visibility, order, width readings, and reset controls over a grid’s controlled column state.",
       "categories": [
         "grid"
       ],
@@ -1865,11 +1865,59 @@
         "components": [
           {
             "title": "ColumnChooser",
-            "description": "The panel in your dialog, a hotkey wall while it is open."
+            "description": "Coordinates controlled grid edits, search, drag ownership, and focus."
           },
           {
-            "title": "ColumnChooserPanel",
-            "description": "The list inline: for a sheet, a tab, or a settings page."
+            "title": "ColumnChooserItem",
+            "description": "A named column group with reusable drag, keyboard, and focus behavior."
+          },
+          {
+            "title": "ColumnChooserSearch",
+            "description": "The root query input."
+          },
+          {
+            "title": "ColumnChooserHiddenCount",
+            "description": "The full hidden-column count."
+          },
+          {
+            "title": "ColumnChooserVisibility",
+            "description": "The current column’s visibility checkbox."
+          },
+          {
+            "title": "ColumnChooserName",
+            "description": "The column name."
+          },
+          {
+            "title": "ColumnChooserFrozen",
+            "description": "The frozen label, when applicable."
+          },
+          {
+            "title": "ColumnChooserRule",
+            "description": "A rule badge with a descriptive tooltip."
+          },
+          {
+            "title": "ColumnChooserWidth",
+            "description": "The configured width in pixels."
+          },
+          {
+            "title": "ColumnChooserResetWidth",
+            "description": "Resets one width override."
+          },
+          {
+            "title": "ColumnChooserMove",
+            "description": "Moves within the current frozen group."
+          },
+          {
+            "title": "ColumnChooserResetAll",
+            "description": "Restores the default column state."
+          },
+          {
+            "title": "useColumnChooser",
+            "description": "Reads the collection, query, labels, count, and reset command."
+          },
+          {
+            "title": "useColumnChooserItem",
+            "description": "Reads one column and its reusable edit commands."
           },
           {
             "title": "DEFAULT_COLUMN_CHOOSER_LABELS",
@@ -1901,7 +1949,7 @@
           }
         ]
       },
-      "docs": "Installs the data grid alongside, since its column state is what this edits, and composes your badge, button, checkbox, dialog, and input plus the checkbox, context-menu, and dropdown-menu the grid uses. Adds @tanstack/react-virtual and the grid's tokens.",
+      "docs": "Compose public parts inside ColumnChooser. The root edits the grid’s controlled ColumnState; callers own the collection and any surrounding dialog. The install includes Dialog for the shared ordinary recipe, the data grid and its built-ins, @tanstack/react-virtual, and the grid’s tokens.",
       "cssVars": {
         "light": {
           "down": "oklch(0.46 0.19 40)",
