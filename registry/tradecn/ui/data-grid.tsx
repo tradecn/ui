@@ -1262,8 +1262,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const [menuOpening, setMenuOpening] = useState(0)
   const contextRows = useMemo(() => {
     const targets = selection.size ? [...selection] : focusedRowId !== null ? [focusedRowId] : []
-    return { ids: targets, rows: targets.map((id) => store.getRow(id)).filter((r): r is T => r !== undefined) }
-  }, [selection, focusedRowId, store])
+    return { opening: menuOpening, ids: targets, rows: targets.map((id) => store.getRow(id)).filter((r): r is T => r !== undefined) }
+  }, [selection, focusedRowId, store, menuOpening])
 
   const body = (
     <div
@@ -1365,7 +1365,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       {renderContextMenu ? (
         <ContextMenu onOpenChange={open => { if (open) setMenuOpening(value => value + 1) }}>
           <ContextMenuTrigger className="contents">{body}</ContextMenuTrigger>
-          <ContextMenuContent><Fragment key={menuOpening}>{renderContextMenu(contextRows.rows, contextRows.ids)}</Fragment></ContextMenuContent>
+          <ContextMenuContent><Fragment key={contextRows.opening}>{renderContextMenu(contextRows.rows, contextRows.ids)}</Fragment></ContextMenuContent>
         </ContextMenu>
       ) : (
         body

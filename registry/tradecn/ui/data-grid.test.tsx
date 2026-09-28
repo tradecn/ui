@@ -175,7 +175,7 @@ describe("DataGrid", () => {
       useEffect(() => () => cleanup(), [])
       return <input aria-label="Menu note" value={draft} onChange={event => setDraft(event.target.value)} />
     }
-    const menu = () => <Menu />
+    const menu = (rows: Quote[]) => <><span>Menu price: {rows[0]?.px}</span><Menu /></>
     const layout = (className?: string) => <DataGrid store={store} columns={counted} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} selection={selection} focusedRowId="r0" renderContextMenu={menu} className={className} />
     const view = render(layout())
     const before = cell.mock.calls.length
@@ -188,10 +188,13 @@ describe("DataGrid", () => {
     expect(input).toHaveValue("Pending note")
     expect(cleanup).not.toHaveBeenCalled()
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" })
+    act(() => store.applyDeltas({ patch: [{ id: "r0", fields: { px: 123 } }] }))
+    expect(cell).toHaveBeenCalledTimes(before + 1)
     fireEvent.contextMenu(row)
     expect(await screen.findByRole("textbox", { name: "Menu note" })).toHaveValue("")
+    expect(screen.getByText("Menu price: 123")).toBeInTheDocument()
     expect(cleanup).toHaveBeenCalledTimes(1)
-    expect(cell).toHaveBeenCalledTimes(before)
+    expect(cell).toHaveBeenCalledTimes(before + 1)
   })
 
   it("sorting cycles asc, desc, off from the header, and hides and reorders from column state", () => {
