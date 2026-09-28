@@ -473,3 +473,15 @@ it("clears a rejected draft's invalid state when that symbol arrives before resu
   expect(onAdd).not.toHaveBeenCalled()
   expect(rowOf("GC")).toHaveAttribute("aria-selected", "true")
 })
+
+it("keeps add-button density when callers add a class and permits an explicit size override", () => {
+  const store = seeded()
+  function Form({ className }: { className: string }) {
+    return <Watchlist store={store} onAdd={vi.fn()}><WatchlistAddForm><WatchlistAddButton className={className} /></WatchlistAddForm></Watchlist>
+  }
+  const view = render(<Form className="mt-2" />)
+  expect(screen.getByRole("button", { name: "Add" })).toHaveClass("h-6", "px-2", "text-xs", "mt-2")
+  view.rerender(<Form className="h-8" />)
+  expect(screen.getByRole("button", { name: "Add" })).toHaveClass("h-8", "px-2", "text-xs")
+  expect(screen.getByRole("button", { name: "Add" })).not.toHaveClass("h-6")
+})
