@@ -1,12 +1,17 @@
 import { cn } from "cn"
+import { useId } from "react"
 import { NUMERIC_CLASS } from "@/lib/format"
 
-// Two samples for checkContract. The kept one follows the contract, a field, a select and SVG text among it. The
-// broken one breaks three rules on purpose: numbers colored up with nothing else saying so, in text, in a field
-// and in SVG text; an icon button and a field with no name; and small print, a select's among it, that the spec
-// shrinks under the floor at run time. It is marked data-contract-ignore, so the page-wide check leaves it out.
+// Three samples for checkContract. The kept one follows the contract, a field, a select and SVG text among it. The
+// unseen one says its direction only to a screen reader, through a label it points to, a native label and a
+// transparent sign: that passes by default and fails under visibleCue. The broken one breaks three rules on
+// purpose: numbers colored up with nothing else saying so (in text, in a field, in SVG text, behind a description
+// that points at nothing and a hidden sign); an icon button and a field with no name; and text under the floor, an
+// SVG label drawn at half size and small print the spec shrinks at run time, a select's among it. It is marked
+// data-contract-ignore, so the page-wide check leaves it out.
 
 export function AgentKitScene() {
+  const id = useId()
   return (
     <div data-slot="tradecn-agent-kit" className="flex flex-col gap-2 text-xs lining-nums tabular-nums">
       <div data-contract-sample="kept" className="flex items-center gap-3">
@@ -31,6 +36,21 @@ export function AgentKitScene() {
           ↻
         </button>
       </div>
+      <div data-contract-sample="unseen" className="flex items-center gap-3">
+        <span id={`${id}-up`} className="sr-only">
+          Up
+        </span>
+        <span aria-labelledby={`${id}-up`} data-cue="labelledby" className={cn(NUMERIC_CLASS, "text-up")}>
+          0-03
+        </span>
+        <label htmlFor={`${id}-change`} className="sr-only">
+          Up
+        </label>
+        <input id={`${id}-change`} readOnly value="0-04" data-cue="label" className={cn(NUMERIC_CLASS, "w-14 bg-transparent text-up")} />
+        <span data-cue="transparent" className={cn(NUMERIC_CLASS, "text-up")}>
+          <span className="opacity-0">+</span>0-05
+        </span>
+      </div>
       <div data-contract-sample="broken" data-contract-ignore="" className="flex items-center gap-3">
         <span className={cn(NUMERIC_CLASS, "text-up")}>0-01</span>
         <input readOnly value="0-02" className={cn(NUMERIC_CLASS, "w-14 bg-transparent text-up")} />
@@ -39,11 +59,22 @@ export function AgentKitScene() {
             0-01
           </text>
         </svg>
+        <span aria-describedby={`${id}-nowhere`} data-cue="dangling" className={cn(NUMERIC_CLASS, "text-up")}>
+          0-03
+        </span>
+        <span data-cue="hidden" className={cn(NUMERIC_CLASS, "text-up")}>
+          <span hidden>+</span>0-04
+        </span>
         <button type="button">
           <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12">
             <circle cx="6" cy="6" r="5" fill="currentColor" />
           </svg>
         </button>
+        <svg viewBox="0 0 80 28" width="40" height="14">
+          <text x="0" y="22" data-cue="scaled">
+            half size
+          </text>
+        </svg>
         <span data-small-print="">small print</span>
         <select aria-label="Size" defaultValue="10" data-small-print="">
           <option>5</option>

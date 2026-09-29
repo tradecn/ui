@@ -48,16 +48,16 @@ The CLI puts these at the project root, where `components.json` is. Copilot read
 | `ignore` | `string` | `"[data-contract-ignore]"` | A selector for subtrees to leave out. An empty string leaves nothing out. |
 | `visibleCue` | `boolean` | `false` | Direction needs a leading sign or an arrow a reader can see. |
 
-The report has `findings`, each with its `rule`, `where` (the nearest tradecn slot, then the tag and its data attributes), `text` and `detail`. It also has `checked`, how many elements each rule looked at. A rule that looked at nothing shows zero, so a test can tell an empty check from a pass.
+The report has `findings`, each with its `rule`, `where` (the nearest tradecn slot, then the tag and its data attributes), `text` and `detail`. A password reads as `••••`, so no finding carries one. It also has `checked`, how many elements each rule looked at. A rule that looked at nothing shows zero, so a test can tell an empty check from a pass.
 
 ### The rules
 
 | Rule | What it checks |
 |---|---|
-| `floor` | Visible text, and fields showing a value or a placeholder, at the floor size or larger. A select shows its chosen option, or every option in a list box. Rule 14 of [the item contract](contract.md). |
+| `floor` | Visible text, and fields showing a value or a placeholder, at the floor size or larger. SVG text is measured as drawn, through its viewBox. A select shows its chosen option, or every option in a list box. Rule 14 of [the item contract](contract.md). |
 | `numeric` | Digits under a tradecn slot, fields holding a number there, and every `[data-numeric]` node, set in `lining-nums tabular-nums`. Rule 14, read the way the site and the browser matrix read it. |
-| `direction` | A value that reads as a number, in text or in a field, drawn in the up or down token or sitting on one of their fills, also carries a leading sign, an arrow, `data-direction`, `data-side`, or an accessible label or description. SVG text is drawn in its fill and stroke, so those are what count there. Words carry their own meaning, so they aren't held to it. Rule 15. |
-| `name` | Every visible control outside an `aria-hidden` or `inert` subtree has an accessible name: `aria-labelledby`, `aria-label`, a label, a title, a placeholder, or the text it shows. A field, a select or a combobox takes no name from what it holds, and hidden text names nothing. |
+| `direction` | A value that reads as a number, in text or in a field, drawn in the up or down token or sitting on one of their fills, also carries a leading sign, an arrow, `data-direction`, `data-side`, or an accessible label or description: its own, one it points to, or a native label. A hidden sign says nothing, and under `visibleCue` neither does a screen-reader-only or transparent one. SVG text is drawn in its fill and stroke, so those are what count there. Words carry their own meaning, so they aren't held to it. Rule 15. |
+| `name` | Every visible control outside an `aria-hidden` or `inert` subtree has an accessible name: `aria-labelledby`, `aria-label`, a label, a title, a placeholder, an image input's `alt`, or the text it shows, where a labelled icon inside names its button. A field, a select or a combobox takes no name from what it holds, and hidden text names nothing. |
 
 `CONTRACT_RULES` lists them in that order.
 

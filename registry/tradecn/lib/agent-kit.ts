@@ -83,9 +83,20 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       const showing = select.multiple || select.size > 1 ? [...select.options] : [select.options[select.selectedIndex]]
       return showing.map((option) => (option ? option.label || (option.textContent ?? "") : "")).join(" ").trim()
     }
-    if (el.tagName === "INPUT" && /^(checkbox|radio|range|color|file|image|hidden)$/i.test((el as HTMLInputElement).type)) return ""
+    if (el.tagName === "INPUT") {
+      const input = el as HTMLInputElement
+      const type = input.type.toLowerCase()
+      // A password shows as dots, so the check sees that it holds something and never what.
+      if (type === "password") return input.value ? "••••" : ""
+      // A submit or reset button with no value wears the browser's own word.
+      if (type === "submit" || type === "reset") return input.value || (type === "submit" ? "Submit" : "Reset")
+      if (/^(checkbox|radio|range|color|file|image|hidden)$/.test(type)) return ""
+    }
     return isField(el) ? (el as HTMLInputElement).value : ""
   }
+  // The text an element shows of its own: a field's value, or its own text nodes.
+  const textOf = (el: Element) => (isField(el) ? field(el) : own(el))
+  const svgText = (el: Element) => el.namespaceURI === "http://www.w3.org/2000/svg" && /^(text|tspan|textPath)$/.test(el.tagName)
   const hidden = (el: Element) => {
     if (el.closest("[hidden]")) return true
     if (typeof el.checkVisibility === "function") return !el.checkVisibility({ checkVisibilityCSS: true, visibilityProperty: true })
@@ -95,6 +106,17 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     }
     return false
   }
+  // The text of the elements an ID list points to, the way aria-labelledby and aria-describedby read it. A
+  // reference to nothing reads as nothing.
+  const refs = (el: Element, attribute: string) =>
+    (el.getAttribute(attribute) ?? "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((id) => doc.getElementById(id)?.textContent ?? "")
+      .join(" ")
+      .trim()
+  // The text of the <label>s a form control has, wrapping it or pointing at it with for.
+  const nativeLabels = (el: Element) => ("labels" in el ? [...((el as HTMLInputElement).labels ?? [])].map((label) => label.textContent ?? "").join(" ").trim() : "")
   const where = (el: Element) => {
     const slot = el.closest("[data-slot^='tradecn-']")?.getAttribute("data-slot") ?? "page"
     const attrs = [...el.attributes]
@@ -104,17 +126,20 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     return `${slot} ${el.tagName.toLowerCase()}${attrs}`
   }
   const find = (rule: ContractRule, el: Element, detail: string) => {
-    const text = (own(el) || field(el) || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80)
+    const text = (isField(el) ? field(el) : own(el) || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80)
     report.findings.push({ rule, where: where(el), text, detail })
   }
 
   if (rules.has("floor")) {
     for (const el of elements) {
-      const text = own(el) || field(el) || (el.tagName === "INPUT" || el.tagName === "TEXTAREA" ? (el.getAttribute("placeholder") ?? "") : "")
+      const text = textOf(el) || (el.tagName === "INPUT" || el.tagName === "TEXTAREA" ? (el.getAttribute("placeholder") ?? "") : "")
       if (!text || hidden(el)) continue
       report.checked.floor++
       const size = style(el).fontSize
-      if (parseFloat(size) < floor - 0.01) find("floor", el, `font-size ${size} is under the ${floor} px floor`)
+      // SVG text takes its size in the viewBox's units, so it is measured as drawn, through the scale above it.
+      const matrix = svgText(el) ? (el as SVGGraphicsElement).getScreenCTM?.() : null
+      const drawn = matrix ? parseFloat(size) * Math.hypot(matrix.c, matrix.d) : parseFloat(size)
+      if (drawn < floor - 0.01) find("floor", el, `font-size ${size}${Math.abs(drawn - parseFloat(size)) > 0.01 ? ` draws at ${drawn.toFixed(1)}px, which` : ""} is under the ${floor} px floor`)
     }
   }
 
@@ -124,7 +149,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     for (const el of elements) {
       const marked = el.hasAttribute("data-numeric")
       if (!marked && !el.closest("[data-slot^='tradecn-']")) continue
-      if (!marked && !/\d/.test(own(el)) && !/\d/.test(field(el))) continue
+      if (!marked && !/\d/.test(textOf(el))) continue
       report.checked.numeric++
       const variant = style(el).fontVariantNumeric
       if (!variant.includes("lining-nums") || !variant.includes("tabular-nums")) find("numeric", el, `font-variant-numeric is "${variant}", where lining-nums tabular-nums belongs`)
@@ -150,7 +175,6 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     const inks = { color: both("color"), fill: both("fill"), stroke: both("stroke") }
     const fills = new Set(["up", "down", "up-soft", "down-soft"].map((token) => resolve("backgroundColor", token)).filter((value): value is string => Boolean(value)))
     probe.remove()
-    const svgText = (el: Element) => el.namespaceURI === "http://www.w3.org/2000/svg" && /^(text|tspan|textPath)$/.test(el.tagName)
     // The direction ink an element's glyphs are drawn in, and the property that carries it.
     const inkOf = (el: Element) => {
       const s = style(el)
@@ -170,22 +194,27 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     // A number with its units: digits, separators, a sign, and the short suffixes quotes carry (bp, mm, %).
     const numberLike = (text: string) => /\d/.test(text) && !/[A-Za-z]{2,}/.test(text.replace(/\b(?:bps?|mm|bn|[kmbx])\b/gi, ""))
     const cell = "[role=gridcell], [role=cell], [role=row], td, th, tr"
-    const labelled = (node: Element | null) => Boolean(node && ["aria-label", "aria-description", "aria-describedby", "title"].some((name) => node.getAttribute(name)?.trim()))
-    // What a run shows, in order: its text, with a field's value where the field sits. Asked for what a sighted
-    // reader sees, it leaves out screen-reader-only runs: a clipped box of a pixel or less.
+    // An accessible label or description that says something: its own, one it points to, or a native label.
+    const labelled = (node: Element | null) =>
+      Boolean(node && [node.getAttribute("aria-label"), node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-labelledby"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text?.trim()))
+    // What a run shows, in order: its text, with a field's value where the field sits. Hidden parts reach nobody, so
+    // they show nothing. Asked for what a sighted reader sees, it also leaves out screen-reader-only runs (a clipped
+    // box of a pixel or less) and transparent ones.
     const shown = (node: Node, visible: boolean): string => {
       if (node.nodeType === 3) return node.textContent ?? ""
       if (node.nodeType !== 1) return ""
       const el = node as Element
+      if (hidden(el)) return ""
       if (isField(el)) return field(el)
       if (visible) {
         const box = el.getBoundingClientRect()
         if (box.width <= 1 && box.height <= 1 && el.childNodes.length) return ""
+        if (parseFloat(style(el).opacity) === 0) return ""
       }
       return [...el.childNodes].map((child) => shown(child, visible)).join("")
     }
     for (const el of elements) {
-      const text = isField(el) ? field(el) : own(el)
+      const text = textOf(el)
       if (!text || !numberLike(text) || hidden(el)) continue
       const ink = inkOf(el)
       const tint = ink ? null : fillBehind(el)
@@ -216,20 +245,19 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       // An SVG's title names it though it is never drawn.
       if (el.namespaceURI === "http://www.w3.org/2000/svg" && el.tagName === "title") return el.textContent ?? ""
       if (el.getAttribute("aria-hidden") === "true" || hidden(el)) return ""
+      // A part inside names itself the way a control does, so an icon labelled for a screen reader names its button.
+      const named = refs(el, "aria-labelledby") || (el.getAttribute("aria-label") ?? "").trim()
+      if (named) return named
       if (el.tagName === "IMG") return el.getAttribute("alt") ?? ""
       return [...el.childNodes].map(spoken).join(" ")
     }
     for (const el of elements) {
       if (!el.matches(control) || el.closest("[aria-hidden=true], [inert]") || hidden(el)) continue
       report.checked.name++
-      const byId = (el.getAttribute("aria-labelledby") ?? "")
-        .split(/\s+/)
-        .filter(Boolean)
-        .map((id) => doc.getElementById(id)?.textContent ?? "")
-        .join(" ")
-      const labels = "labels" in el ? [...((el as HTMLInputElement).labels ?? [])].map((label) => label.textContent ?? "").join(" ") : ""
-      const value = el.tagName === "INPUT" && /^(button|submit|reset)$/i.test((el as HTMLInputElement).type) ? (el as HTMLInputElement).value : ""
-      const name = [byId, el.getAttribute("aria-label"), labels, el.getAttribute("title"), el.getAttribute("placeholder"), value, el.matches(authorNamed) ? "" : spoken(el)].map((part) => (part ?? "").trim()).find(Boolean)
+      // A button-like input is named by the words it shows, and an image input by its alt.
+      const type = el.tagName === "INPUT" ? (el as HTMLInputElement).type.toLowerCase() : ""
+      const value = /^(submit|reset|button)$/.test(type) ? field(el) : type === "image" ? (el.getAttribute("alt") ?? "") : ""
+      const name = [refs(el, "aria-labelledby"), el.getAttribute("aria-label"), nativeLabels(el), el.getAttribute("title"), el.getAttribute("placeholder"), value, el.matches(authorNamed) ? "" : spoken(el)].map((part) => (part ?? "").trim()).find(Boolean)
       if (!name) find("name", el, `${el.getAttribute("role") ?? el.tagName.toLowerCase()} with no accessible name`)
     }
   }

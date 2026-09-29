@@ -116,6 +116,33 @@ describe("checkContract", () => {
     expect(report.findings.map((f) => f.where)).toEqual(["page select[data-id=select]", "page textarea[data-id=notes]", "page div[data-id=combobox]", "page button[data-id=collapsed]"])
   })
 
+  it("names an image input by its alt, a submit button by the browser's word, and a button by a labelled part inside it", () => {
+    const root = mount(
+      [
+        "<div>",
+        '<input type="image" alt="Send" src="data:,">',
+        '<input type="image" src="data:," data-id="bare-image">',
+        '<input type="submit">',
+        '<button><svg role="img" aria-label="Refresh" width="8" height="8"></svg></button>',
+        '<span id="close-label">Close</span><button><span aria-labelledby="close-label"></span></button>',
+        "</div>",
+      ].join(""),
+    )
+    const report = checkContract({ root, rules: ["name"] })
+    expect(report.checked.name).toBe(5)
+    expect(report.findings.map((f) => f.where)).toEqual(["page input[data-id=bare-image]"])
+  })
+
+  it("never puts a password in a finding", () => {
+    const root = mount('<div><input type="password" value="hunter2" style="font-size: 10px"></div>')
+    const report = checkContract({ root, rules: ["floor", "name"] })
+    expect(report.findings.map((f) => [f.rule, f.text])).toEqual([
+      ["floor", "••••"],
+      ["name", "••••"],
+    ])
+    expect(JSON.stringify(report)).not.toContain("hunter2")
+  })
+
   it("leaves out a subtree marked data-contract-ignore, unless told to skip nothing", () => {
     const root = mount('<div><div data-contract-ignore=""><p style="font-size: 10px">on purpose</p><button></button></div></div>')
     expect(rulesOf(root)).toEqual([])

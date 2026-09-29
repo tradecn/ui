@@ -2563,15 +2563,26 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
   expect(kept.findings).toEqual([])
   for (const rule of CONTRACT_RULES) expect(kept.checked[rule], `the kept sample gives ${rule} something to read`).toBeGreaterThan(0)
   expect((await page.evaluate(checkContract, { root: "[data-contract-sample='kept']", visibleCue: true })).findings).toEqual([])
+  // A cue only a screen reader gets counts by default, and a sighted reader's check wants one they can see.
+  expect((await page.evaluate(checkContract, { root: "[data-contract-sample='unseen']" })).findings).toEqual([])
+  const unseen = await page.evaluate(checkContract, { root: "[data-contract-sample='unseen']", visibleCue: true })
+  expect(unseen.findings.map((finding) => `${finding.rule} ${finding.where}`)).toEqual([
+    "direction tradecn-agent-kit span[data-cue=labelledby]",
+    "direction tradecn-agent-kit input[data-cue=label]",
+    "direction tradecn-agent-kit span[data-cue=transparent]",
+  ])
   const broken = await page.evaluate(checkContract, { root: "[data-contract-sample='broken']", ignore: "" })
-  // Direction in text, in a field and in SVG text by its fill; a select read through its chosen option; and a
-  // field's value that names nothing.
+  // Direction in text, in a field and in SVG text by its fill, and behind a description of nothing or a hidden sign;
+  // SVG text measured as drawn, and a select read through its chosen option; and a field's value that names nothing.
   expect(broken.findings.map((finding) => `${finding.rule} ${finding.where}`).sort()).toEqual([
     "direction tradecn-agent-kit input",
     "direction tradecn-agent-kit span",
+    "direction tradecn-agent-kit span[data-cue=dangling]",
+    "direction tradecn-agent-kit span[data-cue=hidden]",
     "direction tradecn-agent-kit text",
     "floor tradecn-agent-kit select[data-small-print]",
     "floor tradecn-agent-kit span[data-small-print]",
+    "floor tradecn-agent-kit text[data-cue=scaled]",
     "name tradecn-agent-kit button",
     "name tradecn-agent-kit input",
   ])
