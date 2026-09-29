@@ -255,6 +255,15 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     // arrow, or a word that states the direction. A dash inside a number, as in 99-16, is no sign.
     const cued = (text: string) => /^[+\-−]/.test(text) || /[^\w.,][+\-−][$€£¥₹]?\d/.test(text) || /[▲▼△▽↑↓]/.test(text) || saysDirection.test(text)
     const cell = "[role=gridcell], [role=cell], [role=row], td, th, tr"
+    // A direction marker counts on the value, anywhere in its colored run, or on the cell or the row that holds it,
+    // never on a container that has a side of its own, such as a ticket for a buy.
+    const marked = (el: Element, run: Element) => {
+      for (let node: Element | null = el; node; node = node.parentElement) {
+        if (node.matches("[data-direction], [data-side]")) return true
+        if (node === run) break
+      }
+      return [el.closest("[role=gridcell], [role=cell], td, th"), el.closest("[role=row], tr")].some((holder) => holder?.matches("[data-direction], [data-side]"))
+    }
     // An accessible label or description that states the direction: its own, one it points to, or a native label.
     const says = (node: Element | null) =>
       Boolean(node && [node.getAttribute("aria-label"), node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-labelledby"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)))
@@ -289,17 +298,18 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       if (ink) for (let depth = 0; depth < 3 && run.parentElement && run.parentElement !== scope && style(run.parentElement)[ink.property] === ink.value; depth++) run = run.parentElement
       const seen = shown(run, Boolean(options.visibleCue)).trim()
       if (cued(seen)) continue
-      if (!options.visibleCue && (el.closest("[data-direction], [data-side]") || ruled(el) || says(el) || says(el.closest(cell)))) continue
+      if (!options.visibleCue && (marked(el, run) || ruled(el) || says(el) || says(el.closest(cell)))) continue
       find("direction", el, `painted ${painted} with no sign, arrow, word${options.visibleCue ? "" : ", data-direction or label"} saying the direction`)
     }
   }
 
   if (rules.has("name")) {
     const control =
-      "button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=option], [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree]"
-    // A field's value is not its name, and neither is the text inside a combobox, a slider, a grid or a list box: only
-    // the other controls take a name from their content, and only from the part of it that isn't hidden.
-    const authorNamed = "input, select, textarea, [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree]"
+      "button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=option], [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree], [contenteditable]:not([contenteditable=false])"
+    // A field's value is not its name, and neither is the text inside a combobox, a slider, a grid, a list box or an
+    // editable region: only the other controls take a name from their content, and only from the part of it that
+    // isn't hidden.
+    const authorNamed = "input, select, textarea, [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree], [contenteditable]:not([contenteditable=false])"
     for (const el of elements) {
       if (!el.matches(control) || el.closest("[aria-hidden=true], [inert]") || hidden(el)) continue
       report.checked.name++

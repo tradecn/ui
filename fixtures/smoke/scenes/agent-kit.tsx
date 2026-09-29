@@ -4,12 +4,13 @@ import { NUMERIC_CLASS } from "@/lib/format"
 
 // Three samples for checkContract. The kept one follows the contract, a word for a cue, a sign in a boxless wrapper,
 // a field, a select, SVG text and screen-reader-only small print among it. The unseen one says its direction only to
-// a screen reader, through a label it points to, a native label, a faded sign and a sign painted transparent, and
-// carries a grid rule's highlight that its description explains: that passes by default and fails under visibleCue. The broken one breaks three rules on purpose: numbers colored up with nothing
-// else saying so (in text, in a field, in SVG text, with units, behind a description that points at nothing, a label
-// that names no direction and a hidden sign); an icon button and a field with no name; and text under the floor, an
-// SVG label drawn at half size and small print the spec shrinks at run time, a select's among it. It is marked
-// data-contract-ignore, so the page-wide check leaves it out.
+// a screen reader, through a label it points to, a native label, a faded sign, a sign painted transparent, a grid
+// rule's highlight that its description explains and a cell marked with its side: that passes by default and fails
+// under visibleCue. The broken one breaks three rules on purpose: numbers colored up with nothing else saying so (in
+// text, in a field, in SVG text, with units, behind a description that points at nothing, a label that names no
+// direction, a side marked on a container rather than on the value, and a hidden sign); an icon button and a field
+// with no name; and text under the floor, an SVG label drawn at half size and small print the spec shrinks at run
+// time, a select's among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
 
 export function AgentKitScene() {
   const id = useId()
@@ -66,6 +67,17 @@ export function AgentKitScene() {
         <span data-cue="rule" data-rule="rich" data-tone="up" aria-description="Rich" className={cn(NUMERIC_CLASS, "text-up")}>
           100.25
         </span>
+        <table>
+          <tbody>
+            <tr>
+              <td data-side="bid">
+                <span data-cue="cell" className={cn(NUMERIC_CLASS, "text-up")}>
+                  0-10
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       <div data-contract-sample="broken" data-contract-ignore="" className="flex items-center gap-3">
         <span className={cn(NUMERIC_CLASS, "text-up")}>0-01</span>
@@ -81,6 +93,11 @@ export function AgentKitScene() {
         <span aria-label="Price" data-cue="named" className={cn(NUMERIC_CLASS, "text-up")}>
           0-06
         </span>
+        <div data-side="buy">
+          <span data-cue="side" className={cn(NUMERIC_CLASS, "text-up")}>
+            0-09
+          </span>
+        </div>
         <span data-cue="hidden" className={cn(NUMERIC_CLASS, "text-up")}>
           <span hidden>+</span>0-04
         </span>

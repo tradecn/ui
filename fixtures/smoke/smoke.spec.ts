@@ -2573,17 +2573,19 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
     "direction tradecn-agent-kit span[data-cue=transparent]",
     "direction tradecn-agent-kit span[data-cue=clear]",
     "direction tradecn-agent-kit span[data-cue=rule][data-rule=rich][data-tone=up]",
+    "direction tradecn-agent-kit span[data-cue=cell]",
   ])
   const broken = await page.evaluate(checkContract, { root: "[data-contract-sample='broken']", ignore: "" })
   // Direction in text, in a field and in SVG text by its fill, with units, and behind a description of nothing, a
-  // label that names no direction or a hidden sign; SVG text measured as drawn, and a select read through its chosen
-  // option; and a field's value that names nothing.
+  // label that names no direction, a side on a container or a hidden sign; SVG text measured as drawn, and a select
+  // read through its chosen option; and a field's value that names nothing.
   expect(broken.findings.map((finding) => `${finding.rule} ${finding.where}`).sort()).toEqual([
     "direction tradecn-agent-kit input",
     "direction tradecn-agent-kit span",
     "direction tradecn-agent-kit span[data-cue=dangling]",
     "direction tradecn-agent-kit span[data-cue=hidden]",
     "direction tradecn-agent-kit span[data-cue=named]",
+    "direction tradecn-agent-kit span[data-cue=side]",
     "direction tradecn-agent-kit span[data-cue=units]",
     "direction tradecn-agent-kit text",
     "floor tradecn-agent-kit select[data-small-print]",

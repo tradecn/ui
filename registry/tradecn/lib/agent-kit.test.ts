@@ -184,6 +184,21 @@ describe("checkContract", () => {
     ])
   })
 
+  it("holds an editable region to a name of its own, and leaves a region that can't be edited alone", () => {
+    const root = mount(
+      [
+        "<div>",
+        '<div contenteditable="true" data-id="notes">notes 10</div>',
+        '<div contenteditable="true" aria-label="Notes">notes 11</div>',
+        '<div contenteditable="false">plain 12</div>',
+        "</div>",
+      ].join(""),
+    )
+    const report = checkContract({ root, rules: ["name"] })
+    expect(report.checked.name).toBe(2)
+    expect(report.findings.map((f) => f.where)).toEqual(["page div[data-id=notes]"])
+  })
+
   it("never puts a password in a finding", () => {
     const root = mount('<div><input type="password" value="hunter2" style="font-size: 10px"></div>')
     const report = checkContract({ root, rules: ["floor", "name"] })
