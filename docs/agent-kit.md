@@ -46,7 +46,7 @@ The CLI puts these at the project root, where `components.json` is. Copilot read
 | `rules` | `readonly ContractRule[]` | All four | The rules to run. |
 | `floorPx` | `number` | `--tradecn-text-size-grid-min`, else 12 | The smallest text size, in px. |
 | `ignore` | `string` | `"[data-contract-ignore]"` | A selector for subtrees to leave out. An empty string leaves nothing out. |
-| `visibleCue` | `boolean` | `false` | Direction needs a leading sign or an arrow a reader can see. |
+| `visibleCue` | `boolean` | `false` | Direction needs a leading sign, an arrow or a word a reader can see. |
 
 The report has `findings`, each with its `rule`, `where` (the nearest tradecn slot, then the tag and its data attributes), `text` and `detail`. A password reads as `••••`, so no finding carries one. It also has `checked`, how many elements each rule looked at. A rule that looked at nothing shows zero, so a test can tell an empty check from a pass.
 
@@ -56,14 +56,14 @@ The report has `findings`, each with its `rule`, `where` (the nearest tradecn sl
 |---|---|
 | `floor` | Visible text, and fields showing a value or a placeholder, at the floor size or larger. SVG text is measured as drawn, through its viewBox. A select shows its chosen option, or every option in a list box. Rule 14 of [the item contract](contract.md). |
 | `numeric` | Digits under a tradecn slot, fields holding a number there, and every `[data-numeric]` node, set in `lining-nums tabular-nums`. Rule 14, read the way the site and the browser matrix read it. |
-| `direction` | A value that reads as a number, in text or in a field, drawn in the up or down token or sitting on one of their fills, also carries a leading sign, an arrow, `data-direction`, `data-side`, or an accessible label or description: its own, one it points to, or a native label. A hidden sign says nothing, and under `visibleCue` neither does a screen-reader-only or transparent one. SVG text is drawn in its fill and stroke, so those are what count there. Words carry their own meaning, so they aren't held to it. Rule 15. |
-| `name` | Every visible control outside an `aria-hidden` or `inert` subtree has an accessible name: `aria-labelledby`, `aria-label`, a label, a title, a placeholder, an image input's `alt`, or the text it shows, where a labelled icon inside names its button. A field, a select or a combobox takes no name from what it holds, and hidden text names nothing. |
+| `direction` | A value with a number in it, in text or in a field, drawn in the up or down token or sitting on one of their fills, also carries a leading sign, an arrow, `data-direction`, `data-side`, or an accessible label or description: its own, one it points to, or a native label. A hidden sign says nothing, and under `visibleCue` neither does a screen-reader-only or transparent one. SVG text is drawn in its fill and stroke, so those are what count there. Text with no number in it isn't held to it, and a word that states the direction (up, down, buy, sell, bid, ask and their kin) is a cue of its own. Units excuse nothing: `10 lots` in the up color needs a cue like any number. Rule 15. |
+| `name` | Every visible control outside an `aria-hidden` or `inert` subtree has an accessible name: `aria-labelledby`, `aria-label`, a label, a title, a placeholder, an image input's `alt`, or the text it shows, where a labelled icon inside names its button. A reference or a label is read the way a screen reader reads it: an image by its alt, a part by its own label, nothing hidden. A field, a select or a combobox takes no name from what it holds, and hidden text names nothing. |
 
 `CONTRACT_RULES` lists them in that order.
 
 ### What it does not do
 
-It reads computed styles, so it runs in a browser or in a DOM that computes them. It doesn't check contrast, which `scripts/themes.test.ts` holds the themes to, or visible focus, layout and clipping, which the review walks by eye. It doesn't look at shapes without text for direction: a dot, a bar or a line needs a label of its own. A color inside another theme's scope, or mixed with transparency, isn't matched to a direction token. HTML text is measured at its computed size, so a CSS transform that shrinks it goes unseen. The skill and the review ask for what the check can't see.
+It reads computed styles, so it runs in a browser or in a DOM that computes them. It doesn't check contrast, which `scripts/themes.test.ts` holds the themes to, or visible focus, layout and clipping, which the review walks by eye. It doesn't look at shapes without text for direction: a dot, a bar or a line needs a label of its own. A color inside another theme's scope, or mixed with transparency, isn't matched to a direction token. HTML text is measured at its computed size, so a CSS transform that shrinks it goes unseen. Direction words are read in English, so a value that says its direction in another language wants a sign or `data-direction` as well. The skill and the review ask for what the check can't see.
 
 ### The item index
 

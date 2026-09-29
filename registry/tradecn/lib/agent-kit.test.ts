@@ -133,6 +133,23 @@ describe("checkContract", () => {
     expect(report.findings.map((f) => f.where)).toEqual(["page input[data-id=bare-image]"])
   })
 
+  it("reads what a reference or a label points at the way a screen reader does", () => {
+    const root = mount(
+      [
+        "<div>",
+        '<img id="ref-img" alt="Refresh" src="data:,"><button aria-labelledby="ref-img"></button>',
+        '<span id="ref-label" aria-label="Close"></span><button aria-labelledby="ref-label"></button>',
+        '<span id="ref-hidden" hidden>Send</span><button aria-labelledby="ref-hidden"></button>',
+        '<span id="ref-decor"><span aria-hidden="true">decor</span></span><button aria-labelledby="ref-decor" data-id="decor"></button>',
+        '<label> <input value="42" data-id="own-value"></label>',
+        "</div>",
+      ].join(""),
+    )
+    const report = checkContract({ root, rules: ["name"] })
+    expect(report.checked.name).toBe(5)
+    expect(report.findings.map((f) => f.where)).toEqual(["page button[data-id=decor]", "page input[data-id=own-value]"])
+  })
+
   it("never puts a password in a finding", () => {
     const root = mount('<div><input type="password" value="hunter2" style="font-size: 10px"></div>')
     const report = checkContract({ root, rules: ["floor", "name"] })

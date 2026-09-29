@@ -22,8 +22,8 @@ export interface ContractOptions {
   /** A selector for subtrees to leave out. `[data-contract-ignore]` when omitted, and an empty string leaves nothing out. */
   ignore?: string
   /**
-   * Holds direction to what a reader sees: a leading sign or an arrow in the visible text. Off by default, when
-   * `data-direction`, `data-side` and an accessible label or description count too, as they do in the contract.
+   * Holds direction to what a reader sees: a leading sign, an arrow or a word in the visible text. Off by default,
+   * when `data-direction`, `data-side` and an accessible label or description count too, as they do in the contract.
    */
   visibleCue?: boolean
 }
@@ -106,17 +106,47 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     }
     return false
   }
-  // The text of the elements an ID list points to, the way aria-labelledby and aria-describedby read it. A
-  // reference to nothing reads as nothing.
-  const refs = (el: Element, attribute: string) =>
+  // A node's text alternative, read the way the accessible name computation reads it: a hidden part says nothing
+  // unless a reference points straight at it, an element's own label outranks its text, an image says its alt, a
+  // field says what it holds, and a reference is followed one level deep. The control being named stays out of it.
+  const textAlternative = (node: Node, walk: { referenced: boolean; hiddenOk: boolean; self?: Element }): string => {
+    if (node.nodeType === 3) return node.textContent ?? ""
+    if (node.nodeType !== 1) return ""
+    const el = node as Element
+    if (el === walk.self) return ""
+    // An SVG's title names it though it is never drawn.
+    if (el.namespaceURI === "http://www.w3.org/2000/svg" && el.tagName === "title") return el.textContent ?? ""
+    if (!walk.hiddenOk && (el.getAttribute("aria-hidden") === "true" || hidden(el))) return ""
+    const pointed = walk.referenced ? "" : refs(el, "aria-labelledby")
+    if (pointed) return pointed
+    const label = (el.getAttribute("aria-label") ?? "").trim()
+    if (label) return label
+    if (el.tagName === "IMG" || (el.tagName === "INPUT" && (el as HTMLInputElement).type.toLowerCase() === "image")) return el.getAttribute("alt") ?? ""
+    if (isField(el)) return field(el)
+    return [...el.childNodes].map((child) => textAlternative(child, walk)).join(" ")
+  }
+  // The text alternative of the elements an ID list points to, as aria-labelledby and aria-describedby read them. An
+  // element pointed at counts even when hidden, and a reference to nothing reads as nothing.
+  const refs = (el: Element, attribute: string): string =>
     (el.getAttribute(attribute) ?? "")
       .split(/\s+/)
       .filter(Boolean)
-      .map((id) => doc.getElementById(id)?.textContent ?? "")
+      .map((id) => {
+        const target = doc.getElementById(id)
+        return target ? textAlternative(target, { referenced: true, hiddenOk: target.getAttribute("aria-hidden") === "true" || hidden(target) }) : ""
+      })
       .join(" ")
+      .replace(/\s+/g, " ")
       .trim()
-  // The text of the <label>s a form control has, wrapping it or pointing at it with for.
-  const nativeLabels = (el: Element) => ("labels" in el ? [...((el as HTMLInputElement).labels ?? [])].map((label) => label.textContent ?? "").join(" ").trim() : "")
+  // The text of the <label>s a form control has, wrapping it or pointing at it with for, the control left out.
+  const nativeLabels = (el: Element) =>
+    "labels" in el
+      ? [...((el as HTMLInputElement).labels ?? [])]
+          .map((label) => textAlternative(label, { referenced: false, hiddenOk: false, self: el }))
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim()
+      : ""
   const where = (el: Element) => {
     const slot = el.closest("[data-slot^='tradecn-']")?.getAttribute("data-slot") ?? "page"
     const attrs = [...el.attributes]
@@ -156,9 +186,9 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     }
   }
 
-  // A value painted with a direction token, its text or the fill behind it, needs another channel. Words carry
-  // their own meaning (Buy, Live, Filled), so only a value that reads as a number is held to it. The tokens are
-  // resolved through a probe so the comparison uses the same serialization the page's own colors do.
+  // A value painted with a direction token, its text or the fill behind it, needs another channel. Text with no
+  // number in it (Buy, Live, Filled) carries its own meaning, so it isn't held to it. The tokens are resolved
+  // through a probe so the comparison uses the same serialization the page's own colors do.
   if (rules.has("direction")) {
     const probe = doc.createElement("span")
     probe.style.display = "none"
@@ -191,8 +221,9 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       }
       return null
     }
-    // A number with its units: digits, separators, a sign, and the short suffixes quotes carry (bp, mm, %).
-    const numberLike = (text: string) => /\d/.test(text) && !/[A-Za-z]{2,}/.test(text.replace(/\b(?:bps?|mm|bn|[kmbx])\b/gi, ""))
+    // A value with a number in it is held to the rule whatever its units say. A word that states the direction is a
+    // cue of its own, the way a sign or an arrow is.
+    const saysDirection = /\b(?:up|down|buys?|sells?|bought|sold|bids?|asks?|offers?|offered|long|short|paid|given|gains?|loss(?:es)?|rises?|falls?|higher|lower)\b/i
     const cell = "[role=gridcell], [role=cell], [role=row], td, th, tr"
     // An accessible label or description that says something: its own, one it points to, or a native label.
     const labelled = (node: Element | null) =>
@@ -215,7 +246,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     }
     for (const el of elements) {
       const text = textOf(el)
-      if (!text || !numberLike(text) || hidden(el)) continue
+      if (!/\d/.test(text) || hidden(el)) continue
       const ink = inkOf(el)
       const tint = ink ? null : fillBehind(el)
       if (!ink && !tint) continue
@@ -226,9 +257,9 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       let run: Element = tint?.node ?? el
       if (ink) for (let depth = 0; depth < 3 && run.parentElement && run.parentElement !== scope && style(run.parentElement)[ink.property] === ink.value; depth++) run = run.parentElement
       const seen = shown(run, Boolean(options.visibleCue)).trim()
-      if (/^[+\-−]/.test(seen) || /[▲▼△▽↑↓]/.test(seen)) continue
+      if (/^[+\-−]/.test(seen) || /[▲▼△▽↑↓]/.test(seen) || saysDirection.test(seen)) continue
       if (!options.visibleCue && (el.closest("[data-direction], [data-side]") || labelled(el) || labelled(el.closest(cell)))) continue
-      find("direction", el, `painted ${painted} with no sign, arrow${options.visibleCue ? "" : ", data-direction or label"} saying the direction`)
+      find("direction", el, `painted ${painted} with no sign, arrow, word${options.visibleCue ? "" : ", data-direction or label"} saying the direction`)
     }
   }
 
@@ -238,26 +269,13 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     // A field's value is not its name, and neither is a combobox's or a slider's text: only the other controls take
     // a name from their content, and only from the part of it that isn't hidden.
     const authorNamed = "input, select, textarea, [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox]"
-    const spoken = (node: Node): string => {
-      if (node.nodeType === 3) return node.textContent ?? ""
-      if (node.nodeType !== 1) return ""
-      const el = node as Element
-      // An SVG's title names it though it is never drawn.
-      if (el.namespaceURI === "http://www.w3.org/2000/svg" && el.tagName === "title") return el.textContent ?? ""
-      if (el.getAttribute("aria-hidden") === "true" || hidden(el)) return ""
-      // A part inside names itself the way a control does, so an icon labelled for a screen reader names its button.
-      const named = refs(el, "aria-labelledby") || (el.getAttribute("aria-label") ?? "").trim()
-      if (named) return named
-      if (el.tagName === "IMG") return el.getAttribute("alt") ?? ""
-      return [...el.childNodes].map(spoken).join(" ")
-    }
     for (const el of elements) {
       if (!el.matches(control) || el.closest("[aria-hidden=true], [inert]") || hidden(el)) continue
       report.checked.name++
       // A button-like input is named by the words it shows, and an image input by its alt.
       const type = el.tagName === "INPUT" ? (el as HTMLInputElement).type.toLowerCase() : ""
       const value = /^(submit|reset|button)$/.test(type) ? field(el) : type === "image" ? (el.getAttribute("alt") ?? "") : ""
-      const name = [refs(el, "aria-labelledby"), el.getAttribute("aria-label"), nativeLabels(el), el.getAttribute("title"), el.getAttribute("placeholder"), value, el.matches(authorNamed) ? "" : spoken(el)].map((part) => (part ?? "").trim()).find(Boolean)
+      const name = [refs(el, "aria-labelledby"), el.getAttribute("aria-label"), nativeLabels(el), el.getAttribute("title"), el.getAttribute("placeholder"), value, el.matches(authorNamed) ? "" : textAlternative(el, { referenced: false, hiddenOk: false })].map((part) => (part ?? "").trim()).find(Boolean)
       if (!name) find("name", el, `${el.getAttribute("role") ?? el.tagName.toLowerCase()} with no accessible name`)
     }
   }

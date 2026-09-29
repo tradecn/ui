@@ -2,13 +2,13 @@ import { cn } from "cn"
 import { useId } from "react"
 import { NUMERIC_CLASS } from "@/lib/format"
 
-// Three samples for checkContract. The kept one follows the contract, a field, a select and SVG text among it. The
-// unseen one says its direction only to a screen reader, through a label it points to, a native label and a
-// transparent sign: that passes by default and fails under visibleCue. The broken one breaks three rules on
-// purpose: numbers colored up with nothing else saying so (in text, in a field, in SVG text, behind a description
-// that points at nothing and a hidden sign); an icon button and a field with no name; and text under the floor, an
-// SVG label drawn at half size and small print the spec shrinks at run time, a select's among it. It is marked
-// data-contract-ignore, so the page-wide check leaves it out.
+// Three samples for checkContract. The kept one follows the contract, a word for a cue, a field, a select and SVG
+// text among it. The unseen one says its direction only to a screen reader, through a label it points to, a native
+// label and a transparent sign: that passes by default and fails under visibleCue. The broken one breaks three rules
+// on purpose: numbers colored up with nothing else saying so (in text, in a field, in SVG text, with units, behind a
+// description that points at nothing and a hidden sign); an icon button and a field with no name; and text under the
+// floor, an SVG label drawn at half size and small print the spec shrinks at run time, a select's among it. It is
+// marked data-contract-ignore, so the page-wide check leaves it out.
 
 export function AgentKitScene() {
   const id = useId()
@@ -21,6 +21,9 @@ export function AgentKitScene() {
         </span>
         <span data-numeric="" data-direction="up" className={cn(NUMERIC_CLASS, "text-up")}>
           +0-01
+        </span>
+        <span data-numeric="" className={cn(NUMERIC_CLASS, "text-up")}>
+          Up 0-01
         </span>
         <input aria-label="Change" readOnly value="+0-02" className={cn(NUMERIC_CLASS, "w-14 bg-transparent text-up")} />
         <svg role="img" aria-label="Up 0-01" width="40" height="14">
@@ -64,6 +67,9 @@ export function AgentKitScene() {
         </span>
         <span data-cue="hidden" className={cn(NUMERIC_CLASS, "text-up")}>
           <span hidden>+</span>0-04
+        </span>
+        <span data-cue="units" className={cn(NUMERIC_CLASS, "text-up")}>
+          10 lots
         </span>
         <button type="button">
           <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12">
