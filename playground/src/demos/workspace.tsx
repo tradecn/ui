@@ -16,7 +16,7 @@ export default function WorkspaceDemo() {
     <Workspace
       className="h-64 rounded-md border border-border"
       panels={PANELS}
-        tabComponent={DeskTab}
+      tabComponent={DeskTab}
       watermark="No panels."
       seed={(api) => {
         const orders = api.addPanel({ kind: "orders", title: "Orders" })

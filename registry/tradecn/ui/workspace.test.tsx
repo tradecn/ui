@@ -248,6 +248,37 @@ describe("Workspace", () => {
     expect(api.panels().map((panel) => panel.id)).toEqual(["chart-1"])
   })
 
+  it("exposes dock commands without inventing saved state or body focus for raw panels", async () => {
+    const handles = new Map<string, WorkspaceTabHandle>()
+    function ReadingTab() {
+      const panel = useWorkspaceTab()
+      handles.set(panel.id, panel)
+      return <Tab />
+    }
+    const { api } = await mount({ tabComponent: ReadingTab })
+    render(<button type="button">Outside</button>)
+    act(() => { api.dockview.addPanel({ id: "raw", title: "Raw", component: "tradecn-panel" }) })
+    expect(handles.get("raw")!.kind).toBeUndefined()
+    expect(handles.get("raw")!.state).toBeUndefined()
+    expect(document.querySelector("[data-workspace-panel='raw']")).toBeNull()
+    const updater = vi.fn(() => ({ symbol: "ES" }))
+    act(() => { handles.get("raw")!.setState(updater); handles.get("raw")!.setTitle("Renamed") })
+    expect(updater).not.toHaveBeenCalled()
+    expect(api.getState("raw")).toBeUndefined()
+    expect(screen.getByRole("tab", { name: "Raw" })).toBeInTheDocument()
+    act(() => api.focusPanel("book-1"))
+    screen.getByRole("button", { name: "Outside" }).focus()
+    act(() => handles.get("raw")!.focus())
+    expect(api.activePanel()).toBe("raw")
+    expect(screen.getByRole("button", { name: "Outside" })).toHaveFocus()
+    act(() => api.dockview.getPanel("raw")!.api.setTitle("Native raw"))
+    expect(screen.getByRole("tab", { name: "Native raw" })).toBeInTheDocument()
+    act(() => handles.get("raw")!.float())
+    expect(handles.get("raw")!.location).toBe("floating")
+    act(() => handles.get("raw")!.close())
+    expect(screen.queryByRole("tab", { name: "Native raw" })).toBeNull()
+  })
+
   it("keeps a custom tab's local draft through parent updates and restores custom tabs for unknown kinds", async () => {
     const mounts = vi.fn()
     function DraftTab() {

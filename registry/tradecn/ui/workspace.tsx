@@ -589,6 +589,11 @@ export interface WorkspaceTabHandle extends Omit<WorkspacePanelHandle, "kind" | 
   state: WorkspacePanelState | undefined
   /** The same panel can have a tab in both places at once. */
   tabLocation: IDockviewPanelHeaderProps["tabLocation"]
+  /** Requires a workspace record. Raw panels ignore this command; use their native panel API instead. */
+  setTitle(title: string): void
+  /** Requires a workspace record. Raw panels ignore the patch without calling an updater. */
+  setState: WorkspacePanelHandle["setState"]
+  /** Activates this panel; moves body focus only when a workspace host is registered. */
   focus(): void
 }
 

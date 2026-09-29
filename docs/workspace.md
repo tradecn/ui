@@ -142,9 +142,11 @@ Dockview owns the outer `role="tab"`, its id, roving focus, selection and tabpan
 
 ### useWorkspaceTab
 
-The hook returns `WorkspaceTabHandle`: the [panel handle](#panels-by-kind), plus `focus(): void` and `tabLocation: "header" | "headerOverflow"`. `focus()` activates the panel and moves focus into its body. `kind` and `state` can be `undefined` for a panel created directly through the raw Dockview API without a workspace record. The hook subscribes to this panel's record, title, activity and location; static tab markup needs no hook.
+The hook returns `WorkspaceTabHandle`: the [panel handle](#panels-by-kind), plus `focus(): void` and `tabLocation: "header" | "headerOverflow"`. `focus()` activates the panel and moves focus into its registered workspace body. The hook subscribes to this panel's record, title, activity and location; static tab markup needs no hook.
 
-A panel can have header and overflow renderers mounted at once. Use `useId()` for control/label ids, and keep shared values in panel state. Component-local state belongs to each rendered tab and resets when that instance unmounts. Closing overflow disposes its renderers, subscriptions and consumer effects. Use `setTitle` to keep the record, dock, tab name and overflow title synchronized; a direct raw Dockview title write is overwritten by the next workspace store write.
+Create panels with `WorkspaceApi.addPanel` to register their kind, saved state and body. A panel added directly through the raw Dockview API has no workspace record: `kind` and `state` are `undefined`, `setTitle` and `setState` do nothing, and a state updater is not called. Its `focus()` activates the panel but does not move keyboard focus into a body. Dock readings and close, float, popout and maximize commands still work; use the raw panel's `api.setTitle` to rename it.
+
+A panel can have header and overflow renderers mounted at once. Use `useId()` for control/label ids, and keep shared values in panel state. Component-local state belongs to each rendered tab and resets when that instance unmounts. Closing overflow disposes its renderers, subscriptions and consumer effects. For managed panels, use `setTitle` to keep the record, dock, tab name and overflow title synchronized; a direct raw Dockview title write is overwritten by the next workspace store write.
 
 ### Panels by kind
 
@@ -307,7 +309,7 @@ Dock overlays use z-index `30`, below shadcn menus and dialogs at `50`. Optional
 | `load(layout: unknown)` | `boolean` | Replaces the workspace; failure leaves it empty. |
 | `clear()` | `void` | Removes all panels. |
 
-`api.dockview` exposes `DockviewApi` from `dockview-react` for features outside this wrapper. Its layout changes still schedule saves. Panels added directly with a different component name have no workspace record and are outside this item's persistence contract.
+`api.dockview` exposes `DockviewApi` from `dockview-react` for features outside this wrapper. Its layout changes still schedule saves. Panels added without a workspace record are outside this item's persistence contract.
 
 ### The dependency
 
