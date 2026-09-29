@@ -368,12 +368,13 @@ describe("Workspace", () => {
 
   it.each([false, true])("isolates actions and releases the native drag guard when a child stops propagation: %s", async (stopChild) => {
     const targetPointer = vi.fn()
+    const captures: string[] = []
     const targetClick = vi.fn()
     const rootClick = vi.fn()
     const actionRef = createRef<HTMLDivElement>()
     function ActionTab() {
-      return <WorkspaceTab onClick={rootClick}><WorkspaceTabTitle /><WorkspaceTabActions ref={actionRef}>
-        <button type="button" onPointerDown={(event) => { targetPointer(); if (stopChild) event.stopPropagation() }} onClick={targetClick}>Custom action</button>
+      return <WorkspaceTab onClick={rootClick}><WorkspaceTabTitle /><WorkspaceTabActions ref={actionRef} onPointerDownCapture={() => captures.push("pointer-capture")} onMouseDownCapture={() => captures.push("mouse-capture")}>
+        <button type="button" onPointerDown={(event) => { captures.push("pointer-child"); targetPointer(); if (stopChild) event.stopPropagation() }} onMouseDown={(event) => { captures.push("mouse-child"); if (stopChild) event.stopPropagation() }} onClick={targetClick}>Custom action</button>
       </WorkspaceTabActions></WorkspaceTab>
     }
     const { view } = await mount({ tabComponent: ActionTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
@@ -381,17 +382,22 @@ describe("Workspace", () => {
     const button = screen.getByRole("button", { name: "Custom action" })
     const outer = screen.getByRole("tab", { name: "book" })
     fireEvent.pointerDown(button)
+    fireEvent.mouseDown(button)
     fireEvent.click(button)
     expect(targetPointer).toHaveBeenCalledTimes(1)
+    expect(captures).toEqual(["pointer-capture", "pointer-child", "mouse-capture", "mouse-child"])
     expect(targetClick).toHaveBeenCalledTimes(1)
     expect(rootClick).not.toHaveBeenCalled()
     expect(fireEvent.dragStart(outer)).toBe(false)
     fireEvent.pointerUp(document)
+    fireEvent.mouseUp(document)
     expect(fireEvent.dragStart(outer)).toBe(true)
     fireEvent.pointerDown(button)
-    fireEvent.pointerCancel(document)
+    fireEvent.mouseDown(button)
+    fireEvent.blur(window)
     expect(fireEvent.dragStart(outer)).toBe(true)
     fireEvent.pointerDown(button)
+    fireEvent.mouseDown(button)
     view.unmount()
     const event = new Event("dragstart", { bubbles: true, cancelable: true })
     document.body.append(outer)
@@ -408,13 +414,33 @@ describe("Workspace", () => {
     const button = screen.getByRole("button", { name: "Custom action" })
     const tab = screen.getByRole("tab", { name: "book" })
     fireEvent.pointerDown(button)
+    fireEvent.mouseDown(button)
     // A release inside an iframe never reaches this document. The next gesture belongs to the title.
     fireEvent.pointerDown(tab)
+    fireEvent.mouseDown(tab)
     expect(fireEvent.dragStart(tab)).toBe(true)
     fireEvent.pointerDown(button)
+    fireEvent.mouseDown(button)
     fireEvent.pointerDown(button)
+    fireEvent.mouseDown(button)
     expect(fireEvent.dragStart(tab)).toBe(false)
     fireEvent.pointerUp(document)
+    fireEvent.mouseUp(document)
+    expect(fireEvent.dragStart(tab)).toBe(true)
+  })
+
+  it.each(["pointerdown", "pointerup", "pointercancel"])("keeps the mouse drag guard during a secondary touch %s", async (type) => {
+    function ActionTab() {
+      return <WorkspaceTab><WorkspaceTabTitle /><WorkspaceTabActions><button type="button">Custom action</button></WorkspaceTabActions></WorkspaceTab>
+    }
+    await mount({ tabComponent: ActionTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    const button = screen.getByRole("button", { name: "Custom action" })
+    const tab = screen.getByRole("tab", { name: "book" })
+    fireEvent.pointerDown(button, { pointerId: 1, pointerType: "mouse", buttons: 1 })
+    fireEvent.mouseDown(button, { buttons: 1 })
+    fireEvent(document, new PointerEvent(type, { bubbles: true, pointerId: 2, pointerType: "touch" }))
+    expect(fireEvent.dragStart(tab)).toBe(false)
+    fireEvent.mouseUp(document)
     expect(fireEvent.dragStart(tab)).toBe(true)
   })
 
@@ -436,12 +462,17 @@ describe("Workspace", () => {
     try {
       const child = screen.getByText("Drag data")
       fireEvent.pointerDown(child)
+      fireEvent.mouseDown(child)
       expect(fireEvent.dragStart(child)).toBe(true)
       expect(childDrag).toHaveBeenCalledTimes(1)
       expect(actionDrag).toHaveBeenCalledTimes(1)
       expect(dockDrag).not.toHaveBeenCalled()
       expect(documentDrag).not.toHaveBeenCalled()
-      fireEvent.pointerUp(document)
+      // Native child drags can finish without a mouse-up in this document.
+      fireEvent.dragEnd(child)
+      expect(fireEvent.dragStart(tab)).toBe(true)
+      dockDrag.mockClear()
+      documentDrag.mockClear()
       expect(fireEvent.dragStart(screen.getByText("Portal data"))).toBe(true)
       expect(actionDrag).toHaveBeenCalledTimes(2)
       expect(documentDrag).toHaveBeenCalledTimes(1)

@@ -499,12 +499,14 @@ test("workspace floating overflow menus remain above native popup layers", async
     const menu = document.querySelector('[role="menu"]')!
     return {
       isolation: getComputedStyle(root).isolation,
+      overlayStart: getComputedStyle(root.querySelector(".dv-resize-container")!).getPropertyValue("--dv-overlay-z-index").trim(),
       popupZ: Number(getComputedStyle(popup).zIndex),
       menuZ: Number(getComputedStyle(menu).zIndex),
       menuInsideWorkspace: root.contains(menu),
     }
   })
   expect(stacking.isolation).toBe("isolate")
+  expect(stacking.overlayStart).toBe("30")
   expect(stacking.menuInsideWorkspace).toBe(false)
   expect(stacking.popupZ).toBeGreaterThan(stacking.menuZ)
   expect(stacking.menuZ).toBe(50)

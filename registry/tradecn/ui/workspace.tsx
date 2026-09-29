@@ -723,7 +723,7 @@ export interface WorkspaceTabActionsProps extends ComponentProps<"div"> {
 }
 
 /** Controls that keep their own focus and do not activate or drag the surrounding tab. */
-export function WorkspaceTabActions({ className, onPointerDownCapture, onPointerDown, onMouseDown, onTouchStart, onClick, onDragStart, onKeyDown, ...props }: WorkspaceTabActionsProps) {
+export function WorkspaceTabActions({ className, onMouseDownCapture, onPointerDown, onMouseDown, onTouchStart, onClick, onDragStart, onKeyDown, ...props }: WorkspaceTabActionsProps) {
   const { tabLocation } = useWorkspaceTabContext()
   const release = useRef<(() => void) | null>(null)
   useEffect(() => () => release.current?.(), [])
@@ -733,8 +733,8 @@ export function WorkspaceTabActions({ className, onPointerDownCapture, onPointer
     if (tabLocation === "headerOverflow" || event.currentTarget.contains(event.target as Node)) event.stopPropagation()
   }
   return <div data-slot="tradecn-workspace-tab-actions" className={cn("flex shrink-0 items-center gap-1.5", className)} {...props}
-    onPointerDownCapture={(event) => {
-      onPointerDownCapture?.(event)
+    onMouseDownCapture={(event) => {
+      onMouseDownCapture?.(event)
       release.current?.()
       // Arm the drag guard before child controls can stop bubbling. Capture never stops their handlers.
       // Portaled menu content belongs to this React tree, but not to the tab's drag surface.
@@ -748,16 +748,16 @@ export function WorkspaceTabActions({ className, onPointerDownCapture, onPointer
       }
       const cleanup = () => {
         doc.removeEventListener("dragstart", stopDrag, true)
-        doc.removeEventListener("pointerdown", cleanup, true)
-        doc.removeEventListener("pointerup", cleanup, true)
-        doc.removeEventListener("pointercancel", cleanup, true)
+        doc.removeEventListener("dragend", cleanup, true)
+        doc.removeEventListener("mousedown", cleanup, true)
+        doc.removeEventListener("mouseup", cleanup, true)
         doc.defaultView?.removeEventListener("blur", cleanup)
         release.current = null
       }
       doc.addEventListener("dragstart", stopDrag, true)
-      doc.addEventListener("pointerdown", cleanup, true)
-      doc.addEventListener("pointerup", cleanup, true)
-      doc.addEventListener("pointercancel", cleanup, true)
+      doc.addEventListener("dragend", cleanup, true)
+      doc.addEventListener("mousedown", cleanup, true)
+      doc.addEventListener("mouseup", cleanup, true)
       doc.defaultView?.addEventListener("blur", cleanup)
       release.current = cleanup
     }}

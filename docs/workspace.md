@@ -141,6 +141,8 @@ Each part accepts its native props, ref and class name. An explicit `aria-label`
 
 Actions stops contained pointer-down, mouse-down, touch-start, click and drag-start events before they reach the dock. Document and window bubble listeners also miss those events; capture listeners still receive them. Clicking a header action leaves an existing dock overflow popup open.
 
+In overflow, Actions also stops pointer-down, mouse-down, touch-start and click events from portaled content. It stops Enter bubbling, and stops Escape when a control has prevented it or it comes from a portal. An unhandled Escape from an ordinary overflow control can close the dock popup.
+
 Dockview owns the outer `role="tab"`, its id, roving focus, selection and tabpanel association. `WorkspaceTab` props and ref address the inner div. Rename the actual tab with `setTitle`; an `aria-label` on that inner div does not rename the outer tab. Ordinary title and close parts subscribe only to title changes.
 
 Roving focus applies to the outer tabs. Close buttons and controls inside `WorkspaceTabActions` keep their native Tab stops, including on inactive tabs; Actions isolates events, not keyboard navigation. For the [APG tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/), where Tab leaves the tablist from its active tab, omit inline controls and put panel actions or fields in `PanelHeader` or the panel body.
