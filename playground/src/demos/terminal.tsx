@@ -824,7 +824,7 @@ function Keys({ keys }: { keys: string }) {
       {formatKeys(keys).map((caps, i) => (
         <KbdGroup key={i}>
           {caps.map((cap) => (
-            <Kbd key={cap}>{cap}</Kbd>
+            <Kbd key={cap} className="text-xs">{cap}</Kbd>
           ))}
         </KbdGroup>
       ))}

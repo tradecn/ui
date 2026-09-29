@@ -483,10 +483,13 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
 }
 
 type SelectProps = Omit<ComponentProps<typeof NativeSelect>, "value" | "defaultValue" | "children">
+// base-mira draws a small select at 10 px through `data-[size=sm]` on the select itself, which outranks a plain
+// `[&_select]` on the wrapper. Naming the same attribute here outranks it back, so the fields hold the floor in every style.
+const SELECT_SIZE = "[&_select[data-size=sm]]:text-xs"
 export function RulesEditorColumn({ onChange, className, ...props }: SelectProps) {
   const { columns, labels } = useRulesEditor()
   const item = useRulesEditorItem()
-  return <NativeSelect size="sm" aria-label={`${labels.column}: ${item.name}`} data-rule-field="column" className={cn("[&_select]:text-xs", className)} {...props} value={item.columnKey} onChange={(event) => {
+  return <NativeSelect size="sm" aria-label={`${labels.column}: ${item.name}`} data-rule-field="column" className={cn(SELECT_SIZE, className)} {...props} value={item.columnKey} onChange={(event) => {
     onChange?.(event)
     if (!event.defaultPrevented) item.setColumn(event.target.value)
   }}>
@@ -501,7 +504,7 @@ export function RulesEditorOperator({ onChange, className, ...props }: SelectPro
   if (!item.condition) return null
   const condition = item.condition
   const ops = columns.find((c) => c.key === item.columnKey)?.ops ?? opsFor(undefined)
-  return <NativeSelect size="sm" aria-label={`${labels.condition}: ${item.name}`} data-rule-field="op" className={cn("[&_select]:text-xs", className)} {...props} value={condition.op} onChange={(event) => {
+  return <NativeSelect size="sm" aria-label={`${labels.condition}: ${item.name}`} data-rule-field="op" className={cn(SELECT_SIZE, className)} {...props} value={condition.op} onChange={(event) => {
     onChange?.(event)
     if (!event.defaultPrevented) item.setCondition(withOp(condition, event.target.value as RuleOp))
   }}>{ops.map((op) => <NativeSelectOption key={op} value={op}>{RULE_OP_LABELS[op]}</NativeSelectOption>)}</NativeSelect>
@@ -544,7 +547,7 @@ export function RulesEditorTone({ onChange, className, ...props }: SelectProps) 
   const { labels } = useRulesEditor()
   const { highlight, name, updateHighlight } = useRulesEditorItem()
   if (!highlight) return null
-  return <NativeSelect size="sm" aria-label={`${labels.tone}: ${name}`} data-rule-field="tone" className={cn("[&_select]:text-xs", className)} {...props} value={highlight.tone} onChange={(event) => {
+  return <NativeSelect size="sm" aria-label={`${labels.tone}: ${name}`} data-rule-field="tone" className={cn(SELECT_SIZE, className)} {...props} value={highlight.tone} onChange={(event) => {
     onChange?.(event)
     if (!event.defaultPrevented) updateHighlight({ tone: event.target.value as RuleTone })
   }}>{RULE_TONES.map((tone) => <NativeSelectOption key={tone} value={tone}>{tone}</NativeSelectOption>)}</NativeSelect>
@@ -560,7 +563,7 @@ export function RulesEditorTarget({ onChange, className, ...props }: SelectProps
   const { labels } = useRulesEditor()
   const { highlight, name, updateHighlight } = useRulesEditorItem()
   if (!highlight) return null
-  return <NativeSelect size="sm" aria-label={`${labels.paints}: ${name}`} data-rule-field="target" className={cn("[&_select]:text-xs", className)} {...props} value={highlight.target ?? "cell"} onChange={(event) => {
+  return <NativeSelect size="sm" aria-label={`${labels.paints}: ${name}`} data-rule-field="target" className={cn(SELECT_SIZE, className)} {...props} value={highlight.target ?? "cell"} onChange={(event) => {
     onChange?.(event)
     if (!event.defaultPrevented) updateHighlight({ target: event.target.value === "row" ? "row" : "cell" })
   }}><NativeSelectOption value="cell">{labels.cell}</NativeSelectOption><NativeSelectOption value="row">{labels.row}</NativeSelectOption></NativeSelect>
@@ -580,7 +583,7 @@ export function RulesEditorDirection({ onChange, className, ...props }: SelectPr
   const { labels } = useRulesEditor()
   const { sort, name, setDirection } = useRulesEditorItem()
   if (!sort) return null
-  return <NativeSelect size="sm" aria-label={`${labels.direction}: ${name}`} data-rule-field="dir" className={cn("[&_select]:text-xs", className)} {...props} value={sort.dir} onChange={(event) => {
+  return <NativeSelect size="sm" aria-label={`${labels.direction}: ${name}`} data-rule-field="dir" className={cn(SELECT_SIZE, className)} {...props} value={sort.dir} onChange={(event) => {
     onChange?.(event)
     if (!event.defaultPrevented) setDirection(event.target.value === "desc" ? "desc" : "asc")
   }}><NativeSelectOption value="asc">{labels.asc}</NativeSelectOption><NativeSelectOption value="desc">{labels.desc}</NativeSelectOption></NativeSelect>
