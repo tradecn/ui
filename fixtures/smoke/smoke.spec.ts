@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
 import { expect, test, type Locator } from "@playwright/test"
+import { CONTRACT_RULES, checkContract } from "./src/lib/agent-kit"
 
 // Every installed tradecn item renders, the page is error-free, and the tokens it declared exist.
 test("tradecn items render in this consumer", async ({ page }) => {
@@ -2547,4 +2548,25 @@ test("a spread matrix composes alternate tables with native keyboard controls an
   await scene.getByRole("button", { name: "10Y cheapens" }).click()
   await expect(matrix.getByRole("button", { name: "Select 10Y: +13.5" })).toHaveAccessibleName("Select 10Y: +13.5")
   await expect(structures.locator("tr[data-structure='2s5s10s'] td[data-spread]")).toHaveText("−38.5")
+})
+
+test("the agent kit's check passes the kept sample, finds each rule the broken one breaks, and finds nothing else on the page", async ({ page }) => {
+  await page.goto("/")
+  await page.waitForLoadState("networkidle")
+  const scene = page.locator("section[data-scene='agent-kit']")
+  await expect(scene.locator("[data-contract-sample='kept']")).toBeVisible()
+  // The broken sample's small print goes under the floor here, at run time, where the contract's source sweep never looks.
+  await scene.locator("[data-small-print]").evaluate((el: HTMLElement, px: number) => {
+    el.style.fontSize = `${px}px`
+  }, 10)
+  const kept = await page.evaluate(checkContract, { root: "[data-contract-sample='kept']" })
+  expect(kept.findings).toEqual([])
+  for (const rule of CONTRACT_RULES) expect(kept.checked[rule], `the kept sample gives ${rule} something to read`).toBeGreaterThan(0)
+  expect((await page.evaluate(checkContract, { root: "[data-contract-sample='kept']", visibleCue: true })).findings).toEqual([])
+  const broken = await page.evaluate(checkContract, { root: "[data-contract-sample='broken']", ignore: "" })
+  expect([...new Set(broken.findings.map((finding) => finding.rule))].sort()).toEqual(["direction", "floor", "name"])
+  // Every installed item on the page, in this style and theme, keeps the contract the check reads.
+  const everything = await page.evaluate(checkContract, { root: "main[data-smoke]" })
+  expect(everything.findings).toEqual([])
+  expect(everything.checked.numeric).toBeGreaterThan(100)
 })

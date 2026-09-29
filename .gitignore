@@ -16,6 +16,7 @@ fixtures/consumers/*/src/smoke/
 fixtures/consumers/*/public/
 fixtures/consumers/*/playwright.config.ts
 fixtures/consumers/*/smoke.spec.ts
+fixtures/consumers/*/.github/
 
 # Local Claude Code config
 CLAUDE.md

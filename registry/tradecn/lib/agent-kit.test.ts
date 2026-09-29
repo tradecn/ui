@@ -1,0 +1,108 @@
+import { afterEach, describe, expect, it } from "vitest"
+import { CONTRACT_RULES, checkContract, type ContractRule } from "@/registry/tradecn/lib/agent-kit"
+
+// happy-dom computes font sizes, numeric variants and custom properties, which is what the floor, numeric and name
+// rules read. It does not resolve var() inside a color, so the direction rule is proved in real browsers by the
+// smoke scene, in every installed style and theme.
+
+function mount(html: string) {
+  document.head.innerHTML = "<style>:root { --tradecn-text-size-grid-min: 12px } .num { font-variant-numeric: lining-nums tabular-nums }</style>"
+  document.body.innerHTML = html
+  return document.body.firstElementChild as HTMLElement
+}
+
+const rulesOf = (root: ParentNode, options: Parameters<typeof checkContract>[0] = {}) => [...new Set(checkContract({ root, ...options }).findings.map((f) => f.rule))].sort()
+
+afterEach(() => {
+  document.head.innerHTML = ""
+  document.body.innerHTML = ""
+})
+
+describe("checkContract", () => {
+  it("names every rule in the order the report counts them", () => {
+    expect(CONTRACT_RULES).toEqual(["floor", "numeric", "direction", "name"])
+    expect(Object.keys(checkContract({ root: mount("<div></div>") }).checked)).toEqual([...CONTRACT_RULES])
+  })
+
+  it("finds text under the floor, reading the floor from the token or the option", () => {
+    const root = mount('<div><p style="font-size: 10px">small print</p><p style="font-size: 12px">readable</p><p style="font-size: 12px"></p></div>')
+    const report = checkContract({ root, rules: ["floor"] })
+    expect(report.checked.floor).toBe(2)
+    expect(report.findings).toEqual([{ rule: "floor", where: "page p", text: "small print", detail: "font-size 10px is under the 12 px floor" }])
+    expect(checkContract({ root, rules: ["floor"], floorPx: 13 }).findings.map((f) => f.text)).toEqual(["small print", "readable"])
+  })
+
+  it("counts a field's value and placeholder as text", () => {
+    const root = mount('<div><input style="font-size: 10px" value="25"><input style="font-size: 10px" placeholder="Size"><input style="font-size: 10px"></div>')
+    expect(checkContract({ root, rules: ["floor"] }).checked.floor).toBe(2)
+  })
+
+  it("leaves text nobody can see out of the floor", () => {
+    const root = mount('<div><p style="font-size: 10px; display: none">gone</p><div hidden><p style="font-size: 10px">tucked</p></div></div>')
+    expect(checkContract({ root, rules: ["floor"] }).checked.floor).toBe(0)
+  })
+
+  it("holds digits under a tradecn slot, and every data-numeric node, to lining tabular figures", () => {
+    const root = mount(
+      '<div><div data-slot="tradecn-demo"><span data-cell="bid">99-16+</span><span class="num">99-17</span><span>Bid</span><input value="25"></div><span data-numeric="">1,250</span><span>12 outside</span></div>',
+    )
+    const report = checkContract({ root, rules: ["numeric"] })
+    expect(report.checked.numeric).toBe(4)
+    expect(report.findings.map((f) => [f.where, f.text])).toEqual([
+      ["tradecn-demo span[data-cell=bid]", "99-16+"],
+      ["tradecn-demo input", "25"],
+      ["page span[data-numeric]", "1,250"],
+    ])
+    expect(report.findings[0]?.detail).toMatch(/where lining-nums tabular-nums belongs/)
+  })
+
+  it("finds a control with no accessible name, and every way to give one", () => {
+    const root = mount(
+      [
+        "<div>",
+        '<button data-id="bare"><svg aria-hidden="true"></svg></button>',
+        '<button aria-label="Refresh"><svg aria-hidden="true"></svg></button>',
+        "<button>Send</button>",
+        '<span id="lbl">Size</span><input aria-labelledby="lbl">',
+        '<label>Price <input data-id="labelled"></label>',
+        '<input placeholder="Find a column">',
+        '<button title="Close">×</button>',
+        '<div role="checkbox" data-id="bare-role"></div>',
+        '<div aria-hidden="true"><button data-id="hidden"></button></div>',
+        '<input type="hidden">',
+        "</div>",
+      ].join(""),
+    )
+    const report = checkContract({ root, rules: ["name"] })
+    expect(report.checked.name).toBe(8)
+    expect(report.findings.map((f) => f.where)).toEqual(["page button[data-id=bare]", "page div[data-id=bare-role]"])
+    expect(report.findings[1]?.detail).toBe("checkbox with no accessible name")
+  })
+
+  it("leaves out a subtree marked data-contract-ignore, unless told to skip nothing", () => {
+    const root = mount('<div><div data-contract-ignore=""><p style="font-size: 10px">on purpose</p><button></button></div></div>')
+    expect(rulesOf(root)).toEqual([])
+    expect(rulesOf(root, { ignore: "" })).toEqual(["floor", "name"])
+    expect(rulesOf(root, { ignore: "[data-other]" })).toEqual(["floor", "name"])
+  })
+
+  it("runs only the rules it is given", () => {
+    const root = mount('<div data-slot="tradecn-demo"><p style="font-size: 10px">7 small</p><button></button></div>')
+    expect(rulesOf(root)).toEqual(["floor", "name", "numeric"])
+    const only: ContractRule[] = ["name"]
+    expect(rulesOf(root, { rules: only })).toEqual(["name"])
+  })
+
+  it("takes the root as a selector, the whole document by default, and throws when a selector names nothing", () => {
+    mount('<main><button></button></main><aside><button></button></aside>')
+    expect(checkContract({ rules: ["name"] }).findings).toHaveLength(2)
+    expect(checkContract({ root: "main", rules: ["name"] }).findings).toHaveLength(1)
+    expect(() => checkContract({ root: "#nothing" })).toThrow("checkContract: nothing matches #nothing")
+  })
+
+  it("stands alone, so a test can hand it to the browser as it is", () => {
+    const root = mount('<div><p style="font-size: 10px">small print</p></div>')
+    const standalone = new Function(`return (${checkContract.toString()})`)() as typeof checkContract
+    expect(standalone({ root, rules: ["floor"] }).findings.map((f) => f.text)).toEqual(["small print"])
+  })
+})
