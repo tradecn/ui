@@ -99,8 +99,8 @@ export function ThemePreview({ name }: { name: string }) {
           <Button size="sm" variant="destructive">
             Destructive
           </Button>
-          <Badge>badge</Badge>
-          <Badge variant="outline">outline</Badge>
+          <Badge className="text-xs">badge</Badge>
+          <Badge variant="outline" className="text-xs">outline</Badge>
           <span className="text-up">+0.25 up</span>
           <span className="text-down">−0.31 down</span>
           <span className="text-flat">0.00 flat</span>
