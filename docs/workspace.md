@@ -53,7 +53,8 @@ Keep `panels` stable with a module constant or `useMemo`; replacing it re-render
 Workspace
 ├── WorkspaceTab
 │   ├── WorkspaceTabTitle
-│   └── WorkspaceTabClose
+│   ├── WorkspaceTabClose
+│   └── WorkspaceTabActions
 └── Panel
     ├── PanelHeader
     │   ├── SymbolTag
@@ -68,7 +69,7 @@ Workspace
 
 Use `WorkspaceTabActions` for inputs and menus that keep their own focus. `useWorkspaceTab` reads the same saved state as the panel body. This layout places a menu before the title and a symbol field after it; overflow entries omit the field.
 
-Install shadcn `dropdown-menu` alongside Workspace before copying this example. The example is self-contained.
+Install shadcn `dropdown-menu` alongside Workspace before copying this example. The example is self-contained. For menus in separate windows, see the [popout portal limits](#floating-popout-maximize).
 
 <!-- demo: workspace-tab-controls -->
 
@@ -76,7 +77,7 @@ Install shadcn `dropdown-menu` alongside Workspace before copying this example. 
 
 Use `defaultLayout` to restore the dock arrangement and saved panel state. This example saves to browser storage and imports `DeskTab` from the [Usage](#usage) file.
 
-This example reads `localStorage`, so mount it on the client. The save callback runs after changes settle; see [Saving is yours](#saving-is-yours) for debounce and page-close limits.
+Mount this example on the client; it reads `localStorage`. Drag tabs to an edge to split panels, or onto another tab to combine them. After editing a symbol or arrangement, wait for the save count to increase before reloading. See [Saving is yours](#saving-is-yours) for debounce and page-close limits.
 
 <!-- demo: workspace-saved-layout -->
 
@@ -149,6 +150,8 @@ The hook returns `WorkspaceTabHandle`: the [panel handle](#panels-by-kind), plus
 Create panels with `WorkspaceApi.addPanel` to register their kind, saved state and body. A panel added directly through the raw Dockview API has no workspace record: `kind` and `state` are `undefined`, `setTitle` and `setState` do nothing, and a state updater is not called. Its `focus()` activates the panel but does not move keyboard focus into a body. Dock readings and close, float, popout and maximize commands still work; use the raw panel's `api.setTitle` to rename it.
 
 A panel can have header and overflow renderers mounted at once. Use `useId()` for control/label ids, and keep shared values in panel state. Component-local state belongs to each rendered tab and resets when that instance unmounts. Closing overflow disposes its renderers, subscriptions and consumer effects. For managed panels, use `setTitle` to keep the record, dock, tab name and overflow title synchronized; a direct raw Dockview title write is overwritten by the next workspace store write.
+
+In Dockview 8.3.1, removing a panel through a menu, Actions control or API leaves an empty overflow row. It stays until the popup closes. A standalone `WorkspaceTabClose` lets the native row dismiss the popup. Use Space to activate that button in overflow. Dockview handles Enter by dismissing the popup before the button can act.
 
 ### Panels by kind
 
@@ -246,11 +249,11 @@ const BINDINGS: HotkeyBinding[] = [
 useHotkey("workspace.next", () => api.focusNext())
 ```
 
-`focusPanel(id)` activates the panel and moves keyboard focus inside it; clicking ordinary tab contents does the same. Its `panel:<kind>` bindings can then answer. Use `focusNext()` or `focusNext(-1)` to move in dockview's order, and bind `addPanel` or `closePanel` as needed. Dockview's optional enterprise keymap is not enabled; the registry supplies the binding list for your palette or help overlay.
+`focusPanel(id)` activates the panel and moves keyboard focus inside it; clicking ordinary header tab contents does the same. Its `panel:<kind>` bindings can then answer. Use `focusNext()` or `focusNext(-1)` to move in dockview's order, and bind `addPanel` or `closePanel` as needed. Dockview's optional enterprise keymap is not enabled; the registry supplies the binding list for your palette or help overlay.
 
 For newly created panels, `addPanel`'s default `focus: true` waits for the panel to render. Explicit focus calls in `onReady` or a child's first layout effect can activate a panel before its body has registered a focus target.
 
-When the outer tab itself has focus, arrows and Home/End move focus without selecting; Enter/Space select, and Delete/Backspace close and focus a neighbor. Nested controls keep their own keys. Closing with the ordinary close button can leave focus on the document body. Omitting a close button does not disable keyboard or API closing. Dockview 8.3.1's overflow opener is not a keyboard button; tab composition does not replace that control.
+When the outer tab itself has focus, arrows and Home/End move focus without selecting; Enter/Space select, and Delete/Backspace close and focus a neighbor. Nested controls keep their own keys. Closing with the ordinary close button or selecting the already-active panel from overflow can leave focus on the document body. Omitting a close button does not disable keyboard or API closing. Dockview 8.3.1's overflow opener is not a keyboard button; tab composition does not replace that control.
 
 ### Floating, popout, maximize
 

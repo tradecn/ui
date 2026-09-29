@@ -1,7 +1,7 @@
 import { cn } from "cn"
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent, type DockviewTheme, type IDockviewPanelHeaderProps, type IDockviewPanelProps, type SerializedDockview } from "dockview-react"
 import "dockview-react/dist/styles/dockview.css"
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ComponentType, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ComponentType, type ReactNode, type SyntheticEvent } from "react"
 import { useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { mirrorRoot } from "@/registry/tradecn/hooks/use-popout"
 import {
@@ -698,7 +698,7 @@ export interface WorkspaceTabCloseProps extends ComponentProps<"button"> {
 }
 
 export function WorkspaceTabClose({ className, onClick, type = "button", "aria-label": label, "aria-labelledby": labelledBy, ...props }: WorkspaceTabCloseProps) {
-  const { panelApi } = useWorkspaceTabContext()
+  const { panelApi, tabLocation } = useWorkspaceTabContext()
   const title = useWorkspaceTabTitle()
   return <button
     type={type}
@@ -709,8 +709,11 @@ export function WorkspaceTabClose({ className, onClick, type = "button", "aria-l
     {...props}
     onClick={(event) => {
       onClick?.(event)
-      event.stopPropagation()
-      if (!event.defaultPrevented) panelApi.close()
+      if (event.defaultPrevented) { event.stopPropagation(); return }
+      // The native overflow row dismisses on click; prevent it from activating the removed panel.
+      if (tabLocation === "headerOverflow") event.preventDefault()
+      else event.stopPropagation()
+      panelApi.close()
     }}
   />
 }
@@ -720,10 +723,15 @@ export interface WorkspaceTabActionsProps extends ComponentProps<"div"> {
 }
 
 /** Controls that keep their own focus and do not activate or drag the surrounding tab. */
-export function WorkspaceTabActions({ className, onPointerDownCapture, onPointerDown, onMouseDown, onTouchStart, onClick, onKeyDown, ...props }: WorkspaceTabActionsProps) {
+export function WorkspaceTabActions({ className, onPointerDownCapture, onPointerDown, onMouseDown, onTouchStart, onClick, onDragStart, onKeyDown, ...props }: WorkspaceTabActionsProps) {
   const { tabLocation } = useWorkspaceTabContext()
   const release = useRef<(() => void) | null>(null)
   useEffect(() => () => release.current?.(), [])
+  const isolateTabEvent = (event: SyntheticEvent<HTMLDivElement>) => {
+    // Header portals need document listeners for outside dismissal. Overflow portals also need
+    // isolation from the dock's window-level popup dismissal.
+    if (tabLocation === "headerOverflow" || event.currentTarget.contains(event.target as Node)) event.stopPropagation()
+  }
   return <div data-slot="tradecn-workspace-tab-actions" className={cn("flex shrink-0 items-center gap-1.5", className)} {...props}
     onPointerDownCapture={(event) => {
       onPointerDownCapture?.(event)
@@ -751,10 +759,15 @@ export function WorkspaceTabActions({ className, onPointerDownCapture, onPointer
       doc.defaultView?.addEventListener("blur", cleanup)
       release.current = cleanup
     }}
-    onPointerDown={(event) => { onPointerDown?.(event); event.stopPropagation() }}
-    onMouseDown={(event) => { onMouseDown?.(event); event.stopPropagation() }}
-    onTouchStart={(event) => { onTouchStart?.(event); event.stopPropagation() }}
-    onClick={(event) => { onClick?.(event); event.stopPropagation() }}
+    onPointerDown={(event) => { onPointerDown?.(event); isolateTabEvent(event) }}
+    onMouseDown={(event) => { onMouseDown?.(event); isolateTabEvent(event) }}
+    onTouchStart={(event) => { onTouchStart?.(event); isolateTabEvent(event) }}
+    onClick={(event) => { onClick?.(event); isolateTabEvent(event) }}
+    onDragStart={(event) => {
+      onDragStart?.(event)
+      // Draggable children own their data and default action; only the surrounding dock is excluded.
+      if (event.currentTarget.contains(event.target as Node)) event.stopPropagation()
+    }}
     onKeyDown={(event) => {
       onKeyDown?.(event)
       // The dock dismisses at the window even when a nested control handled the key. A portaled

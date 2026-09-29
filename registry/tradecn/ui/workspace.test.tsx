@@ -160,6 +160,30 @@ describe("Workspace", () => {
     expect(screen.getByRole("button", { name: "Remove panel" })).not.toHaveAttribute("aria-label")
   })
 
+  it.each([false, true])("dismisses native overflow after close unless the caller cancels: %s", async (cancel) => {
+    const caller = vi.fn()
+    const dismiss = vi.fn()
+    function CloseTab() {
+      const { tabLocation } = useWorkspaceTab()
+      return <WorkspaceTab><WorkspaceTabClose aria-label={`${tabLocation} close`} onClick={(event) => { caller(); if (cancel) event.preventDefault() }}>×</WorkspaceTabClose></WorkspaceTab>
+    }
+    const { api, view } = await mount({ tabComponent: CloseTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    const anchor = document.createElement("div")
+    anchor.className = "dv-popover-anchor"
+    document.body.append(anchor)
+    try {
+      await act(async () => { anchor.append(api.dockview.getPanel("book-1")!.view.createTabRenderer("headerOverflow").element) })
+      anchor.addEventListener("click", (event) => { dismiss(); expect(event.defaultPrevented).toBe(true) })
+      fireEvent.click(screen.getByRole("button", { name: "headerOverflow close" }))
+      expect(caller).toHaveBeenCalledTimes(1)
+      expect(dismiss).toHaveBeenCalledTimes(cancel ? 0 : 1)
+      expect(api.panels()).toHaveLength(cancel ? 1 : 0)
+    } finally {
+      view.unmount()
+      anchor.remove()
+    }
+  })
+
   it("forwards portaled clicks without moving focus back into the owning tab", async () => {
     const click = vi.fn()
     function PortalTab() {
@@ -171,6 +195,41 @@ describe("Workspace", () => {
     fireEvent.click(button)
     expect(click).toHaveBeenCalledTimes(1)
     expect(button).toHaveFocus()
+  })
+
+  it.each(["header", "headerOverflow"] as const)("preserves portal event delivery while isolating %s actions", async (location) => {
+    const delivered = vi.fn()
+    const caller = vi.fn()
+    function PortalTab() {
+      const { tabLocation } = useWorkspaceTab()
+      return <WorkspaceTab><WorkspaceTabActions onPointerDown={caller} onMouseDown={caller} onTouchStart={caller} onClick={caller}>
+        <button type="button">{tabLocation} action</button>
+        {createPortal(<button type="button">{tabLocation} portal</button>, document.body)}
+      </WorkspaceTabActions></WorkspaceTab>
+    }
+    const { api, view } = await mount({ tabComponent: PortalTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    const anchor = document.createElement("div")
+    anchor.className = "dv-popover-anchor"
+    document.body.append(anchor)
+    const events = ["pointerdown", "mousedown", "touchstart", "click"]
+    try {
+      if (location === "headerOverflow") await act(async () => { anchor.append(api.dockview.getPanel("book-1")!.view.createTabRenderer(location).element) })
+      for (const name of events) document.addEventListener(name, delivered)
+      const action = screen.getByRole("button", { name: `${location} action` })
+      const portal = screen.getByRole("button", { name: `${location} portal` })
+      for (const name of events) fireEvent(action, new Event(name, { bubbles: true, cancelable: true }))
+      expect(caller).toHaveBeenCalledTimes(4)
+      expect(delivered).not.toHaveBeenCalled()
+      portal.focus()
+      for (const name of events) fireEvent(portal, new Event(name, { bubbles: true, cancelable: true }))
+      expect(caller).toHaveBeenCalledTimes(8)
+      expect(delivered).toHaveBeenCalledTimes(location === "header" ? 4 : 0)
+      expect(portal).toHaveFocus()
+    } finally {
+      for (const name of events) document.removeEventListener(name, delivered)
+      view.unmount()
+      anchor.remove()
+    }
   })
 
   it("lets the caller arrange tab content and cancel focus or close, forwarding native props and refs", async () => {
@@ -339,6 +398,40 @@ describe("Workspace", () => {
     outer.dispatchEvent(event)
     expect(event.defaultPrevented).toBe(false)
     outer.remove()
+  })
+
+  it("keeps child drag handlers and defaults without forwarding their drag to Dockview", async () => {
+    const childDrag = vi.fn()
+    const actionDrag = vi.fn()
+    const dockDrag = vi.fn()
+    const documentDrag = vi.fn()
+    function DragTab() {
+      return <WorkspaceTab><WorkspaceTabTitle /><WorkspaceTabActions onDragStart={actionDrag}>
+        <span draggable onDragStart={childDrag}>Drag data</span>
+        {createPortal(<span draggable>Portal data</span>, document.body)}
+      </WorkspaceTabActions></WorkspaceTab>
+    }
+    const { view } = await mount({ tabComponent: DragTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    const tab = screen.getByRole("tab", { name: "book" })
+    tab.addEventListener("dragstart", dockDrag)
+    document.addEventListener("dragstart", documentDrag)
+    try {
+      const child = screen.getByText("Drag data")
+      fireEvent.pointerDown(child)
+      expect(fireEvent.dragStart(child)).toBe(true)
+      expect(childDrag).toHaveBeenCalledTimes(1)
+      expect(actionDrag).toHaveBeenCalledTimes(1)
+      expect(dockDrag).not.toHaveBeenCalled()
+      expect(documentDrag).not.toHaveBeenCalled()
+      fireEvent.pointerUp(document)
+      expect(fireEvent.dragStart(screen.getByText("Portal data"))).toBe(true)
+      expect(actionDrag).toHaveBeenCalledTimes(2)
+      expect(documentDrag).toHaveBeenCalledTimes(1)
+    } finally {
+      tab.removeEventListener("dragstart", dockDrag)
+      document.removeEventListener("dragstart", documentDrag)
+      view.unmount()
+    }
   })
 
   it("seeds when there is nothing to restore, and every panel is a hotkey scope of its kind inside the dock", async () => {
