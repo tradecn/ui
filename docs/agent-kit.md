@@ -63,7 +63,7 @@ The report has `findings`, each with its `rule`, `where` (the nearest tradecn sl
 
 ### What it does not do
 
-It reads computed styles, so it runs in a browser or in a DOM that computes them. It doesn't check contrast, which `scripts/themes.test.ts` holds the themes to, or visible focus, layout and clipping, which the review walks by eye. It doesn't look at shapes without text for direction: a dot, a bar or a line needs a label of its own. A color inside another theme's scope, or mixed with transparency, isn't matched to a direction token. The skill and the review ask for what the check can't see.
+It reads computed styles, so it runs in a browser or in a DOM that computes them. It doesn't check contrast, which `scripts/themes.test.ts` holds the themes to, or visible focus, layout and clipping, which the review walks by eye. It doesn't look at shapes without text for direction: a dot, a bar or a line needs a label of its own. A color inside another theme's scope, or mixed with transparency, isn't matched to a direction token. HTML text is measured at its computed size, so a CSS transform that shrinks it goes unseen. The skill and the review ask for what the check can't see.
 
 ### The item index
 
