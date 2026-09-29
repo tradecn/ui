@@ -3,7 +3,7 @@ import { useState } from "react"
 import { NUMERIC_CLASS, createInstrumentFormatter, formatNotional } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { ColumnChooserPanel } from "@/registry/tradecn/ui/column-chooser"
+import { ColumnSettingsPanel } from "./column-chooser"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/registry/tradecn/ui/data-grid"
 import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorDirection, RulesEditorFilterCount, RulesEditorItem, RulesEditorLabel, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorRuleCount, RulesEditorTarget, RulesEditorTone, RulesEditorToneSwatch, RulesEditorValue, useRulesEditor, type RulesEditorProps } from "@/registry/tradecn/ui/rules-editor"
 
@@ -167,7 +167,7 @@ export function RulesEditorSections<T>({ columns, columnState, onColumnStateChan
           <p className="text-muted-foreground">{labels.dragHint}</p>
         </div>
       </TabsContent>
-      {hasColumns && <TabsContent value="columns"><div className="flex flex-col gap-2"><ColumnChooserPanel columns={columns} columnState={columnState} onColumnStateChange={onColumnStateChange} rules={rules.columns} /></div></TabsContent>}
+      {hasColumns && <TabsContent value="columns"><div className="flex flex-col gap-2"><ColumnSettingsPanel columns={columns} columnState={columnState} onColumnStateChange={onColumnStateChange} rules={rules.columns} /></div></TabsContent>}
     </Tabs>
   )
 }

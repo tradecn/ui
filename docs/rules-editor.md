@@ -90,14 +90,15 @@ RulesEditor
     │   ├── RulesEditorAdd
     │   └── RulesEditorFilterCount (optional)
     └── TabsContent value="columns" (optional)
-        └── ColumnChooserPanel
+        └── ColumnChooser
+            └── Your column settings composition
 ```
 
 Place items directly inside your layout when you do not need tabs.
 
 ## Tabs
 
-Compose installed [shadcn Tabs](https://ui.shadcn.com/docs/components/tabs) to group rules with a column chooser. Select each tab on focus so arrow keys switch panels on either base.
+Compose installed [shadcn Tabs](https://ui.shadcn.com/docs/components/tabs) to group rules with a column chooser. Select each tab on focus so arrow keys switch panels on either base. Copy `ColumnSettingsPanel` and its helpers from the [ColumnChooser Usage example](column-chooser.md#usage) into `column-chooser.tsx` beside this example, outside `components/ui`.
 
 Control `Tabs` with `value` and `onValueChange` to drive panels from your own controls.
 
@@ -296,7 +297,7 @@ Fields use `<field>: <rule>`, such as `Value: Rich to the market`. Highlights us
 
 Use `useRulesEditor().labels` for your tab text, action children, empty states, and drag hint. Count templates accept `{n}` matches and `{m}` total rows.
 
-Operator words use `RULE_OP_LABELS`. Tone names, validation messages, and `ColumnChooserPanel` labels have separate owners.
+Operator words use `RULE_OP_LABELS`. Tone names, validation messages, and `ColumnChooser` labels have separate owners.
 
 ### What it does not do
 

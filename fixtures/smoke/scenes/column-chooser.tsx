@@ -1,6 +1,12 @@
-import { useMemo, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { ColumnChooser, ColumnChooserPanel } from "@/components/ui/column-chooser"
+import { cn } from "cn"
+import { buttonVariants } from "@/components/ui/button"
+import { useMemo, useRef, useState } from "react"
+import { PanelPopout } from "@/components/ui/panel"
+import { usePopout } from "@/hooks/use-popout"
+import { DialogTrigger } from "@/components/ui/dialog"
+import { ContextMenuItem } from "@/components/ui/context-menu"
+import { ColumnSettingsDialog, ColumnSettingsPanel } from "./column-settings"
+import { useColumnMenuFocus } from "./column-menu-focus"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/components/ui/data-grid"
 import type { ColumnRule } from "@/lib/grid-rules"
 import { createRowStore } from "@/lib/row-store"
@@ -22,6 +28,7 @@ const columns: ColumnDef<Rfq>[] = [
 ]
 
 const RULES: ColumnRule[] = [{ id: "rich", column: "px", when: { op: "gte", value: "100" }, tone: "up", label: "Rich to the market" }]
+const BASE_STATE: ColumnState = { order: [], widths: { px: 100 }, hidden: [] }
 
 // The panel inline is the scene's item; the dialog opens from the button for its own test.
 export function ColumnChooserScene() {
@@ -37,16 +44,30 @@ export function ColumnChooserScene() {
   }, [])
   const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: { px: 120 }, hidden: [] })
   const [open, setOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const gridContainer = useRef<HTMLDivElement>(null)
+  const contentProps = useColumnMenuFocus(gridContainer)
+  const popout = usePopout({ title: "Column settings", width: 720, height: 520 })
   return (
-    <div className="flex w-[52rem] flex-col gap-2" data-chooser-state={JSON.stringify(columnState)}>
-      <div style={{ height: 120 }}>
-        <DataGrid store={store} columns={columns} label="Chosen" columnState={columnState} onColumnStateChange={setColumnState} rules={{ columns: RULES }} />
-      </div>
-      <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setOpen(true)}>
-        open chooser
-      </Button>
-      <ColumnChooser open={open} onOpenChange={setOpen} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} />
-      <ColumnChooserPanel columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} />
-    </div>
+    <>
+      <ColumnSettingsDialog open={open} onOpenChange={setOpen} columns={columns} baseState={BASE_STATE} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES}>
+        <div className="flex w-[52rem] flex-col gap-2" data-chooser-state={JSON.stringify(columnState)}>
+          <div ref={gridContainer} style={{ height: 120 }} onKeyDown={(event) => {
+            if (event.altKey && event.key === "c") { event.preventDefault(); setMenuOpen(true) }
+          }}>
+            <DataGrid store={store} columns={columns} label="Chosen" columnState={columnState} onColumnStateChange={setColumnState} rules={{ columns: RULES }} renderContextMenu={() => <ContextMenuItem onClick={() => setMenuOpen(true)}>Columns…</ContextMenuItem>} />
+          </div>
+          <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "self-start")}>
+            open chooser
+          </DialogTrigger>
+          <button type="button" className="self-start" onClick={() => popout.open()}>pop out chooser</button>
+          <PanelPopout popout={popout}>
+            {popout.isOpen && <button type="button" onClick={popout.close}>bring chooser back</button>}
+            <ColumnSettingsPanel columns={columns} baseState={BASE_STATE} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} />
+          </PanelPopout>
+        </div>
+      </ColumnSettingsDialog>
+      <ColumnSettingsDialog open={menuOpen} onOpenChange={setMenuOpen} contentProps={contentProps} columns={columns} baseState={BASE_STATE} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} children={null} />
+    </>
   )
 }

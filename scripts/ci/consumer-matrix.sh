@@ -57,6 +57,7 @@ retry bunx "$shadcn" add -y -o -c "$fixture" "${items[@]}"
 
 mkdir -p "$fixture/src/smoke"
 cp "$root"/fixtures/smoke/scenes/*.tsx "$fixture/src/smoke/" 2>/dev/null || true
+cp "$root/fixtures/smoke/dialog-focus/${style%%-*}.tsx" "$fixture/src/smoke/column-menu-focus.tsx"
 # Exercise the same copyable recipes shown in the docs against every installed style.
 bun -e 'const { consumerImports } = await import(process.argv[1] + "/scripts/site/build.ts"); await Bun.write(process.argv[2] + "/src/smoke/recipes/blotter-actions.tsx", consumerImports(await Bun.file(process.argv[1] + "/playground/src/demos/blotter-actions.tsx").text()))' "$root" "$fixture"
 bun -e 'const { consumerImports } = await import(process.argv[1] + "/scripts/site/build.ts"); await Bun.write(process.argv[2] + "/src/smoke/recipes/audit-trail.tsx", consumerImports(await Bun.file(process.argv[1] + "/playground/src/demos/audit-trail.tsx").text()))' "$root" "$fixture"
