@@ -435,6 +435,90 @@ test("a workspace docks its panels, keeps their keys apart, saves, restores, and
   expect(errors).toEqual([])
 })
 
+test("workspace default tabs close native overflow and dispose custom overflow consumers", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='workspace'] [data-ws-saves]")
+  const popup = page.locator(".dv-tabs-overflow-container")
+  const open = async () => {
+    await scene.locator(".dv-tabs-overflow-dropdown-root").first().click()
+    await expect(popup).toBeVisible()
+  }
+
+  // Exercise the released no-tabComponent call shape against actual Dockview.
+  await scene.getByRole("button", { name: "default tabs", exact: true }).click()
+  await scene.getByRole("button", { name: "add overflow books", exact: true }).click()
+  await open()
+  const close = popup.getByRole("button", { name: /^Close Overflow book/ }).first()
+  const title = (await close.getAttribute("aria-label"))!.replace(/^Close /, "")
+  await close.focus()
+  await page.keyboard.press("Space")
+  await expect(popup).toHaveCount(0)
+  await expect(scene.getByRole("tab", { name: title, exact: true })).toHaveCount(0)
+
+  // Observe arbitrary consumer effects in the real overflow insertion/removal path.
+  await scene.getByRole("button", { name: "observe tabs", exact: true }).click()
+  for (let i = 0; i < 2; i++) {
+    await open()
+    const rows = await popup.locator(".dv-tab").count()
+    expect(rows).toBeGreaterThan(0)
+    await expect(scene).toHaveAttribute("data-ws-overflow-alive", String(rows))
+    await page.keyboard.press("Escape")
+    await expect(popup).toHaveCount(0)
+    await expect(scene).toHaveAttribute("data-ws-overflow-alive", "0")
+  }
+
+  await open()
+  await expect.poll(async () => Number(await scene.getAttribute("data-ws-overflow-alive"))).toBeGreaterThan(0)
+  // Invoke the real API without an outside pointerdown dismissing overflow first.
+  await scene.getByRole("button", { name: "clear workspace", exact: true }).evaluate((button: HTMLButtonElement) => button.click())
+  await expect(scene).toHaveAttribute("data-ws-overflow-alive", "0")
+  await expect(scene.getByRole("tab")).toHaveCount(0)
+  await page.keyboard.press("Escape")
+})
+
+test("workspace floating overflow menus remain above native popup layers", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 760 })
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='workspace'] [data-ws-saves]")
+  const workspace = scene.locator("[data-slot='tradecn-workspace']")
+  await scene.getByRole("button", { name: "floating tab controls", exact: true }).click()
+  const floating = workspace.locator(".dv-groupview-floating")
+  await expect(floating).toHaveCount(1)
+  await floating.locator(".dv-tabs-overflow-dropdown-root").click()
+  const overflow = page.locator(".dv-tabs-overflow-container")
+  await expect(overflow).toBeVisible()
+  const trigger = overflow.getByRole("button", { name: /^Actions for / }).first()
+  const title = (await trigger.getAttribute("aria-label"))!.replace(/^Actions for /, "")
+  await trigger.click()
+  const menu = page.getByRole("menu")
+  await expect(menu).toBeVisible()
+
+  // Dockview still doubles the floating inline layer; its stack stays local to Workspace.
+  const stacking = await workspace.evaluate((root) => {
+    const popup = root.querySelector(".dv-popover-anchor")!.firstElementChild!
+    const menu = document.querySelector('[role="menu"]')!
+    return {
+      isolation: getComputedStyle(root).isolation,
+      popupZ: Number(getComputedStyle(popup).zIndex),
+      menuZ: Number(getComputedStyle(menu).zIndex),
+      menuInsideWorkspace: root.contains(menu),
+    }
+  })
+  expect(stacking.isolation).toBe("isolate")
+  expect(stacking.menuInsideWorkspace).toBe(false)
+  expect(stacking.popupZ).toBeGreaterThan(stacking.menuZ)
+  expect(stacking.menuZ).toBe(50)
+
+  const close = menu.getByRole("menuitem", { name: "Close panel", exact: true })
+  const box = (await close.boundingBox())!
+  const menuHit = await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('[role="menu"]'), { x: box.x + box.width / 2, y: box.y + box.height / 2 })
+  expect(menuHit).toBe(true)
+  await close.click()
+  await expect(menu).toHaveCount(0)
+  await expect(workspace.getByRole("tab", { name: title, exact: true })).toHaveCount(0)
+  await expect(floating).toHaveCount(1)
+})
+
 test("workspace tab controls retain focus, native keys and shared state without starting a dock drag", async ({ page }) => {
   await page.goto("/")
   const scene = page.locator("[data-workspace-controls]")

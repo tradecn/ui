@@ -508,6 +508,22 @@ describe("a theme on the site", () => {
     for (const [path, html] of pages) expect(html, path).toMatch(/ data-frame="(card|desk)">/)
   })
 
+  it("delivers the versioned Workspace theme to every preview, including indirect consumers", async () => {
+    const demos = await readDemos(resolve(root, "playground/src/demos"))
+    const previews = { demos, embed: await readEmbed(fakeEmbed()) }
+    const versioned: Registry = { ...registry, items: registry.items.map((item) => item.name === "workspace" ? {
+      ...item, css: { "@layer components": { ".dockview-theme-tradecn": { "--dv-overlay-z-index": "17" } } },
+    } : item) }
+    const pages = new Map(previewPages(versioned, registry, previews, templateValues(registry, version), template(PREVIEW_TEMPLATE), new Set(["workspace-tab-controls"])).map((page) => [page.path, page.html]))
+    for (const name of ["workspace", "workspace-tab-controls", DESK_DEMO, "flash-cell"]) {
+      const html = pages.get(`preview/${name}/index.html`)!
+      expect(html).toContain(".dockview-theme-tradecn {\n    --dv-overlay-z-index: 17;")
+      expect(html).not.toContain("--dv-overlay-z-index: 30;")
+    }
+    const withoutWorkspace = { ...versioned, items: versioned.items.filter((item) => item.name !== "workspace") }
+    for (const page of previewPages(withoutWorkspace, registry, previews, templateValues(registry, version), template(PREVIEW_TEMPLATE))) expect(page.html).not.toContain(".dockview-theme-tradecn")
+  })
+
   it("writes no preview pages without an embed build", async () => {
     const values = templateValues(registry, version)
     expect(previewPages(registry, registry, { demos: new Map(), embed: null }, values, template(PREVIEW_TEMPLATE))).toEqual([])

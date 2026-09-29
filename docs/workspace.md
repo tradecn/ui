@@ -139,6 +139,8 @@ Import tab parts and `useWorkspaceTab` from `@/components/ui/workspace`. Render 
 
 Each part accepts its native props, ref and class name. An explicit `aria-label` or `aria-labelledby` replaces the close button's generated name. Wrap custom inputs and menu triggers in `WorkspaceTabActions`; child handlers run before its bubbling event guards. A plain `WorkspaceTabClose` preserves the default tab's pointer activation before closing. Put it inside Actions to keep an inactive panel inactive.
 
+Actions stops contained pointer-down, mouse-down, touch-start, click and drag-start events before they reach the dock. Document and window bubble listeners also miss those events; capture listeners still receive them. Clicking a header action leaves an existing dock overflow popup open.
+
 Dockview owns the outer `role="tab"`, its id, roving focus, selection and tabpanel association. `WorkspaceTab` props and ref address the inner div. Rename the actual tab with `setTitle`; an `aria-label` on that inner div does not rename the outer tab. Ordinary title and close parts subscribe only to title changes.
 
 Roving focus applies to the outer tabs. Close buttons and controls inside `WorkspaceTabActions` keep their native Tab stops, including on inactive tabs; Actions isolates events, not keyboard navigation. For the [APG tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/), where Tab leaves the tablist from its active tab, omit inline controls and put panel actions or fields in `PanelHeader` or the panel body.
@@ -151,7 +153,7 @@ Create panels with `WorkspaceApi.addPanel` to register their kind, saved state a
 
 A panel can have header and overflow renderers mounted at once. Use `useId()` for control/label ids, and keep shared values in panel state. Component-local state belongs to each rendered tab and resets when that instance unmounts. Closing overflow disposes its renderers, subscriptions and consumer effects. For managed panels, use `setTitle` to keep the record, dock, tab name and overflow title synchronized; a direct raw Dockview title write is overwritten by the next workspace store write.
 
-In Dockview 8.3.1, removing a panel through a menu, Actions control or API leaves an empty overflow row. It stays until the popup closes. A standalone `WorkspaceTabClose` lets the native row dismiss the popup. Use Space to activate that button in overflow. Dockview handles Enter by dismissing the popup before the button can act.
+In Dockview 8.3.1, removing a panel leaves an empty overflow row until the popup closes. A standalone `WorkspaceTabClose` lets the native row dismiss the popup. Use Space to activate that button in overflow. Dockview handles Enter by dismissing the popup before the button can act.
 
 ### Panels by kind
 
@@ -290,7 +292,9 @@ The registry appends `.dockview-theme-tradecn` to your stylesheet, mapping dockv
 
 These mappings follow light, dark, and tradecn themes. `scripts/workspace-theme.test.ts` checks coverage against the installed dockview light theme, including variables added by upgrades.
 
-Dock overlays use z-index `30`, below shadcn menus and dialogs at `50`. Optional tab-group colors configured through `api.dockview` use `--chart-1` through `--chart-5`, with grey using `--muted-foreground`. Installation also adds `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` if missing.
+Dock overlays start at z-index `30`; floating groups increase that value, and their overflow popups use twice the group's value. The tab-controls example adds `isolate` to `Workspace`, keeping those native layers in the workspace's stacking context while its portaled menus render above them. Use the same setup when composing tab menus, and choose the workspace's position in your application's layers.
+
+Set `--dv-overlay-z-index` on `.dockview-theme-tradecn` to change the base. The floating-container rule replaces Dockview's self-referencing declaration with the root value. Optional tab-group colors configured through `api.dockview` use `--chart-1` through `--chart-5`, with grey using `--muted-foreground`. Installation also adds `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` if missing.
 
 ### The dock's own API
 

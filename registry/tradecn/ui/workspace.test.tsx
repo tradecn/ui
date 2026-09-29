@@ -400,6 +400,24 @@ describe("Workspace", () => {
     outer.remove()
   })
 
+  it("releases a missed pointer gesture before the next title or control gesture", async () => {
+    function ActionTab() {
+      return <WorkspaceTab><WorkspaceTabTitle /><WorkspaceTabActions><button type="button">Custom action</button></WorkspaceTabActions></WorkspaceTab>
+    }
+    await mount({ tabComponent: ActionTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    const button = screen.getByRole("button", { name: "Custom action" })
+    const tab = screen.getByRole("tab", { name: "book" })
+    fireEvent.pointerDown(button)
+    // A release inside an iframe never reaches this document. The next gesture belongs to the title.
+    fireEvent.pointerDown(tab)
+    expect(fireEvent.dragStart(tab)).toBe(true)
+    fireEvent.pointerDown(button)
+    fireEvent.pointerDown(button)
+    expect(fireEvent.dragStart(tab)).toBe(false)
+    fireEvent.pointerUp(document)
+    expect(fireEvent.dragStart(tab)).toBe(true)
+  })
+
   it("keeps child drag handlers and defaults without forwarding their drag to Dockview", async () => {
     const childDrag = vi.fn()
     const actionDrag = vi.fn()

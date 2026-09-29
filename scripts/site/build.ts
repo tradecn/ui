@@ -20,8 +20,9 @@ import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { parseArgs } from "node:util"
 import { Marked } from "marked"
-import { isColorValue } from "../lib/registry"
+import { isColorValue, registryCss, workspaceThemeCss } from "../lib/registry"
 import { highlightLines } from "./highlight"
+export { registryCss } from "../lib/registry"
 
 export const SITE_URL = "https://tradecn.dev"
 export const REPO_URL = "https://github.com/tradecn/ui"
@@ -1100,16 +1101,6 @@ export function consumerPath(file: RegistryFile): string {
   return dir ? `${dir}/${base}` : base
 }
 
-/** A registry `css` block as the stylesheet text the CLI appends: at-rules and selectors nested, declarations inside. */
-export function registryCss(css: Record<string, unknown>, depth = 0): string {
-  const pad = "  ".repeat(depth)
-  return Object.entries(css)
-    .map(([key, value]) =>
-      typeof value === "string" ? `${pad}${key}: ${value};` : `${pad}${key} {\n${registryCss(value as Record<string, unknown>, depth + 1)}\n${pad}}`,
-    )
-    .join("\n")
-}
-
 /**
  * The Installation section of an item's page, in shadcn's shape. Command is `shadcn add` with the tag pinned, under
  * the reader's package manager. Manual is the same install by hand, in numbered steps: the packages, the shadcn
@@ -1368,7 +1359,12 @@ export function previewPages(registry: Registry, themeSource: Registry, previews
   const themes = siteThemes(themeSource)
   const site = themes[0]!
   const others = previewThemePalettes(themes)
-  const styles = embed.styles.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")
+  // Any demo can contain a workspace. Use this release's registry, not the current site's palette source.
+  const workspaceCss = workspaceThemeCss(registry)
+  const styles = [
+    ...embed.styles.map((href) => `<link rel="stylesheet" href="${href}">`),
+    ...(workspaceCss ? [`<style>${workspaceCss}</style>`] : []),
+  ].join("\n")
   // A demo is an item's, one the docs frame (a page's own, or a variant a page places), or the desk's; a stray demo that is none of those gets no page.
   return [...previews.demos.values()]
     .filter((demo) => demo.name === DESK_DEMO || registry.items.some((item) => item.name === demo.name) || framed.has(demo.name))

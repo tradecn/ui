@@ -12,7 +12,7 @@ const PANELS = { quotes: Quotes }
 export default function WorkspaceTabControlsDemo() {
   return (
     <Workspace
-      className="h-64 rounded-md border border-border"
+      className="isolate h-64 rounded-md border border-border"
       panels={PANELS}
       tabComponent={QuoteTab}
       watermark="No panels."

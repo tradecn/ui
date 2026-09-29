@@ -748,12 +748,14 @@ export function WorkspaceTabActions({ className, onPointerDownCapture, onPointer
       }
       const cleanup = () => {
         doc.removeEventListener("dragstart", stopDrag, true)
+        doc.removeEventListener("pointerdown", cleanup, true)
         doc.removeEventListener("pointerup", cleanup, true)
         doc.removeEventListener("pointercancel", cleanup, true)
         doc.defaultView?.removeEventListener("blur", cleanup)
         release.current = null
       }
       doc.addEventListener("dragstart", stopDrag, true)
+      doc.addEventListener("pointerdown", cleanup, true)
       doc.addEventListener("pointerup", cleanup, true)
       doc.addEventListener("pointercancel", cleanup, true)
       doc.defaultView?.addEventListener("blur", cleanup)
