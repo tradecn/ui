@@ -4,11 +4,12 @@ import { NUMERIC_CLASS } from "@/lib/format"
 
 // Three samples for checkContract. The kept one follows the contract, a word for a cue, a field, a select and SVG
 // text among it. The unseen one says its direction only to a screen reader, through a label it points to, a native
-// label and a transparent sign: that passes by default and fails under visibleCue. The broken one breaks three rules
-// on purpose: numbers colored up with nothing else saying so (in text, in a field, in SVG text, with units, behind a
-// description that points at nothing and a hidden sign); an icon button and a field with no name; and text under the
-// floor, an SVG label drawn at half size and small print the spec shrinks at run time, a select's among it. It is
-// marked data-contract-ignore, so the page-wide check leaves it out.
+// label and a transparent sign, and carries a grid rule's highlight that its description explains: that passes by
+// default and fails under visibleCue. The broken one breaks three rules on purpose: numbers colored up with nothing
+// else saying so (in text, in a field, in SVG text, with units, behind a description that points at nothing, a label
+// that names no direction and a hidden sign); an icon button and a field with no name; and text under the floor, an
+// SVG label drawn at half size and small print the spec shrinks at run time, a select's among it. It is marked
+// data-contract-ignore, so the page-wide check leaves it out.
 
 export function AgentKitScene() {
   const id = useId()
@@ -53,6 +54,9 @@ export function AgentKitScene() {
         <span data-cue="transparent" className={cn(NUMERIC_CLASS, "text-up")}>
           <span className="opacity-0">+</span>0-05
         </span>
+        <span data-cue="rule" data-rule="rich" data-tone="up" aria-description="Rich" className={cn(NUMERIC_CLASS, "text-up")}>
+          100.25
+        </span>
       </div>
       <div data-contract-sample="broken" data-contract-ignore="" className="flex items-center gap-3">
         <span className={cn(NUMERIC_CLASS, "text-up")}>0-01</span>
@@ -64,6 +68,9 @@ export function AgentKitScene() {
         </svg>
         <span aria-describedby={`${id}-nowhere`} data-cue="dangling" className={cn(NUMERIC_CLASS, "text-up")}>
           0-03
+        </span>
+        <span aria-label="Price" data-cue="named" className={cn(NUMERIC_CLASS, "text-up")}>
+          0-06
         </span>
         <span data-cue="hidden" className={cn(NUMERIC_CLASS, "text-up")}>
           <span hidden>+</span>0-04

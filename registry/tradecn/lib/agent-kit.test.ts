@@ -150,6 +150,20 @@ describe("checkContract", () => {
     expect(report.findings.map((f) => f.where)).toEqual(["page button[data-id=decor]", "page input[data-id=own-value]"])
   })
 
+  it("holds a grid or a list box to a name of its own, never its cells' text", () => {
+    const root = mount(
+      [
+        "<div>",
+        '<div role="grid" tabindex="0" data-id="bare-grid"><div role="row"><div role="gridcell">99-16</div></div></div>',
+        '<div role="grid" tabindex="0" aria-label="Orders"><div role="row"><div role="gridcell">99-17</div></div></div>',
+        '<div role="listbox" data-id="bare-list"><div role="option">UST 10Y</div></div>',
+        "</div>",
+      ].join(""),
+    )
+    const report = checkContract({ root, rules: ["name"] })
+    expect(report.findings.map((f) => f.where)).toEqual(["page div[data-id=bare-grid]", "page div[data-id=bare-list]"])
+  })
+
   it("never puts a password in a finding", () => {
     const root = mount('<div><input type="password" value="hunter2" style="font-size: 10px"></div>')
     const report = checkContract({ root, rules: ["floor", "name"] })

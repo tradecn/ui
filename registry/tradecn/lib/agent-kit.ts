@@ -224,10 +224,19 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     // A value with a number in it is held to the rule whatever its units say. A word that states the direction is a
     // cue of its own, the way a sign or an arrow is.
     const saysDirection = /\b(?:up|down|buys?|sells?|bought|sold|bids?|asks?|offers?|offered|long|short|paid|given|gains?|loss(?:es)?|rises?|falls?|higher|lower)\b/i
+    // A cue in marks or words: a leading sign, a sign on a number further in (a currency symbol may sit between), an
+    // arrow, or a word that states the direction. A dash inside a number, as in 99-16, is no sign.
+    const cued = (text: string) => /^[+\-−]/.test(text) || /[^\w.,][+\-−][$€£¥₹]?\d/.test(text) || /[▲▼△▽↑↓]/.test(text) || saysDirection.test(text)
     const cell = "[role=gridcell], [role=cell], [role=row], td, th, tr"
-    // An accessible label or description that says something: its own, one it points to, or a native label.
-    const labelled = (node: Element | null) =>
-      Boolean(node && [node.getAttribute("aria-label"), node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-labelledby"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text?.trim()))
+    // An accessible label or description that states the direction: its own, one it points to, or a native label.
+    const says = (node: Element | null) =>
+      Boolean(node && [node.getAttribute("aria-label"), node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-labelledby"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)))
+    // A grid rule's tone is the rule's color, not a direction. The rule names itself in data-rule and says what it
+    // matched in its description, the channel scripts/color.test.ts records for it.
+    const ruled = (el: Element) => {
+      const rule = el.closest("[data-rule]")
+      return Boolean(rule && ((rule.getAttribute("aria-description") ?? "").trim() || refs(rule, "aria-describedby")))
+    }
     // What a run shows, in order: its text, with a field's value where the field sits. Hidden parts reach nobody, so
     // they show nothing. Asked for what a sighted reader sees, it also leaves out screen-reader-only runs (a clipped
     // box of a pixel or less) and transparent ones.
@@ -257,18 +266,18 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       let run: Element = tint?.node ?? el
       if (ink) for (let depth = 0; depth < 3 && run.parentElement && run.parentElement !== scope && style(run.parentElement)[ink.property] === ink.value; depth++) run = run.parentElement
       const seen = shown(run, Boolean(options.visibleCue)).trim()
-      if (/^[+\-−]/.test(seen) || /[▲▼△▽↑↓]/.test(seen) || saysDirection.test(seen)) continue
-      if (!options.visibleCue && (el.closest("[data-direction], [data-side]") || labelled(el) || labelled(el.closest(cell)))) continue
+      if (cued(seen)) continue
+      if (!options.visibleCue && (el.closest("[data-direction], [data-side]") || ruled(el) || says(el) || says(el.closest(cell)))) continue
       find("direction", el, `painted ${painted} with no sign, arrow, word${options.visibleCue ? "" : ", data-direction or label"} saying the direction`)
     }
   }
 
   if (rules.has("name")) {
     const control =
-      "button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=option], [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox]"
-    // A field's value is not its name, and neither is a combobox's or a slider's text: only the other controls take
-    // a name from their content, and only from the part of it that isn't hidden.
-    const authorNamed = "input, select, textarea, [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox]"
+      "button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=option], [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree]"
+    // A field's value is not its name, and neither is the text inside a combobox, a slider, a grid or a list box: only
+    // the other controls take a name from their content, and only from the part of it that isn't hidden.
+    const authorNamed = "input, select, textarea, [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree]"
     for (const el of elements) {
       if (!el.matches(control) || el.closest("[aria-hidden=true], [inert]") || hidden(el)) continue
       report.checked.name++
