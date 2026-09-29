@@ -144,9 +144,9 @@ Exports: `RulesEditor`, `RulesEditorItem`, `RulesEditorColumn`, `RulesEditorOper
 
 ### Session Guard (`session-guard`)
 
-A session ends and the trader must not lose a half-typed ticket. The guard reads when the session expires and does three things with it: in the warning window a banner with a countdown and a button that asks for more time; at expiry a dialog that is a hotkey wall, blocking every action underneath and unmounting nothing, so drafts and layouts stay; and a readout of the phase for the status bar. It holds no token and knows no protocol: the consumer's sign-in is the dialog's children, and onReauthenticate is how it is asked.
+Compose session warnings, sign-in dialogs and custom controls around one expiry and one shared request. Keep surrounding drafts mounted while the application renews the session. SessionStatus provides an independent phase and countdown readout.
 
-Exports: `SessionGuard`, `SessionStatus`, `useSessionStatus`, `sessionStatus`, `DEFAULT_SESSION_GUARD_LABELS`, `DEFAULT_WARN_MS`.
+Exports: `SessionGuardProvider`, `SessionGuardWarning`, `SessionGuardWarningText`, `SessionGuardRemaining`, `SessionGuardReauthenticate`, `SessionGuardActionLabel`, `SessionGuardError`, `SessionGuardDialog`, `useSessionGuard`, `SessionStatus`, `useSessionStatus`, `sessionStatus`, `DEFAULT_SESSION_GUARD_LABELS`, `DEFAULT_WARN_MS`.
 
 ### Sparkline (`sparkline`)
 
