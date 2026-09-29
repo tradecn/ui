@@ -1876,6 +1876,10 @@
             "description": "The root query input."
           },
           {
+            "title": "ColumnChooserAnnouncer",
+            "description": "Announces accepted column edits through a polite status region."
+          },
+          {
             "title": "ColumnChooserHiddenCount",
             "description": "The full hidden-column count."
           },
@@ -1901,11 +1905,11 @@
           },
           {
             "title": "ColumnChooserResetWidth",
-            "description": "Resets one width override."
+            "description": "Restores one column's baseline width."
           },
           {
             "title": "ColumnChooserMove",
-            "description": "Moves within the current frozen group."
+            "description": "Moves to a presented neighbor within the current frozen group."
           },
           {
             "title": "ColumnChooserResetAll",

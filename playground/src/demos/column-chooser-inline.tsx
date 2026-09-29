@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { ColumnRule } from "@/registry/tradecn/lib/grid-rules"
-import { ColumnChooser, ColumnChooserFrozen, ColumnChooserHiddenCount, ColumnChooserItem, ColumnChooserMove, ColumnChooserName, ColumnChooserResetAll, ColumnChooserResetWidth, ColumnChooserRule, ColumnChooserSearch, ColumnChooserWidth, useColumnChooser, useColumnChooserItem } from "@/registry/tradecn/ui/column-chooser"
+import { ColumnChooser, ColumnChooserAnnouncer, ColumnChooserFrozen, ColumnChooserHiddenCount, ColumnChooserItem, ColumnChooserMove, ColumnChooserName, ColumnChooserResetAll, ColumnChooserResetWidth, ColumnChooserRule, ColumnChooserSearch, ColumnChooserWidth, useColumnChooser, useColumnChooserItem } from "@/registry/tradecn/ui/column-chooser"
 import type { ColumnDef, ColumnState } from "@/registry/tradecn/ui/data-grid"
 
 type Quote = { id: string; client: string; price: number }
@@ -12,15 +12,18 @@ const columns: ColumnDef<Quote>[] = [
 const rules: ColumnRule[] = [{ id: "par", column: "price", when: { op: "gte", value: "100" }, tone: "up", label: "At or above par" }]
 const descriptions: Record<string, string> = { id: "Request identifier", client: "Counterparty name", price: "Quoted price" }
 
+const baseState: ColumnState = { order: [], widths: { price: 144 }, hidden: ["client"] }
+
 export default function ColumnChooserInlineDemo() {
-  const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: { price: 144 }, hidden: ["client"] })
-  return <ColumnChooser columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={rules} className="w-xl max-w-full"><ColumnCards /></ColumnChooser>
+  const [columnState, setColumnState] = useState<ColumnState>(baseState)
+  return <ColumnChooser baseState={baseState} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} rules={rules} className="w-xl max-w-full"><ColumnCards /></ColumnChooser>
 }
 
 function ColumnCards() {
   const { shown, labels } = useColumnChooser()
   return (
     <>
+      <ColumnChooserAnnouncer />
       <ColumnChooserSearch className="max-w-none" />
       <div className="grid gap-3 sm:grid-cols-2">
         {shown.map((row) => <ColumnChooserItem key={row.key} columnKey={row.key} className="flex-col items-stretch border-border p-3">

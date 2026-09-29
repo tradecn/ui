@@ -5,11 +5,11 @@ Compose controls for one grid's column visibility, order, and widths.
 ## Usage
 
 ```tsx
-import { useState, type ReactNode } from "react"
+import { useState, type ComponentProps, type ReactNode } from "react"
 import { createInstrumentFormatter, formatNotional } from "@/lib/format"
 import { createRowStore } from "@/lib/row-store"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ColumnChooser, ColumnChooserFrozen, ColumnChooserHiddenCount, ColumnChooserItem, ColumnChooserMove, ColumnChooserName, ColumnChooserResetAll, ColumnChooserResetWidth, ColumnChooserRule, ColumnChooserSearch, ColumnChooserVisibility, ColumnChooserWidth, DEFAULT_COLUMN_CHOOSER_LABELS, useColumnChooser, type ColumnChooserProps } from "@/components/ui/column-chooser"
+import { ColumnChooser, ColumnChooserAnnouncer, ColumnChooserFrozen, ColumnChooserHiddenCount, ColumnChooserItem, ColumnChooserMove, ColumnChooserName, ColumnChooserResetAll, ColumnChooserResetWidth, ColumnChooserRule, ColumnChooserSearch, ColumnChooserVisibility, ColumnChooserWidth, DEFAULT_COLUMN_CHOOSER_LABELS, useColumnChooser, type ColumnChooserProps } from "@/components/ui/column-chooser"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/components/ui/data-grid"
 
 type Quote = { id: string; client: string; size: number; price: number }
@@ -46,12 +46,12 @@ export default function ColumnChooserDemo() {
   )
 }
 
-export function ColumnSettingsDialog<T>({ open, onOpenChange, className, children, ...props }: Omit<ColumnChooserProps<T>, "children"> & { open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) {
+export function ColumnSettingsDialog<T>({ open, onOpenChange, className, contentProps, children, ...props }: Omit<ColumnChooserProps<T>, "children"> & { open: boolean; onOpenChange: (open: boolean) => void; contentProps?: Omit<ComponentProps<typeof DialogContent>, "children">; children: ReactNode }) {
   const labels = { ...DEFAULT_COLUMN_CHOOSER_LABELS, ...props.labels }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {children}
-      <DialogContent className={`max-h-[calc(100%-2rem)] grid-cols-1 overflow-auto sm:max-w-lg ${className ?? ""}`}>
+      <DialogContent {...contentProps} className={contentProps?.className ?? `max-h-[calc(100%-2rem)] grid-cols-1 overflow-auto sm:max-w-lg ${className ?? ""}`}>
         <DialogHeader><DialogTitle>{labels.title}</DialogTitle><DialogDescription>{labels.description}</DialogDescription></DialogHeader>
         <ColumnSettingsPanel {...props} />
       </DialogContent>
@@ -67,6 +67,7 @@ export function ColumnSettings() {
   const { shown, labels } = useColumnChooser()
   return (
     <>
+      <ColumnChooserAnnouncer />
       <div className="flex flex-wrap items-center gap-2">
         <ColumnChooserSearch />
         <ColumnChooserHiddenCount />
@@ -123,6 +124,7 @@ Your Dialog (optional)
     │   ├── DialogTitle
     │   └── DialogDescription
     └── ColumnChooser
+        ├── ColumnChooserAnnouncer (optional)
         ├── Your toolbar
         │   ├── ColumnChooserSearch
         │   ├── ColumnChooserHiddenCount
@@ -159,6 +161,8 @@ Use cards to place descriptions beside column settings and move actions below ea
 | `columns` | `ColumnDef<T>[]` | Required | Column definitions shared with the grid. |
 | `columnState` | `ColumnState` | Required | Controlled order, width overrides, and hidden keys. |
 | `onColumnStateChange` | `(state: ColumnState) => void` | Required | Accept edits into the state shared with the grid. |
+| `baseState` | `ColumnState` | Empty state | Shared defaults for reset and default-state comparisons. |
+| `presented` | `readonly string[]` | Search-result keys | Column keys in your collection's render order. |
 | `children` | `ReactNode` | Required | Your controls, collection, and surrounding content. Conditional content is supported. |
 | `rules` | `ColumnRule[]` | Omitted | Highlight rules shown beside their columns. |
 | `labels` | `Partial<ColumnChooserLabels>` | Default labels | Words used by readings and controls. |
@@ -172,13 +176,14 @@ Use cards to place descriptions beside column settings and move actions below ea
 |---|---|---|
 | `ColumnChooserItem` | Required `columnKey: string`, `children: ReactNode`; native `div` props | Coordinates drag, keyboard reorder, and focus for one column. |
 | `ColumnChooserSearch` | Installed Input props except `value` and `defaultValue` | Reads and writes the root's query. |
+| `ColumnChooserAnnouncer` | Native `span` props except `children` | Announces accepted edits through a polite status region. Mount once per chooser. |
 | `ColumnChooserHiddenCount` | Native `span` props except `children` | Prints the hidden count and its label. |
 | `ColumnChooserVisibility` | Installed Checkbox props except `checked`, `defaultChecked`, and `indeterminate` | Reads and writes the item's visibility. |
 | `ColumnChooserName` | Native `span` props except `children` | Prints the column name, with the full name as its title. |
 | `ColumnChooserFrozen` | Installed Badge props except `children` | Prints the frozen label for frozen columns. |
 | `ColumnChooserRule` | Required `ruleIndex: number`; installed Badge props except `children` | Prints the rule at this index in the item’s rule readings. Missing rules render nothing. |
 | `ColumnChooserWidth` | Native `span` props except `children` | Prints the width in pixels with numeric typography. |
-| `ColumnChooserResetWidth` | Required `children`; installed Button props | Removes the item's width override. Invisible, disabled, and outside the tab order without an override. |
+| `ColumnChooserResetWidth` | Required `children`; installed Button props | Restores the item's baseline width. Invisible, disabled, and outside the tab order when it already matches. |
 | `ColumnChooserMove` | Required `direction: "up" \| "down"`, `children`; installed Button props | Moves within the column's frozen group. Disabled at its boundary. |
 | `ColumnChooserResetAll` | Required `children`; installed Button props | Restores the default column state. Disabled when already at the default. |
 
@@ -188,17 +193,17 @@ Search defaults to the name in `labels.search`; visibility uses `Show <column>`.
 
 Match custom visible text in the accessible name. Pass an `aria-label` containing it, such as `Earlier: Client`, or use `aria-labelledby`. Reset all takes its name from its children. Use a separate data attribute for application markers. The root and item reserve `data-slot` for event and focus ownership.
 
-Search, click, keyboard, and drag handlers run before the corresponding chooser behavior. Call `event.preventDefault()` to cancel that behavior. A visibility callback receives the installed Checkbox's arguments; use the item hook for a replacement control. Supply an accessible name when replacing an interactive part.
+Search, click, keyboard, and drag handlers run before the corresponding chooser behavior. Call `event.preventDefault()` to cancel that behavior; cancel a drag move in `onDrop`, since preventing `dragover` is the browser's signal to accept a drop. A visibility callback receives the installed Checkbox's arguments; use the item hook for a replacement control. Supply an accessible name when replacing an interactive part.
 
 ### Hooks
 
-`useColumnChooser()` returns `ColumnChooserState`: full `rows`, filtered `shown`, `query`, `setQuery`, `labels`, `hiddenCount`, `isDefault`, and `reset`. Each `ColumnChooserEntry` has `key`, `name`, `visible`, `frozen`, `width`, `resized`, and `rules`. Each rule reading contains its source `rule` and computed `description`.
+`useColumnChooser()` returns `ColumnChooserState`: full `rows`, filtered `shown`, normalized `presented`, `query`, `setQuery`, `labels`, `hiddenCount`, `isDefault`, and `reset`. Each `ColumnChooserEntry` has `key`, `name`, `visible`, `frozen`, `width`, `resized`, and `rules`. `resized` compares the width with `baseState`; each rule reading contains its source `rule` and computed `description`.
 
 `useColumnChooserItem()` returns `ColumnChooserItemState`: `row`, `canMoveUp`, `canMoveDown`, `dragging`, `setVisible(visible)`, `move(-1 | 1)`, and `resetWidth()`. Both hooks require their named owner. The item coordinates drag and focus even when you replace its controls.
 
 ### The grid's state is the only state
 
-The chooser emits `ColumnState` edits without applying or persisting them itself. Accept each edit into the state shared with the grid. It keeps transient search and drag state. Replace changed objects and arrays: rows are memoized by `columns`, `columnState`, and `rules` references.
+The chooser emits complete `ColumnState` snapshots without applying or persisting them itself. Accept each edit into the state shared with the grid. Initialize that state from your defaults and pass the same defaults as `baseState`; the chooser does not merge defaults into the grid's state. It keeps transient search, drag and announcement state. Replace changed objects and arrays: readings are memoized by their input references.
 
 `chooserRows(columns, columnState, rules)` returns `ChooserRow<T>[]`: frozen columns first, then the rest, ordered by `columnState.order` within each group. Unlisted keys follow in definition order. State-hidden columns keep their places; definition-hidden columns are excluded. The helper retains the source column definition for headless consumers.
 
@@ -208,13 +213,41 @@ Search matches the column name or key by case-insensitive substring, ignoring su
 
 `ColumnChooserVisibility` is named `Show <column>` by default. `setColumnVisible` adds an unchecked column's key to `hidden` or removes a checked one's key. The hidden count includes state-hidden columns even when search excludes them; definition-hidden columns do not count.
 
-`ColumnChooserResetAll` emits `EMPTY_COLUMN_STATE`: `{ order: [], widths: {}, hidden: [] }`. `isDefaultColumnState` checks that all three fields are empty. Resetting leaves the search query unchanged.
+`ColumnChooserResetAll` restores `baseState`, defaulting to `EMPTY_COLUMN_STATE`: `{ order: [], widths: {}, hidden: [] }`. Resetting leaves the search query unchanged. The root's `isDefault` compares effective order, visibility and widths for all known columns, including definition-hidden ones whose settings may be used later. A move away and back is default again, even if the incoming state contains a complete order.
+
+An emitted edit removes retired keys and normalizes settings that match the baseline back to its representation. Definition-hidden settings remain known and are preserved. Loading state, changing defaults or issuing a no-op command emits nothing. The standalone `isDefaultColumnState` helper retains its raw check for three empty fields; use the root reading for baseline comparisons.
 
 ### Reorder
 
-Drag an item onto another to take its place, shifting the items between them. Alt+Up/Down on an item or its controls moves it one place; move buttons provide the same operation. Each root owns its drag session and rejects drops from another chooser or external text.
+Drag an item onto another to take its place, shifting the items between them. Alt+Up/Down and move buttons use the next presented column on the same side of the frozen boundary. By default, those neighbors are the current search results, so moving a matching column changes the displayed order. Each root owns its drag session and rejects drops from another chooser or external text.
 
-`moveColumnTo` and `moveColumnBy` refuse moves across the frozen boundary. Moves use the full chooser order, including state-hidden columns and search-excluded rows, and write that order to the new state. A refused move emits no change. Presenting a different order does not change these grid-order neighbors.
+Pass `presented` when your collection filters or rearranges `rows`. Keys follow render order; unknown and definition-hidden keys are ignored, and repeated keys use their first occurrence. Each frozen group finds neighbors within its presented sequence. An omitted item or a group with one item has no move neighbor. An explicit sequence is authoritative even while Search has a query; derive it again from accepted state, and render `useColumnChooser().presented` to keep markup and controls aligned. A fixed alphabetical sort cannot display manual reordering.
+
+A visible-only collection can share the grid's controlled props:
+
+```tsx
+import { ColumnChooser, ColumnChooserAnnouncer, ColumnChooserItem, ColumnChooserMove, ColumnChooserName, chooserRows, useColumnChooser, type ColumnChooserProps } from "@/components/ui/column-chooser"
+
+export function SelectedColumns<T>(props: Omit<ColumnChooserProps<T>, "children" | "presented">) {
+  const presented = chooserRows(props.columns, props.columnState).filter((row) => row.visible).map((row) => row.key)
+  return <ColumnChooser {...props} presented={presented}><SelectedColumnList /><ColumnChooserAnnouncer /></ColumnChooser>
+}
+
+function SelectedColumnList() {
+  const { presented } = useColumnChooser()
+  return <ul aria-label="Selected columns">{presented.map((row) => <li key={row.key}>
+    <ColumnChooserItem columnKey={row.key}>
+      <ColumnChooserName />
+      <ColumnChooserMove direction="up">Move up</ColumnChooserMove>
+      <ColumnChooserMove direction="down">Move down</ColumnChooserMove>
+    </ColumnChooserItem>
+  </li>)}</ul>
+}
+```
+
+Moves preserve excluded columns in the complete known-column order. A refused move emits no change. The standalone `moveColumnTo` and `moveColumnBy` helpers retain their full-order semantics and refuse moves across the frozen boundary.
+
+Mount `ColumnChooserAnnouncer` once to announce accepted show, hide, move, width-reset and reset-all edits. It is initially empty and stays silent for rejected edits, no-ops, searches and unrelated external updates. A later state matching an outstanding edit is treated as acceptance. Move positions count the committed presented collection. Announcement updates stay in this leaf; they do not trigger another collection render.
 
 Focus recovery runs when chooser or item state updates. Focus stays with a reordered item. If its focused action becomes disabled, hidden, or inert, focus moves to the item. Controls that remain in the tab order while `aria-disabled` keep focus. If the focused item disappears, focus moves to the search field or root. Keep the item's focusability when customizing its markup. A custom control that hides through private state or external DOM changes owns its focus handoff.
 
@@ -222,7 +255,7 @@ Focus recovery runs when chooser or item state updates. Focus stays with a reord
 
 `ColumnChooserWidth` prints `columnState.widths[key] ?? column.width` in pixels using the numeric class. The chooser does not clamp that value; the grid renders at least `column.minWidth ?? 48` pixels.
 
-`ColumnChooserResetWidth` calls `resetColumnWidth` to remove that key, restoring the definition's width subject to the grid's minimum. Resize in the grid by dragging the header handle or pressing Alt+Shift+Left/Right with a column focused; the chooser has no width field.
+`ColumnChooserResetWidth` restores `baseState.widths[key] ?? column.width`, subject to the grid's minimum. The standalone `resetColumnWidth` helper still removes the key to restore the definition's width. Resize in the grid by dragging the header handle or pressing Alt+Shift+Left/Right with a column focused; the chooser has no width field.
 
 ### Rules in words
 
@@ -230,13 +263,17 @@ Pass the column rules from [`grid-rules`](grid-rules.md) as `rules`. Map each it
 
 ### A dialog is a wall
 
-With [`use-hotkeys`](use-hotkeys.md), focus inside a dialog reaches only scopes declared inside that dialog. Typing in its search box does not fire the grid's single-key bindings underneath. Compose the installed Dialog with a title, description, and DialogTrigger. The trigger owns return focus after dismissal. An inline root has no dialog boundary.
+With [`use-hotkeys`](use-hotkeys.md), focus inside a dialog reaches only scopes declared inside that dialog. Typing in its search box does not fire the grid's single-key bindings underneath. Compose the installed Dialog with a title and description. Use `DialogTrigger` when opening from a button; it owns return focus after dismissal. An inline root has no dialog boundary.
+
+For a menu or hotkey opener, set an explicit return target through the shared recipe's `contentProps`: `onCloseAutoFocus` on Radix, or `finalFocus` on Base UI. See the complete [menu migration](migrating-v1-to-v2.md#columnchooser). These props use your installed `DialogContent` type, including refs and events. An explicit `contentProps.className` replaces the recipe's content classes; omitted or undefined preserves them. The recipe owns its content children.
 
 ### Labels
 
 `labels` supplies the root name, search box, `Show` prefix, frozen and hidden words, width label, width reset, and move names. The default root title is `Columns` and search is `Find a column`. Use `aria-label` or `aria-labelledby` to override a part's accessible name.
 
 The retained description, reset-all text, empty message, and drag hint are available through the root hook for your composition. Action children and their placement belong to you. The width reading keeps the `px` suffix; any close-button text belongs to the installed Dialog.
+
+Announcement templates are `announceMove`, `announceReorder`, `announceShow`, `announceHide`, `announceResetWidth` and `announceReset`. Use `{name}` for the column; `announceMove` also receives `{n}` and `{m}`, as in `{name} moved to {n} of {m}.` Missing or undefined templates retain their defaults.
 
 ### What it does not do
 

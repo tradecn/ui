@@ -1,8 +1,8 @@
-import { useState, type ReactNode } from "react"
+import { useState, type ComponentProps, type ReactNode } from "react"
 import { createInstrumentFormatter, formatNotional } from "@/registry/tradecn/lib/format"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ColumnChooser, ColumnChooserFrozen, ColumnChooserHiddenCount, ColumnChooserItem, ColumnChooserMove, ColumnChooserName, ColumnChooserResetAll, ColumnChooserResetWidth, ColumnChooserRule, ColumnChooserSearch, ColumnChooserVisibility, ColumnChooserWidth, DEFAULT_COLUMN_CHOOSER_LABELS, useColumnChooser, type ColumnChooserProps } from "@/registry/tradecn/ui/column-chooser"
+import { ColumnChooser, ColumnChooserAnnouncer, ColumnChooserFrozen, ColumnChooserHiddenCount, ColumnChooserItem, ColumnChooserMove, ColumnChooserName, ColumnChooserResetAll, ColumnChooserResetWidth, ColumnChooserRule, ColumnChooserSearch, ColumnChooserVisibility, ColumnChooserWidth, DEFAULT_COLUMN_CHOOSER_LABELS, useColumnChooser, type ColumnChooserProps } from "@/registry/tradecn/ui/column-chooser"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/registry/tradecn/ui/data-grid"
 
 type Quote = { id: string; client: string; size: number; price: number }
@@ -39,12 +39,12 @@ export default function ColumnChooserDemo() {
   )
 }
 
-export function ColumnSettingsDialog<T>({ open, onOpenChange, className, children, ...props }: Omit<ColumnChooserProps<T>, "children"> & { open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) {
+export function ColumnSettingsDialog<T>({ open, onOpenChange, className, contentProps, children, ...props }: Omit<ColumnChooserProps<T>, "children"> & { open: boolean; onOpenChange: (open: boolean) => void; contentProps?: Omit<ComponentProps<typeof DialogContent>, "children">; children: ReactNode }) {
   const labels = { ...DEFAULT_COLUMN_CHOOSER_LABELS, ...props.labels }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {children}
-      <DialogContent className={`max-h-[calc(100%-2rem)] grid-cols-1 overflow-auto sm:max-w-lg ${className ?? ""}`}>
+      <DialogContent {...contentProps} className={contentProps?.className ?? `max-h-[calc(100%-2rem)] grid-cols-1 overflow-auto sm:max-w-lg ${className ?? ""}`}>
         <DialogHeader><DialogTitle>{labels.title}</DialogTitle><DialogDescription>{labels.description}</DialogDescription></DialogHeader>
         <ColumnSettingsPanel {...props} />
       </DialogContent>
@@ -60,6 +60,7 @@ export function ColumnSettings() {
   const { shown, labels } = useColumnChooser()
   return (
     <>
+      <ColumnChooserAnnouncer />
       <div className="flex flex-wrap items-center gap-2">
         <ColumnChooserSearch />
         <ColumnChooserHiddenCount />

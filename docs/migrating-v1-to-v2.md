@@ -658,13 +658,16 @@ Copy the complete [Usage example](column-chooser.md#usage) into `column-chooser.
 |---|---|
 | Self-closing `ColumnChooser` | Your Dialog containing a composed `ColumnChooser`. The shared `ColumnSettingsDialog` recipe retains the ordinary layout. |
 | `ColumnChooserPanel`, `ColumnChooserPanelProps<T>` | `ColumnChooser`, `ColumnChooserProps<T>` with required `children`. Use the shared `ColumnSettingsPanel` recipe for the ordinary list. |
-| `open`, `onOpenChange` | Move them to your Dialog. Place `DialogTrigger` inside it for return focus, and mount the chooser inside `DialogContent` to reset search on a completed close. |
+| `open`, `onOpenChange` | Move them to your Dialog. Use `DialogTrigger` for a button opener, or set the grid as the close-focus target for a menu or hotkey opener. Mount the chooser inside `DialogContent` to reset search on a completed close. |
 | Dialog `className` | Move it to `DialogContent`. Root classes now style the inline group. |
 | Automatic toolbar, list, empty state, and hint | Compose these around `useColumnChooser().shown` and the public parts. |
 | Private row | `ColumnChooserItem columnKey={key}` with required children, inside your `li` or card. Keep keys stable. |
 | Visibility, column name, frozen and rule badges, width | `ColumnChooserVisibility`, `ColumnChooserName`, `ColumnChooserFrozen`, `ColumnChooserRule`, and `ColumnChooserWidth`. |
 | Reset and move controls | `ColumnChooserResetAll`, `ColumnChooserResetWidth`, and `ColumnChooserMove`, with required action content. |
 | Labels for surrounding content | Read `useColumnChooser().labels` for the description, empty state, action content, and hint. |
+| Full-order keyboard and button moves | Neighbors follow the search results by default. Pass `presented` for a custom collection. Pure move helpers retain full-order semantics. |
+| Reset to empty state | Pass shared defaults as `baseState`. Root reset, width reset and `isDefault` use that baseline; omission retains the empty baseline. |
+| Silent edits | Mount `ColumnChooserAnnouncer` once to announce accepted changes. The shared recipes include it. |
 
 The `data-column`, `data-visible`, `data-frozen`, and `data-dragging` markers now belong to `ColumnChooserItem`, not its caller-owned `li`. Update selectors such as `li[data-column]` to `[data-column]`.
 
@@ -683,7 +686,48 @@ export function QuoteColumns() {
 }
 ```
 
-The pure helpers, `ChooserRow<T>`, label type, and default labels remain exported. Search, full-order neighbors, frozen boundaries, visibility, width calculations, and controlled callbacks retain their behavior.
+The pure helpers, `ChooserRow<T>`, label type, and default labels remain exported with their previous semantics. Root commands now compare effective settings: no-op commands emit nothing, and edits normalize equivalent baseline settings and remove retired keys. Definition-hidden settings are retained. Initialize `columnState` from your defaults; `baseState` is the reset target, not an overlay applied to the grid.
+
+For a menu opener, copy the shared file first. This complete example uses Base UI's `finalFocus` to return to the grid. The grid's wrapper supplies the DOM target; `DataGrid` has no DOM-ref prop.
+
+```tsx
+import { useRef, useState } from "react"
+import { ContextMenuItem } from "@/components/ui/context-menu"
+import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState } from "@/components/ui/data-grid"
+import { createRowStore } from "@/lib/row-store"
+import { ColumnSettingsDialog } from "./column-chooser"
+
+type Quote = { id: string; symbol: string }
+const columns: ColumnDef<Quote>[] = [{ key: "symbol", header: "Symbol", width: 120, accessor: (row) => row.symbol }]
+
+export function QuoteColumnsFromMenu() {
+  const [store] = useState(() => {
+    const rows = createRowStore<Quote>({ getRowId: (row) => row.id })
+    rows.applyDeltas({ upsert: [{ id: "1", symbol: "UST 10Y" }] })
+    return rows
+  })
+  const [columnState, setColumnState] = useState<ColumnState>(EMPTY_COLUMN_STATE)
+  const [open, setOpen] = useState(false)
+  const grid = useRef<HTMLDivElement>(null)
+  return <>
+    <div ref={grid} className="h-48">
+      <DataGrid store={store} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} label="Quotes" renderContextMenu={() => <ContextMenuItem onClick={() => setOpen(true)}>Columns…</ContextMenuItem>} />
+    </div>
+    <ColumnSettingsDialog open={open} onOpenChange={setOpen} columns={columns} columnState={columnState} onColumnStateChange={setColumnState} contentProps={{ finalFocus: () => grid.current?.querySelector<HTMLElement>("[role=grid]") ?? false }} children={null} />
+  </>
+}
+```
+
+On Radix installs, replace `contentProps` in that example with the following close-focus handler. Without a `DialogTrigger`, Radix's default close handler has no return target and suppresses the previous-focus fallback.
+
+```tsx
+contentProps={{ onCloseAutoFocus: (event) => {
+  event.preventDefault()
+  grid.current?.querySelector<HTMLElement>("[role=grid]")?.focus()
+} }}
+```
+
+Keep the return target mounted for dismissal. Test the context-menu close, dialog open, Escape and grid keyboard sequence with your installed primitive; trigger and menu openers have different focus ownership.
 
 The parts add native props, refs, names, and event handlers. Supply your action content and surrounding Dialog.
 

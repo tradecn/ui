@@ -126,9 +126,9 @@ describe("ColumnSettingsPanel", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Show Price" }))
     expect(onChange).toHaveBeenLastCalledWith({ ...state, hidden: ["px"] })
     fireEvent.click(screen.getByRole("button", { name: "Move down: Price" }))
-    expect(onChange).toHaveBeenLastCalledWith({ ...state, order: ["id", "client", "size", "px", "status"] })
+    expect(onChange).toHaveBeenLastCalledWith({ ...state, order: ["id", "client", "size", "px", "status", "internal"] })
     fireEvent.click(screen.getByRole("button", { name: "Move up: Client" }))
-    expect(onChange).toHaveBeenLastCalledWith({ ...state, order: ["client", "id", "px", "size", "status"] })
+    expect(onChange).toHaveBeenLastCalledWith({ ...state, order: ["client", "id", "px", "size", "status", "internal"] })
     fireEvent.click(screen.getByRole("button", { name: "Reset width: Price" }))
     expect(onChange).toHaveBeenLastCalledWith({ ...state, widths: {} })
     fireEvent.click(screen.getByRole("button", { name: "Reset all" }))
@@ -147,7 +147,7 @@ describe("ColumnSettingsPanel", () => {
     render(<ColumnSettingsPanel columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange} />)
     const px = document.querySelector<HTMLElement>('[data-column="px"]')!
     fireEvent.keyDown(px, { key: "ArrowDown", altKey: true })
-    expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "size", "px", "status"] })
+    expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "size", "px", "status", "internal"] })
     fireEvent.keyDown(px, { key: "ArrowDown" })
     expect(onChange).toHaveBeenCalledTimes(1)
     const status = document.querySelector<HTMLElement>('[data-column="status"]')!
@@ -159,7 +159,7 @@ describe("ColumnSettingsPanel", () => {
     const id = document.querySelector<HTMLElement>('[data-column="id"]')!
     expect(fireEvent.dragOver(id, { dataTransfer }), "a drop across the frozen line is not").toBe(true)
     fireEvent.drop(px, { dataTransfer })
-    expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "status", "px", "size"] })
+    expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "status", "px", "size", "internal"] })
     expect(status.dataset.dragging).toBeUndefined()
   })
 
@@ -229,15 +229,16 @@ describe("public composition", () => {
     expect(screen.getByText("0 hidden")).toBeInTheDocument()
   })
 
-  it("keeps full-order moves and hidden counts while filtered, and leaves search unchanged on reset", () => {
+  it("disables moves without a presented neighbor, keeps full hidden counts, and leaves search unchanged on reset", () => {
     render(<Controlled />)
     const search = screen.getByRole("textbox")
     fireEvent.change(search, { target: { value: "  PRICE  " } })
     expect(screen.getAllByRole("listitem")).toHaveLength(1)
     expect(screen.getByText("1 hidden")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Move down: Price" })).toBeDisabled()
     fireEvent.click(screen.getByRole("button", { name: "Move down: Price" }))
     fireEvent.change(search, { target: { value: "" } })
-    expect([...document.querySelectorAll<HTMLElement>("[data-column]")].map(n => n.dataset.column)).toEqual(["id", "client", "size", "px", "status"])
+    expect([...document.querySelectorAll<HTMLElement>("[data-column]")].map(n => n.dataset.column)).toEqual(["id", "client", "px", "size", "status"])
     fireEvent.change(search, { target: { value: "price" } })
     fireEvent.click(screen.getByRole("button", { name: "Reset all" }))
     expect(search).toHaveValue("price")
@@ -379,7 +380,7 @@ describe("public composition", () => {
     const dataTransfer = transfer()
     fireEvent.dragStart(screen.getByRole("group", { name: "Empty key" }), { dataTransfer })
     fireEvent.drop(screen.getByRole("group", { name: "Price" }), { dataTransfer })
-    expect(change).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "", "px", "size"] })
+    expect(change).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "", "px", "size", "internal"] })
     change.mockClear()
     fireEvent.dragStart(screen.getByRole("group", { name: "Empty key" }), { dataTransfer })
     rerender(<ColumnSettingsPanel columns={definitions.filter(column => column.key !== "")} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={change} />)
@@ -398,12 +399,12 @@ describe("public composition", () => {
     const price = screen.getByRole("group", { name: "Price" })
     const size = screen.getByRole("group", { name: "Size" })
     fireEvent.keyDown(price, { key: "ArrowDown", altKey: true })
-    expect(change).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "size", "px", "status"] })
+    expect(change).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "size", "px", "status", "internal"] })
     change.mockClear()
     const dataTransfer = transfer()
     fireEvent.dragStart(price, { dataTransfer })
     fireEvent.drop(size, { dataTransfer })
-    expect(change).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "size", "px", "status"] })
+    expect(change).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "size", "px", "status", "internal"] })
   })
 
   it("keeps search focus fallback when callers supply a root slot marker", () => {
@@ -428,7 +429,7 @@ describe("public composition", () => {
     const dataTransfer = transfer()
     fireEvent.dragStart(screen.getByRole("group", { name: "Price" }), { dataTransfer })
     fireEvent.drop(screen.getByRole("group", { name: "Size" }), { dataTransfer })
-    expect(change).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "size", "px", "status"] })
+    expect(change).toHaveBeenLastCalledWith({ ...EMPTY_COLUMN_STATE, order: ["id", "client", "size", "px", "status", "internal"] })
   })
 
   it("recovers focus when a custom control becomes inert during a chooser update", () => {

@@ -883,13 +883,13 @@ test("a column chooser hides, reorders, and resets through the grid's own column
   const wide = (await priceHeader.boundingBox())!.width
   await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("120 px")
   await panel.getByRole("button", { name: "Reset width: Price" }).click()
-  await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("80 px")
+  await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("100 px")
   expect((await priceHeader.boundingBox())!.width, "the grid's header narrowed with the reset").toBeLessThan(wide)
   await panel.locator("[data-column='size']").focus()
   await page.keyboard.press("Alt+ArrowDown")
   await expect(headers).toHaveText(["RFQ", "Client", "Price", "Size", "Status"])
-  await panel.getByRole("button", { name: "Reset all" }).click()
-  await expect(scene.locator("[data-chooser-state]")).toHaveAttribute("data-chooser-state", JSON.stringify({ order: [], widths: {}, hidden: [] }))
+  await expect(panel.getByRole("button", { name: "Reset all" })).toBeDisabled()
+  await expect(scene.locator("[data-chooser-state]")).toHaveAttribute("data-chooser-state", JSON.stringify({ order: [], widths: { px: 100 }, hidden: [] }))
   await scene.getByRole("button", { name: "open chooser" }).click()
   const dialog = page.getByRole("dialog", { name: "Columns" })
   await expect(dialog).toBeVisible()
@@ -909,6 +909,29 @@ test("a column chooser hides, reorders, and resets through the grid's own column
   await expect(dialog.getByRole("textbox", { name: "Find a column" })).toHaveValue("")
   await expect(dialog.locator("[data-column]")).toHaveCount(5)
 })
+
+for (const opener of ["menu", "hotkey"] as const) {
+  test(`a ${opener}-opened column chooser returns focus and keyboard control to the grid`, async ({ page }) => {
+    await page.goto("/")
+    const scene = page.locator("section[data-scene='column-chooser']")
+    const grid = scene.getByRole("grid", { name: "Chosen" })
+    if (opener === "menu") {
+      await grid.locator("[data-row-id='a'] [data-col='client']").click({ button: "right" })
+      await page.getByRole("menuitem", { name: "Columns…" }).click()
+    } else {
+      await grid.locator("[data-row-id='a'] [data-col='client']").click()
+      await page.keyboard.press("Alt+c")
+    }
+    const dialog = page.getByRole("dialog", { name: "Columns" })
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByRole("textbox", { name: "Find a column" })).toBeFocused()
+    await page.keyboard.press("Escape")
+    await expect(dialog).toHaveCount(0)
+    await expect(grid).toBeFocused()
+    await page.keyboard.press("ArrowDown")
+    await expect(grid.locator("[data-row-id='b']")).toHaveAttribute("data-focused", "true")
+  })
+}
 
 // A shared React tree can contain nodes created in either window. Adoption changes the document,
 // but not a node's original constructor; exercise both kinds of row before and after returning.

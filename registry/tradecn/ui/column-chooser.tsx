@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type DragEvent, type ReactNode, type Ref } from "react"
+import { createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type DragEvent, type ReactNode, type Ref } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -27,9 +27,16 @@ export interface ColumnChooserLabels {
   resetAll: string
   empty: string
   dragHint: string
+  /** Announcement templates accept {name}, and moves also accept {n} and {m}. */
+  announceMove?: string
+  announceReorder?: string
+  announceShow?: string
+  announceHide?: string
+  announceResetWidth?: string
+  announceReset?: string
 }
 
-export const DEFAULT_COLUMN_CHOOSER_LABELS: ColumnChooserLabels = {
+export const DEFAULT_COLUMN_CHOOSER_LABELS: Required<ColumnChooserLabels> = {
   title: "Columns",
   description: "Show, hide, reorder, and size the columns of this grid.",
   search: "Find a column",
@@ -43,12 +50,22 @@ export const DEFAULT_COLUMN_CHOOSER_LABELS: ColumnChooserLabels = {
   resetAll: "Reset all",
   empty: "No column matches.",
   dragHint: "Drag a column, or hold Alt with an arrow key, to reorder. Frozen columns stay first.",
+  announceMove: "{name} moved to {n} of {m}.",
+  announceReorder: "{name} reordered.",
+  announceShow: "{name} shown.",
+  announceHide: "{name} hidden.",
+  announceResetWidth: "{name} width reset.",
+  announceReset: "Column settings reset.",
 }
 
 export interface ColumnChooserProps<T> extends ComponentProps<"div"> {
   columns: ColumnDef<T>[]
   columnState: ColumnState
   onColumnStateChange: (state: ColumnState) => void
+  /** The shared defaults restored by reset. Column state remains a complete snapshot. */
+  baseState?: ColumnState
+  /** Column keys in the collection's render order. Defaults to the search results. */
+  presented?: readonly string[]
   /** Rules that name columns, said in words beside the columns they touch. */
   rules?: ColumnRule[]
   labels?: Partial<ColumnChooserLabels>
@@ -148,6 +165,7 @@ export interface ColumnChooserEntry extends Omit<ChooserRow<unknown>, "column" |
 export interface ColumnChooserState {
   rows: readonly ColumnChooserEntry[]
   shown: readonly ColumnChooserEntry[]
+  presented: readonly ColumnChooserEntry[]
   query: string
   setQuery: (query: string) => void
   labels: ColumnChooserLabels
@@ -157,6 +175,7 @@ export interface ColumnChooserState {
 }
 
 interface ChooserContextValue extends ColumnChooserState {
+  announcements: ReturnType<typeof createAnnouncements>
   byKey: ReadonlyMap<string, ColumnChooserItemState>
   startDrag: (key: string, event: DragEvent<HTMLDivElement>) => void
   dragOver: (key: string, event: DragEvent<HTMLDivElement>) => void
@@ -223,10 +242,75 @@ function unavailable(node: HTMLElement) {
   return false
 }
 
-export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, rules, labels: labelsProp, children, className, ref, role = "group", tabIndex = -1, "aria-label": ariaLabel, onFocusCapture, onBlurCapture, ...props }: ColumnChooserProps<T>) {
+function sameSettings<T>(left: readonly ChooserRow<T>[], right: readonly ChooserRow<T>[]) {
+  return left.length === right.length && left.every((row, index) => {
+    const other = right[index]!
+    return row.key === other.key && row.visible === other.visible && Object.is(row.width, other.width)
+  })
+}
+
+function normalizeSettings<T>(rows: readonly ChooserRow<T>[], state: ColumnState, baseRows: readonly ChooserRow<T>[], baseState: ColumnState): ColumnState {
+  const keys = new Set(rows.map((row) => row.key))
+  const baseByKey = new Map(baseRows.map((row) => [row.key, row]))
+  const order = rows.every((row, index) => row.key === baseRows[index]?.key)
+    ? [...new Set([...baseState.order].reverse())].reverse().filter((key) => keys.has(key))
+    : rows.map((row) => row.key)
+  const hidden = rows.every((row) => row.visible === baseByKey.get(row.key)?.visible)
+    ? [...new Set(baseState.hidden)].filter((key) => keys.has(key))
+    : [...new Set(state.hidden)].filter((key) => keys.has(key))
+  const widths = Object.fromEntries(rows.flatMap((row) => {
+    const source = Object.is(row.width, baseByKey.get(row.key)?.width) ? baseState : state
+    const width = source.widths[row.key]
+    return width === undefined ? [] : [[row.key, width]]
+  }))
+  return { order, widths, hidden }
+}
+
+type ChooserEdit = { kind: "move" | "show" | "hide" | "width"; key: string } | { kind: "reset" }
+
+function createAnnouncements() {
+  const empty = { text: "", revision: 0 }
+  let snapshot = empty
+  const listeners = new Set<() => void>()
+  return {
+    getSnapshot: () => snapshot,
+    getServerSnapshot: () => empty,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+        if (!listeners.size) snapshot = empty
+      }
+    },
+    publish: (text: string) => {
+      if (!listeners.size) return
+      snapshot = { text, revision: snapshot.revision + 1 }
+      listeners.forEach((listener) => listener())
+    },
+  }
+}
+
+function editAnnouncement(edit: ChooserEdit, rows: readonly ColumnChooserEntry[], presented: readonly ColumnChooserEntry[], labels: ColumnChooserLabels) {
+  if (edit.kind === "reset") return labels.announceReset ?? DEFAULT_COLUMN_CHOOSER_LABELS.announceReset
+  const row = rows.find((row) => row.key === edit.key)
+  if (!row) return ""
+  const index = presented.findIndex((row) => row.key === edit.key)
+  const label = edit.kind === "move" ? (index < 0 ? "announceReorder" : "announceMove") : edit.kind === "show" ? "announceShow" : edit.kind === "hide" ? "announceHide" : "announceResetWidth"
+  const template = labels[label] ?? DEFAULT_COLUMN_CHOOSER_LABELS[label]
+  return template.replace(/\{(name|n|m)\}/g, (_, token: string) => token === "name" ? row.name : String(token === "n" ? index + 1 : presented.length))
+}
+
+export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, baseState = EMPTY_COLUMN_STATE, presented, rules, labels: labelsProp, children, className, ref, role = "group", tabIndex = -1, "aria-label": ariaLabel, onFocusCapture, onBlurCapture, ...props }: ColumnChooserProps<T>) {
   const labels = { ...DEFAULT_COLUMN_CHOOSER_LABELS, ...labelsProp }
-  const sourceRows = useMemo(() => chooserRows(columns, columnState, rules), [columns, columnState, rules])
-  const rows = useMemo(() => sourceRows.map(({ column, rules, ...row }) => ({ ...row, rules: rules.map((rule) => ({ rule, description: describeRule(rule, [column]) })) })), [sourceRows])
+  // Definition-hidden columns keep their settings if application policy exposes them later.
+  const knownColumns = useMemo(() => columns.map((column) => column.hidden ? { ...column, hidden: false } : column), [columns])
+  const stateRows = useMemo(() => chooserRows(knownColumns, columnState, rules), [knownColumns, columnState, rules])
+  const baseRows = useMemo(() => chooserRows(knownColumns, baseState), [knownColumns, baseState])
+  const rows = useMemo(() => {
+    const editable = new Set(columns.filter((column) => !column.hidden).map((column) => column.key))
+    const baseByKey = new Map(baseRows.map((row) => [row.key, row]))
+    return stateRows.filter((row) => editable.has(row.key)).map(({ column, rules, ...row }) => ({ ...row, resized: !Object.is(row.width, baseByKey.get(row.key)?.width), rules: rules.map((rule) => ({ rule, description: describeRule(rule, [column]) })) }))
+  }, [columns, stateRows, baseRows])
   const [query, setQuery] = useState("")
   const [dragging, setDragging] = useState<string | null>(null)
   const drag = useRef<{ key: string; frozen: boolean } | null>(null)
@@ -237,8 +321,34 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ru
   const focused = useRef<HTMLElement | null>(null)
   const q = query.trim().toLowerCase()
   const shown = q ? rows.filter((row) => row.name.toLowerCase().includes(q) || row.key.toLowerCase().includes(q)) : rows
+  const rowByKey = new Map(rows.map((row) => [row.key, row]))
+  const presentedRows = [...new Set(presented ?? shown.map((row) => row.key))].flatMap((key) => {
+    const row = rowByKey.get(key)
+    return row ? [row] : []
+  })
+  const neighbors = new Map<string, { up?: string; down?: string }>()
+  for (const frozen of [true, false]) {
+    const group = presentedRows.filter((row) => row.frozen === frozen)
+    group.forEach((row, index) => neighbors.set(row.key, { up: group[index - 1]?.key, down: group[index + 1]?.key }))
+  }
   const hiddenCount = rows.filter((row) => !row.visible).length
-  const isDefault = isDefaultColumnState(columnState)
+  const isDefault = sameSettings(stateRows, baseRows)
+  const [announcements] = useState(createAnnouncements)
+  const committed = useRef({ state: columnState, rows: stateRows })
+  const pending = useRef<{ state: ColumnState; before: ChooserRow<T>[]; rows: ChooserRow<T>[]; edit: ChooserEdit } | null>(null)
+  useLayoutEffect(() => {
+    const previous = committed.current
+    committed.current = { state: columnState, rows: stateRows }
+    if (sameSettings(previous.rows, stateRows)) return
+    const proposed = pending.current
+    // A child layout effect can submit the next edit before this root processes the current commit.
+    if (proposed?.state === columnState && sameSettings(proposed.before, stateRows)) return
+    pending.current = null
+    if (previous.state !== columnState && proposed && sameSettings(proposed.rows, stateRows)) {
+      const message = editAnnouncement(proposed.edit, rows, presentedRows, labels)
+      if (message) announcements.publish(message)
+    }
+  })
   const focusFallback = useCallback(() => {
     const node = root.current
     if (!node?.isConnected) return
@@ -250,7 +360,7 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ru
     if (!drag.current || (key !== undefined && drag.current.key !== key)) return
     drag.current = null
     setDragging(null)
-  }, [])
+  }, [setDragging])
   useLayoutEffect(() => {
     const current = drag.current
     if (current && !rows.some((row) => row.key === current.key && row.frozen === current.frozen)) endDrag(current.key)
@@ -258,17 +368,27 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ru
     const previous = focused.current
     if (node && previous && unavailable(previous) && (node.ownerDocument.activeElement === previous || node.ownerDocument.activeElement === node.ownerDocument.body)) focusFallback()
   })
-  const change = (next: ColumnState) => {
-    if (next !== columnState) onColumnStateChange(next)
+  const change = (next: ColumnState, edit: ChooserEdit) => {
+    if (next === columnState) return
+    const nextRows = chooserRows(knownColumns, next)
+    if (sameSettings(stateRows, nextRows)) return
+    pending.current = { state: columnState, before: stateRows, rows: nextRows, edit }
+    onColumnStateChange(normalizeSettings(nextRows, next, baseRows, baseState))
   }
-  const byKey = new Map(rows.map((row, index): [string, ColumnChooserItemState] => [row.key, {
+  const byKey = new Map(rows.map((row): [string, ColumnChooserItemState] => [row.key, {
     row,
-    canMoveUp: index > 0 && rows[index - 1]!.frozen === row.frozen,
-    canMoveDown: index < rows.length - 1 && rows[index + 1]!.frozen === row.frozen,
+    canMoveUp: neighbors.get(row.key)?.up !== undefined,
+    canMoveDown: neighbors.get(row.key)?.down !== undefined,
     dragging: dragging === row.key,
-    setVisible: (visible) => change(setColumnVisible(columnState, row.key, visible)),
-    move: (delta) => change(moveColumnBy(sourceRows, columnState, row.key, delta)),
-    resetWidth: () => change(resetColumnWidth(columnState, row.key)),
+    setVisible: (visible) => change(setColumnVisible(columnState, row.key, visible), { kind: visible ? "show" : "hide", key: row.key }),
+    move: (delta) => {
+      const target = neighbors.get(row.key)?.[delta === -1 ? "up" : "down"]
+      if (target !== undefined) change(moveColumnTo(stateRows, columnState, row.key, target), { kind: "move", key: row.key })
+    },
+    resetWidth: () => {
+      const width = baseState.widths[row.key]
+      change(width === undefined ? resetColumnWidth(columnState, row.key) : { ...columnState, widths: { ...columnState.widths, [row.key]: width } }, { kind: "width", key: row.key })
+    },
   }]))
   const accepts = (key: string, event: DragEvent<HTMLDivElement>) => {
     const current = drag.current
@@ -277,8 +397,8 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ru
     return !!(current && from && target && current.key !== key && from.frozen === current.frozen && from.frozen === target.frozen && event.dataTransfer.types.includes(dragType))
   }
   return <ChooserContext value={{
-    rows, shown, query, setQuery, labels, hiddenCount, isDefault, byKey, focusFallback, endDrag,
-    reset: () => change(EMPTY_COLUMN_STATE),
+    rows, shown, presented: presentedRows, query, setQuery, labels, hiddenCount, isDefault, byKey, focusFallback, endDrag, announcements,
+    reset: () => change(baseState, { kind: "reset" }),
     startDrag: (key, event) => {
       const row = byKey.get(key)?.row
       if (!row) return
@@ -299,7 +419,7 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ru
       if (current) endDrag(current.key)
       if (!accepted || !current) return
       event.preventDefault()
-      change(moveColumnTo(sourceRows, columnState, current.key, key))
+      change(moveColumnTo(stateRows, columnState, current.key, key), { kind: "move", key: current.key })
     },
   }}>
     <div role={role} tabIndex={tabIndex} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : labels.title)} data-hidden={hiddenCount} className={cn("flex min-w-0 flex-col gap-2 text-xs lining-nums tabular-nums", className)} {...props} data-slot="tradecn-column-chooser" ref={rootRef} onFocusCapture={(event) => {
@@ -310,6 +430,13 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ru
       if (!event.currentTarget.contains(event.relatedTarget) && (event.relatedTarget || !unavailable(event.target))) focused.current = null
     }}>{children}</div>
   </ChooserContext>
+}
+
+/** Mount once per chooser. Announces committed states matching pending edits; unrelated updates stay silent. */
+export function ColumnChooserAnnouncer({ className, ...props }: Omit<ComponentProps<"span">, "children">) {
+  const { announcements } = useChooserContext()
+  const message = useSyncExternalStore(announcements.subscribe, announcements.getSnapshot, announcements.getServerSnapshot)
+  return <span role="status" aria-live="polite" aria-atomic="true" className={cn("sr-only", className)} {...props}>{message.text && <span key={message.revision}>{message.text}</span>}</span>
 }
 
 export function ColumnChooserSearch({ onChange, className, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<typeof Input>, "value" | "defaultValue">) {
