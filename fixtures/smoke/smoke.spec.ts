@@ -2580,6 +2580,7 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
     "direction tradecn-agent-kit span[data-cue=run-description]",
     "direction tradecn-agent-kit span[data-cue=fallback-role]",
     "direction tradecn-agent-kit span[data-cue=cell]",
+    "direction tradecn-agent-kit span[data-cue=row-label]",
   ])
   const broken = await page.evaluate(checkContract, { root: "[data-contract-sample='broken']", ignore: "" })
   // Direction in text, in a field and in SVG text by its fill, with units, in a price split at its dash, whose dash is

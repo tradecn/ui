@@ -7,15 +7,15 @@ import { NUMERIC_CLASS } from "@/lib/format"
 // checks as its own root, a field, a select, SVG text, SVG text painted in nothing and screen-reader-only small print
 // among it. The unseen one says its direction only to a screen reader, through a description it points to, a native
 // label, a faded sign, a sign painted transparent, a grid rule's highlight that its description explains, a
-// description on the run around the value, a label on an element that takes its role from a fallback token, and a
-// cell marked with its side: that passes by default and fails under visibleCue. The broken one breaks three rules on
-// purpose: numbers colored up with nothing else saying so (in text, in a field, in SVG text, with units, in a price
-// split across two spans at its dash, behind a description that points at nothing, a label that names no direction, a
-// label on a plain span, which no screen reader hears, a side marked on a container rather than on the value, a
-// highlight from a rule whose tone is no direction, a hidden sign, and a faded sign and a description under
-// aria-hidden, which reach nobody); an icon button and a field with no name; and text under the floor, an SVG label
-// drawn at half size and small print the spec shrinks at run time, a select's and a placeholder's among it. It is
-// marked data-contract-ignore, so the page-wide check leaves it out.
+// description on the run around the value, a label on an element that takes its role from a fallback token, a cell
+// marked with its side and a row whose label says the direction: that passes by default and fails under visibleCue.
+// The broken one breaks three rules on purpose: numbers colored up with nothing else saying so (in text, in a field,
+// in SVG text, with units, in a price split across two spans at its dash, behind a description that points at
+// nothing, a label that names no direction, a label on a plain span, which no screen reader hears, a side marked on a
+// container rather than on the value, a highlight from a rule whose tone is no direction, a hidden sign, and a faded
+// sign and a description under aria-hidden, which reach nobody); an icon button and a field with no name; and text
+// under the floor, an SVG label drawn at half size and small print the spec shrinks at run time, a select's and a
+// placeholder's among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
 
 export function AgentKitScene() {
   const id = useId()
@@ -100,6 +100,13 @@ export function AgentKitScene() {
               <td data-side="bid">
                 <span data-cue="cell" className={cn(NUMERIC_CLASS, "text-up")}>
                   0-10
+                </span>
+              </td>
+            </tr>
+            <tr aria-label="Up 0-16">
+              <td>
+                <span data-cue="row-label" className={cn(NUMERIC_CLASS, "text-up")}>
+                  0-16
                 </span>
               </td>
             </tr>

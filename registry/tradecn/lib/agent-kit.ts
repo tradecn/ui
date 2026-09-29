@@ -322,7 +322,8 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       }
       return false
     }
-    // A label that states the direction counts on the value or anywhere in its colored run.
+    // A label that states the direction counts on the value or anywhere in its colored run, and, read on their own, on
+    // the cell and the row that hold it.
     const saysAlong = (el: Element, run: Element) => {
       for (let node: Element | null = el; node; node = node.parentElement) {
         if (says(node)) return true
@@ -359,7 +360,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       if (ink) for (let depth = 0; depth < 3 && run !== scope && run.parentElement && style(run.parentElement)[ink.property] === ink.value; depth++) run = run.parentElement
       const seen = (gap: string) => shown(run, Boolean(options.visibleCue) || unheard(run), gap)
       if (cued(seen("").trim()) || saysDirection.test(seen(" "))) continue
-      if (!options.visibleCue && (marked(el, run) || ruled(el, run) || saysAlong(el, run) || says(cellOf(el) ?? rowOf(el)))) continue
+      if (!options.visibleCue && (marked(el, run) || ruled(el, run) || saysAlong(el, run) || says(cellOf(el)) || says(rowOf(el)))) continue
       find("direction", el, `painted ${painted} with no sign, arrow, word${options.visibleCue ? "" : ", data-direction or label"} saying the direction`)
     }
   }
