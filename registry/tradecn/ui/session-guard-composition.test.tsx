@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { createRef, startTransition, StrictMode, Suspense, useLayoutEffect, type ReactNode } from "react"
+import { createRef, Profiler, startTransition, StrictMode, Suspense, useLayoutEffect, type ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createClock, type Clock } from "@/registry/tradecn/lib/clock"
 import * as Session from "@/registry/tradecn/ui/session-guard"
@@ -233,6 +233,38 @@ describe("committed recovery and native defaults", () => {
 })
 
 describe("phase and clock ownership", () => {
+  it.each([null, undefined, NaN, Infinity, -Infinity])("does not subscribe or tick a missing remaining-time reading for %s", expiresAt => {
+    const source = createClock(1000, () => now)
+    let listeners = 0
+    const clock: Clock = { now: source.now, subscribe(listener) { listeners++; const unsubscribe = source.subscribe(listener); return () => { listeners--; unsubscribe() } } }
+    const commits = vi.fn()
+    const reading = createRef<HTMLSpanElement>()
+    const scene = (expiry: number | null | undefined) => <SessionGuardProvider expiresAt={expiry} clock={clock} onReauthenticate={async () => true}>
+      <Profiler id="remaining" onRender={commits}><SessionGuardRemaining ref={reading} /></Profiler>
+    </SessionGuardProvider>
+    const view = render(scene(expiresAt))
+    // The provider retains its phase subscription; the absent reading needs none.
+    expect(listeners).toBe(1)
+    expect(reading.current).toBeNull()
+    commits.mockClear()
+    act(() => { now += 5000; vi.advanceTimersByTime(5000) })
+    expect(commits).not.toHaveBeenCalled()
+    view.rerender(scene(now + 10_000))
+    expect(listeners).toBe(2)
+    expect(reading.current).toBe(screen.getByRole("timer", { name: "Session" }))
+    act(() => { now += 1000; vi.advanceTimersByTime(1000) })
+    expect(reading.current).toHaveTextContent("0:09")
+    view.rerender(scene(expiresAt))
+    expect(listeners).toBe(1)
+    expect(reading.current).toBeNull()
+    commits.mockClear()
+    act(() => { now += 5000; vi.advanceTimersByTime(5000) })
+    expect(commits).not.toHaveBeenCalled()
+    view.unmount()
+    expect(listeners).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it("ticks readings without rerendering request readers or application children and releases every subscription", () => {
     const source = createClock(1000, () => now)
     let listeners = 0

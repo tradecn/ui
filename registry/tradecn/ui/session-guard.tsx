@@ -222,10 +222,14 @@ export function SessionGuardWarning({ className, role = "status", ...props }: Se
 }
 
 /** The provider's countdown. Only this reading renders on ordinary clock ticks. */
-export function SessionGuardRemaining({ className, role = "timer", "aria-label": label, ...props }: Omit<ComponentProps<"span">, "children">) {
-  const { expiresAt, warnMs, clock, labels } = useSessionContext()
+export function SessionGuardRemaining(props: Omit<ComponentProps<"span">, "children">) {
+  const { expiresAt } = useSessionContext()
+  return expiresAt === null ? null : <RemainingTime {...props} expiresAt={expiresAt} />
+}
+
+function RemainingTime({ expiresAt, className, role = "timer", "aria-label": label, ...props }: Omit<ComponentProps<"span">, "children"> & { expiresAt: number }) {
+  const { warnMs, clock, labels } = useSessionContext()
   const now = useNow(clock)
-  if (expiresAt === null) return null
   const remaining = expiresAt - now
   const tier = countdownTier(remaining, { soonMs: warnMs })
   return <span role={role} aria-label={label ?? (props["aria-labelledby"] ? undefined : labels.session)} data-slot="tradecn-session-guard-remaining" data-tier={tier} className={cn("inline-flex items-baseline text-xs lining-nums tabular-nums", tier === "soon" ? "font-semibold text-expiring" : tier === "expired" ? "text-muted-foreground" : "text-foreground", className)} {...props}>
