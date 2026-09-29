@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
 import { ITEMS_MD, cliVersion, renderItems } from "./agent-kit"
-import { ROOT, readRegistry } from "./lib/registry"
+import { ROOT, type RegistryItem, readRegistry } from "./lib/registry"
 
 // The agent kit's Markdown is a promise to a coding agent that can't see this repository: the files land where
 // GitHub Copilot looks, the links between them resolve once installed, and every item and export the skill
@@ -31,6 +31,28 @@ describe("the agent kit", () => {
   it("keeps its item index current with the registry; run `just agent-kit` after changing an item", () => {
     expect(read(ITEMS_MD)).toBe(renderItems(registry.items, read, cliVersion()))
     for (const item of registry.items) expect(read(ITEMS_MD), item.name).toContain(`(\`${item.name}\`)`)
+  })
+
+  it("lists a file an item alone bundles under the item, one another item leads with under that item, and one several bundle once, under Shared", () => {
+    const sources = new Map([
+      ["registry/tradecn/ui/stack.tsx", "export function Stack() {}\n"],
+      ["registry/tradecn/hooks/use-inquiry.ts", "export function useInquiry() {}\n"],
+      ["registry/tradecn/hooks/use-clock.ts", "export const useClock = () => 0\n"],
+      ["registry/tradecn/ui/strip.tsx", "export function Strip() {}\n"],
+      ["registry/tradecn/lib/clock.ts", "export function createClock() {}\n"],
+    ])
+    const at = (file: string, type: string) => ({ path: `registry/tradecn/${file}`, type })
+    const items: RegistryItem[] = [
+      { name: "strip", type: "registry:ui", title: "Strip", description: "A strip.", files: [at("ui/strip.tsx", "registry:ui"), at("hooks/use-clock.ts", "registry:hook"), at("lib/clock.ts", "registry:lib")] },
+      { name: "stack", type: "registry:ui", title: "Stack", description: "A stack.", meta: { components: [{ title: "Stack" }] }, files: [at("ui/stack.tsx", "registry:ui"), at("hooks/use-inquiry.ts", "registry:hook"), at("hooks/use-clock.ts", "registry:hook")] },
+      { name: "clock", type: "registry:lib", title: "Clock", description: "A clock.", files: [at("lib/clock.ts", "registry:lib")] },
+    ]
+    const index = renderItems(items, (file) => sources.get(file) ?? "", "4.0.0")
+    expect(index).toContain("### Stack (`stack`)\n\nA stack.\n\nExports: `Stack`, `useInquiry`.\n")
+    expect(index).toContain("### Strip (`strip`)\n\nA strip.\n\nExports: `Strip`.\n")
+    expect(index).toContain("### Clock (`clock`)\n\nA clock.\n\nExports: `createClock`.\n")
+    expect(index).toContain("## Shared\n\nFiles no item leads with, installed with every item that bundles them.\n\n### `@/hooks/use-clock`\n\nInstalled with `stack`, `strip`.\n\nExports: `useClock`.\n")
+    expect(index.match(/useClock/g)).toHaveLength(1)
   })
 
   it("installs every file under agents/ where Copilot looks for it", () => {

@@ -2,18 +2,18 @@ import { cn } from "cn"
 import { useId } from "react"
 import { NUMERIC_CLASS } from "@/lib/format"
 
-// Three samples for checkContract. The kept one follows the contract, a word for a cue, a sign in a boxless wrapper,
-// a colored run the spec also checks as its own root, a field, a select, SVG text, SVG text painted in nothing and
-// screen-reader-only small print among it. The unseen one says its direction only to a screen reader, through a
-// description it points to, a native label, a faded sign, a sign painted transparent, a grid rule's highlight that
-// its description explains, a description on the run around the value and a cell marked with its side: that passes by
-// default and fails under visibleCue. The broken one breaks three rules on purpose: numbers colored up with nothing
-// else saying so (in text, in a field, in SVG text, with units, behind a description that points at nothing, a label
-// that names no direction, a label on a plain span, which no screen reader hears, a side marked on a container rather
-// than on the value, a highlight from a rule whose tone is no direction, and a hidden sign); an icon button and a
-// field with no name; and text under the floor, an SVG label drawn at half size and small print the spec shrinks at
-// run time, a select's and a placeholder's among it. It is marked data-contract-ignore, so the page-wide check leaves
-// it out.
+// Three samples for checkContract. The kept one follows the contract, a word for a cue, a word and a number in two
+// spans a gap apart, a sign in a boxless wrapper, a colored run the spec also checks as its own root, a field, a
+// select, SVG text, SVG text painted in nothing and screen-reader-only small print among it. The unseen one says its
+// direction only to a screen reader, through a description it points to, a native label, a faded sign, a sign painted
+// transparent, a grid rule's highlight that its description explains, a description on the run around the value and
+// a cell marked with its side: that passes by default and fails under visibleCue. The broken one breaks three rules on
+// purpose: numbers colored up with nothing else saying so (in text, in a field, in SVG text, with units, in a price
+// split across two spans at its dash, behind a description that points at nothing, a label that names no direction, a
+// label on a plain span, which no screen reader hears, a side marked on a container rather than on the value, a
+// highlight from a rule whose tone is no direction, and a hidden sign); an icon button and a field with no name; and
+// text under the floor, an SVG label drawn at half size and small print the spec shrinks at run time, a select's and
+// a placeholder's among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
 
 export function AgentKitScene() {
   const id = useId()
@@ -29,6 +29,10 @@ export function AgentKitScene() {
         </span>
         <span data-numeric="" className={cn(NUMERIC_CLASS, "text-up")}>
           Up 0-01
+        </span>
+        <span data-numeric="" className={cn(NUMERIC_CLASS, "inline-flex gap-1 text-up")}>
+          <span>Up</span>
+          <span>0-06</span>
         </span>
         <span data-numeric="" className={cn(NUMERIC_CLASS, "text-up")}>
           <span className="contents">+</span>0-07
@@ -102,6 +106,10 @@ export function AgentKitScene() {
             0-01
           </text>
         </svg>
+        <span className={cn(NUMERIC_CLASS, "text-up")}>
+          <span data-cue="handle">99</span>
+          <span data-cue="ticks">-16</span>
+        </span>
         <span aria-describedby={`${id}-nowhere`} data-cue="dangling" className={cn(NUMERIC_CLASS, "text-up")}>
           0-03
         </span>

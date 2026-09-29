@@ -74,7 +74,7 @@ Exports: `HotkeyEditor`, `HotkeyEditorItem`, `HotkeyEditorSearch`, `HotkeyEditor
 
 Composable instrument search with shared query recognition, debounced requests and selection. Arrange the input, results, recognition hints and application controls through public parts; choose each result row and its order.
 
-Exports: `InstrumentSearch`, `InstrumentSearchContent`, `InstrumentSearchInput`, `InstrumentSearchList`, `InstrumentSearchItem`, `InstrumentSearchHint`, `useInstrumentSearchState`, `useInstrumentSearch`, `toSymbolAdapter`, `matchedIdentifier`, `DEFAULT_INSTRUMENT_SEARCH_LABELS`.
+Exports: `InstrumentSearch`, `InstrumentSearchContent`, `InstrumentSearchInput`, `InstrumentSearchList`, `InstrumentSearchItem`, `InstrumentSearchHint`, `useInstrumentSearchState`, `useInstrumentSearch`, `toSymbolAdapter`, `matchedIdentifier`, `DEFAULT_INSTRUMENT_SEARCH_LABELS`, `isCusip`, `isIsin`, `parseCoupon`, `parseMaturity`, `parseCouponMaturity`, `recognizeQuery`, `QUERY_KIND_LABELS`.
 
 ### Layout Manager (`layout-manager`)
 
@@ -98,7 +98,7 @@ Exports: `ParameterGrid`, `parameterColumns`, `parameterEdit`, `allowsAction`, `
 
 Composable frame statistics, histograms, and store lane readings. One sampler and report subscription per monitor; callers own the markup, labels, controls, and lane order.
 
-Exports: `PerfMonitor`, `PerfMonitorValue`, `PerfMonitorHistogram`, `PerfMonitorLane`, `PerfMonitorLaneValue`, `usePerfReport`, `usePerfLane`.
+Exports: `PerfMonitor`, `PerfMonitorValue`, `PerfMonitorHistogram`, `PerfMonitorLane`, `PerfMonitorLaneValue`, `usePerfReport`, `usePerfLane`, `percentile`, `histogram`, `summarize`, `formatMs`, `createFrameSampler`.
 
 ### Positions (`positions`)
 
@@ -110,7 +110,7 @@ Exports: `Positions`, `positionsColumns`, `positionsTotals`, `formatPosition`, `
 
 A composable intraday chart on uPlot. Arrange the header, price readings, cursor readout and overlay legend around a line or candle plot. One store subscription feeds the readings and canvas; the plot owns resize, theme updates and the pointer and keyboard crosshair.
 
-Exports: `PriceChart`, `PriceChartHeader`, `PriceChartLast`, `PriceChartChange`, `PriceChartReadout`, `PriceChartPlot`, `PriceChartEmpty`, `PriceChartLegend`, `PriceChartOverlaySwatch`, `usePriceChart`, `CHART_TOKEN_CLASS`, `DEFAULT_PRICE_CHART_LABELS`.
+Exports: `PriceChart`, `PriceChartHeader`, `PriceChartLast`, `PriceChartChange`, `PriceChartReadout`, `PriceChartPlot`, `PriceChartEmpty`, `PriceChartLegend`, `PriceChartOverlaySwatch`, `usePriceChart`, `CHART_TOKEN_CLASS`, `DEFAULT_PRICE_CHART_LABELS`, `barId`, `barStart`, `foldTick`, `foldTicks`, `EMPTY_COLUMNS`, `columnsOf`, `EMPTY_SUMMARY`, `directionBetween`, `summarize`, `priceOf`, `priceStep`, `priceIncrements`, `priceDecimals`, `formatChange`, `timeFormatter`, `dayFormatter`.
 
 ### Quote Field (`quote-field`)
 
@@ -128,7 +128,7 @@ Exports: `QuotePanel`, `quotePanelColumns`, `quoteEdit`, `allowsQuoteAction`, `D
 
 The stack of open inquiries: the data grid in its RFQ preset with an inquiry's columns, a compact countdown in every row on one shared clock, a threshold that hides the small auto-quoted ones, and a mark on the one in the ticket. The order is the desk's, held still under a hand; an arrival never moves the viewport, the focus, the mark, or the order. With it, useActiveInquiry: the one rule a stack and a ticket agree on, that the active inquiry stays until the trader acts or the server ends it, and an arrival never changes it.
 
-Exports: `RfqStack`, `useRfqStackView`, `rfqStackColumns`, `rfqThresholdFilter`, `stackOrder`, `bySize`, `byTimeLeft`, `byArrival`, `formatStackSize`.
+Exports: `RfqStack`, `useRfqStackView`, `rfqStackColumns`, `rfqThresholdFilter`, `stackOrder`, `bySize`, `byTimeLeft`, `byArrival`, `formatStackSize`, `useActiveInquiry`.
 
 ### RFQ Ticket (`rfq-ticket`)
 
@@ -152,7 +152,7 @@ Exports: `SessionGuardProvider`, `SessionGuardWarning`, `SessionGuardWarningText
 
 A line small enough for a grid cell that still says which way, how far, and between what. Colored by direction against the first reading or a baseline, with the same direction in words for a screen reader. A missing reading is a gap, not a shift. Fixed size for a grid column, or it fills its box through one shared ResizeObserver. An optional crosshair that moves with the pointer and the arrow keys.
 
-Exports: `Sparkline`.
+Exports: `Sparkline`, `buildSparklineGeometry`, `nearestPointIndex`, `observeSize`, `resetSizeObserver`.
 
 ### Spread Matrix (`spread-matrix`)
 
@@ -234,7 +234,7 @@ Exports: `PREFERENCES_MARK`, `PREFERENCES_VERSION`, `PREFERENCE_BOUNDARIES`, `DE
 
 Store-agnostic row store for high-rate feeds: apply one delta batch per frame, subscribe per row, sorted and filtered views with a reorder hold, and a frame batcher for message-driven feeds.
 
-Exports: `createRowStore`, `createFrameBatcher`, `useRow`, `useRowIds`, `useStoreMeta`, `useView`.
+Exports: `createRowStore`, `createFrameBatcher`.
 
 ### Session Calendar (`session-calendar`)
 
@@ -261,3 +261,61 @@ A neutral look with a real light side and a real dark side: cool near-neutral su
 ### Slate East (`tradecn-slate-east`)
 
 Slate with the direction pair turned around, red for up and green for down, as screens in China, Japan, and Taiwan show it. The same colorblind-safe vermilion and bluish green, so it survives the same eyes.
+
+## Shared
+
+Files no item leads with, installed with every item that bundles them.
+
+### `@/hooks/use-clock`
+
+Installed with `countdown`, `feed-health`, `rfq-stack`, `rfq-ticket`, `session-guard`, `status-bar`.
+
+Exports: `useNow`.
+
+### `@/hooks/use-flash`
+
+Installed with `alerts`, `audit-trail`, `blotter`, `column-chooser`, `data-grid`, `depth-ladder`, `flash-cell`, `parameter-grid`, `positions`, `price-chart`, `quote-panel`, `rfq-stack`, `rfq-ticket`, `rules-editor`, `sparkline`, `spread-matrix`, `ticket`, `watchlist`.
+
+Exports: `createFlashMemory`, `compareValues`, `directionOf`, `FILL_COLORS`, `RING_COLORS`, `directionClass`, `resetReducedMotionCache`, `playFlash`, `useFlash`.
+
+### `@/hooks/use-link-group`
+
+Installed with `panel`, `workspace`.
+
+Exports: `LinkGroupProvider`, `useLinkGroupStore`, `useLinkGroup`.
+
+### `@/hooks/use-popout`
+
+Installed with `panel`, `workspace`.
+
+Exports: `mirrorRoot`, `usePopout`.
+
+### `@/hooks/use-row-store`
+
+Installed with `alerts`, `audit-trail`, `blotter`, `column-chooser`, `data-grid`, `depth-ladder`, `parameter-grid`, `positions`, `price-chart`, `quote-panel`, `rfq-stack`, `row-store`, `rules-editor`, `spread-matrix`, `watchlist`.
+
+Exports: `useRow`, `useRowIds`, `useStoreMeta`, `useView`.
+
+### `@/lib/clock`
+
+Installed with `countdown`, `feed-health`, `rfq-stack`, `rfq-ticket`, `session-guard`, `status-bar`.
+
+Exports: `createClock`, `sharedClock`.
+
+### `@/lib/hotkeys`
+
+Installed with `command-palette`, `hotkey-editor`, `panel`, `rfq-ticket`, `ticket`, `use-hotkeys`, `workspace`.
+
+Exports: `detectPlatform`, `normalizeKeys`, `formatKeys`, `matchesKeys`, `keysFromEvent`, `isEditableTarget`, `isMenuTarget`, `scopeChain`, `createHotkeyRegistry`.
+
+### `@/lib/link-group`
+
+Installed with `panel`, `workspace`.
+
+Exports: `LINK_GROUPS`, `cycleLinkGroup`, `normalizeSymbol`, `isLinkMessage`, `createLinkGroupStore`, `createCallbackTransport`, `createBroadcastChannelTransport`.
+
+### `@/lib/workspace-layout`
+
+Installed with `layout-manager`, `workspace`.
+
+Exports: `WORKSPACE_LAYOUT_KIND`, `WORKSPACE_LAYOUT_VERSION`, `WORKSPACE_PERSISTENCE_BOUNDARIES`, `toPanelState`, `parseWorkspaceLayout`, `unknownPanelKinds`, `nextPanelId`, `createWorkspacePanelStore`, `debounce`.

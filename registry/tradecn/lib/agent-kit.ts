@@ -312,13 +312,15 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     // What a run shows, in order: its text, with a field's value where the field sits. Hidden parts reach nobody, so
     // they show nothing. Asked for what a sighted reader sees, it also leaves out a box that fades or clips away (the
     // screen-reader-only pattern) and glyphs inked in nothing, and reads through a boxless display: contents wrapper.
-    const shown = (node: Node, visible: boolean): string => {
+    // Its pieces join with gap: nothing, to read a sign as drawn, so a 99 and a -16 in two spans stay one price, or a
+    // space, to read words, so an Up and a 10 in two spans stay two words, as a text alternative joins them.
+    const shown = (node: Node, visible: boolean, gap: string): string => {
       if (node.nodeType === 3) return !visible || !node.parentElement || inked(node.parentElement) ? (node.textContent ?? "") : ""
       if (node.nodeType !== 1) return ""
       const el = node as Element
       if (hidden(el) || (visible && unseenBox(el))) return ""
       if (isField(el)) return !visible || inked(el) ? field(el) : ""
-      return [...el.childNodes].map((child) => shown(child, visible)).join("")
+      return [...el.childNodes].map((child) => shown(child, visible, gap)).join(gap)
     }
     for (const el of elements) {
       const text = textOf(el)
@@ -332,8 +334,8 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       // checked root among them, so a sign in a sibling span counts and a panel painted one color doesn't become one run.
       let run: Element = tint?.node ?? el
       if (ink) for (let depth = 0; depth < 3 && run !== scope && run.parentElement && style(run.parentElement)[ink.property] === ink.value; depth++) run = run.parentElement
-      const seen = shown(run, Boolean(options.visibleCue)).trim()
-      if (cued(seen)) continue
+      const seen = (gap: string) => shown(run, Boolean(options.visibleCue), gap)
+      if (cued(seen("").trim()) || saysDirection.test(seen(" "))) continue
       if (!options.visibleCue && (marked(el, run) || ruled(el, run) || saysAlong(el, run) || says(el.closest(cell)))) continue
       find("direction", el, `painted ${painted} with no sign, arrow, word${options.visibleCue ? "" : ", data-direction or label"} saying the direction`)
     }

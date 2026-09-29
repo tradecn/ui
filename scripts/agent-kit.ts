@@ -26,17 +26,26 @@ export function cliVersion(): string {
 
 const primaryOf = (item: RegistryItem) => item.files?.find((file) => file.type === item.type)?.path
 
+// Where a registry file is imported from once the CLI installs it.
+const importPath = (file: string) => file.replace(/^registry\/tradecn\/ui\//, "@/components/ui/").replace(/^registry\/tradecn\/(hooks|lib)\//, "@/$1/").replace(/\.tsx?$/, "")
+
 /**
- * The index as Markdown. An item's exports are the ones its meta names, or else the values its own files export. A
- * file another item leads with is that item's, so a lib bundled into a component is listed once, under the lib.
+ * The index as Markdown. An item's exports are the ones its meta names, or else the values its primary file exports,
+ * then the values of each file it alone bundles. A file another item leads with is that item's, so a lib bundled into
+ * a component is listed once, under the lib. A file several items bundle and none leads with is listed once, under
+ * Shared, with the items that install it, so the index an agent reads whole doesn't repeat a hook under each of them.
  */
 export function renderItems(items: readonly RegistryItem[], read: (file: string) => string, cli: string): string {
   const primaries = new Set(items.map(primaryOf).filter(Boolean))
+  const bundlers = new Map<string, RegistryItem[]>()
+  for (const item of items)
+    for (const file of item.files ?? []) if (/\.tsx?$/.test(file.path) && file.path !== primaryOf(item) && !primaries.has(file.path)) bundlers.set(file.path, [...(bundlers.get(file.path) ?? []), item])
+  const valuesOf = (files: string[]) => [...new Set(files.flatMap((file) => [...read(file).matchAll(VALUE_EXPORT)].map((match) => match[1]!)))]
   const exportsOf = (item: RegistryItem) => {
+    const primary = primaryOf(item)
     const named = item.meta?.components?.map((component) => component.title)
-    if (named?.length) return named
-    const own = (item.files ?? []).filter((file) => /\.tsx?$/.test(file.path) && (file.path === primaryOf(item) || !primaries.has(file.path)))
-    return [...new Set(own.flatMap((file) => [...read(file.path).matchAll(VALUE_EXPORT)].map((match) => match[1]!)))]
+    const alone = [...bundlers].filter(([, by]) => by.length === 1 && by[0] === item).map(([file]) => file)
+    return [...new Set([...(named?.length ? named : valuesOf(primary ? [primary] : [])), ...valuesOf(alone)])]
   }
   const lines = [
     "# Items",
@@ -50,6 +59,15 @@ export function renderItems(items: readonly RegistryItem[], read: (file: string)
     for (const item of group) {
       lines.push("", `### ${item.title ?? item.name} (\`${item.name}\`)`, "", item.description?.trim() ?? "")
       const names = exportsOf(item)
+      if (names.length) lines.push("", `Exports: ${names.map((name) => `\`${name}\``).join(", ")}.`)
+    }
+  }
+  const shared = [...bundlers].filter(([, by]) => by.length > 1).sort(([a], [b]) => importPath(a).localeCompare(importPath(b), "en"))
+  if (shared.length) {
+    lines.push("", "## Shared", "", "Files no item leads with, installed with every item that bundles them.")
+    for (const [file, by] of shared) {
+      lines.push("", `### \`${importPath(file)}\``, "", `Installed with ${by.map((item) => item.name).sort((a, b) => a.localeCompare(b, "en")).map((name) => `\`${name}\``).join(", ")}.`)
+      const names = valuesOf([file])
       if (names.length) lines.push("", `Exports: ${names.map((name) => `\`${name}\``).join(", ")}.`)
     }
   }
