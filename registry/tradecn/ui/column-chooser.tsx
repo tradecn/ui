@@ -159,6 +159,8 @@ export function moveColumnBy<T>(rows: readonly ChooserRow<T>[], state: ColumnSta
 
 /** Readings for a column, without accessors tied to the grid's row type. */
 export interface ColumnChooserEntry extends Omit<ChooserRow<unknown>, "column" | "rules"> {
+  /** The effective width differs from the root's reset baseline. */
+  resized: boolean
   rules: { rule: ColumnRule; description: string }[]
 }
 

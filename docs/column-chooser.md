@@ -213,13 +213,17 @@ Search matches the column name or key by case-insensitive substring, ignoring su
 
 `ColumnChooserVisibility` is named `Show <column>` by default. `setColumnVisible` adds an unchecked column's key to `hidden` or removes a checked one's key. The hidden count includes state-hidden columns even when search excludes them; definition-hidden columns do not count.
 
-`ColumnChooserResetAll` restores `baseState`, defaulting to `EMPTY_COLUMN_STATE`: `{ order: [], widths: {}, hidden: [] }`. Resetting leaves the search query unchanged. The root's `isDefault` compares effective order, visibility and widths for all known columns, including definition-hidden ones whose settings may be used later. A move away and back is default again, even if the incoming state contains a complete order.
+`ColumnChooserResetAll` restores `baseState`, defaulting to `EMPTY_COLUMN_STATE`: `{ order: [], widths: {}, hidden: [] }`. Resetting leaves the search query unchanged. The root's `isDefault` compares effective order, visibility and widths for all known columns, including definition-hidden ones whose settings may be used later. An incoming complete order is still default when its effective settings match the baseline.
+
+The grid's own header-menu **Reset columns** action still restores the empty state. It does not use the chooser's `baseState`.
 
 An emitted edit removes retired keys and normalizes settings that match the baseline back to its representation. Definition-hidden settings remain known and are preserved. Loading state, changing defaults or issuing a no-op command emits nothing. The standalone `isDefaultColumnState` helper retains its raw check for three empty fields; use the root reading for baseline comparisons.
 
 ### Reorder
 
 Drag an item onto another to take its place, shifting the items between them. Alt+Up/Down and move buttons use the next presented column on the same side of the frozen boundary. By default, those neighbors are the current search results, so moving a matching column changes the displayed order. Each root owns its drag session and rejects drops from another chooser or external text.
+
+Moves take the target's place in the full order, including columns omitted from your collection. A move and its reverse can leave an intervening omitted column in a different position, even when the presented order looks restored. Reset uses the full baseline comparison.
 
 Pass `presented` when your collection filters or rearranges `rows`. Keys follow render order; unknown and definition-hidden keys are ignored, and repeated keys use their first occurrence. Each frozen group finds neighbors within its presented sequence. An omitted item or a group with one item has no move neighbor. An explicit sequence is authoritative even while Search has a query; derive it again from accepted state, and render `useColumnChooser().presented` to keep markup and controls aligned. A fixed alphabetical sort cannot display manual reordering.
 
@@ -266,6 +270,8 @@ Pass the column rules from [`grid-rules`](grid-rules.md) as `rules`. Map each it
 With [`use-hotkeys`](use-hotkeys.md), focus inside a dialog reaches only scopes declared inside that dialog. Typing in its search box does not fire the grid's single-key bindings underneath. Compose the installed Dialog with a title and description. Use `DialogTrigger` when opening from a button; it owns return focus after dismissal. An inline root has no dialog boundary.
 
 For a menu or hotkey opener, set an explicit return target through the shared recipe's `contentProps`: `onCloseAutoFocus` on Radix, or `finalFocus` on Base UI. See the complete [menu migration](migrating-v1-to-v2.md#columnchooser). These props use your installed `DialogContent` type, including refs and events. An explicit `contentProps.className` replaces the recipe's content classes; omitted or undefined preserves them. The recipe owns its content children.
+
+In the shared recipes, `ColumnSettingsDialog.className` styles `DialogContent`; `ColumnSettingsPanel.className` styles the chooser root.
 
 ### Labels
 
