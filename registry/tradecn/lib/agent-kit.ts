@@ -277,9 +277,20 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       }
       return [el.closest("[role=gridcell], [role=cell], td, th"), el.closest("[role=row], tr")].some((holder) => holder?.matches("[data-direction], [data-side]"))
     }
+    // ARIA prohibits naming a generic element, a span or a div without a role, so a screen reader reading the text never
+    // hears an aria-label there. A description reaches it: aria-description, aria-describedby, a title.
+    const unnamed = /^(generic|presentation|none|paragraph|caption|code|deletion|emphasis|insertion|strong|subscript|superscript)$/
+    const genericTags = new Set(["SPAN", "DIV", "B", "I", "U", "S", "SMALL", "EM", "STRONG", "CODE", "DEL", "INS", "SUB", "SUP", "P", "Q", "SAMP", "VAR", "BDI", "BDO", "DATA"])
+    const nameable = (node: Element) => {
+      const role = node.getAttribute("role")?.trim().split(/\s+/)[0]
+      return role ? !unnamed.test(role) : !genericTags.has(node.tagName)
+    }
     // An accessible label or description that states the direction: its own, one it points to, or a native label.
     const says = (node: Element | null) =>
-      Boolean(node && [node.getAttribute("aria-label"), node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-labelledby"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)))
+      Boolean(
+        node &&
+          [nameable(node) ? node.getAttribute("aria-label") : null, nameable(node) ? refs(node, "aria-labelledby") : "", node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)),
+      )
     // A grid rule's tone is the rule's color, not a direction. The rule names itself in data-rule and data-tone and says
     // what it matched in its description, the channel scripts/color.test.ts records for it. Only the rule nearest the
     // value, on it or in its colored run, counts, and only when its tone is the direction color that was found.
@@ -317,10 +328,10 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       if (!ink && !tint) continue
       const painted = ink?.value ?? tint?.color
       report.checked.direction++
-      // The colored run: a tinted box whole, or the element and the ancestors that share its ink, so a sign in a
-      // sibling span counts.
+      // The colored run: a tinted box whole, or the element and up to three wrappers around it that share its ink, the
+      // checked root among them, so a sign in a sibling span counts and a panel painted one color doesn't become one run.
       let run: Element = tint?.node ?? el
-      if (ink) for (let depth = 0; depth < 3 && run.parentElement && run.parentElement !== scope && style(run.parentElement)[ink.property] === ink.value; depth++) run = run.parentElement
+      if (ink) for (let depth = 0; depth < 3 && run !== scope && run.parentElement && style(run.parentElement)[ink.property] === ink.value; depth++) run = run.parentElement
       const seen = shown(run, Boolean(options.visibleCue)).trim()
       if (cued(seen)) continue
       if (!options.visibleCue && (marked(el, run) || ruled(el, run) || saysAlong(el, run) || says(el.closest(cell)))) continue
@@ -330,7 +341,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
 
   if (rules.has("name")) {
     const control =
-      "button, a[href], details > summary, input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=option], [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree], [contenteditable]:not([contenteditable=false])"
+      "button, a[href], details > summary, input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=treeitem], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=option], [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree], [contenteditable]:not([contenteditable=false])"
     // A field's value is not its name, and neither is the text inside a combobox, a slider, a grid, a list box or an
     // editable region: only the other controls take a name from their content, and only from the part of it that
     // isn't hidden.

@@ -3,15 +3,17 @@ import { useId } from "react"
 import { NUMERIC_CLASS } from "@/lib/format"
 
 // Three samples for checkContract. The kept one follows the contract, a word for a cue, a sign in a boxless wrapper,
-// a field, a select, SVG text, SVG text painted in nothing and screen-reader-only small print among it. The unseen
-// one says its direction only to a screen reader, through a label it points to, a native label, a faded sign, a sign
-// painted transparent, a grid rule's highlight that its description explains, a label on the run around the value and
-// a cell marked with its side: that passes by default and fails under visibleCue. The broken one breaks three rules
-// on purpose: numbers colored up with nothing else saying so (in text, in a field, in SVG text, with units, behind a
-// description that points at nothing, a label that names no direction, a side marked on a container rather than on
-// the value, a highlight from a rule whose tone is no direction, and a hidden sign); an icon button and a field with
-// no name; and text under the floor, an SVG label drawn at half size and small print the spec shrinks at run time, a
-// select's and a placeholder's among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
+// a colored run the spec also checks as its own root, a field, a select, SVG text, SVG text painted in nothing and
+// screen-reader-only small print among it. The unseen one says its direction only to a screen reader, through a
+// description it points to, a native label, a faded sign, a sign painted transparent, a grid rule's highlight that
+// its description explains, a description on the run around the value and a cell marked with its side: that passes by
+// default and fails under visibleCue. The broken one breaks three rules on purpose: numbers colored up with nothing
+// else saying so (in text, in a field, in SVG text, with units, behind a description that points at nothing, a label
+// that names no direction, a label on a plain span, which no screen reader hears, a side marked on a container rather
+// than on the value, a highlight from a rule whose tone is no direction, and a hidden sign); an icon button and a
+// field with no name; and text under the floor, an SVG label drawn at half size and small print the spec shrinks at
+// run time, a select's and a placeholder's among it. It is marked data-contract-ignore, so the page-wide check leaves
+// it out.
 
 export function AgentKitScene() {
   const id = useId()
@@ -30,6 +32,10 @@ export function AgentKitScene() {
         </span>
         <span data-numeric="" className={cn(NUMERIC_CLASS, "text-up")}>
           <span className="contents">+</span>0-07
+        </span>
+        <span data-cue-root="" className={cn(NUMERIC_CLASS, "text-up")}>
+          <span>+</span>
+          <span>0-15</span>
         </span>
         <span data-small-print="" className="sr-only">
           Refreshes each second
@@ -57,7 +63,7 @@ export function AgentKitScene() {
         <span id={`${id}-up`} className="sr-only">
           Up
         </span>
-        <span aria-labelledby={`${id}-up`} data-cue="labelledby" className={cn(NUMERIC_CLASS, "text-up")}>
+        <span aria-describedby={`${id}-up`} data-cue="describedby" className={cn(NUMERIC_CLASS, "text-up")}>
           0-03
         </span>
         <label htmlFor={`${id}-change`} className="sr-only">
@@ -73,8 +79,8 @@ export function AgentKitScene() {
         <span data-cue="rule" data-rule="rich" data-tone="up" aria-description="Rich" className={cn(NUMERIC_CLASS, "text-up")}>
           100.25
         </span>
-        <span aria-label="Up 0-12" className={cn(NUMERIC_CLASS, "text-up")}>
-          <span data-cue="run-label">0-12</span>
+        <span aria-description="Up" className={cn(NUMERIC_CLASS, "text-up")}>
+          <span data-cue="run-description">0-12</span>
         </span>
         <table>
           <tbody>
@@ -101,6 +107,9 @@ export function AgentKitScene() {
         </span>
         <span aria-label="Price" data-cue="named" className={cn(NUMERIC_CLASS, "text-up")}>
           0-06
+        </span>
+        <span aria-label="Up" data-cue="generic-label" className={cn(NUMERIC_CLASS, "text-up")}>
+          0-14
         </span>
         <div data-side="buy">
           <span data-cue="side" className={cn(NUMERIC_CLASS, "text-up")}>

@@ -150,18 +150,19 @@ describe("checkContract", () => {
     expect(report.findings.map((f) => f.where)).toEqual(["page button[data-id=decor]", "page input[data-id=own-value]"])
   })
 
-  it("holds a grid or a list box to a name of its own, never its cells' text", () => {
+  it("holds a grid, a list box and a tree item to a name, never a grid's cells' text", () => {
     const root = mount(
       [
         "<div>",
         '<div role="grid" tabindex="0" data-id="bare-grid"><div role="row"><div role="gridcell">99-16</div></div></div>',
         '<div role="grid" tabindex="0" aria-label="Orders"><div role="row"><div role="gridcell">99-17</div></div></div>',
         '<div role="listbox" data-id="bare-list"><div role="option">UST 10Y</div></div>',
+        '<div role="tree" aria-label="Books"><div role="treeitem" tabindex="0" data-id="bare-item"><svg aria-hidden="true" width="8" height="8"></svg></div><div role="treeitem" tabindex="0">Bonds</div></div>',
         "</div>",
       ].join(""),
     )
     const report = checkContract({ root, rules: ["name"] })
-    expect(report.findings.map((f) => f.where)).toEqual(["page div[data-id=bare-grid]", "page div[data-id=bare-list]"])
+    expect(report.findings.map((f) => f.where)).toEqual(["page div[data-id=bare-grid]", "page div[data-id=bare-list]", "page div[data-id=bare-item]"])
   })
 
   it("takes a placeholder only from a field that shows one, and an empty value as no name", () => {
