@@ -62,6 +62,9 @@ cp "$root/fixtures/smoke/dialog-focus/${style%%-*}.tsx" "$fixture/src/smoke/colu
 bun -e 'const { consumerImports } = await import(process.argv[1] + "/scripts/site/build.ts"); await Bun.write(process.argv[2] + "/src/smoke/recipes/blotter-actions.tsx", consumerImports(await Bun.file(process.argv[1] + "/playground/src/demos/blotter-actions.tsx").text()))' "$root" "$fixture"
 bun -e 'const { consumerImports } = await import(process.argv[1] + "/scripts/site/build.ts"); await Bun.write(process.argv[2] + "/src/smoke/recipes/audit-trail.tsx", consumerImports(await Bun.file(process.argv[1] + "/playground/src/demos/audit-trail.tsx").text()))' "$root" "$fixture"
 bun -e 'const { consumerImports } = await import(process.argv[1] + "/scripts/site/build.ts"); await Bun.write(process.argv[2] + "/src/smoke/recipes/instrument-search.tsx", consumerImports(await Bun.file(process.argv[1] + "/playground/src/demos/instrument-search.tsx").text()))' "$root" "$fixture"
+for demo in workspace workspace-tab-controls; do
+  bun -e 'const { consumerImports } = await import(process.argv[1] + "/scripts/site/build.ts"); await Bun.write(process.argv[2] + "/src/smoke/recipes/" + process.argv[3] + ".tsx", consumerImports(await Bun.file(process.argv[1] + "/playground/src/demos/" + process.argv[3] + ".tsx").text()))' "$root" "$fixture" "$demo"
+done
 cp "$root/fixtures/smoke/main.tsx" "$fixture/src/main.tsx"
 cp "$root/fixtures/smoke/playwright.config.ts" "$fixture/playwright.config.ts"
 cp "$root/fixtures/smoke/smoke.spec.ts" "$fixture/smoke.spec.ts"

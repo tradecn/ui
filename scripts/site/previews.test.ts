@@ -259,6 +259,7 @@ describe("the demo source shown under Code", () => {
       "workspace-linked-panels",
       "workspace-panel-actions",
       "workspace-saved-layout",
+      "workspace-tab-controls",
     ])
     expect(demos.has("typography")).toBe(true)
     expect(demos.has(DESK_DEMO)).toBe(true)
@@ -438,6 +439,7 @@ describe("a theme on the site", () => {
       "workspace-linked-panels",
       "workspace-panel-actions",
       "workspace-saved-layout",
+      "workspace-tab-controls",
     ])
     const withVariants = new Map(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE), framed).map((page) => [page.path, page.html]))
     expect(withVariants.size).toBe(pages.size + variants.length)
@@ -716,4 +718,10 @@ it("keeps the session hero, complete Usage and installed shared composition alig
   expect(demoStart).toBeGreaterThanOrEqual(0)
   expect(fixtureStart).toBeGreaterThanOrEqual(0)
   expect(fixture.slice(fixtureStart)).toBe(consumerImports(demo.slice(demoStart)))
+})
+
+it("keeps the workspace hero and complete Usage composition aligned", () => {
+  const demo = readFileSync(resolve(root, "playground/src/demos/workspace.tsx"), "utf8")
+  const docs = readFileSync(resolve(root, "docs/workspace.md"), "utf8")
+  expect(docs.match(/```tsx\n([\s\S]*?)\n```/)?.[1]?.trim()).toBe(consumerImports(demo).trim())
 })

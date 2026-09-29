@@ -1,5 +1,5 @@
 import { PanelContent } from "@/registry/tradecn/ui/panel"
-import { Workspace } from "@/registry/tradecn/ui/workspace"
+import { Workspace, WorkspaceTab, WorkspaceTabClose, WorkspaceTabTitle } from "@/registry/tradecn/ui/workspace"
 
 function Orders() {
   return <PanelContent className="p-3">No open orders.</PanelContent>
@@ -16,11 +16,21 @@ export default function WorkspaceDemo() {
     <Workspace
       className="h-64 rounded-md border border-border"
       panels={PANELS}
+        tabComponent={DeskTab}
       watermark="No panels."
       seed={(api) => {
         const orders = api.addPanel({ kind: "orders", title: "Orders" })
         api.addPanel({ kind: "positions", title: "Positions", position: { reference: orders, direction: "right" } })
       }}
     />
+  )
+}
+
+export function DeskTab() {
+  return (
+    <WorkspaceTab>
+      <WorkspaceTabTitle />
+      <WorkspaceTabClose>×</WorkspaceTabClose>
+    </WorkspaceTab>
   )
 }

@@ -993,6 +993,26 @@
           {
             "title": "useWorkspacePanel",
             "description": "Inside a panel: its id, kind, title, kept state, whether it is active, and close, float, pop out, maximize."
+          },
+          {
+            "title": "WorkspaceTab",
+            "description": "Caller-owned tab contents and click-to-panel focus."
+          },
+          {
+            "title": "WorkspaceTabTitle",
+            "description": "The current dock title."
+          },
+          {
+            "title": "WorkspaceTabClose",
+            "description": "A native close control with a title-based accessible name."
+          },
+          {
+            "title": "WorkspaceTabActions",
+            "description": "Controls with their own focus and no tab drag."
+          },
+          {
+            "title": "useWorkspaceTab",
+            "description": "This tab’s panel state, dock readings and commands."
           }
         ]
       },

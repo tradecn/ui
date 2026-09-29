@@ -1,3 +1,4 @@
+import { DeskTab } from "./workspace"
 import { useState } from "react"
 import { PanelContent } from "@/registry/tradecn/ui/panel"
 import { Workspace, useWorkspacePanel, type WorkspaceApi } from "@/registry/tradecn/ui/workspace"
@@ -45,6 +46,7 @@ export default function WorkspaceSavedLayoutDemo() {
         <span className="text-xs text-muted-foreground lining-nums tabular-nums" role="status">{error || `Saves: ${saves}`}</span>
       </div>
       <Workspace
+        tabComponent={DeskTab}
         className="h-64 rounded-md border border-border"
         panels={PANELS}
         seed={seed}

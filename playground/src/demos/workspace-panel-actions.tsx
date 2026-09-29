@@ -1,3 +1,4 @@
+import { DeskTab } from "./workspace"
 import { useState } from "react"
 import { PanelActions, PanelContent, PanelHeader } from "@/registry/tradecn/ui/panel"
 import { Workspace, useWorkspacePanel, type WorkspaceApi } from "@/registry/tradecn/ui/workspace"
@@ -48,7 +49,7 @@ export default function WorkspacePanelActionsDemo() {
           seed(api)
         }}>Reset layout</button>
       </div>
-      <Workspace className="h-96 rounded-md border border-border" panels={PANELS} seed={seed} onReady={setApi} watermark="No docked panels. Reset the layout to start again." />
+      <Workspace tabComponent={DeskTab} className="h-96 rounded-md border border-border" panels={PANELS} seed={seed} onReady={setApi} watermark="No docked panels. Reset the layout to start again." />
     </>
   )
 }

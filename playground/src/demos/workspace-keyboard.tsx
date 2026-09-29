@@ -1,3 +1,4 @@
+import { DeskTab } from "./workspace"
 import { useState } from "react"
 import { HotkeysProvider, useHotkey } from "@/registry/tradecn/hooks/use-hotkeys"
 import type { HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
@@ -43,6 +44,7 @@ export default function WorkspaceKeyboardDemo() {
     <HotkeysProvider bindings={BINDINGS}>
       <Keys api={api} />
       <Workspace
+        tabComponent={DeskTab}
         className="h-64 rounded-md border border-border"
         panels={PANELS}
         onReady={setApi}

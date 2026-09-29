@@ -1,3 +1,5 @@
+import { DeskTab } from "./recipes/workspace"
+import WorkspaceTabControlsDemo from "./recipes/workspace-tab-controls"
 import { useState } from "react"
 import { Workspace, useWorkspacePanel, type WorkspaceApi } from "@/components/ui/workspace"
 import { HotkeysProvider, useHotkey } from "@/hooks/use-hotkeys"
@@ -62,9 +64,10 @@ export function WorkspaceScene() {
           </button>
         </div>
         <div style={{ height: 240 }}>
-          <Workspace panels={PANELS} defaultLayout={stored} seed={seed} onLayoutChange={onLayoutChange} layoutChangeDelay={50} onReady={setApi} />
+          <Workspace tabComponent={DeskTab} panels={PANELS} defaultLayout={stored} seed={seed} onLayoutChange={onLayoutChange} layoutChangeDelay={50} onReady={setApi} />
         </div>
       </div>
+      <div data-workspace-controls className="mt-4 w-full max-w-160"><WorkspaceTabControlsDemo /></div>
     </HotkeysProvider>
   )
 }
