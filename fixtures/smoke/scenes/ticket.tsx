@@ -8,6 +8,7 @@ export function TicketScene() {
   const [open, setOpen] = useState(true)
   const [sent, setSent] = useState<TicketDraft[]>([])
   const [ack, setAck] = useState(0)
+  const [blocked, setBlocked] = useState(false)
   return (
     <HotkeysProvider bindings={[]}>
       <div className="flex w-80 flex-col gap-2" data-ticket-sent={JSON.stringify(sent)} data-ticket-acks={ack}>
@@ -17,13 +18,16 @@ export function TicketScene() {
         <Ticket
           instrument={ZN}
           reference={{ bid: 99.5, ask: 99.515625, last: 99.5 }}
-          limits={{ maxQuantity: { confirm: 10, block: 50 }, maxDistance: { ticks: 4 } }}
+          limits={{ maxQuantity: { confirm: 10, block: 50 }, maxDistance: { ticks: 4 }, custom: () => blocked ? [{ field: "__proto__", level: "block", rule: "desk-policy", message: "Desk policy blocks this order." }] : [] }}
           quickSizes={[1, 5, 10]}
           actions={[{ id: "send", label: "Send", primary: true, run: (draft) => setSent((s) => [...s, draft]) }]}
           allowedActions={open ? ["send"] : []}
           status={ack ? "Acknowledged" : sent.length ? "Sent" : undefined}
           acknowledged={ack || undefined}
         />
+        <button type="button" onClick={() => setBlocked((value) => !value)}>
+          {blocked ? "clear custom block" : "set custom block"}
+        </button>
         <button type="button" onClick={() => setAck((n) => n + 1)}>
           acknowledge
         </button>

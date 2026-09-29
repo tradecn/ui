@@ -605,6 +605,28 @@ test("workspace overflow actions stay open for keyboard menu interaction", async
 // The first block, and seven of the consumer's components in one place. The price field goes
 // through the consumer's input-group, the side through their button-group, the errors through their
 // field. Then the two rules: buttons are what the server allowed, and the status is what it said.
+for (const kind of ["ticket", "rfq-ticket"] as const) {
+  test(`${kind} keeps a prototype-named custom block authoritative`, async ({ page }) => {
+    await page.goto("/")
+    const scene = page.locator(`section[data-scene='${kind}']`)
+    const level = scene.getByLabel(kind === "ticket" ? "Price" : "Offer", { exact: true })
+    const attribute = kind === "ticket" ? "data-ticket-sent" : "data-rfq-sent"
+    const state = scene.locator(`[${attribute}]`)
+    const action = scene.getByRole("button", { name: kind === "ticket" ? /^Send/ : /^Quote/ })
+    if (kind === "ticket") await scene.getByLabel("Quantity", { exact: true }).fill("5")
+    await level.fill("99-16+")
+    await scene.getByRole("button", { name: "set custom block" }).click()
+    await expect(action).toBeDisabled()
+    await expect(scene.getByText(kind === "ticket" ? "Desk policy blocks this order." : "Desk policy blocks this quote.")).toBeVisible()
+    await level.press("ControlOrMeta+Enter")
+    await expect(state).toHaveAttribute(attribute, "[]")
+    await scene.getByRole("button", { name: "clear custom block" }).click()
+    await expect(action).toBeEnabled()
+    await level.press("ControlOrMeta+Enter")
+    await expect.poll(async () => JSON.parse((await state.getAttribute(attribute)) ?? "[]").length).toBe(1)
+  })
+}
+
 test("a ticket types a price in 32nds, steps it, sends from a key, and shows only what the server allows", async ({ page }) => {
   const errors: string[] = []
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
