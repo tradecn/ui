@@ -235,6 +235,7 @@ describe("the demo source shown under Code", () => {
       "rules-editor-layout",
       "rules-editor-tabs",
       "session-calendar-exceptions",
+      "session-guard-inline",
       "session-guard-replies",
       "session-guard-status",
       "sparkline-baseline",
@@ -413,6 +414,7 @@ describe("a theme on the site", () => {
       "rules-editor-layout",
       "rules-editor-tabs",
       "session-calendar-exceptions",
+      "session-guard-inline",
       "session-guard-replies",
       "session-guard-status",
       "sparkline-baseline",
@@ -701,4 +703,17 @@ it("keeps the chooser's installed shared recipe aligned with the complete Usage 
   expect(fixtureStart).toBeGreaterThanOrEqual(0)
   const exported = demo.slice(demoStart)
   expect(fixture.slice(fixtureStart)).toBe(consumerImports(exported))
+})
+
+it("keeps the session hero, complete Usage and installed shared composition aligned", () => {
+  const demo = readFileSync(resolve(root, "playground/src/demos/session-guard.tsx"), "utf8")
+  const docs = readFileSync(resolve(root, "docs/session-guard.md"), "utf8")
+  const fixture = readFileSync(resolve(root, "fixtures/smoke/scenes/session-notice.tsx"), "utf8")
+  expect(docs.match(/```tsx\n([\s\S]*?)\n```/)?.[1]?.trim()).toBe(consumerImports(demo).trim())
+  const marker = "export interface SessionNoticeProps"
+  const demoStart = demo.indexOf(marker)
+  const fixtureStart = fixture.indexOf(marker)
+  expect(demoStart).toBeGreaterThanOrEqual(0)
+  expect(fixtureStart).toBeGreaterThanOrEqual(0)
+  expect(fixture.slice(fixtureStart)).toBe(consumerImports(demo.slice(demoStart)))
 })

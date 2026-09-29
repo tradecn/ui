@@ -1,7 +1,7 @@
 import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "cn"
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -57,7 +57,8 @@ import { RfqStack, bySize, byTimeLeft, rfqStackColumns, stackOrder, useRfqStackV
 import { RulesEditorSections } from "@/demos/rules-editor-tabs"
 import { RulesEditor } from "@/registry/tradecn/ui/rules-editor"
 import { Sparkline } from "@/registry/tradecn/ui/sparkline"
-import { SessionGuard, SessionStatus } from "@/registry/tradecn/ui/session-guard"
+import { SessionStatus } from "@/registry/tradecn/ui/session-guard"
+import { SessionNotice } from "./session-guard"
 import { SpreadMatrix, type SpreadInstrument, type SpreadStructure } from "@/registry/tradecn/ui/spread-matrix"
 import { SpreadMatrixContent } from "./spread-matrix-yields"
 import { SpreadStructuresContent } from "./spread-matrix-structures"
@@ -1324,7 +1325,7 @@ function seed(api: WorkspaceApi) {
   api.dockview.getPanel("order-1")?.api.setSize({ width: 360, height: 400 })
 }
 
-function Toolbar() {
+function Toolbar({ sessionFocusRef }: { sessionFocusRef: RefObject<HTMLButtonElement | null> }) {
   const desk = useDesk()
   const stack = useStack()
   const open = useContext(UiContext)
@@ -1398,7 +1399,7 @@ function Toolbar() {
   }, [desk, open])
   return (
     <div className="flex items-center gap-2 border-b border-border px-2 py-1">
-      <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => open("find")}>
+      <Button ref={sessionFocusRef} size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => open("find")}>
         Find an instrument
       </Button>
       <span className="min-w-0 truncate text-muted-foreground">
@@ -1612,6 +1613,7 @@ function Foot({ sessionEndsAt }: { sessionEndsAt: number }) {
 const SESSION_MS = 20 * 60_000
 
 export default function TerminalDemo() {
+  const sessionFocus = useRef<HTMLButtonElement>(null)
   const [desk] = useState(createDesk)
   const [layout, setLayout] = useState<WorkspaceLayout | null>(null)
   const [dialog, setDialog] = useState<DeskDialog | null>(null)
@@ -1645,10 +1647,10 @@ export default function TerminalDemo() {
           <UiContext.Provider value={setDialog}>
             <StackProvider>
               <div data-desk className="flex h-[48rem] min-w-[56rem] flex-col overflow-hidden rounded-md border border-border bg-background font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums">
-                <Toolbar />
-                <SessionGuard expiresAt={sessionEndsAt} onReauthenticate={renew} className="border-b border-border px-2 py-1">
+                <Toolbar sessionFocusRef={sessionFocus} />
+                <SessionNotice fallbackFocusRef={sessionFocus} expiresAt={sessionEndsAt} onReauthenticate={renew} className="border-b border-border px-2 py-1">
                   <p className="text-muted-foreground">A desk's sign-in goes here: a password, a token prompt, or one button to the identity provider. Nothing on the desk has moved.</p>
-                </SessionGuard>
+                </SessionNotice>
                 <DeskAlerts alerts={desk.alerts} actions={alertActions} />
                 <Workspace className="min-h-0 flex-1" panels={PANELS} seed={seed} onLayoutChange={setLayout} onReady={desk.attach} watermark="No panels. Open Layouts and reset the desk." />
                 <Foot sessionEndsAt={sessionEndsAt} />

@@ -1227,6 +1227,7 @@ describe("the docs pages", async () => {
   it("heads an item's page by the name its implementation goes by: a component's export, a hook's, a utility's or a theme's own name", () => {
     const heading = (name: string) => headingOf(registry.items.find((item) => item.name === name)!)
     expect(heading("data-grid")).toBe("DataGrid")
+    expect(heading("session-guard")).toBe("SessionGuardProvider")
     expect(heading("rfq-ticket")).toBe("RfqTicket")
     expect(heading("use-hotkeys")).toBe("useHotkeys")
     expect(heading("row-store")).toBe("row-store")

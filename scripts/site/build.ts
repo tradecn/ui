@@ -134,8 +134,10 @@ const pascalCase = (name: string) => camelCase(name).replace(/^\w/, (letter) => 
 export const headingOf = (item: RegistryItem): string => {
   switch (item.type) {
     case "registry:ui":
-    case "registry:block":
-      return pascalCase(item.name)
+    case "registry:block": {
+      const name = pascalCase(item.name)
+      return item.meta?.components?.some(component => component.title === name) ? name : item.meta?.components?.[0]?.title ?? name
+    }
     case "registry:hook":
       return camelCase(item.name)
     default:

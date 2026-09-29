@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react"
-import { SessionGuard, SessionStatus } from "@/registry/tradecn/ui/session-guard"
+import { SessionStatus } from "@/registry/tradecn/ui/session-guard"
+
+import { SessionNotice } from "./session-guard"
 
 export default function SessionGuardRepliesDemo() {
   const [expiresAt, setExpiresAt] = useState<number | null>(null)
   const [waiting, setWaiting] = useState(false)
+  const opener = useRef<HTMLButtonElement>(null)
   const reply = useRef<((ok: boolean) => void) | null>(null)
 
   useEffect(() => () => {
@@ -23,11 +26,11 @@ export default function SessionGuardRepliesDemo() {
   return (
     <>
       <div data-demo-controls className="flex flex-wrap gap-2 text-xs">
-        <button type="button" className="rounded border border-border px-2 py-1" onClick={() => setExpiresAt(0)}>Show expired session</button>
+        <button ref={opener} type="button" className="rounded border border-border px-2 py-1" onClick={() => setExpiresAt(0)}>Show expired session</button>
       </div>
       <div className="flex min-h-96 w-fit max-w-full items-center justify-center text-xs">
         <SessionStatus expiresAt={expiresAt} warnMs={0} />
-        <SessionGuard expiresAt={expiresAt} warnMs={0} onReauthenticate={() => new Promise<boolean>((resolve) => {
+        <SessionNotice fallbackFocusRef={opener} expiresAt={expiresAt} warnMs={0} onReauthenticate={() => new Promise<boolean>((resolve) => {
           reply.current = resolve
           setWaiting(true)
         })}>
@@ -39,7 +42,7 @@ export default function SessionGuardRepliesDemo() {
               <button type="button" className="rounded border border-border px-2 py-1 disabled:opacity-50" onClick={() => answer(false)}>Refuse sign-in</button>
             </div>
           </fieldset>
-        </SessionGuard>
+        </SessionNotice>
       </div>
     </>
   )

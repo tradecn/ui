@@ -1,7 +1,14 @@
+import { useRef } from "react"
+import { SessionNotice, type SessionNoticeProps } from "@/demos/session-guard"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createClock } from "@/registry/tradecn/lib/clock"
-import { DEFAULT_SESSION_GUARD_LABELS, DEFAULT_WARN_MS, SessionGuard, SessionStatus, sessionStatus } from "@/registry/tradecn/ui/session-guard"
+import { DEFAULT_SESSION_GUARD_LABELS, DEFAULT_WARN_MS, SessionStatus, sessionStatus } from "@/registry/tradecn/ui/session-guard"
+
+function SessionGuard(props: Omit<SessionNoticeProps, "fallbackFocusRef">) {
+  const fallback = useRef<HTMLInputElement>(null)
+  return <><input ref={fallback} aria-label="Draft" /><SessionNotice {...props} fallbackFocusRef={fallback} /></>
+}
 
 const T0 = 1_700_000_000_000
 const MINUTE = 60_000
@@ -24,7 +31,7 @@ const tick = (ms: number) =>
     vi.advanceTimersByTime(ms)
   })
 
-const root = () => document.querySelector<HTMLElement>("[data-slot='tradecn-session-guard']")!
+const root = () => document.querySelector<HTMLElement>("[data-session-phase]")!
 
 describe("sessionStatus", () => {
   it("is none without an end, live before the window, warning inside it, and expired at or past the end", () => {
@@ -60,7 +67,7 @@ describe("the guard", () => {
     expect(root()).toHaveAttribute("data-session-phase", "warning")
     const banner = screen.getByRole("status")
     expect(banner).toHaveTextContent("Your session ends in 2:00.")
-    expect(banner.querySelector("[data-slot='tradecn-countdown']")).toHaveAttribute("data-tier", "soon")
+    expect(banner.querySelector("[data-slot='tradecn-session-guard-remaining']")).toHaveAttribute("data-tier", "soon")
     expect(screen.getByRole("button", { name: "Stay signed in" })).toBeEnabled()
     expect(screen.queryByRole("dialog")).toBeNull()
     tick(30_000)

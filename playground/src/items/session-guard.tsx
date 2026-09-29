@@ -1,8 +1,10 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { SessionGuard, SessionStatus } from "@/registry/tradecn/ui/session-guard"
+import { SessionStatus } from "@/registry/tradecn/ui/session-guard"
+
+import { SessionNotice } from "../demos/session-guard"
 
 // A session guard over a note field, with the clock in your hands: end the session now, extend it, or make
 // the next sign-in fail. The banner shows inside the warning window, the dialog at expiry, and the note
@@ -11,20 +13,28 @@ import { SessionGuard, SessionStatus } from "@/registry/tradecn/ui/session-guard
 const MINUTE = 60_000
 
 export function SessionGuardScene() {
+  const draft = useRef<HTMLInputElement>(null)
   const [expiresAt, setExpiresAt] = useState<number | null>(() => Date.now() + 90_000)
   const [refuse, setRefuse] = useState(false)
   const [note, setNote] = useState("")
   const [asked, setAsked] = useState(0)
   const [expired, setExpired] = useState(0)
-  const reauthenticate = () =>
-    new Promise<boolean>((resolve) =>
-      setTimeout(() => {
-        setAsked((n) => n + 1)
-        if (refuse) return resolve(false)
-        setExpiresAt(Date.now() + 5 * MINUTE)
-        resolve(true)
-      }, 800),
-    )
+  const request = useRef<{ timer: ReturnType<typeof setTimeout>; resolve: (value: boolean) => void } | null>(null)
+  useEffect(() => () => {
+    if (!request.current) return
+    clearTimeout(request.current.timer)
+    request.current.resolve(false)
+  }, [])
+  const reauthenticate = () => new Promise<boolean>(resolve => {
+    const timer = setTimeout(() => {
+      request.current = null
+      setAsked(n => n + 1)
+      if (refuse) { resolve(false); return }
+      setExpiresAt(Date.now() + 5 * MINUTE)
+      resolve(true)
+    }, 800)
+    request.current = { timer, resolve }
+  })
   return (
     <main className="flex h-screen flex-col gap-3 p-4 text-xs">
       <div className="flex flex-wrap items-center gap-3">
@@ -49,12 +59,12 @@ export function SessionGuardScene() {
           Refuse the next sign-in
         </label>
       </div>
-      <SessionGuard expiresAt={expiresAt} onReauthenticate={reauthenticate} onExpire={() => setExpired((n) => n + 1)}>
+      <SessionNotice fallbackFocusRef={draft} expiresAt={expiresAt} onReauthenticate={reauthenticate} onExpire={() => setExpired((n) => n + 1)}>
         <p className="text-sm text-muted-foreground">Your sign-in goes here.</p>
-      </SessionGuard>
+      </SessionNotice>
       <div className="flex max-w-md flex-col gap-1.5">
         <Label htmlFor="session-guard-scene-note">A half-typed note</Label>
-        <Input id="session-guard-scene-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Still here after the wall" />
+        <Input ref={draft} id="session-guard-scene-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Still here after the wall" />
       </div>
       <div className="flex items-center gap-4 border-t border-border pt-2 text-muted-foreground">
         <SessionStatus expiresAt={expiresAt} />

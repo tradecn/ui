@@ -1,18 +1,14 @@
 import { cn } from "cn"
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode, type RefObject } from "react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useNow } from "@/registry/tradecn/hooks/use-clock"
-import type { Clock } from "@/registry/tradecn/lib/clock"
+import { sharedClock, type Clock } from "@/registry/tradecn/lib/clock"
 import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
-import { Countdown, formatRemaining } from "@/registry/tradecn/ui/countdown"
+import { countdownTier, formatRemaining } from "@/registry/tradecn/ui/countdown"
 
-// A session ends and the trader must not lose a half-typed ticket. The guard reads one number, when the
-// session expires, and does three things with it: in the warning window it shows a banner with a countdown
-// and a button that asks the consumer to extend the session; at expiry it opens a dialog that is a hotkey
-// wall, blocking every action underneath and unmounting nothing, so drafts and layouts stay where they are;
-// and it reports the phase for a status bar. The guard holds no token and knows no protocol: the consumer's
-// login is the consumer's, rendered as the dialog's children, and `onReauthenticate` is how it is asked.
+// One owner coordinates the session phase and sign-in request. Callers compose the warning,
+// modal contents and controls; only time readings subscribe to every clock tick.
 
 export type SessionPhase = "none" | "live" | "warning" | "expired"
 
@@ -86,111 +82,262 @@ function phaseWord(phase: SessionPhase, labels: SessionGuardLabels): string {
   return phase === "live" ? labels.live : phase === "warning" ? labels.ending : phase === "expired" ? labels.ended : labels.noSession
 }
 
-/** Asks the consumer for a new session and reports where the ask stands. */
-function useReauthenticate(onReauthenticate: () => Promise<boolean>, phase: SessionPhase) {
-  const [pending, setPending] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const latest = useRef(onReauthenticate)
-  useEffect(() => {
-    latest.current = onReauthenticate
-  })
-  // A refusal is forgotten once the session is live again, settled during render.
-  const [seen, setSeen] = useState(phase)
-  if (seen !== phase) {
-    setSeen(phase)
-    if (phase === "live" || phase === "none") setFailed(false)
-  }
-  const attempt = async () => {
-    if (pending) return
-    setPending(true)
-    setFailed(false)
-    try {
-      const ok = await latest.current()
-      setFailed(!ok)
-    } catch {
-      setFailed(true)
-    } finally {
-      setPending(false)
-    }
-  }
-  return { pending, failed, attempt }
+interface RequestState {
+  pending: boolean
+  failed: boolean
 }
 
-export interface SessionGuardProps {
-  /** When the session ends, ms since the epoch. Null or undefined while there is no session. */
+function createRequestStore(authenticate: () => Promise<boolean>) {
+  let state: RequestState = { pending: false, failed: false }
+  let phase: SessionPhase | undefined
+  let needsNotification = false
+  let active = false
+  let generation = 0
+  const listeners = new Set<() => void>()
+  function notify() {
+    if (!needsNotification) return
+    needsNotification = false
+    for (const listener of listeners) listener()
+  }
+  function publish(next: RequestState) {
+    if (state.pending === next.pending && state.failed === next.failed) return
+    state = next
+    needsNotification = true
+    notify()
+  }
+  const recovering = (next: SessionPhase) => next !== phase && (next === "live" || next === "none")
+  return {
+    subscribe(listener: () => void) {
+      listeners.add(listener)
+      return () => { listeners.delete(listener) }
+    },
+    snapshot: () => state,
+    recovering,
+    commitPhase(next: SessionPhase) {
+      // Commit before child layout commands, without scheduling React work in insertion effects.
+      if (recovering(next) && state.failed) {
+        state = { ...state, failed: false }
+        needsNotification = true
+      }
+      phase = next
+    },
+    notify,
+    setCallback(next: () => Promise<boolean>) { authenticate = next },
+    mount() { active = true },
+    unmount() {
+      active = false
+      generation++
+      state = { pending: false, failed: false }
+      needsNotification = false
+    },
+    async reauthenticate() {
+      if (!active || state.pending) return
+      const request = generation
+      // Lock before calling application code, including another control in this same event.
+      publish({ pending: true, failed: false })
+      let ok = false
+      try { ok = await authenticate() } catch { /* A thrown or rejected request is a refusal. */ }
+      if (active && request === generation) publish({ pending: false, failed: !ok })
+    },
+  }
+}
+
+interface SessionContextValue {
+  phase: SessionPhase
+  expiresAt: number | null
+  warnMs: number
+  clock: Clock
+  labels: SessionGuardLabels
+  request: ReturnType<typeof createRequestStore>
+}
+
+const SessionContext = createContext<SessionContextValue | null>(null)
+
+function useSessionContext() {
+  const context = useContext(SessionContext)
+  if (!context) throw new Error("SessionGuard parts must be inside SessionGuardProvider.")
+  return context
+}
+
+export interface SessionGuardProviderProps extends UseSessionStatusOptions {
+  /** When the session ends, ms since the epoch. Non-finite or absent values mean no session. */
   expiresAt: number | null | undefined
-  /** How long before the end the banner shows. Default two minutes. */
-  warnMs?: number
-  /** Ask for a new session. Resolve true when there is one; the guard closes when `expiresAt` moves. */
+  /** Request a new session. The result does not change expiresAt. */
   onReauthenticate: () => Promise<boolean>
-  /** The consumer's re-authentication, shown in the dialog above the button: a password field, a hardware token prompt, a note. */
-  children?: ReactNode
-  /** The session ended. Called once per expiry. */
+  /** Caller-owned warnings, dialogs, controls and surrounding content. */
+  children: ReactNode
+  /** Called by an effect on entering expired, including an expired mount and effect replay. */
   onExpire?: () => void
   labels?: Partial<SessionGuardLabels>
-  /** The shared one-second clock unless given another. */
-  clock?: Clock
-  /** Classes on the banner. */
-  className?: string
 }
 
-// The dialog is a wall: a close request is not a way through it.
-function keepOpen() {
-  // The session is what opens and closes it.
-}
-
-export function SessionGuard({ expiresAt, warnMs = DEFAULT_WARN_MS, onReauthenticate, children, onExpire, labels: labelsProp, clock, className }: SessionGuardProps) {
+/** Coordinate one session without owning its markup. Plain clock ticks do not render its children. */
+export function SessionGuardProvider({ expiresAt: suppliedExpiry, warnMs = DEFAULT_WARN_MS, onReauthenticate, onExpire, labels: labelsProp, clock: suppliedClock, children }: SessionGuardProviderProps) {
+  const clock = suppliedClock ?? sharedClock()
+  const expiresAt = suppliedExpiry === null || suppliedExpiry === undefined || !Number.isFinite(suppliedExpiry) ? null : suppliedExpiry
+  const phaseSnapshot = useCallback(() => sessionStatus(expiresAt, clock.now(), warnMs).phase, [expiresAt, clock, warnMs])
+  const phase = useSyncExternalStore(clock.subscribe, phaseSnapshot, phaseSnapshot)
   const labels = useMemo<SessionGuardLabels>(() => ({ ...DEFAULT_SESSION_GUARD_LABELS, ...labelsProp }), [labelsProp])
-  const status = useSessionStatus(expiresAt, { warnMs, clock })
-  const { pending, failed, attempt } = useReauthenticate(onReauthenticate, status.phase)
+  const [request] = useState(() => createRequestStore(onReauthenticate))
   const expire = useRef(onExpire)
-  useEffect(() => {
+  // Publish callbacks and ownership before a descendant can invoke a command in a layout effect.
+  useInsertionEffect(() => {
+    request.setCallback(onReauthenticate)
+    request.commitPhase(phase)
     expire.current = onExpire
-  })
+  }, [request, phase, onReauthenticate, onExpire])
+  useInsertionEffect(() => {
+    request.mount()
+    return () => request.unmount()
+  }, [request])
+  useLayoutEffect(() => request.notify(), [phase, request])
   useEffect(() => {
-    if (status.phase === "expired") expire.current?.()
-  }, [status.phase])
+    if (phase === "expired") expire.current?.()
+  }, [phase])
+  const context = useMemo(() => ({ phase, expiresAt, warnMs, clock, labels, request }), [phase, expiresAt, warnMs, clock, labels, request])
+  return <SessionContext value={context}>{children}</SessionContext>
+}
+
+export interface SessionGuardValue extends Omit<SessionContextValue, "request">, RequestState {
+  /** One shared request, ignored while pending or after the provider unmounts. */
+  reauthenticate: () => Promise<void>
+}
+
+/** Shared phase, settings and sign-in state. Time readings use useSessionStatus or SessionGuardRemaining. */
+export function useSessionGuard(): SessionGuardValue {
+  const { request, ...context } = useSessionContext()
+  const state = useSyncExternalStore(request.subscribe, request.snapshot, request.snapshot)
+  return { ...context, ...state, failed: state.failed && !request.recovering(context.phase), reauthenticate: request.reauthenticate }
+}
+
+export interface SessionGuardWarningProps extends ComponentProps<"div"> {
+  children: ReactNode
+}
+
+/** Caller-owned warning content, mounted only inside the warning window. */
+export function SessionGuardWarning({ className, role = "status", ...props }: SessionGuardWarningProps) {
+  const { phase } = useSessionContext()
+  if (phase !== "warning") return null
+  return <div role={role} data-slot="tradecn-session-guard" data-session-banner="" className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-expiring/50 bg-expiring-soft px-3 py-1.5 text-xs text-foreground lining-nums tabular-nums", className)} {...props} />
+}
+
+/** The provider's countdown. Only this reading renders on ordinary clock ticks. */
+export function SessionGuardRemaining({ className, role = "timer", "aria-label": label, ...props }: Omit<ComponentProps<"span">, "children">) {
+  const { expiresAt, warnMs, clock, labels } = useSessionContext()
+  const now = useNow(clock)
+  if (expiresAt === null) return null
+  const remaining = expiresAt - now
+  const tier = countdownTier(remaining, { soonMs: warnMs })
+  return <span role={role} aria-label={label ?? (props["aria-labelledby"] ? undefined : labels.session)} data-slot="tradecn-session-guard-remaining" data-tier={tier} className={cn("inline-flex items-baseline text-xs lining-nums tabular-nums", tier === "soon" ? "font-semibold text-expiring" : tier === "expired" ? "text-muted-foreground" : "text-foreground", className)} {...props}>
+    <span data-countdown-digits="" data-numeric="">{formatRemaining(remaining)}</span>
+  </span>
+}
+
+/** The localized warning sentence with its ticking reading. Compose Remaining directly for other layouts. */
+export function SessionGuardWarningText(props: Omit<ComponentProps<"span">, "children">) {
+  const { labels } = useSessionContext()
   const [before, after] = labels.warning.split("{remaining}")
-  return (
-    <div data-slot="tradecn-session-guard" data-session-phase={status.phase} className={cn(status.phase === "warning" ? "block" : "contents", className)}>
-      {status.phase === "warning" && status.expiresAt !== null && (
-        <div role="status" data-session-banner="" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-expiring/50 bg-expiring-soft px-3 py-1.5 text-xs text-foreground lining-nums tabular-nums">
-          <span>
-            {before}
-            <Countdown expiresAt={status.expiresAt} compact announce={false} thresholds={{ soonMs: warnMs }} label={labels.session} clock={clock} className="text-expiring" />
-            {after}
-          </span>
-          <Button type="button" size="sm" variant="outline" className="h-7" disabled={pending} data-session-extend="" data-pending={pending || undefined} onClick={() => void attempt()}>
-            {pending ? labels.pending : labels.extend}
-          </Button>
-          {failed && (
-            <span role="alert" data-session-failed="" className="text-destructive">
-              {labels.failed}
-            </span>
-          )}
-        </div>
-      )}
-      <Dialog open={status.phase === "expired"} onOpenChange={keepOpen}>
-        <DialogContent showCloseButton={false} data-session-dialog="" className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{labels.expiredTitle}</DialogTitle>
-            <DialogDescription>{labels.expiredDescription}</DialogDescription>
-          </DialogHeader>
-          {children}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" disabled={pending} data-session-reauthenticate="" data-pending={pending || undefined} onClick={() => void attempt()}>
-              {pending ? labels.pending : labels.reauthenticate}
-            </Button>
-            {failed && (
-              <span role="alert" data-session-failed="" className="text-xs text-destructive">
-                {labels.failed}
-              </span>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
+  return <span {...props}>{before}<SessionGuardRemaining />{after}</span>
+}
+
+export interface SessionGuardReauthenticateProps extends Omit<ComponentProps<typeof Button>, "children"> {
+  children: ReactNode
+}
+
+/** An installed button sharing the provider's request lock. preventDefault cancels the request. */
+export function SessionGuardReauthenticate({ children, disabled, type = "button", onClick, ...props }: SessionGuardReauthenticateProps) {
+  const { pending, reauthenticate } = useSessionGuard()
+  return <Button data-slot="tradecn-session-guard-reauthenticate" data-pending={pending || undefined} {...props} type={type} disabled={pending || disabled} onClick={event => {
+    onClick?.(event)
+    if (!event.defaultPrevented) void reauthenticate()
+  }}>{children}</Button>
+}
+
+/** The pending text, warning action or expired action, using the provider's labels. */
+export function SessionGuardActionLabel(props: Omit<ComponentProps<"span">, "children">) {
+  const { phase, pending, labels } = useSessionGuard()
+  return <span {...props}>{pending ? labels.pending : phase === "warning" ? labels.extend : labels.reauthenticate}</span>
+}
+
+/** The shared refusal, mounted as an alert until the next attempt or recovery. */
+export function SessionGuardError({ className, children, role = "alert", ...props }: ComponentProps<"span">) {
+  const { failed, labels } = useSessionGuard()
+  if (!failed) return null
+  return <span role={role} data-slot="tradecn-session-guard-error" data-session-failed="" className={cn("text-xs text-destructive", className)} {...props}>{children === undefined ? labels.failed : children}</span>
+}
+
+export interface SessionGuardDialogProps extends Omit<ComponentProps<typeof DialogContent>, "children" | "showCloseButton" | "finalFocus" | "onCloseAutoFocus" | "forceMount"> {
+  children: ReactNode
+  /** A persistent application control, used only if the primitive leaves focus in the closing dialog or on body. */
+  fallbackFocusRef: RefObject<HTMLElement | null>
+  open?: never
+  defaultOpen?: never
+  onOpenChange?: never
+  modal?: never
+  showCloseButton?: never
+  finalFocus?: never
+  onCloseAutoFocus?: never
+  forceMount?: never
+  keepMounted?: never
+}
+
+// Only the supplied session closes the modal.
+function keepOpen() {}
+
+/** Expiry-controlled modal content. Callers own its heading, form and actions; the wall owns dismissal and fallback focus. */
+export function SessionGuardDialog({ fallbackFocusRef, children, className, ref, ...props }: SessionGuardDialogProps) {
+  const { phase } = useSessionContext()
+  const open = phase === "expired"
+  const wasOpen = useRef(false)
+  const content = useRef<HTMLElement | null>(null)
+  const contentRef = useCallback((node: HTMLDivElement | null) => {
+    // Keep the closing node until its exit completes, even when initial focus is customized.
+    if (node) content.current = node
+    if (typeof ref === "function") return ref(node)
+    if (ref) ref.current = node
+  }, [ref])
+  const fallback = useRef(fallbackFocusRef)
+  useInsertionEffect(() => { fallback.current = fallbackFocusRef }, [fallbackFocusRef])
+  useLayoutEffect(() => {
+    if (open) {
+      wasOpen.current = true
+      return
+    }
+    if (!wasOpen.current) return
+    wasOpen.current = false
+    const closingContent = content.current
+    const owner = closingContent?.ownerDocument ?? fallback.current.current?.ownerDocument
+    if (!owner) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const restore = () => {
+      content.current = null
+      const target = fallback.current.current
+      if (!owner.hasFocus() || !target?.isConnected || target.ownerDocument !== owner) return
+      const focused = owner.activeElement
+      if (focused !== owner.body && focused !== null && !closingContent?.contains(focused)) return
+      if (target.matches(":disabled") || target.closest("[inert], [hidden], [aria-hidden='true']") || !target.getClientRects().length) return
+      const visibility = owner.defaultView?.getComputedStyle(target).visibility
+      if (visibility === "hidden" || visibility === "collapse") return
+      target.focus()
+    }
+    // Exit animations can keep the popup mounted and the desk inert after open becomes false.
+    // Wait for actual removal, then let the installed primitive finish its native focus cleanup.
+    const Observer = owner.defaultView?.MutationObserver
+    const observer = Observer && closingContent?.isConnected ? new Observer(() => {
+      if (closingContent.isConnected) return
+      observer?.disconnect()
+      timer = setTimeout(restore, 0)
+    }) : undefined
+    if (observer) observer.observe(owner.documentElement, { childList: true, subtree: true })
+    else timer = setTimeout(restore, 0)
+    return () => {
+      observer?.disconnect()
+      clearTimeout(timer)
+    }
+  }, [open])
+  return <Dialog open={open} onOpenChange={keepOpen} modal>
+    <DialogContent {...props} ref={contentRef} showCloseButton={false} data-session-dialog="" className={cn("max-h-[calc(100%-2rem)] overflow-auto sm:max-w-md", className)}>{children}</DialogContent>
+  </Dialog>
 }
 
 export interface SessionStatusProps {
