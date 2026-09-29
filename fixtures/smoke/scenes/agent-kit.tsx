@@ -2,10 +2,10 @@ import { cn } from "cn"
 import { useId } from "react"
 import { NUMERIC_CLASS } from "@/lib/format"
 
-// Three samples for checkContract. The kept one follows the contract, a word for a cue, a field, a select and SVG
-// text among it. The unseen one says its direction only to a screen reader, through a label it points to, a native
-// label and a transparent sign, and carries a grid rule's highlight that its description explains: that passes by
-// default and fails under visibleCue. The broken one breaks three rules on purpose: numbers colored up with nothing
+// Three samples for checkContract. The kept one follows the contract, a word for a cue, a sign in a boxless wrapper,
+// a field, a select, SVG text and screen-reader-only small print among it. The unseen one says its direction only to
+// a screen reader, through a label it points to, a native label, a faded sign and a sign painted transparent, and
+// carries a grid rule's highlight that its description explains: that passes by default and fails under visibleCue. The broken one breaks three rules on purpose: numbers colored up with nothing
 // else saying so (in text, in a field, in SVG text, with units, behind a description that points at nothing, a label
 // that names no direction and a hidden sign); an icon button and a field with no name; and text under the floor, an
 // SVG label drawn at half size and small print the spec shrinks at run time, a select's among it. It is marked
@@ -25,6 +25,12 @@ export function AgentKitScene() {
         </span>
         <span data-numeric="" className={cn(NUMERIC_CLASS, "text-up")}>
           Up 0-01
+        </span>
+        <span data-numeric="" className={cn(NUMERIC_CLASS, "text-up")}>
+          <span className="contents">+</span>0-07
+        </span>
+        <span data-small-print="" className="sr-only">
+          Refreshes each second
         </span>
         <input aria-label="Change" readOnly value="+0-02" className={cn(NUMERIC_CLASS, "w-14 bg-transparent text-up")} />
         <svg role="img" aria-label="Up 0-01" width="40" height="14">
@@ -53,6 +59,9 @@ export function AgentKitScene() {
         <input id={`${id}-change`} readOnly value="0-04" data-cue="label" className={cn(NUMERIC_CLASS, "w-14 bg-transparent text-up")} />
         <span data-cue="transparent" className={cn(NUMERIC_CLASS, "text-up")}>
           <span className="opacity-0">+</span>0-05
+        </span>
+        <span data-cue="clear" className={cn(NUMERIC_CLASS, "text-up")}>
+          <span className="text-transparent">+</span>0-08
         </span>
         <span data-cue="rule" data-rule="rich" data-tone="up" aria-description="Rich" className={cn(NUMERIC_CLASS, "text-up")}>
           100.25

@@ -88,23 +88,51 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       const type = input.type.toLowerCase()
       // A password shows as dots, so the check sees that it holds something and never what.
       if (type === "password") return input.value ? "••••" : ""
-      // A submit or reset button with no value wears the browser's own word.
-      if (type === "submit" || type === "reset") return input.value || (type === "submit" ? "Submit" : "Reset")
+      // A submit or reset button with no value attribute wears the browser's own word; an empty one wears nothing.
+      if (type === "submit" || type === "reset") return input.hasAttribute("value") ? input.value : type === "submit" ? "Submit" : "Reset"
       if (/^(checkbox|radio|range|color|file|image|hidden)$/.test(type)) return ""
     }
     return isField(el) ? (el as HTMLInputElement).value : ""
   }
   // The text an element shows of its own: a field's value, or its own text nodes.
   const textOf = (el: Element) => (isField(el) ? field(el) : own(el))
+  // Only a text field or a text area shows its placeholder.
+  const placeholderOf = (el: Element) =>
+    el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && /^(text|search|url|tel|email|password|number)$/.test((el as HTMLInputElement).type.toLowerCase())) ? (el.getAttribute("placeholder") ?? "") : ""
   const svgText = (el: Element) => el.namespaceURI === "http://www.w3.org/2000/svg" && /^(text|tspan|textPath)$/.test(el.tagName)
-  const hidden = (el: Element) => {
+  const hidden = (el: Element): boolean => {
     if (el.closest("[hidden]")) return true
+    // A display: contents element has no box of its own, and what it holds still draws, so its parent decides.
+    if (style(el).display === "contents") return style(el).visibility === "hidden" || (el.parentElement ? hidden(el.parentElement) : false)
     if (typeof el.checkVisibility === "function") return !el.checkVisibility({ checkVisibilityCSS: true, visibilityProperty: true })
     for (let node: Element | null = el; node; node = node.parentElement) {
       const s = style(node)
       if (s.display === "none" || s.visibility === "hidden") return true
     }
     return false
+  }
+  // A paint that shows nothing: none, transparent, or any color at zero alpha. A browser always resolves a paint, so an
+  // empty one is unknown rather than clear.
+  const transparent = (paint: string) => paint === "none" || paint === "transparent" || /^rgba\([^,]+,[^,]+,[^,]+,\s*0(?:\.0*)?\)$/.test(paint) || /\/\s*0(?:\.0*)?%?\s*\)$/.test(paint)
+  // A box a reader never sees: faded to nothing, or clipped down to a pixel, the screen-reader-only pattern.
+  const unseenBox = (el: Element) => {
+    const s = style(el)
+    if (s.display === "contents") return false
+    if (parseFloat(s.opacity) === 0) return true
+    const clips = [s.overflowX, s.overflowY].some((v) => v !== "" && v !== "visible") || /rect\(/.test(s.clip) || (s.clipPath !== "" && s.clipPath !== "none")
+    const box = el.getBoundingClientRect()
+    return clips && box.width <= 1 && box.height <= 1
+  }
+  // Glyphs drawn in something other than transparent: a color for text, a fill or a stroke for SVG text.
+  const inked = (el: Element) => {
+    const s = style(el)
+    return svgText(el) ? !(transparent(s.fill) && transparent(s.stroke)) : !transparent(s.color)
+  }
+  // Text a reader sees: laid out, inked, and inside no box that fades it or clips it away.
+  const drawn = (el: Element) => {
+    if (hidden(el) || !inked(el)) return false
+    for (let node: Element | null = el; node; node = node.parentElement) if (unseenBox(node)) return false
+    return true
   }
   // A node's text alternative, read the way the accessible name computation reads it: a hidden part says nothing
   // unless a reference points straight at it, an element's own label outranks its text, an image says its alt, a
@@ -162,14 +190,14 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
 
   if (rules.has("floor")) {
     for (const el of elements) {
-      const text = textOf(el) || (el.tagName === "INPUT" || el.tagName === "TEXTAREA" ? (el.getAttribute("placeholder") ?? "") : "")
-      if (!text || hidden(el)) continue
+      const text = textOf(el) || placeholderOf(el)
+      if (!text || !drawn(el)) continue
       report.checked.floor++
       const size = style(el).fontSize
       // SVG text takes its size in the viewBox's units, so it is measured as drawn, through the scale above it.
       const matrix = svgText(el) ? (el as SVGGraphicsElement).getScreenCTM?.() : null
-      const drawn = matrix ? parseFloat(size) * Math.hypot(matrix.c, matrix.d) : parseFloat(size)
-      if (drawn < floor - 0.01) find("floor", el, `font-size ${size}${Math.abs(drawn - parseFloat(size)) > 0.01 ? ` draws at ${drawn.toFixed(1)}px, which` : ""} is under the ${floor} px floor`)
+      const px = matrix ? parseFloat(size) * Math.hypot(matrix.c, matrix.d) : parseFloat(size)
+      if (px < floor - 0.01) find("floor", el, `font-size ${size}${Math.abs(px - parseFloat(size)) > 0.01 ? ` draws at ${px.toFixed(1)}px, which` : ""} is under the ${floor} px floor`)
     }
   }
 
@@ -211,13 +239,12 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       for (const property of svgText(el) ? (["fill", "stroke"] as const) : (["color"] as const)) if (inks[property].has(s[property])) return { property, value: s[property] }
       return null
     }
-    const clear = (value: string) => value === "" || value === "transparent" || /^rgba\(0, 0, 0, 0\)$/.test(value)
     // The first background behind the text, within a few levels: a tinted cell, a flash, a badge.
     const fillBehind = (el: Element) => {
       let node: Element | null = el
       for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
         const background = style(node).backgroundColor
-        if (!clear(background)) return fills.has(background) ? { node, color: background } : null
+        if (background && !transparent(background)) return fills.has(background) ? { node, color: background } : null
       }
       return null
     }
@@ -238,24 +265,19 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       return Boolean(rule && ((rule.getAttribute("aria-description") ?? "").trim() || refs(rule, "aria-describedby")))
     }
     // What a run shows, in order: its text, with a field's value where the field sits. Hidden parts reach nobody, so
-    // they show nothing. Asked for what a sighted reader sees, it also leaves out screen-reader-only runs (a clipped
-    // box of a pixel or less) and transparent ones.
+    // they show nothing. Asked for what a sighted reader sees, it also leaves out a box that fades or clips away (the
+    // screen-reader-only pattern) and glyphs inked in nothing, and reads through a boxless display: contents wrapper.
     const shown = (node: Node, visible: boolean): string => {
-      if (node.nodeType === 3) return node.textContent ?? ""
+      if (node.nodeType === 3) return !visible || !node.parentElement || inked(node.parentElement) ? (node.textContent ?? "") : ""
       if (node.nodeType !== 1) return ""
       const el = node as Element
-      if (hidden(el)) return ""
-      if (isField(el)) return field(el)
-      if (visible) {
-        const box = el.getBoundingClientRect()
-        if (box.width <= 1 && box.height <= 1 && el.childNodes.length) return ""
-        if (parseFloat(style(el).opacity) === 0) return ""
-      }
+      if (hidden(el) || (visible && unseenBox(el))) return ""
+      if (isField(el)) return !visible || inked(el) ? field(el) : ""
       return [...el.childNodes].map((child) => shown(child, visible)).join("")
     }
     for (const el of elements) {
       const text = textOf(el)
-      if (!/\d/.test(text) || hidden(el)) continue
+      if (!/\d/.test(text) || !drawn(el)) continue
       const ink = inkOf(el)
       const tint = ink ? null : fillBehind(el)
       if (!ink && !tint) continue
@@ -284,7 +306,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       // A button-like input is named by the words it shows, and an image input by its alt.
       const type = el.tagName === "INPUT" ? (el as HTMLInputElement).type.toLowerCase() : ""
       const value = /^(submit|reset|button)$/.test(type) ? field(el) : type === "image" ? (el.getAttribute("alt") ?? "") : ""
-      const name = [refs(el, "aria-labelledby"), el.getAttribute("aria-label"), nativeLabels(el), el.getAttribute("title"), el.getAttribute("placeholder"), value, el.matches(authorNamed) ? "" : textAlternative(el, { referenced: false, hiddenOk: false })].map((part) => (part ?? "").trim()).find(Boolean)
+      const name = [refs(el, "aria-labelledby"), el.getAttribute("aria-label"), nativeLabels(el), el.getAttribute("title"), placeholderOf(el), value, el.matches(authorNamed) ? "" : textAlternative(el, { referenced: false, hiddenOk: false })].map((part) => (part ?? "").trim()).find(Boolean)
       if (!name) find("name", el, `${el.getAttribute("role") ?? el.tagName.toLowerCase()} with no accessible name`)
     }
   }

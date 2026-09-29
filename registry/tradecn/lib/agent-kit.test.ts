@@ -164,6 +164,26 @@ describe("checkContract", () => {
     expect(report.findings.map((f) => f.where)).toEqual(["page div[data-id=bare-grid]", "page div[data-id=bare-list]"])
   })
 
+  it("takes a placeholder only from a field that shows one, and an empty value as no name", () => {
+    const root = mount(
+      [
+        "<div>",
+        '<input type="checkbox" placeholder="Pin" data-id="checkbox">',
+        '<button placeholder="Go" data-id="button"></button>',
+        '<input type="number" placeholder="Size">',
+        '<input type="submit" value="" data-id="empty-submit">',
+        '<input type="reset" value="" data-id="empty-reset">',
+        "</div>",
+      ].join(""),
+    )
+    expect(checkContract({ root, rules: ["name"] }).findings.map((f) => f.where)).toEqual([
+      "page input[data-id=checkbox]",
+      "page button[data-id=button]",
+      "page input[data-id=empty-submit]",
+      "page input[data-id=empty-reset]",
+    ])
+  })
+
   it("never puts a password in a finding", () => {
     const root = mount('<div><input type="password" value="hunter2" style="font-size: 10px"></div>')
     const report = checkContract({ root, rules: ["floor", "name"] })

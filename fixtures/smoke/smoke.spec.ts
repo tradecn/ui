@@ -2555,7 +2555,8 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
   await page.waitForLoadState("networkidle")
   const scene = page.locator("section[data-scene='agent-kit']")
   await expect(scene.locator("[data-contract-sample='kept']")).toBeVisible()
-  // The broken sample's small print goes under the floor here, at run time, where the contract's source sweep never looks.
+  // Small print goes under the floor here, at run time, where the contract's source sweep never looks. The broken
+  // sample's is drawn, so it is a finding; the kept sample's is for a screen reader only, so it is not.
   await scene.locator("[data-small-print]").evaluateAll((els: HTMLElement[], px: number) => {
     for (const el of els) el.style.fontSize = `${px}px`
   }, 10)
@@ -2570,6 +2571,7 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
     "direction tradecn-agent-kit span[data-cue=labelledby]",
     "direction tradecn-agent-kit input[data-cue=label]",
     "direction tradecn-agent-kit span[data-cue=transparent]",
+    "direction tradecn-agent-kit span[data-cue=clear]",
     "direction tradecn-agent-kit span[data-cue=rule][data-rule=rich][data-tone=up]",
   ])
   const broken = await page.evaluate(checkContract, { root: "[data-contract-sample='broken']", ignore: "" })
