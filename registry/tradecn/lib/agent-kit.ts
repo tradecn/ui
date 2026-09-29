@@ -60,7 +60,8 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
   const ignore = options.ignore ?? "[data-contract-ignore]"
   const report: ContractReport = { findings: [], checked: { floor: 0, numeric: 0, direction: 0, name: 0 } }
 
-  const skip = new Set(["HEAD", "SCRIPT", "STYLE", "TEMPLATE", "NOSCRIPT", "TITLE", "META", "LINK"])
+  // A select's options show through the select, which the rules read as a field.
+  const skip = new Set(["HEAD", "SCRIPT", "STYLE", "TEMPLATE", "NOSCRIPT", "TITLE", "META", "LINK", "OPTION", "OPTGROUP", "DATALIST"])
   const all = [...("tagName" in scope ? [scope as Element] : []), ...scope.querySelectorAll("*")]
   const elements = all.filter((el) => !skip.has(el.tagName.toUpperCase()) && !(ignore && el.closest(ignore)))
 
@@ -72,8 +73,19 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       .join("")
       .replace(/\s+/g, " ")
       .trim()
-  // What a field holds, read by tag so an element from another window's realm still counts.
-  const field = (el: Element) => (el.tagName === "INPUT" || el.tagName === "TEXTAREA" ? (el as HTMLInputElement).value : "")
+  // What a field shows: the value of an input or a text area, a drop-down's chosen option, or every option of a list
+  // box. A checkbox, a radio, a slider, a color well or a file picker shows no text of its own. Read by tag so an
+  // element from another window's realm still counts.
+  const isField = (el: Element) => el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT"
+  const field = (el: Element) => {
+    if (el.tagName === "SELECT") {
+      const select = el as HTMLSelectElement
+      const showing = select.multiple || select.size > 1 ? [...select.options] : [select.options[select.selectedIndex]]
+      return showing.map((option) => (option ? option.label || (option.textContent ?? "") : "")).join(" ").trim()
+    }
+    if (el.tagName === "INPUT" && /^(checkbox|radio|range|color|file|image|hidden)$/i.test((el as HTMLInputElement).type)) return ""
+    return isField(el) ? (el as HTMLInputElement).value : ""
+  }
   const hidden = (el: Element) => {
     if (el.closest("[hidden]")) return true
     if (typeof el.checkVisibility === "function") return !el.checkVisibility({ checkVisibilityCSS: true, visibilityProperty: true })
@@ -126,16 +138,25 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     const probe = doc.createElement("span")
     probe.style.display = "none"
     ;(doc.body ?? doc.documentElement).append(probe)
-    const resolve = (property: "color" | "backgroundColor", token: string) => {
+    const resolve = (property: "color" | "backgroundColor" | "fill" | "stroke", token: string) => {
       if (!rootStyle.getPropertyValue(`--${token}`).trim()) return null
       probe.style[property] = `var(--${token})`
       const value = style(probe)[property]
       probe.style[property] = ""
       return value
     }
-    const inks = new Set([resolve("color", "up"), resolve("color", "down")].filter((value): value is string => Boolean(value)))
+    const both = (property: "color" | "fill" | "stroke") => new Set([resolve(property, "up"), resolve(property, "down")].filter((value): value is string => Boolean(value)))
+    // Text is drawn in its color, and SVG text in its fill and stroke whatever its color says.
+    const inks = { color: both("color"), fill: both("fill"), stroke: both("stroke") }
     const fills = new Set(["up", "down", "up-soft", "down-soft"].map((token) => resolve("backgroundColor", token)).filter((value): value is string => Boolean(value)))
     probe.remove()
+    const svgText = (el: Element) => el.namespaceURI === "http://www.w3.org/2000/svg" && /^(text|tspan|textPath)$/.test(el.tagName)
+    // The direction ink an element's glyphs are drawn in, and the property that carries it.
+    const inkOf = (el: Element) => {
+      const s = style(el)
+      for (const property of svgText(el) ? (["fill", "stroke"] as const) : (["color"] as const)) if (inks[property].has(s[property])) return { property, value: s[property] }
+      return null
+    }
     const clear = (value: string) => value === "" || value === "transparent" || /^rgba\(0, 0, 0, 0\)$/.test(value)
     // The first background behind the text, within a few levels: a tinted cell, a flash, a badge.
     const fillBehind = (el: Element) => {
@@ -150,28 +171,32 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     const numberLike = (text: string) => /\d/.test(text) && !/[A-Za-z]{2,}/.test(text.replace(/\b(?:bps?|mm|bn|[kmbx])\b/gi, ""))
     const cell = "[role=gridcell], [role=cell], [role=row], td, th, tr"
     const labelled = (node: Element | null) => Boolean(node && ["aria-label", "aria-description", "aria-describedby", "title"].some((name) => node.getAttribute(name)?.trim()))
-    // Text a sighted reader sees, leaving out screen-reader-only runs: a clipped box of a pixel or less.
-    const visibleText = (node: Node): string => {
+    // What a run shows, in order: its text, with a field's value where the field sits. Asked for what a sighted
+    // reader sees, it leaves out screen-reader-only runs: a clipped box of a pixel or less.
+    const shown = (node: Node, visible: boolean): string => {
       if (node.nodeType === 3) return node.textContent ?? ""
       if (node.nodeType !== 1) return ""
       const el = node as Element
-      const box = el.getBoundingClientRect()
-      if (box.width <= 1 && box.height <= 1 && el.childNodes.length) return ""
-      return [...el.childNodes].map(visibleText).join("")
+      if (isField(el)) return field(el)
+      if (visible) {
+        const box = el.getBoundingClientRect()
+        if (box.width <= 1 && box.height <= 1 && el.childNodes.length) return ""
+      }
+      return [...el.childNodes].map((child) => shown(child, visible)).join("")
     }
     for (const el of elements) {
-      const text = own(el)
+      const text = isField(el) ? field(el) : own(el)
       if (!text || !numberLike(text) || hidden(el)) continue
-      const s = style(el)
-      const tint = inks.has(s.color) ? null : fillBehind(el)
-      if (!inks.has(s.color) && !tint) continue
-      const painted = tint ? tint.color : s.color
+      const ink = inkOf(el)
+      const tint = ink ? null : fillBehind(el)
+      if (!ink && !tint) continue
+      const painted = ink?.value ?? tint?.color
       report.checked.direction++
       // The colored run: a tinted box whole, or the element and the ancestors that share its ink, so a sign in a
       // sibling span counts.
       let run: Element = tint?.node ?? el
-      if (!tint) for (let depth = 0; depth < 3 && run.parentElement && run.parentElement !== scope && style(run.parentElement).color === s.color; depth++) run = run.parentElement
-      const seen = (options.visibleCue ? visibleText(run) : (run.textContent ?? "")).trim()
+      if (ink) for (let depth = 0; depth < 3 && run.parentElement && run.parentElement !== scope && style(run.parentElement)[ink.property] === ink.value; depth++) run = run.parentElement
+      const seen = shown(run, Boolean(options.visibleCue)).trim()
       if (/^[+\-−]/.test(seen) || /[▲▼△▽↑↓]/.test(seen)) continue
       if (!options.visibleCue && (el.closest("[data-direction], [data-side]") || labelled(el) || labelled(el.closest(cell)))) continue
       find("direction", el, `painted ${painted} with no sign, arrow${options.visibleCue ? "" : ", data-direction or label"} saying the direction`)
@@ -181,11 +206,16 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
   if (rules.has("name")) {
     const control =
       "button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=option], [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox]"
+    // A field's value is not its name, and neither is a combobox's or a slider's text: only the other controls take
+    // a name from their content, and only from the part of it that isn't hidden.
+    const authorNamed = "input, select, textarea, [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox]"
     const spoken = (node: Node): string => {
       if (node.nodeType === 3) return node.textContent ?? ""
       if (node.nodeType !== 1) return ""
       const el = node as Element
-      if (el.getAttribute("aria-hidden") === "true") return ""
+      // An SVG's title names it though it is never drawn.
+      if (el.namespaceURI === "http://www.w3.org/2000/svg" && el.tagName === "title") return el.textContent ?? ""
+      if (el.getAttribute("aria-hidden") === "true" || hidden(el)) return ""
       if (el.tagName === "IMG") return el.getAttribute("alt") ?? ""
       return [...el.childNodes].map(spoken).join(" ")
     }
@@ -199,7 +229,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
         .join(" ")
       const labels = "labels" in el ? [...((el as HTMLInputElement).labels ?? [])].map((label) => label.textContent ?? "").join(" ") : ""
       const value = el.tagName === "INPUT" && /^(button|submit|reset)$/i.test((el as HTMLInputElement).type) ? (el as HTMLInputElement).value : ""
-      const name = [byId, el.getAttribute("aria-label"), labels, el.getAttribute("title"), el.getAttribute("placeholder"), value, spoken(el)].map((part) => (part ?? "").trim()).find(Boolean)
+      const name = [byId, el.getAttribute("aria-label"), labels, el.getAttribute("title"), el.getAttribute("placeholder"), value, el.matches(authorNamed) ? "" : spoken(el)].map((part) => (part ?? "").trim()).find(Boolean)
       if (!name) find("name", el, `${el.getAttribute("role") ?? el.tagName.toLowerCase()} with no accessible name`)
     }
   }

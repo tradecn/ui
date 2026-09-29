@@ -2556,15 +2556,25 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
   const scene = page.locator("section[data-scene='agent-kit']")
   await expect(scene.locator("[data-contract-sample='kept']")).toBeVisible()
   // The broken sample's small print goes under the floor here, at run time, where the contract's source sweep never looks.
-  await scene.locator("[data-small-print]").evaluate((el: HTMLElement, px: number) => {
-    el.style.fontSize = `${px}px`
+  await scene.locator("[data-small-print]").evaluateAll((els: HTMLElement[], px: number) => {
+    for (const el of els) el.style.fontSize = `${px}px`
   }, 10)
   const kept = await page.evaluate(checkContract, { root: "[data-contract-sample='kept']" })
   expect(kept.findings).toEqual([])
   for (const rule of CONTRACT_RULES) expect(kept.checked[rule], `the kept sample gives ${rule} something to read`).toBeGreaterThan(0)
   expect((await page.evaluate(checkContract, { root: "[data-contract-sample='kept']", visibleCue: true })).findings).toEqual([])
   const broken = await page.evaluate(checkContract, { root: "[data-contract-sample='broken']", ignore: "" })
-  expect([...new Set(broken.findings.map((finding) => finding.rule))].sort()).toEqual(["direction", "floor", "name"])
+  // Direction in text, in a field and in SVG text by its fill; a select read through its chosen option; and a
+  // field's value that names nothing.
+  expect(broken.findings.map((finding) => `${finding.rule} ${finding.where}`).sort()).toEqual([
+    "direction tradecn-agent-kit input",
+    "direction tradecn-agent-kit span",
+    "direction tradecn-agent-kit text",
+    "floor tradecn-agent-kit select[data-small-print]",
+    "floor tradecn-agent-kit span[data-small-print]",
+    "name tradecn-agent-kit button",
+    "name tradecn-agent-kit input",
+  ])
   // Every installed item on the page, in this style and theme, keeps the contract the check reads.
   const everything = await page.evaluate(checkContract, { root: "main[data-smoke]" })
   expect(everything.findings).toEqual([])

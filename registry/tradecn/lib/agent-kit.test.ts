@@ -37,6 +37,25 @@ describe("checkContract", () => {
     expect(checkContract({ root, rules: ["floor"] }).checked.floor).toBe(2)
   })
 
+  it("reads a drop-down by its chosen option and a list box by every option, and a checkbox or a slider as showing no text", () => {
+    const root = mount(
+      [
+        '<div data-slot="tradecn-demo">',
+        '<select style="font-size: 10px" aria-label="Size"><option>5</option><option selected>10</option></select>',
+        '<select multiple style="font-size: 10px" aria-label="Venues"><option>A 1</option><option>B 2</option></select>',
+        '<input type="checkbox" style="font-size: 10px" aria-label="Pin"><input type="range" value="50" aria-label="Width">',
+        "</div>",
+      ].join(""),
+    )
+    const floor = checkContract({ root, rules: ["floor"] })
+    expect(floor.checked.floor).toBe(2)
+    expect(floor.findings.map((f) => [f.where, f.text])).toEqual([
+      ["tradecn-demo select", "10"],
+      ["tradecn-demo select", "A 1 B 2"],
+    ])
+    expect(checkContract({ root, rules: ["numeric"] }).findings.map((f) => f.text)).toEqual(["10", "A 1 B 2"])
+  })
+
   it("leaves text nobody can see out of the floor", () => {
     const root = mount('<div><p style="font-size: 10px; display: none">gone</p><div hidden><p style="font-size: 10px">tucked</p></div></div>')
     expect(checkContract({ root, rules: ["floor"] }).checked.floor).toBe(0)
@@ -77,6 +96,24 @@ describe("checkContract", () => {
     expect(report.checked.name).toBe(8)
     expect(report.findings.map((f) => f.where)).toEqual(["page button[data-id=bare]", "page div[data-id=bare-role]"])
     expect(report.findings[1]?.detail).toBe("checkbox with no accessible name")
+  })
+
+  it("takes no name from a field's value, a combobox's text, or content nobody can see", () => {
+    const root = mount(
+      [
+        "<div>",
+        '<select data-id="select"><option>100</option></select>',
+        '<textarea data-id="notes">notes</textarea>',
+        '<div role="combobox" tabindex="0" data-id="combobox">Pick one</div>',
+        '<button data-id="collapsed"><span style="display: none">Export</span></button>',
+        '<button><svg width="8" height="8"><title>Refresh</title></svg></button>',
+        "<label>Size <select><option>5</option></select></label>",
+        "</div>",
+      ].join(""),
+    )
+    const report = checkContract({ root, rules: ["name"] })
+    expect(report.checked.name).toBe(6)
+    expect(report.findings.map((f) => f.where)).toEqual(["page select[data-id=select]", "page textarea[data-id=notes]", "page div[data-id=combobox]", "page button[data-id=collapsed]"])
   })
 
   it("leaves out a subtree marked data-contract-ignore, unless told to skip nothing", () => {
