@@ -1001,6 +1001,9 @@ test("a rules editor builds a highlight, a filter, and a sort key that the grid 
   await highlight.getByLabel(/^Value:/).fill("100")
   await expect(highlight.locator("[data-rule-count]")).toHaveAttribute("data-rule-count", "1")
   await highlight.getByLabel(/^Label:/).fill("Rich")
+  // base-mira draws a small select at 10 px, so the size the editor sets on its fields has to win there too.
+  const fieldSizes = (row: typeof highlight) => row.locator("select").evaluateAll((selects) => selects.map((select) => parseFloat(getComputedStyle(select).fontSize)))
+  expect(await fieldSizes(highlight)).toEqual([12, 12, 12, 12])
   const cell = grid.locator("[data-row-id='b'] [data-col='px']")
   await expect(cell).toHaveAttribute("data-tone", "up")
   await expect(cell).toHaveAttribute("aria-description", "Rich")
@@ -1019,6 +1022,7 @@ test("a rules editor builds a highlight, a filter, and a sort key that the grid 
   const sort = editor.locator("[data-rule-row='0']")
   await sort.getByLabel(/^Column:/).selectOption("size")
   await sort.getByLabel(/^Direction:/).selectOption("desc")
+  expect(await fieldSizes(sort)).toEqual([12, 12])
   await expect(grid.locator("[data-row-id]").first()).toHaveAttribute("data-row-id", "b")
   await editor.getByRole("tab", { name: /^Columns/ }).click()
   await editor.getByRole("checkbox", { name: "Show Status" }).click()

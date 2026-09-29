@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs"
 import path from "node:path"
+import { Node, Project } from "ts-morph"
 import { describe, expect, it } from "vitest"
 import {
   ACCESSIBILITY_REMAP,
@@ -126,6 +127,45 @@ describe("the items' typography", () => {
     expect(fontSizesUnderFloor('className="text-[10px] md:text-[11px] text-xs"')).toEqual(["text-[10px]", "md:text-[11px]"])
     expect(fontSizesUnderFloor("style={{ fontSize: 11 }}")).toEqual(["fontSize: 11"])
     expect(fontSizesUnderFloor('text-[0.7rem] text-[12px] text-[0.75rem] fontSize: "12px"')).toEqual(["text-[0.7rem]"])
+    // An SVG label takes its size as an attribute, in JSX or as markup, spaced or not.
+    expect(fontSizesUnderFloor('<text fontSize={7}> <text font-size="11px"> <text fontSize={12}>')).toEqual(["fontSize={7}", 'font-size="11px"'])
+    expect(fontSizesUnderFloor('<text fontSize = {7}> <text fontSize={ 9 }> <text font-size = "0.5rem"> <text fontSize={`10px`}>')).toEqual(["fontSize = {7}", "fontSize={ 9 }", 'font-size = "0.5rem"', "fontSize={`10px`}"])
+    expect(fontSizesUnderFloor("style={{ fontSize : 11 }} fontSizeAdjust={0.5} data-font-size=\"7\"")).toEqual(["fontSize : 11"])
+    // shadcn's compact styles draw some built-ins under the floor: base-mira sets a Badge, a Kbd, the menu shortcuts,
+    // an extra-small Button, and a small NativeSelect at 10 px. Whatever composes one gives it a size that wins there
+    // too: text-xs or larger, and on a small select a class that names data-size, since base-mira's own rule sits on
+    // the select and outranks a plain [&_select] on the wrapper.
+    const NAMED_SIZE = /(?<![\w:-])text-(?:xs|sm|base|lg|[2-9]?xl)(?![\w-])/
+    const SMALL_SELECT_SIZE = /\[&_select\[data-size=sm\]\]:text-(?:xs|sm|base|lg|[2-9]?xl)(?![\w-])/
+    const UNDER_FLOOR = new Map<string, { size?: string; classes: RegExp }>([
+      ["Badge", { classes: NAMED_SIZE }],
+      ["Kbd", { classes: NAMED_SIZE }],
+      ["CommandShortcut", { classes: NAMED_SIZE }],
+      ["ContextMenuShortcut", { classes: NAMED_SIZE }],
+      ["DropdownMenuShortcut", { classes: NAMED_SIZE }],
+      ["Button", { size: "xs", classes: NAMED_SIZE }],
+      ["NativeSelect", { size: "sm", classes: SMALL_SELECT_SIZE }],
+    ])
+    const project = new Project({ useInMemoryFileSystem: true })
+    for (const file of sources) {
+      const sf = project.createSourceFile(file, readFileSync(file, "utf8"))
+      // A class kept in a module constant counts where it is used.
+      const constants = new Map<string, string>()
+      for (const declaration of sf.getVariableDeclarations()) {
+        const value = declaration.getInitializer()
+        if (value && Node.isStringLiteral(value)) constants.set(declaration.getName(), value.getLiteralValue())
+      }
+      sf.forEachDescendant((node) => {
+        if (!Node.isJsxOpeningElement(node) && !Node.isJsxSelfClosingElement(node)) return
+        const tag = node.getTagNameNode().getText()
+        const rule = UNDER_FLOOR.get(tag)
+        // A size written out, size="xs" or size={"xs"}. One computed at run time is past what a source check can read.
+        const size = node.getAttribute("size")?.getText().replace(/[\s{}"'`]/g, "")
+        if (!rule || (rule.size && size !== `size=${rule.size}`)) return
+        const classes = (node.getAttribute("className")?.getText() ?? "").replace(/\b[A-Z][A-Z0-9_]*\b/g, (name) => constants.get(name) ?? name)
+        expect(classes, `${path.relative(ROOT, file)}:${node.getStartLineNumber()}: <${tag}>`).toMatch(rule.classes)
+      })
+    }
     // Every ui item and block sets the figures on its root, so everything inside inherits them.
     for (const item of registry.items) {
       if (item.type !== "registry:ui" && item.type !== "registry:block") continue

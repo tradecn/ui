@@ -77,6 +77,25 @@ describe("PerfMonitor", () => {
     expect(sampler.stopped).toBe(1)
   })
 
+  it("labels the budget beside its marker on whichever side keeps the label inside the chart", () => {
+    const sampler = fakeSampler(at([16], 1000))
+    const { rerender } = render(<PerfMonitor sampler={sampler}><PerfMonitorHistogram /></PerfMonitor>)
+    const label = () => document.querySelector("[data-perf-budget]")!
+    const marker = () => Number(document.querySelector("[data-perf-histogram] line")!.getAttribute("x1"))
+    // 16.7 ms sits left of the middle of the 160-wide chart, so the label reads to the right of the marker.
+    expect(label().getAttribute("text-anchor")).toBe("start")
+    expect(Number(label().getAttribute("x"))).toBeCloseTo(marker() + 2)
+    rerender(<PerfMonitor sampler={sampler} budgetMs={1000 / 30}><PerfMonitorHistogram /></PerfMonitor>)
+    expect(label()).toHaveTextContent("33.3 ms")
+    expect(label().getAttribute("text-anchor")).toBe("end")
+    expect(Number(label().getAttribute("x"))).toBeCloseTo(marker() - 2)
+    // A budget past the last bin pins the marker to the right edge, and the label ends just inside it.
+    rerender(<PerfMonitor sampler={sampler} budgetMs={100}><PerfMonitorHistogram /></PerfMonitor>)
+    expect(marker()).toBe(160)
+    expect(label().getAttribute("x")).toBe("158")
+    expect(label().getAttribute("text-anchor")).toBe("end")
+  })
+
   it("redraws on a report and not otherwise, tells onReport each time, says n/a for long tasks it cannot see, and prints your readouts", () => {
     const sampler = fakeSampler(at([16], 1000, { longTasksObserved: false }))
     const onReport = vi.fn()

@@ -558,7 +558,7 @@ export function Ticket({
                 {action === primary && sendKeys && (
                   <KbdGroup aria-hidden>
                     {formatKeys(sendKeys)[0]?.map((cap) => (
-                      <Kbd key={cap}>{cap}</Kbd>
+                      <Kbd key={cap} className="text-xs">{cap}</Kbd>
                     ))}
                   </KbdGroup>
                 )}

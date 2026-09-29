@@ -148,7 +148,7 @@ The chart uses one hue and a dashed, labeled budget marker. The default histogra
 
 Each bar's hover title names its range and count. The chart's accessible name includes the bin width, overflow boundary, p50, p99, and dropped count; the same summary statistics appear beside it.
 
-A supplied sampler determines the bins, while the monitor's `budgetMs` sets the marker, clamped to the chart's right edge. Keep that prop aligned with the sampler's budget.
+A supplied sampler determines the bins, while the monitor's `budgetMs` sets the marker, clamped to the chart's right edge. Keep that prop aligned with the sampler's budget. The marker's label reads to its right, or to its left once the marker passes the middle of the chart, so it stays inside the chart at any budget.
 
 ### The lanes
 
