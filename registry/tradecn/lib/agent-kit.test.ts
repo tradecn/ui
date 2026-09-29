@@ -165,6 +165,30 @@ describe("checkContract", () => {
     expect(report.findings.map((f) => f.where)).toEqual(["page div[data-id=bare-grid]", "page div[data-id=bare-list]", "page div[data-id=bare-item]"])
   })
 
+  it("reads a role list as a browser does, by the first role it knows, in any case", () => {
+    const root = mount(
+      [
+        "<div>",
+        '<div role="unsupported button" tabindex="0" data-id="fallback"></div>',
+        '<div role="BUTTON" tabindex="0" data-id="upper"></div>',
+        '<div role="switch checkbox" aria-checked="false" tabindex="0" data-id="switch"></div>',
+        '<div role="unsupported combobox" tabindex="0" data-id="combobox">Pick</div>',
+        '<div role="unsupported button" tabindex="0">Send</div>',
+        '<div role="presentation button" tabindex="0"></div>',
+        '<div role="graphics-symbol button" tabindex="0"></div>',
+        '<div role="unsupported" tabindex="0"></div>',
+        "</div>",
+      ].join(""),
+    )
+    const report = checkContract({ root, rules: ["name"] })
+    expect(report.findings.map((f) => [f.where, f.detail])).toEqual([
+      ["page div[data-id=fallback]", "button with no accessible name"],
+      ["page div[data-id=upper]", "button with no accessible name"],
+      ["page div[data-id=switch]", "switch with no accessible name"],
+      ["page div[data-id=combobox]", "combobox with no accessible name"],
+    ])
+  })
+
   it("takes a placeholder only from a field that shows one, and an empty value as no name", () => {
     const root = mount(
       [

@@ -141,6 +141,15 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
   }
   // Text a reader sees: placed and inked.
   const drawn = (el: Element) => placed(el) && inked(el)
+  // An element's role: the first of its role tokens that names a role the browser knows, WAI-ARIA's, Graphics ARIA's
+  // or DPUB-ARIA's, in any case, as a browser reads a fallback list such as "switch checkbox". With none, the element
+  // keeps its native role, which the rules read by tag.
+  const ariaRoles = new Set([
+    ..."alert alertdialog application article banner blockquote button caption cell checkbox code columnheader combobox comment complementary contentinfo definition deletion dialog directory document emphasis feed figure form generic grid gridcell group heading image img insertion link list listbox listitem log main mark marquee math menu menubar menuitem menuitemcheckbox menuitemradio meter navigation none note option paragraph presentation progressbar radio radiogroup region row rowgroup rowheader scrollbar search searchbox sectionfooter sectionheader separator slider spinbutton status strong subscript suggestion superscript switch tab table tablist tabpanel term textbox time timer toolbar tooltip tree treegrid treeitem".split(" "),
+    ..."document object symbol".split(" ").map((role) => `graphics-${role}`),
+    ..."abstract acknowledgments afterword appendix backlink biblioentry bibliography biblioref chapter colophon conclusion cover credit credits dedication endnote endnotes epigraph epilogue errata example footnote foreword glossary glossref index introduction noteref notice pagebreak pagefooter pageheader pagelist part preface prologue pullquote qna subtitle tip toc".split(" ").map((role) => `doc-${role}`),
+  ])
+  const roleOf = (el: Element) => (el.getAttribute("role") ?? "").toLowerCase().split(/\s+/).find((token) => ariaRoles.has(token))
   // A node's text alternative, read the way the accessible name computation reads it: a hidden part says nothing
   // unless a reference points straight at it, an element's own label outranks its text, an image says its alt, a
   // field says what it holds, and a reference is followed one level deep. The control being named stays out of it.
@@ -267,7 +276,16 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     // A cue in marks or words: a leading sign, a sign on a number further in (a currency symbol may sit between), an
     // arrow, or a word that states the direction. A dash inside a number, as in 99-16, is no sign.
     const cued = (text: string) => /^[+\-−]/.test(text) || /[^\w.,][+\-−][$€£¥₹]?\d/.test(text) || /[▲▼△▽↑↓]/.test(text) || saysDirection.test(text)
-    const cell = "[role=gridcell], [role=cell], [role=row], td, th, tr"
+    // The cell and the row that hold a value, by role, or by tag where the element has none.
+    const holder = (el: Element, roles: RegExp, tags: RegExp) => {
+      for (let node: Element | null = el; node; node = node.parentElement) {
+        const role = roleOf(node)
+        if (role ? roles.test(role) : tags.test(node.tagName)) return node
+      }
+      return null
+    }
+    const cellOf = (el: Element) => holder(el, /^(gridcell|cell|columnheader|rowheader)$/, /^(TD|TH)$/)
+    const rowOf = (el: Element) => holder(el, /^row$/, /^TR$/)
     // A direction marker counts on the value, anywhere in its colored run, or on the cell or the row that holds it,
     // never on a container that has a side of its own, such as a ticket for a buy.
     const marked = (el: Element, run: Element) => {
@@ -275,20 +293,23 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
         if (node.matches("[data-direction], [data-side]")) return true
         if (node === run) break
       }
-      return [el.closest("[role=gridcell], [role=cell], td, th"), el.closest("[role=row], tr")].some((holder) => holder?.matches("[data-direction], [data-side]"))
+      return [cellOf(el), rowOf(el)].some((node) => node?.matches("[data-direction], [data-side]"))
     }
     // ARIA prohibits naming a generic element, a span or a div without a role, so a screen reader reading the text never
     // hears an aria-label there. A description reaches it: aria-description, aria-describedby, a title.
     const unnamed = /^(generic|presentation|none|paragraph|caption|code|deletion|emphasis|insertion|strong|subscript|superscript)$/
     const genericTags = new Set(["SPAN", "DIV", "B", "I", "U", "S", "SMALL", "EM", "STRONG", "CODE", "DEL", "INS", "SUB", "SUP", "P", "Q", "SAMP", "VAR", "BDI", "BDO", "DATA"])
     const nameable = (node: Element) => {
-      const role = node.getAttribute("role")?.trim().split(/\s+/)[0]
+      const role = roleOf(node)
       return role ? !unnamed.test(role) : !genericTags.has(node.tagName)
     }
+    // A screen reader skips everything under aria-hidden, its labels and descriptions with its text.
+    const unheard = (node: Element) => Boolean(node.closest("[aria-hidden=true]"))
     // An accessible label or description that states the direction: its own, one it points to, or a native label.
     const says = (node: Element | null) =>
       Boolean(
         node &&
+          !unheard(node) &&
           [nameable(node) ? node.getAttribute("aria-label") : null, nameable(node) ? refs(node, "aria-labelledby") : "", node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)),
       )
     // A grid rule's tone is the rule's color, not a direction. The rule names itself in data-rule and data-tone and says
@@ -296,7 +317,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     // value, on it or in its colored run, counts, and only when its tone is the direction color that was found.
     const ruled = (el: Element, run: Element) => {
       for (let node: Element | null = el; node; node = node.parentElement) {
-        if (node.matches("[data-rule]")) return ["up", "down"].includes(node.getAttribute("data-tone") ?? "") && Boolean((node.getAttribute("aria-description") ?? "").trim() || refs(node, "aria-describedby"))
+        if (node.matches("[data-rule]")) return !unheard(node) && ["up", "down"].includes(node.getAttribute("data-tone") ?? "") && Boolean((node.getAttribute("aria-description") ?? "").trim() || refs(node, "aria-describedby"))
         if (node === run) break
       }
       return false
@@ -312,15 +333,17 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     // What a run shows, in order: its text, with a field's value where the field sits. Hidden parts reach nobody, so
     // they show nothing. Asked for what a sighted reader sees, it also leaves out a box that fades or clips away (the
     // screen-reader-only pattern) and glyphs inked in nothing, and reads through a boxless display: contents wrapper.
+    // Under aria-hidden, which a screen reader skips, only what a sighted reader sees shows.
     // Its pieces join with gap: nothing, to read a sign as drawn, so a 99 and a -16 in two spans stay one price, or a
     // space, to read words, so an Up and a 10 in two spans stay two words, as a text alternative joins them.
     const shown = (node: Node, visible: boolean, gap: string): string => {
       if (node.nodeType === 3) return !visible || !node.parentElement || inked(node.parentElement) ? (node.textContent ?? "") : ""
       if (node.nodeType !== 1) return ""
       const el = node as Element
-      if (hidden(el) || (visible && unseenBox(el))) return ""
-      if (isField(el)) return !visible || inked(el) ? field(el) : ""
-      return [...el.childNodes].map((child) => shown(child, visible, gap)).join(gap)
+      const sighted = visible || el.getAttribute("aria-hidden") === "true"
+      if (hidden(el) || (sighted && unseenBox(el))) return ""
+      if (isField(el)) return !sighted || inked(el) ? field(el) : ""
+      return [...el.childNodes].map((child) => shown(child, sighted, gap)).join(gap)
     }
     for (const el of elements) {
       const text = textOf(el)
@@ -334,28 +357,30 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       // checked root among them, so a sign in a sibling span counts and a panel painted one color doesn't become one run.
       let run: Element = tint?.node ?? el
       if (ink) for (let depth = 0; depth < 3 && run !== scope && run.parentElement && style(run.parentElement)[ink.property] === ink.value; depth++) run = run.parentElement
-      const seen = (gap: string) => shown(run, Boolean(options.visibleCue), gap)
+      const seen = (gap: string) => shown(run, Boolean(options.visibleCue) || unheard(run), gap)
       if (cued(seen("").trim()) || saysDirection.test(seen(" "))) continue
-      if (!options.visibleCue && (marked(el, run) || ruled(el, run) || saysAlong(el, run) || says(el.closest(cell)))) continue
+      if (!options.visibleCue && (marked(el, run) || ruled(el, run) || saysAlong(el, run) || says(cellOf(el) ?? rowOf(el)))) continue
       find("direction", el, `painted ${painted} with no sign, arrow, word${options.visibleCue ? "" : ", data-direction or label"} saying the direction`)
     }
   }
 
   if (rules.has("name")) {
-    const control =
-      "button, a[href], details > summary, input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=treeitem], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=option], [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree], [contenteditable]:not([contenteditable=false])"
+    const editable = "[contenteditable]:not([contenteditable=false])"
+    const control = (el: Element) =>
+      el.matches(`button, a[href], details > summary, input:not([type=hidden]), select, textarea, ${editable}`) ||
+      /^(button|link|checkbox|radio|switch|tab|treeitem|menuitem|menuitemcheckbox|menuitemradio|option|combobox|slider|spinbutton|textbox|searchbox|grid|treegrid|listbox|tree)$/.test(roleOf(el) ?? "")
     // A field's value is not its name, and neither is the text inside a combobox, a slider, a grid, a list box or an
     // editable region: only the other controls take a name from their content, and only from the part of it that
     // isn't hidden.
-    const authorNamed = "input, select, textarea, [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree], [contenteditable]:not([contenteditable=false])"
+    const authorNamed = (el: Element) => el.matches(`input, select, textarea, ${editable}`) || /^(combobox|slider|spinbutton|textbox|searchbox|grid|treegrid|listbox|tree)$/.test(roleOf(el) ?? "")
     for (const el of elements) {
-      if (!el.matches(control) || el.closest("[aria-hidden=true], [inert]") || hidden(el)) continue
+      if (!control(el) || el.closest("[aria-hidden=true], [inert]") || hidden(el)) continue
       report.checked.name++
       // A button-like input is named by the words it shows, and an image input by its alt.
       const type = el.tagName === "INPUT" ? (el as HTMLInputElement).type.toLowerCase() : ""
       const value = /^(submit|reset|button)$/.test(type) ? field(el) : type === "image" ? (el.getAttribute("alt") ?? "") : ""
-      const name = [refs(el, "aria-labelledby"), el.getAttribute("aria-label"), nativeLabels(el), el.getAttribute("title"), placeholderOf(el), value, el.matches(authorNamed) ? "" : textAlternative(el, { referenced: false, hiddenOk: false })].map((part) => (part ?? "").trim()).find(Boolean)
-      if (!name) find("name", el, `${el.getAttribute("role") ?? el.tagName.toLowerCase()} with no accessible name`)
+      const name = [refs(el, "aria-labelledby"), el.getAttribute("aria-label"), nativeLabels(el), el.getAttribute("title"), placeholderOf(el), value, authorNamed(el) ? "" : textAlternative(el, { referenced: false, hiddenOk: false })].map((part) => (part ?? "").trim()).find(Boolean)
+      if (!name) find("name", el, `${roleOf(el) ?? el.tagName.toLowerCase()} with no accessible name`)
     }
   }
 

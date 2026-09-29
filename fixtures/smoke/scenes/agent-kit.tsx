@@ -3,17 +3,19 @@ import { useId } from "react"
 import { NUMERIC_CLASS } from "@/lib/format"
 
 // Three samples for checkContract. The kept one follows the contract, a word for a cue, a word and a number in two
-// spans a gap apart, a sign in a boxless wrapper, a colored run the spec also checks as its own root, a field, a
-// select, SVG text, SVG text painted in nothing and screen-reader-only small print among it. The unseen one says its
-// direction only to a screen reader, through a description it points to, a native label, a faded sign, a sign painted
-// transparent, a grid rule's highlight that its description explains, a description on the run around the value and
-// a cell marked with its side: that passes by default and fails under visibleCue. The broken one breaks three rules on
+// spans a gap apart, a drawn sign a screen reader skips, a sign in a boxless wrapper, a colored run the spec also
+// checks as its own root, a field, a select, SVG text, SVG text painted in nothing and screen-reader-only small print
+// among it. The unseen one says its direction only to a screen reader, through a description it points to, a native
+// label, a faded sign, a sign painted transparent, a grid rule's highlight that its description explains, a
+// description on the run around the value, a label on an element that takes its role from a fallback token, and a
+// cell marked with its side: that passes by default and fails under visibleCue. The broken one breaks three rules on
 // purpose: numbers colored up with nothing else saying so (in text, in a field, in SVG text, with units, in a price
 // split across two spans at its dash, behind a description that points at nothing, a label that names no direction, a
 // label on a plain span, which no screen reader hears, a side marked on a container rather than on the value, a
-// highlight from a rule whose tone is no direction, and a hidden sign); an icon button and a field with no name; and
-// text under the floor, an SVG label drawn at half size and small print the spec shrinks at run time, a select's and
-// a placeholder's among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
+// highlight from a rule whose tone is no direction, a hidden sign, and a faded sign and a description under
+// aria-hidden, which reach nobody); an icon button and a field with no name; and text under the floor, an SVG label
+// drawn at half size and small print the spec shrinks at run time, a select's and a placeholder's among it. It is
+// marked data-contract-ignore, so the page-wide check leaves it out.
 
 export function AgentKitScene() {
   const id = useId()
@@ -33,6 +35,9 @@ export function AgentKitScene() {
         <span data-numeric="" className={cn(NUMERIC_CLASS, "inline-flex gap-1 text-up")}>
           <span>Up</span>
           <span>0-06</span>
+        </span>
+        <span data-numeric="" className={cn(NUMERIC_CLASS, "text-up")}>
+          <span aria-hidden="true">+</span>0-03
         </span>
         <span data-numeric="" className={cn(NUMERIC_CLASS, "text-up")}>
           <span className="contents">+</span>0-07
@@ -86,6 +91,9 @@ export function AgentKitScene() {
         <span aria-description="Up" className={cn(NUMERIC_CLASS, "text-up")}>
           <span data-cue="run-description">0-12</span>
         </span>
+        <span role="unsupported img" aria-label="Up 0-08" data-cue="fallback-role" className={cn(NUMERIC_CLASS, "text-up")}>
+          0-08
+        </span>
         <table>
           <tbody>
             <tr>
@@ -131,6 +139,12 @@ export function AgentKitScene() {
         </div>
         <span data-cue="hidden" className={cn(NUMERIC_CLASS, "text-up")}>
           <span hidden>+</span>0-04
+        </span>
+        <span data-cue="unheard" className={cn(NUMERIC_CLASS, "text-up")}>
+          <span aria-hidden="true" className="opacity-0">+</span>0-05
+        </span>
+        <span aria-hidden="true" aria-description="Up" data-cue="unheard-description" className={cn(NUMERIC_CLASS, "text-up")}>
+          0-07
         </span>
         <span data-cue="units" className={cn(NUMERIC_CLASS, "text-up")}>
           10 lots

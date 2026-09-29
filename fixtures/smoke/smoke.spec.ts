@@ -2578,13 +2578,14 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
     "direction tradecn-agent-kit span[data-cue=clear]",
     "direction tradecn-agent-kit span[data-cue=rule][data-rule=rich][data-tone=up]",
     "direction tradecn-agent-kit span[data-cue=run-description]",
+    "direction tradecn-agent-kit span[data-cue=fallback-role]",
     "direction tradecn-agent-kit span[data-cue=cell]",
   ])
   const broken = await page.evaluate(checkContract, { root: "[data-contract-sample='broken']", ignore: "" })
   // Direction in text, in a field and in SVG text by its fill, with units, in a price split at its dash, whose dash is
   // no sign, and behind a description of nothing, a label that names no direction, a label on a plain span, a side on
-  // a container, another tone's rule or a hidden sign; SVG text measured as drawn, and a select read through its
-  // chosen option; and a field's value that names nothing.
+  // a container, another tone's rule, a hidden sign, or a faded sign or a description under aria-hidden; SVG text
+  // measured as drawn, and a select read through its chosen option; and a field's value that names nothing.
   expect(broken.findings.map((finding) => `${finding.rule} ${finding.where}`).sort()).toEqual([
     "direction tradecn-agent-kit input",
     "direction tradecn-agent-kit span",
@@ -2596,6 +2597,8 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
     "direction tradecn-agent-kit span[data-cue=other-rule]",
     "direction tradecn-agent-kit span[data-cue=side]",
     "direction tradecn-agent-kit span[data-cue=ticks]",
+    "direction tradecn-agent-kit span[data-cue=unheard-description]",
+    "direction tradecn-agent-kit span[data-cue=unheard]",
     "direction tradecn-agent-kit span[data-cue=units]",
     "direction tradecn-agent-kit text",
     "floor tradecn-agent-kit input[data-placeholder-print]",
