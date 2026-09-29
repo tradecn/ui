@@ -1,0 +1,9 @@
+{
+  "writtenOn": "2026-09-29",
+  "claim": "With the kit installed, a coding agent builds screens that keep the item contract more often than without it.",
+  "helps": {
+    "higher": "contract",
+    "noLower": ["builds", "renders"]
+  },
+  "note": "Written before the first run and never edited to fit one. A definition that turns out to measure the wrong thing is replaced by a new file with its own date, and this one stays beside it, unedited."
+}
