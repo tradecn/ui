@@ -485,7 +485,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <Badge variant="secondary" className="h-5 px-1.5 font-medium" data-rfq-status>
+            <Badge variant="secondary" className="h-5 px-1.5 text-xs font-medium" data-rfq-status>
               {inquiry.status}
             </Badge>
             <Countdown expiresAt={inquiry.expiresAt} startsAt={inquiry.receivedAt} label={`${labels.ticket} ${inquiry.id}`} className="text-sm" />
@@ -586,7 +586,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
                   {action === primary && sendKeys && (
                     <KbdGroup aria-hidden>
                       {formatKeys(sendKeys)[0]?.map((cap) => (
-                        <Kbd key={cap}>{cap}</Kbd>
+                        <Kbd key={cap} className="text-xs">{cap}</Kbd>
                       ))}
                     </KbdGroup>
                   )}

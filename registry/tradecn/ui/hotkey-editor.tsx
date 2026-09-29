@@ -295,7 +295,7 @@ export function HotkeyEditorKeys({ className, ...props }: Omit<ComponentProps<"s
   const { registry, labels } = useHotkeyEditor()
   const steps = entry.keys ? formatKeys(entry.keys, registry.platform) : []
   return <span data-hotkey-keys={entry.keys} className={cn("inline-flex flex-wrap items-center gap-1", className)} {...props}>
-    {steps.length ? steps.map((caps, index) => <KbdGroup key={index}>{caps.map((cap) => <Kbd key={cap}>{cap}</Kbd>)}</KbdGroup>) : <span className="text-muted-foreground">{labels.unbound}</span>}
+    {steps.length ? steps.map((caps, index) => <KbdGroup key={index}>{caps.map((cap) => <Kbd key={cap} className="text-xs">{cap}</Kbd>)}</KbdGroup>) : <span className="text-muted-foreground">{labels.unbound}</span>}
   </span>
 }
 

@@ -128,6 +128,11 @@ describe("the items' typography", () => {
     expect(fontSizesUnderFloor('text-[0.7rem] text-[12px] text-[0.75rem] fontSize: "12px"')).toEqual(["text-[0.7rem]"])
     // An SVG label takes its size as an attribute, in JSX or as markup.
     expect(fontSizesUnderFloor('<text fontSize={7}> <text font-size="11px"> <text fontSize={12}>')).toEqual(["fontSize={7}", 'font-size="11px"'])
+    // shadcn's compact styles draw a Badge and a Kbd at 10 px, so an item that composes one sets text-xs on it and
+    // holds the floor in every style. The rendered check in the consumer matrix found the ones that did not.
+    for (const file of sources.filter((source) => source.includes(`${path.sep}registry${path.sep}tradecn${path.sep}`))) {
+      for (const tag of readFileSync(file, "utf8").match(/<(?:Badge|Kbd)\b[^>]*>/g) ?? []) expect(tag, `${path.relative(ROOT, file)}: ${tag}`).toMatch(/\btext-(?:xs|sm|base)\b/)
+    }
     // Every ui item and block sets the figures on its root, so everything inside inherits them.
     for (const item of registry.items) {
       if (item.type !== "registry:ui" && item.type !== "registry:block") continue

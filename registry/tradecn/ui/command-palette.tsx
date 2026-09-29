@@ -666,7 +666,7 @@ export function CommandPaletteKeys({ keys, platform: platformProp, className, ..
   return (
     <span {...props} className={cn("inline-flex items-center gap-1", className)}>
       {formatKeys(keys, platformProp ?? root?.hotkeys?.platform).map((caps, i) => (
-        <KbdGroup key={i}>{caps.map((cap) => <Kbd key={cap}>{cap}</Kbd>)}</KbdGroup>
+        <KbdGroup key={i}>{caps.map((cap) => <Kbd key={cap} className="text-xs">{cap}</Kbd>)}</KbdGroup>
       ))}
     </span>
   )
