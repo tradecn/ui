@@ -168,7 +168,7 @@ export function PerfMonitorHistogram({ className, ...props }: PerfMonitorHistogr
   const budgetX = Math.min(width, (budgetMs / report.binMs) * barWidth)
   const end = report.binMs * (bins.length - 1)
   return (
-    <svg role="img" aria-label={`Frame time histogram, ${report.binMs} ms bins to ${end} ms and over: p50 ${formatMs(report.p50)}, p99 ${formatMs(report.p99)}, ${report.dropped} dropped`} viewBox={`0 0 ${width} ${height + 10}`} width={width} height={height + 10} className={cn("shrink-0 overflow-visible", className)} data-perf-histogram {...props}>
+    <svg role="img" aria-label={`Frame time histogram, ${report.binMs} ms bins to ${end} ms and over: p50 ${formatMs(report.p50)}, p99 ${formatMs(report.p99)}, ${report.dropped} dropped`} viewBox={`0 0 ${width} ${height + 14}`} width={width} height={height + 14} className={cn("shrink-0 overflow-visible", className)} data-perf-histogram {...props}>
       {bins.map((count, i) => {
         const h = count === 0 ? 0 : Math.max(1, Math.round((count / peak) * height))
         const from = i * report.binMs
@@ -180,7 +180,7 @@ export function PerfMonitorHistogram({ className, ...props }: PerfMonitorHistogr
         )
       })}
       <line x1={budgetX} x2={budgetX} y1={0} y2={height} strokeDasharray="2 2" className="stroke-muted-foreground" strokeWidth={1} />
-      <text x={Math.min(budgetX + 2, width - 34)} y={height + 9} className="fill-muted-foreground" fontSize={7} data-perf-budget>
+      <text x={Math.min(budgetX + 2, width - 46)} y={height + 13} className="fill-muted-foreground" fontSize={12} data-perf-budget>
         {formatMs(budgetMs)}
       </text>
     </svg>

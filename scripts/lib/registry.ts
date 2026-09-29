@@ -108,12 +108,15 @@ export const TEXT_SIZE_FLOOR_PX = 12
 // An arbitrary Tailwind size class, and an inline fontSize with a number in it. Tailwind's smallest named size, text-xs, is the floor itself.
 const SIZE_CLASS = /(?<![\w-])(?:[\w-]+:)*text-\[(\d+(?:\.\d+)?)(px|rem|em|pt)\]/g
 const SIZE_STYLE = /fontSize:\s*["']?(\d+(?:\.\d+)?)(px|rem|em|pt)?["']?/g
+// A size given as an attribute, the way SVG text takes one: fontSize={7}, font-size="7".
+const SIZE_ATTR = /(?<![\w-])font(?:Size|-size)=\{?["']?(\d+(?:\.\d+)?)(px|rem|em|pt)?["']?\}?/g
 /** Every font size in a line of source that sits under the floor, as written; empty when the line is fine. */
 export function fontSizesUnderFloor(line: string): string[] {
   const px = (value: number, unit: string | undefined) => (unit === "rem" || unit === "em" ? value * 16 : unit === "pt" ? value * (4 / 3) : value)
   const out: string[] = []
   for (const m of line.matchAll(SIZE_CLASS)) if (px(Number(m[1]), m[2]) < TEXT_SIZE_FLOOR_PX) out.push(m[0])
   for (const m of line.matchAll(SIZE_STYLE)) if (px(Number(m[1]), m[2]) < TEXT_SIZE_FLOOR_PX) out.push(m[0])
+  for (const m of line.matchAll(SIZE_ATTR)) if (px(Number(m[1]), m[2]) < TEXT_SIZE_FLOOR_PX) out.push(m[0])
   return out
 }
 /** The tokens the accessibility remap points the font tokens at. */

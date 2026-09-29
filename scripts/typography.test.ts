@@ -126,6 +126,8 @@ describe("the items' typography", () => {
     expect(fontSizesUnderFloor('className="text-[10px] md:text-[11px] text-xs"')).toEqual(["text-[10px]", "md:text-[11px]"])
     expect(fontSizesUnderFloor("style={{ fontSize: 11 }}")).toEqual(["fontSize: 11"])
     expect(fontSizesUnderFloor('text-[0.7rem] text-[12px] text-[0.75rem] fontSize: "12px"')).toEqual(["text-[0.7rem]"])
+    // An SVG label takes its size as an attribute, in JSX or as markup.
+    expect(fontSizesUnderFloor('<text fontSize={7}> <text font-size="11px"> <text fontSize={12}>')).toEqual(["fontSize={7}", 'font-size="11px"'])
     // Every ui item and block sets the figures on its root, so everything inside inherits them.
     for (const item of registry.items) {
       if (item.type !== "registry:ui" && item.type !== "registry:block") continue
