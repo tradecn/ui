@@ -761,7 +761,7 @@ This complete replacement uses only installed parts. Keep the draft mounted, nam
 ```tsx
 import { useRef, useState } from "react"
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog"
-import { SessionGuardActionLabel, SessionGuardDialog, SessionGuardError, SessionGuardProvider, SessionGuardReauthenticate, SessionGuardWarning, SessionGuardWarningText } from "@/components/ui/session-guard"
+import { SessionGuardActionLabel, SessionGuardDialog, SessionGuardError, SessionGuardProvider, SessionGuardReauthenticate, SessionGuardWarning, SessionGuardWarningText, useSessionGuard } from "@/components/ui/session-guard"
 
 export function SessionDraft({ renew }: { renew: () => Promise<number | null> }) {
   const [expiresAt, setExpiresAt] = useState<number | null>(0)
@@ -781,10 +781,15 @@ export function SessionDraft({ renew }: { renew: () => Promise<number | null> })
     <SessionGuardDialog fallbackFocusRef={draft}>
       <DialogTitle>Your session has ended</DialogTitle>
       <DialogDescription>Sign in to continue editing this draft.</DialogDescription>
-      <SessionGuardReauthenticate><SessionGuardActionLabel /></SessionGuardReauthenticate>
+      <SignInAction />
       <SessionGuardError />
     </SessionGuardDialog>
   </SessionGuardProvider>
+}
+
+function SignInAction() {
+  const { pending, labels } = useSessionGuard()
+  return <SessionGuardReauthenticate>{pending ? labels.pending : labels.reauthenticate}</SessionGuardReauthenticate>
 }
 ```
 

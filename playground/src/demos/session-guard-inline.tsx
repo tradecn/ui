@@ -13,7 +13,7 @@ export default function SessionGuardInlineDemo() {
         <SessionGuardWarning className="grid gap-3 p-3">
           <p className="font-medium">Trading desk session</p>
           <div className="flex flex-wrap items-center justify-between gap-3"><RenewSession /><SessionGuardRemaining /></div>
-          <aside><SessionGuardError /></aside>
+          <SessionGuardError />
         </SessionGuardWarning>
         <button type="button" className="rounded border border-border px-2 py-1" onClick={() => setExpiresAt(0)}>Lock desk</button>
       </div>

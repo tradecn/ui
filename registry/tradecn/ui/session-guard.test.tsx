@@ -68,6 +68,7 @@ describe("the guard", () => {
     const banner = screen.getByRole("status")
     expect(banner).toHaveTextContent("Your session ends in 2:00.")
     expect(banner.querySelector("[data-slot='tradecn-session-guard-remaining']")).toHaveAttribute("data-tier", "soon")
+    expect(banner.querySelector("[data-countdown-digits]")).toHaveAttribute("data-countdown-digits", "true")
     expect(screen.getByRole("button", { name: "Stay signed in" })).toBeEnabled()
     expect(screen.queryByRole("dialog")).toBeNull()
     tick(30_000)
@@ -88,6 +89,17 @@ describe("the guard", () => {
     fireEvent.keyDown(dialog, { key: "Escape" })
     expect(screen.getByRole("dialog")).toBe(dialog)
     expect(root()).toHaveAttribute("data-session-phase", "expired")
+  })
+
+  it("lets recipe classes override the phase wrapper's display in every phase", () => {
+    const clock = createClock(1000, () => t)
+    const scene = (expiresAt: number | null, className: string) => <SessionGuard expiresAt={expiresAt} clock={clock} className={className} onReauthenticate={async () => true} />
+    const view = render(scene(T0 + MINUTE, "contents"))
+    expect(root()).toHaveClass("contents", { exact: true })
+    for (const expiresAt of [null, T0 + 5 * MINUTE, T0 - 1]) {
+      view.rerender(scene(expiresAt, "grid"))
+      expect(root()).toHaveClass("grid", { exact: true })
+    }
   })
 
   it("asks the consumer for more time from the banner, holds the button while the promise is out, and steps back when expiresAt moves", async () => {

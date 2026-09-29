@@ -229,7 +229,7 @@ export function SessionGuardRemaining({ className, role = "timer", "aria-label":
   const remaining = expiresAt - now
   const tier = countdownTier(remaining, { soonMs: warnMs })
   return <span role={role} aria-label={label ?? (props["aria-labelledby"] ? undefined : labels.session)} data-slot="tradecn-session-guard-remaining" data-tier={tier} className={cn("inline-flex items-baseline text-xs lining-nums tabular-nums", tier === "soon" ? "font-semibold text-expiring" : tier === "expired" ? "text-muted-foreground" : "text-foreground", className)} {...props}>
-    <span data-countdown-digits="" data-numeric="">{formatRemaining(remaining)}</span>
+    <span data-countdown-digits data-numeric="">{formatRemaining(remaining)}</span>
   </span>
 }
 

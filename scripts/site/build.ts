@@ -613,7 +613,7 @@ export function firstParagraph(markdown: string): string {
       continue
     }
     if (!pastTitle || !line.trim() || /^(#|-|\d+\.|>|\||<)/.test(line)) continue
-    return line.replace(/`/g, "").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").trim().slice(0, 200)
+    return textOf(new Marked().parseInline(line, { async: false })).slice(0, 200)
   }
   return ""
 }

@@ -1,3 +1,4 @@
+import { cn } from "cn"
 import { type ReactNode, type RefObject } from "react"
 import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SessionGuardActionLabel, SessionGuardDialog, SessionGuardError, SessionGuardProvider, SessionGuardReauthenticate, SessionGuardWarning, SessionGuardWarningText, useSessionGuard, type SessionGuardProviderProps } from "@/components/ui/session-guard"
@@ -12,10 +13,10 @@ export function SessionNotice({ children, className, fallbackFocusRef, ...props 
   return <SessionGuardProvider {...props}><SessionNoticeContent className={className} fallbackFocusRef={fallbackFocusRef}>{children}</SessionNoticeContent></SessionGuardProvider>
 }
 
-function SessionNoticeContent({ children, className = "", fallbackFocusRef }: Pick<SessionNoticeProps, "children" | "className" | "fallbackFocusRef">) {
-  const { phase, labels } = useSessionGuard()
+function SessionNoticeContent({ children, className, fallbackFocusRef }: Pick<SessionNoticeProps, "children" | "className" | "fallbackFocusRef">) {
+  const { phase, labels, pending } = useSessionGuard()
   return (
-    <div data-session-phase={phase} className={`${phase === "warning" ? "block" : "contents"} ${className}`}>
+    <div data-session-phase={phase} className={cn(phase === "warning" ? "block" : "contents", className)}>
       <SessionGuardWarning>
         <SessionGuardWarningText />
         <SessionGuardReauthenticate size="sm" variant="outline" className="h-7"><SessionGuardActionLabel /></SessionGuardReauthenticate>
@@ -28,7 +29,7 @@ function SessionNoticeContent({ children, className = "", fallbackFocusRef }: Pi
         </DialogHeader>
         {children}
         <div className="flex flex-wrap items-center gap-2">
-          <SessionGuardReauthenticate><SessionGuardActionLabel /></SessionGuardReauthenticate>
+          <SessionGuardReauthenticate>{pending ? labels.pending : labels.reauthenticate}</SessionGuardReauthenticate>
           <SessionGuardError />
         </div>
       </SessionGuardDialog>

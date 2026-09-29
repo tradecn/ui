@@ -5,6 +5,7 @@ Compose session warnings and sign-in dialogs while keeping surrounding drafts mo
 ## Usage
 
 ```tsx
+import { cn } from "cn"
 import { useRef, useState, type ReactNode, type RefObject } from "react"
 import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SessionGuardActionLabel, SessionGuardDialog, SessionGuardError, SessionGuardProvider, SessionGuardReauthenticate, SessionGuardWarning, SessionGuardWarningText, useSessionGuard, type SessionGuardProviderProps } from "@/components/ui/session-guard"
@@ -45,10 +46,10 @@ export function SessionNotice({ children, className, fallbackFocusRef, ...props 
   return <SessionGuardProvider {...props}><SessionNoticeContent className={className} fallbackFocusRef={fallbackFocusRef}>{children}</SessionNoticeContent></SessionGuardProvider>
 }
 
-function SessionNoticeContent({ children, className = "", fallbackFocusRef }: Pick<SessionNoticeProps, "children" | "className" | "fallbackFocusRef">) {
-  const { phase, labels } = useSessionGuard()
+function SessionNoticeContent({ children, className, fallbackFocusRef }: Pick<SessionNoticeProps, "children" | "className" | "fallbackFocusRef">) {
+  const { phase, labels, pending } = useSessionGuard()
   return (
-    <div data-session-phase={phase} className={`${phase === "warning" ? "block" : "contents"} ${className}`}>
+    <div data-session-phase={phase} className={cn(phase === "warning" ? "block" : "contents", className)}>
       <SessionGuardWarning>
         <SessionGuardWarningText />
         <SessionGuardReauthenticate size="sm" variant="outline" className="h-7"><SessionGuardActionLabel /></SessionGuardReauthenticate>
@@ -61,7 +62,7 @@ function SessionNoticeContent({ children, className = "", fallbackFocusRef }: Pi
         </DialogHeader>
         {children}
         <div className="flex flex-wrap items-center gap-2">
-          <SessionGuardReauthenticate><SessionGuardActionLabel /></SessionGuardReauthenticate>
+          <SessionGuardReauthenticate>{pending ? labels.pending : labels.reauthenticate}</SessionGuardReauthenticate>
           <SessionGuardError />
         </div>
       </SessionGuardDialog>
@@ -70,7 +71,7 @@ function SessionNoticeContent({ children, className = "", fallbackFocusRef }: Pi
 }
 ```
 
-Save this example as `session-guard.tsx` beside examples that import `SessionNotice`. It uses the Button and Dialog components included by the session-guard installation. Keep application drafts outside conditional warning and dialog content.
+Save this example as `session-guard.tsx` beside examples that import `SessionNotice`. It uses the Button, Dialog and `cn` dependencies included by the session-guard installation. Keep application drafts outside conditional warning and dialog content.
 
 Your application owns authentication. Await your session service, update `expiresAt` on success, and return its boolean result from `onReauthenticate`. Returning `true` alone does not close the dialog.
 
@@ -82,6 +83,7 @@ Use the following composition to build a `SessionGuardProvider`:
 SessionGuardProvider
 ├── SessionGuardWarning
 │   ├── SessionGuardWarningText
+│   │   └── SessionGuardRemaining
 │   ├── SessionGuardReauthenticate
 │   │   └── SessionGuardActionLabel
 │   └── SessionGuardError
@@ -91,7 +93,6 @@ SessionGuardProvider
     │   └── DialogDescription
     ├── Application sign-in content
     ├── SessionGuardReauthenticate
-    │   └── SessionGuardActionLabel
     └── SessionGuardError
 ```
 
