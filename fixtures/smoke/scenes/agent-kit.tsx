@@ -5,12 +5,13 @@ import { NUMERIC_CLASS } from "@/lib/format"
 // Three samples for checkContract. The kept one follows the contract, a word for a cue, a sign in a boxless wrapper,
 // a field, a select, SVG text and screen-reader-only small print among it. The unseen one says its direction only to
 // a screen reader, through a label it points to, a native label, a faded sign, a sign painted transparent, a grid
-// rule's highlight that its description explains and a cell marked with its side: that passes by default and fails
-// under visibleCue. The broken one breaks three rules on purpose: numbers colored up with nothing else saying so (in
-// text, in a field, in SVG text, with units, behind a description that points at nothing, a label that names no
-// direction, a side marked on a container rather than on the value, and a hidden sign); an icon button and a field
-// with no name; and text under the floor, an SVG label drawn at half size and small print the spec shrinks at run
-// time, a select's among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
+// rule's highlight that its description explains, a label on the run around the value and a cell marked with its
+// side: that passes by default and fails under visibleCue. The broken one breaks three rules on purpose: numbers
+// colored up with nothing else saying so (in text, in a field, in SVG text, with units, behind a description that
+// points at nothing, a label that names no direction, a side marked on a container rather than on the value, a
+// highlight from a rule whose tone is no direction, and a hidden sign); an icon button and a field with no name; and
+// text under the floor, an SVG label drawn at half size and small print the spec shrinks at run time, a select's
+// among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
 
 export function AgentKitScene() {
   const id = useId()
@@ -67,6 +68,9 @@ export function AgentKitScene() {
         <span data-cue="rule" data-rule="rich" data-tone="up" aria-description="Rich" className={cn(NUMERIC_CLASS, "text-up")}>
           100.25
         </span>
+        <span aria-label="Up 0-12" className={cn(NUMERIC_CLASS, "text-up")}>
+          <span data-cue="run-label">0-12</span>
+        </span>
         <table>
           <tbody>
             <tr>
@@ -96,6 +100,11 @@ export function AgentKitScene() {
         <div data-side="buy">
           <span data-cue="side" className={cn(NUMERIC_CLASS, "text-up")}>
             0-09
+          </span>
+        </div>
+        <div data-rule="large" data-tone="primary" aria-description="Large">
+          <span data-cue="other-rule" className={cn(NUMERIC_CLASS, "text-up")}>
+            0-11
           </span>
         </div>
         <span data-cue="hidden" className={cn(NUMERIC_CLASS, "text-up")}>

@@ -1231,11 +1231,24 @@ function ContractCheck() {
   const [report, setReport] = useState<ContractReport | null>(null)
   return (
     <>
-      {report && (
-        <span className={cn("text-muted-foreground", NUMERIC_CLASS)} title={report.findings.map((finding) => `${finding.rule}: ${finding.where}, ${finding.detail}`).join("\n") || undefined}>
-          {report.findings.length} {report.findings.length === 1 ? "finding" : "findings"}
-        </span>
-      )}
+      {report &&
+        (report.findings.length ? (
+          // A disclosure, so the findings open from the keyboard and by touch, not only on hover.
+          <details className="relative">
+            <summary className={cn("cursor-pointer text-muted-foreground", NUMERIC_CLASS)}>
+              {report.findings.length} {report.findings.length === 1 ? "finding" : "findings"}
+            </summary>
+            <ul className="absolute top-full right-0 z-10 mt-1 max-h-64 w-96 overflow-auto rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md">
+              {report.findings.map((finding, index) => (
+                <li key={index} className="break-words">
+                  {finding.rule}: {finding.where}, {finding.detail}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : (
+          <span className={cn("text-muted-foreground", NUMERIC_CLASS)}>0 findings</span>
+        ))}
       <Button size="sm" variant="ghost" className={ACTION} onClick={() => setReport(checkContract())}>
         Check
       </Button>

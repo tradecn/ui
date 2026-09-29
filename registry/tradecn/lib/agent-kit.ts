@@ -267,11 +267,23 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     // An accessible label or description that states the direction: its own, one it points to, or a native label.
     const says = (node: Element | null) =>
       Boolean(node && [node.getAttribute("aria-label"), node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-labelledby"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)))
-    // A grid rule's tone is the rule's color, not a direction. The rule names itself in data-rule and says what it
-    // matched in its description, the channel scripts/color.test.ts records for it.
-    const ruled = (el: Element) => {
-      const rule = el.closest("[data-rule]")
-      return Boolean(rule && ((rule.getAttribute("aria-description") ?? "").trim() || refs(rule, "aria-describedby")))
+    // A grid rule's tone is the rule's color, not a direction. The rule names itself in data-rule and data-tone and says
+    // what it matched in its description, the channel scripts/color.test.ts records for it. Only the rule nearest the
+    // value, on it or in its colored run, counts, and only when its tone is the direction color that was found.
+    const ruled = (el: Element, run: Element) => {
+      for (let node: Element | null = el; node; node = node.parentElement) {
+        if (node.matches("[data-rule]")) return ["up", "down"].includes(node.getAttribute("data-tone") ?? "") && Boolean((node.getAttribute("aria-description") ?? "").trim() || refs(node, "aria-describedby"))
+        if (node === run) break
+      }
+      return false
+    }
+    // A label that states the direction counts on the value or anywhere in its colored run.
+    const saysAlong = (el: Element, run: Element) => {
+      for (let node: Element | null = el; node; node = node.parentElement) {
+        if (says(node)) return true
+        if (node === run) break
+      }
+      return false
     }
     // What a run shows, in order: its text, with a field's value where the field sits. Hidden parts reach nobody, so
     // they show nothing. Asked for what a sighted reader sees, it also leaves out a box that fades or clips away (the
@@ -298,7 +310,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       if (ink) for (let depth = 0; depth < 3 && run.parentElement && run.parentElement !== scope && style(run.parentElement)[ink.property] === ink.value; depth++) run = run.parentElement
       const seen = shown(run, Boolean(options.visibleCue)).trim()
       if (cued(seen)) continue
-      if (!options.visibleCue && (marked(el, run) || ruled(el) || says(el) || says(el.closest(cell)))) continue
+      if (!options.visibleCue && (marked(el, run) || ruled(el, run) || saysAlong(el, run) || says(el.closest(cell)))) continue
       find("direction", el, `painted ${painted} with no sign, arrow, word${options.visibleCue ? "" : ", data-direction or label"} saying the direction`)
     }
   }
