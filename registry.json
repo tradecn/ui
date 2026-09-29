@@ -3577,7 +3577,7 @@
       "name": "session-guard",
       "type": "registry:ui",
       "title": "Session Guard",
-      "description": "A session ends and the trader must not lose a half-typed ticket. The guard reads when the session expires and does three things with it: in the warning window a banner with a countdown and a button that asks for more time; at expiry a dialog that is a hotkey wall, blocking every action underneath and unmounting nothing, so drafts and layouts stay; and a readout of the phase for the status bar. It holds no token and knows no protocol: the consumer's sign-in is the dialog's children, and onReauthenticate is how it is asked.",
+      "description": "Compose session warnings, sign-in dialogs and custom controls around one expiry and one shared request. Keep surrounding drafts mounted while the application renews the session. SessionStatus provides an independent phase and countdown readout.",
       "dependencies": [
         "cn@^0.3.0"
       ],
@@ -3610,12 +3610,44 @@
       "categories": [
         "chrome"
       ],
-      "docs": "Installs the countdown, the shared clock, and format alongside, adds the expiring tokens the banner and the readout use, and composes the consumer's button and dialog. Pass when the session ends and your sign-in as the children; the guard closes when expiresAt moves, never on its own.",
+      "docs": "Installs countdown, the shared clock and format, adds expiring tokens, and uses the installed button and dialog. SessionGuardProvider coordinates phase and requests without rendering markup. Compose warning content, titled dialog content and actions; give SessionGuardDialog a persistent fallback focus target. The application owns authentication and updates expiresAt to close the dialog.",
       "meta": {
         "components": [
           {
-            "title": "SessionGuard",
-            "description": "The banner in the warning window and the wall at expiry, over one number: when the session ends."
+            "title": "SessionGuardProvider",
+            "description": "Share session phase, labels and one sign-in request without a wrapper."
+          },
+          {
+            "title": "SessionGuardWarning",
+            "description": "A caller-composed status region inside the warning window."
+          },
+          {
+            "title": "SessionGuardWarningText",
+            "description": "The localized warning sentence and remaining-time reading."
+          },
+          {
+            "title": "SessionGuardRemaining",
+            "description": "A ticking reading using the provider’s expiry and clock."
+          },
+          {
+            "title": "SessionGuardReauthenticate",
+            "description": "An installed button sharing the request lock."
+          },
+          {
+            "title": "SessionGuardActionLabel",
+            "description": "The localized pending, extension or sign-in action text."
+          },
+          {
+            "title": "SessionGuardError",
+            "description": "The current refusal as a caller-positioned alert."
+          },
+          {
+            "title": "SessionGuardDialog",
+            "description": "Expiry-controlled modal content with shared focus recovery."
+          },
+          {
+            "title": "useSessionGuard",
+            "description": "Session settings, phase and request state for custom controls."
           },
           {
             "title": "SessionStatus",

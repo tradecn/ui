@@ -827,6 +827,7 @@ describe("markdown", () => {
     expect(firstParagraph("# t\n\n```ts\nnot this\n```\n\n- not this\n\n<table>not this</table>\n\nUse `formatPrice` for [prices](x.md).\n")).toBe(
       "Use formatPrice for prices.",
     )
+    expect(firstParagraph('# t\n\nUse `<Dialog>` for **sign-in**. <a id="old-title"></a>\n')).toBe("Use <Dialog> for sign-in.")
   })
 })
 
@@ -1227,6 +1228,7 @@ describe("the docs pages", async () => {
   it("heads an item's page by the name its implementation goes by: a component's export, a hook's, a utility's or a theme's own name", () => {
     const heading = (name: string) => headingOf(registry.items.find((item) => item.name === name)!)
     expect(heading("data-grid")).toBe("DataGrid")
+    expect(heading("session-guard")).toBe("SessionGuardProvider")
     expect(heading("rfq-ticket")).toBe("RfqTicket")
     expect(heading("use-hotkeys")).toBe("useHotkeys")
     expect(heading("row-store")).toBe("row-store")
@@ -1240,6 +1242,13 @@ describe("the docs pages", async () => {
     expect(items.find((doc) => doc.slug === "data-grid")?.title).toBe("DataGrid")
     expect(items.find((doc) => doc.slug === "use-hotkeys")?.title).toBe("useHotkeys")
     expect(items.find((doc) => doc.slug === "format")?.title).toBe("format")
+  })
+
+  it("keeps the released SessionGuard anchor out of the page description", () => {
+    const page = at("docs/session-guard/index.html")
+    expect(page).toContain('<meta name="description" content="Compose session warnings and sign-in dialogs while keeping surrounding drafts mounted.">')
+    expect(page).toContain('id="sessionguard"')
+    expect(page.indexOf('id="sessionguard"')).toBeLessThan(page.indexOf('<h2 id="installation">'))
   })
 
   it("keeps every item doc in the page's shape: the title, one paragraph, then Usage first, each variant in a section of its own, and API Reference last", () => {

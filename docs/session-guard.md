@@ -1,16 +1,19 @@
-# SessionGuard
+# SessionGuardProvider
 
-Warn before a session expires, then show a sign-in dialog over the desk. The guard leaves the surrounding UI mounted, so drafts and layout can survive re-authentication.
+Compose session warnings and sign-in dialogs while keeping surrounding drafts mounted. <a id="sessionguard"></a>
 
 ## Usage
 
 ```tsx
-import { useState } from "react"
-import { SessionGuard } from "@/components/ui/session-guard"
+import { cn } from "cn"
+import { useRef, useState, type ReactNode, type RefObject } from "react"
+import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { SessionGuardActionLabel, SessionGuardDialog, SessionGuardError, SessionGuardProvider, SessionGuardReauthenticate, SessionGuardWarning, SessionGuardWarningText, useSessionGuard, type SessionGuardProviderProps } from "@/components/ui/session-guard"
 
-function GuardedDraft() {
+export default function SessionGuardDemo() {
   const [expiresAt, setExpiresAt] = useState(() => Date.now() + 30_000)
   const [note, setNote] = useState("")
+  const draft = useRef<HTMLInputElement>(null)
 
   return (
     <>
@@ -18,104 +21,204 @@ function GuardedDraft() {
         <button type="button" className="rounded border border-border px-2 py-1" onClick={() => setExpiresAt(0)}>Expire session</button>
       </div>
       <div className="flex min-h-72 w-sm max-w-full flex-col justify-center gap-3 text-xs">
-        <SessionGuard expiresAt={expiresAt} warnMs={60_000} onReauthenticate={async () => {
+        <SessionNotice expiresAt={expiresAt} warnMs={60_000} fallbackFocusRef={draft} onReauthenticate={async () => {
           setExpiresAt(Date.now() + 300_000)
           return true
         }}>
           <p className="text-sm text-muted-foreground">This example signs in immediately.</p>
-        </SessionGuard>
+        </SessionNotice>
         <label className="flex flex-col gap-1.5">
           Draft note
-          <input className="rounded border border-border bg-background px-3 py-2" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Kept through sign-in" />
+          <input ref={draft} className="rounded border border-border bg-background px-3 py-2" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Kept through sign-in" />
         </label>
       </div>
     </>
   )
 }
+
+export interface SessionNoticeProps extends Omit<SessionGuardProviderProps, "children"> {
+  children?: ReactNode
+  className?: string
+  fallbackFocusRef: RefObject<HTMLElement | null>
+}
+
+export function SessionNotice({ children, className, fallbackFocusRef, ...props }: SessionNoticeProps) {
+  return <SessionGuardProvider {...props}><SessionNoticeContent className={className} fallbackFocusRef={fallbackFocusRef}>{children}</SessionNoticeContent></SessionGuardProvider>
+}
+
+function SessionNoticeContent({ children, className, fallbackFocusRef }: Pick<SessionNoticeProps, "children" | "className" | "fallbackFocusRef">) {
+  const { phase, labels, pending } = useSessionGuard()
+  return (
+    <div data-session-phase={phase} className={cn(phase === "warning" ? "block" : "contents", className)}>
+      <SessionGuardWarning>
+        <SessionGuardWarningText />
+        <SessionGuardReauthenticate size="sm" variant="outline" className="h-7"><SessionGuardActionLabel /></SessionGuardReauthenticate>
+        <SessionGuardError />
+      </SessionGuardWarning>
+      <SessionGuardDialog fallbackFocusRef={fallbackFocusRef}>
+        <DialogHeader>
+          <DialogTitle>{labels.expiredTitle}</DialogTitle>
+          <DialogDescription>{labels.expiredDescription}</DialogDescription>
+        </DialogHeader>
+        {children}
+        <div className="flex flex-wrap items-center gap-2">
+          <SessionGuardReauthenticate>{pending ? labels.pending : labels.reauthenticate}</SessionGuardReauthenticate>
+          <SessionGuardError />
+        </div>
+      </SessionGuardDialog>
+    </div>
+  )
+}
 ```
 
-`expiresAt` is milliseconds since the epoch. This example starts with thirty seconds left, inside its one-minute warning window. Type a draft, then choose **Expire session** or wait for the deadline. The sign-in dialog leaves the draft mounted. **Stay signed in** or **Sign in again** renews immediately for five minutes, clearing the banner or dialog.
+Save this example as `session-guard.tsx` beside examples that import `SessionNotice`. It uses the Button, Dialog and `cn` dependencies included by the session-guard installation. Keep application drafts outside conditional warning and dialog content.
 
-The callback simulates success. In your application, await your session service, update the expiry in application state on success, and return its boolean result. Returning `true` alone does not close the guard. Put your sign-in UI in its `children` and keep the desk outside it.
+Your application owns authentication. Await your session service, update `expiresAt` on success, and return its boolean result from `onReauthenticate`. Returning `true` alone does not close the dialog.
+
+## Composition
+
+Use the following composition to build a `SessionGuardProvider`:
+
+```text
+SessionGuardProvider
+├── SessionGuardWarning
+│   ├── SessionGuardWarningText
+│   │   └── SessionGuardRemaining
+│   ├── SessionGuardReauthenticate
+│   │   └── SessionGuardActionLabel
+│   └── SessionGuardError
+└── SessionGuardDialog
+    ├── DialogHeader
+    │   ├── DialogTitle
+    │   └── DialogDescription
+    ├── Application sign-in content
+    ├── SessionGuardReauthenticate
+    └── SessionGuardError
+```
+
+The provider adds no markup. Arrange the warning, readings, actions and sign-in content yourself, or reuse `SessionNotice` from Usage. `SessionGuardRemaining` places the countdown without the default warning sentence; `useSessionGuard` supplies the same request behavior to custom controls.
+
+## Custom layout
+
+Use `SessionGuardRemaining` and `useSessionGuard` to move the reading and replace the sign-in controls.
+
+<!-- demo: session-guard-inline -->
 
 ## Pending and refused sign-ins
 
-Choose **Show expired session**, then **Sign in again**. The request stays pending until you choose **Accept sign-in** or **Refuse sign-in** inside the dialog. These two controls stand in for the identity provider; keeping them inside the modal lets you retry after refusal.
-
-Acceptance updates the expiry and closes the dialog. Refusal leaves it open with the guard's error message; choose **Sign in again** to retry. This variant uses `warnMs={0}` to skip the warning banner and keep every request inside the dialog, where its reply controls are available. The example settles an unfinished request when it unmounts and creates no timer for the simulated reply.
+Keep the action pending until the simulated service accepts or refuses the request. Copy `session-guard.tsx` from Usage into the same directory first; this example imports its `SessionNotice` composition.
 
 <!-- demo: session-guard-replies -->
 
 ## Session status readouts
 
-`SessionStatus` can show the same expiry elsewhere on the desk, independently of the guard. This comparison uses one fixed clock to keep all four phases available to inspect. Real sessions use the shared ticking clock by default.
-
-To place a readout in [`StatusBar`](status-bar.md), install that component separately and place the readout in its children.
+Use `SessionStatus` independently of a provider. This comparison supplies a fixed clock; live readouts use the shared clock by default. Install [`StatusBar`](status-bar.md) separately to place a readout in its children.
 
 <!-- demo: session-guard-status -->
 
 ## API Reference
 
-The guard reads the expiry time you supply. Your application owns the session and renders its sign-in UI in the dialog's `children`.
-
 ### Props
 
-| Prop | Type | Default | Purpose |
-|---|---|---|---|
-| `expiresAt` | `number \| null \| undefined` | Required | Expiry time in epoch milliseconds. Null, undefined, or a non-finite number means no session. |
-| `warnMs` | `number` | `120_000` | Warning window in milliseconds; exported as `DEFAULT_WARN_MS`. |
-| `onReauthenticate` | `() => Promise<boolean>` | Required | Request a new session; resolve `true` on success or `false` on refusal. |
-| `children` | `ReactNode` | None | Sign-in UI above the dialog's button. |
-| `onExpire` | `() => void` | None | Called by an effect on entering the expired phase, including an already-expired mount. |
-| `labels` | `Partial<SessionGuardLabels>` | `DEFAULT_SESSION_GUARD_LABELS` | Override the words listed below. |
-| `clock` | `Clock` | `sharedClock()` | Clock for the phase and countdown; the default ticks once a second. |
-| `className` | `string` | None | Classes on the root wrapper, which uses `block` during warning and `contents` otherwise. |
+`SessionGuardProvider` coordinates one expiry and one request. It requires composition through `children` and has no native element, `className` or ref.
 
-Changing an expired timestamp to another expired timestamp, or replacing `onExpire` while still expired, does not trigger another expiry notification. Leaving the expired phase and entering it again does. The callback follows a React effect's lifetime; it is not an exactly-once notification across remounts or development Strict Mode effect replay.
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `expiresAt` | `number \| null \| undefined` | Required | Expiry in epoch milliseconds. Null, undefined and non-finite numbers mean no session. |
+| `onReauthenticate` | `() => Promise<boolean>` | Required | Request a session; the result does not change the expiry. |
+| `children` | `ReactNode` | Required | Warnings, dialogs, controls and application content. |
+| `warnMs` | `number` | `120_000` | Warning window in milliseconds, exported as `DEFAULT_WARN_MS`. |
+| `onExpire` | `() => void` | - | Effect notification on entering expired, including an expired mount. |
+| `labels` | `Partial<SessionGuardLabels>` | Default labels | Text used by readings and the supplied composition. |
+| `clock` | `Clock` | `sharedClock()` | Shared clock for phase and remaining-time readings. |
+
+Changing an expired timestamp to another expired timestamp, or replacing `onExpire` while still expired, does not notify again. Leaving and reentering expired does. Remounts and development Strict Mode effect replay can repeat the callback.
+
+### Parts
+
+All rendered parts accept the native props, ref, classes and events of the element listed below. Classes merge with defaults. The action and dialog use the corresponding installed shadcn component's props, subject to the owned behavior below.
+
+| Part | Element | Children | Description |
+|---|---|---|---|
+| `SessionGuardWarning` | `div` | Required | Warning-only status region with wrapping strip styles. |
+| `SessionGuardWarningText` | `span` | Not accepted | Localized warning sentence containing `SessionGuardRemaining`. |
+| `SessionGuardRemaining` | `span` | Not accepted | Timer reading using the provider's expiry, warning window and clock. |
+| `SessionGuardReauthenticate` | Installed `Button` | Required | Shared sign-in action; defaults to `type="button"`. |
+| `SessionGuardActionLabel` | `span` | Not accepted | Pending, extension or sign-in text for an action. |
+| `SessionGuardError` | `span` | Optional | Failure alert; omitted children use `labels.failed`. |
+| `SessionGuardDialog` | Installed `DialogContent` | Required | Expiry-controlled modal content. Requires `fallbackFocusRef`. |
+
+The warning carries `data-slot="tradecn-session-guard"` and `data-session-banner`. Remaining, action and error use the slots `tradecn-session-guard-remaining`, `tradecn-session-guard-reauthenticate` and `tradecn-session-guard-error`. The dialog has `data-session-dialog`; the error has `data-session-failed`. `SessionNotice` places `data-session-phase` on its own wrapper.
+
+### useSessionGuard
+
+Call `useSessionGuard()` inside the provider for custom controls and layouts. It returns `SessionGuardValue`:
+
+| Field | Type | Description |
+|---|---|---|
+| `phase` | `SessionPhase` | Current session phase. |
+| `expiresAt` | `number \| null` | Normalized expiry. |
+| `warnMs` | `number` | Configured warning window. |
+| `clock` | `Clock` | Clock shared by the provider and its readings. |
+| `labels` | `SessionGuardLabels` | Merged labels. |
+| `pending` / `failed` | `boolean` | State shared by every action in the provider. |
+| `reauthenticate` | `() => Promise<void>` | Start a request; ignored while pending or after provider unmount. |
+
+A duplicate call resolves without waiting for the active request. Read `pending` and `failed` to display request state. The hook does not subscribe to remaining milliseconds: ordinary ticks update only `SessionGuardRemaining` and standalone time hooks or readouts.
 
 ### Phases
 
-The root carries `data-session-phase`. The pure helper and hook both return `SessionStatusValue`:
+`sessionStatus` and `useSessionStatus` retain the standalone `SessionStatusValue` contract:
 
 | API | Inputs | Result |
 |---|---|---|
-| `sessionStatus(expiresAt, now, warnMs?)` | `expiresAt: number \| null \| undefined`; `now: number` in epoch milliseconds; `warnMs: number = DEFAULT_WARN_MS` | The status at the supplied time. |
-| `useSessionStatus(expiresAt, options?)` | The same expiry type; `options: UseSessionStatusOptions = {}` | Status updated on clock ticks. Options are `warnMs?: number` and `clock?: Clock`, with the same defaults as the guard. |
+| `sessionStatus(expiresAt, now, warnMs?)` | Expiry, epoch milliseconds, optional warning window | Status at the supplied time. |
+| `useSessionStatus(expiresAt, options?)` | Expiry and optional `UseSessionStatusOptions` | Status updated on clock ticks. Options are `warnMs?: number` and `clock?: Clock`. |
 
 | Field | Type | Meaning |
 |---|---|---|
 | `phase` | `SessionPhase` | `"none"`, `"live"`, `"warning"`, or `"expired"`. |
-| `remainingMs` | `number \| null` | Expiry minus the clock time; negative after expiry, null with no session. |
-| `expiresAt` | `number \| null` | The supplied finite expiry, or null with no session. |
+| `remainingMs` | `number \| null` | Expiry minus clock time; negative after expiry, null with no session. |
+| `expiresAt` | `number \| null` | Supplied finite expiry, or null with no session. |
 
-| Phase | When | What the guard shows |
+| Phase | When | Conditional parts |
 |---|---|---|
-| `none` | Null, undefined, `NaN`, or infinite expiry | Nothing |
-| `live` | More than `warnMs` left, above zero | Nothing |
-| `warning` | `warnMs` or less left, above zero | The banner |
-| `expired` | Zero or less left | The dialog |
+| `none` | Null, undefined, `NaN`, or infinite expiry | Warning and dialog hidden |
+| `live` | More than `warnMs` left, above zero | Warning and dialog hidden |
+| `warning` | `warnMs` or less left, above zero | Warning mounted |
+| `expired` | Zero or less left | Dialog open |
 
-`warnMs` is compared directly; zero or negative values skip the warning phase. The hook uses the shared one-second clock from [`countdown`](countdown.md) unless you supply another. For tests, pass `createClock(1000, () => t)` and advance both `t` and the timer.
+`warnMs` is compared directly; zero or negative values skip warning. Both APIs default to `DEFAULT_WARN_MS` and the hook uses the shared one-second clock from [`countdown`](countdown.md). For tests, pass `createClock(1000, () => t)` and advance both `t` and the timer.
 
 ### The banner
 
-The banner is a `role="status"` strip with a compact [`Countdown`](countdown.md), the warning sentence, and the extension button. It uses `expiring` and `expiring-soft`; the countdown uses `warnMs` as its soon threshold and disables its own announcements inside the status region.
+`SessionGuardWarning` supplies `role="status"` and the `expiring` and `expiring-soft` strip styles. Place optional controls, account information and errors in its children. `SessionGuardWarningText` inserts the remaining-time reading into `labels.warning`.
+
+`SessionGuardRemaining` uses the same rounded-up countdown format as [`Countdown`](countdown.md), including `data-tier` and numeric typography. It has `role="timer"` and the session label, with no separate live region. Place one warning sentence per session to avoid duplicate announcements.
 
 ### The wall
 
-The consumer's modal `Dialog` is open whenever the phase is `expired`. It has no close button and ignores close requests from Escape or a click outside. A future expiry closes it: one inside the warning window shows the banner, while one beyond that window shows neither. Clearing the expiry or passing a non-finite value also closes it by moving to `none`.
+`SessionGuardDialog` owns a modal `Dialog` and its content. It opens when expired, has no close button, and ignores Escape and outside close requests. Renewing to a future expiry or clearing the expiry closes it. Content scrolls within the viewport by default; use `className` for another width or layout.
 
-The modal blocks pointer interaction underneath. For events inside its `role="dialog"`, the [`use-hotkeys`](use-hotkeys.md) dispatcher only considers scopes declared inside it. The guard does not unmount the surrounding desk; keeping drafts and stores alive during sign-in remains part of your application's lifecycle.
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `children` | `ReactNode` | Required | A heading, description, sign-in content and actions. |
+| `fallbackFocusRef` | `RefObject<HTMLElement \| null>` | Required | Persistent, focusable application control to receive focus if native restoration leaves it on the body or closing dialog. |
+| `className` | `string` | - | Additional classes to apply to the dialog content. |
 
-The dialog contains the title, description, `children`, and re-authentication button. The banner and dialog share pending and failure state.
+Use the installed `DialogTitle` and `DialogDescription` to name and describe the dialog. Keep the fallback target mounted outside conditional content. A valid native return target takes precedence. The part owns final focus, so `finalFocus` and `onCloseAutoFocus` are reserved, along with root control props, `showCloseButton`, `forceMount` and `keepMounted`. Use `useSessionGuard` when replacing the whole dialog and its focus policy.
+
+The modal blocks pointer interaction underneath. For events inside its `role="dialog"`, [`use-hotkeys`](use-hotkeys.md) considers only scopes declared inside that dialog. Surrounding drafts and stores stay mounted; authentication fields inside dialog content follow the installed primitive's normal close/unmount lifecycle.
 
 ### Re-authentication
 
-Both buttons call `onReauthenticate`. While its promise is pending, the visible button is disabled, has `data-pending="true"`, and reads `Signing in…`. Further button presses are ignored until it settles. A phase change does not cancel the request or reset pending state.
+Every action and custom hook control shares one request lock. `SessionGuardReauthenticate` is disabled while pending and carries `data-pending="true"`; `SessionGuardActionLabel` shows `Signing in…`. A caller's `disabled` also disables the action. The caller's `onClick` runs first and can cancel the request with `preventDefault()`.
 
-Resolving `true` clears failure state but does not change the expiry or phase. Resolving `false`, throwing, or rejecting sets failure state and shows `That did not work. Try again.` as a `role="alert"` beside the button. The promise result alone never closes the banner or dialog.
+Changing phase, expiry, clock or callback does not cancel an active request. The next attempt uses the latest committed callback. Unmounting the provider stops its old completion from updating a new provider; cancellation of application work belongs to the session service.
 
-Starting another attempt clears the failure. Entering `live` or `none` also clears it; moving between `warning` and `expired` preserves it. A request that fails after the phase has moved to `live` or `none` can set failure again, hidden until a banner or dialog next appears.
+Resolving `true` clears failure without changing expiry. Resolving `false`, throwing or rejecting sets failure. `SessionGuardError` displays it as an alert wherever mounted; the supplied composition limits it to the warning or open dialog.
+
+Starting another attempt clears failure. Entering `live` or `none` also clears a prior failure; moving between `warning` and `expired` preserves it. A request that fails after recovery can set failure again. In the ordinary composition that error becomes visible when warning or expired returns.
 
 ### The status readout
 
@@ -126,12 +229,12 @@ Starting another attempt clears the failure. Entering `live` or `none` also clea
 | `expiresAt` | `number \| null \| undefined` | Required | Expiry time in epoch milliseconds; the same no-session values as the guard. |
 | `warnMs` | `number` | `120_000` | Warning window in milliseconds. |
 | `clock` | `Clock` | `sharedClock()` | Clock for the phase and remaining time. |
-| `labels` | `Partial<SessionGuardLabels>` | `DEFAULT_SESSION_GUARD_LABELS` | Readout text and accessible phase names. |
+| `labels` | `Partial<SessionGuardLabels>` | Default labels | Readout text and accessible phase names. |
 | `className` | `string` | None | Classes on the readout's span. |
 
 ### Labels
 
-Both components merge partial overrides into `DEFAULT_SESSION_GUARD_LABELS`. Every label is a string. Use one `{remaining}` placeholder in `warning`: the countdown goes between the first two parts of that split.
+The provider and standalone readout merge partial overrides into `DEFAULT_SESSION_GUARD_LABELS`. Every label is a string. Use one `{remaining}` placeholder in `warning`: the countdown goes between the first two parts of that split.
 
 | Label | Default | Where |
 |---|---|---|
@@ -151,4 +254,4 @@ The guard holds no token, reads no cookie, and does not refresh credentials or r
 
 ### Tokens
 
-The install adds `expiring` and `expiring-soft` if you do not have them, for the banner and the readout's warning phase.
+The install adds `expiring` and `expiring-soft` if you do not have them, for the warning and the readout's warning phase.

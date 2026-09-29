@@ -734,3 +734,71 @@ The parts add native props, refs, names, and event handlers. Supply your action 
 Items are named groups inside your collection. A focus target that becomes hidden, disabled, or removed falls back to its item, search, or root.
 
 Drag sessions reject foreign and cross-chooser drops, accept empty string column keys, and clear when their source disappears. These correct the released drag and focus defects.
+
+## SessionGuard
+
+Replace `SessionGuard` with `SessionGuardProvider` and compose its warning, dialog and actions. The old export and `SessionGuardProps` are removed: their `children` meant authentication content, whereas provider children own the whole composition.
+
+For the ordinary layout, copy the complete [Usage example](session-guard.md#usage) into `session-guard.tsx` outside `components/ui`. It exports `SessionNotice`, which uses the public parts and the installed Dialog. The SessionGuard installation includes Button and Dialog.
+
+| Previous interface | Replacement |
+|---|---|
+| `<SessionGuard expiresAt={...} onReauthenticate={...} />` | A composed `SessionGuardProvider`, or the shared `SessionNotice` recipe with a persistent `fallbackFocusRef`. |
+| `SessionGuardProps` | `SessionGuardProviderProps` for coordination; `SessionNoticeProps` from the copied recipe for the ordinary layout. |
+| Authentication `children` | Children inside `SessionGuardDialog`, or the shared recipe's children. Provider children now own all markup. |
+| Root `className` | Classes on caller-owned layout. The shared recipe retains the old block/contents wrapper behavior. Style the warning through `SessionGuardWarning.className`. |
+| Automatic warning sentence and countdown | `SessionGuardWarningText`, or custom content with `SessionGuardRemaining`. |
+| Automatic buttons and failure text | `SessionGuardReauthenticate`, `SessionGuardActionLabel` and `SessionGuardError`, placed by the caller. |
+| Private pending/request state | `useSessionGuard()` for custom controls sharing one request. |
+| Automatic dialog heading and description | Installed `DialogTitle` and `DialogDescription` inside `SessionGuardDialog`. |
+| Implicit close focus | Required `fallbackFocusRef` to a persistent focusable application control; native restoration takes precedence when it succeeds. |
+| Root `data-slot="tradecn-session-guard"` | The conditional `SessionGuardWarning` owns this slot. The recipe's always-mounted wrapper retains `data-session-phase`. |
+| Warning's nested `tradecn-countdown` slot | `tradecn-session-guard-remaining`; `data-tier` and `data-countdown-digits` remain. |
+| `data-session-extend` / `data-session-reauthenticate` | Both actions use `data-slot="tradecn-session-guard-reauthenticate"`. Add caller-owned attributes when distinguishing warning and dialog actions. |
+
+This complete replacement uses only installed parts. Keep the draft mounted, name the dialog and update application expiry after a successful sign-in:
+
+```tsx
+import { useRef, useState } from "react"
+import { DialogDescription, DialogTitle } from "@/components/ui/dialog"
+import { SessionGuardActionLabel, SessionGuardDialog, SessionGuardError, SessionGuardProvider, SessionGuardReauthenticate, SessionGuardWarning, SessionGuardWarningText, useSessionGuard } from "@/components/ui/session-guard"
+
+export function SessionDraft({ renew }: { renew: () => Promise<number | null> }) {
+  const [expiresAt, setExpiresAt] = useState<number | null>(0)
+  const draft = useRef<HTMLTextAreaElement>(null)
+  return <SessionGuardProvider expiresAt={expiresAt} onReauthenticate={async () => {
+    const expiry = await renew()
+    if (expiry === null) return false
+    setExpiresAt(expiry)
+    return true
+  }}>
+    <label>Draft<textarea ref={draft} /></label>
+    <SessionGuardWarning>
+      <SessionGuardWarningText />
+      <SessionGuardReauthenticate><SessionGuardActionLabel /></SessionGuardReauthenticate>
+      <SessionGuardError />
+    </SessionGuardWarning>
+    <SessionGuardDialog fallbackFocusRef={draft}>
+      <DialogTitle>Your session has ended</DialogTitle>
+      <DialogDescription>Sign in to continue editing this draft.</DialogDescription>
+      <SignInAction />
+      <SessionGuardError />
+    </SessionGuardDialog>
+  </SessionGuardProvider>
+}
+
+function SignInAction() {
+  const { pending, labels } = useSessionGuard()
+  return <SessionGuardReauthenticate>{pending ? labels.pending : labels.reauthenticate}</SessionGuardReauthenticate>
+}
+```
+
+`SessionStatus`, `useSessionStatus`, `sessionStatus`, phase/status/options types and label constants retain their public contracts. `expiresAt`, `warnMs`, `clock`, `labels` and `onExpire` move to the provider with the same phase and callback semantics. Ordinary clock ticks update time readings locally.
+
+Requests survive phase, expiry, clock and callback changes. Returning `true` alone does not renew the session; the application still updates `expiresAt`. A late refusal after recovery can set failure again.
+
+Unmounting a provider isolates its completion from a new provider but does not cancel application work.
+
+`SessionGuardDialog` reserves open/modal control, forced mounting, the close button and final-focus overrides. Use its native content props for styling, refs and events; use the hook when replacing the whole dialog.
+
+Keep the fallback target outside conditional content. Surrounding drafts remain mounted, while authentication fields inside the dialog follow the installed primitive's normal close lifecycle.
