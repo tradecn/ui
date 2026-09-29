@@ -24,9 +24,9 @@ Exports: `Blotter`, `BlotterGrid`, `BlotterActionScope`, `BlotterNewButton`, `Bl
 
 ### Column Chooser (`column-chooser`)
 
-The dialog over one grid's columns: every column with show and hide, reorder by drag or by keyboard, a width reset where a column was resized, a search box, frozen columns marked, and reset all. It reads and writes the grid's own column state and stores nothing, and a rule that names a column is said in words beside it.
+Compose column visibility, order, width readings, and reset controls over a grid’s controlled column state.
 
-Exports: `ColumnChooser`, `ColumnChooserPanel`, `DEFAULT_COLUMN_CHOOSER_LABELS`, `chooserRows`, `moveColumnTo`, `moveColumnBy`, `setColumnVisible`, `resetColumnWidth`, `isDefaultColumnState`.
+Exports: `ColumnChooser`, `ColumnChooserItem`, `ColumnChooserSearch`, `ColumnChooserAnnouncer`, `ColumnChooserHiddenCount`, `ColumnChooserVisibility`, `ColumnChooserName`, `ColumnChooserFrozen`, `ColumnChooserRule`, `ColumnChooserWidth`, `ColumnChooserResetWidth`, `ColumnChooserMove`, `ColumnChooserResetAll`, `useColumnChooser`, `useColumnChooserItem`, `DEFAULT_COLUMN_CHOOSER_LABELS`, `chooserRows`, `moveColumnTo`, `moveColumnBy`, `setColumnVisible`, `resetColumnWidth`, `isDefaultColumnState`.
 
 ### Command Palette (`command-palette`)
 
