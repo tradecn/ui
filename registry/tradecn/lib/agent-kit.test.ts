@@ -199,6 +199,20 @@ describe("checkContract", () => {
     expect(report.findings.map((f) => f.where)).toEqual(["page div[data-id=notes]"])
   })
 
+  it("holds a disclosure's summary to a name from its content", () => {
+    const root = mount(
+      [
+        "<div>",
+        '<details><summary data-id="bare"><svg aria-hidden="true" width="8" height="8"></svg></summary>Body</details>',
+        "<details><summary>Orders</summary>Body</details>",
+        "</div>",
+      ].join(""),
+    )
+    const report = checkContract({ root, rules: ["name"] })
+    expect(report.checked.name).toBe(2)
+    expect(report.findings.map((f) => f.where)).toEqual(["page summary[data-id=bare]"])
+  })
+
   it("never puts a password in a finding", () => {
     const root = mount('<div><input type="password" value="hunter2" style="font-size: 10px"></div>')
     const report = checkContract({ root, rules: ["floor", "name"] })

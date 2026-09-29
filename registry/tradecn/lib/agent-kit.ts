@@ -54,7 +54,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
   if (!scope) throw new Error(`checkContract: nothing matches ${String(options.root)}`)
   const doc = (scope as Node).ownerDocument ?? (scope as Document)
   const view = doc.defaultView ?? window
-  const style = (el: Element) => view.getComputedStyle(el)
+  const style = (el: Element, pseudo?: string) => view.getComputedStyle(el, pseudo)
   const rootStyle = style(doc.documentElement)
   const floor = options.floorPx ?? (parseFloat(rootStyle.getPropertyValue("--tradecn-text-size-grid-min")) || 12)
   const ignore = options.ignore ?? "[data-contract-ignore]"
@@ -123,17 +123,24 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     const box = el.getBoundingClientRect()
     return clips && box.width <= 1 && box.height <= 1
   }
-  // Glyphs drawn in something other than transparent: a color for text, a fill or a stroke for SVG text.
+  // A number a browser resolves; an empty one is unknown, so it counts as showing.
+  const positive = (value: string) => value === "" || parseFloat(value) > 0
+  // SVG paint shows when it has a color, an opacity above zero and, for a stroke, a width.
+  const fillShows = (s: CSSStyleDeclaration) => !transparent(s.fill) && positive(s.fillOpacity)
+  const strokeShows = (s: CSSStyleDeclaration) => !transparent(s.stroke) && positive(s.strokeOpacity) && positive(s.strokeWidth)
+  // Glyphs drawn in something other than transparent: a color for text, a fill or a stroke that shows for SVG text.
   const inked = (el: Element) => {
     const s = style(el)
-    return svgText(el) ? !(transparent(s.fill) && transparent(s.stroke)) : !transparent(s.color)
+    return svgText(el) ? fillShows(s) || strokeShows(s) : !transparent(s.color)
   }
-  // Text a reader sees: laid out, inked, and inside no box that fades it or clips it away.
-  const drawn = (el: Element) => {
-    if (hidden(el) || !inked(el)) return false
+  // Laid out, and inside no box that fades it or clips it away.
+  const placed = (el: Element) => {
+    if (hidden(el)) return false
     for (let node: Element | null = el; node; node = node.parentElement) if (unseenBox(node)) return false
     return true
   }
+  // Text a reader sees: placed and inked.
+  const drawn = (el: Element) => placed(el) && inked(el)
   // A node's text alternative, read the way the accessible name computation reads it: a hidden part says nothing
   // unless a reference points straight at it, an element's own label outranks its text, an image says its alt, a
   // field says what it holds, and a reference is followed one level deep. The control being named stays out of it.
@@ -184,16 +191,21 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     return `${slot} ${el.tagName.toLowerCase()}${attrs}`
   }
   const find = (rule: ContractRule, el: Element, detail: string) => {
-    const text = (isField(el) ? field(el) : own(el) || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80)
+    const text = (isField(el) ? field(el) || placeholderOf(el) : own(el) || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80)
     report.findings.push({ rule, where: where(el), text, detail })
   }
 
   if (rules.has("floor")) {
     for (const el of elements) {
-      const text = textOf(el) || placeholderOf(el)
-      if (!text || !drawn(el)) continue
+      const value = textOf(el)
+      const text = value || placeholderOf(el)
+      if (!text) continue
+      // An empty field draws its placeholder in the style ::placeholder gives it, with its own size, color and opacity.
+      const pseudo = value ? undefined : "::placeholder"
+      const s = style(el, pseudo)
+      if (pseudo ? !placed(el) || transparent(s.color) || parseFloat(s.opacity) === 0 : !drawn(el)) continue
       report.checked.floor++
-      const size = style(el).fontSize
+      const size = s.fontSize
       // SVG text takes its size in the viewBox's units, so it is measured as drawn, through the scale above it.
       const matrix = svgText(el) ? (el as SVGGraphicsElement).getScreenCTM?.() : null
       const px = matrix ? parseFloat(size) * Math.hypot(matrix.c, matrix.d) : parseFloat(size)
@@ -236,7 +248,8 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     // The direction ink an element's glyphs are drawn in, and the property that carries it.
     const inkOf = (el: Element) => {
       const s = style(el)
-      for (const property of svgText(el) ? (["fill", "stroke"] as const) : (["color"] as const)) if (inks[property].has(s[property])) return { property, value: s[property] }
+      const shows = { color: true, fill: fillShows(s), stroke: strokeShows(s) }
+      for (const property of svgText(el) ? (["fill", "stroke"] as const) : (["color"] as const)) if (shows[property] && inks[property].has(s[property])) return { property, value: s[property] }
       return null
     }
     // The first background behind the text, within a few levels: a tinted cell, a flash, a badge.
@@ -317,7 +330,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
 
   if (rules.has("name")) {
     const control =
-      "button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=option], [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree], [contenteditable]:not([contenteditable=false])"
+      "button, a[href], details > summary, input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=option], [role=combobox], [role=slider], [role=spinbutton], [role=textbox], [role=searchbox], [role=grid], [role=treegrid], [role=listbox], [role=tree], [contenteditable]:not([contenteditable=false])"
     // A field's value is not its name, and neither is the text inside a combobox, a slider, a grid, a list box or an
     // editable region: only the other controls take a name from their content, and only from the part of it that
     // isn't hidden.

@@ -2560,6 +2560,8 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
   await scene.locator("[data-small-print]").evaluateAll((els: HTMLElement[], px: number) => {
     for (const el of els) el.style.fontSize = `${px}px`
   }, 10)
+  // A placeholder takes its own size: the field stays at 12 px, and only ::placeholder goes under the floor.
+  await page.addStyleTag({ content: "[data-placeholder-print]::placeholder { font-size: 10px }" })
   const kept = await page.evaluate(checkContract, { root: "[data-contract-sample='kept']" })
   expect(kept.findings).toEqual([])
   for (const rule of CONTRACT_RULES) expect(kept.checked[rule], `the kept sample gives ${rule} something to read`).toBeGreaterThan(0)
@@ -2590,6 +2592,7 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
     "direction tradecn-agent-kit span[data-cue=side]",
     "direction tradecn-agent-kit span[data-cue=units]",
     "direction tradecn-agent-kit text",
+    "floor tradecn-agent-kit input[data-placeholder-print]",
     "floor tradecn-agent-kit select[data-small-print]",
     "floor tradecn-agent-kit span[data-small-print]",
     "floor tradecn-agent-kit text[data-cue=scaled]",
