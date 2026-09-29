@@ -2,6 +2,7 @@ import path from "node:path"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
+import { readRegistry, workspaceThemeCss } from "../scripts/lib/registry"
 
 const root = path.resolve(import.meta.dirname, "..")
 
@@ -10,7 +11,10 @@ const root = path.resolve(import.meta.dirname, "..")
 // while `@/components/ui/*` resolves to the built-ins installed in this app.
 // The array form keeps the more specific alias first.
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), {
+    name: "workspace-theme",
+    transformIndexHtml: () => [{ tag: "style", children: workspaceThemeCss(readRegistry()), injectTo: "head" }],
+  }],
   resolve: {
     alias: [
       { find: /^@\/registry\//, replacement: `${root}/registry/` },

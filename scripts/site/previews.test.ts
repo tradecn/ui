@@ -259,6 +259,7 @@ describe("the demo source shown under Code", () => {
       "workspace-linked-panels",
       "workspace-panel-actions",
       "workspace-saved-layout",
+      "workspace-tab-controls",
     ])
     expect(demos.has("typography")).toBe(true)
     expect(demos.has(DESK_DEMO)).toBe(true)
@@ -438,6 +439,7 @@ describe("a theme on the site", () => {
       "workspace-linked-panels",
       "workspace-panel-actions",
       "workspace-saved-layout",
+      "workspace-tab-controls",
     ])
     const withVariants = new Map(previewPages(registry, registry, previews, values, template(PREVIEW_TEMPLATE), framed).map((page) => [page.path, page.html]))
     expect(withVariants.size).toBe(pages.size + variants.length)
@@ -504,6 +506,22 @@ describe("a theme on the site", () => {
     expect(pages.get(`preview/${DESK_DEMO}/index.html`)).toContain(`<div id="root" data-item="${DESK_DEMO}" data-frame="desk">`)
     expect(slatePage).toContain('data-frame="card"')
     for (const [path, html] of pages) expect(html, path).toMatch(/ data-frame="(card|desk)">/)
+  })
+
+  it("delivers the versioned Workspace theme to every preview, including indirect consumers", async () => {
+    const demos = await readDemos(resolve(root, "playground/src/demos"))
+    const previews = { demos, embed: await readEmbed(fakeEmbed()) }
+    const versioned: Registry = { ...registry, items: registry.items.map((item) => item.name === "workspace" ? {
+      ...item, css: { "@layer components": { ".dockview-theme-tradecn": { "--dv-overlay-z-index": "17" } } },
+    } : item) }
+    const pages = new Map(previewPages(versioned, registry, previews, templateValues(registry, version), template(PREVIEW_TEMPLATE), new Set(["workspace-tab-controls"])).map((page) => [page.path, page.html]))
+    for (const name of ["workspace", "workspace-tab-controls", DESK_DEMO, "flash-cell"]) {
+      const html = pages.get(`preview/${name}/index.html`)!
+      expect(html).toContain(".dockview-theme-tradecn {\n    --dv-overlay-z-index: 17;")
+      expect(html).not.toContain("--dv-overlay-z-index: 30;")
+    }
+    const withoutWorkspace = { ...versioned, items: versioned.items.filter((item) => item.name !== "workspace") }
+    for (const page of previewPages(withoutWorkspace, registry, previews, templateValues(registry, version), template(PREVIEW_TEMPLATE))) expect(page.html).not.toContain(".dockview-theme-tradecn")
   })
 
   it("writes no preview pages without an embed build", async () => {
@@ -716,4 +734,10 @@ it("keeps the session hero, complete Usage and installed shared composition alig
   expect(demoStart).toBeGreaterThanOrEqual(0)
   expect(fixtureStart).toBeGreaterThanOrEqual(0)
   expect(fixture.slice(fixtureStart)).toBe(consumerImports(demo.slice(demoStart)))
+})
+
+it("keeps the workspace hero and complete Usage composition aligned", () => {
+  const demo = readFileSync(resolve(root, "playground/src/demos/workspace.tsx"), "utf8")
+  const docs = readFileSync(resolve(root, "docs/workspace.md"), "utf8")
+  expect(docs.match(/```tsx\n([\s\S]*?)\n```/)?.[1]?.trim()).toBe(consumerImports(demo).trim())
 })

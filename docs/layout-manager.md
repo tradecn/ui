@@ -130,6 +130,8 @@ Move save and import fields into a sidebar and arrange templates as cards.
 
 Install [`workspace`](workspace.md) to save and restore panel arrangements. This example persists templates in browser storage and reports storage failures.
 
+Copy `DeskTab` from the [Workspace Usage example](workspace.md#usage) into an application `workspace.tsx` beside this example, outside `components/ui`.
+
 <!-- demo: layout-manager-workspace -->
 
 ## API Reference

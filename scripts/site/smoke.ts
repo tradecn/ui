@@ -436,6 +436,31 @@ for (const item of items) {
   }
 }
 
+if (items.includes("workspace-tab-controls")) {
+  const page = await context.newPage()
+  watch(page, "workspace tab menus")
+  try {
+    for (const mode of ["light", "dark"]) {
+      await page.goto(`${base}/${PREVIEW_PATH}/workspace-tab-controls/`)
+      await page.evaluate((value) => { document.documentElement.classList.remove("light", "dark"); document.documentElement.classList.add(value) }, mode)
+      const trigger = page.getByRole("button", { name: "Actions for Treasuries", exact: true })
+      await trigger.click()
+      await page.getByRole("menuitem", { name: "Float panel", exact: true }).click()
+      const floating = page.locator(".dv-resize-container")
+      await expect(floating).toHaveCount(1)
+      expect(await floating.evaluate((el) => getComputedStyle(el).getPropertyValue("--dv-overlay-z-index").trim())).toBe("30")
+      await trigger.click()
+      const close = page.getByRole("menuitem", { name: "Close panel", exact: true })
+      await close.click()
+      await expect(page.getByRole("tab", { name: "Treasuries", exact: true })).toHaveCount(0)
+    }
+  } catch (error) {
+    failures.push(`workspace tab menus: ${firstLine(error)}`)
+  } finally {
+    await page.close()
+  }
+}
+
 if (items.includes("feed-health-empty")) {
   const page = await context.newPage()
   watch(page, "feed-health empty collection")

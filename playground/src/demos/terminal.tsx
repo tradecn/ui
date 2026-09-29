@@ -1,3 +1,4 @@
+import { DeskTab } from "./workspace"
 import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "cn"
@@ -1652,7 +1653,7 @@ export default function TerminalDemo() {
                   <p className="text-muted-foreground">A desk's sign-in goes here: a password, a token prompt, or one button to the identity provider. Nothing on the desk has moved.</p>
                 </SessionNotice>
                 <DeskAlerts alerts={desk.alerts} actions={alertActions} />
-                <Workspace className="min-h-0 flex-1" panels={PANELS} seed={seed} onLayoutChange={setLayout} onReady={desk.attach} watermark="No panels. Open Layouts and reset the desk." />
+                <Workspace tabComponent={DeskTab} className="min-h-0 flex-1" panels={PANELS} seed={seed} onLayoutChange={setLayout} onReady={desk.attach} watermark="No panels. Open Layouts and reset the desk." />
                 <Foot sessionEndsAt={sessionEndsAt} />
                 <Dialogs dialog={dialog} setDialog={setDialog} layout={layout} />
               </div>

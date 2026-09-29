@@ -1,3 +1,4 @@
+import { DeskTab } from "./workspace"
 import { LinkGroupProvider, useLinkGroup } from "@/registry/tradecn/hooks/use-link-group"
 import type { LinkGroup } from "@/registry/tradecn/lib/link-group"
 import { LinkGroupDot, PanelContent, PanelHeader, SymbolTag } from "@/registry/tradecn/ui/panel"
@@ -31,6 +32,7 @@ export default function WorkspaceLinkedPanelsDemo() {
   return (
     <LinkGroupProvider transport={null}>
       <Workspace
+        tabComponent={DeskTab}
         className="h-64 rounded-md border border-border"
         panels={PANELS}
         seed={(api) => {

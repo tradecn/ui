@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { useState } from "react"
+import { createRef, useEffect, useState, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { HotkeysProvider, useHotkey } from "@/registry/tradecn/hooks/use-hotkeys"
 import type { HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
 import { parseWorkspaceLayout, WORKSPACE_PERSISTENCE_BOUNDARIES, type WorkspaceLayout } from "@/registry/tradecn/lib/workspace-layout"
-import { Workspace, useWorkspacePanel, type WorkspaceApi, type WorkspaceProps } from "@/registry/tradecn/ui/workspace"
+import { Workspace, WorkspaceTab, WorkspaceTabActions, WorkspaceTabClose, WorkspaceTabTitle, useWorkspacePanel, useWorkspaceTab, type WorkspaceApi, type WorkspaceProps, type WorkspaceTabHandle } from "@/registry/tradecn/ui/workspace"
 
 // The dock runs in happy-dom: it builds its DOM and its model, and reports every size as zero. What
 // is checked here is the tradecn half: records, state, the layout written out and read back, and
@@ -77,6 +78,10 @@ async function mount(props: Partial<WorkspaceProps> = {}) {
 
 const settle = () => act(() => vi.advanceTimersByTime(60))
 
+function Tab() {
+  return <WorkspaceTab><WorkspaceTabTitle /><WorkspaceTabClose>×</WorkspaceTabClose></WorkspaceTab>
+}
+
 beforeEach(() => {
   vi.useFakeTimers()
   fired.length = 0
@@ -87,6 +92,397 @@ afterEach(() => {
 })
 
 describe("Workspace", () => {
+  it("unmounts overflow consumers when their popup closes, including repeated opens and panel removal", async () => {
+    vi.useRealTimers()
+    const live = new Set<string>()
+    let sequence = 0
+    function TrackedTab() {
+      const panel = useWorkspaceTab()
+      useEffect(() => {
+        const key = `${panel.tabLocation}:${sequence++}`
+        live.add(key)
+        return () => { live.delete(key) }
+      }, [panel.tabLocation])
+      return <Tab />
+    }
+    const { api, view } = await mount({ tabComponent: TrackedTab, seed: (api) => api.addPanel({ kind: "book" }) })
+    const anchor = document.createElement("div")
+    anchor.className = "dv-popover-anchor"
+    document.body.append(anchor)
+    try {
+      expect(live.size).toBe(1)
+      for (let cycle = 0; cycle < 3; cycle++) {
+        await act(async () => {
+          const renderer = api.dockview.getPanel("book-1")!.view.createTabRenderer("headerOverflow")
+          anchor.append(renderer.element)
+        })
+        expect(live.size).toBe(2)
+        await act(async () => { anchor.replaceChildren(); await new Promise<void>((resolve) => setTimeout(resolve, 0)) })
+        expect(live.size).toBe(1)
+      }
+      await act(async () => {
+        const renderer = api.dockview.getPanel("book-1")!.view.createTabRenderer("headerOverflow")
+        anchor.append(renderer.element)
+      })
+      expect(live.size).toBe(2)
+      act(() => api.clear())
+      expect(live.size).toBe(0)
+      view.unmount()
+      expect(live.size).toBe(0)
+    } finally { anchor.remove() }
+  })
+
+  it("disposes overflow renderers closed before insertion and restores their panel factory on teardown", async () => {
+    vi.useRealTimers()
+    const mounts = vi.fn()
+    const cleanups = vi.fn()
+    function TrackedTab() {
+      useEffect(() => { mounts(); return cleanups }, [])
+      return <Tab />
+    }
+    const { api, view } = await mount({ tabComponent: TrackedTab, seed: (api) => api.addPanel({ kind: "book" }) })
+    const model = api.dockview.getPanel("book-1")!.view
+    const wrapped = model.createTabRenderer
+    await act(async () => { model.createTabRenderer("headerOverflow") })
+    expect(mounts.mock.calls.length - cleanups.mock.calls.length).toBe(1)
+    view.unmount()
+    expect(model.createTabRenderer).not.toBe(wrapped)
+    expect(mounts.mock.calls.length).toBe(cleanups.mock.calls.length)
+  })
+
+  it("keeps close defaults for explicit undefined native props and accepts deliberate labels", async () => {
+    function CustomTab() {
+      return <WorkspaceTab><WorkspaceTabClose type={undefined} aria-label={undefined}>×</WorkspaceTabClose><WorkspaceTabClose aria-label="Dismiss">Dismiss</WorkspaceTabClose><span id="close-caption">Remove panel</span><WorkspaceTabClose aria-labelledby="close-caption">×</WorkspaceTabClose></WorkspaceTab>
+    }
+    await mount({ tabComponent: CustomTab, seed: (api) => api.addPanel({ kind: "book" }) })
+    expect(screen.getByRole("button", { name: "Close book" })).toHaveAttribute("type", "button")
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Remove panel" })).not.toHaveAttribute("aria-label")
+  })
+
+  it.each([false, true])("dismisses native overflow after close unless the caller cancels: %s", async (cancel) => {
+    const caller = vi.fn()
+    const dismiss = vi.fn()
+    function CloseTab() {
+      const { tabLocation } = useWorkspaceTab()
+      return <WorkspaceTab><WorkspaceTabClose aria-label={`${tabLocation} close`} onClick={(event) => { caller(); if (cancel) event.preventDefault() }}>×</WorkspaceTabClose></WorkspaceTab>
+    }
+    const { api, view } = await mount({ tabComponent: CloseTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    const anchor = document.createElement("div")
+    anchor.className = "dv-popover-anchor"
+    document.body.append(anchor)
+    try {
+      await act(async () => { anchor.append(api.dockview.getPanel("book-1")!.view.createTabRenderer("headerOverflow").element) })
+      anchor.addEventListener("click", (event) => { dismiss(); expect(event.defaultPrevented).toBe(true) })
+      fireEvent.click(screen.getByRole("button", { name: "headerOverflow close" }))
+      expect(caller).toHaveBeenCalledTimes(1)
+      expect(dismiss).toHaveBeenCalledTimes(cancel ? 0 : 1)
+      expect(api.panels()).toHaveLength(cancel ? 1 : 0)
+    } finally {
+      view.unmount()
+      anchor.remove()
+    }
+  })
+
+  it("forwards portaled clicks without moving focus back into the owning tab", async () => {
+    const click = vi.fn()
+    function PortalTab() {
+      return <WorkspaceTab onClick={click}><WorkspaceTabTitle />{createPortal(<button type="button">Outside tab</button>, document.body)}</WorkspaceTab>
+    }
+    await mount({ tabComponent: PortalTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    const button = screen.getByRole("button", { name: "Outside tab" })
+    button.focus()
+    fireEvent.click(button)
+    expect(click).toHaveBeenCalledTimes(1)
+    expect(button).toHaveFocus()
+  })
+
+  it.each(["header", "headerOverflow"] as const)("preserves portal event delivery while isolating %s actions", async (location) => {
+    const delivered = vi.fn()
+    const caller = vi.fn()
+    function PortalTab() {
+      const { tabLocation } = useWorkspaceTab()
+      return <WorkspaceTab><WorkspaceTabActions onPointerDown={caller} onMouseDown={caller} onTouchStart={caller} onClick={caller}>
+        <button type="button">{tabLocation} action</button>
+        {createPortal(<button type="button">{tabLocation} portal</button>, document.body)}
+      </WorkspaceTabActions></WorkspaceTab>
+    }
+    const { api, view } = await mount({ tabComponent: PortalTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    const anchor = document.createElement("div")
+    anchor.className = "dv-popover-anchor"
+    document.body.append(anchor)
+    const events = ["pointerdown", "mousedown", "touchstart", "click"]
+    try {
+      if (location === "headerOverflow") await act(async () => { anchor.append(api.dockview.getPanel("book-1")!.view.createTabRenderer(location).element) })
+      for (const name of events) document.addEventListener(name, delivered)
+      const action = screen.getByRole("button", { name: `${location} action` })
+      const portal = screen.getByRole("button", { name: `${location} portal` })
+      for (const name of events) fireEvent(action, new Event(name, { bubbles: true, cancelable: true }))
+      expect(caller).toHaveBeenCalledTimes(4)
+      expect(delivered).not.toHaveBeenCalled()
+      portal.focus()
+      for (const name of events) fireEvent(portal, new Event(name, { bubbles: true, cancelable: true }))
+      expect(caller).toHaveBeenCalledTimes(8)
+      expect(delivered).toHaveBeenCalledTimes(location === "header" ? 4 : 0)
+      expect(portal).toHaveFocus()
+    } finally {
+      for (const name of events) document.removeEventListener(name, delivered)
+      view.unmount()
+      anchor.remove()
+    }
+  })
+
+  it("lets the caller arrange tab content and cancel focus or close, forwarding native props and refs", async () => {
+    const root = createRef<HTMLDivElement>()
+    const tab = createRef<HTMLDivElement>()
+    const title = createRef<HTMLSpanElement>()
+    const close = createRef<HTMLButtonElement>()
+    const clicks = vi.fn()
+    function CustomTab() {
+      return <WorkspaceTab ref={tab} className="custom-tab" title="Details" onClick={(event) => { clicks(); event.preventDefault() }}>
+        <WorkspaceTabClose ref={close} aria-label="Dismiss panel" onClick={(event) => event.preventDefault()}>Dismiss</WorkspaceTabClose>
+        <em>Desk</em><WorkspaceTabTitle ref={title} className="custom-title" />
+      </WorkspaceTab>
+    }
+    const { api } = await mount({ ref: root, tabComponent: CustomTab, seed: (api) => api.addPanel({ kind: "book", title: "Orders", focus: false }) })
+    expect(root.current).toHaveAttribute("data-slot", "tradecn-workspace")
+    expect(tab.current).toHaveClass("custom-tab")
+    expect(tab.current).toHaveAttribute("title", "Details")
+    expect(title.current).toHaveTextContent("Orders")
+    expect(close.current).toHaveAccessibleName("Dismiss panel")
+    expect(close.current).toHaveAttribute("type", "button")
+    close.current!.focus()
+    fireEvent.click(title.current!)
+    expect(clicks).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(close.current)
+    fireEvent.click(close.current!)
+    expect(api.panels()).toHaveLength(1)
+    expect(clicks).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("tab", { name: "Orders" })).toHaveAttribute("aria-controls")
+    expect(tab.current).not.toHaveAttribute("role")
+  })
+
+  it("keeps static tab composition local while native title changes update both title and close name", async () => {
+    const renders = vi.fn()
+    function StaticTab() { renders(); return <Tab /> }
+    const { api } = await mount({ tabComponent: StaticTab })
+    const before = renders.mock.calls.length
+    act(() => api.setState("book-1", { symbol: "ES" }))
+    act(() => api.dockview.getPanel("book-1")!.api.setTitle("Native title"))
+    expect(renders).toHaveBeenCalledTimes(before)
+    expect(document.querySelector("[data-workspace-tab='book-1'] [data-slot='tradecn-workspace-tab-title']")).toHaveTextContent("Native title")
+    expect(screen.getByRole("button", { name: "Close Native title" })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Native title" })).toBeInTheDocument()
+    // The workspace record remains authoritative on the next store write, as in the release.
+    act(() => api.setState("book-1", { symbol: "ZB" }))
+    expect(screen.getByRole("button", { name: "Close book" })).toBeInTheDocument()
+    expect(renders).toHaveBeenCalledTimes(before)
+  })
+
+  it("subscribes custom readings to their panel and shares state, title and commands with the body", async () => {
+    const handles = new Map<string, WorkspaceTabHandle>()
+    const renders = new Map<string, number>()
+    function ReadingTab() {
+      const panel = useWorkspaceTab()
+      handles.set(panel.id, panel)
+      renders.set(panel.id, (renders.get(panel.id) ?? 0) + 1)
+      return <WorkspaceTab><WorkspaceTabTitle /><output>{String(panel.state?.symbol ?? "Missing")}</output></WorkspaceTab>
+    }
+    const { api } = await mount({ tabComponent: ReadingTab })
+    const chartRenders = renders.get("chart-1")
+    expect(handles.get("book-1")!.tabLocation).toBe("header")
+    act(() => handles.get("book-1")!.setState({ symbol: "ES" }))
+    expect(api.getState("book-1")).toEqual({ symbol: "ES" })
+    expect(renders.get("chart-1")).toBe(chartRenders)
+    act(() => handles.get("book-1")!.setTitle("Treasuries"))
+    expect(screen.getByRole("tab", { name: "Treasuries" })).toBeInTheDocument()
+    act(() => handles.get("book-1")!.focus())
+    expect(document.activeElement).toHaveAttribute("aria-label", "Treasuries")
+    expect(handles.get("book-1")!.active).toBe(true)
+    act(() => handles.get("book-1")!.float())
+    expect(handles.get("book-1")!.location).toBe("floating")
+    act(() => handles.get("book-1")!.setState({ symbol: undefined }))
+    expect(handles.get("book-1")!.state).toEqual({})
+    act(() => handles.get("book-1")!.close())
+    expect(api.panels().map((panel) => panel.id)).toEqual(["chart-1"])
+  })
+
+  it("keeps raw panels outside managed state, body focus and persistence", async () => {
+    const handles = new Map<string, WorkspaceTabHandle>()
+    function ReadingTab() {
+      const panel = useWorkspaceTab()
+      handles.set(panel.id, panel)
+      return <Tab />
+    }
+    const { api, onLayoutError } = await mount({ tabComponent: ReadingTab })
+    render(<button type="button">Outside</button>)
+    act(() => { api.dockview.addPanel({ id: "raw", title: "Raw", component: "tradecn-panel" }) })
+    expect(handles.get("raw")!.kind).toBeUndefined()
+    expect(handles.get("raw")!.state).toBeUndefined()
+    expect(document.querySelector("[data-workspace-panel='raw']")).toBeNull()
+    const updater = vi.fn(() => ({ symbol: "ES" }))
+    act(() => { handles.get("raw")!.setState(updater); handles.get("raw")!.setTitle("Renamed") })
+    expect(updater).not.toHaveBeenCalled()
+    expect(api.getState("raw")).toBeUndefined()
+    expect(screen.getByRole("tab", { name: "Raw" })).toBeInTheDocument()
+    act(() => api.focusPanel("book-1"))
+    screen.getByRole("button", { name: "Outside" }).focus()
+    act(() => handles.get("raw")!.focus())
+    expect(api.activePanel()).toBe("raw")
+    expect(screen.getByRole("button", { name: "Outside" })).toHaveFocus()
+    act(() => api.dockview.getPanel("raw")!.api.setTitle("Native raw"))
+    expect(screen.getByRole("tab", { name: "Native raw" })).toBeInTheDocument()
+    act(() => handles.get("raw")!.float())
+    expect(handles.get("raw")!.location).toBe("floating")
+    const rawLayout = api.toLayout()
+    expect(parseWorkspaceLayout(rawLayout)).toBeNull()
+    act(() => handles.get("raw")!.close())
+    expect(screen.queryByRole("tab", { name: "Native raw" })).toBeNull()
+    expect(parseWorkspaceLayout(api.toLayout())).not.toBeNull()
+    act(() => { expect(api.load(rawLayout)).toBe(false) })
+    expect(api.panels()).toEqual([])
+    expect(onLayoutError).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps a custom tab's local draft through parent updates and restores custom tabs for unknown kinds", async () => {
+    const mounts = vi.fn()
+    function DraftTab() {
+      const [draft, setDraft] = useState("")
+      useEffect(() => { mounts() }, [])
+      return <WorkspaceTab><WorkspaceTabTitle /><WorkspaceTabActions><input aria-label="Tab draft" value={draft} onChange={(event) => setDraft(event.target.value)} /></WorkspaceTabActions></WorkspaceTab>
+    }
+    const { api, view } = await mount({ tabComponent: DraftTab, seed: (api) => api.addPanel({ kind: "retired", title: "Old panel" }) })
+    const input = screen.getByRole("textbox", { name: "Tab draft" })
+    fireEvent.change(input, { target: { value: "Keep me" } })
+    const before = mounts.mock.calls.length
+    view.rerender(<HotkeysProvider bindings={BINDINGS}><Workspace panels={PANELS} tabComponent={DraftTab} watermark="Updated" /></HotkeysProvider>)
+    expect(screen.getByRole("textbox", { name: "Tab draft" })).toBe(input)
+    expect(input).toHaveValue("Keep me")
+    expect(mounts).toHaveBeenCalledTimes(before)
+    const saved = api.toLayout()
+    act(() => { expect(api.load(saved)).toBe(true) })
+    expect(screen.getByRole("tab", { name: "Old panel" })).toBeInTheDocument()
+    expect(screen.getByText(/No panel is registered/)).toBeInTheDocument()
+    expect(screen.getByRole("textbox", { name: "Tab draft" })).toHaveValue("")
+  })
+
+  it.each([false, true])("isolates actions and releases the native drag guard when a child stops propagation: %s", async (stopChild) => {
+    const targetPointer = vi.fn()
+    const captures: string[] = []
+    const targetClick = vi.fn()
+    const rootClick = vi.fn()
+    const actionRef = createRef<HTMLDivElement>()
+    function ActionTab() {
+      return <WorkspaceTab onClick={rootClick}><WorkspaceTabTitle /><WorkspaceTabActions ref={actionRef} onPointerDownCapture={() => captures.push("pointer-capture")} onMouseDownCapture={() => captures.push("mouse-capture")}>
+        <button type="button" onPointerDown={(event) => { captures.push("pointer-child"); targetPointer(); if (stopChild) event.stopPropagation() }} onMouseDown={(event) => { captures.push("mouse-child"); if (stopChild) event.stopPropagation() }} onClick={targetClick}>Custom action</button>
+      </WorkspaceTabActions></WorkspaceTab>
+    }
+    const { view } = await mount({ tabComponent: ActionTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    expect(actionRef.current).toHaveAttribute("data-slot", "tradecn-workspace-tab-actions")
+    const button = screen.getByRole("button", { name: "Custom action" })
+    const outer = screen.getByRole("tab", { name: "book" })
+    fireEvent.pointerDown(button)
+    fireEvent.mouseDown(button)
+    fireEvent.click(button)
+    expect(targetPointer).toHaveBeenCalledTimes(1)
+    expect(captures).toEqual(["pointer-capture", "pointer-child", "mouse-capture", "mouse-child"])
+    expect(targetClick).toHaveBeenCalledTimes(1)
+    expect(rootClick).not.toHaveBeenCalled()
+    expect(fireEvent.dragStart(outer)).toBe(false)
+    fireEvent.pointerUp(document)
+    fireEvent.mouseUp(document)
+    expect(fireEvent.dragStart(outer)).toBe(true)
+    fireEvent.pointerDown(button)
+    fireEvent.mouseDown(button)
+    fireEvent.blur(window)
+    expect(fireEvent.dragStart(outer)).toBe(true)
+    fireEvent.pointerDown(button)
+    fireEvent.mouseDown(button)
+    view.unmount()
+    const event = new Event("dragstart", { bubbles: true, cancelable: true })
+    document.body.append(outer)
+    outer.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    outer.remove()
+  })
+
+  it("releases a missed pointer gesture before the next title or control gesture", async () => {
+    function ActionTab() {
+      return <WorkspaceTab><WorkspaceTabTitle /><WorkspaceTabActions><button type="button">Custom action</button></WorkspaceTabActions></WorkspaceTab>
+    }
+    await mount({ tabComponent: ActionTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    const button = screen.getByRole("button", { name: "Custom action" })
+    const tab = screen.getByRole("tab", { name: "book" })
+    fireEvent.pointerDown(button)
+    fireEvent.mouseDown(button)
+    // A release inside an iframe never reaches this document. The next gesture belongs to the title.
+    fireEvent.pointerDown(tab)
+    fireEvent.mouseDown(tab)
+    expect(fireEvent.dragStart(tab)).toBe(true)
+    fireEvent.pointerDown(button)
+    fireEvent.mouseDown(button)
+    fireEvent.pointerDown(button)
+    fireEvent.mouseDown(button)
+    expect(fireEvent.dragStart(tab)).toBe(false)
+    fireEvent.pointerUp(document)
+    fireEvent.mouseUp(document)
+    expect(fireEvent.dragStart(tab)).toBe(true)
+  })
+
+  it.each(["pointerdown", "pointerup", "pointercancel"])("keeps the mouse drag guard during a secondary touch %s", async (type) => {
+    function ActionTab() {
+      return <WorkspaceTab><WorkspaceTabTitle /><WorkspaceTabActions><button type="button">Custom action</button></WorkspaceTabActions></WorkspaceTab>
+    }
+    await mount({ tabComponent: ActionTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    const button = screen.getByRole("button", { name: "Custom action" })
+    const tab = screen.getByRole("tab", { name: "book" })
+    fireEvent.pointerDown(button, { pointerId: 1, pointerType: "mouse", buttons: 1 })
+    fireEvent.mouseDown(button, { buttons: 1 })
+    fireEvent(document, new PointerEvent(type, { bubbles: true, pointerId: 2, pointerType: "touch" }))
+    expect(fireEvent.dragStart(tab)).toBe(false)
+    fireEvent.mouseUp(document)
+    expect(fireEvent.dragStart(tab)).toBe(true)
+  })
+
+  it("keeps child drag handlers and defaults without forwarding their drag to Dockview", async () => {
+    const childDrag = vi.fn()
+    const actionDrag = vi.fn()
+    const dockDrag = vi.fn()
+    const documentDrag = vi.fn()
+    function DragTab() {
+      return <WorkspaceTab><WorkspaceTabTitle /><WorkspaceTabActions onDragStart={actionDrag}>
+        <span draggable onDragStart={childDrag}>Drag data</span>
+        {createPortal(<span draggable>Portal data</span>, document.body)}
+      </WorkspaceTabActions></WorkspaceTab>
+    }
+    const { view } = await mount({ tabComponent: DragTab, seed: (api) => api.addPanel({ kind: "book", focus: false }) })
+    const tab = screen.getByRole("tab", { name: "book" })
+    tab.addEventListener("dragstart", dockDrag)
+    document.addEventListener("dragstart", documentDrag)
+    try {
+      const child = screen.getByText("Drag data")
+      fireEvent.pointerDown(child)
+      fireEvent.mouseDown(child)
+      expect(fireEvent.dragStart(child)).toBe(true)
+      expect(childDrag).toHaveBeenCalledTimes(1)
+      expect(actionDrag).toHaveBeenCalledTimes(1)
+      expect(dockDrag).not.toHaveBeenCalled()
+      expect(documentDrag).not.toHaveBeenCalled()
+      // Native child drags can finish without a mouse-up in this document.
+      fireEvent.dragEnd(child)
+      expect(fireEvent.dragStart(tab)).toBe(true)
+      dockDrag.mockClear()
+      documentDrag.mockClear()
+      expect(fireEvent.dragStart(screen.getByText("Portal data"))).toBe(true)
+      expect(actionDrag).toHaveBeenCalledTimes(2)
+      expect(documentDrag).toHaveBeenCalledTimes(1)
+    } finally {
+      tab.removeEventListener("dragstart", dockDrag)
+      document.removeEventListener("dragstart", documentDrag)
+      view.unmount()
+    }
+  })
+
   it("seeds when there is nothing to restore, and every panel is a hotkey scope of its kind inside the dock", async () => {
     const { api } = await mount()
     const root = document.querySelector("[data-slot='tradecn-workspace']")!
@@ -116,6 +512,58 @@ describe("Workspace", () => {
     fireEvent.keyDown(document.activeElement!, { key: "x" })
     expect(fired).toEqual(["book-1"])
     expect(api.activePanel()).toBe("chart-1")
+  })
+
+  it.each(["keep", "blur", "refocus-then-blur"])("preserves focus ownership after a pending native pointer activation (%s)", async (intent) => {
+    const { api } = await mount({ seed: (api) => {
+      api.addPanel({ kind: "book", focus: false })
+      api.addPanel({ kind: "chart", position: { reference: "book-1", direction: "within" }, focus: false })
+    } })
+    const frames = new Map<number, FrameRequestCallback>()
+    let next = 0
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { frames.set(++next, callback); return next })
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => { frames.delete(id) })
+    const tab = screen.getByRole("tab", { name: "book" })
+    fireEvent.pointerDown(tab, { button: 0 })
+    fireEvent.click(tab.querySelector("span")!)
+    expect(document.activeElement).toHaveAttribute("aria-label", "book")
+    // A second command before the native frame must retain the pending recovery.
+    act(() => api.focusPanel("book-1"))
+    const body = document.activeElement as HTMLElement
+    if (intent === "refocus-then-blur") {
+      const [id, nativeActivation] = frames.entries().next().value!
+      act(() => { frames.delete(id); nativeActivation(0) })
+      body.focus()
+    }
+    if (intent !== "keep") body.blur()
+    await act(async () => {})
+    act(() => { for (const [id, callback] of [...frames]) { frames.delete(id); callback(0) } })
+    if (intent !== "keep") expect(document.activeElement).toBe(document.body)
+    else expect(document.activeElement).toHaveAttribute("aria-label", "book")
+    expect(frames.size).toBe(0)
+  })
+
+  it.each(["outside", "outside-then-body", "direct-blur", "unmount"])("cancels pending body-focus recovery after %s", async (interruption) => {
+    const { api, view } = await mount()
+    render(<button type="button">Outside recovery</button>)
+    const frames = new Map<number, FrameRequestCallback>()
+    let next = 0
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { frames.set(++next, callback); return next })
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => { frames.delete(id) })
+    act(() => api.focusPanel("book-1"))
+    expect(document.activeElement).toHaveAttribute("aria-label", "book")
+    expect(frames.size).toBe(1)
+    if (interruption === "unmount") view.unmount()
+    else if (interruption === "direct-blur") (document.activeElement as HTMLElement).blur()
+    else {
+      const outside = screen.getByRole("button", { name: "Outside recovery" })
+      outside.focus()
+      if (interruption === "outside-then-body") outside.blur()
+    }
+    await act(async () => {})
+    expect(frames.size).toBe(0)
+    if (interruption === "outside") expect(screen.getByRole("button", { name: "Outside recovery" })).toHaveFocus()
+    else expect(document.activeElement).toBe(document.body)
   })
 
   it("hands over one layout after a burst goes quiet, and the layout parses back to itself", async () => {
@@ -279,3 +727,30 @@ describe("useWorkspacePanel", () => {
     expect(() => render(<Chart />)).toThrow(/inside a panel of a <Workspace>/)
   })
 })
+
+// These are compiled by the real project typecheck. They are never rendered by the test runner.
+function publicTypes(children: ReactNode, condition: boolean) {
+  const panels = { book: () => null }
+  const minimal = <Workspace panels={panels} />
+  const saved = <Workspace panels={panels} defaultLayout={null} onLayoutChange={() => {}} layoutChangeDelay={20} />
+  const configured = <Workspace panels={panels} locked disableFloating popoutUrl="/dock.html" watermark={<p>Empty</p>} />
+  const native = <Workspace panels={panels} className="h-64" aria-label="Desk" onKeyDown={() => {}} />
+  const callbacks = <Workspace panels={panels} onLayoutError={() => {}} onReady={() => {}} seed={(api) => api.addPanel({ kind: "book" })} />
+  const oldProps: WorkspaceProps = { panels, watermark: null }
+  const structural = <Workspace {...oldProps} />
+  const composed = <Workspace panels={panels} tabComponent={Tab} ref={createRef<HTMLDivElement>()} />
+  const parts = <WorkspaceTab ref={createRef<HTMLDivElement>()}>{children}{condition && <WorkspaceTabTitle ref={createRef<HTMLSpanElement>()} />}<WorkspaceTabActions ref={createRef<HTMLDivElement>()}>{children}</WorkspaceTabActions><WorkspaceTabClose ref={createRef<HTMLButtonElement>()} aria-label="Close tab">{null}</WorkspaceTabClose></WorkspaceTab>
+  // @ts-expect-error Tab markup is explicitly caller-owned.
+  const emptyTab = <WorkspaceTab />
+  // @ts-expect-error Actions require explicit content, including intentional null.
+  const emptyActions = <WorkspaceTabActions />
+  // @ts-expect-error The close control requires caller-owned content.
+  const emptyClose = <WorkspaceTabClose />
+  // @ts-expect-error Title is a reading; custom content belongs in an ordinary span.
+  const titleChildren = <WorkspaceTabTitle>Custom title</WorkspaceTabTitle>
+  const titleProps = { children: "Custom title" }
+  // @ts-expect-error Structural spreads cannot replace the title reading either.
+  const spreadTitle = <WorkspaceTabTitle {...titleProps} />
+  void [minimal, saved, configured, native, callbacks, structural, composed, parts, emptyTab, emptyActions, emptyClose, titleChildren, spreadTitle]
+}
+void publicTypes

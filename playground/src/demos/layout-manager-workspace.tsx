@@ -1,3 +1,4 @@
+import { DeskTab } from "./workspace"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { createPreferences, parsePreferences, withBoundary } from "@/registry/tradecn/lib/preferences"
@@ -59,6 +60,7 @@ export default function LayoutManagerWorkspaceDemo() {
       </div>
       <div className="w-[42rem] max-w-full space-y-3 text-xs lining-nums tabular-nums">
         <Workspace
+          tabComponent={DeskTab}
           className="h-56 rounded-md border border-border"
           panels={PANELS}
           seed={seed}

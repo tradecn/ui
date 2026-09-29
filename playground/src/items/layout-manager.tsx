@@ -1,3 +1,4 @@
+import { DeskTab } from "../demos/workspace"
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { LayoutManagerControls } from "@/demos/layout-manager-workspace"
@@ -76,7 +77,7 @@ export function LayoutManagerScene() {
         </Button>
       </div>
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_26rem]">
-        <Workspace className="min-h-0" panels={PANELS} seed={seed} onReady={(a) => (api.current = a)} onLayoutChange={setCurrent} />
+        <Workspace tabComponent={DeskTab} className="min-h-0" panels={PANELS} seed={seed} onReady={(a) => (api.current = a)} onLayoutChange={setCurrent} />
         <LayoutManager
           className="min-h-0 overflow-auto"
           templates={templates}

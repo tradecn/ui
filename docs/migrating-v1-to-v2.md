@@ -802,3 +802,38 @@ Unmounting a provider isolates its completion from a new provider but does not c
 `SessionGuardDialog` reserves open/modal control, forced mounting, the close button and final-focus overrides. Use its native content props for styling, refs and events; use the hook when replacing the whole dialog.
 
 Keep the fallback target outside conditional content. Surrounding drafts remain mounted, while authentication fields inside the dialog follow the installed primitive's normal close lifecycle.
+
+## Workspace
+
+Existing `Workspace` calls keep the title-and-close tab, panel API and version-1 saved layouts. No API migration is required.
+
+Closing a tab with its standalone close button now dismisses the overflow popup. Refresh the installed Workspace CSS: floating groups now use the theme's base z-index of `30` instead of Dockview's fallback `999`. Put custom `--dv-overlay-z-index` values on `.dockview-theme-tradecn`, where floating containers inherit them.
+
+You can add `tabComponent` when you want to arrange tab contents or replace its actions:
+
+```tsx
+import { Workspace, WorkspaceTab, WorkspaceTabClose, WorkspaceTabTitle } from "@/components/ui/workspace"
+
+const PANELS = { notes: () => <p>Desk notes.</p> }
+
+function NotesTab() {
+  return <WorkspaceTab><WorkspaceTabClose>×</WorkspaceTabClose><WorkspaceTabTitle /></WorkspaceTab>
+}
+
+export function NotesWorkspace() {
+  return <Workspace
+    className="h-64"
+    panels={PANELS}
+    tabComponent={NotesTab}
+    seed={(api) => { api.addPanel({ kind: "notes", title: "Notes" }) }}
+  />
+}
+```
+
+Keep the tab component identity stable. Put custom controls inside `WorkspaceTabActions` to retain their focus and prevent tab dragging. Use `useWorkspaceTab` to share the panel's state and commands.
+
+Tab parts accept native props and refs, and Workspace now forwards its outer div ref.
+
+Dockview still owns the outer tab's accessible name, selection, focus navigation and keyboard closing. Use `setTitle` to rename it. Removing a close button does not disable other close paths.
+
+Popout tab clicks and `focusPanel` now focus the adopted panel body correctly. See the [Workspace reference](workspace.md) for composition, overflow and window limits.

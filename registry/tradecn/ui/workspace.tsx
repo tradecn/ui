@@ -1,7 +1,7 @@
 import { cn } from "cn"
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent, type DockviewTheme, type IDockviewPanelHeaderProps, type IDockviewPanelProps, type SerializedDockview } from "dockview-react"
 import "dockview-react/dist/styles/dockview.css"
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ComponentType, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ComponentType, type ReactNode, type SyntheticEvent } from "react"
 import { useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { mirrorRoot } from "@/registry/tradecn/hooks/use-popout"
 import {
@@ -111,12 +111,20 @@ interface WorkspaceContextValue {
   kinds: Record<string, ComponentType<WorkspacePanelProps>>
   api: WorkspaceApi | null
   watermark: ReactNode
+  tabComponent: ComponentType
   /** The panel's element, once it has one. Returns the unregister. */
   registerHost(id: string, element: HTMLElement): () => void
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 const WorkspacePanelContext = createContext<WorkspacePanelHandle | null>(null)
+
+interface WorkspaceTabContextValue {
+  panelApi: IDockviewPanelHeaderProps["api"]
+  tabLocation: IDockviewPanelHeaderProps["tabLocation"]
+}
+
+const WorkspaceTabContext = createContext<WorkspaceTabContextValue | null>(null)
 
 /** The panel this component is drawn in: its id, kind, title, kept state, and what the dock can do with it. */
 export function useWorkspacePanel(): WorkspacePanelHandle {
@@ -141,15 +149,130 @@ interface Callbacks {
   popoutUrl?: string
 }
 
+// Dockview 8.3.1 removes overflow DOM without disposing its tab renderers. Keep the actual
+// renderer lifetime tied to that popup so closing it also unmounts consumer effects and portals.
+function manageOverflowTabs(dock: DockviewApi) {
+  type DockPanel = DockviewApi["panels"][number]
+  type Renderer = ReturnType<DockPanel["view"]["createTabRenderer"]>
+  const panels = new Map<DockPanel, () => void>()
+  const popups = new Map<Element, { observer: MutationObserver; renderers: Set<Renderer> }>()
+  const attach = (panel: DockPanel) => {
+    if (panels.has(panel)) return
+    const view = panel.view
+    const create = view.createTabRenderer
+    const owned = new Set<Renderer>()
+    const wrapped: typeof create = (location) => {
+      const renderer = create.call(view, location)
+      if (location !== "headerOverflow") return renderer
+      owned.add(renderer)
+      let disposed = false
+      let detach = () => {}
+      const dispose = renderer.dispose?.bind(renderer)
+      renderer.dispose = () => {
+        if (disposed) return
+        disposed = true
+        owned.delete(renderer)
+        detach()
+        dispose?.()
+      }
+      // The dock inserts the renderer synchronously after this factory returns.
+      queueMicrotask(() => {
+        if (disposed) return
+        const anchor = renderer.element.closest(".dv-popover-anchor")
+        if (!anchor || !renderer.element.isConnected) { renderer.dispose?.(); return }
+        let popup = popups.get(anchor)
+        if (!popup) {
+          const renderers = new Set<Renderer>()
+          const Observer = anchor.ownerDocument.defaultView?.MutationObserver ?? MutationObserver
+          const observer = new Observer(() => {
+            for (const item of [...renderers]) if (!anchor.contains(item.element)) item.dispose?.()
+          })
+          observer.observe(anchor, { childList: true, subtree: true })
+          popup = { observer, renderers }
+          popups.set(anchor, popup)
+        }
+        popup.renderers.add(renderer)
+        const current = popup
+        detach = () => {
+          current.renderers.delete(renderer)
+          if (current.renderers.size === 0) { current.observer.disconnect(); popups.delete(anchor) }
+        }
+      })
+      return renderer
+    }
+    view.createTabRenderer = wrapped
+    panels.set(panel, () => {
+      if (view.createTabRenderer === wrapped) view.createTabRenderer = create
+      for (const renderer of [...owned]) renderer.dispose?.()
+    })
+  }
+  const added = dock.onDidAddPanel(attach)
+  const removed = dock.onDidRemovePanel((panel) => { panels.get(panel)?.(); panels.delete(panel) })
+  for (const panel of dock.panels) attach(panel)
+  return { dispose() {
+    added.dispose()
+    removed.dispose()
+    for (const cleanup of panels.values()) cleanup()
+    panels.clear()
+  } }
+}
+
 function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => Callbacks, delay: number): Internals {
   // Loading replaces every panel, and the dock reports each removal and each change as it goes.
   let loading = false
   let wantsFocus: string | null = null
   const hosts = new Map<string, HTMLElement>()
+  let focusRepair: { id: string; dispose(): void } | null = null
 
   const focusHost = (id: string) => {
     const target = hosts.get(id)?.firstElementChild
-    if (target instanceof (target?.ownerDocument.defaultView?.HTMLElement ?? HTMLElement)) target.focus({ preventScroll: true })
+    // Popouts adopt this element into another document without changing its original prototype.
+    if (target && "focus" in target && typeof target.focus === "function") {
+      target.focus({ preventScroll: true })
+      return target
+    }
+    return null
+  }
+
+  const repairPointerFocus = (id: string, target: Element) => {
+    const doc = target.ownerDocument
+    const renderer = dv.getPanel(id)?.view.content.element
+    const parent = renderer?.parentElement
+    if (!doc.defaultView || doc.activeElement !== target || !renderer || !parent || !renderer.contains(target)) return
+    // Dockview's pending pointer frame reparents this renderer. Watch only that removal
+    // until our frame runs, and relinquish focus when a caller deliberately blurs it.
+    let removed = false
+    const rememberRemoval = (records: MutationRecord[]) => {
+      for (const record of records) for (const node of record.removedNodes) if (node === renderer) removed = true
+    }
+    const observer = new doc.defaultView.MutationObserver(rememberRemoval)
+    const stop = () => pending.dispose()
+    const blur = (event: FocusEvent) => {
+      if (event.target !== target) return
+      queueMicrotask(() => {
+        if (focusRepair !== pending) return
+        rememberRemoval(observer.takeRecords())
+        if (!removed) pending.dispose()
+      })
+    }
+    const pending = { id, dispose() {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      doc.removeEventListener("focusin", stop, true)
+      doc.removeEventListener("focusout", blur, true)
+      if (focusRepair === pending) focusRepair = null
+    } }
+    // Use Dockview's module-realm queue even when the renderer has been adopted into a popout.
+    const frame = requestAnimationFrame(() => {
+      if (focusRepair !== pending) return
+      rememberRemoval(observer.takeRecords())
+      pending.dispose()
+      if (removed && dv.activePanel?.id === id && hosts.get(id)?.firstElementChild === target && target.isConnected && target.ownerDocument === doc && !doc.defaultView?.closed && doc.activeElement === doc.body) focusHost(id)
+    })
+    focusRepair = pending
+    observer.observe(parent, { childList: true })
+    doc.addEventListener("focusin", stop, true)
+    doc.addEventListener("focusout", blur, true)
   }
 
   const toLayout = (): WorkspaceLayout => {
@@ -213,10 +336,14 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
       dv.getPanel(id)?.api.close()
     },
     focusPanel(id) {
+      const previous = focusRepair?.id
+      focusRepair?.dispose()
       const panel = dv.getPanel(id)
       if (!panel) return
+      const inactive = dv.activePanel?.id !== id
       panel.api.setActive()
-      focusHost(id)
+      const target = focusHost(id)
+      if (target && (inactive || previous === id)) repairPointerFocus(id, target)
     },
     focusNext(step = 1) {
       if (step === 1) dv.moveToNext({ includePanel: true })
@@ -282,6 +409,7 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
   }
 
   const disposables = [
+    manageOverflowTabs(dv),
     dv.onDidLayoutChange(changed),
     dv.onDidRemovePanel((panel) => {
       if (loading) return
@@ -308,6 +436,7 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
       }
     },
     dispose() {
+      focusRepair?.dispose()
       save.flush()
       unsubscribe()
       for (const d of disposables) d.dispose()
@@ -315,9 +444,11 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
   }
 }
 
-export interface WorkspaceProps extends Omit<ComponentProps<"div">, "children" | "ref"> {
+export interface WorkspaceProps extends Omit<ComponentProps<"div">, "children"> {
   /** What draws each kind of panel. Keep it the same object between renders: every panel re-renders when it changes. */
   panels: Record<string, ComponentType<WorkspacePanelProps>>
+  /** Contents of each tab, including overflow entries. Define the component outside render to preserve its state. */
+  tabComponent?: ComponentType
   /** A stored layout, read once as the workspace mounts. Anything that does not parse falls through to `seed`. */
   defaultLayout?: unknown
   /** Builds the starting layout when there is none to restore. */
@@ -331,14 +462,14 @@ export interface WorkspaceProps extends Omit<ComponentProps<"div">, "children" |
   onReady?: (api: WorkspaceApi) => void
   /** Shown while there are no panels. */
   watermark?: ReactNode
-  /** No dragging and no resizing. */
+  /** Disables grid splitter resizing. Use dockview.updateOptions for drag policy. */
   locked?: boolean
   disableFloating?: boolean
   /** The same-origin page a popout opens. The dock's default is `/popout.html`, and it has to exist. */
   popoutUrl?: string
 }
 
-export function Workspace({ panels, defaultLayout, seed, onLayoutChange, layoutChangeDelay = 250, onLayoutError, onReady, watermark = null, locked, disableFloating, popoutUrl, className, ...props }: WorkspaceProps) {
+export function Workspace({ panels, tabComponent = DefaultWorkspaceTab, defaultLayout, seed, onLayoutChange, layoutChangeDelay = 250, onLayoutError, onReady, watermark = null, locked, disableFloating, popoutUrl, className, ...props }: WorkspaceProps) {
   const [store] = useState(createWorkspacePanelStore)
   const [internals, setInternals] = useState<Internals | null>(null)
   const latest = useRef({ defaultLayout, seed, onLayoutChange, onLayoutError, onReady, layoutChangeDelay, popoutUrl })
@@ -370,8 +501,8 @@ export function Workspace({ panels, defaultLayout, seed, onLayoutChange, layoutC
   )
 
   const context = useMemo<WorkspaceContextValue>(
-    () => ({ store, kinds: panels, api: internals?.api ?? null, watermark, registerHost: (id, element) => internals?.registerHost(id, element) ?? (() => {}) }),
-    [store, panels, internals, watermark],
+    () => ({ store, kinds: panels, api: internals?.api ?? null, watermark, tabComponent, registerHost: (id, element) => internals?.registerHost(id, element) ?? (() => {}) }),
+    [store, panels, internals, watermark, tabComponent],
   )
 
   return (
@@ -379,7 +510,7 @@ export function Workspace({ panels, defaultLayout, seed, onLayoutChange, layoutC
       <div data-slot="tradecn-workspace" className={cn("relative h-full min-h-0 w-full min-w-0 lining-nums tabular-nums", className)} {...props}>
         <DockviewReact
           components={COMPONENTS}
-          defaultTabComponent={WorkspaceTab}
+          defaultTabComponent={WorkspaceTabHost}
           watermarkComponent={WorkspaceWatermark}
           theme={THEME}
           locked={locked}
@@ -475,8 +606,20 @@ function WorkspacePanelHost({ api: panelApi }: IDockviewPanelProps) {
   )
 }
 
-function WorkspaceTab({ api: panelApi }: IDockviewPanelHeaderProps) {
-  const { api } = useWorkspaceContext()
+function WorkspaceTabHost({ api: panelApi, tabLocation }: IDockviewPanelHeaderProps) {
+  const { tabComponent: Component } = useWorkspaceContext()
+  const context = useMemo(() => ({ panelApi, tabLocation }), [panelApi, tabLocation])
+  return <WorkspaceTabContext.Provider value={context}><Component /></WorkspaceTabContext.Provider>
+}
+
+function useWorkspaceTabContext() {
+  const context = useContext(WorkspaceTabContext)
+  if (!context) throw new Error("workspace tab parts must be rendered by a <Workspace> tabComponent")
+  return context
+}
+
+function useWorkspaceTabTitle() {
+  const { panelApi } = useWorkspaceTabContext()
   const subscribe = useCallback(
     (cb: () => void) => {
       const d = panelApi.onDidTitleChange(cb)
@@ -484,28 +627,160 @@ function WorkspaceTab({ api: panelApi }: IDockviewPanelHeaderProps) {
     },
     [panelApi],
   )
-  const title = useSyncExternalStore(
+  return useSyncExternalStore(
     subscribe,
     () => panelApi.title ?? panelApi.id,
     () => panelApi.id,
   )
-  return (
-    // The dock made this panel active on pointer down. The click that follows aims the keyboard at it.
-    <div data-workspace-tab={panelApi.id} className="flex h-full items-center gap-1.5 text-xs" onClick={() => api?.focusPanel(panelApi.id)}>
-      <span className="truncate">{title}</span>
-      <button
-        type="button"
-        aria-label={`Close ${title}`}
-        className="-mr-1 inline-flex size-4 items-center justify-center rounded-sm leading-none text-muted-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-        onClick={(event) => {
-          event.stopPropagation()
-          panelApi.close()
-        }}
-      >
-        ×
-      </button>
-    </div>
-  )
+}
+
+export interface WorkspaceTabHandle extends Omit<WorkspacePanelHandle, "kind" | "state"> {
+  /** Undefined for a panel added directly through the raw Dockview API without a workspace record. */
+  kind: string | undefined
+  state: WorkspacePanelState | undefined
+  /** The same panel can have a tab in both places at once. */
+  tabLocation: IDockviewPanelHeaderProps["tabLocation"]
+  /** Requires a workspace record. Raw panels ignore this command; use their native panel API instead. */
+  setTitle(title: string): void
+  /** Requires a workspace record. Raw panels ignore the patch without calling an updater. */
+  setState: WorkspacePanelHandle["setState"]
+  /** Activates this panel; moves body focus only when a workspace host is registered. */
+  focus(): void
+}
+
+/** Opt into this panel's state and dock events. Static tab markup needs no subscription. */
+export function useWorkspaceTab(): WorkspaceTabHandle {
+  const { panelApi, tabLocation } = useWorkspaceTabContext()
+  const { store, api } = useWorkspaceContext()
+  const id = panelApi.id
+  const getRecord = useCallback(() => store.get(id), [store, id])
+  const record = useSyncExternalStore(store.subscribe, getRecord, getRecord)
+  const title = useWorkspaceTabTitle()
+  const subscribe = useCallback((cb: () => void) => {
+    const listeners = [panelApi.onDidActiveChange(cb), panelApi.onDidActiveGroupChange(cb), panelApi.onDidLocationChange(cb)]
+    return () => { for (const listener of listeners) listener.dispose() }
+  }, [panelApi])
+  const active = useSyncExternalStore(subscribe, () => panelApi.isActive && panelApi.isGroupActive, () => false)
+  const location = useSyncExternalStore(subscribe, () => locationOf(panelApi), () => "grid" as const)
+  return {
+    id, kind: record?.kind, state: record?.state, title, active, location, tabLocation,
+    setTitle: (value) => api?.setTitle(id, value),
+    setState: (patch) => api?.setState(id, patch),
+    close: () => panelApi.close(),
+    float: (box) => api?.float(id, box),
+    popout: () => api?.popout(id) ?? Promise.resolve(false),
+    toggleMaximize: () => api?.toggleMaximize(id),
+    focus: () => api?.focusPanel(id),
+  }
+}
+
+export interface WorkspaceTabProps extends ComponentProps<"div"> {
+  children: ReactNode
+}
+
+/** Inner tab contents. Dockview owns the outer tab's role, name, keyboard navigation and drag. */
+export function WorkspaceTab({ className, onClick, ...props }: WorkspaceTabProps) {
+  const { panelApi } = useWorkspaceTabContext()
+  const { api } = useWorkspaceContext()
+  return <div data-workspace-tab={panelApi.id} className={cn("flex h-full items-center gap-1.5 text-xs", className)} {...props} onClick={(event) => {
+    onClick?.(event)
+    if (!event.defaultPrevented && event.currentTarget.contains(event.target as Node)) api?.focusPanel(panelApi.id)
+  }} />
+}
+
+export function WorkspaceTabTitle({ className, ...props }: Omit<ComponentProps<"span">, "children"> & { children?: never }) {
+  const title = useWorkspaceTabTitle()
+  return <span data-slot="tradecn-workspace-tab-title" className={cn("truncate", className)} {...props}>{title}</span>
+}
+
+export interface WorkspaceTabCloseProps extends ComponentProps<"button"> {
+  children: ReactNode
+}
+
+export function WorkspaceTabClose({ className, onClick, type = "button", "aria-label": label, "aria-labelledby": labelledBy, ...props }: WorkspaceTabCloseProps) {
+  const { panelApi, tabLocation } = useWorkspaceTabContext()
+  const title = useWorkspaceTabTitle()
+  return <button
+    type={type}
+    data-slot="tradecn-workspace-tab-close"
+    aria-label={label ?? (labelledBy ? undefined : `Close ${title}`)}
+    aria-labelledby={labelledBy}
+    className={cn("-mr-1 inline-flex size-4 items-center justify-center rounded-sm leading-none text-muted-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50", className)}
+    {...props}
+    onClick={(event) => {
+      onClick?.(event)
+      if (event.defaultPrevented) { event.stopPropagation(); return }
+      // The native overflow row dismisses on click; prevent it from activating the removed panel.
+      if (tabLocation === "headerOverflow") event.preventDefault()
+      else event.stopPropagation()
+      panelApi.close()
+    }}
+  />
+}
+
+export interface WorkspaceTabActionsProps extends ComponentProps<"div"> {
+  children: ReactNode
+}
+
+/** Controls that keep their own focus and do not activate or drag the surrounding tab. */
+export function WorkspaceTabActions({ className, onMouseDownCapture, onPointerDown, onMouseDown, onTouchStart, onClick, onDragStart, onKeyDown, ...props }: WorkspaceTabActionsProps) {
+  const { tabLocation } = useWorkspaceTabContext()
+  const release = useRef<(() => void) | null>(null)
+  useEffect(() => () => release.current?.(), [])
+  const isolateTabEvent = (event: SyntheticEvent<HTMLDivElement>) => {
+    // Header portals need document listeners for outside dismissal. Overflow portals also need
+    // isolation from the dock's window-level popup dismissal.
+    if (tabLocation === "headerOverflow" || event.currentTarget.contains(event.target as Node)) event.stopPropagation()
+  }
+  return <div data-slot="tradecn-workspace-tab-actions" className={cn("flex shrink-0 items-center gap-1.5", className)} {...props}
+    onMouseDownCapture={(event) => {
+      onMouseDownCapture?.(event)
+      release.current?.()
+      // Arm the drag guard before child controls can stop bubbling. Capture never stops their handlers.
+      // Portaled menu content belongs to this React tree, but not to the tab's drag surface.
+      if (!event.currentTarget.contains(event.target as Node)) return
+      const tab = event.currentTarget.closest(".dv-tab")
+      if (!tab) return
+      const doc = tab.ownerDocument
+      const stopDrag = (drag: DragEvent) => {
+        // HTML5 drag starts on the draggable ancestor, bypassing the inner control's handlers.
+        if (drag.target === tab) { drag.preventDefault(); drag.stopPropagation() }
+      }
+      const cleanup = () => {
+        doc.removeEventListener("dragstart", stopDrag, true)
+        doc.removeEventListener("dragend", cleanup, true)
+        doc.removeEventListener("mousedown", cleanup, true)
+        doc.removeEventListener("mouseup", cleanup, true)
+        doc.defaultView?.removeEventListener("blur", cleanup)
+        release.current = null
+      }
+      doc.addEventListener("dragstart", stopDrag, true)
+      doc.addEventListener("dragend", cleanup, true)
+      doc.addEventListener("mousedown", cleanup, true)
+      doc.addEventListener("mouseup", cleanup, true)
+      doc.defaultView?.addEventListener("blur", cleanup)
+      release.current = cleanup
+    }}
+    onPointerDown={(event) => { onPointerDown?.(event); isolateTabEvent(event) }}
+    onMouseDown={(event) => { onMouseDown?.(event); isolateTabEvent(event) }}
+    onTouchStart={(event) => { onTouchStart?.(event); isolateTabEvent(event) }}
+    onClick={(event) => { onClick?.(event); isolateTabEvent(event) }}
+    onDragStart={(event) => {
+      onDragStart?.(event)
+      // Draggable children own their data and default action; only the surrounding dock is excluded.
+      if (event.currentTarget.contains(event.target as Node)) event.stopPropagation()
+    }}
+    onKeyDown={(event) => {
+      onKeyDown?.(event)
+      // The dock dismisses at the window even when a nested control handled the key. A portaled
+      // menu gets its own Escape; Escape on an ordinary overflow control still closes the dock popup.
+      if (tabLocation === "headerOverflow" && (event.key === "Enter" || (event.key === "Escape" && (event.defaultPrevented || !event.currentTarget.contains(event.target as Node))))) event.stopPropagation()
+    }}
+  />
+}
+
+function DefaultWorkspaceTab() {
+  return <WorkspaceTab><WorkspaceTabTitle /><WorkspaceTabClose>×</WorkspaceTabClose></WorkspaceTab>
 }
 
 function WorkspaceWatermark() {

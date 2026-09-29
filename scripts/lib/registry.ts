@@ -79,6 +79,22 @@ export function stableJson(value: unknown): string {
   return JSON.stringify(value, null, 2) + "\n"
 }
 
+/** A registry `css` block as the stylesheet text the CLI appends. */
+export function registryCss(css: Record<string, unknown>, depth = 0): string {
+  const pad = "  ".repeat(depth)
+  return Object.entries(css)
+    .map(([key, value]) =>
+      typeof value === "string" ? `${pad}${key}: ${value};` : `${pad}${key} {\n${registryCss(value as Record<string, unknown>, depth + 1)}\n${pad}}`,
+    )
+    .join("\n")
+}
+
+/** Workspace demos also need the third-party restyles that an installed consumer receives. */
+export function workspaceThemeCss(registry: Registry): string {
+  const layer = registry.items.find((item) => item.name === "workspace")?.css?.["@layer components"]
+  return layer ? registryCss({ "@layer components": layer }) : ""
+}
+
 /** Token names an item's source actually uses, as Tailwind utilities or CSS variables. */
 export function tokensUsedIn(source: string, tokenNames: readonly string[]): Set<string> {
   const used = new Set<string>()

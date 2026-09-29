@@ -1,3 +1,4 @@
+import { DeskTab } from "../demos/workspace"
 import { useCallback, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { HotkeysProvider, useHotkey } from "@/registry/tradecn/hooks/use-hotkeys"
@@ -168,7 +169,7 @@ export function WorkspaceScene() {
               reset
             </Button>
           </div>
-          <Workspace className="min-h-0 flex-1 rounded-md border border-border" panels={PANELS} defaultLayout={stored} seed={seed} onLayoutChange={onLayoutChange} onReady={setApi} popoutUrl="/popout.html" watermark="No panels. Press n b for a book." />
+          <Workspace tabComponent={DeskTab} className="min-h-0 flex-1 rounded-md border border-border" panels={PANELS} defaultLayout={stored} seed={seed} onLayoutChange={onLayoutChange} onReady={setApi} popoutUrl="/popout.html" watermark="No panels. Press n b for a book." />
         </main>
       </LinkGroupProvider>
     </HotkeysProvider>

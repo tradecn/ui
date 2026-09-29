@@ -353,8 +353,8 @@ test("a workspace docks its panels, keeps their keys apart, saves, restores, and
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
   page.on("pageerror", (e) => errors.push(e.message))
   await page.goto("/")
-  const scene = page.locator("section[data-scene='workspace']")
-  const state = scene.locator("[data-ws-saves]")
+  const scene = page.locator("section[data-scene='workspace'] [data-ws-saves]")
+  const state = scene
   const workspace = scene.locator("[data-slot='tradecn-workspace']")
   const book = scene.locator("[data-ws-book='book-1']")
   const chart = scene.locator("[data-ws-chart='chart-1']")
@@ -424,7 +424,8 @@ test("a workspace docks its panels, keeps their keys apart, saves, restores, and
   await expect(outBook).toHaveAttribute("data-ws-location", "popout")
   await expect(outBook.locator("[data-ws-symbol]")).toHaveText("ES")
   await expect.poll(() => popup.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(true)
-  await outBook.click()
+  await popup.locator("[data-workspace-tab='book-1'] [data-slot='tradecn-workspace-tab-title']").click()
+  await expect(popup.getByRole("tabpanel").getByRole("region", { name: "Book", exact: true })).toBeFocused()
   await popup.keyboard.press("k")
   await expect(outBook).toHaveAttribute("data-ws-keys", "1")
   // As a person closes it: the dock hears about the window through beforeunload.
@@ -432,6 +433,173 @@ test("a workspace docks its panels, keeps their keys apart, saves, restores, and
   await expect(scene.locator("[data-ws-book='book-1']")).toBeVisible()
   await expect(scene.locator("[data-ws-book='book-1']")).toHaveAttribute("data-ws-location", "grid")
   expect(errors).toEqual([])
+})
+
+test("workspace default tabs close native overflow and dispose custom overflow consumers", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='workspace'] [data-ws-saves]")
+  const popup = page.locator(".dv-tabs-overflow-container")
+  const open = async () => {
+    await scene.locator(".dv-tabs-overflow-dropdown-root").first().click()
+    await expect(popup).toBeVisible()
+  }
+
+  // Exercise the released no-tabComponent call shape against actual Dockview.
+  await scene.getByRole("button", { name: "default tabs", exact: true }).click()
+  await scene.getByRole("button", { name: "add overflow books", exact: true }).click()
+  await open()
+  const close = popup.getByRole("button", { name: /^Close Overflow book/ }).first()
+  const title = (await close.getAttribute("aria-label"))!.replace(/^Close /, "")
+  await close.focus()
+  await page.keyboard.press("Space")
+  await expect(popup).toHaveCount(0)
+  await expect(scene.getByRole("tab", { name: title, exact: true })).toHaveCount(0)
+
+  // Observe arbitrary consumer effects in the real overflow insertion/removal path.
+  await scene.getByRole("button", { name: "observe tabs", exact: true }).click()
+  for (let i = 0; i < 2; i++) {
+    await open()
+    const rows = await popup.locator(".dv-tab").count()
+    expect(rows).toBeGreaterThan(0)
+    await expect(scene).toHaveAttribute("data-ws-overflow-alive", String(rows))
+    await page.keyboard.press("Escape")
+    await expect(popup).toHaveCount(0)
+    await expect(scene).toHaveAttribute("data-ws-overflow-alive", "0")
+  }
+
+  await open()
+  await expect.poll(async () => Number(await scene.getAttribute("data-ws-overflow-alive"))).toBeGreaterThan(0)
+  // Invoke the real API without an outside pointerdown dismissing overflow first.
+  await scene.getByRole("button", { name: "clear workspace", exact: true }).evaluate((button: HTMLButtonElement) => button.click())
+  await expect(scene).toHaveAttribute("data-ws-overflow-alive", "0")
+  await expect(scene.getByRole("tab")).toHaveCount(0)
+  await page.keyboard.press("Escape")
+})
+
+test("workspace floating overflow menus remain above native popup layers", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 760 })
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='workspace'] [data-ws-saves]")
+  const workspace = scene.locator("[data-slot='tradecn-workspace']")
+  await scene.getByRole("button", { name: "floating tab controls", exact: true }).click()
+  const floating = workspace.locator(".dv-groupview-floating")
+  await expect(floating).toHaveCount(1)
+  await floating.locator(".dv-tabs-overflow-dropdown-root").click()
+  const overflow = page.locator(".dv-tabs-overflow-container")
+  await expect(overflow).toBeVisible()
+  const trigger = overflow.getByRole("button", { name: /^Actions for / }).first()
+  const title = (await trigger.getAttribute("aria-label"))!.replace(/^Actions for /, "")
+  await trigger.click()
+  const menu = page.getByRole("menu")
+  await expect(menu).toBeVisible()
+
+  // Dockview still doubles the floating inline layer; its stack stays local to Workspace.
+  const stacking = await workspace.evaluate((root) => {
+    const popup = root.querySelector(".dv-popover-anchor")!.firstElementChild!
+    const menu = document.querySelector('[role="menu"]')!
+    return {
+      isolation: getComputedStyle(root).isolation,
+      overlayStart: getComputedStyle(root.querySelector(".dv-resize-container")!).getPropertyValue("--dv-overlay-z-index").trim(),
+      popupZ: Number(getComputedStyle(popup).zIndex),
+      menuZ: Number(getComputedStyle(menu).zIndex),
+      menuInsideWorkspace: root.contains(menu),
+    }
+  })
+  expect(stacking.isolation).toBe("isolate")
+  expect(stacking.overlayStart).toBe("30")
+  expect(stacking.menuInsideWorkspace).toBe(false)
+  expect(stacking.popupZ).toBeGreaterThan(stacking.menuZ)
+  expect(stacking.menuZ).toBe(50)
+
+  const close = menu.getByRole("menuitem", { name: "Close panel", exact: true })
+  const box = (await close.boundingBox())!
+  const menuHit = await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('[role="menu"]'), { x: box.x + box.width / 2, y: box.y + box.height / 2 })
+  expect(menuHit).toBe(true)
+  await close.click()
+  await expect(menu).toHaveCount(0)
+  await expect(workspace.getByRole("tab", { name: title, exact: true })).toHaveCount(0)
+  await expect(floating).toHaveCount(1)
+})
+
+test("workspace tab controls retain focus, native keys and shared state without starting a dock drag", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("[data-workspace-controls]")
+  const treasury = scene.getByRole("tab", { name: "Treasuries", exact: true })
+  const equity = scene.getByRole("tab", { name: "Equities", exact: true })
+  await expect(equity).toHaveAttribute("aria-selected", "true")
+  const input = treasury.getByRole("textbox", { name: "Symbol for Treasuries" })
+  await input.fill("ZB")
+  await expect(input).toBeFocused()
+  await expect(treasury).toHaveAttribute("aria-selected", "false")
+  await input.press("ArrowLeft")
+  await expect(input).toBeFocused()
+  await treasury.locator("[data-slot='tradecn-workspace-tab-title']").click()
+  await expect(scene.getByRole("tabpanel").getByRole("region", { name: "Treasuries", exact: true })).toBeFocused()
+  await expect(scene.getByText("Following ZB.")).toBeVisible()
+  await input.fill("")
+  await expect(scene.getByText("Following no symbol.")).toBeVisible()
+  await treasury.focus()
+  await treasury.press("ArrowRight")
+  await expect(equity).toBeFocused()
+  await expect(treasury).toHaveAttribute("aria-selected", "true")
+  await equity.press("Enter")
+  await expect(equity).toHaveAttribute("aria-selected", "true")
+  const trigger = treasury.getByRole("button", { name: "Actions for Treasuries" })
+  await trigger.focus()
+  await trigger.press("Enter")
+  await expect(page.getByRole("menuitem", { name: "Float panel" })).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(trigger).toBeFocused()
+  await expect(equity).toHaveAttribute("aria-selected", "true")
+  // A real mouse gesture targets dragstart at Dockview's draggable ancestor, not the input.
+  await scene.evaluate((root) => {
+    root.addEventListener("dragstart", (event) => root.setAttribute("data-native-drag", String(event.defaultPrevented)))
+  })
+  const point = (await input.boundingBox())!
+  await page.mouse.move(point.x + point.width / 2, point.y + point.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(point.x + 90, point.y + 130, { steps: 12 })
+  await page.mouse.up()
+  await expect(scene).not.toHaveAttribute("data-native-drag")
+  await expect(scene.locator(".dv-groupview-floating")).toHaveCount(0)
+  await expect(scene.getByRole("tab")).toHaveCount(2)
+  await expect(equity).toHaveAttribute("aria-selected", "true")
+  await page.keyboard.press("Escape")
+  const body = (await scene.getByRole("tabpanel").boundingBox())!
+  await trigger.click()
+  // Modal menus hide the background accessibility tree without changing the dock's selection.
+  await expect(scene.getByRole("tab", { name: "Equities", exact: true, includeHidden: true })).toHaveAttribute("aria-selected", "true")
+  const menu = page.getByRole("menu")
+  await menu.click({ position: { x: 2, y: 2 } })
+  await expect(menu).toBeVisible()
+  await page.mouse.click(body.x + body.width - 8, body.y + body.height - 8)
+  await expect(menu).toBeHidden()
+  await trigger.click()
+  await page.getByRole("menuitem", { name: "Float panel", exact: true }).click()
+  await expect(scene.locator(".dv-groupview-floating")).toHaveCount(1)
+  await trigger.click()
+  await expect(page.getByRole("menuitem", { name: "Float panel", exact: true })).toBeDisabled()
+  await page.getByRole("menuitem", { name: "Close panel", exact: true }).click()
+  await expect(treasury).toHaveCount(0)
+  await expect(equity).toHaveAttribute("aria-selected", "true")
+})
+
+test("workspace overflow actions stay open for keyboard menu interaction", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 480 })
+  await page.goto("/")
+  const scene = page.locator("[data-workspace-controls]")
+  await scene.locator(".dv-tabs-overflow-dropdown-root").click()
+  const overflow = page.locator(".dv-tabs-overflow-container")
+  await expect(overflow).toBeVisible()
+  const trigger = overflow.getByRole("button", { name: /Actions for/ }).first()
+  await trigger.focus()
+  await trigger.press("Enter")
+  await expect(page.getByRole("menuitem", { name: "Float panel", exact: true })).toBeVisible()
+  await page.keyboard.press("ArrowDown")
+  await expect(page.getByRole("menuitem", { name: "Maximize / restore", exact: true })).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(trigger).toBeFocused()
+  await expect(overflow).toBeVisible()
 })
 
 // The first block, and seven of the consumer's components in one place. The price field goes
