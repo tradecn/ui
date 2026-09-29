@@ -140,6 +140,8 @@ Each part accepts its native props, ref and class name. An explicit `aria-label`
 
 Dockview owns the outer `role="tab"`, its id, roving focus, selection and tabpanel association. `WorkspaceTab` props and ref address the inner div. Rename the actual tab with `setTitle`; an `aria-label` on that inner div does not rename the outer tab. Ordinary title and close parts subscribe only to title changes.
 
+Roving focus applies to the outer tabs. Close buttons and controls inside `WorkspaceTabActions` keep their native Tab stops, including on inactive tabs; Actions isolates events, not keyboard navigation. For the [APG tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/), where Tab leaves the tablist from its active tab, omit inline controls and put panel actions or fields in `PanelHeader` or the panel body.
+
 ### useWorkspaceTab
 
 The hook returns `WorkspaceTabHandle`: the [panel handle](#panels-by-kind), plus `focus(): void` and `tabLocation: "header" | "headerOverflow"`. `focus()` activates the panel and moves focus into its registered workspace body. The hook subscribes to this panel's record, title, activity and location; static tab markup needs no hook.
@@ -309,7 +311,9 @@ Dock overlays use z-index `30`, below shadcn menus and dialogs at `50`. Optional
 | `load(layout: unknown)` | `boolean` | Replaces the workspace; failure leaves it empty. |
 | `clear()` | `void` | Removes all panels. |
 
-`api.dockview` exposes `DockviewApi` from `dockview-react` for features outside this wrapper. Its layout changes still schedule saves. Panels added without a workspace record are outside this item's persistence contract.
+`api.dockview` exposes `DockviewApi` from `dockview-react` for features outside this wrapper. Its layout changes still schedule saves. Create every persisted panel with `WorkspaceApi.addPanel`: a raw panel has no workspace record, but still appears in `toLayout()`'s dock tree. That incomplete layout fails `parseWorkspaceLayout` and cannot be restored; `load` clears the workspace and reports failure. Raw panels need application-owned persistence.
+
+`Workspace` owns the dock's lifetime. Unmount it to dispose the dock and its subscriptions; do not call `api.dockview.dispose()` while the component remains mounted.
 
 ### The dependency
 

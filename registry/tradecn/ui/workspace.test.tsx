@@ -248,14 +248,14 @@ describe("Workspace", () => {
     expect(api.panels().map((panel) => panel.id)).toEqual(["chart-1"])
   })
 
-  it("exposes dock commands without inventing saved state or body focus for raw panels", async () => {
+  it("keeps raw panels outside managed state, body focus and persistence", async () => {
     const handles = new Map<string, WorkspaceTabHandle>()
     function ReadingTab() {
       const panel = useWorkspaceTab()
       handles.set(panel.id, panel)
       return <Tab />
     }
-    const { api } = await mount({ tabComponent: ReadingTab })
+    const { api, onLayoutError } = await mount({ tabComponent: ReadingTab })
     render(<button type="button">Outside</button>)
     act(() => { api.dockview.addPanel({ id: "raw", title: "Raw", component: "tradecn-panel" }) })
     expect(handles.get("raw")!.kind).toBeUndefined()
@@ -275,8 +275,14 @@ describe("Workspace", () => {
     expect(screen.getByRole("tab", { name: "Native raw" })).toBeInTheDocument()
     act(() => handles.get("raw")!.float())
     expect(handles.get("raw")!.location).toBe("floating")
+    const rawLayout = api.toLayout()
+    expect(parseWorkspaceLayout(rawLayout)).toBeNull()
     act(() => handles.get("raw")!.close())
     expect(screen.queryByRole("tab", { name: "Native raw" })).toBeNull()
+    expect(parseWorkspaceLayout(api.toLayout())).not.toBeNull()
+    act(() => { expect(api.load(rawLayout)).toBe(false) })
+    expect(api.panels()).toEqual([])
+    expect(onLayoutError).toHaveBeenCalledTimes(1)
   })
 
   it("keeps a custom tab's local draft through parent updates and restores custom tabs for unknown kinds", async () => {
@@ -364,6 +370,58 @@ describe("Workspace", () => {
     fireEvent.keyDown(document.activeElement!, { key: "x" })
     expect(fired).toEqual(["book-1"])
     expect(api.activePanel()).toBe("chart-1")
+  })
+
+  it.each(["keep", "blur", "refocus-then-blur"])("preserves focus ownership after a pending native pointer activation (%s)", async (intent) => {
+    const { api } = await mount({ seed: (api) => {
+      api.addPanel({ kind: "book", focus: false })
+      api.addPanel({ kind: "chart", position: { reference: "book-1", direction: "within" }, focus: false })
+    } })
+    const frames = new Map<number, FrameRequestCallback>()
+    let next = 0
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { frames.set(++next, callback); return next })
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => { frames.delete(id) })
+    const tab = screen.getByRole("tab", { name: "book" })
+    fireEvent.pointerDown(tab, { button: 0 })
+    fireEvent.click(tab.querySelector("span")!)
+    expect(document.activeElement).toHaveAttribute("aria-label", "book")
+    // A second command before the native frame must retain the pending recovery.
+    act(() => api.focusPanel("book-1"))
+    const body = document.activeElement as HTMLElement
+    if (intent === "refocus-then-blur") {
+      const [id, nativeActivation] = frames.entries().next().value!
+      act(() => { frames.delete(id); nativeActivation(0) })
+      body.focus()
+    }
+    if (intent !== "keep") body.blur()
+    await act(async () => {})
+    act(() => { for (const [id, callback] of [...frames]) { frames.delete(id); callback(0) } })
+    if (intent !== "keep") expect(document.activeElement).toBe(document.body)
+    else expect(document.activeElement).toHaveAttribute("aria-label", "book")
+    expect(frames.size).toBe(0)
+  })
+
+  it.each(["outside", "outside-then-body", "direct-blur", "unmount"])("cancels pending body-focus recovery after %s", async (interruption) => {
+    const { api, view } = await mount()
+    render(<button type="button">Outside recovery</button>)
+    const frames = new Map<number, FrameRequestCallback>()
+    let next = 0
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { frames.set(++next, callback); return next })
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => { frames.delete(id) })
+    act(() => api.focusPanel("book-1"))
+    expect(document.activeElement).toHaveAttribute("aria-label", "book")
+    expect(frames.size).toBe(1)
+    if (interruption === "unmount") view.unmount()
+    else if (interruption === "direct-blur") (document.activeElement as HTMLElement).blur()
+    else {
+      const outside = screen.getByRole("button", { name: "Outside recovery" })
+      outside.focus()
+      if (interruption === "outside-then-body") outside.blur()
+    }
+    await act(async () => {})
+    expect(frames.size).toBe(0)
+    if (interruption === "outside") expect(screen.getByRole("button", { name: "Outside recovery" })).toHaveFocus()
+    else expect(document.activeElement).toBe(document.body)
   })
 
   it("hands over one layout after a burst goes quiet, and the layout parses back to itself", async () => {

@@ -222,11 +222,57 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
   let loading = false
   let wantsFocus: string | null = null
   const hosts = new Map<string, HTMLElement>()
+  let focusRepair: { id: string; dispose(): void } | null = null
 
   const focusHost = (id: string) => {
     const target = hosts.get(id)?.firstElementChild
     // Popouts adopt this element into another document without changing its original prototype.
-    if (target && "focus" in target && typeof target.focus === "function") target.focus({ preventScroll: true })
+    if (target && "focus" in target && typeof target.focus === "function") {
+      target.focus({ preventScroll: true })
+      return target
+    }
+    return null
+  }
+
+  const repairPointerFocus = (id: string, target: Element) => {
+    const doc = target.ownerDocument
+    const renderer = dv.getPanel(id)?.view.content.element
+    const parent = renderer?.parentElement
+    if (!doc.defaultView || doc.activeElement !== target || !renderer || !parent || !renderer.contains(target)) return
+    // Dockview's pending pointer frame reparents this renderer. Watch only that removal
+    // until our frame runs, and relinquish focus when a caller deliberately blurs it.
+    let removed = false
+    const rememberRemoval = (records: MutationRecord[]) => {
+      for (const record of records) for (const node of record.removedNodes) if (node === renderer) removed = true
+    }
+    const observer = new doc.defaultView.MutationObserver(rememberRemoval)
+    const stop = () => pending.dispose()
+    const blur = (event: FocusEvent) => {
+      if (event.target !== target) return
+      queueMicrotask(() => {
+        if (focusRepair !== pending) return
+        rememberRemoval(observer.takeRecords())
+        if (!removed) pending.dispose()
+      })
+    }
+    const pending = { id, dispose() {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      doc.removeEventListener("focusin", stop, true)
+      doc.removeEventListener("focusout", blur, true)
+      if (focusRepair === pending) focusRepair = null
+    } }
+    // Use Dockview's module-realm queue even when the renderer has been adopted into a popout.
+    const frame = requestAnimationFrame(() => {
+      if (focusRepair !== pending) return
+      rememberRemoval(observer.takeRecords())
+      pending.dispose()
+      if (removed && dv.activePanel?.id === id && hosts.get(id)?.firstElementChild === target && target.isConnected && target.ownerDocument === doc && !doc.defaultView?.closed && doc.activeElement === doc.body) focusHost(id)
+    })
+    focusRepair = pending
+    observer.observe(parent, { childList: true })
+    doc.addEventListener("focusin", stop, true)
+    doc.addEventListener("focusout", blur, true)
   }
 
   const toLayout = (): WorkspaceLayout => {
@@ -290,10 +336,14 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
       dv.getPanel(id)?.api.close()
     },
     focusPanel(id) {
+      const previous = focusRepair?.id
+      focusRepair?.dispose()
       const panel = dv.getPanel(id)
       if (!panel) return
+      const inactive = dv.activePanel?.id !== id
       panel.api.setActive()
-      focusHost(id)
+      const target = focusHost(id)
+      if (target && (inactive || previous === id)) repairPointerFocus(id, target)
     },
     focusNext(step = 1) {
       if (step === 1) dv.moveToNext({ includePanel: true })
@@ -386,6 +436,7 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
       }
     },
     dispose() {
+      focusRepair?.dispose()
       save.flush()
       unsubscribe()
       for (const d of disposables) d.dispose()
