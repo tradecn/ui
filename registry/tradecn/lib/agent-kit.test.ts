@@ -150,6 +150,15 @@ describe("checkContract", () => {
     expect(report.findings.map((f) => f.where)).toEqual(["page button[data-id=decor]", "page input[data-id=own-value]"])
   })
 
+  it("follows a reference inside a shadow root there, and never out of it to the document", () => {
+    const host = mount('<div><span id="doc-label">Save</span></div>')
+    const shadow = host.attachShadow({ mode: "open" })
+    shadow.innerHTML = '<span id="shadow-label">Refresh</span><button aria-labelledby="shadow-label"></button><button aria-labelledby="doc-label" data-id="outward"></button>'
+    const report = checkContract({ root: shadow, rules: ["name"] })
+    expect(report.checked.name).toBe(2)
+    expect(report.findings.map((f) => f.where)).toEqual(["page button[data-id=outward]"])
+  })
+
   it("holds a grid, a list box and a tree item to a name, never a grid's cells' text", () => {
     const root = mount(
       [

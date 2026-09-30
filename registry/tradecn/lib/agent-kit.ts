@@ -13,7 +13,7 @@ export type ContractRule = "floor" | "numeric" | "direction" | "name"
 export const CONTRACT_RULES: readonly ContractRule[] = ["floor", "numeric", "direction", "name"]
 
 export interface ContractOptions {
-  /** The subtree to check: an element, or a selector for one. The whole document when omitted. */
+  /** The subtree to check: an element, a shadow root, or a selector for an element. The whole document when omitted. */
   root?: ParentNode | string
   /** The rules to run. All four when omitted. */
   rules?: readonly ContractRule[]
@@ -171,6 +171,13 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     if (isField(el)) return field(el)
     return [...el.childNodes].map((child) => textAlternative(child, walk)).join(" ")
   }
+  // An ID names an element in the referring element's own tree, a shadow root's or the document's, never across a
+  // shadow boundary. Read by node type so a tree from another window's realm still resolves; a detached element's root
+  // is itself, which names nothing.
+  const byId = (el: Element, id: string) => {
+    const tree = el.getRootNode() as Document | DocumentFragment
+    return tree.nodeType === 9 || tree.nodeType === 11 ? tree.getElementById(id) : null
+  }
   // The text alternative of the elements an ID list points to, as aria-labelledby and aria-describedby read them. An
   // element pointed at counts even when hidden, and a reference to nothing reads as nothing.
   const refs = (el: Element, attribute: string): string =>
@@ -178,7 +185,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       .split(/\s+/)
       .filter(Boolean)
       .map((id) => {
-        const target = doc.getElementById(id)
+        const target = byId(el, id)
         return target ? textAlternative(target, { referenced: true, hiddenOk: target.getAttribute("aria-hidden") === "true" || hidden(target) }) : ""
       })
       .join(" ")
@@ -316,13 +323,15 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     const cellOf = (el: Element) => holder(el, /^(gridcell|cell|columnheader|rowheader)$/, /^(TD|TH)$/)
     const rowOf = (el: Element) => holder(el, /^row$/, /^TR$/)
     // A direction marker counts on the value, anywhere in its colored run, or on the cell or the row that holds it,
-    // never on a container that has a side of its own, such as a ticket for a buy.
+    // never on a container that has a side of its own, such as a ticket for a buy, and never under aria-hidden, where
+    // only what is drawn counts.
+    const marker = (node: Element | null) => Boolean(node?.matches("[data-direction], [data-side]") && !unheard(node))
     const marked = (el: Element, run: Element) => {
       for (let node: Element | null = el; node; node = node.parentElement) {
-        if (node.matches("[data-direction], [data-side]")) return true
+        if (marker(node)) return true
         if (node === run) break
       }
-      return [cellOf(el), rowOf(el)].some((node) => node?.matches("[data-direction], [data-side]"))
+      return [cellOf(el), rowOf(el)].some(marker)
     }
     // ARIA prohibits naming a generic element, a span or a div without a role, so a screen reader reading the text never
     // hears an aria-label there. A description reaches it: aria-description, aria-describedby, a title.
