@@ -240,7 +240,7 @@ Use `big` to implement a larger step, such as ten ticks with Shift; the grid doe
 
 Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid input. A value equal to the store's current value sends nothing.
 
-Hiding or removing a column discards its open text editor without calling `onEdit`. Removing its `edit` configuration or switching to `toggle` also discards it.
+Hiding or removing a column while its text editor is still open discards the draft without calling `onEdit`. Removing its `edit` configuration or switching to `toggle` also discards it.
 
 Restoring the column does not reopen the draft. These column changes preserve pending and rejected edits.
 
@@ -258,7 +258,11 @@ With announcements enabled, a 1,000 ms timer reports the row count through a pol
 
 ### Keyboard
 
-These shortcuts run with focus on the grid itself. Header controls, selection checkboxes, and custom cell controls own their keys. The grid skips commands for events already handled with `preventDefault()`.
+These DataGrid shortcuts run with focus on the grid itself. Header controls, selection checkboxes, and custom cell controls keep their own key behavior.
+
+After using a control, press Shift+Tab until the grid itself has focus, or click a cell without a control, to resume grid navigation.
+
+To handle a grid shortcut in a parent, call `preventDefault()` from `onKeyDownCapture`. A parent's bubbling `onKeyDown` runs after the grid. The grid skips commands for events already prevented.
 
 | Key | Action |
 |---|---|

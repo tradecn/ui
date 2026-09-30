@@ -36,6 +36,7 @@ export function DataGridScene() {
       <div data-grid-recipe="shared-defaults"><DataGridSharedDefaultsDemo /></div>
       <GridKeyboardScene />
       <GridEditorScene />
+      <GridDelayedEditorScene />
     </div>
   )
 }
@@ -67,6 +68,38 @@ function GridEditorScene() {
       const last = sent.at(-1)
       if (last) store.applyDeltas({ patch: [{ id: last.rowId, fields: { px: Number(last.value) } }] })
     }}>Accept edited price</button>
+  </div>
+}
+
+function GridDelayedEditorScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }] })
+    return store
+  })
+  const [missing, setMissing] = useState<"visible" | "state" | "definition">("visible")
+  const [waiting, setWaiting] = useState(false)
+  const [sent, setSent] = useState(0)
+  const resume = useRef<(() => void) | null>(null)
+  const columns = useMemo<ColumnDef<Row>[]>(() => editorColumns.map(column => column.key === "px" ? {
+    ...column,
+    hidden: missing === "definition",
+    cell: ({ edit }) => <button type="button" onClick={async () => {
+      if (resume.current) return
+      setWaiting(true)
+      await new Promise<void>(resolve => { resume.current = resolve })
+      edit?.open()
+      setWaiting(false)
+    }}>Request price editor</button>,
+  } : column), [missing])
+  const columnState = useMemo(() => ({ ...EMPTY_COLUMN_STATE, hidden: missing === "state" ? ["px"] : [] }), [missing])
+  return <div data-grid-delayed-editor data-waiting={waiting} data-sent={sent} className="flex flex-col gap-1">
+    <div className="h-40"><DataGrid store={store} columns={columns} columnState={columnState} label="Delayed quotes" onEdit={() => setSent(count => count + 1)} /></div>
+    <input aria-label="Outside delayed editor" />
+    <button type="button" onClick={() => setMissing("state")}>Hide price in state</button>
+    <button type="button" onClick={() => setMissing("definition")}>Hide price in definition</button>
+    <button type="button" onClick={() => { resume.current?.(); resume.current = null }}>Resolve price editor</button>
+    <button type="button" onClick={() => setMissing("visible")}>Restore delayed price</button>
   </div>
 }
 

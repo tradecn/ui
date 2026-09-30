@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useInsertionEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -851,6 +852,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       focusGrid()
     }
     function open(rowId: RowId, key: string, typed?: string) {
+      if (!visibleEditColumns.current.has(key)) return
       const col = column(key)
       const row = store.getRow(rowId)
       if (!canEditCell(col, row) || col.edit.toggle) return
@@ -950,10 +952,12 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     }
     return controller
   }, [editable, store])
+  // Publish committed visibility before custom cells run layout effects; notify trackers in layout.
+  useInsertionEffect(() => {
+    visibleEditColumns.current = edits ? new Set(resolved.filter(col => col.edit && !col.edit.toggle).map(col => col.key)) : EMPTY_SET
+  }, [edits, resolved])
   useLayoutEffect(() => {
-    const keys = edits ? new Set(resolved.filter(col => col.edit && !col.edit.toggle).map(col => col.key)) : EMPTY_SET
-    visibleEditColumns.current = keys
-    edits?.reconcileColumns(keys)
+    edits?.reconcileColumns(visibleEditColumns.current)
   }, [edits, resolved])
   const virtualizer = useVirtualizer({
     count: ids.length,

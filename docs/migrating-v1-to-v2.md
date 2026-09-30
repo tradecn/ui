@@ -317,6 +317,16 @@ Rename completion returns focus to its initiating control or item. Blur preserve
 
 A focused Save or always-visible Add button that disables itself moves focus to the save field or root. Successful built-in imports restore the trigger when focus would otherwise be lost. Custom dialogs own their focus behavior.
 
+## DataGrid
+
+Grid shortcuts now run only when focus is on the grid itself. In v1, keys from header controls, selection checkboxes, and custom cell controls also ran grid commands. These controls now keep their own key behavior.
+
+After using a control, press Shift+Tab until the grid itself has focus, or click a cell without a control, to resume grid navigation.
+
+A parent that handles a grid shortcut should call `preventDefault()` from `onKeyDownCapture`. Its bubbling `onKeyDown` runs after the grid.
+
+This changes DataGrid's own commands. Watchlist and opt-in Blotter removal handlers still receive Delete and Backspace from nested controls, including cell editors. See [Watchlist removal](watchlist.md#removing) and [Blotter deletion](blotter.md#delete-cancels-nothing-by-default).
+
 ## DepthLadder
 
 Replace the self-closing `DepthLadder` with an explicit composition.

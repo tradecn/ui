@@ -203,7 +203,9 @@ Delete or Backspace on the grid requests removal of the selection, or the focuse
 
 The grid passes the current selection, falling back to the focused row, to your menu renderer. Right-click requests focus for the targeted row and, when selection is enabled, replaces the selection if that row was not already selected. Apply these requests when controlling selection or focus; until then, the menu uses the existing values.
 
-The `×` is out of the tab order on purpose. The grid is one tab stop with its own arrow keys, and the keyboard's way to remove is Delete. In the add field, Delete and Backspace edit text and remove nothing.
+The `×` is out of the tab order on purpose. The grid itself and its header controls have separate tab stops.
+
+Focus the grid itself for arrow-key navigation and Delete; see [DataGrid keyboard](data-grid.md#keyboard) for returning from a control. In the add field, Delete and Backspace edit text and remove nothing.
 
 With custom editable columns and `onRemove`, Delete and Backspace in a cell editor can also request row removal.
 

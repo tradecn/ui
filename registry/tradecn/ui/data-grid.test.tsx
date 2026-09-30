@@ -1,11 +1,11 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { StrictMode, useEffect, useState } from "react"
+import { StrictMode, Suspense, startTransition, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatPrice, parsePrice } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
-import { DATA_GRID_PRESETS, DataGrid, EMPTY_COLUMN_STATE, compareForSort, editProblem, exportCsv, resolveColumns, type ColumnDef, type ColumnState, type EditChange, type EditStatus } from "@/registry/tradecn/ui/data-grid"
+import { DATA_GRID_PRESETS, DataGrid, EMPTY_COLUMN_STATE, compareForSort, editProblem, exportCsv, resolveColumns, type CellEditHandle, type ColumnDef, type ColumnState, type EditChange, type EditStatus } from "@/registry/tradecn/ui/data-grid"
 
 interface Quote {
   id: string
@@ -697,7 +697,7 @@ describe("editing", () => {
   }
   const editor = () => screen.getByRole("textbox", { name: "Price" }) as HTMLInputElement
 
-  it.each(["hidden", "removed", "all hidden", "hidden by definition", "no longer editable"])("discards an uncommitted edit when its column is %s without reopening it on restore", disappearance => {
+  it.each(["hidden", "removed", "all hidden", "hidden by definition", "no longer editable", "toggle"])("discards an uncommitted edit when its column is %s without reopening it on restore", disappearance => {
     const store = createRowStore<Quote>({ getRowId: row => row.id })
     seed(2, store)
     const onEdit = vi.fn()
@@ -706,6 +706,7 @@ describe("editing", () => {
       if (missing && disappearance === "removed") definitions = editable.filter(column => column.key !== "px")
       if (missing && disappearance === "hidden by definition") definitions = editable.map(column => column.key === "px" ? { ...column, hidden: true } : column)
       if (missing && disappearance === "no longer editable") definitions = editable.map(column => column.key === "px" ? { ...column, edit: undefined } : column)
+      if (missing && disappearance === "toggle") definitions = editable.map(column => column.key === "px" ? { ...column, edit: { parse: price, toggle: value => !value } } : column)
       const hidden = !missing ? [] : disappearance === "all hidden" ? editable.map(column => column.key) : disappearance === "hidden" ? ["px"] : []
       return <>
         <input aria-label="Outside" />
@@ -800,25 +801,140 @@ describe("editing", () => {
     expect(onEdit).not.toHaveBeenCalled()
   })
 
-  it.each(["grid", "outside", "unmounted", "replacement store", "disabled editing"])("recovers removed-editor focus with %s ownership", async destination => {
+  it.each(["grid", "outside", "unmounted", "unmounted alone", "replacement store", "disabled editing", "no longer editable", "toggle"])("recovers removed-editor focus with %s ownership", async destination => {
     const onEdit = vi.fn()
     const { store, grid, rerender, unmount } = setup(onEdit)
     fireEvent.keyDown(grid, { key: "F2" })
     fireEvent.change(editor(), { target: { value: "108" } })
     const replacement = createRowStore<Quote>({ getRowId: row => row.id })
     seed(2, replacement)
-    rerender(<DataGrid store={destination === "replacement store" ? replacement : store} columns={editable.filter(column => column.key !== "px")} label="Sheet" initialRect={RECT} onEdit={destination === "disabled editing" ? undefined : onEdit} />)
+    rerender(<DataGrid store={destination === "replacement store" ? replacement : store} columns={destination === "no longer editable" ? editable.map(column => column.key === "px" ? { ...column, edit: undefined } : column) : destination === "toggle" ? editable.map(column => column.key === "px" ? { ...column, edit: { parse: price, toggle: value => !value } } : column) : editable.filter(column => column.key !== "px")} label="Sheet" initialRect={RECT} onEdit={destination === "disabled editing" ? undefined : onEdit} />)
     const outside = document.createElement("button")
     document.body.append(outside)
     try {
-      if (destination === "unmounted") unmount()
+      if (destination === "unmounted" || destination === "unmounted alone") unmount()
       if (destination === "outside" || destination === "unmounted") outside.focus()
       await act(async () => {})
-      expect(document.activeElement).toBe(destination === "outside" || destination === "unmounted" ? outside : grid)
+      expect(document.activeElement).toBe(destination === "unmounted alone" ? document.body : destination === "outside" || destination === "unmounted" ? outside : grid)
       expect(onEdit).not.toHaveBeenCalled()
     } finally {
       outside.remove()
     }
+  })
+
+  it.each(["hidden", "hidden by definition"])("ignores a delayed custom open while its column is %s", async disappearance => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(1, store)
+    let handle: CellEditHandle | undefined
+    const onEdit = vi.fn()
+    const custom = editable.map<ColumnDef<Quote>>(column => column.key === "px" ? { ...column, cell: ({ edit, value }) => { handle = edit; return String(value) } } : column)
+    const layout = (hidden: boolean) => <>
+      <input aria-label="Outside" />
+      <DataGrid store={store} columns={hidden && disappearance === "hidden by definition" ? custom.map(column => column.key === "px" ? { ...column, hidden: true } : column) : custom} columnState={{ ...EMPTY_COLUMN_STATE, hidden: hidden && disappearance === "hidden" ? ["px"] : [] }} label="Sheet" initialRect={RECT} onEdit={onEdit} />
+    </>
+    const { rerender } = render(layout(false))
+    const retained = handle!
+    let resume = () => {}
+    const wait = new Promise<void>(resolve => { resume = resolve })
+    const delayed = wait.then(() => retained.open())
+    rerender(layout(true))
+    await act(async () => { resume(); await delayed })
+    const outside = screen.getByRole("textbox", { name: "Outside" })
+    outside.focus()
+    rerender(layout(false))
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    expect(outside).toHaveFocus()
+    expect(onEdit).not.toHaveBeenCalled()
+    act(() => retained.open())
+    expect(editor()).toHaveFocus()
+    fireEvent.change(editor(), { target: { value: "108" } })
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    expect(onEdit).toHaveBeenCalledOnce()
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ key: "px", value: 108 }))
+  })
+
+  it("preserves another editor's draft when a delayed hidden-cell open completes", async () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(1, store)
+    let handle: CellEditHandle | undefined
+    const onEdit = vi.fn()
+    const custom = editable.map<ColumnDef<Quote>>(column => column.key === "px" ? { ...column, cell: ({ edit, value }) => { handle = edit; return String(value) } } : column)
+    const layout = (hidden: boolean) => <DataGrid store={store} columns={custom} columnState={{ ...EMPTY_COLUMN_STATE, hidden: hidden ? ["px"] : [] }} focusedRowId="r0" label="Sheet" initialRect={RECT} onEdit={onEdit} />
+    const { rerender } = render(layout(false))
+    const retained = handle!
+    let resume = () => {}
+    const wait = new Promise<void>(resolve => { resume = resolve })
+    const delayed = wait.then(() => retained.open())
+    rerender(layout(true))
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const quantity = screen.getByRole("textbox", { name: "Qty" })
+    fireEvent.change(quantity, { target: { value: "222" } })
+    await act(async () => { resume(); await delayed })
+    expect(screen.getByRole("textbox", { name: "Qty" })).toBe(quantity)
+    expect(quantity).toHaveValue("222")
+    expect(quantity).toHaveFocus()
+    rerender(layout(false))
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    expect(quantity).toHaveFocus()
+    expect(onEdit).not.toHaveBeenCalled()
+    fireEvent.keyDown(quantity, { key: "Enter" })
+    expect(onEdit).toHaveBeenCalledOnce()
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ key: "qty", value: 222 }))
+  })
+
+  function OpenFromLayout({ edit, enabled }: { edit: CellEditHandle | undefined; enabled: boolean }) {
+    const opened = useRef(false)
+    useLayoutEffect(() => {
+      if (!enabled || opened.current || !edit) return
+      opened.current = true
+      edit.open()
+    }, [edit, enabled])
+    return <span>Value</span>
+  }
+
+  it.each(["initial", "restored", "strict"])("supports a custom cell opening in layout on %s mount", mode => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(1, store)
+    let enabled = mode !== "restored"
+    const custom = editable.map<ColumnDef<Quote>>(column => column.key === "px" ? { ...column, cell: ({ edit }) => <OpenFromLayout edit={edit} enabled={enabled} /> } : column)
+    const layout = (hidden: boolean) => {
+      const grid = <DataGrid store={store} columns={custom} columnState={{ ...EMPTY_COLUMN_STATE, hidden: hidden ? ["px"] : [] }} label="Sheet" initialRect={RECT} onEdit={() => {}} />
+      return mode === "strict" ? <StrictMode>{grid}</StrictMode> : grid
+    }
+    const { rerender } = render(layout(false))
+    if (mode === "restored") {
+      rerender(layout(true))
+      enabled = true
+      rerender(layout(false))
+    }
+    expect(editor()).toHaveFocus()
+    fireEvent.change(editor(), { target: { value: "108" } })
+    rerender(layout(true))
+    rerender(layout(false))
+    expect(editor()).toHaveValue("100.00")
+  })
+
+  it("does not publish unavailable columns from a suspended and abandoned render", async () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(1, store)
+    let handle: CellEditHandle | undefined
+    const custom = editable.map<ColumnDef<Quote>>(column => column.key === "px" ? { ...column, cell: ({ edit, value }) => { handle = edit; return String(value) } } : column)
+    const blocker = new Promise<void>(() => {})
+    function Wait({ blocked }: { blocked: boolean }) { if (blocked) throw blocker; return null }
+    const layout = (hidden: boolean) => <Suspense fallback={<div>Loading</div>}><DataGrid store={store} columns={custom} columnState={{ ...EMPTY_COLUMN_STATE, hidden: hidden ? ["px"] : [] }} label="Sheet" initialRect={RECT} onEdit={() => {}} /><Wait blocked={hidden} /></Suspense>
+    const { rerender } = render(layout(false))
+    const retained = handle!
+    await act(async () => { startTransition(() => rerender(layout(true))) })
+    expect(screen.queryByText("Loading")).toBeNull()
+    expect(screen.getByRole("grid")).toBeVisible()
+    act(() => retained.open())
+    expect(editor()).toHaveFocus()
+    fireEvent.change(editor(), { target: { value: "108" } })
+    rerender(layout(false))
+    expect(editor()).toHaveValue("108")
   })
 
   it("opens on Enter with the text selected, commits on Enter as a change, shows the committed value as pending, and settles when the store agrees", () => {
