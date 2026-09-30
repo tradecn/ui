@@ -1,33 +1,77 @@
 # tradecn.dev
 
-One private S3 bucket behind CloudFront, defined in `lib/tradecn-site-stack.ts` with the AWS CDK. The landing page lives at the root and the shadcn registry under `/r`.
+The site uses one private S3 content bucket behind CloudFront, defined with AWS CDK in `lib/tradecn-site-stack.ts`.
 
 ## What the URLs promise
 
-- `https://tradecn.dev/r/{name}.json` and `/r/registry.json` are the latest release. They carry a five-minute cache and are invalidated when a release lands.
-- `https://tradecn.dev/r/vX.Y.Z/{name}.json` is that release, unchanged, for as long as the domain exists. It carries a one-year immutable cache. Pin a namespace to it: `"@tradecn": "https://tradecn.dev/r/v0.1.2/{name}.json"`.
-- `https://tradecn.dev/` and `/docs/` are the latest release's pages. `https://tradecn.dev/vX.Y.Z/` is that release's own pages, the same tree with every path under it (`/vX.Y.Z/docs/<name>/`, `/vX.Y.Z/preview/<name>/`), for every release published since the trees began; the header's menu lists them from `/versions.json` at the root (`{ "latest": "vX.Y.Z", "versions": [...] }`, newest first, a five-minute cache).
-- `www.tradecn.dev` redirects to the apex. A missing item is a 404, never a page with status 200. `/robots.txt` keeps every path open and names `/sitemap.xml`, which lists the opening page and every docs page at the root, each at the address it names as its canonical; the previews and the 404 page carry `noindex`, and a release's own tree canonicalizes to the root's pages, so neither is listed.
-- The apex carries one TXT record, and every TXT value for the domain lives in it (`APEX_TXT_VALUES` in the stack). Today that is the Google Search Console verification token.
+| Path on tradecn.dev | Content | Cache |
+|---|---|---|
+| `/r/{name}.json`, `/r/registry.json` | Latest release's registry. | Five minutes; invalidated when the latest pointer moves. |
+| `/r/vX.Y.Z/{name}.json` | That release's registry, unchanged while the domain exists. | One year, immutable. |
+| `/`, `/docs/` | Latest release's pages. | `no-store`. |
+| `/vX.Y.Z/` | That release's pages, including `/vX.Y.Z/docs/<name>/` and `/vX.Y.Z/preview/<name>/`. | `no-store`. |
+| `/preview/assets/` | Content-hashed preview bundles. | One year, immutable. |
+| `/versions.json` | `{ "latest": "vX.Y.Z", "versions": [...] }`, newest first. | Five minutes. |
+
+Pin a namespace with `"@tradecn": "https://tradecn.dev/r/vX.Y.Z/{name}.json"`, replacing `vX.Y.Z` with the release you want. The header's version menu reads `/versions.json`. Versioned page trees exist for releases published since that feature was added; dispatching an older tag can add its tree.
+
+`www.tradecn.dev` redirects to the apex. Missing items return 404, never an HTML page with status 200. `/robots.txt` leaves paths open and names `/sitemap.xml`, which lists the opening page and root docs at their canonical URLs. Previews and the 404 page use `noindex`; versioned pages canonicalize to the root, so neither appears in the sitemap.
+
+The apex has one TXT record containing every value in `APEX_TXT_VALUES`. It currently holds the Google Search Console verification value.
 
 ## What deploys when
 
-- `.github/workflows/infra.yml` typechecks and synthesizes the stack on every pull request that touches `infra/`, and runs `cdk deploy` when such a change reaches `main`.
-- The `deploy` job in `.github/workflows/release-please.yml` publishes content. It rides in the run that made the release, which knows the tag; no workflow listens for one. It checks the tag out beside `main`, builds the registry with the tag's pinned CLI, writes `/r/<tag>/`, builds the pages twice (the root's tree and the tag's own under `/<tag>/`, with `--base`), publishes `/<tag>/` and rewrites `/versions.json` from the trees the bucket holds, moves the latest pointer and the root's pages only when the tag is the highest in the repo, invalidates, and installs every item through the namespace into a fresh project as the proof. `workflow_dispatch` with a `tag` input runs the same job for any existing tag, which is also how an older release gets its tree.
-- The pages are `scripts/site/build.ts` over `site/index.html`, `site/404.html`, `site/docs.html`, and `site/preview.html`, with one stylesheet in `site/site.css` and one script in `site/site.js`, filled from the tag's `registry.json`, `version.txt`, `docs/*.md`, and `CHANGELOG.md`: the opening page (a hero and every item running live), the site's own pages from `site/docs/*.md` on `main` (`/docs/` is the Introduction, then `/docs/installation/`, `/docs/components/`, `/docs/theming/`, `/docs/changelog/`, each with `{{placeholders}}` the builder fills from the tag), and one page per doc at `/docs/<name>/`, rendered with `marked`. The palette and the type are the `tradecn-amber` theme's `cssVars`, both sides, read from `main`'s `registry.json`, since a tag from before the theme existed has none; the two faces the typography tokens name are self-hosted under `/fonts/` from `site/fonts.css`. The docs are the tag's, so `/docs/` describes what `/r/` serves.
-- The security headers on every response come from `site/headers.json`, read by the stack into the CloudFront response headers policy and served by `scripts/site/smoke.ts` locally, so a Content-Security-Policy that would block a page blocks it in the local smoke first. Scripts and frames are `'self'` only; styles allow inline for the pages' palette blocks and the components' style attributes; `connect-src` is `'self'` for the search index the pages fetch. The pages' script is `/site.js`, a file, for that reason. The infra workflow runs on a change to that file too, because the policy lives in this stack and a header edit that only republished the pages would leave the edge sending the old one.
-- Each item's docs page embeds a live preview: an iframe of `/preview/<name>/`, a page around one Vite bundle built from the tag's `playground/src/demos/<name>.tsx` (`bun run --cwd playground build:embed`, output `playground/dist/embed`). The bundle is content-hashed and published under `/preview/assets/` with a one-year immutable cache; the pages carry `no-store` like the rest. It is built with a relative base (`--base ./`), so the same build serves the root and a release's tree. A theme's preview page wears that theme; every other one wears the site's. The workspace's popout opens `/popout.html` at the root. A tag from before the previews has no embed build and its pages go out without them. `scripts/site/smoke.ts` opens every preview in a browser, locally against `site/dist` and after a deploy against the live site.
+### Infrastructure
 
-Site and infrastructure changes are `chore(site)` or `ci` commits, and release-please ignores these paths, so they never bump the version consumers pin.
+`.github/workflows/ci.yml` typechecks and synthesizes the stack on every PR, regardless of changed paths. `.github/workflows/infra.yml` deploys after changes to `infra/`, `site/headers.json` or the infra workflow reach `main`. Manual dispatch runs the same synth-then-deploy sequence.
+
+### Content
+
+The `deploy` job in `.github/workflows/release-please.yml` publishes content in the run that creates a release. It knows the tag; no separate workflow listens for a tag event. A manual dispatch with a `tag` input publishes any existing tag through the same job.
+
+The job checks out the tag beside `main`, builds its registry with the pinned CLI and publishes `/r/<tag>/`. It builds root and versioned page trees, publishes `/<tag>/`, then rewrites `/versions.json` from the trees in the bucket. Only the highest repository tag updates the latest registry pointer and root pages. After invalidation, the job installs the items through the namespace into a fresh project as a distribution check.
+
+### Build inputs
+
+`scripts/site/build.ts` renders Markdown with `marked` into the templates in `site/`. The inputs have different owners:
+
+| Input | Revision |
+|---|---|
+| Builder, HTML templates, `site/site.css`, `site/site.js` and `site/docs/*.md` | `main` |
+| Registry entries, `version.txt`, `docs/*.md`, `CHANGELOG.md` and demo source | Published tag |
+| Site palette from `tradecn-amber`, font CSS and self-hosted fonts | `main` |
+
+The opening page shows the hero and live items. The site guides provide Introduction, Installation, Components, Theming and Changelog, with placeholders filled from the tag. Each item doc gets `/docs/<name>/`. The site uses the main branch's palette because tags predating the theme have none; Inter and JetBrains Mono are self-hosted under `/fonts/` through `site/fonts.css`.
+
+### Security headers
+
+`site/headers.json` supplies the pages' Content-Security-Policy and frame policy to both CDK and the local smoke server. CDK defines the other page headers and a separate policy for `/r/*`, including registry CORS. Changing `site/headers.json` triggers the infra workflow so CloudFront receives the updated policy.
+
+Scripts and frames are restricted to `'self'`. Styles allow inline values for palette blocks and component style attributes; `connect-src` allows the same-origin search index. The page script is served as `/site.js`. A page blocked by this shared CSP also fails the local browser smoke check.
+
+### Previews
+
+Each item doc embeds `/preview/<name>/`, which loads the Vite bundle built from the tag's `playground/src/demos/<name>.tsx`. `bun run --cwd playground build:embed` writes `playground/dist/embed`. Its relative base (`--base ./`) lets one bundle serve root and versioned trees; the surrounding pages use `no-store`.
+
+A theme's preview uses that theme; other previews follow the site's selection. Workspace popouts open `/popout.html` at the root. Tags predating the embed build publish without previews. `scripts/site/smoke.ts` opens every preview locally against `site/dist` and after deployment against the live site.
+
+Site and infrastructure paths are excluded from release-please. Changes confined to them, commonly titled `chore(site)` or `ci(infra)`, do not bump the version consumers pin.
 
 ## One-time setup
 
-The deploy role is `github-oidc-role.yml`, a CloudFormation template. Its trust policy admits this repository's workflows on `main` and in the `production` environment, in both the name form and the immutable ID form of the subject claim. Its permissions are the CDK bootstrap roles for us-east-1, `DescribeStacks` on the site stack, the site bucket, and CloudFront invalidations. Nothing else in the account.
+The deploy role is defined in `github-oidc-role.yml`. Its trust policy accepts this repository's workflows on `main` and in the `production` environment, using both name-form and immutable-ID subject claims. Its permissions cover the CDK bootstrap roles in us-east-1, `DescribeStacks` on the site stack, the site bucket and CloudFront invalidations.
 
-`just setup-oidc` runs `scripts/infra/setup-oidc.sh`, which needs local AWS credentials for the account and `gh` with admin on the repository. It reads the account id, the OIDC provider ARN, and the org and repository ids at run time, deploys the template, creates the `production` environment limited to `main`, and stores the role ARN as the `AWS_DEPLOY_ROLE_ARN` secret. The account and region must already be CDK-bootstrapped.
+Run `just setup-oidc` with local AWS credentials for the account and `gh` admin access to the repository. The account and region must already be CDK-bootstrapped. The script reads the account, provider, org and repository IDs, deploys the role template, creates the `production` environment restricted to `main` and stores `AWS_DEPLOY_ROLE_ARN` as a repository secret.
 
-After a repository transfer the owner id in the ID-form subject claim changes: run `just setup-oidc` again.
+Run it again after a repository transfer because the owner ID in the subject claim changes.
 
 ## Locally
 
-`just infra-synth` and `just infra-diff` need no credentials for the synth and the account's credentials for the diff. `just infra-deploy` is the break-glass path; the workflow is the normal one. `just site` renders the whole site into `site/dist/` from the working tree's `registry.json`, `version.txt`, `docs/`, and `CHANGELOG.md`; a site-only change reaches tradecn.dev through a `workflow_dispatch` of `release-please.yml` with the current tag.
+| Command | Purpose | Credentials |
+|---|---|---|
+| `just infra-synth` | Synthesize the stack. | None. |
+| `just infra-diff` | Compare the stack with the deployed one. | Account credentials. |
+| `just infra-deploy` | Deploy directly as a break-glass action. | Account credentials. |
+| `just site` | Build the site into `site/dist/` from the working tree. | None. |
+
+The infrastructure workflow is the normal deployment path. To publish a site-only correction, dispatch `release-please.yml` with the current tag; this combines main's site and builder with that tag's source and docs.

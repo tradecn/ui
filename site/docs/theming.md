@@ -4,19 +4,27 @@ tradecn reads shadcn's palette and adds the tokens a trading screen needs on top
 
 ## Tokens
 
-An item adds the tokens its files use to your stylesheet on install, in `:root` and `.dark`. It never overwrites one you already have, so set `--up` and `--down` yourself and every later `shadcn add` leaves them alone. Rule 7 of [the item contract](contract.md) is the promise. The light values are `tradecn-slate`'s light marks and the dark values are tuned for shadcn's near-black, every one at or above 4.5 to 1 on the surface it sits on, and the direction pair is a step apart in lightness in both modes.
+Components, hooks and utilities add the tokens their files use to your stylesheet in `:root` and `.dark`. They preserve existing values, so you can set `--up` and `--down` before installing another item. Themes have different overwrite behavior, described below. See rule 7 of [the item contract](contract.md).
+
+The default light marks come from `tradecn-slate`; dark marks are tuned for shadcn's near-black surfaces. Tests check contrast for specified text and mark pairs on the supplied surfaces. If you change a surface or token, check the resulting contrast in your application.
 
 {{tokens}}
 
 ## Themes
 
-Themes are `cssVars` and the typography base, no files. Each one overwrites every variable, so `--diff` it first. Every theme has a light side and a dark side, switched by your `dark` class. `tradecn-amber` is the default: the one this site wears and the first to try. The items' own marks are `tradecn-slate`'s, so a project that installs no theme keeps green for up; amber is what moves up to blue. [Color](color.md) has the research behind the choices and a demo that runs every pair through the three kinds of color blindness.
+Themes replace the shadcn palette, radius and every tradecn token, including the font stacks. They add CSS variables and typography rules without component or font files. Review a theme with `--diff` before installing it.
+
+Each theme provides light and dark values, switched by your `dark` class. This site defaults to `tradecn-amber`, with blue for up and vermilion for down. Items installed without a theme use green for up. Choose the direction convention your application needs; color alone must not carry meaning.
 
 {{themes}}
 
+[Color](color.md) explains the contrast checks, non-color cues and limitations of the simulated color-vision previews. Those previews are not a guarantee that every user can distinguish a pair.
+
 ## Typography
 
-The fonts are tokens too: `--tradecn-font-sans`, `--tradecn-font-mono`, `--tradecn-font-numeric`, and the accessible pair behind `data-accessibility="hyperlegible"`, in the table above with the sizes and weights the research supports. Set them once and every component follows. The one thing that is not a token: any component rendering numeric data MUST set `font-variant-numeric: lining-nums tabular-nums` on the numeric node, and the browser matrix fails a build that does not. [Typography](typography.md) has the defaults, the reasoning behind each, and a checklist for a font of your own.
+Set `--tradecn-font-sans`, `--tradecn-font-mono` and `--tradecn-font-numeric` to choose font stacks for tradecn components. The table above lists the tokens installed by individual items. [Typography](typography.md) includes the full token reference, font loading, sizes, weights and setup for `data-accessibility="hyperlegible"`.
+
+Load the fonts yourself; setting a token doesn't download a font. Numeric nodes must request `font-variant-numeric: lining-nums tabular-nums`, which the installed-style browser checks verify. When replacing a font, check that it supplies those features.
 
 ## Light and dark
 

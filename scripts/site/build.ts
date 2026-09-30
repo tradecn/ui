@@ -732,8 +732,8 @@ export async function readChangelog(path: string): Promise<string> {
   return first < 0 ? "There is no changelog at this tag." : text.slice(first).replace(/\n## Changelog\s*$/, "").trim()
 }
 
-/** `@tradecn/a @tradecn/b ...`: every item, for one command. */
-export const everyItem = (registry: Registry) => registry.items.map((item) => `@tradecn/${item.name}`).join(" ")
+/** Every component, hook and utility in one command. Themes overwrite the palette and are a separate choice. */
+export const everyItem = (registry: Registry) => registry.items.filter((item) => item.type !== "registry:theme").map((item) => `@tradecn/${item.name}`).join(" ")
 
 /** An npm dependency as the registry writes it, `name@^x.y.z`, without the range: the Manual tab installs by name, as shadcn's does. */
 const packageName = (dependency: string) => dependency.replace(/@[\^~]?\d[^@]*$/, "")

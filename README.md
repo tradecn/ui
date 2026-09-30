@@ -41,6 +41,8 @@ The namespace URL serves the latest release. To pin it, use `https://tradecn.dev
 
 tradecn adds grids, price formatting, scoped hotkeys, and order tickets to shadcn's menus and tooltips. These are some of the items; [tradecn.dev](https://tradecn.dev/docs/components/) has the full catalog, docs, and live demos.
 
+The links below follow this repository revision and may include unreleased APIs. For a tagged installation, select the matching version in the [published documentation](https://tradecn.dev/docs/) before copying Usage examples.
+
 | Item | What it does |
 |---|---|
 | [`format`](docs/format.md) | Tick-size precision, 32nds and 64ths (`99-16+`), yield, bps, DV01, and compact notional. One missing-value marker. |

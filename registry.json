@@ -4067,13 +4067,13 @@
       "name": "tradecn-amber",
       "type": "registry:theme",
       "title": "Amber",
-      "description": "An amber theme with a day side and a night side: warm paper in light, near-black in dark, and blue and vermilion for up and down, the pair with the widest separation under every kind of color blindness and in grayscale.",
+      "description": "Warm paper in light mode, near-black in dark mode, and blue and vermilion for up and down.",
       "registryDependencies": [],
       "files": [],
       "categories": [
         "theme"
       ],
-      "docs": "This one overwrites. It replaces your background, foreground, primary, border, radius and the rest of shadcn's variables, with one palette for light and another for dark, and sets every tradecn token per mode. Review it with --diff first. Components are untouched. It sets the typography tokens at their defaults and appends the three base rules (the numeric variant on :root and the numeric hooks, and the hyperlegible remap). It leaves your font stack alone, and its dark background is near-black, not black.",
+      "docs": "This theme overwrites shadcn's palette and radius, and every tradecn token in both modes, including custom tradecn font stacks. Review it with --diff first. It adds the numeric variant on :root and the numeric hooks, plus the hyperlegible font remap. It leaves your app's --font-sans unchanged and installs no component or font files.",
       "cssVars": {
         "light": {
           "accent": "oklch(0.93 0.02 75)",
@@ -4234,13 +4234,13 @@
       "name": "tradecn-slate",
       "type": "registry:theme",
       "title": "Slate",
-      "description": "A neutral look with a real light side and a real dark side: cool near-neutral surfaces, a calm blue primary, and the colorblind-safe bluish green and vermilion for up and down, every color held to 4.5 to 1 on its surface in both modes.",
+      "description": "Cool neutral surfaces with a blue primary, bluish green for up and vermilion for down, in light and dark modes.",
       "registryDependencies": [],
       "files": [],
       "categories": [
         "theme"
       ],
-      "docs": "This one overwrites. It replaces your background, foreground, primary, border, radius and the rest of shadcn's variables, with one palette for light and another for dark, and sets every tradecn token per mode. Review it with --diff first. Components are untouched. It sets the typography tokens at their defaults and appends the three base rules (the numeric variant on :root and the numeric hooks, and the hyperlegible remap).",
+      "docs": "This theme overwrites shadcn's palette and radius, and every tradecn token in both modes, including custom tradecn font stacks. Review it with --diff first. It adds the numeric variant on :root and the numeric hooks, plus the hyperlegible font remap. It leaves your app's --font-sans unchanged and installs no component or font files.",
       "cssVars": {
         "light": {
           "accent": "oklch(0.93 0.012 245)",
@@ -4401,13 +4401,13 @@
       "name": "tradecn-slate-east",
       "type": "registry:theme",
       "title": "Slate East",
-      "description": "Slate with the direction pair turned around, red for up and green for down, as screens in China, Japan, and Taiwan show it. The same colorblind-safe vermilion and bluish green, so it survives the same eyes.",
+      "description": "Slate with the direction convention reversed: vermilion for up and bluish green for down.",
       "registryDependencies": [],
       "files": [],
       "categories": [
         "theme"
       ],
-      "docs": "This one overwrites. It replaces your background, foreground, primary, border, radius and the rest of shadcn's variables, with one palette for light and another for dark, and sets every tradecn token per mode. Review it with --diff first. Components are untouched. It sets the typography tokens at their defaults and appends the three base rules (the numeric variant on :root and the numeric hooks, and the hyperlegible remap). It differs from tradecn-slate in four tokens only: up, down, up-soft, and down-soft. Install one or the other, not both.",
+      "docs": "This theme overwrites shadcn's palette and radius, and every tradecn token in both modes, including custom tradecn font stacks. Review it with --diff first. It adds the numeric variant on :root and the numeric hooks, plus the hyperlegible font remap. It leaves your app's --font-sans unchanged and installs no component or font files. It differs from tradecn-slate in four tokens only: up, down, up-soft and down-soft. Install one theme at a time.",
       "cssVars": {
         "light": {
           "accent": "oklch(0.93 0.012 245)",

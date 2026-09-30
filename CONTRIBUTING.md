@@ -1,6 +1,6 @@
 # Contributing
 
-`main` takes pull requests only, squashed. The title becomes the commit, and the commit picks the next tag. So the title is the part to get right.
+Changes to `main` go through squash-merged pull requests. The PR title and body become the commit message that determines the next release.
 
 ## The title
 
@@ -8,7 +8,7 @@
 
 | Type | Release | Shows up as |
 |---|---|---|
-| any type below with `!` | major | ⚠ Breaking Changes |
+| any releasing type with `!` | major | ⚠ Breaking Changes |
 | `feat` | minor | Features |
 | `fix` | patch | Bug Fixes |
 | `perf` | patch | Performance |
@@ -17,11 +17,11 @@
 | `docs` | patch | Documentation |
 | `ci`, `test`, `style`, `build` | none | nothing |
 
-Why `chore` and `refactor` release: what you install is source. A tidied `data-grid.tsx` is a different file in your repo, and `--diff` should be able to see it.
+`chore` and `refactor` release because consumers install source. Even an internal cleanup changes the file they receive through `shadcn add`.
 
-Why `docs` releases: tradecn.dev shows the docs of the tag it serves, so a docs change nobody released is a docs change nobody sees. As a patch it opens the release pull request, or joins the one already open, and the page goes live with the files it describes.
+`docs` releases because tradecn.dev reads documentation from the published release tag. A docs patch opens or joins the release PR so the page can publish with the source it describes.
 
-`!` goes on a type that releases. `ci!` would cut a major for a change nobody installs, so the check refuses it.
+Use `!` only with a releasing type. The title check rejects it on `ci`, `test`, `style` and `build`.
 
 The scope is the item you changed (`ticket`, `use-hotkeys`), or one of `repo`, `registry`, `contract`, `typography`, `rig`, `site`, `infra`, `ci`, `deps`. `main` is release-please's own.
 
@@ -35,11 +35,27 @@ The body is the commit message, and release-please reads it too.
 - No line may start like a commit (`fix(data-grid): ...`). release-please would read it as a second commit and change the release. Say it another way.
 - A `BREAKING CHANGE:` paragraph without `!` in the title fails, and so does the reverse.
 
+For example, a hypothetical `feat(ticket)!: rename side to direction` PR could end with:
+
+```text
+BREAKING CHANGE: Ticket now accepts direction instead of side. Rename side="buy" to direction="buy" at each call site.
+```
+
 ## The checks
 
-`ci` runs on every pull request: `verify` (lint, types, tests, the validator, the registry build), `consumer-matrix` (three clean projects install the registry through the real CLI and render every item), `site` (tradecn.dev as the commit would publish it, smoke-tested in a browser), `github-form` (the install-by-ref path against the exact commit), and `infra` (the tradecn.dev stack synthesizes). `pull-request` checks the title and body against the rules above the moment you open or edit them. It is `scripts/ci/pull-request.ts`, with a test table beside it.
+The `ci` workflow runs on every pull request:
 
-`CI passed` is the one to watch, and the one the `main` ruleset requires. It goes green when every `ci` job is green and the title and body pass as they read at that moment. A title fixed after the run stays red there until the job reruns: Re-run failed jobs on the `ci` run, and it reads the pull request again. Enable auto-merge on a pull request and it merges the moment `CI passed` reports.
+| Job | Checks |
+|---|---|
+| `verify` | Lint, types, tests, the item validator, tokens and registry build. |
+| `consumer-matrix` | Installs and renders the registry in three clean projects through the real CLI. |
+| `site` | Builds the site and opens every preview in a browser. |
+| `github-form` | Installs by the exact commit ref; skipped for fork PRs. |
+| `infra` | Typechecks and synthesizes the site stack. |
+
+The separate `pull-request` workflow checks the title and body when you open or edit a PR. Its implementation and test table are in `scripts/ci/pull-request.ts` and the adjacent test file.
+
+`CI passed` is the required status check. It checks every job result and rereads the current title and body. If you fix the title after that job fails, select **Re-run failed jobs** on the `ci` run so it reads the correction. A PR with auto-merge enabled can merge once the required check passes.
 
 A release pull request is opened by release-please with the release App's token, so it is the App's pull request and `ci` and `pull-request` run on it as on any other. GitHub holds the workflow runs of a pull request that `github-actions[bot]` opened until someone with write access approves them, which is why the App opens it and not the workflow token. Merging it is still a deliberate act.
 
@@ -53,4 +69,11 @@ Versions are semver from `v0.1.3` on, with no pre-1.0 exceptions. The first `!` 
 
 ## Before you push
 
-`bun install`, then `just check`. That's what CI runs.
+Run from the repository root:
+
+```bash
+bun install
+just check
+```
+
+For changes to installed components, run the three-style [consumer matrix](fixtures/README.md) as well.
