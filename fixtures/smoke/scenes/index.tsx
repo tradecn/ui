@@ -1,4 +1,5 @@
 import type { ComponentType } from "react"
+import { AgentKitScene } from "./agent-kit"
 import { AlertStoreScene } from "./alert-store"
 import { AlertsScene } from "./alerts"
 import { AuditTrailScene } from "./audit-trail"
@@ -85,5 +86,6 @@ export const scenes: SmokeScene[] = [
   { name: "session-calendar", Scene: SessionCalendarScene },
   { name: "limits", Scene: LimitsScene },
   { name: "window-set", Scene: WindowSetScene },
+  { name: "agent-kit", Scene: AgentKitScene },
 ]
 export const tokens: string[] = ["up", "down", "flat", "up-soft", "down-soft", "flat-soft", "stale", "stale-soft", "expiring", "expiring-soft", "panel-active", "panel-drag-target", "panel-error", "panel-sync", "link-1", "link-2", "link-3", "link-4", "chart-1", "chart-2", "chart-3", "chart-4", "chart-5", "chart-6", "chart-7", "chart-8"]

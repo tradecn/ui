@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
 import { expect, test, type Locator } from "@playwright/test"
+import { CONTRACT_RULES, checkContract } from "./src/lib/agent-kit"
 
 // Every installed tradecn item renders, the page is error-free, and the tokens it declared exist.
 test("tradecn items render in this consumer", async ({ page }) => {
@@ -2570,4 +2571,90 @@ test("a spread matrix composes alternate tables with native keyboard controls an
   await scene.getByRole("button", { name: "10Y cheapens" }).click()
   await expect(matrix.getByRole("button", { name: "Select 10Y: +13.5" })).toHaveAccessibleName("Select 10Y: +13.5")
   await expect(structures.locator("tr[data-structure='2s5s10s'] td[data-spread]")).toHaveText("−38.5")
+})
+
+test("the agent kit's check passes the kept sample, finds each rule the broken one breaks, and finds nothing else on the page", async ({ page }) => {
+  await page.goto("/")
+  await page.waitForLoadState("networkidle")
+  const scene = page.locator("section[data-scene='agent-kit']")
+  await expect(scene.locator("[data-contract-sample='kept']")).toBeVisible()
+  // Small print goes under the floor here, at run time, where the contract's source sweep never looks. The broken
+  // sample's is drawn, so it is a finding; the kept sample's is for a screen reader only, so it is not.
+  await scene.locator("[data-small-print]").evaluateAll((els: HTMLElement[], px: number) => {
+    for (const el of els) el.style.fontSize = `${px}px`
+  }, 10)
+  // A placeholder takes its own size: the field stays at 12 px, and only ::placeholder goes under the floor. So does a
+  // file picker's button, in ::file-selector-button.
+  await page.addStyleTag({ content: "[data-placeholder-print]::placeholder { font-size: 10px } [data-button-print]::file-selector-button { font-size: 10px }" })
+  // A chosen file's name is drawn in the picker, and the check measures it without reading it.
+  const picked = await scene.locator("input[data-cue=file]").evaluate((input: HTMLInputElement) => {
+    const files = new DataTransfer()
+    files.items.add(new File(["x"], "trades-2026.csv", { type: "text/csv" }))
+    input.files = files.files
+    return input.files[0]?.name
+  })
+  expect(picked).toBe("trades-2026.csv")
+  const kept = await page.evaluate(checkContract, { root: "[data-contract-sample='kept']" })
+  expect(kept.findings).toEqual([])
+  for (const rule of CONTRACT_RULES) expect(kept.checked[rule], `the kept sample gives ${rule} something to read`).toBeGreaterThan(0)
+  expect((await page.evaluate(checkContract, { root: "[data-contract-sample='kept']", visibleCue: true })).findings).toEqual([])
+  // A colored run checked as its own root still reads the sign beside the value.
+  expect((await page.evaluate(checkContract, { root: "[data-cue-root]" })).findings).toEqual([])
+  // A cue only a screen reader gets counts by default, and a sighted reader's check wants one they can see.
+  expect((await page.evaluate(checkContract, { root: "[data-contract-sample='unseen']" })).findings).toEqual([])
+  const unseen = await page.evaluate(checkContract, { root: "[data-contract-sample='unseen']", visibleCue: true })
+  expect(unseen.findings.map((finding) => `${finding.rule} ${finding.where}`)).toEqual([
+    "direction tradecn-agent-kit span[data-cue=describedby]",
+    "direction tradecn-agent-kit input[data-cue=label]",
+    "direction tradecn-agent-kit span[data-cue=transparent]",
+    "direction tradecn-agent-kit span[data-cue=clear]",
+    "direction tradecn-agent-kit span[data-cue=rule][data-rule=rich][data-tone=up]",
+    "direction tradecn-agent-kit span[data-cue=run-description]",
+    "direction tradecn-agent-kit span[data-cue=fallback-role]",
+    "direction tradecn-agent-kit span[data-cue=cell]",
+    "direction tradecn-agent-kit span[data-cue=row-label]",
+    "direction tradecn-agent-kit span[data-cue=hidden-in-cell]",
+  ])
+  const broken = await page.evaluate(checkContract, { root: "[data-contract-sample='broken']", ignore: "" })
+  // Direction in text, in a field and in SVG text by its fill, with units, on a fill four boxes out, in a price split
+  // at its dash, whose dash is no sign, and behind a description of nothing, a label that names no direction, a label
+  // on a plain span, a side on a container, a marker that names no direction, another tone's rule, a rule whose tone is
+  // the other direction, on text and on a fill, a hidden sign, or a faded sign, a description or a marker under
+  // aria-hidden; SVG text measured as drawn, a select read through its chosen option, and a file picker measured in its
+  // own style and in its button's; and a field's value that names nothing.
+  expect(broken.findings.map((finding) => `${finding.rule} ${finding.where}`).sort()).toEqual([
+    "direction tradecn-agent-kit input",
+    "direction tradecn-agent-kit span",
+    "direction tradecn-agent-kit span[data-cue=crossed-fill][data-rule=breach][data-tone=down]",
+    "direction tradecn-agent-kit span[data-cue=crossed-rule][data-rule=breach][data-tone=down]",
+    "direction tradecn-agent-kit span[data-cue=dangling]",
+    "direction tradecn-agent-kit span[data-cue=deep-fill]",
+    "direction tradecn-agent-kit span[data-cue=empty-direction][data-direction]",
+    "direction tradecn-agent-kit span[data-cue=generic-label]",
+    "direction tradecn-agent-kit span[data-cue=handle]",
+    "direction tradecn-agent-kit span[data-cue=hidden]",
+    "direction tradecn-agent-kit span[data-cue=named]",
+    "direction tradecn-agent-kit span[data-cue=odd-side][data-side=left]",
+    "direction tradecn-agent-kit span[data-cue=other-rule]",
+    "direction tradecn-agent-kit span[data-cue=side]",
+    "direction tradecn-agent-kit span[data-cue=ticks]",
+    "direction tradecn-agent-kit span[data-cue=unheard-description]",
+    "direction tradecn-agent-kit span[data-cue=unheard-marker][data-direction=up]",
+    "direction tradecn-agent-kit span[data-cue=unheard]",
+    "direction tradecn-agent-kit span[data-cue=units]",
+    "direction tradecn-agent-kit text",
+    "floor tradecn-agent-kit input[data-cue=file-button][data-button-print]",
+    "floor tradecn-agent-kit input[data-cue=file][data-small-print]",
+    "floor tradecn-agent-kit input[data-placeholder-print]",
+    "floor tradecn-agent-kit select[data-small-print]",
+    "floor tradecn-agent-kit span[data-small-print]",
+    "floor tradecn-agent-kit text[data-cue=scaled]",
+    "name tradecn-agent-kit button",
+    "name tradecn-agent-kit input",
+  ])
+  expect(JSON.stringify(broken)).not.toContain("trades-2026")
+  // Every installed item on the page, in this style and theme, keeps the contract the check reads.
+  const everything = await page.evaluate(checkContract, { root: "main[data-smoke]" })
+  expect(everything.findings).toEqual([])
+  expect(everything.checked.numeric).toBeGreaterThan(100)
 })

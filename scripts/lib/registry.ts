@@ -229,8 +229,13 @@ export function allTokenNames(tokens: Tokens): string[] {
   return [...new Set([...Object.keys(tokens.theme), ...Object.keys(tokens.light), ...Object.keys(tokens.dark)])]
 }
 
+/**
+ * An item's code files with their source, for the contract's source rules and `just tokens`. Markdown an item
+ * installs for a coding agent (`registry/tradecn/agents/`) is not source: prose may name a token or a class
+ * without using it.
+ */
 export function readItemSources(item: RegistryItem): { file: RegistryFile; abs: string; source: string }[] {
-  return (item.files ?? []).map((file) => {
+  return (item.files ?? []).filter((file) => /\.tsx?$/.test(file.path)).map((file) => {
     const abs = path.join(ROOT, file.path)
     return { file, abs, source: existsSync(abs) ? readFileSync(abs, "utf8") : "" }
   })

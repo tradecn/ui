@@ -4064,6 +4064,69 @@
       }
     },
     {
+      "name": "agent-kit",
+      "type": "registry:lib",
+      "title": "Agent Kit",
+      "description": "What a coding agent needs to build with tradecn: a skill with the design rules and an index of every item at the tag, an instructions file for UI code, a review prompt that writes its findings as a change order, and checkContract, which reads a rendered screen for text under the size floor, numbers out of lining tabular figures, direction carried by color alone, and controls with no accessible name.",
+      "dependencies": [],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/tradecn/lib/agent-kit.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/agents/tradecn/SKILL.md",
+          "type": "registry:file",
+          "target": "~/.github/skills/tradecn/SKILL.md"
+        },
+        {
+          "path": "registry/tradecn/agents/tradecn/references/items.md",
+          "type": "registry:file",
+          "target": "~/.github/skills/tradecn/references/items.md"
+        },
+        {
+          "path": "registry/tradecn/agents/tradecn/references/review.md",
+          "type": "registry:file",
+          "target": "~/.github/skills/tradecn/references/review.md"
+        },
+        {
+          "path": "registry/tradecn/agents/tradecn.instructions.md",
+          "type": "registry:file",
+          "target": "~/.github/instructions/tradecn.instructions.md"
+        },
+        {
+          "path": "registry/tradecn/agents/tradecn-review.prompt.md",
+          "type": "registry:file",
+          "target": "~/.github/prompts/tradecn-review.prompt.md"
+        }
+      ],
+      "categories": [
+        "agent"
+      ],
+      "docs": "Installs lib/agent-kit.ts, and a coding agent's files at the project root, where components.json is: the tradecn skill in .github/skills/tradecn/, rules for UI code in .github/instructions/tradecn.instructions.md, and the /tradecn-review prompt in .github/prompts/. GitHub Copilot loads all three from the repository root, so in a monorepo move .github/ there. Adds the text size floor token if it is missing, since the check reads it.",
+      "meta": {
+        "components": [
+          {
+            "title": "checkContract",
+            "description": "Reads a rendered subtree for text under the floor, numbers out of lining tabular figures, direction carried by color alone, and controls with no accessible name. Self-contained, so page.evaluate can take it as it is."
+          },
+          {
+            "title": "CONTRACT_RULES",
+            "description": "The four rules, in the order the report counts them."
+          }
+        ]
+      },
+      "cssVars": {
+        "light": {
+          "tradecn-text-size-grid-min": "12px"
+        },
+        "dark": {
+          "tradecn-text-size-grid-min": "12px"
+        }
+      }
+    },
+    {
       "name": "tradecn-amber",
       "type": "registry:theme",
       "title": "Amber",
