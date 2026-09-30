@@ -64,7 +64,7 @@ describe("contract rule 15: direction never rides on hue alone", () => {
     }
   })
 
-  it("keeps every theme's direction pair apart in gray as well as hue, so it survives a grayscale print", () => {
+  it("keeps every theme's absolute difference between hue coordinates above 60 degrees and computed luminance ratio at or above 1.3 to 1", () => {
     const themes = readRegistry().items.filter((item) => item.type === "registry:theme")
     expect(themes.length).toBeGreaterThanOrEqual(3)
     for (const theme of themes) {

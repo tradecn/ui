@@ -2,6 +2,8 @@
 
 Use this guide to update v1 integrations for the v2 API. Component reference pages describe current usage and behavior.
 
+v2 requires React 19. Upgrade React and React DOM together before migrating components. TypeScript projects also need the matching React 19 types.
+
 ## Alerts
 
 In v2, `Alerts` is a container whose children you compose. Replace `<Alerts alerts={store} ... />` with `<Alerts>...</Alerts>` and compose its contents. The existing alert-store interface is unchanged.

@@ -25,6 +25,10 @@ tokens:
 tokens-check:
     bun scripts/sync-tokens.ts --check
 
+# Regenerate the agent kit's item index from registry.json. scripts/agent-kit.test.ts fails while it is stale.
+agent-kit:
+    bun scripts/agent-kit.ts
+
 # Refresh registry/tradecn/builtins.lock.json from ui.shadcn.com for the locked styles.
 lock-builtins:
     bun scripts/builtins-lock.ts

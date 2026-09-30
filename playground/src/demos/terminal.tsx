@@ -16,6 +16,7 @@ import { useNow } from "@/registry/tradecn/hooks/use-clock"
 import { HotkeysProvider, useHotkey } from "@/registry/tradecn/hooks/use-hotkeys"
 import { LinkGroupProvider, useLinkGroup } from "@/registry/tradecn/hooks/use-link-group"
 import { useRow, useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
+import { checkContract, type ContractReport } from "@/registry/tradecn/lib/agent-kit"
 import { createAlertStore, type Alert, type AlertStore } from "@/registry/tradecn/lib/alert-store"
 import { createInstrumentFormatter, formatDv01, formatNotional, formatPrice, formatQuantity, roundToTick, NUMERIC_CLASS, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
@@ -1224,6 +1225,37 @@ function TapePanel() {
   )
 }
 
+// The desk checked against the contract the way an agent's end-to-end test checks a screen: every rule, the whole
+// page, a count here and each finding in the tooltip.
+function ContractCheck() {
+  const [report, setReport] = useState<ContractReport | null>(null)
+  return (
+    <>
+      {report &&
+        (report.findings.length ? (
+          // A disclosure, so the findings open from the keyboard and by touch, not only on hover.
+          <details className="relative">
+            <summary className={cn("cursor-pointer text-muted-foreground", NUMERIC_CLASS)}>
+              {report.findings.length} {report.findings.length === 1 ? "finding" : "findings"}
+            </summary>
+            <ul className="absolute top-full right-0 z-10 mt-1 max-h-64 w-96 overflow-auto rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md">
+              {report.findings.map((finding, index) => (
+                <li key={index} className="break-words">
+                  {finding.rule}: {finding.where}, {finding.detail}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : (
+          <span className={cn("text-muted-foreground", NUMERIC_CLASS)}>0 findings</span>
+        ))}
+      <Button size="sm" variant="ghost" className={ACTION} onClick={() => setReport(checkContract())}>
+        Check
+      </Button>
+    </>
+  )
+}
+
 function FramesPanel() {
   const desk = useDesk()
   const lanes = useMemo(
@@ -1239,6 +1271,9 @@ function FramesPanel() {
       <PanelHeader>
         <PanelTitle>Frames</PanelTitle>
         <span className="truncate text-muted-foreground">What the desk costs the browser, and each feed's lane</span>
+        <PanelActions>
+          <ContractCheck />
+        </PanelActions>
       </PanelHeader>
       <PanelContent className="p-2">
         <PerfMonitor>

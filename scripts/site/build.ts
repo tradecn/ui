@@ -476,12 +476,14 @@ const icon = (paths: string, cls: string) =>
 const COPY_BUTTON = `<button type="button" class="copy" aria-label="Copy">${icon('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/>', "copy-icon")}${icon('<path d="M5 12.5l4.5 4.5L19 7"/>', "check-icon")}</button>`
 const PROMPT_ICON = icon('<path d="M4 7l5 5-5 5M11 17h9"/>', "prompt")
 // A Manual block's language, where a command's prompt stands: a square with the letters cut out of it, TS for a
-// .ts or .tsx file and CSS for the stylesheet. The narrow S is drawn relative to its start, so CSS draws it twice.
+// .ts or .tsx file, CSS for the stylesheet, and Markdown's M and down arrow for the files an item installs for a
+// coding agent. The narrow S is drawn relative to its start, so CSS draws it twice.
 const mark = (d: string, cls: string) => `<svg class="${cls}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="${d}"/></svg>`
 const SQUARE = "M2 0h20a2 2 0 0 1 2 2v20a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2z"
 const NARROW_S = "v2h-3v2h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-3v-2h3v-2h-1a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z"
 const TS_ICON = mark(`${SQUARE}M3 11h8v2H8v8H6v-8H3zM21 11v2h-6v2h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-6v-2h6v-2h-4a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z`, "ts-icon")
 const CSS_ICON = mark(`${SQUARE}M8 11v2H5v6h3v2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2zM14.5 11${NARROW_S}M21 11${NARROW_S}`, "css-icon")
+const MD_ICON = mark(`${SQUARE}M3 21V11h2l2 3 2-3h2v10H9v-6.5l-2 3-2-3V21zM16 11h2v5h3l-4 5-4-5h3z`, "md-icon")
 const LEFT_ICON = icon('<path d="M15 6l-6 6 6 6"/>', "left-icon")
 const RIGHT_ICON = icon('<path d="M9 6l6 6-6 6"/>', "right-icon")
 
@@ -732,8 +734,8 @@ export async function readChangelog(path: string): Promise<string> {
   return first < 0 ? "There is no changelog at this tag." : text.slice(first).replace(/\n## Changelog\s*$/, "").trim()
 }
 
-/** `@tradecn/a @tradecn/b ...`: every item, for one command. */
-export const everyItem = (registry: Registry) => registry.items.map((item) => `@tradecn/${item.name}`).join(" ")
+/** Every component, hook and utility in one command. Themes overwrite the palette and are a separate choice. */
+export const everyItem = (registry: Registry) => registry.items.filter((item) => item.type !== "registry:theme").map((item) => `@tradecn/${item.name}`).join(" ")
 
 /** An npm dependency as the registry writes it, `name@^x.y.z`, without the range: the Manual tab installs by name, as shadcn's does. */
 const packageName = (dependency: string) => dependency.replace(/@[\^~]?\d[^@]*$/, "")
@@ -1120,11 +1122,11 @@ export function installationSection(item: RegistryItem, tag: string, sources: So
   // order they stand and then the code.
   let blocks = 0
   const pathCode = (path: string) => `<code>${path.split(/(?<=\/)/).map((part) => `<span>${escapeHtml(part)}</span>`).join("<wbr>")}</code>`
-  const expandable = (language: "ts" | "tsx" | "css", code: string, path?: string) => {
+  const expandable = (language: "ts" | "tsx" | "css" | "md", code: string, path?: string) => {
     const id = `installation-manual-${++blocks}`
     return [
       `<figure class="source" data-collapsed>`,
-      `<figcaption>${language === "css" ? CSS_ICON : TS_ICON}${path ? pathCode(path) : ""}</figcaption>`,
+      `<figcaption>${language === "css" ? CSS_ICON : language === "md" ? MD_ICON : TS_ICON}${path ? pathCode(path) : ""}</figcaption>`,
       `<button type="button" class="expand" aria-expanded="false" aria-controls="${id}">Expand</button>`,
       `<pre id="${id}"><code class="language-${language}">${escapeHtml(code)}</code></pre>`,
       `<button type="button" class="expand-foot" tabindex="-1" aria-hidden="true">Expand</button>`,
@@ -1143,7 +1145,7 @@ export function installationSection(item: RegistryItem, tag: string, sources: So
     for (const file of files) {
       const source = sources.get(file.path)
       if (source === undefined) throw new Error(`${item.name} installs ${file.path}, which the checkout does not have`)
-      step.push(expandable(file.path.endsWith(".tsx") ? "tsx" : "ts", source, consumerPath(file)))
+      step.push(expandable(file.path.endsWith(".tsx") ? "tsx" : file.path.endsWith(".md") ? "md" : "ts", source, consumerPath(file)))
     }
     steps.push(step)
   }

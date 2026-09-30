@@ -13,6 +13,8 @@ npx shadcn add table --diff
 
 The first reviews a tradecn item; the second reviews a shadcn built-in. tradecn bundles its own files and names shadcn built-ins as dependencies.
 
+A bare `--diff` lists file changes but omits CSS changes, so a theme with no files shows no diff. Review stylesheet changes separately by running the command again with the `tailwind.css` path from your `components.json`, such as `--diff src/index.css`. This shows only the stylesheet diff. After reviewing both, remove `--diff` and its path to apply the update.
+
 ## Files and imports
 
 1. **Item types follow their location.** `registry:component` is not an item type.
@@ -26,6 +28,8 @@ The first reviews a tradecn item; the second reviews a shadcn built-in. tradecn 
    | No files | `registry:theme`, for opt-in themes only |
 
    Block files may use `registry:block`, `registry:page`, `registry:component`, or `registry:file`. The `registry:page` and `registry:file` types require explicit `target`s.
+
+   Files under `agents/` are Markdown for a coding agent, bundled by the item that installs them as `registry:file` with an explicit `target`. They are not source: the source rules below and `just tokens` read `.ts` and `.tsx` files only.
 
 2. **Bundle shared tradecn code in `files[]`, with a type per file.** Never put another tradecn item in `registryDependencies`: the GitHub install form does not pass `#ref` to dependencies, so an item pinned to `v0.1.0` could pull siblings from `main`. Shared files across items stay byte-identical and merge cleanly.
 3. **`registryDependencies` are bare shadcn built-in names.** Each must be in `registry/tradecn/builtins.lock.json`, with every imported symbol exported in all three locked styles. `just lock-builtins-check` refetches upstream; the nightly job runs that check.

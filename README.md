@@ -9,6 +9,8 @@ Trading-terminal components you install with `shadcn add`. The source lands in y
 
 ## Install
 
+tradecn v2 requires React 19 and matching React DOM. TypeScript projects also need the React 19 types.
+
 Add an item to your shadcn project, pinned to a release tag:
 
 <!-- x-release-please-start-version -->
@@ -41,6 +43,8 @@ The namespace URL serves the latest release. To pin it, use `https://tradecn.dev
 
 tradecn adds grids, price formatting, scoped hotkeys, and order tickets to shadcn's menus and tooltips. These are some of the items; [tradecn.dev](https://tradecn.dev/docs/components/) has the full catalog, docs, and live demos.
 
+The links below follow this repository revision and may include unreleased APIs. For a tagged installation, select the matching version in the [published documentation](https://tradecn.dev/docs/) before copying Usage examples.
+
 | Item | What it does |
 |---|---|
 | [`format`](docs/format.md) | Tick-size precision, 32nds and 64ths (`99-16+`), yield, bps, DV01, and compact notional. One missing-value marker. |
@@ -59,7 +63,7 @@ tradecn adds grids, price formatting, scoped hotkeys, and order tickets to shadc
 
 ### Themes
 
-Themes replace your stylesheet variables, including tradecn font choices; other items add only missing variables. Review with `--diff` before installing. Each theme has light and dark palettes:
+Themes replace your stylesheet variables, including tradecn font choices; other items add only missing variables. Follow the theme's Usage section to review its stylesheet changes before installing. Each theme has light and dark palettes:
 
 | Theme | Palette |
 |---|---|
@@ -85,10 +89,12 @@ Review tradecn and shadcn updates separately. Replace the tag with the release y
 
 ```bash
 npx shadcn@latest add tradecn/ui/data-grid#v1.4.13 --diff   # a tradecn change
-npx shadcn@latest add tooltip --diff                       # a shadcn change underneath
+npx shadcn@latest add context-menu --diff                  # a shadcn change underneath
 ```
 
 <!-- x-release-please-end -->
+
+Review stylesheet changes separately by running the command again with the `tailwind.css` path from your `components.json`, such as `--diff src/index.css`. This shows only the stylesheet diff, so keep the file review above. After reviewing both, remove `--diff` and its path to apply the update.
 
 ## Dependencies
 
@@ -121,7 +127,9 @@ Run `just bench --machine "<name>"` on your target hardware to write your own JS
 
 ## Working on it
 
-Run `bun install`, then `just dev` for the playground. Before pushing, run `just check` for lint, types, tests, registry validation/build, and site build/smoke checks. CI also runs consumer installation, GitHub install-by-ref, and infrastructure checks.
+Run `bun install`, then `just dev` for the playground. Install Chromium with `bunx playwright install chromium` before your first `just check`; repeat this after a Playwright update. On Linux, use `bunx playwright install --with-deps chromium` for system dependencies too.
+
+Before pushing, run `just check` for lint, types, tests, registry validation/build, and site build/smoke checks. CI also runs consumer installation, GitHub install-by-ref, and infrastructure checks.
 
 - Give each new item a demo in `playground/src/demos/`; tradecn.dev uses it.
 - Put substantial variants in `<item>-<variant>.tsx`, with `<!-- demo: <item>-<variant> -->` under a dedicated heading in the item's doc.

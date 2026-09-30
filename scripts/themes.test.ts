@@ -145,7 +145,7 @@ describe("the themes", () => {
     expect(parseOklch(east.cssVars!.dark!.up!)!.h).toBeLessThan(60)
   })
 
-  it("amber takes blue for up, the pair furthest apart under every kind of color blindness", () => {
+  it("amber uses blue for up and vermilion for down in both modes", () => {
     const amber = themes.find((t) => t.name === "tradecn-amber")!
     for (const mode of ["light", "dark"] as const) {
       expect(parseOklch(amber.cssVars![mode]!.up!)!.h).toBeGreaterThan(230)

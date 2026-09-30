@@ -1,4 +1,5 @@
 import type { ComponentType } from "react"
+import { AgentKitScene } from "./agent-kit"
 import { AlertStoreScene } from "./alert-store"
 import { AlertsScene } from "./alerts"
 import { AuditTrailScene } from "./audit-trail"
@@ -88,6 +89,7 @@ export const items: Record<string, ItemScene> = {
   "session-calendar": { title: "session-calendar", Scene: SessionCalendarScene },
   limits: { title: "limits", Scene: LimitsScene },
   "window-set": { title: "window-set", Scene: WindowSetScene },
+  "agent-kit": { title: "agent-kit", Scene: AgentKitScene },
   "tradecn-slate": { title: "tradecn-slate", Scene: TradecnSlateScene },
   "tradecn-slate-east": { title: "tradecn-slate-east", Scene: TradecnSlateEastScene },
   "tradecn-amber": { title: "tradecn-amber", Scene: TradecnAmberScene },

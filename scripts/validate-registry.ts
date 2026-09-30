@@ -33,8 +33,9 @@ const DIR_TYPES: Record<string, string[]> = {
   hooks: ["registry:hook"],
   lib: ["registry:lib"],
   blocks: ["registry:block", "registry:page", "registry:component", "registry:file"],
+  agents: ["registry:file"],
 }
-const CATEGORIES = new Set(["grid", "feed", "format", "palette", "hotkeys", "layout", "blotter", "ticket", "watchlist", "chrome", "theme", "rfq"])
+const CATEGORIES = new Set(["grid", "feed", "format", "palette", "hotkeys", "layout", "blotter", "ticket", "watchlist", "chrome", "theme", "rfq", "agent"])
 const FORBIDDEN_PACKAGES = [/^radix-ui$/, /^@radix-ui\//, /^@base-ui\//, /^@base-ui-components\//, /^cmdk$/, /^react-resizable-panels$/]
 const PEERS = new Set(["react", "react-dom"])
 const CSS_KEYS = [/^@keyframes tradecn-[\w-]+$/, /^@layer components$/]

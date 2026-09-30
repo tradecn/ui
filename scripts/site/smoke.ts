@@ -160,7 +160,7 @@ const headerProblem = (block: Locator) =>
     const language = el.querySelector("pre code")?.className.replace("language-", "")
     if (!caption) return "has no header"
     const mark = caption.querySelector(":scope > svg")?.getAttribute("class")
-    if (mark !== (language === "css" ? "css-icon" : "ts-icon")) return `wears ${mark} over ${language}`
+    if (mark !== (language === "css" ? "css-icon" : language === "md" ? "md-icon" : "ts-icon")) return `wears ${mark} over ${language}`
     const text = caption.textContent ?? ""
     if (language === "css" ? text !== "" : !text.endsWith(`.${language}`)) return `is headed "${text}" over ${language}`
     for (const part of caption.querySelectorAll("code > span")) if (part.getClientRects().length !== 1) return `breaks its path inside "${part.textContent}"`
