@@ -43,7 +43,7 @@ test("the desk keeps the contract", async ({ page }) => {
 })
 ```
 
-Run it on every screen the change touched, in light, dark and hyperlegible mode. Each finding names the tradecn slot, the element and what's wrong. `visibleCue: true` holds direction to a sign or arrow a reader can see. Mark a subtree `data-contract-ignore` only for a sample that breaks the rules on purpose, and say why beside it.
+Run it on every screen the change touched, in light, dark and hyperlegible mode. Each finding names the tradecn slot, the element and what's wrong. `visibleCue: true` holds direction to a sign, an arrow or a word a reader can see. Mark a subtree `data-contract-ignore` only for a sample that breaks the rules on purpose, and say why beside it.
 
 ## Review it
 
