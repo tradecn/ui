@@ -4,18 +4,19 @@ import { NUMERIC_CLASS } from "@/lib/format"
 
 // Three samples for checkContract. The kept one follows the contract, a word for a cue, a word and a number in two
 // spans a gap apart, a drawn sign a screen reader skips, a sign in a boxless wrapper, a colored run the spec also
-// checks as its own root, a field, a select, SVG text, SVG text painted in nothing and screen-reader-only small print
-// among it. The unseen one says its direction only to a screen reader, through a description it points to, a native
+// checks as its own root, a field, a select, SVG text, SVG text painted in nothing, a signed value on a fill four boxes
+// out, a file picker and screen-reader-only small print among it. The unseen one says its direction only to a screen reader, through a description it points to, a native
 // label, a faded sign, a sign painted transparent, a grid rule's highlight that its description explains, a
 // description on the run around the value, a label on an element that takes its role from a fallback token, a cell
 // marked with its side and a row whose label says the direction: that passes by default and fails under visibleCue.
 // The broken one breaks three rules on purpose: numbers colored up with nothing else saying so (in text, in a field,
-// in SVG text, with units, in a price split across two spans at its dash, behind a description that points at
-// nothing, a label that names no direction, a label on a plain span, which no screen reader hears, a side marked on a
-// container rather than on the value, a highlight from a rule whose tone is no direction, a hidden sign, and a faded
-// sign and a description under aria-hidden, which reach nobody); an icon button and a field with no name; and text
-// under the floor, an SVG label drawn at half size and small print the spec shrinks at run time, a select's and a
-// placeholder's among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
+// in SVG text, with units, on a fill four boxes out, in a price split across two spans at its dash, behind a
+// description that points at nothing, a label that names no direction, a label on a plain span, which no screen
+// reader hears, a side marked on a container rather than on the value, a highlight from a rule whose tone is no
+// direction, a highlight from a rule whose tone is the other direction, on text and on a fill, a hidden sign, and a
+// faded sign and a description under aria-hidden, which reach nobody); an icon button and a field with no name; and
+// text under the floor, an SVG label drawn at half size and small print the spec shrinks at run time, a select's, a
+// placeholder's, a file picker's and a file picker's button alone among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
 
 export function AgentKitScene() {
   const id = useId()
@@ -64,6 +65,18 @@ export function AgentKitScene() {
           <option>5</option>
           <option>10</option>
         </select>
+        <div className="bg-up-soft">
+          <div>
+            <div>
+              <div>
+                <span data-numeric="" className={NUMERIC_CLASS}>
+                  +0-09
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <input type="file" aria-label="Positions file" className="w-48" />
         <button type="button" aria-label="Refresh">
           ↻
         </button>
@@ -144,6 +157,23 @@ export function AgentKitScene() {
             0-11
           </span>
         </div>
+        <span data-cue="crossed-rule" data-rule="breach" data-tone="down" aria-description="Breach" className={cn(NUMERIC_CLASS, "text-up")}>
+          0-13
+        </span>
+        <span data-cue="crossed-fill" data-rule="breach" data-tone="down" aria-description="Breach" className={cn(NUMERIC_CLASS, "bg-up-soft")}>
+          0-15
+        </span>
+        <div className="bg-up-soft">
+          <div>
+            <div>
+              <div>
+                <span data-cue="deep-fill" className={NUMERIC_CLASS}>
+                  0-12
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
         <span data-cue="hidden" className={cn(NUMERIC_CLASS, "text-up")}>
           <span hidden>+</span>0-04
         </span>
@@ -172,6 +202,8 @@ export function AgentKitScene() {
           <option>5</option>
           <option>10</option>
         </select>
+        <input type="file" aria-label="Trades file" data-cue="file" data-small-print="" className="w-48" />
+        <input type="file" aria-label="Fills file" data-cue="file-button" data-button-print="" className="w-48" />
       </div>
     </div>
   )

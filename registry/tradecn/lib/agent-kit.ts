@@ -74,9 +74,11 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       .replace(/\s+/g, " ")
       .trim()
   // What a field shows: the value of an input or a text area, a drop-down's chosen option, or every option of a list
-  // box. A checkbox, a radio, a slider, a color well or a file picker shows no text of its own. Read by tag so an
-  // element from another window's realm still counts.
+  // box. A checkbox, a radio, a slider or a color well shows no text of its own. A file picker shows the browser's
+  // words and the chosen file's name, which no rule reads: the floor measures them by their styles instead. Read by
+  // tag so an element from another window's realm still counts.
   const isField = (el: Element) => el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT"
+  const isFilePicker = (el: Element) => el.tagName === "INPUT" && (el as HTMLInputElement).type.toLowerCase() === "file"
   const field = (el: Element) => {
     if (el.tagName === "SELECT") {
       const select = el as HTMLSelectElement
@@ -206,6 +208,17 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
 
   if (rules.has("floor")) {
     for (const el of elements) {
+      // A file picker draws the chosen file's name, or the browser's word for none, in its own style, and its button's
+      // word in the style ::file-selector-button gives it. Both are measured and neither is read, so no finding carries
+      // a file's name.
+      if (isFilePicker(el)) {
+        if (!placed(el)) continue
+        report.checked.floor++
+        const parts: [string, CSSStyleDeclaration][] = [["font-size", style(el)], ["the button's font-size", style(el, "::file-selector-button")]]
+        const under = parts.filter(([, s]) => s.display !== "none" && s.visibility !== "hidden" && parseFloat(s.opacity) !== 0 && !transparent(s.color) && parseFloat(s.fontSize) < floor - 0.01)
+        if (under.length) find("floor", el, `${under.map(([part, s]) => `${part} ${s.fontSize}`).join(" and ")} ${under.length > 1 ? "are" : "is"} under the ${floor} px floor`)
+        continue
+      }
       const value = textOf(el)
       const text = value || placeholderOf(el)
       if (!text) continue
@@ -249,24 +262,40 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       probe.style[property] = ""
       return value
     }
-    const both = (property: "color" | "fill" | "stroke") => new Set([resolve(property, "up"), resolve(property, "down")].filter((value): value is string => Boolean(value)))
+    // The colors a property resolves the direction tokens to, each with the directions it stands for: one, or both where
+    // a theme draws up and down alike.
+    const paints = (property: "color" | "backgroundColor" | "fill" | "stroke", tokens: readonly string[]) => {
+      const found = new Map<string, Set<string>>()
+      for (const token of tokens) {
+        const value = resolve(property, token)
+        if (value) found.set(value, new Set([...(found.get(value) ?? []), token.replace(/-soft$/, "")]))
+      }
+      return found
+    }
     // Text is drawn in its color, and SVG text in its fill and stroke whatever its color says.
-    const inks = { color: both("color"), fill: both("fill"), stroke: both("stroke") }
-    const fills = new Set(["up", "down", "up-soft", "down-soft"].map((token) => resolve("backgroundColor", token)).filter((value): value is string => Boolean(value)))
+    const inks = { color: paints("color", ["up", "down"]), fill: paints("fill", ["up", "down"]), stroke: paints("stroke", ["up", "down"]) }
+    const fills = paints("backgroundColor", ["up", "down", "up-soft", "down-soft"])
     probe.remove()
-    // The direction ink an element's glyphs are drawn in, and the property that carries it.
+    // The direction ink an element's glyphs are drawn in, the property that carries it, and the directions it stands for.
     const inkOf = (el: Element) => {
       const s = style(el)
       const shows = { color: true, fill: fillShows(s), stroke: strokeShows(s) }
-      for (const property of svgText(el) ? (["fill", "stroke"] as const) : (["color"] as const)) if (shows[property] && inks[property].has(s[property])) return { property, value: s[property] }
+      for (const property of svgText(el) ? (["fill", "stroke"] as const) : (["color"] as const)) {
+        const directions = shows[property] ? inks[property].get(s[property]) : undefined
+        if (directions) return { property, value: s[property], directions }
+      }
       return null
     }
-    // The first background behind the text, within a few levels: a tinted cell, a flash, a badge.
+    // The first background behind the text, however far out, up to the checked root: a tinted cell, a flash, a badge. A
+    // direction fill comes with the directions it stands for.
     const fillBehind = (el: Element) => {
-      let node: Element | null = el
-      for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
+      for (let node: Element | null = el; node; node = node.parentElement) {
         const background = style(node).backgroundColor
-        if (background && !transparent(background)) return fills.has(background) ? { node, color: background } : null
+        if (background && !transparent(background)) {
+          const directions = fills.get(background)
+          return directions ? { node, color: background, directions } : null
+        }
+        if (node === scope) break
       }
       return null
     }
@@ -315,9 +344,9 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     // A grid rule's tone is the rule's color, not a direction. The rule names itself in data-rule and data-tone and says
     // what it matched in its description, the channel scripts/color.test.ts records for it. Only the rule nearest the
     // value, on it or in its colored run, counts, and only when its tone is the direction color that was found.
-    const ruled = (el: Element, run: Element) => {
+    const ruled = (el: Element, run: Element, directions: Set<string>) => {
       for (let node: Element | null = el; node; node = node.parentElement) {
-        if (node.matches("[data-rule]")) return !unheard(node) && ["up", "down"].includes(node.getAttribute("data-tone") ?? "") && Boolean((node.getAttribute("aria-description") ?? "").trim() || refs(node, "aria-describedby"))
+        if (node.matches("[data-rule]")) return !unheard(node) && directions.has(node.getAttribute("data-tone") ?? "") && Boolean((node.getAttribute("aria-description") ?? "").trim() || refs(node, "aria-describedby"))
         if (node === run) break
       }
       return false
@@ -351,7 +380,8 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       if (!/\d/.test(text) || !drawn(el)) continue
       const ink = inkOf(el)
       const tint = ink ? null : fillBehind(el)
-      if (!ink && !tint) continue
+      const paint = ink ?? tint
+      if (!paint) continue
       const painted = ink?.value ?? tint?.color
       report.checked.direction++
       // The colored run: a tinted box whole, or the element and up to three wrappers around it that share its ink, the
@@ -360,7 +390,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       if (ink) for (let depth = 0; depth < 3 && run !== scope && run.parentElement && style(run.parentElement)[ink.property] === ink.value; depth++) run = run.parentElement
       const seen = (gap: string) => shown(run, Boolean(options.visibleCue) || unheard(run), gap)
       if (cued(seen("").trim()) || saysDirection.test(seen(" "))) continue
-      if (!options.visibleCue && (marked(el, run) || ruled(el, run) || saysAlong(el, run) || says(cellOf(el)) || says(rowOf(el)))) continue
+      if (!options.visibleCue && (marked(el, run) || ruled(el, run, paint.directions) || saysAlong(el, run) || says(cellOf(el)) || says(rowOf(el)))) continue
       find("direction", el, `painted ${painted} with no sign, arrow, word${options.visibleCue ? "" : ", data-direction or label"} saying the direction`)
     }
   }

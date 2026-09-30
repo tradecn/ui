@@ -248,6 +248,22 @@ describe("checkContract", () => {
     expect(JSON.stringify(report)).not.toContain("hunter2")
   })
 
+  it("measures a file picker by its styles and never puts a file's name in a finding", () => {
+    const root = mount(
+      '<div><input type="file" aria-label="Positions" style="font-size: 10px"><input type="file" aria-label="Fills" style="font-size: 12px"><input type="file" aria-label="Trades" style="font-size: 10px; display: none"></div>',
+    )
+    const picker = root.querySelector("input") as HTMLInputElement
+    const files = new DataTransfer()
+    files.items.add(new File(["x"], "positions-2026.csv", { type: "text/csv" }))
+    picker.files = files.files
+    expect(picker.files[0]?.name).toBe("positions-2026.csv")
+    const report = checkContract({ root, rules: ["floor", "numeric", "direction", "name"] })
+    expect(report.checked.floor).toBe(2)
+    expect(report.findings.map((f) => [f.rule, f.where, f.text])).toEqual([["floor", "page input", ""]])
+    expect(report.findings[0]?.detail).toMatch(/^font-size 10px /)
+    expect(JSON.stringify(report)).not.toContain("positions")
+  })
+
   it("leaves out a subtree marked data-contract-ignore, unless told to skip nothing", () => {
     const root = mount('<div><div data-contract-ignore=""><p style="font-size: 10px">on purpose</p><button></button></div></div>')
     expect(rulesOf(root)).toEqual([])
