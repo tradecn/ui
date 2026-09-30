@@ -175,7 +175,7 @@ export function confirms(problems: readonly Problem[]): Problem[] {
 
 /** The first message per field, for printing under the fields the way the tickets do. */
 export function problemsByField(problems: readonly Problem[]): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const p of problems) if (!(p.field in out)) out[p.field] = p.message
-  return out
+  const messages = new Map<string, string>()
+  for (const p of problems) if (!messages.has(p.field)) messages.set(p.field, p.message)
+  return Object.fromEntries(messages)
 }

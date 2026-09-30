@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
-import { blocks, checkLimits, confirms, distanceFromMarket, marketSideFor, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
+import { blocks, checkLimits, confirms, distanceFromMarket, marketSideFor, problemsByField, type Limits, type Problem } from "@/registry/tradecn/lib/limits"
 
 const ust: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const bill: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.0005, quoteBasis: "discount" }
@@ -72,6 +72,20 @@ describe("checkLimits", () => {
     expect(blocks(problems).map((p) => p.rule)).toEqual(["maxQuantity", "sides"])
     expect(confirms(problems).map((p) => p.rule)).toEqual(["maxDistance"])
     expect(Object.keys(problemsByField(problems))).toEqual(["quantity", "price", "side"])
+  })
+
+  it("keeps the first message for every custom field as an own enumerable property", () => {
+    const fields = ["constructor", "deskPolicy", "__proto__", "toString", "hasOwnProperty", ""]
+    const problems: Problem[] = fields.flatMap((field) => [
+      { field, level: "confirm", rule: "first", message: field === "" ? "" : `Check ${field}` },
+      { field, level: "block", rule: "later", message: "A later message" },
+    ])
+    const original = structuredClone(problems)
+    const grouped = problemsByField(problems)
+    expect(Object.entries(grouped)).toEqual(fields.map((field) => [field, field === "" ? "" : `Check ${field}`]))
+    expect(Object.getPrototypeOf(grouped)).toBe(Object.prototype)
+    expect(JSON.parse(JSON.stringify(grouped))).toEqual(grouped)
+    expect(problems).toEqual(original)
   })
 })
 

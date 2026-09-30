@@ -22,12 +22,13 @@ export function RfqTicketScene() {
   const [inquiry, setInquiry] = useState(INQUIRY)
   const [sent, setSent] = useState<RfqQuoteDraft[]>([])
   const [ack, setAck] = useState(0)
+  const [blocked, setBlocked] = useState(false)
   return (
     <HotkeysProvider bindings={[]}>
       <div className="flex w-[26rem] flex-col gap-2" data-rfq-sent={JSON.stringify(sent)}>
         <RfqTicket
           inquiry={inquiry}
-          limits={{ maxDistance: { ticks: 4, level: "confirm" } }}
+          limits={{ maxDistance: { ticks: 4, level: "confirm" }, custom: () => blocked ? [{ field: "__proto__", level: "block", rule: "desk-policy", message: "Desk policy blocks this quote." }] : [] }}
           quickSizes={[1_000_000, 2_000_000]}
           actions={[
             { id: "quote", label: "Quote", primary: true, run: (draft) => setSent((s) => [...s, draft]) },
@@ -35,6 +36,9 @@ export function RfqTicketScene() {
           ]}
           acknowledged={ack || undefined}
         />
+        <button type="button" onClick={() => setBlocked((value) => !value)}>
+          {blocked ? "clear custom block" : "set custom block"}
+        </button>
         <button type="button" onClick={() => { setAck((n) => n + 1); setInquiry((q) => ({ ...q, status: "Quoted", quoted: { ask: sent.at(-1)?.ask ?? null } })) }}>
           venue takes it
         </button>

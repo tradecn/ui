@@ -273,10 +273,11 @@ export function Ticket({
 
   // The limits, live: a block shows under its field and holds the actions that send the draft; a confirm waits for the click.
   const limitProblems = limits ? checkLimits({ side: draft.side, quantity: draft.quantity, price: priced ? draft.price : null }, limits, { market: reference, convention }) : []
-  const blockedBy = problemsByField(blocks(limitProblems))
-  const blocked = Object.keys(blockedBy).length > 0
+  const blocking = blocks(limitProblems)
+  const blockedBy = problemsByField(blocking)
+  const blocked = blocking.length > 0
   const shownProblems = { quantity: problems.quantity ?? blockedBy.quantity, price: problems.price ?? blockedBy.price }
-  const otherBlocks = blocks(limitProblems).filter((p) => p.field !== "quantity" && p.field !== "price")
+  const otherBlocks = blocking.filter((p) => p.field !== "quantity" && p.field !== "price")
   const asking = confirming !== null ? confirms(limitProblems) : []
 
   const box = useRef<HTMLDivElement>(null)
@@ -372,9 +373,10 @@ export function Ticket({
     const found = checkDraft(current, types, words)
     // The limits, as the click lands: a block stops here and shows under its field; a confirm asks once, and the next click on the same action sends.
     const over = lines ? checkLimits({ side: current.side, quantity: current.quantity, price }, lines, { market, convention: inst.convention }) : []
-    const stopped = problemsByField(blocks(over))
+    const blocking = blocks(over)
+    const stopped = problemsByField(blocking)
     setProblems({ quantity: found.quantity ?? stopped.quantity, price: found.price ?? stopped.price })
-    if (found.quantity || found.price || Object.keys(stopped).length) return
+    if (found.quantity || found.price || blocking.length) return
     if (confirms(over).length && asked !== action.id) {
       setConfirming(action.id)
       return

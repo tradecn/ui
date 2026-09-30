@@ -326,6 +326,41 @@ describe("limits", () => {
   const LIMITS = { maxQuantity: { confirm: 10, block: 50 }, maxDistance: { ticks: 4 } }
   const REFERENCE = { bid: 99.5, ask: 99.515625 }
 
+  it.each(["deskPolicy", "constructor", "toString", "__proto__"])("holds checked actions for the custom field %s and releases them when its block is removed", (field) => {
+    const send = vi.fn()
+    const cancel = vi.fn()
+    const { rerender } = mount({
+      defaultDraft: draftOf(),
+      limits: { custom: () => [{ field, level: "block", rule: "desk-policy", message: "Desk policy blocks this order." }] },
+      actions: [{ id: "send", label: "Send", run: send }, { id: "cancel", label: "Cancel", run: cancel, checked: false }],
+      allowedActions: ["send", "cancel"],
+    })
+    expect(document.querySelector("[data-ticket-limits='block']")).toHaveTextContent("Desk policy blocks this order.")
+    const button = screen.getByRole("button", { name: /^Send/ })
+    expect(button).toBeDisabled()
+    fireEvent.click(button)
+    expect(send).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(cancel).toHaveBeenCalledTimes(1)
+    rerender({ limits: undefined })
+    expect(button).not.toBeDisabled()
+    expect(document.querySelector("[data-ticket-limits='block']")).toBeNull()
+    fireEvent.click(button)
+    expect(send).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(["deskPolicy", "constructor", "toString", "__proto__"])("rechecks a custom %s block when the send key is pressed", (field) => {
+    let deny = false
+    const { run } = mount({
+      defaultDraft: draftOf(),
+      limits: { custom: () => deny ? [{ field, level: "block", rule: "desk-policy", message: "Desk policy blocks this order." }] : [] },
+    })
+    expect(screen.getByRole("button", { name: /^Send/ })).not.toBeDisabled()
+    deny = true
+    fireEvent.keyDown(price(), { key: "Enter", ctrlKey: true })
+    expect(run).not.toHaveBeenCalled()
+  })
+
   it("asks again past a confirm line, sends on the second click, and withdraws the question when the draft changes", () => {
     const { run } = mount({ limits: LIMITS, reference: REFERENCE })
     type(quantity(), "20")

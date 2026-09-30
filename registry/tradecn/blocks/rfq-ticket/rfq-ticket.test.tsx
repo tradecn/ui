@@ -89,6 +89,37 @@ describe("the pure parts", () => {
 })
 
 describe("RfqTicket", () => {
+  it.each(["deskPolicy", "constructor", "toString", "__proto__"])("holds quote actions for the custom field %s and releases them when its block is removed", (name) => {
+    const { quote, pass, rerender } = mount({
+      defaultDraft: { ask: 99.515625 },
+      limits: { custom: () => [{ field: name, level: "block", rule: "desk-policy", message: "Desk policy blocks this quote." }] },
+    })
+    expect(document.querySelector("[data-rfq-limits='block']")).toHaveTextContent("Desk policy blocks this quote.")
+    const button = screen.getByRole("button", { name: /^Quote/ })
+    expect(button).toBeDisabled()
+    fireEvent.click(button)
+    expect(quote).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Pass" }))
+    expect(pass).toHaveBeenCalledTimes(1)
+    rerender({ limits: undefined })
+    expect(button).not.toBeDisabled()
+    expect(document.querySelector("[data-rfq-limits='block']")).toBeNull()
+    fireEvent.click(button)
+    expect(quote).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(["deskPolicy", "constructor", "toString", "__proto__"])("rechecks a custom %s block when the quote key is pressed", (name) => {
+    let deny = false
+    const { quote } = mount({
+      defaultDraft: { ask: 99.515625 },
+      limits: { custom: () => deny ? [{ field: name, level: "block", rule: "desk-policy", message: "Desk policy blocks this quote." }] : [] },
+    })
+    expect(screen.getByRole("button", { name: /^Quote/ })).not.toBeDisabled()
+    deny = true
+    fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
+    expect(quote).not.toHaveBeenCalled()
+  })
+
   it("is a group named for the inquiry, an editing scope, the block's slot, and shows the inquiry as it came", () => {
     mount()
     const ticket = screen.getByRole("group", { name: "Inquiry Q-1" })
