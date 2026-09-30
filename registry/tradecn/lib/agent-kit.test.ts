@@ -150,6 +150,23 @@ describe("checkContract", () => {
     expect(report.findings.map((f) => f.where)).toEqual(["page button[data-id=decor]", "page input[data-id=own-value]"])
   })
 
+  it("leaves a control out of what its reference points to, and reads it for itself when it points at itself", () => {
+    const root = mount(
+      [
+        "<div>",
+        '<label id="wrap"><input aria-labelledby="wrap" value="42" data-id="wrapped"></label>',
+        '<div id="box"><input aria-labelledby="box" value="42" data-id="boxed"></div>',
+        '<label id="size">Size <input aria-labelledby="size" value="42"></label>',
+        '<input id="self" aria-labelledby="self" value="42">',
+        '<button id="del" aria-labelledby="del del-file">Delete</button><span id="del-file">file.txt</span>',
+        "</div>",
+      ].join(""),
+    )
+    const report = checkContract({ root, rules: ["name"] })
+    expect(report.checked.name).toBe(5)
+    expect(report.findings.map((f) => f.where)).toEqual(["page input[data-id=wrapped]", "page input[data-id=boxed]"])
+  })
+
   it("follows a reference inside a shadow root there, and never out of it to the document", () => {
     const host = mount('<div><span id="doc-label">Save</span></div>')
     const shadow = host.attachShadow({ mode: "open" })

@@ -179,14 +179,18 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     return tree.nodeType === 9 || tree.nodeType === 11 ? tree.getElementById(id) : null
   }
   // The text alternative of the elements an ID list points to, as aria-labelledby and aria-describedby read them. An
-  // element pointed at counts even when hidden, and a reference to nothing reads as nothing.
+  // element pointed at counts even when hidden, and a reference to nothing reads as nothing. The referring element met
+  // inside a target says nothing, so a field wrapped by the label it points to takes no name from its own value; pointed
+  // at itself, it is read for itself, its value or its content, as Chromium reads it.
   const refs = (el: Element, attribute: string): string =>
     (el.getAttribute(attribute) ?? "")
       .split(/\s+/)
       .filter(Boolean)
       .map((id) => {
         const target = byId(el, id)
-        return target ? textAlternative(target, { referenced: true, hiddenOk: target.getAttribute("aria-hidden") === "true" || hidden(target) }) : ""
+        if (!target) return ""
+        const hiddenOk = target.getAttribute("aria-hidden") === "true" || hidden(target)
+        return textAlternative(target, target === el ? { referenced: true, hiddenOk } : { referenced: true, hiddenOk, self: el })
       })
       .join(" ")
       .replace(/\s+/g, " ")
