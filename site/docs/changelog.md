@@ -1,5 +1,5 @@
 # Changelog
 
-Every tag, and the pull requests that made it.
+Release history with links to the changes.
 
 {{changelog}}

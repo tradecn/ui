@@ -4,11 +4,13 @@ Slate's light and dark palettes with the direction pair reversed: red for up and
 
 ## Usage
 
-A theme installs no files. It rewrites the variables in your stylesheet, so look first, and commit before you run it without `--diff`:
+A theme installs no files. It rewrites the variables in your stylesheet. Configure the `@tradecn` namespace for the release you want, following [Installation](https://tradecn.dev/docs/installation/#namespace-form). When reading an older versioned page, select that same release in the Installation guide's version menu before copying the namespace. Replace `src/index.css` below with the `tailwind.css` path from your `components.json`:
 
 ```bash
-npx shadcn@latest add tradecn/ui/tradecn-slate-east --diff
+npx shadcn@latest add @tradecn/tradecn-slate-east --diff src/index.css
 ```
+
+A bare `--diff` does not show theme CSS changes. Review the stylesheet diff and commit your current files, then remove `--diff` and the stylesheet path to install the theme.
 
 ## API Reference
 

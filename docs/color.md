@@ -34,7 +34,9 @@ For magnitude, use a perceptually uniform ramp such as viridis, designed for com
 | [`tradecn-slate`](tradecn-slate.md) | Cool near-neutral, two sides | Blue | Bluish green | Vermilion | Desks that expect green for up |
 | [`tradecn-slate-east`](tradecn-slate-east.md) | Slate | Blue | Vermilion | Bluish green | Desks that expect red for up |
 
-Each theme sets every tradecn token in both modes, replaces the palette variables, and resets tradecn's typography tokens to their defaults. It also adds the numeric base rules and accessible-font remap described in [Typography](typography.md). A theme enables variable overwrites for the install, so inspect `--diff` first and commit your stylesheet before installing. Themes add no runtime mode switcher.
+Each theme sets every tradecn token in both modes, replaces the palette variables, and resets tradecn's typography tokens to their defaults. It also adds the numeric base rules and accessible-font remap described in [Typography](typography.md). Themes add no runtime mode switcher.
+
+Themes enable variable overwrites for the whole install. Before installing a theme, commit your stylesheet and review the changes with `--diff` followed by its `tailwind.css` path from `components.json`, such as `--diff src/index.css`. A bare `--diff` shows no theme CSS. Remove both the flag and its path when applying the theme.
 
 The black, monospace `tradecn-terminal` and its green/red variant, `tradecn-terminal-classic`, were removed at 1.0. They reused one palette in both modes; the original terminal also gave up and down the same OKLCH lightness. Existing installations keep their stylesheet values until you replace them.
 

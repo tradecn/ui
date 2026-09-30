@@ -1118,7 +1118,7 @@ describe("the docs pages", async () => {
     expect(intro).toContain("<p>Trading-terminal components you install with <code>shadcn add</code>. The source lands in your repo and it&#39;s yours.</p>")
     expect(intro).toContain('<h2 id="it-rides-shadcn">')
     expect(intro).toContain('<a href="/docs/contract/">the item contract</a>')
-    expect(intro).toContain(`${tag} is the latest, and <a href="/docs/installation/">Installation</a> has both forms`)
+    expect(intro).toContain(`This page describes ${tag}. Pin that tag to install matching source; <a href="/docs/installation/">Installation</a> has both forms`)
     expect(intro).toContain('<table class="dependencies">')
     expect(intro).toContain('<tr><td><code class="identifier">dockview-react</code></td><td><a href="/docs/workspace/"><code class="identifier">workspace</code></a></td></tr>')
     expect(intro).toMatch(/<tr><td><code>@tanstack\/react-virtual<\/code><\/td><td><a href="\/docs\/data-grid\/"><code class="identifier">data-grid<\/code><\/a>, /)
@@ -1137,12 +1137,31 @@ describe("the docs pages", async () => {
       expect(words).toContain(`${run} shadcn@latest add tradecn/ui/data-grid#${tag} --diff`)
       expect(words).toContain(`${run} shadcn@latest add @tradecn/format @tradecn/row-store `)
     }
-    expect(words).toContain(`"@tradecn": "https://tradecn.dev/r/{name}.json"`)
+    expect(words).toContain(`"@tradecn": "https://tradecn.dev/r/${tag}/{name}.json"`)
     expect(install).toContain(`https://tradecn.dev/r/${tag}/{name}.json`)
     // The GitHub form, the namespace add, the two update commands, and every item at once; the JSON block gets a button and no tabs.
     expect(install.match(/<div class="code command">/g)).toHaveLength(4)
     expect(install.match(/class="copy"/g)).toHaveLength(5)
-    expect(written(install)).toContain(`@tradecn/${registry.items.at(-1)?.name}\n`)
+    expect(written(install)).toContain(`@tradecn/${registry.items.filter((item) => item.type !== "registry:theme").at(-1)?.name}\n`)
+  })
+
+  it("keeps palette-changing themes out of the copied bulk installation command", () => {
+    const install = site.find((doc) => doc.slug === "installation")!.html
+    const commands = [...install.matchAll(/<pre[^>]*>[\s\S]*?<\/pre>/g)].map((match) => written(match[0]).trim())
+    const bulk = commands.find((command) => command.includes("@tradecn/format @tradecn/row-store"))!
+    expect(bulk.split(" ").slice(3)).toEqual(registry.items.filter((item) => item.type !== "registry:theme").map((item) => `@tradecn/${item.name}`))
+  })
+
+  it("pins copied namespace setup to the same release as the page's GitHub commands", async () => {
+    for (const version of ["1.4.13", "0.8.1"]) {
+      const values = templateValues(registry, version, registry, docSlugs)
+      const pages = await readSitePages(resolve(root, "site", SITE_DOCS), sitePageValues(registry, values, docSlugs, changelog))
+      const install = pages.find((doc) => doc.slug === "installation")!.html
+      const blocks = [...install.matchAll(/<pre[^>]*>[\s\S]*?<\/pre>/g)].map((match) => written(match[0]).trim())
+      const config = JSON.parse(blocks.find((block) => block.startsWith("{"))!)
+      expect(config.registries["@tradecn"]).toBe(`https://tradecn.dev/r/v${version}/{name}.json`)
+      expect(written(install)).toContain(`tradecn/ui/data-grid#v${version}`)
+    }
   })
 
   it("indexes the components on the Components page as a list of titles linking their pages, and nothing of another kind", () => {

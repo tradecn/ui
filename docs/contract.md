@@ -13,6 +13,8 @@ npx shadcn add table --diff
 
 The first reviews a tradecn item; the second reviews a shadcn built-in. tradecn bundles its own files and names shadcn built-ins as dependencies.
 
+A bare `--diff` lists file changes but omits CSS changes, so a theme with no files shows no diff. Review stylesheet changes separately by running the command again with the `tailwind.css` path from your `components.json`, such as `--diff src/index.css`. This shows only the stylesheet diff. After reviewing both, remove `--diff` and its path to apply the update.
+
 ## Files and imports
 
 1. **Item types follow their location.** `registry:component` is not an item type.

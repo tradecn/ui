@@ -26,7 +26,7 @@ export const LOGS_BUCKET = "tradecn-dev-logs"
 // Search Console; the token is public by design (it is what the record publishes).
 export const APEX_TXT_VALUES = ["google-site-verification=AFluqJ31SaBFWAyyTLSJUankaHMWd0Xx3Y8No1gB1wI"]
 
-// The security headers every response carries, shared with scripts/site/smoke.ts, which serves them
+// The pages' CSP and frame policy, shared with scripts/site/smoke.ts, which serves them
 // locally: a page this policy would break fails the smoke before it is published. The first
 // previews shipped against a policy written for a page with no script, and only the live check saw it.
 export const SITE_HEADERS = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../site/headers.json"), "utf8")) as {

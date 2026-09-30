@@ -6,20 +6,20 @@ You already have shadcn's menus and tooltips. This adds what a trading screen ne
 
 ## It rides shadcn
 
-tradecn never copies shadcn's code. It imports your `@/components/ui/*`, styles it with `className`, and stops there. No Radix import, no Base UI import, no `asChild`, no `render`. So it doesn't care which base or style you picked, and a shadcn update is something that happens underneath it.
+tradecn imports your `@/components/ui/*` and uses their shared props and `className`. It doesn't bundle shadcn's source or import Radix or Base UI directly. Components avoid base-specific composition props such as `asChild` and `render`.
 
-That's a promise, so CI checks it. Every change installs the registry into three clean projects (Radix Nova, Base UI Mira, Base UI Vega) through the real CLI, typechecks tradecn's files, builds, and renders every item in a browser. A validator rejects any item that breaks the rules in [the item contract](contract.md). A nightly job refetches every shadcn component tradecn composes and fails if an export it uses changed.
+CI installs the registry into three clean projects: Radix Nova, Base UI Mira and Base UI Vega. Each project uses the real CLI, typechecks tradecn's files, builds and renders every item in Chromium. These are the tested styles; a new upstream style still needs verification. The validator checks [the item contract](contract.md), and a nightly job refetches the shadcn components to detect changes to exports tradecn uses.
 
-It has already caught one. Radix tooltips throw without a provider above them. Base UI's don't. Types passed in all three. The browser didn't.
+Browser checks cover differences types alone can miss. For example, Radix tooltips need a provider; tradecn supplies it when composing a tooltip.
 
 ## No npm package
 
-Pin the tag. The tag is the version. {{tag}} is the latest, and [Installation](installation.md) has both forms of the command.
+There is no npm package. This page describes {{tag}}. Pin that tag to install matching source; [Installation](installation.md) has both forms of the command.
 
 ## Dependencies
 
-Short on purpose: some of you ship into places where every package is a form to fill out.
+The CLI installs each item's declared dependencies alongside its source.
 
 {{dependencies}}
 
-No icon library either. shadcn picks a different one per base, so the grid draws its own three dots.
+The registry adds no icon library. shadcn picks a different one per base, so the grid draws its own three dots.
