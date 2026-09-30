@@ -182,7 +182,7 @@ Exports: `Watchlist`, `WatchlistGrid`, `WatchlistAddForm`, `WatchlistAddInput`, 
 
 Panels that dock, tab, float, and pop out, on dockview. The dock owns where things sit; tradecn owns what each panel is: a kind, a title, and the small JSON it asked to keep. Every docked panel is a hotkey scope of its kind with the active border, and the dock decides which one is active. A layout is written out some milliseconds after the last change, carries its own persistence boundaries, and is read back through a parser that takes nothing on trust.
 
-Exports: `Workspace`, `useWorkspacePanel`.
+Exports: `Workspace`, `useWorkspacePanel`, `WorkspaceTab`, `WorkspaceTabTitle`, `WorkspaceTabClose`, `WorkspaceTabActions`, `useWorkspaceTab`.
 
 ## Hooks
 
