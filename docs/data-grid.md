@@ -240,6 +240,10 @@ Use `big` to implement a larger step, such as ten ticks with Shift; the grid doe
 
 Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid input. A value equal to the store's current value sends nothing.
 
+Hiding or removing a column discards its open text editor without calling `onEdit`. Removing its `edit` configuration or switching to `toggle` also discards it.
+
+Restoring the column does not reopen the draft. These column changes preserve pending and rejected edits.
+
 A commit calls `onEdit` with `{ rowId, key, value, previous, row }`. The grid never writes the store. Its default renderer shows the committed text muted with `data-pending` until the store value matches it or the returned promise resolves. Resolution clears pending state and displays the current store value, which may still be the old value. Returning nothing leaves the edit pending until the store matches.
 
 A thrown error or rejection of a still-pending promise displays the store value with the error message, `data-rejected`, and destructive styling. Reopening the editor clears the error. A pending cell can also be reopened, starting from its committed text.
@@ -278,6 +282,8 @@ These shortcuts run with focus on the grid itself. Header controls, selection ch
 Row navigation also selects the focused row in single-select mode. A double click opens an editable text cell or activates the row. Each column header has move, hide, and reset controls, plus a resize handle. Sort controls appear only when the column has `sortable: true`.
 
 When a column disappears while its menu trigger or menu owns focus, focus returns to the grid. A surviving menu trigger retains the menu's normal close-focus behavior.
+
+If a column disappears or no longer supports a text editor, its focused editor returns focus to the grid when removed. Focus moved elsewhere is left alone.
 
 Hiding or removing the focused column clears column focus. Press Left or Right on the grid to choose a visible column before using its shortcuts.
 

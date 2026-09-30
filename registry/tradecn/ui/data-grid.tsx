@@ -361,6 +361,8 @@ function createEditTracker(): EditTracker {
 
 interface EditController {
   tracker: EditTracker
+  reconcileColumns(keys: ReadonlySet<string>): void
+  unmountEditor(key: string, input: HTMLInputElement): void
   open(rowId: RowId, key: string, typed?: string): void
   type(rowId: RowId, key: string, text: string): void
   /** Parse, check, and send. `move` opens the next (1) or previous (-1) editable cell of the row after. */
@@ -435,6 +437,10 @@ interface CellEditorProps {
 function CellEditor({ rowId, colKey, label, status, numeric, className, edits }: CellEditorProps) {
   const ref = useRef<HTMLInputElement>(null)
   const selectAll = status.selectAll
+  useLayoutEffect(() => {
+    const input = ref.current
+    return () => { if (input) edits.unmountEditor(colKey, input) }
+  }, [edits, colKey])
   useEffect(() => {
     const el = ref.current
     if (!el) return
@@ -787,6 +793,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const memory = useMemo(() => createFlashMemory(), [])
   const scrollRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const visibleEditColumns = useRef<ReadonlySet<string>>(EMPTY_SET)
 
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
@@ -798,6 +805,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const edits = useMemo<EditController | null>(() => {
     if (!editable) return null
     const tracker = createEditTracker()
+    let activeColumn: string | null = null
     const column = (key: string) => editLatest.current.columns.find((c) => c.key === key)
     const focusGrid = () => rootRef.current?.focus({ preventScroll: true })
     const send = (rowId: RowId, col: ColumnDef<T> & { edit: CellEdit<T> }, row: T, value: unknown) => {
@@ -852,10 +860,26 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       // A pending cell reopens on what it shows, the committed value, not on the value the store still holds.
       const now = tracker.get(k)
       const text = now?.kind === "pending" ? now.text : editText(col, col.accessor(row!), row!)
+      activeColumn = key
       tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined })
     }
     const controller: EditController = {
       tracker,
+      reconcileColumns(keys) {
+        const active = tracker.editing()
+        if (active !== null && activeColumn !== null && !keys.has(activeColumn)) tracker.set(active, undefined)
+      },
+      unmountEditor(key, input) {
+        const doc = input.ownerDocument
+        if (doc.activeElement !== input) return
+        // The root commits column availability after child cleanup; preserve any intervening focus move.
+        queueMicrotask(() => {
+          const grid = rootRef.current
+          if (input.isConnected || visibleEditColumns.current.has(key) || !grid?.isConnected || grid.ownerDocument !== doc) return
+          if (doc.activeElement !== doc.body && doc.activeElement !== input) return
+          focusGrid()
+        })
+      },
       open,
       type(rowId, key, text) {
         const k = cellKey(rowId, key)
@@ -926,6 +950,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     }
     return controller
   }, [editable, store])
+  useLayoutEffect(() => {
+    const keys = edits ? new Set(resolved.filter(col => col.edit && !col.edit.toggle).map(col => col.key)) : EMPTY_SET
+    visibleEditColumns.current = keys
+    edits?.reconcileColumns(keys)
+  }, [edits, resolved])
   const virtualizer = useVirtualizer({
     count: ids.length,
     getScrollElement: () => scrollRef.current,

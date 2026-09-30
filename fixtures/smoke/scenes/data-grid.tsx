@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react"
-import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type SortState } from "@/components/ui/data-grid"
+import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type EditChange, type SortState } from "@/components/ui/data-grid"
 import { createRowStore } from "@/lib/row-store"
 import DataGridDefaultsDemo from "./recipes/data-grid-defaults"
 import DataGridSharedDefaultsDemo from "./recipes/data-grid-shared-defaults"
@@ -35,8 +35,39 @@ export function DataGridScene() {
       <div data-grid-recipe="defaults"><DataGridDefaultsDemo /></div>
       <div data-grid-recipe="shared-defaults"><DataGridSharedDefaultsDemo /></div>
       <GridKeyboardScene />
+      <GridEditorScene />
     </div>
   )
+}
+
+const editorColumns: ColumnDef<Row>[] = [
+  { key: "id", header: "Quote", width: 100, accessor: row => row.id },
+  { key: "px", header: "Price", width: 100, numeric: true, accessor: row => row.px, edit: { parse: text => Number(text) } },
+]
+
+function GridEditorScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [missing, setMissing] = useState<"visible" | "hidden" | "removed">("visible")
+  const [sent, setSent] = useState<EditChange<Row>[]>([])
+  const columns = useMemo(() => missing === "removed" ? editorColumns.filter(column => column.key !== "px") : editorColumns, [missing])
+  const columnState = useMemo(() => ({ ...EMPTY_COLUMN_STATE, hidden: missing === "hidden" ? ["px"] : [] }), [missing])
+  return <div data-grid-editor data-sent={sent.length} className="flex flex-col gap-1" onKeyDownCapture={event => {
+    if (event.key !== "F8" && event.key !== "F9") return
+    event.preventDefault()
+    setMissing(event.key === "F8" ? "hidden" : "removed")
+  }}>
+    <div className="h-40"><DataGrid store={store} columns={columns} columnState={columnState} label="Editable quotes" focusedRowId="Beta" onEdit={change => setSent(previous => [...previous, change])} /></div>
+    <input aria-label="Outside editor target" />
+    <button type="button" onClick={() => setMissing("visible")}>Restore editor column</button>
+    <button type="button" onClick={() => {
+      const last = sent.at(-1)
+      if (last) store.applyDeltas({ patch: [{ id: last.rowId, fields: { px: Number(last.value) } }] })
+    }}>Accept edited price</button>
+  </div>
 }
 
 const keyboardColumns: ColumnDef<Row>[] = [

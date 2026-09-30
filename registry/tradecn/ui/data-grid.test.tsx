@@ -685,7 +685,7 @@ describe("editing", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     seed(5, store)
     const onActivate = vi.fn()
-    render(<DataGrid store={store} columns={columns} label="Sheet" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} onRowActivate={onActivate} />)
+    const { rerender, unmount } = render(<DataGrid store={store} columns={columns} label="Sheet" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} onRowActivate={onActivate} />)
     const grid = screen.getByRole("grid")
     const cell = (rowId: string, key: string) => document.querySelector<HTMLElement>(`[data-row-id="${rowId}"] [data-col="${key}"]`)!
     // Focus r1's price cell: down twice, right twice.
@@ -693,9 +693,133 @@ describe("editing", () => {
     fireEvent.keyDown(grid, { key: "ArrowDown" })
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     fireEvent.keyDown(grid, { key: "ArrowRight" })
-    return { store, grid, cell, onActivate }
+    return { store, grid, cell, onActivate, rerender, unmount }
   }
   const editor = () => screen.getByRole("textbox", { name: "Price" }) as HTMLInputElement
+
+  it.each(["hidden", "removed", "all hidden", "hidden by definition", "no longer editable"])("discards an uncommitted edit when its column is %s without reopening it on restore", disappearance => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const onEdit = vi.fn()
+    const layout = (missing: boolean) => {
+      let definitions = editable
+      if (missing && disappearance === "removed") definitions = editable.filter(column => column.key !== "px")
+      if (missing && disappearance === "hidden by definition") definitions = editable.map(column => column.key === "px" ? { ...column, hidden: true } : column)
+      if (missing && disappearance === "no longer editable") definitions = editable.map(column => column.key === "px" ? { ...column, edit: undefined } : column)
+      const hidden = !missing ? [] : disappearance === "all hidden" ? editable.map(column => column.key) : disappearance === "hidden" ? ["px"] : []
+      return <>
+        <input aria-label="Outside" />
+        <DataGrid store={store} columns={definitions} label="Sheet" initialRect={RECT} onEdit={onEdit} focusedRowId="r1" columnState={{ ...EMPTY_COLUMN_STATE, hidden }} />
+      </>
+    }
+    const { rerender } = render(layout(false))
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "105" } })
+    expect(document.activeElement).toBe(editor())
+    rerender(layout(true))
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    expect(onEdit).not.toHaveBeenCalled()
+    const outside = screen.getByRole("textbox", { name: "Outside" })
+    outside.focus()
+    rerender(layout(false))
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    expect(document.activeElement).toBe(outside)
+    expect(onEdit).not.toHaveBeenCalled()
+    fireEvent.doubleClick(grid.querySelector('[data-row-id="r1"] [data-col="px"]')!)
+    expect(editor()).toHaveValue("101.00")
+  })
+
+  it.each(["pending", "resolved", "rejected", "matched store"])("preserves a %s submitted edit through hidden columns", async result => {
+    let resolve = () => {}
+    let reject: (error: Error) => void = () => {}
+    const promise = new Promise<void>((done, fail) => { resolve = done; reject = fail })
+    const onEdit = vi.fn(() => promise)
+    const { store, grid, cell, rerender } = setup(onEdit)
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "108" } })
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    const layout = (hidden: string[]) => <DataGrid store={store} columns={editable} label="Sheet" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} columnState={{ ...EMPTY_COLUMN_STATE, hidden }} />
+    rerender(layout(["px"]))
+    if (result === "resolved") await act(async () => { resolve(); await promise })
+    if (result === "rejected") await act(async () => { reject(new Error("Price refused")); await promise.catch(() => {}) })
+    if (result === "matched store") act(() => store.applyDeltas({ patch: [{ id: "r1", fields: { px: 108 } }] }))
+    rerender(layout([]))
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    if (result === "pending") {
+      expect(cell("r1", "px")).toHaveAttribute("data-pending")
+      expect(cell("r1", "px")).toHaveTextContent("108.00")
+      await act(async () => { resolve(); await promise })
+    } else if (result === "rejected") {
+      expect(cell("r1", "px")).toHaveAttribute("data-rejected", "Price refused")
+      expect(cell("r1", "px")).toHaveAttribute("aria-description", "Price refused")
+    } else {
+      expect(cell("r1", "px")).not.toHaveAttribute("data-pending")
+      expect(cell("r1", "px")).toHaveTextContent(result === "matched store" ? "108.00" : "101.00")
+    }
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    if (result === "matched store") await act(async () => { resolve(); await promise })
+  })
+
+  it("keeps a surviving editor through other hidden columns, reordered widths, and unchanged controlled state", () => {
+    const onEdit = vi.fn()
+    const { store, grid, rerender } = setup(onEdit)
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = editor()
+    fireEvent.change(input, { target: { value: "108" } })
+    for (const state of [EMPTY_COLUMN_STATE, { ...EMPTY_COLUMN_STATE, hidden: ["qty"] }, { ...EMPTY_COLUMN_STATE, order: ["sym", "qty", "px"], widths: { px: 120 } }]) {
+      rerender(<DataGrid store={store} columns={editable} label="Sheet" initialRect={RECT} onEdit={onEdit} columnState={state} />)
+      expect(editor()).toBe(input)
+      expect(input).toHaveFocus()
+      expect(input).toHaveValue("108")
+    }
+    fireEvent.keyDown(input, { key: "Enter" })
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ key: "px", value: 108 }))
+  })
+
+  it("invalidates a custom-opened editor by its own column, independently of logical grid focus", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const onEdit = vi.fn()
+    const custom = editable.map<ColumnDef<Quote>>(column => column.key === "px" ? { ...column, cell: ({ edit }) => <button onClick={() => edit?.open()}>Open price</button> } : column)
+    const layout = (hidden: string[]) => <DataGrid store={store} columns={custom} label="Sheet" initialRect={RECT} focusedRowId="r1" onEdit={onEdit} columnState={{ ...EMPTY_COLUMN_STATE, hidden }} />
+    const { rerender } = render(layout([]))
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.click(grid.querySelector('[data-row-id="r0"] [data-col="px"] button')!)
+    expect(editor()).toHaveValue("100.00")
+    fireEvent.change(editor(), { target: { value: "108" } })
+    rerender(layout(["px"]))
+    rerender(layout([]))
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    expect(grid.querySelector('[data-row-id="r1"] [data-col="sym"]')).toHaveAttribute("data-focused-col")
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it.each(["grid", "outside", "unmounted", "replacement store", "disabled editing"])("recovers removed-editor focus with %s ownership", async destination => {
+    const onEdit = vi.fn()
+    const { store, grid, rerender, unmount } = setup(onEdit)
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "108" } })
+    const replacement = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, replacement)
+    rerender(<DataGrid store={destination === "replacement store" ? replacement : store} columns={editable.filter(column => column.key !== "px")} label="Sheet" initialRect={RECT} onEdit={destination === "disabled editing" ? undefined : onEdit} />)
+    const outside = document.createElement("button")
+    document.body.append(outside)
+    try {
+      if (destination === "unmounted") unmount()
+      if (destination === "outside" || destination === "unmounted") outside.focus()
+      await act(async () => {})
+      expect(document.activeElement).toBe(destination === "outside" || destination === "unmounted" ? outside : grid)
+      expect(onEdit).not.toHaveBeenCalled()
+    } finally {
+      outside.remove()
+    }
+  })
 
   it("opens on Enter with the text selected, commits on Enter as a change, shows the committed value as pending, and settles when the store agrees", () => {
     const onEdit = vi.fn()
