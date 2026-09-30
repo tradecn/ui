@@ -30,7 +30,7 @@ const primaryOf = (item: RegistryItem) => item.files?.find((file) => file.type =
 const importPath = (file: string) => file.replace(/^registry\/tradecn\/ui\//, "@/components/ui/").replace(/^registry\/tradecn\/(hooks|lib)\//, "@/$1/").replace(/\.tsx?$/, "")
 
 /**
- * The index as Markdown. An item's exports are the ones its meta names, or else the values its primary file exports,
+ * The index as Markdown. An item's exports are the ones its meta names, then the other values its primary file exports,
  * then the values of each file it alone bundles. A file another item leads with is that item's, so a lib bundled into
  * a component is listed once, under the lib. A file several items bundle and none leads with is listed once, under
  * Shared, with the items that install it, so the index an agent reads whole doesn't repeat a hook under each of them.
@@ -43,9 +43,9 @@ export function renderItems(items: readonly RegistryItem[], read: (file: string)
   const valuesOf = (files: string[]) => [...new Set(files.flatMap((file) => [...read(file).matchAll(VALUE_EXPORT)].map((match) => match[1]!)))]
   const exportsOf = (item: RegistryItem) => {
     const primary = primaryOf(item)
-    const named = item.meta?.components?.map((component) => component.title)
+    const named = item.meta?.components?.map((component) => component.title) ?? []
     const alone = [...bundlers].filter(([, by]) => by.length === 1 && by[0] === item).map(([file]) => file)
-    return [...new Set([...(named?.length ? named : valuesOf(primary ? [primary] : [])), ...valuesOf(alone)])]
+    return [...new Set([...named, ...valuesOf(primary ? [primary] : []), ...valuesOf(alone)])]
   }
   const lines = [
     "# Items",

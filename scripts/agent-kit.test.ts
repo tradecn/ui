@@ -33,9 +33,9 @@ describe("the agent kit", () => {
     for (const item of registry.items) expect(read(ITEMS_MD), item.name).toContain(`(\`${item.name}\`)`)
   })
 
-  it("lists a file an item alone bundles under the item, one another item leads with under that item, and one several bundle once, under Shared", () => {
+  it("lists what an item's meta names, then the rest its own file exports, a file it alone bundles under the item, one another item leads with under that item, and one several bundle once, under Shared", () => {
     const sources = new Map([
-      ["registry/tradecn/ui/stack.tsx", "export function Stack() {}\n"],
+      ["registry/tradecn/ui/stack.tsx", "export function Stack() {}\nexport const STACK_LIMIT = 3\nexport function StackItem() {}\n"],
       ["registry/tradecn/hooks/use-inquiry.ts", "export function useInquiry() {}\n"],
       ["registry/tradecn/hooks/use-clock.ts", "export const useClock = () => 0\n"],
       ["registry/tradecn/ui/strip.tsx", "export function Strip() {}\n"],
@@ -44,11 +44,11 @@ describe("the agent kit", () => {
     const at = (file: string, type: string) => ({ path: `registry/tradecn/${file}`, type })
     const items: RegistryItem[] = [
       { name: "strip", type: "registry:ui", title: "Strip", description: "A strip.", files: [at("ui/strip.tsx", "registry:ui"), at("hooks/use-clock.ts", "registry:hook"), at("lib/clock.ts", "registry:lib")] },
-      { name: "stack", type: "registry:ui", title: "Stack", description: "A stack.", meta: { components: [{ title: "Stack" }] }, files: [at("ui/stack.tsx", "registry:ui"), at("hooks/use-inquiry.ts", "registry:hook"), at("hooks/use-clock.ts", "registry:hook")] },
+      { name: "stack", type: "registry:ui", title: "Stack", description: "A stack.", meta: { components: [{ title: "Stack" }, { title: "StackItem" }] }, files: [at("ui/stack.tsx", "registry:ui"), at("hooks/use-inquiry.ts", "registry:hook"), at("hooks/use-clock.ts", "registry:hook")] },
       { name: "clock", type: "registry:lib", title: "Clock", description: "A clock.", files: [at("lib/clock.ts", "registry:lib")] },
     ]
     const index = renderItems(items, (file) => sources.get(file) ?? "", "4.0.0")
-    expect(index).toContain("### Stack (`stack`)\n\nA stack.\n\nExports: `Stack`, `useInquiry`.\n")
+    expect(index).toContain("### Stack (`stack`)\n\nA stack.\n\nExports: `Stack`, `StackItem`, `STACK_LIMIT`, `useInquiry`.\n")
     expect(index).toContain("### Strip (`strip`)\n\nA strip.\n\nExports: `Strip`.\n")
     expect(index).toContain("### Clock (`clock`)\n\nA clock.\n\nExports: `createClock`.\n")
     expect(index).toContain("## Shared\n\nFiles no item leads with, installed with every item that bundles them.\n\n### `@/hooks/use-clock`\n\nInstalled with `stack`, `strip`.\n\nExports: `useClock`.\n")

@@ -44,7 +44,7 @@ Exports: `Countdown`, `countdownTier`, `formatRemaining`, `PROVISIONAL_COUNTDOWN
 
 Virtualized grid fed by a row store one row at a time: a delta re-renders one row, numeric cells flash by direction, frozen and resizable columns, keyboard selection by row id, a reorder hold, a right-click menu, footer totals, cells edited in place as commands the server answers, presets for blotter, watchlist, RFQ, option chain, tape, and parameters.
 
-Exports: `DataGrid`, `DATA_GRID_PRESETS`, `exportCsv`, `editProblem`.
+Exports: `DataGrid`, `DATA_GRID_PRESETS`, `exportCsv`, `editProblem`, `isEditProblem`, `EMPTY_COLUMN_STATE`, `compareForSort`, `comparatorFor`, `resolveColumns`.
 
 ### Depth Ladder (`depth-ladder`)
 
@@ -56,7 +56,7 @@ Exports: `DepthLadder`, `DepthLadderHeader`, `DepthLadderColumnHeader`, `DepthLa
 
 Composable feed readings with connection state, data age, staleness tiers and lane metadata. Callers own rows, tooltips and controls; a per-feed action hook preserves permission checks and pending requests, and an explicit announcer reports tier changes.
 
-Exports: `FeedHealth`, `FeedHealthList`, `FeedHealthEmpty`, `FeedHealthItem`, `FeedHealthTooltipTrigger`, `FeedHealthTooltipContent`, `FeedHealthIndicator`, `FeedHealthTier`, `FeedAge`, `FeedHealthLane`, `FeedHealthDetails`, `FeedHealthPending`, `FeedHealthAnnouncer`, `useFeedActions`, `useFeedActionMenu`, `stalenessTier`, `createClock`, `feedActionsFor`.
+Exports: `FeedHealth`, `FeedHealthList`, `FeedHealthEmpty`, `FeedHealthItem`, `FeedHealthTooltipTrigger`, `FeedHealthTooltipContent`, `FeedHealthIndicator`, `FeedHealthTier`, `FeedAge`, `FeedHealthLane`, `FeedHealthDetails`, `FeedHealthPending`, `FeedHealthAnnouncer`, `useFeedActions`, `useFeedActionMenu`, `stalenessTier`, `createClock`, `feedActionsFor`, `PROVISIONAL_THRESHOLDS`, `alwaysOpen`, `formatAge`.
 
 ### Flash Cell (`flash-cell`)
 
@@ -80,7 +80,7 @@ Exports: `InstrumentSearch`, `InstrumentSearchContent`, `InstrumentSearchInput`,
 
 Composable saved workspace layouts with public template readings, save and import fields, rename controls, and confirmed actions. The caller owns the list, persistence, export, reset, and workspace loading.
 
-Exports: `LayoutManager`, `useLayoutManager`, `LayoutManagerItem`, `useLayoutManagerItem`, `LayoutManagerSaveName`, `LayoutManagerSave`, `LayoutManagerTaken`, `LayoutManagerImportTrigger`, `LayoutManagerImportContent`, `LayoutManagerImportText`, `LayoutManagerImportName`, `LayoutManagerImportSubmit`, `LayoutManagerImportProblem`, `LayoutManagerName`, `LayoutManagerRenameField`, `LayoutManagerActive`, `LayoutManagerPanelCount`, `LayoutManagerSavedAt`, `LayoutManagerUnknownKinds`, `LayoutManagerLoad`, `LayoutManagerRename`, `LayoutManagerDuplicate`, `LayoutManagerDelete`, `readLayoutTemplates`, `writeLayoutTemplates`, `parseLayoutTemplates`, `saveTemplate`, `importTemplate`, `exportTemplate`, `DEFAULT_LAYOUT_MANAGER_LABELS`.
+Exports: `LayoutManager`, `useLayoutManager`, `LayoutManagerItem`, `useLayoutManagerItem`, `LayoutManagerSaveName`, `LayoutManagerSave`, `LayoutManagerTaken`, `LayoutManagerImportTrigger`, `LayoutManagerImportContent`, `LayoutManagerImportText`, `LayoutManagerImportName`, `LayoutManagerImportSubmit`, `LayoutManagerImportProblem`, `LayoutManagerName`, `LayoutManagerRenameField`, `LayoutManagerActive`, `LayoutManagerPanelCount`, `LayoutManagerSavedAt`, `LayoutManagerUnknownKinds`, `LayoutManagerLoad`, `LayoutManagerRename`, `LayoutManagerDuplicate`, `LayoutManagerDelete`, `readLayoutTemplates`, `writeLayoutTemplates`, `parseLayoutTemplates`, `saveTemplate`, `importTemplate`, `exportTemplate`, `DEFAULT_LAYOUT_MANAGER_LABELS`, `LAYOUT_TEMPLATES_SLOT`, `LAYOUT_TEMPLATES_VERSION`, `renameTemplate`, `duplicateTemplate`, `deleteTemplate`.
 
 ### Panel (`panel`)
 
@@ -104,7 +104,7 @@ Exports: `PerfMonitor`, `PerfMonitorValue`, `PerfMonitorHistogram`, `PerfMonitor
 
 The data grid as a book of positions: instrument, the position signed in its unit (millions of notional or a count of contracts) with the side named, average, mark, the day's and the total P&L colored by their sign with the sign printed, a risk column the desk names, and totals of what is shown under the body. Every number is the server's; the grid prints and adds and never multiplies a position by a mark. One grid per book.
 
-Exports: `Positions`, `positionsColumns`, `positionsTotals`, `formatPosition`, `positionSide`.
+Exports: `Positions`, `positionsColumns`, `positionsTotals`, `formatPosition`, `positionSide`, `withSign`.
 
 ### Price Chart (`price-chart`)
 
@@ -134,7 +134,7 @@ Exports: `RfqStack`, `useRfqStackView`, `rfqStackColumns`, `rfqThresholdFilter`,
 
 A dealer's ticket for a request for quote: the inquiry as it came (who, which way, how much, in what, with the venue's words on it), the market beside it, the levels already quoted, the auto price when there is one, a countdown to its end, and the fields to type a level in the instrument's own basis. The buttons are the actions the server allowed, checked again as the click lands; the status is the venue's word, printed as it is. One ticket is one inquiry, so a new one never lands in a ticket being worked. Quick sizes, the inquiry's own first, as buttons and mod+1 to mod+9, and the draft carries the size the quote is for.
 
-Exports: `RfqTicket`, `RFQ_TICKET_BINDINGS`, `checkQuote`, `describeQuote`, `quoteDistance`, `quotedSides`, `formatSize`.
+Exports: `RfqTicket`, `RFQ_TICKET_BINDINGS`, `checkQuote`, `describeQuote`, `quoteDistance`, `quotedSides`, `formatSize`, `DEFAULT_RFQ_TICKET_LABELS`, `QUICK_SIZE_KEYS`.
 
 ### Rules Editor (`rules-editor`)
 
@@ -170,7 +170,7 @@ Exports: `StatusBar`, `StatusBarEnvironmentBadge`, `StatusBarClocks`, `StatusBar
 
 An order ticket that types a price the way the instrument quotes it (99-16+), steps it by the tick with the arrows and the buttons, and hands a checked draft to the action you named. Buttons are the actions the server allowed and nothing else; the status is the server word, printed as it is; an acknowledgement rings the ticket once in primary. Quick sizes as buttons under the quantity and on mod+1 to mod+9. Its keys work while you type in it, and inside a dialog.
 
-Exports: `Ticket`, `TICKET_BINDINGS`, `describeDraft`, `checkDraft`, `parseQuantity`.
+Exports: `Ticket`, `TICKET_BINDINGS`, `describeDraft`, `checkDraft`, `parseQuantity`, `DEFAULT_TICKET_LABELS`, `DEFAULT_ORDER_TYPES`, `DEFAULT_TIME_IN_FORCES`, `QUICK_SIZE_KEYS`, `formatQuickSize`.
 
 ### Watchlist (`watchlist`)
 
@@ -190,7 +190,7 @@ Exports: `Workspace`, `useWorkspacePanel`, `WorkspaceTab`, `WorkspaceTabTitle`, 
 
 A hotkey registry: bindings declared as data with an id, keys, a scope, and a description; one keydown listener; scopes read from the DOM so a panel's keys beat global ones; chords with a timeout; conflict detection; remapping with the consumer's persistence. Typing is protected, menus are left alone, and a dialog is a wall.
 
-Exports: `HotkeysProvider`, `HotkeyScope`, `useHotkey`, `useHotkeys`, `useHotkeyList`, `usePendingChord`.
+Exports: `HotkeysProvider`, `HotkeyScope`, `useHotkey`, `useHotkeys`, `useHotkeyList`, `usePendingChord`, `useMaybeHotkeys`.
 
 ## Utilities
 
@@ -246,7 +246,7 @@ Exports: `SESSION_STATUSES`, `localTime`, `parseTime`, `addDays`, `weekdayOf`, `
 
 For shells whose windows are separate JavaScript contexts: the set of windows a desk has, which layout each shows, and where each sits, as data with its boundaries, and a controller that drives the consumer's adapter over the shell's own calls: open a window, close one, hear one close, ask where one is. restore() on launch opens the main window first and the rest after it; a snapshot reads the bounds back. No shell package is imported.
 
-Exports: `createWindowSet`, `parseWindowSet`, `windowSetOf`, `mainWindow`, `readWindowSet`, `writeWindowSet`, `defaultWindowUrl`, `WINDOW_SET_BOUNDARIES`.
+Exports: `createWindowSet`, `parseWindowSet`, `windowSetOf`, `mainWindow`, `readWindowSet`, `writeWindowSet`, `defaultWindowUrl`, `WINDOW_SET_BOUNDARIES`, `WINDOW_SET_KIND`, `WINDOW_SET_VERSION`, `WINDOW_SET_SLOT`, `parseWindowRecord`.
 
 ## Themes
 
