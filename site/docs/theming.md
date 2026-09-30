@@ -12,7 +12,9 @@ The default light marks come from `tradecn-slate`; dark marks are tuned for shad
 
 ## Themes
 
-Themes replace the shadcn palette, radius and every tradecn token, including the font stacks. They add CSS variables and typography rules without component or font files. Review a theme with `--diff` before installing it.
+Themes replace the shadcn palette, radius and every tradecn token, including the font stacks. They add CSS variables and typography rules without component or font files.
+
+Review the variables and rules in a theme's Manual installation tab before installing it. To compare them with your stylesheet, pass its path to `--diff`, such as `--diff src/index.css`. Use the `tailwind.css` path from your `components.json`. A bare `--diff` does not show theme CSS changes.
 
 Each theme provides light and dark values, switched by your `dark` class. This site defaults to `tradecn-amber`, with blue for up and vermilion for down. Items installed without a theme use green for up. Choose the direction convention your application needs; color alone must not carry meaning.
 

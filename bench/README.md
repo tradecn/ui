@@ -11,9 +11,9 @@ What it records:
 - Script time per frame: building the batch, `applyDeltas`, and React's render and commit, measured to the microtask after React's. This is the headroom number. It excludes style, layout, and paint.
 - Long tasks from `PerformanceObserver`, and patch hits in the visible rows plus eight overscan rows. Repeated hits on the same cell count separately.
 
-Pass `--machine "<name>"` to save a run in `results/<machine>/`. Without it, the command only prints results. If a matching `thresholds/<machine>.json` exists for the shape, a missed threshold fails the run.
+Pass `--machine "<name>"` to save a run in `results/<machine>/`. Without it, the command only prints results. The updates scenario reads `thresholds/<machine>.json`; arrivals and chart read `thresholds/<machine>.arrivals.json` and `thresholds/<machine>.chart.json`. If the file contains thresholds for the run's shape, a missed threshold fails the run.
 
-Write thresholds before the first run on a machine. Never edit them to make a run pass. If a threshold measures the wrong thing, replace it with a dated file and keep the original unchanged.
+Write thresholds before the first run on a machine. Never edit them to make a run pass. If a threshold measures the wrong thing, move the original unchanged to a dated filename and write the replacement at the active filename above. Record its `writtenOn` date and the old file in `supersedes` before running again. The tool does not discover dated replacements.
 
 ## Apple M5 Max, 2026-09-20
 

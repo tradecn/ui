@@ -4,11 +4,13 @@ A neutral theme with light and dark palettes: cool surfaces, a blue primary, and
 
 ## Usage
 
-A theme installs no files. It rewrites the variables in your stylesheet, so look first, and commit before you run it without `--diff`:
+A theme installs no files. It rewrites the variables in your stylesheet. Configure the `@tradecn` namespace for the release you want, following [Installation](https://tradecn.dev/docs/installation/#namespace-form). Replace `src/index.css` below with the `tailwind.css` path from your `components.json`:
 
 ```bash
-npx shadcn@latest add tradecn/ui/tradecn-slate --diff
+npx shadcn@latest add @tradecn/tradecn-slate --diff src/index.css
 ```
+
+A bare `--diff` does not show theme CSS changes. Review the stylesheet diff and commit your current files, then remove `--diff` and the stylesheet path to install the theme.
 
 ## API Reference
 

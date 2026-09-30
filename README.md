@@ -61,7 +61,7 @@ The links below follow this repository revision and may include unreleased APIs.
 
 ### Themes
 
-Themes replace your stylesheet variables, including tradecn font choices; other items add only missing variables. Review with `--diff` before installing. Each theme has light and dark palettes:
+Themes replace your stylesheet variables, including tradecn font choices; other items add only missing variables. Follow the theme's Usage section to review its stylesheet changes before installing. Each theme has light and dark palettes:
 
 | Theme | Palette |
 |---|---|
@@ -123,7 +123,9 @@ Run `just bench --machine "<name>"` on your target hardware to write your own JS
 
 ## Working on it
 
-Run `bun install`, then `just dev` for the playground. Before pushing, run `just check` for lint, types, tests, registry validation/build, and site build/smoke checks. CI also runs consumer installation, GitHub install-by-ref, and infrastructure checks.
+Run `bun install`, then `just dev` for the playground. Install Chromium with `bunx playwright install chromium` before your first `just check`; repeat this after a Playwright update. On Linux, use `bunx playwright install --with-deps chromium` for system dependencies too.
+
+Before pushing, run `just check` for lint, types, tests, registry validation/build, and site build/smoke checks. CI also runs consumer installation, GitHub install-by-ref, and infrastructure checks.
 
 - Give each new item a demo in `playground/src/demos/`; tradecn.dev uses it.
 - Put substantial variants in `<item>-<variant>.tsx`, with `<!-- demo: <item>-<variant> -->` under a dedicated heading in the item's doc.

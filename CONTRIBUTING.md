@@ -73,7 +73,10 @@ Run from the repository root:
 
 ```bash
 bun install
+bunx playwright install chromium
 just check
 ```
+
+The browser install is needed once per Playwright version. On Linux, use `bunx playwright install --with-deps chromium` to install its system dependencies as well.
 
 For changes to installed components, run the three-style [consumer matrix](fixtures/README.md) as well.

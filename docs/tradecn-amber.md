@@ -4,11 +4,13 @@ An amber theme with a day side and a night side: warm paper in light, near-black
 
 ## Usage
 
-A theme installs no files. It rewrites the variables in your stylesheet, so look first, and commit before you run it without `--diff`:
+A theme installs no files. It rewrites the variables in your stylesheet. Configure the `@tradecn` namespace for the release you want, following [Installation](https://tradecn.dev/docs/installation/#namespace-form). Replace `src/index.css` below with the `tailwind.css` path from your `components.json`:
 
 ```bash
-npx shadcn@latest add tradecn/ui/tradecn-amber --diff
+npx shadcn@latest add @tradecn/tradecn-amber --diff src/index.css
 ```
+
+A bare `--diff` does not show theme CSS changes. Review the stylesheet diff and commit your current files, then remove `--diff` and the stylesheet path to install the theme.
 
 ## API Reference
 

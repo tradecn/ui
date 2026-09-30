@@ -14,7 +14,7 @@ Browser checks cover differences types alone can miss. For example, Radix toolti
 
 ## No npm package
 
-This page describes {{tag}}. Pin that tag to install matching source; [Installation](installation.md) has both forms of the command.
+There is no npm package. This page describes {{tag}}. Pin that tag to install matching source; [Installation](installation.md) has both forms of the command.
 
 ## Dependencies
 
@@ -22,4 +22,4 @@ The CLI installs each item's declared dependencies alongside its source.
 
 {{dependencies}}
 
-No icon library either. shadcn picks a different one per base, so the grid draws its own three dots.
+The registry adds no icon library. shadcn picks a different one per base, so the grid draws its own three dots.

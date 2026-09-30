@@ -10,7 +10,8 @@ The site uses one private S3 content bucket behind CloudFront, defined with AWS 
 | `/r/vX.Y.Z/{name}.json` | That release's registry, unchanged while the domain exists. | One year, immutable. |
 | `/`, `/docs/` | Latest release's pages. | `no-store`. |
 | `/vX.Y.Z/` | That release's pages, including `/vX.Y.Z/docs/<name>/` and `/vX.Y.Z/preview/<name>/`. | `no-store`. |
-| `/preview/assets/` | Content-hashed preview bundles. | One year, immutable. |
+| `/preview/assets/`, `/vX.Y.Z/preview/assets/` | Content-hashed preview bundles. | One year, immutable. |
+| `/fonts/`, `/vX.Y.Z/fonts/` | Self-hosted font files. | One day. |
 | `/versions.json` | `{ "latest": "vX.Y.Z", "versions": [...] }`, newest first. | Five minutes. |
 
 Pin a namespace with `"@tradecn": "https://tradecn.dev/r/vX.Y.Z/{name}.json"`, replacing `vX.Y.Z` with the release you want. The header's version menu reads `/versions.json`. Versioned page trees exist for releases published since that feature was added; dispatching an older tag can add its tree.
@@ -61,7 +62,7 @@ Site and infrastructure paths are excluded from release-please. Changes confined
 
 The deploy role is defined in `github-oidc-role.yml`. Its trust policy accepts this repository's workflows on `main` and in the `production` environment, using both name-form and immutable-ID subject claims. Its permissions cover the CDK bootstrap roles in us-east-1, `DescribeStacks` on the site stack, the site bucket and CloudFront invalidations.
 
-Run `just setup-oidc` with local AWS credentials for the account and `gh` admin access to the repository. The account and region must already be CDK-bootstrapped. The script reads the account, provider, org and repository IDs, deploys the role template, creates the `production` environment restricted to `main` and stores `AWS_DEPLOY_ROLE_ARN` as a repository secret.
+Run `just setup-oidc` with local AWS credentials for the account and `gh` admin access to the repository. The account and region must already be CDK-bootstrapped, and the account must have the GitHub Actions OIDC provider (`token.actions.githubusercontent.com`). The script reads the account, provider, org and repository IDs, deploys the role template, creates the `production` environment restricted to `main` and stores `AWS_DEPLOY_ROLE_ARN` as a repository secret.
 
 Run it again after a repository transfer because the owner ID in the subject claim changes.
 
@@ -74,4 +75,4 @@ Run it again after a repository transfer because the owner ID in the subject cla
 | `just infra-deploy` | Deploy directly as a break-glass action. | Account credentials. |
 | `just site` | Build the site into `site/dist/` from the working tree. | None. |
 
-The infrastructure workflow is the normal deployment path. To publish a site-only correction, dispatch `release-please.yml` with the current tag; this combines main's site and builder with that tag's source and docs.
+Use the infrastructure workflow for stack changes. After a site-template or builder correction reaches `main`, dispatch `release-please.yml` from `main` for each published tag whose pages need the correction. Each run rebuilds and publishes that tag's registry, pages and previews; only the highest tag also refreshes the root and latest registry pointer. Other versioned page trees are left unchanged. A merge alone does not republish content.

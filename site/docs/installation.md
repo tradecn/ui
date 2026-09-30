@@ -6,6 +6,8 @@ Install components with a GitHub address or a registry namespace.
 
 Run the commands from a project configured with shadcn/ui and Tailwind 4. If you don't have a project yet, run `npx shadcn@latest init` and follow the prompts to create one.
 
+tradecn v2 requires React 19. Upgrade React and React DOM together; TypeScript projects also need the matching React 19 types.
+
 ## GitHub form
 
 ```bash
@@ -34,11 +36,11 @@ This installs the same files as the GitHub form at {{tag}}. To follow the latest
 
 ## Updating
 
-Review changes with `--diff` before applying them. Put the tag you're moving to in the first command; the second reviews the shadcn tooltip separately.
+Review changes with `--diff` before applying them. Put the tag you're moving to in the first command; the second reviews the shadcn context menu used by the grid.
 
 ```bash
 npx shadcn@latest add tradecn/ui/data-grid#{{tag}} --diff   # a tradecn change
-npx shadcn@latest add tooltip --diff                       # a shadcn change underneath
+npx shadcn@latest add context-menu --diff                  # a shadcn change underneath
 ```
 
 After reviewing, rerun the command without `--diff` and choose which existing files to overwrite. Keep any application changes you need. If you use the namespace form, update its tag in `components.json` before adding the item again.
@@ -51,4 +53,4 @@ After configuring the namespace above, you can install every component, hook and
 npx shadcn@latest add {{everyItem}}
 ```
 
-Themes are installed separately because each replaces your palette and typography tokens. Choose one from [Theming](theming.md) and review it with `--diff` before installing.
+Themes are installed separately because each replaces your palette and typography tokens. If the selected release includes themes, choose one and review its stylesheet changes as described in [Theming](theming.md).

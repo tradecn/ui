@@ -4073,7 +4073,7 @@
       "categories": [
         "theme"
       ],
-      "docs": "This theme overwrites shadcn's palette and radius, and every tradecn token in both modes, including custom tradecn font stacks. Review it with --diff first. It adds the numeric variant on :root and the numeric hooks, plus the hyperlegible font remap. It leaves your app's --font-sans unchanged and installs no component or font files.",
+      "docs": "This theme overwrites shadcn's palette and radius, and every tradecn token in both modes, including any tradecn font stacks you customized. Review the stylesheet with --diff followed by the tailwind.css path from components.json; a bare --diff does not show theme CSS changes. It adds the numeric variant on :root and the numeric hooks, plus the hyperlegible font remap. It leaves your app's --font-sans unchanged and installs no component or font files.",
       "cssVars": {
         "light": {
           "accent": "oklch(0.93 0.02 75)",
@@ -4240,7 +4240,7 @@
       "categories": [
         "theme"
       ],
-      "docs": "This theme overwrites shadcn's palette and radius, and every tradecn token in both modes, including custom tradecn font stacks. Review it with --diff first. It adds the numeric variant on :root and the numeric hooks, plus the hyperlegible font remap. It leaves your app's --font-sans unchanged and installs no component or font files.",
+      "docs": "This theme overwrites shadcn's palette and radius, and every tradecn token in both modes, including any tradecn font stacks you customized. Review the stylesheet with --diff followed by the tailwind.css path from components.json; a bare --diff does not show theme CSS changes. It adds the numeric variant on :root and the numeric hooks, plus the hyperlegible font remap. It leaves your app's --font-sans unchanged and installs no component or font files.",
       "cssVars": {
         "light": {
           "accent": "oklch(0.93 0.012 245)",
@@ -4407,7 +4407,7 @@
       "categories": [
         "theme"
       ],
-      "docs": "This theme overwrites shadcn's palette and radius, and every tradecn token in both modes, including custom tradecn font stacks. Review it with --diff first. It adds the numeric variant on :root and the numeric hooks, plus the hyperlegible font remap. It leaves your app's --font-sans unchanged and installs no component or font files. It differs from tradecn-slate in four tokens only: up, down, up-soft and down-soft. Install one theme at a time.",
+      "docs": "This theme overwrites shadcn's palette and radius, and every tradecn token in both modes, including any tradecn font stacks you customized. Review the stylesheet with --diff followed by the tailwind.css path from components.json; a bare --diff does not show theme CSS changes. It adds the numeric variant on :root and the numeric hooks, plus the hyperlegible font remap. It leaves your app's --font-sans unchanged and installs no component or font files. It differs from tradecn-slate in four tokens only: up, down, up-soft and down-soft. Install one theme at a time.",
       "cssVars": {
         "light": {
           "accent": "oklch(0.93 0.012 245)",
