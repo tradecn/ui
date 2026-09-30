@@ -2,6 +2,8 @@
 
 `just bench` builds the playground and measures a synthetic feed in headless Chromium.
 
+Run `bun install` and `bunx playwright install chromium` before the first benchmark. On Linux, use `bunx playwright install --with-deps chromium` to install the system dependencies too.
+
 The `/bench` page uses N rows, V visible rows and C numeric columns. It applies U random cell patches in one `applyDeltas` per animation frame, for S seconds after a warm-up. A seeded generator gives repeated runs the same data.
 
 What it records:

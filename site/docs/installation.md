@@ -45,6 +45,8 @@ npx shadcn@latest add context-menu --diff                  # a shadcn change und
 
 After reviewing, rerun the command without `--diff` and choose which existing files to overwrite. Keep any application changes you need. If you use the namespace form, update its tag in `components.json` before adding the item again.
 
+To include stylesheet changes in the review, pass the `tailwind.css` path from your `components.json`, such as `--diff src/index.css`. Remove both `--diff` and its path when applying the update.
+
 ## Every item at once
 
 After configuring the namespace above, you can install every component, hook and utility at {{tag}}:

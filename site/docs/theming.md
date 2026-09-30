@@ -16,6 +16,8 @@ Themes replace the shadcn palette, radius and every tradecn token, including the
 
 Review the variables and rules in a theme's Manual installation tab before installing it. To compare them with your stylesheet, pass its path to `--diff`, such as `--diff src/index.css`. Use the `tailwind.css` path from your `components.json`. A bare `--diff` does not show theme CSS changes.
 
+For older theme recipes that show a bare `--diff`, add your stylesheet path.
+
 Each theme provides light and dark values, switched by your `dark` class. This site defaults to `tradecn-amber`, with blue for up and vermilion for down. Items installed without a theme use green for up. Choose the direction convention your application needs; color alone must not carry meaning.
 
 {{themes}}

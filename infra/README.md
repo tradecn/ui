@@ -54,7 +54,7 @@ Scripts and frames are restricted to `'self'`. Styles allow inline values for pa
 
 Each item doc embeds `/preview/<name>/`, which loads the Vite bundle built from the tag's `playground/src/demos/<name>.tsx`. `bun run --cwd playground build:embed` writes `playground/dist/embed`. Its relative base (`--base ./`) lets one bundle serve root and versioned trees; the surrounding pages use `no-store`.
 
-A theme's preview uses that theme; other previews follow the site's selection. Workspace popouts open `/popout.html` at the root. Tags predating the embed build publish without previews. `scripts/site/smoke.ts` opens every preview locally against `site/dist` and after deployment against the live site.
+A theme's preview uses that theme; other previews follow the site's selection. Workspace popouts open `/popout.html` at the root. Tags predating the embed build publish without previews. `scripts/site/smoke.ts` opens every preview locally against `site/dist`. The content workflow runs it against the live site only when publishing the highest tag.
 
 Site and infrastructure paths are excluded from release-please. Changes confined to them, commonly titled `chore(site)` or `ci(infra)`, do not bump the version consumers pin.
 

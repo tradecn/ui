@@ -4,7 +4,7 @@ Slate's light and dark palettes with the direction pair reversed: red for up and
 
 ## Usage
 
-A theme installs no files. It rewrites the variables in your stylesheet. Configure the `@tradecn` namespace for the release you want, following [Installation](https://tradecn.dev/docs/installation/#namespace-form). Replace `src/index.css` below with the `tailwind.css` path from your `components.json`:
+A theme installs no files. It rewrites the variables in your stylesheet. Configure the `@tradecn` namespace for the release you want, following [Installation](https://tradecn.dev/docs/installation/#namespace-form). When reading an older versioned page, select that same release in the Installation guide's version menu before copying the namespace. Replace `src/index.css` below with the `tailwind.css` path from your `components.json`:
 
 ```bash
 npx shadcn@latest add @tradecn/tradecn-slate-east --diff src/index.css

@@ -9,6 +9,8 @@ Trading-terminal components you install with `shadcn add`. The source lands in y
 
 ## Install
 
+tradecn v2 requires React 19 and matching React DOM. TypeScript projects also need the React 19 types.
+
 Add an item to your shadcn project, pinned to a release tag:
 
 <!-- x-release-please-start-version -->
@@ -87,10 +89,12 @@ Review tradecn and shadcn updates separately. Replace the tag with the release y
 
 ```bash
 npx shadcn@latest add tradecn/ui/data-grid#v1.4.13 --diff   # a tradecn change
-npx shadcn@latest add tooltip --diff                       # a shadcn change underneath
+npx shadcn@latest add context-menu --diff                  # a shadcn change underneath
 ```
 
 <!-- x-release-please-end -->
+
+To include stylesheet changes in the review, pass the `tailwind.css` path from your `components.json`, such as `--diff src/index.css`. Remove both `--diff` and its path when applying the update.
 
 ## Dependencies
 
