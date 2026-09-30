@@ -49,6 +49,18 @@ Choose left alignment in the preview toolbar to keep the grid's left edge fixed 
 
 <!-- demo: data-grid-controlled -->
 
+## Shared defaults
+
+Pass the same `baseState` and controlled `columnState` to the grid and [ColumnChooser](column-chooser.md). Install ColumnChooser for this example; its installation includes DataGrid.
+
+<!-- demo: data-grid-shared-defaults -->
+
+## Uncontrolled defaults
+
+Use `baseState` to initialize an uncontrolled grid and choose its reset defaults. Later changes apply on the next **Reset columns** action.
+
+<!-- demo: data-grid-defaults -->
+
 ## Selection and actions
 
 Set `selectionMode="multi"` to extend the RFQ preset's single selection. Use the checkboxes, Shift for a range, or Command/Ctrl to toggle rows. Right-click a selected row, or press Shift+F10 from it, to act on the selection; an unselected row targets just itself. Enter or a double-click activates a row. This example prints the requested action below the grid; your handler opens a ticket or sends a command.
@@ -111,14 +123,25 @@ Omit a state prop to let the grid manage it. Pass it to control that state, and 
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
-| `columnState` | `ColumnState` | `{ order: [], widths: {}, hidden: [] }` | Column keys in order, widths in px by key, and hidden keys. |
+| `columnState` | `ColumnState` | Initial `baseState` | Complete snapshot of order, width overrides in px, and hidden keys. |
 | `onColumnStateChange` | `(state: ColumnState) => void` | None | Receive column changes and resets. |
+| `baseState` | `ColumnState` | `{ order: [], widths: {}, hidden: [] }` | Initial uncontrolled settings and the latest reset target. |
 | `sort` | `SortState` | `null` | `{ key: string, dir: "asc" \| "desc" }` or no header sort. |
 | `onSortChange` | `(sort: SortState) => void` | None | Receive header sort changes. |
 | `selection` | `ReadonlySet<RowId>` | Empty set | Selected rows. |
 | `onSelectionChange` | `(selection: ReadonlySet<RowId>) => void` | None | Receive selection changes. |
 | `focusedRowId` | `RowId \| null` | `null` | Focused row. |
 | `onFocusedRowChange` | `(id: RowId \| null) => void` | None | Receive row focus changes. |
+
+The grid initializes uncontrolled columns from `baseState` once. Replacing it later leaves current settings untouched until **Reset columns** is chosen.
+
+Controlled `columnState` always supplies the complete snapshot; defaults are never merged into it. Initialize controlled state from your defaults or a saved snapshot.
+
+Reset emits the configured `baseState` through `onColumnStateChange`, including when it already matches. It preserves sort, selection and row focus. The grid applies its usual column ordering, visibility and minimum widths without normalizing the emitted snapshot.
+
+ColumnChooser normalizes its edits and suppresses effective no-ops; share defaults for the same rendered columns, not identical callback payloads or counts.
+
+Keep an external chooser or application reset control when a snapshot can hide every column: an empty header has no menu to reopen columns.
 
 ### Columns
 
@@ -251,6 +274,8 @@ With focus in the grid, outside a text editor:
 | Shift+F10 / Menu | Open the context menu on the focused row. |
 
 Row navigation also selects the focused row in single-select mode. A double click opens an editable text cell or activates the row. Each column header has move, hide, and reset controls, plus a resize handle. Sort controls appear only when the column has `sortable: true`.
+
+When a column disappears while its menu trigger or menu owns focus, focus returns to the grid. A surviving menu trigger retains the menu's normal close-focus behavior.
 
 Inside a text editor:
 

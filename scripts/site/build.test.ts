@@ -1103,7 +1103,7 @@ describe("the docs pages", async () => {
 
   it("gives every page its headings down the right and the arrows beside its title", () => {
     const grid = at("docs/data-grid/index.html")
-    expect(grid).toContain('<aside class="toc" aria-label="On this page">\n<h2>On this page</h2>\n<ul>\n<li><a href="#installation">Installation</a></li>\n<li><a href="#usage">Usage</a></li>\n<li><a href="#controlled-state">Controlled state</a></li>\n<li><a href="#selection-and-actions">Selection and actions</a></li>\n<li><a href="#totals-for-the-view">Totals for the view</a></li>\n<li><a href="#store-updates">Store updates</a></li>\n<li><a href="#api-reference">API Reference</a>\n<ul>')
+    expect(grid).toContain('<aside class="toc" aria-label="On this page">\n<h2>On this page</h2>\n<ul>\n<li><a href="#installation">Installation</a></li>\n<li><a href="#usage">Usage</a></li>\n<li><a href="#controlled-state">Controlled state</a></li>\n<li><a href="#shared-defaults">Shared defaults</a></li>\n<li><a href="#uncontrolled-defaults">Uncontrolled defaults</a></li>\n<li><a href="#selection-and-actions">Selection and actions</a></li>\n<li><a href="#totals-for-the-view">Totals for the view</a></li>\n<li><a href="#store-updates">Store updates</a></li>\n<li><a href="#api-reference">API Reference</a>\n<ul>')
     expect(grid).toContain('<nav class="arrows" aria-label="Previous and next">\n<a rel="prev" href="/docs/countdown/" aria-label="Previous: Countdown">')
     expect(grid).toContain('<a rel="next" href="/docs/depth-ladder/" aria-label="Next: Depth Ladder">')
     expect(grid.indexOf('<nav class="arrows"')).toBeLessThan(grid.indexOf("<h1 "))

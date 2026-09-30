@@ -3,7 +3,9 @@
   "alignable": [
     "data-grid",
     "data-grid-controlled",
+    "data-grid-defaults",
     "data-grid-selection",
+    "data-grid-shared-defaults",
     "data-grid-totals",
     "data-grid-updates",
     "quote-panel",

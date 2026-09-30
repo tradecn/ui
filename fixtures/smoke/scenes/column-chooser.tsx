@@ -43,6 +43,7 @@ export function ColumnChooserScene() {
     return s
   }, [])
   const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: { px: 120 }, hidden: [] })
+  const [baseState, setBaseState] = useState(BASE_STATE)
   const [open, setOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const gridContainer = useRef<HTMLDivElement>(null)
@@ -50,24 +51,25 @@ export function ColumnChooserScene() {
   const popout = usePopout({ title: "Column settings", width: 720, height: 520 })
   return (
     <>
-      <ColumnSettingsDialog open={open} onOpenChange={setOpen} columns={columns} baseState={BASE_STATE} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES}>
+      <ColumnSettingsDialog open={open} onOpenChange={setOpen} columns={columns} baseState={baseState} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES}>
         <div className="flex w-[52rem] flex-col gap-2" data-chooser-state={JSON.stringify(columnState)}>
           <div ref={gridContainer} style={{ height: 120 }} onKeyDown={(event) => {
             if (event.altKey && event.key === "c") { event.preventDefault(); setMenuOpen(true) }
           }}>
-            <DataGrid store={store} columns={columns} label="Chosen" columnState={columnState} onColumnStateChange={setColumnState} rules={{ columns: RULES }} renderContextMenu={() => <ContextMenuItem onClick={() => setMenuOpen(true)}>Columns…</ContextMenuItem>} />
+            <DataGrid store={store} columns={columns} label="Chosen" baseState={baseState} columnState={columnState} onColumnStateChange={setColumnState} rules={{ columns: RULES }} renderContextMenu={() => <ContextMenuItem onClick={() => setMenuOpen(true)}>Columns…</ContextMenuItem>} />
           </div>
           <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "self-start")}>
             open chooser
           </DialogTrigger>
           <button type="button" className="self-start" onClick={() => popout.open()}>pop out chooser</button>
+          <button type="button" className="self-start" onClick={() => setBaseState({ order: ["id", "size", "client", "px", "status"], widths: { client: 110 }, hidden: ["px"] })}>use compact defaults</button>
           <PanelPopout popout={popout}>
             {popout.isOpen && <button type="button" onClick={popout.close}>bring chooser back</button>}
-            <ColumnSettingsPanel columns={columns} baseState={BASE_STATE} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} />
+            <ColumnSettingsPanel columns={columns} baseState={baseState} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} />
           </PanelPopout>
         </div>
       </ColumnSettingsDialog>
-      <ColumnSettingsDialog open={menuOpen} onOpenChange={setMenuOpen} contentProps={contentProps} columns={columns} baseState={BASE_STATE} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} children={null} />
+      <ColumnSettingsDialog open={menuOpen} onOpenChange={setMenuOpen} contentProps={contentProps} columns={columns} baseState={baseState} columnState={columnState} onColumnStateChange={setColumnState} rules={RULES} children={null} />
     </>
   )
 }

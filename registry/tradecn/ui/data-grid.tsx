@@ -16,6 +16,7 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
+  type RefObject,
   type UIEvent,
 } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -177,6 +178,8 @@ export interface DataGridProps<T> {
   reorderHoldMs?: number
   columnState?: ColumnState
   onColumnStateChange?: (state: ColumnState) => void
+  /** Initial uncontrolled columns and the latest Reset columns target. Changes do not overwrite current settings. */
+  baseState?: ColumnState
   sort?: SortState
   onSortChange?: (sort: SortState) => void
   selection?: ReadonlySet<RowId>
@@ -729,6 +732,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     onEdit,
     initialRect,
     overscan = 8,
+    baseState = EMPTY_COLUMN_STATE,
   } = props
   const preset = DATA_GRID_PRESETS[props.preset ?? "blotter"]
   const rowHeight = props.rowHeight ?? preset.rowHeight
@@ -740,7 +744,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const reorderHoldMs = props.reorderHoldMs ?? preset.reorderHoldMs
 
   const [sort, setSort] = useControllable(props.sort, props.onSortChange, null as SortState)
-  const [columnState, setColumnState] = useControllable(props.columnState, props.onColumnStateChange, EMPTY_COLUMN_STATE)
+  const [columnState, setColumnState] = useControllable(props.columnState, props.onColumnStateChange, baseState)
   const [selection, setSelection] = useControllable(props.selection, props.onSelectionChange, EMPTY_SET)
   const [focusedRowId, setFocusedRowId] = useControllable<RowId | null>(props.focusedRowId, props.onFocusedRowChange, null)
   const [focusedColKey, setFocusedColKey] = useState<string | null>(null)
@@ -1079,7 +1083,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     [resolved, updateColumns],
   )
   const hideColumn = useCallback((key: string) => updateColumns((s) => ({ ...s, hidden: [...new Set([...s.hidden, key])] })), [updateColumns])
-  const resetColumns = useCallback(() => setColumnState(EMPTY_COLUMN_STATE), [setColumnState])
+  const resetColumns = useCallback(() => setColumnState(baseState), [baseState, setColumnState])
 
   const visibleCount = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? initialRect?.height ?? rowHeight * 10) / rowHeight))
 
@@ -1286,6 +1290,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         {resolved.map((col, i) => (
           <HeaderCell
             key={col.key}
+            gridRef={rootRef}
             col={col}
             colIndex={i + (selectionColumn ? 1 : 0)}
             left={lefts[i]}
@@ -1391,6 +1396,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 }
 
 interface HeaderCellProps<T> {
+  gridRef: RefObject<HTMLDivElement | null>
   col: Resolved<T>
   colIndex: number
   left: number | undefined
@@ -1408,7 +1414,23 @@ interface HeaderCellProps<T> {
 }
 
 function HeaderCell<T>(p: HeaderCellProps<T>) {
-  const { col } = p
+  const { col, gridRef } = p
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => () => {
+    const trigger = triggerRef.current
+    const menu = menuRef.current
+    const grid = gridRef.current
+    const doc = trigger?.ownerDocument
+    const active = doc?.activeElement
+    if (!trigger || !grid || !doc || !active || (active !== trigger && !menu?.contains(active))) return
+    // Wait for removal and the menu's cleanup. A surviving trigger (including effect replay) owns its focus.
+    queueMicrotask(() => {
+      if (trigger.isConnected || !grid.isConnected) return
+      const current = doc.activeElement
+      if (!current || current === doc.body || current === active || menu?.contains(current)) grid.focus({ preventScroll: true })
+    })
+  }, [gridRef])
   const startResize = (e: PointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
@@ -1444,6 +1466,7 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
       </span>
       <DropdownMenu>
         <DropdownMenuTrigger
+          ref={triggerRef}
           aria-label={`${title ?? col.key} column menu`}
           className="rounded px-1 text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[popup-open]:opacity-100 data-[state=open]:opacity-100"
         >
@@ -1453,7 +1476,7 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
             <circle cx="5" cy="8.5" r="1.2" />
           </svg>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent ref={menuRef} align="end">
           {col.sortable && <DropdownMenuItem onClick={p.onSort}>{p.sort === "asc" ? "Sort descending" : p.sort === "desc" ? "Clear sort" : "Sort ascending"}</DropdownMenuItem>}
           <DropdownMenuItem disabled={!p.canMoveLeft} onClick={() => p.onMove(-1)}>
             Move left
