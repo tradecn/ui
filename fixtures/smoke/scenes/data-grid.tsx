@@ -1,5 +1,5 @@
-import { useMemo, useRef } from "react"
-import { DataGrid } from "@/components/ui/data-grid"
+import { useMemo, useRef, useState } from "react"
+import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type SortState } from "@/components/ui/data-grid"
 import { createRowStore } from "@/lib/row-store"
 import DataGridDefaultsDemo from "./recipes/data-grid-defaults"
 import DataGridSharedDefaultsDemo from "./recipes/data-grid-shared-defaults"
@@ -34,6 +34,34 @@ export function DataGridScene() {
       </button>
       <div data-grid-recipe="defaults"><DataGridDefaultsDemo /></div>
       <div data-grid-recipe="shared-defaults"><DataGridSharedDefaultsDemo /></div>
+      <GridKeyboardScene />
     </div>
   )
+}
+
+const keyboardColumns: ColumnDef<Row>[] = [
+  { key: "id", header: "Quote", width: 80, accessor: row => row.id },
+  { key: "px", header: "Price", width: 100, numeric: true, sortable: true, accessor: row => row.px },
+  { key: "note", header: "Note", width: 160, accessor: () => "", cell: ({ rowId }) => <input aria-label={`Note for ${rowId}`} className="min-w-0 w-full" /> },
+]
+
+function GridKeyboardScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [focused, setFocused] = useState<string | null>("Beta")
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Beta"]))
+  const [activated, setActivated] = useState(0)
+  const [columns, setColumns] = useState(EMPTY_COLUMN_STATE)
+  const [sort, setSort] = useState<SortState>(null)
+  const [handled, setHandled] = useState(false)
+  return <div data-grid-keyboard data-focused-row={focused} data-selection={[...selection].join(",")} data-activated={activated} data-sort={sort ? `${sort.key}:${sort.dir}` : "none"} className="flex flex-col gap-1" onKeyDownCapture={event => { if (handled) event.preventDefault() }}>
+    <div className="h-40">
+      <DataGrid store={store} columns={keyboardColumns} label="Keyboard quotes" selectionColumn selection={selection} onSelectionChange={setSelection} focusedRowId={focused} onFocusedRowChange={setFocused} onRowActivate={() => setActivated(count => count + 1)} columnState={columns} onColumnStateChange={setColumns} sort={sort} onSortChange={setSort} />
+    </div>
+    <label><input type="checkbox" checked={handled} onChange={event => setHandled(event.target.checked)} /> Handle keys in capture</label>
+    <button type="button" onClick={() => setColumns(state => ({ ...state, hidden: state.hidden.length ? [] : ["px"] }))}>Toggle price</button>
+  </div>
 }

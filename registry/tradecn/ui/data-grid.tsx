@@ -771,6 +771,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const indexOf = useMemo(() => new Map(ids.map((id, i) => [id, i] as const)), [ids])
 
   const resolved = useMemo(() => resolveColumns(columns, columnState), [columns, columnState])
+  if (focusedColKey !== null && !resolved.some(column => column.key === focusedColKey)) setFocusedColKey(null)
   const lefts = useMemo(() => {
     let x = selectionColumn ? SELECT_WIDTH : 0
     return resolved.map((c) => {
@@ -1101,6 +1102,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     if ((e.target as HTMLElement).closest?.("[data-cell-editor]")) return
     view.touch()
     stopFollowing()
+    // Focused controls own their keys; application handlers can also claim a grid key in capture.
+    if (e.defaultPrevented || e.target !== e.currentTarget) return
     const fi = focusedRowId !== null ? (indexOf.get(focusedRowId) ?? -1) : -1
     const ci = focusedColKey !== null ? resolved.findIndex((c) => c.key === focusedColKey) : -1
     const mod = e.metaKey || e.ctrlKey

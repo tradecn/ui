@@ -54,6 +54,146 @@ afterEach(() => {
 })
 
 describe("DataGrid", () => {
+  describe("keyboard ownership", () => {
+    it.each(["Enter", "Home", "Escape"])("leaves %s on a header control to that control", key => {
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(2, store)
+      const activate = vi.fn(), focus = vi.fn(), selection = vi.fn()
+      render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} focusedRowId="r1" selection={new Set(["r1"])} onRowActivate={activate} onFocusedRowChange={focus} onSelectionChange={selection} />)
+      const trigger = screen.getByRole("button", { name: "Price column menu" })
+      trigger.focus()
+      fireEvent.keyDown(trigger, { key })
+      expect(activate).not.toHaveBeenCalled()
+      expect(focus).not.toHaveBeenCalled()
+      expect(selection).not.toHaveBeenCalled()
+      fireEvent.keyDown(screen.getByRole("grid"), { key })
+      if (key === "Enter") expect(activate).toHaveBeenCalledWith(store.getRow("r1"), "r1")
+      else if (key === "Home") expect(focus).toHaveBeenCalledWith("r0")
+      else expect(selection).toHaveBeenCalledWith(new Set())
+    })
+
+    it("leaves custom cell controls and their unhandled keys available to the application", () => {
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(1, store)
+      const activate = vi.fn(), focus = vi.fn(), selection = vi.fn(), sort = vi.fn(), changeColumns = vi.fn(), edit = vi.fn(), appKey = vi.fn(), inputKey = vi.fn()
+      const controls: ColumnDef<Quote>[] = [{ ...columns[0]!, edit: { parse: text => text }, cell: () => <>
+        <input aria-label="Note" onKeyDown={inputKey} />
+        <button type="button">Inspect</button>
+        <select aria-label="Route"><option>Primary</option><option>Backup</option></select>
+        <div role="textbox" aria-label="Editable note" contentEditable suppressContentEditableWarning>Note</div>
+        <span tabIndex={0} aria-label="Custom control">Custom</span>
+      </> }]
+      render(<div onKeyDown={event => appKey(event.key, event.defaultPrevented)}><DataGrid store={store} columns={controls} label="Quotes" initialRect={RECT} focusedRowId="r0" onRowActivate={activate} onFocusedRowChange={focus} onSelectionChange={selection} onSortChange={sort} onColumnStateChange={changeColumns} onEdit={edit} /></div>)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      appKey.mockClear()
+      const targets = [screen.getByRole("textbox", { name: "Note" }), screen.getByRole("button", { name: "Inspect" }), screen.getByRole("combobox"), screen.getByRole("textbox", { name: "Editable note" }), screen.getByLabelText("Custom control")]
+      const keys = [{ key: "Enter" }, { key: "Home" }, { key: "ArrowDown" }, { key: "Escape" }, { key: " " }, { key: "a", ctrlKey: true }, { key: "s", altKey: true }, { key: "h", altKey: true }, { key: "F2" }, { key: "x" }]
+      for (const target of targets) {
+        target.focus()
+        for (const event of keys) {
+          expect(fireEvent.keyDown(target, event)).toBe(true)
+          expect(appKey).toHaveBeenLastCalledWith(event.key, false)
+        }
+      }
+      expect(inputKey).toHaveBeenCalledTimes(keys.length)
+      for (const callback of [activate, focus, selection, sort, changeColumns, edit]) expect(callback).not.toHaveBeenCalled()
+      expect(document.querySelector("[data-cell-editor]")).toBeNull()
+      fireEvent.keyDown(grid, { key: "x" })
+      expect(document.querySelector("[data-cell-editor]")).not.toBeNull()
+    })
+
+    it("honors a key handled during capture without swallowing application bubbling", () => {
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(2, store)
+      const focus = vi.fn(), appKey = vi.fn()
+      const layout = (handled: boolean) => <div onKeyDownCapture={event => { if (handled) event.preventDefault() }} onKeyDown={appKey}><DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} focusedRowId="r0" onFocusedRowChange={focus} /></div>
+      const { rerender } = render(layout(true))
+      fireEvent.keyDown(screen.getByRole("grid"), { key: "ArrowDown" })
+      expect(focus).not.toHaveBeenCalled()
+      expect(appKey).toHaveBeenCalledTimes(1)
+      rerender(layout(false))
+      fireEvent.keyDown(screen.getByRole("grid"), { key: "ArrowDown" })
+      expect(focus).toHaveBeenCalledWith("r1")
+      expect(appKey).toHaveBeenCalledTimes(2)
+    })
+
+    it.each(["control", "handled grid"])("still holds row order and stops following on a %s key", target => {
+      vi.useFakeTimers()
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(2, store)
+      const view = store.createView({ comparator: (a, b) => b.px - a.px, reorderHoldMs: 1000 })
+      try {
+        render(<div onKeyDownCapture={event => { if (target === "handled grid") event.preventDefault() }}><DataGrid store={store} view={view} columns={columns} label="Tape" preset="tape" initialRect={RECT} /></div>)
+        const grid = screen.getByRole("grid")
+        expect(view.getIds()).toEqual(["r1", "r0"])
+        const recipient = target === "control" ? screen.getByRole("button", { name: "Price column menu" }) : grid
+        fireEvent.keyDown(recipient, { key: "Home" })
+        act(() => store.applyDeltas({ patch: [{ id: "r0", fields: { px: 999 } }], upsert: [{ id: "r2", sym: "New", px: 102, qty: 1 }] }))
+        expect(view.getIds()).toEqual(["r1", "r0", "r2"])
+        expect(grid.querySelector("[data-grid-behind]")).toHaveTextContent("1 new")
+        act(() => vi.advanceTimersByTime(1000))
+        expect(view.getIds()).toEqual(["r0", "r2", "r1"])
+      } finally {
+        view.dispose()
+        vi.useRealTimers()
+      }
+    })
+  })
+
+  describe("visible column focus", () => {
+    it.each(["hidden", "removed", "all hidden"])("forgets a %s column and does not revive its shortcuts when it returns", disappearance => {
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(2, store)
+      const sort = vi.fn(), changeColumns = vi.fn()
+      const shared = { store, label: "Quotes", initialRect: RECT, focusedRowId: "r0", onSortChange: sort, onColumnStateChange: changeColumns }
+      const { rerender } = render(<DataGrid {...shared} columns={columns} columnState={EMPTY_COLUMN_STATE} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "s", altKey: true })
+      expect(sort).not.toHaveBeenCalled()
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "s", altKey: true })
+      expect(sort).toHaveBeenLastCalledWith({ key: "px", dir: "asc" })
+      sort.mockClear()
+      rerender(<DataGrid {...shared} columns={disappearance === "removed" ? columns.filter(column => column.key !== "px") : columns} columnState={{ ...EMPTY_COLUMN_STATE, hidden: disappearance === "all hidden" ? columns.map(column => column.key) : ["px"] }} />)
+      for (const key of ["s", "h"]) fireEvent.keyDown(grid, { key, altKey: true })
+      expect(sort).not.toHaveBeenCalled()
+      expect(changeColumns).not.toHaveBeenCalled()
+      rerender(<DataGrid {...shared} columns={columns} columnState={EMPTY_COLUMN_STATE} />)
+      for (const key of ["s", "h"]) fireEvent.keyDown(grid, { key, altKey: true })
+      expect(sort).not.toHaveBeenCalled()
+      expect(changeColumns).not.toHaveBeenCalled()
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "s", altKey: true })
+      expect(sort).toHaveBeenLastCalledWith({ key: "sym", dir: "asc" })
+    })
+
+    it("keeps a surviving column through a reorder and a refused hide, then clears it when accepted", () => {
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(2, store)
+      const sort = vi.fn(), changeColumns = vi.fn()
+      const shared = { store, columns, label: "Quotes", initialRect: RECT, onSortChange: sort, onColumnStateChange: changeColumns }
+      const { rerender } = render(<DataGrid {...shared} columnState={EMPTY_COLUMN_STATE} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      const reordered = { ...EMPTY_COLUMN_STATE, order: ["sym", "qty", "px"] }
+      rerender(<DataGrid {...shared} columnState={reordered} />)
+      fireEvent.keyDown(grid, { key: "h", altKey: true })
+      expect(changeColumns).toHaveBeenLastCalledWith({ ...reordered, hidden: ["px"] })
+      fireEvent.keyDown(grid, { key: "s", altKey: true })
+      expect(sort).toHaveBeenLastCalledWith({ key: "px", dir: "asc" })
+      sort.mockClear()
+      changeColumns.mockClear()
+      rerender(<DataGrid {...shared} columnState={{ ...reordered, hidden: ["px"] }} />)
+      fireEvent.keyDown(grid, { key: "s", altKey: true })
+      fireEvent.keyDown(grid, { key: "h", altKey: true })
+      expect(sort).not.toHaveBeenCalled()
+      expect(changeColumns).not.toHaveBeenCalled()
+    })
+  })
+
   describe("shared column defaults", () => {
     const baseState: ColumnState = { order: ["sym", "qty", "px"], widths: { px: 144 }, hidden: ["qty"] }
     const savedState: ColumnState = { order: [], widths: { px: 120 }, hidden: [] }

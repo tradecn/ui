@@ -191,7 +191,9 @@ Flash memory is keyed by row and column. A cell returning with the same value re
 
 ### The reorder hold
 
-Grid key events outside the cell editor and pointer presses in the scroll area call `view.touch()`. During the hold, existing rows keep their relative order, new rows append, and removed or filtered-out rows leave. The view sorts again when the hold expires, even without another feed update.
+Key events delivered to the grid from its own element or contained controls call `view.touch()`, even when already handled. Cell editors and portaled content are excluded. Pointer presses in the scroll area also call `touch()`.
+
+During the hold, existing rows keep their relative order, new rows append, and removed or filtered-out rows leave. The view sorts again when the hold expires, even without another feed update.
 
 The `reorderHoldMs` prop configures the internally owned view. With a supplied `view`, configure its hold yourself; the grid still calls `touch()` on it.
 
@@ -252,7 +254,7 @@ With announcements enabled, a 1,000 ms timer reports the row count through a pol
 
 ### Keyboard
 
-With focus in the grid, outside a text editor:
+These shortcuts run with focus on the grid itself. Header controls, selection checkboxes, and custom cell controls own their keys. The grid skips commands for events already handled with `preventDefault()`.
 
 | Key | Action |
 |---|---|
@@ -276,6 +278,10 @@ With focus in the grid, outside a text editor:
 Row navigation also selects the focused row in single-select mode. A double click opens an editable text cell or activates the row. Each column header has move, hide, and reset controls, plus a resize handle. Sort controls appear only when the column has `sortable: true`.
 
 When a column disappears while its menu trigger or menu owns focus, focus returns to the grid. A surviving menu trigger retains the menu's normal close-focus behavior.
+
+Hiding or removing the focused column clears column focus. Press Left or Right on the grid to choose a visible column before using its shortcuts.
+
+Existing sort, row focus, and selection remain unchanged. A controlled hide request leaves column focus in place until the caller accepts it.
 
 Inside a text editor:
 
