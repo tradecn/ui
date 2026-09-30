@@ -602,9 +602,7 @@ test("workspace overflow actions stay open for keyboard menu interaction", async
   await expect(overflow).toBeVisible()
 })
 
-// The first block, and seven of the consumer's components in one place. The price field goes
-// through the consumer's input-group, the side through their button-group, the errors through their
-// field. Then the two rules: buttons are what the server allowed, and the status is what it said.
+// Custom blocks stop both tickets' keyboard actions and let them resume when the block is removed.
 for (const kind of ["ticket", "rfq-ticket"] as const) {
   test(`${kind} keeps a prototype-named custom block authoritative`, async ({ page }) => {
     await page.goto("/")
@@ -627,6 +625,9 @@ for (const kind of ["ticket", "rfq-ticket"] as const) {
   })
 }
 
+// The first block, and seven of the consumer's components in one place. The price field goes
+// through the consumer's input-group, the side through their button-group, the errors through their
+// field. Then the two rules: buttons are what the server allowed, and the status is what it said.
 test("a ticket types a price in 32nds, steps it, sends from a key, and shows only what the server allows", async ({ page }) => {
   const errors: string[] = []
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
