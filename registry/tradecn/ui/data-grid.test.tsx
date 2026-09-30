@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatPrice, parsePrice } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
-import { DATA_GRID_PRESETS, DataGrid, compareForSort, editProblem, exportCsv, resolveColumns, type ColumnDef, type EditChange, type EditStatus } from "@/registry/tradecn/ui/data-grid"
+import { DATA_GRID_PRESETS, DataGrid, EMPTY_COLUMN_STATE, compareForSort, editProblem, exportCsv, resolveColumns, type ColumnDef, type ColumnState, type EditChange, type EditStatus } from "@/registry/tradecn/ui/data-grid"
 
 interface Quote {
   id: string
@@ -54,6 +54,102 @@ afterEach(() => {
 })
 
 describe("DataGrid", () => {
+  describe("shared column defaults", () => {
+    const baseState: ColumnState = { order: ["sym", "qty", "px"], widths: { px: 144 }, hidden: ["qty"] }
+    const savedState: ColumnState = { order: [], widths: { px: 120 }, hidden: [] }
+    const latestBase: ColumnState = { order: ["sym", "qty", "px"], widths: { qty: 100 }, hidden: ["px"] }
+    const headers = () => screen.getAllByRole("columnheader").map(header => header.getAttribute("data-col"))
+    const template = () => screen.getAllByRole("row")[0]!.style.gridTemplateColumns
+    const openMenu = async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Price column menu" }))
+      return screen.findByRole("menuitem", { name: /^Reset columns/ })
+    }
+
+    it("initializes uncontrolled columns once and resets to the latest defaults, including with no rows", async () => {
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      const changed = vi.fn()
+      const { rerender } = render(<DataGrid store={store} columns={columns} label="Quotes" baseState={baseState} onColumnStateChange={changed} />)
+      expect(headers()).toEqual(["sym", "px"])
+      expect(template()).toBe("80px 144px")
+      expect(changed).not.toHaveBeenCalled()
+      const reset = await openMenu()
+      rerender(<DataGrid store={store} columns={columns} label="Quotes" baseState={latestBase} onColumnStateChange={changed} />)
+      expect(headers()).toEqual(["sym", "px"])
+      expect(template()).toBe("80px 144px")
+      expect(changed).not.toHaveBeenCalled()
+      fireEvent.click(reset)
+      expect(changed).toHaveBeenCalledExactlyOnceWith(latestBase)
+      expect(headers()).toEqual(["sym", "qty"])
+      expect(template()).toBe("80px 100px")
+    })
+
+    it("keeps controlled snapshots authoritative and reports the configured reset even when refused", async () => {
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      const changed = vi.fn()
+      const { rerender } = render(<DataGrid store={store} columns={columns} label="Quotes" columnState={savedState} onColumnStateChange={changed} baseState={baseState} />)
+      expect(headers()).toEqual(["sym", "px", "qty"])
+      expect(template()).toBe("80px 120px 70px")
+      fireEvent.click(await openMenu())
+      expect(changed).toHaveBeenCalledExactlyOnceWith(baseState)
+      expect(headers()).toEqual(["sym", "px", "qty"])
+      expect(template()).toBe("80px 120px 70px")
+      rerender(<DataGrid store={store} columns={columns} label="Quotes" columnState={baseState} onColumnStateChange={changed} baseState={baseState} />)
+      expect(headers()).toEqual(["sym", "px"])
+      expect(template()).toBe("80px 144px")
+      expect(changed).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([false, true])("preserves the empty reset and its callback with explicit undefined: %s", async explicit => {
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      const changed = vi.fn()
+      render(<DataGrid store={store} columns={columns} label="Quotes" onColumnStateChange={changed} {...(explicit ? { baseState: undefined } : {})} />)
+      expect(template()).toBe("80px 90px 70px")
+      expect(changed).not.toHaveBeenCalled()
+      fireEvent.click(await openMenu())
+      expect(changed).toHaveBeenCalledExactlyOnceWith(EMPTY_COLUMN_STATE)
+    })
+
+    it("passes through a complete reset snapshot without mutating or normalizing it", async () => {
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      const snapshot: ColumnState = { order: ["retired", "px", "qty", "px"], widths: { px: 2, retired: 99 }, hidden: ["retired"] }
+      Object.freeze(snapshot.order)
+      Object.freeze(snapshot.widths)
+      Object.freeze(snapshot.hidden)
+      Object.freeze(snapshot)
+      const changed = vi.fn()
+      render(<DataGrid store={store} columns={columns} label="Quotes" baseState={snapshot} onColumnStateChange={changed} />)
+      expect(headers()).toEqual(["sym", "qty", "px"])
+      expect(template()).toBe("80px 70px 48px")
+      fireEvent.click(await openMenu())
+      expect(changed).toHaveBeenCalledExactlyOnceWith(snapshot)
+      expect(changed.mock.calls[0]![0]).toBe(snapshot)
+      expect(snapshot.widths).toEqual({ px: 2, retired: 99 })
+    })
+
+    it("changing reset defaults preserves row render locality and the existing uncontrolled edits", async () => {
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(20, store)
+      const renders = new Map<string, number>()
+      const counted: ColumnDef<Quote>[] = columns.map(column => column.key === "sym" ? { ...column, cell: ({ rowId, value }) => {
+        renders.set(rowId, (renders.get(rowId) ?? 0) + 1)
+        return String(value)
+      } } : column)
+      const { rerender } = render(<DataGrid store={store} columns={counted} label="Quotes" baseState={savedState} initialRect={RECT} />)
+      await openMenu()
+      fireEvent.click(screen.getByRole("menuitem", { name: "Move right" }))
+      expect(headers()).toEqual(["sym", "qty", "px"])
+      const before = new Map(renders)
+      expect(before.size).toBeGreaterThan(0)
+      rerender(<DataGrid store={store} columns={counted} label="Quotes" baseState={latestBase} initialRect={RECT} />)
+      expect(headers()).toEqual(["sym", "qty", "px"])
+      expect(template()).toBe("80px 70px 120px")
+      expect(renders).toEqual(before)
+      act(() => store.applyDeltas({ patch: [{ id: "r3", fields: { px: 999 } }] }))
+      expect(renders.get("r3")).toBe(before.get("r3")! + 1)
+      for (const [id, n] of before) if (id !== "r3") expect(renders.get(id)).toBe(n)
+    })
+  })
+
   it("mounts a thousand rows as only the visible ones plus overscan, with grid semantics", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     seed(1000, store)

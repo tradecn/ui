@@ -688,6 +688,8 @@ export function QuoteColumns() {
 
 The pure helpers, `ChooserRow<T>`, label type, and default labels remain exported with their previous semantics. Root commands now compare effective settings: no-op commands emit nothing, and edits normalize equivalent baseline settings and remove retired keys. Definition-hidden settings are retained. Initialize `columnState` from your defaults; `baseState` is the reset target, not an overlay applied to the grid.
 
+Pass the same `baseState` to DataGrid to align its header-menu reset with the chooser. DataGrid also uses it once to initialize uncontrolled columns. Later defaults changes leave current settings untouched until reset; existing calls without `baseState` retain the empty defaults.
+
 For a menu opener, copy the shared file first. This complete example uses Base UI's `finalFocus` to return to the grid. The grid's wrapper supplies the DOM target; `DataGrid` has no DOM-ref prop.
 
 ```tsx

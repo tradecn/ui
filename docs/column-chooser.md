@@ -215,7 +215,7 @@ Search matches the column name or key by case-insensitive substring, ignoring su
 
 `ColumnChooserResetAll` restores `baseState`, defaulting to `EMPTY_COLUMN_STATE`: `{ order: [], widths: {}, hidden: [] }`. Resetting leaves the search query unchanged. The root's `isDefault` compares effective order, visibility and widths for all known columns, including definition-hidden ones whose settings may be used later. An incoming complete order is still default when its effective settings match the baseline.
 
-The grid's own header-menu **Reset columns** action still restores the empty state. It does not use the chooser's `baseState`.
+Pass the same `baseState` to DataGrid so its header-menu **Reset columns** restores the same defaults. DataGrid emits that snapshot as supplied, including on repeated reset; the chooser normalizes its edits and skips effective no-ops.
 
 An emitted edit removes retired keys and normalizes settings that match the baseline back to its representation. Definition-hidden settings remain known and are preserved. Loading state, changing defaults or issuing a no-op command emits nothing. The standalone `isDefaultColumnState` helper retains its raw check for three empty fields; use the root reading for baseline comparisons.
 

@@ -1,6 +1,8 @@
 import { useMemo, useRef } from "react"
 import { DataGrid } from "@/components/ui/data-grid"
 import { createRowStore } from "@/lib/row-store"
+import DataGridDefaultsDemo from "./recipes/data-grid-defaults"
+import DataGridSharedDefaultsDemo from "./recipes/data-grid-shared-defaults"
 
 interface Row {
   id: string
@@ -30,6 +32,8 @@ export function DataGridScene() {
       <button type="button" onClick={append}>
         append 10
       </button>
+      <div data-grid-recipe="defaults"><DataGridDefaultsDemo /></div>
+      <div data-grid-recipe="shared-defaults"><DataGridSharedDefaultsDemo /></div>
     </div>
   )
 }
