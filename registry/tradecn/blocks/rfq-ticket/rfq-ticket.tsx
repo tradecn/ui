@@ -331,10 +331,11 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   // The limits, live: a block shows under its field and holds the actions that send a quote; a confirm waits for the click.
   const quotedDraft = { bid: sides.includes("bid") ? draft.bid : null, ask: sides.includes("ask") ? draft.ask : null }
   const limitProblems = limits ? checkLimits(quotedDraft, limits, { market: inquiry.market, convention }) : []
-  const blockedBy = problemsByField(blocks(limitProblems))
-  const blocked = Object.keys(blockedBy).length > 0
+  const blocking = blocks(limitProblems)
+  const blockedBy = problemsByField(blocking)
+  const blocked = blocking.length > 0
   const shownProblems = { bid: problems.bid ?? blockedBy.bid, ask: problems.ask ?? blockedBy.ask }
-  const otherBlocks = blocks(limitProblems).filter((p) => p.field !== "bid" && p.field !== "ask")
+  const otherBlocks = blocking.filter((p) => p.field !== "bid" && p.field !== "ask")
   const asking = confirming !== null ? confirms(limitProblems) : []
 
   /** Where a step starts when a field is blank: the market's same side, the suggested level, the market's mid, then its other side. */
@@ -382,9 +383,10 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       // The limits, as the click lands: a block stops here and shows under its field; a confirm asks once, and the next click on the same action sends.
       const quoted = quotedSides(now.side)
       const over = lines ? checkLimits({ bid: quoted.includes("bid") ? current.bid : null, ask: quoted.includes("ask") ? current.ask : null }, lines, { market: now.market, convention: now.instrument.convention }) : []
-      const stopped = problemsByField(blocks(over))
+      const blocking = blocks(over)
+      const stopped = problemsByField(blocking)
       setProblems({ bid: found.bid ?? stopped.bid, ask: found.ask ?? stopped.ask })
-      if (found.bid || found.ask || Object.keys(stopped).length) return
+      if (found.bid || found.ask || blocking.length) return
       if (confirms(over).length && asked !== action.id) {
         setConfirming(action.id)
         return
@@ -611,4 +613,3 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
     </HotkeyScope>
   )
 }
-

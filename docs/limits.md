@@ -85,11 +85,11 @@ Problems stay in check order: maximum quantity, minimum quantity, distance for `
 |---|---|---|
 | `blocks(problems)` | `Problem[]` | Keeps only `block` problems, in their original order. |
 | `confirms(problems)` | `Problem[]` | Keeps only `confirm` problems, in their original order. |
-| `problemsByField(problems)` | `Record<string, string>` | Keeps the first message for each field, regardless of level, with the custom-name exception below. Pass `blocks(problems)` to collect blocking messages. |
+| `problemsByField(problems)` | `Record<string, string>` | Keeps the first message for each field, regardless of level. Pass `blocks(problems)` to collect blocking messages. |
 
 All three helpers accept `readonly Problem[]`.
 
-Use custom field names that are not inherited from `Object.prototype`. `problemsByField` omits names such as `constructor`, `toString`, and `__proto__`; both tickets use that field map to stop actions, so a custom block on one of those names cannot stop an action by itself.
+Custom field names, including `constructor`, `toString`, and `__proto__`, become own enumerable properties of the returned object. An empty first message is kept too.
 
 ### Distance from the market
 
@@ -119,7 +119,9 @@ Only finite references are usable. The mid is a finite explicit `market.mid`, or
 
 ### Block and confirm
 
-[`ticket`](ticket.md) and [`rfq-ticket`](rfq-ticket.md) take a `limits` prop and check it live and again when an action is invoked, alongside their own draft validation. A block in the `problemsByField` map stops a checked action before confirmation. Blocks appear under quantity/price in Ticket or bid/ask in RfqTicket; problems for other fields appear on the limits line.
+[`ticket`](ticket.md) and [`rfq-ticket`](rfq-ticket.md) take a `limits` prop and check it live and again when an action is invoked, alongside their own draft validation. Any block stops a checked action before confirmation, regardless of its field name.
+
+Blocks appear under quantity/price in Ticket or bid/ask in RfqTicket; problems for other fields appear on the limits line.
 
 A confirm changes the invoked action's label to ask again. A second click on the same action sends if validation and limits still permit it. Editing the draft clears confirmation; changes to market or limits props alone do not. Every click checks those current props again.
 
