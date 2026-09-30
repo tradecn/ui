@@ -43,9 +43,9 @@ npx shadcn@latest add tradecn/ui/data-grid#{{tag}} --diff   # a tradecn change
 npx shadcn@latest add context-menu --diff                  # a shadcn change underneath
 ```
 
-After reviewing, rerun the command without `--diff` and choose which existing files to overwrite. Keep any application changes you need. If you use the namespace form, update its tag in `components.json` before adding the item again.
+Review stylesheet changes separately by running the command again with the `tailwind.css` path from your `components.json`, such as `--diff src/index.css`. This shows only the stylesheet diff, so keep the file review above.
 
-To include stylesheet changes in the review, pass the `tailwind.css` path from your `components.json`, such as `--diff src/index.css`. Remove both `--diff` and its path when applying the update.
+After reviewing both, rerun the command without `--diff` or its path and choose which existing files to overwrite. Keep any application changes you need. If you use the namespace form, update its tag in `components.json` before adding the item again.
 
 ## Every item at once
 

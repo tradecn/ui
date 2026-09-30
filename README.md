@@ -94,7 +94,7 @@ npx shadcn@latest add context-menu --diff                  # a shadcn change und
 
 <!-- x-release-please-end -->
 
-To include stylesheet changes in the review, pass the `tailwind.css` path from your `components.json`, such as `--diff src/index.css`. Remove both `--diff` and its path when applying the update.
+Review stylesheet changes separately by running the command again with the `tailwind.css` path from your `components.json`, such as `--diff src/index.css`. This shows only the stylesheet diff, so keep the file review above. After reviewing both, remove `--diff` and its path to apply the update.
 
 ## Dependencies
 
