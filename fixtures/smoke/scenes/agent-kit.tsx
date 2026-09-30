@@ -5,19 +5,20 @@ import { NUMERIC_CLASS } from "@/lib/format"
 // Three samples for checkContract. The kept one follows the contract, a word for a cue, a word and a number in two
 // spans a gap apart, a drawn sign a screen reader skips, a sign in a boxless wrapper, a colored run the spec also
 // checks as its own root, a field, a select, SVG text, SVG text painted in nothing, a signed value on a fill four boxes
-// out, a file picker and screen-reader-only small print among it. The unseen one says its direction only to a screen reader, through a description it points to, a native
-// label, a faded sign, a sign painted transparent, a grid rule's highlight that its description explains, a
-// description on the run around the value, a label on an element that takes its role from a fallback token, a cell
-// marked with its side, a row whose label says the direction and a value hidden from a screen reader in a cell marked
-// with its side: that passes by default and fails under visibleCue.
+// out, a file picker and screen-reader-only small print among it. The unseen one says its direction only to a screen
+// reader, through a description it points to, a native label, a faded sign, a sign painted transparent, a grid rule's
+// highlight that its description explains, a description on the run around the value, a label on an element that
+// takes its role from a fallback token, a cell marked with its side, a row whose label says the direction and a value
+// hidden from a screen reader in a cell marked with its side: that passes by default and fails under visibleCue.
 // The broken one breaks three rules on purpose: numbers colored up with nothing else saying so (in text, in a field,
 // in SVG text, with units, on a fill four boxes out, in a price split across two spans at its dash, behind a
 // description that points at nothing, a label that names no direction, a label on a plain span, which no screen
-// reader hears, a side marked on a container rather than on the value, a highlight from a rule whose tone is no
-// direction, a highlight from a rule whose tone is the other direction, on text and on a fill, a hidden sign, and a
-// faded sign, a description and a marker under aria-hidden, which reach nobody); an icon button and a field with no name; and
-// text under the floor, an SVG label drawn at half size and small print the spec shrinks at run time, a select's, a
-// placeholder's, a file picker's and a file picker's button alone among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
+// reader hears, a side marked on a container rather than on the value, a marker whose value names no direction,
+// empty or unknown, a highlight from a rule whose tone is no direction, a highlight from a rule whose tone is the
+// other direction, on text and on a fill, a hidden sign, and a faded sign, a description and a marker under
+// aria-hidden, which reach nobody); an icon button and a field with no name; and text under the floor, an SVG label
+// drawn at half size and small print the spec shrinks at run time, a select's, a placeholder's, a file picker's and a
+// file picker's button alone among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
 
 export function AgentKitScene() {
   const id = useId()
@@ -193,6 +194,12 @@ export function AgentKitScene() {
         </span>
         <span aria-hidden="true" data-cue="unheard-marker" data-direction="up" className={cn(NUMERIC_CLASS, "text-up")}>
           0-18
+        </span>
+        <span data-cue="empty-direction" data-direction="" className={cn(NUMERIC_CLASS, "text-up")}>
+          0-19
+        </span>
+        <span data-cue="odd-side" data-side="left" className={cn(NUMERIC_CLASS, "text-up")}>
+          0-20
         </span>
         <span data-cue="units" className={cn(NUMERIC_CLASS, "text-up")}>
           10 lots

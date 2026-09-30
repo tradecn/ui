@@ -2595,10 +2595,10 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
   const broken = await page.evaluate(checkContract, { root: "[data-contract-sample='broken']", ignore: "" })
   // Direction in text, in a field and in SVG text by its fill, with units, on a fill four boxes out, in a price split
   // at its dash, whose dash is no sign, and behind a description of nothing, a label that names no direction, a label
-  // on a plain span, a side on a container, another tone's rule, a rule whose tone is the other direction, on text and
-  // on a fill, a hidden sign, or a faded sign, a description or a marker under aria-hidden; SVG text measured as drawn,
-  // a select read through its chosen option, and a file picker measured in its own style and in its button's; and a
-  // field's value that names nothing.
+  // on a plain span, a side on a container, a marker that names no direction, another tone's rule, a rule whose tone is
+  // the other direction, on text and on a fill, a hidden sign, or a faded sign, a description or a marker under
+  // aria-hidden; SVG text measured as drawn, a select read through its chosen option, and a file picker measured in its
+  // own style and in its button's; and a field's value that names nothing.
   expect(broken.findings.map((finding) => `${finding.rule} ${finding.where}`).sort()).toEqual([
     "direction tradecn-agent-kit input",
     "direction tradecn-agent-kit span",
@@ -2606,10 +2606,12 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
     "direction tradecn-agent-kit span[data-cue=crossed-rule][data-rule=breach][data-tone=down]",
     "direction tradecn-agent-kit span[data-cue=dangling]",
     "direction tradecn-agent-kit span[data-cue=deep-fill]",
+    "direction tradecn-agent-kit span[data-cue=empty-direction][data-direction]",
     "direction tradecn-agent-kit span[data-cue=generic-label]",
     "direction tradecn-agent-kit span[data-cue=handle]",
     "direction tradecn-agent-kit span[data-cue=hidden]",
     "direction tradecn-agent-kit span[data-cue=named]",
+    "direction tradecn-agent-kit span[data-cue=odd-side][data-side=left]",
     "direction tradecn-agent-kit span[data-cue=other-rule]",
     "direction tradecn-agent-kit span[data-cue=side]",
     "direction tradecn-agent-kit span[data-cue=ticks]",

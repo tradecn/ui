@@ -322,10 +322,12 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     }
     const cellOf = (el: Element) => holder(el, /^(gridcell|cell|columnheader|rowheader)$/, /^(TD|TH)$/)
     const rowOf = (el: Element) => holder(el, /^row$/, /^TR$/)
-    // A direction marker counts on the value, anywhere in its colored run, or on the cell or the row that holds it,
-    // never on a container that has a side of its own, such as a ticket for a buy, and never under aria-hidden, where
-    // only what is drawn counts.
-    const marker = (node: Element | null) => Boolean(node?.matches("[data-direction], [data-side]") && !unheard(node))
+    // A direction marker names a direction or a side: a data-direction of up or down, or a data-side of buy, sell, bid,
+    // ask, offer, long or short. An empty or other value says nothing. It counts on the value, anywhere in its colored
+    // run, or on the cell or the row that holds it, never on a container that has a side of its own, such as a ticket
+    // for a buy, and never under aria-hidden, where only what is drawn counts.
+    const marker = (node: Element | null) =>
+      Boolean(node && !unheard(node) && (/^(up|down)$/i.test((node.getAttribute("data-direction") ?? "").trim()) || /^(buy|sell|bid|ask|offer|long|short)$/i.test((node.getAttribute("data-side") ?? "").trim())))
     const marked = (el: Element, run: Element) => {
       for (let node: Element | null = el; node; node = node.parentElement) {
         if (marker(node)) return true
@@ -408,11 +410,11 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     const editable = "[contenteditable]:not([contenteditable=false])"
     const control = (el: Element) =>
       el.matches(`button, a[href], details > summary, input:not([type=hidden]), select, textarea, ${editable}`) ||
-      /^(button|link|checkbox|radio|switch|tab|treeitem|menuitem|menuitemcheckbox|menuitemradio|option|combobox|slider|spinbutton|textbox|searchbox|grid|treegrid|listbox|tree)$/.test(roleOf(el) ?? "")
-    // A field's value is not its name, and neither is the text inside a combobox, a slider, a grid, a list box or an
-    // editable region: only the other controls take a name from their content, and only from the part of it that
-    // isn't hidden.
-    const authorNamed = (el: Element) => el.matches(`input, select, textarea, ${editable}`) || /^(combobox|slider|spinbutton|textbox|searchbox|grid|treegrid|listbox|tree)$/.test(roleOf(el) ?? "")
+      /^(button|link|checkbox|radio|switch|tab|treeitem|menuitem|menuitemcheckbox|menuitemradio|option|combobox|slider|spinbutton|textbox|searchbox|grid|treegrid|listbox|tree|radiogroup)$/.test(roleOf(el) ?? "")
+    // A field's value is not its name, and neither is the text inside a combobox, a slider, a grid, a list box, a radio
+    // group or an editable region: only the other controls take a name from their content, and only from the part of it
+    // that isn't hidden.
+    const authorNamed = (el: Element) => el.matches(`input, select, textarea, ${editable}`) || /^(combobox|slider|spinbutton|textbox|searchbox|grid|treegrid|listbox|tree|radiogroup)$/.test(roleOf(el) ?? "")
     for (const el of elements) {
       if (!control(el) || el.closest("[aria-hidden=true], [inert]") || hidden(el)) continue
       report.checked.name++

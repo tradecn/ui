@@ -174,6 +174,20 @@ describe("checkContract", () => {
     expect(report.findings.map((f) => f.where)).toEqual(["page div[data-id=bare-grid]", "page div[data-id=bare-list]", "page div[data-id=bare-item]"])
   })
 
+  it("holds a radio group to a name of its own, never its radios' labels", () => {
+    const root = mount(
+      [
+        "<div>",
+        '<div role="radiogroup" data-id="bare-group">Side <label><input type="radio" name="a">Buy</label><label><input type="radio" name="a">Sell</label></div>',
+        '<div role="radiogroup" aria-label="Side"><label><input type="radio" name="b">Buy</label></div>',
+        "</div>",
+      ].join(""),
+    )
+    const report = checkContract({ root, rules: ["name"] })
+    expect(report.checked.name).toBe(5)
+    expect(report.findings.map((f) => f.where)).toEqual(["page div[data-id=bare-group]"])
+  })
+
   it("reads a role list as a browser does, by the first role it knows, in any case", () => {
     const root = mount(
       [
