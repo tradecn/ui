@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState, type RefObject } from "react"
-import { useRow, useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
+import { useRow, useRowIds, useStoreMeta, useView } from "@/registry/tradecn/hooks/use-row-store"
 import { formatPrice, formatSigned } from "@/registry/tradecn/lib/format"
 import { createFrameBatcher, createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 
@@ -11,6 +11,7 @@ interface Quote {
 
 const N = 200
 const UPDATES_PER_FRAME = 400
+const viewOptions = { comparator: (a: Quote, b: Quote) => b.chg - a.chg, reorderHoldMs: 1500 }
 
 // A synthetic message-at-a-time publisher through the frame batcher: what a WebSocket consumer looks like.
 function usePublisher() {
@@ -48,7 +49,7 @@ const Row = memo(function Row({ store, id, rendersRef }: { store: RowStore<Quote
   if (!q) return null
   return (
     <tr className="border-b border-border">
-      <td className="py-0.5 pr-4 text-muted-foreground">{id}</td>
+      <th scope="row" className="py-0.5 pr-4 text-left font-normal text-muted-foreground">{id}</th>
       <td className="py-0.5 text-right">{formatPrice(q.px, { kind: "decimal", decimals: 3 })}</td>
       <td className={`py-0.5 pl-4 text-right ${q.chg > 0 ? "text-up" : q.chg < 0 ? "text-down" : "text-flat"}`}>{formatSigned(q.chg, { decimals: 3 })}</td>
     </tr>
@@ -57,7 +58,7 @@ const Row = memo(function Row({ store, id, rendersRef }: { store: RowStore<Quote
 
 export function RowStoreScene() {
   const { store, renders } = usePublisher()
-  const view = useMemo(() => store.createView({ comparator: (a, b) => b.chg - a.chg, reorderHoldMs: 1500 }), [store])
+  const view = useView(store, viewOptions)!
   const ids = useRowIds(view)
   const meta = useStoreMeta(store)
   const [, force] = useState(0)
@@ -69,9 +70,17 @@ export function RowStoreScene() {
     <main className="mx-auto max-w-xl p-6 font-(family-name:--tradecn-font-mono) text-xs lining-nums tabular-nums" onPointerDown={() => view.touch()} onKeyDown={() => view.touch()}>
       <h1 className="mb-2 text-sm font-semibold">row-store</h1>
       <p className="mb-4 text-muted-foreground">
-        {N} rows, {UPDATES_PER_FRAME} patches per frame through the batcher. batch {meta.version}, dropped {meta.dropped}, row renders {renders.current}. Sorted by change; click to hold the order for 1.5 s.
+        {N} rows, {UPDATES_PER_FRAME} patches per frame through the batcher. batch {meta.version}, dropped {meta.dropped}, row renders {renders.current}. Sorted by change; use Hold order or click the table to hold it for 1.5 s.
       </p>
-      <table className="w-full">
+      <button type="button" className="mb-2 rounded border px-2 py-1" onClick={() => view.touch()}>Hold order</button>
+      <table aria-label="Quotes sorted by change" className="w-full">
+        <thead>
+          <tr>
+            <th scope="col" className="pr-4 text-left font-medium">Symbol</th>
+            <th scope="col" className="text-right font-medium">Price</th>
+            <th scope="col" className="pl-4 text-right font-medium">Change</th>
+          </tr>
+        </thead>
         <tbody>
           {ids.slice(0, 25).map((id) => (
             <Row key={id} store={store} id={id} rendersRef={renders} />

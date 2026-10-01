@@ -22,7 +22,7 @@ const QuoteRow = memo(function QuoteRow({ store, id }: { store: RowStore<Quote>;
   )
 })
 
-function Quotes() {
+export default function RowStoreDemo() {
   const [store] = useState(() => {
     const store = createRowStore<Quote>({ getRowId: (quote) => quote.id })
     store.applyDeltas({ upsert: [{ id: "ALPHA", price: 99.5 }, { id: "BETA", price: 100.25 }] })
@@ -46,29 +46,43 @@ function Quotes() {
 }
 ```
 
-Update ALPHA applies one patch; BETA's snapshot stays unchanged. `useRowIds` subscribes to the id list, and each `useRow` subscribes to its own quote. `memo` lets an unchanged row skip a parent render when the list changes. The button stands in for an already-batched feed callback.
+Update ALPHA applies one patch; BETA's snapshot stays unchanged.
+
+`useRowIds` subscribes to the id list, and each `useRow` subscribes to its own quote. `memo` lets an unchanged row skip a parent render when the list changes. The button stands in for an already-batched feed callback.
 
 ## Applying a batch
 
-This example uses the coalesced lane, where a producer can discard superseded ticks. The Apply feed batch button inserts GAMMA, patches ALPHA, removes BETA, and reports three dropped ticks in one call. The row count stays at two. The Report two more drops button applies only metadata: the cumulative drop count reaches five, and the rows stay unchanged.
+This example uses the coalesced lane, where a producer can discard superseded ticks.
 
-The seed is batch 1, the mixed update is batch 2, and the metadata-only update is batch 3. Reset creates a fresh store so the rows and metadata can be inspected again from the start. The producer supplies the drop counts; the store does not detect drops. Feeds that must preserve every event use the ordered lane and report sequence and gap metadata instead; see [feed-health](feed-health.md).
+The Apply feed batch button inserts GAMMA, patches ALPHA, removes BETA, and reports three dropped ticks in one call. The row count stays at two. The Report two more drops button applies only metadata: the cumulative drop count reaches five, and the rows stay unchanged.
+
+The seed is batch 1, the mixed update is batch 2, and the metadata-only update is batch 3. Reset creates a fresh store so the rows and metadata can be inspected again from the start.
+
+The producer supplies the drop counts; the store does not detect drops. Feeds that must preserve every event use the ordered lane and report sequence and gap metadata instead; see [feed-health](feed-health.md).
 
 <!-- demo: row-store-deltas -->
 
 ## Batching individual messages
 
-Use `createFrameBatcher` when messages arrive one at a time. The Queue three messages button sends two price patches around a size patch. The next animation frame applies one batch: the later price wins, and the size field is retained. The first burst produces a price of `100.03` and size `200`.
+Use `createFrameBatcher` when messages arrive one at a time.
 
-Messages received counts every queued message; Batches applied excludes the seed. Multiple bursts before the same frame share one batch. Queue then cancel discards the queued batch without changing the store. The next burst continues the sample feed's prices, so canceled values are skipped. Cleanup also calls `cancel()` on unmount. Call `flush()` when queued work must apply immediately; an already-batched feed should call `applyDeltas` directly.
+The Queue three messages button sends two price patches around a size patch. The next animation frame applies one batch: the later price wins, and the size field is retained. The first burst produces a price of `100.03` and size `200`.
+
+Messages received counts every queued message; Batches applied excludes the seed. Multiple bursts before the same frame share one batch.
+
+Queue then cancel discards the queued batch without changing the store. The next burst continues the sample feed's prices, so canceled values are skipped.
+
+Cleanup also calls `cancel()` on unmount. Call `flush()` when queued work must apply immediately; an already-batched feed should call `applyDeltas` directly.
 
 <!-- demo: row-store-batching -->
 
 ## Sorted and filtered views
 
-This view includes nonnegative changes, highest first, while the store retains insertion order. BETA starts below zero and is hidden. Hold and raise BETA calls `touch()` before changing it to `+0.03`: it appears at the end during the two-second hold, then moves to the top without another feed update. Reset restores the original values for another pass.
+This view includes nonnegative changes, highest first, while the store retains insertion order. BETA starts below zero and is hidden.
 
-Static options stay at module scope. `useView` replaces the view when its store or options change and disposes the active view on unmount. The table uses the view's ids and subscribes to each row in the underlying store.
+Hold and raise BETA calls `touch()` before changing it to `+0.03`: it appears at the end during the two-second hold, then moves to the top without another feed update. Reset restores the original values for another pass.
+
+Static options stay at module scope. `useView` owns the view's connection and stops feed work and hold timers on cleanup. The table reads the view's ids and subscribes to each row in the underlying store.
 
 <!-- demo: row-store-views -->
 
@@ -94,9 +108,31 @@ Choose the path that matches your feed:
 
 Grid key and pointer handling calls `view.touch()` to start or extend the hold. Remaining rows keep their relative order; new matches append, while removed rows and rows that fail the filter disappear. When the hold expires, the view settles to the comparator's order (or store order), even on a quiet feed.
 
-Use `useView(store, options)` when a component owns its view. Keep `options` stable with `useMemo`: a new options object or store triggers replacement in an effect. `null` options replace the view with `null`. The hook disposes replaced views and cleans up on unmount. It also recreates a view disposed by StrictMode's development mount rehearsal; a memo with a cleanup effect alone would keep returning that disposed view.
+Use `useView(store, options)` when a component owns its view. Keep `options` stable with `useMemo` or a module constant.
 
-For a manually created view, call `view.dispose()` when finished. `view.isDisposed()` then returns `true`, and the view stops following the store.
+New store or options identities select a new view during render; `null` options return `null` immediately. Preparation supplies sorted, filtered ids without registering the view, so server rendering and abandoned renders leave no live resources.
+
+The hook connects after commit and disconnects on cleanup, stopping store work and hold timers. StrictMode replay and Activity hide/show reconnect the same handle.
+
+Share that handle with child grids or other readers; they borrow its connection. Do not dispose a hook-owned view yourself. Cleanup does not set `isDisposed()`; that flag reports explicit terminal disposal.
+
+For an imperative view, use `store.createView(options)` outside render and call `view.dispose()` when finished. It follows batches even without subscribers. Disposal is terminal: it clears listeners and timers, freezes the last snapshot, and makes later touches inert.
+
+### Prepared views
+
+`store.prepareView(options)` returns a `PreparedRowView<T>` for integrations that manage their own connection. React consumers normally use `useView` instead.
+
+| Method | Behavior |
+|---|---|
+| `getIds()` | Returns a current, stable snapshot. Disconnected reads refresh without registering the view or notifying listeners. |
+| `subscribe(listener)` | Adds a local change listener. It does not connect the view. |
+| `connect()` | Follows batches and returns an idempotent release function. Multiple connections release independently; the last release stops registration and timers. |
+| `touch()` | Records a hold deadline. A disconnected view starts no timer; reconnection uses only the remaining duration. |
+| `dispose()` | Permanently stops the view. Further connections and touches do nothing. |
+
+Custom `RowStore` implementations must provide a pure `prepareView` factory with these semantics. Preparation, filters, comparators and snapshot reads must not write to the store or create external resources.
+
+Keep a read snapshot separate from notification bookkeeping so a read before reconnection cannot suppress an owed notification. See [the migration guide](migrating-v1-to-v2.md#row-store) for the custom-store update.
 
 ### Meta
 

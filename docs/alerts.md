@@ -1,13 +1,13 @@
 # Alerts
 
-Compose notices from a container, list, header, body, and actions. You own the data and markup; optional hooks connect notices to the shared alert store without prescribing their layout.
+Compose notices and actions with caller-owned data, markup, and layout.
 
 ## Usage
 
 ```tsx
 import { Alerts, AlertsList, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity } from "@/components/ui/alerts"
 
-function Notice() {
+export default function AlertsDemo() {
   return (
     <Alerts className="w-lg max-w-full">
       <AlertsList>
@@ -151,7 +151,9 @@ The announcer follows the selected row, including repeats; it is not a queue of 
 | `renderContextMenu` | `(rows: Alert[], ids: RowId[]) => ReactNode` | Unset | Caller-composed context menu. |
 | `className` | `string` | Unset | History wrapper classes. |
 
-`alertColumns({ time?, labels? })` returns time, severity, title, message, and count columns. `time` accepts `(ms: number) => string` and defaults to local 24-hour time with seconds. Pass labels explicitly when constructing custom columns. `useAlertView(alerts)` returns a `RowView<Alert>`, recreates it when the store changes, and disposes it on cleanup. Read it through `useRowIds` from the installed `use-row-store` hooks.
+`alertColumns({ time?, labels? })` returns time, severity, title, message, and count columns. `time` accepts `(ms: number) => string` and defaults to local 24-hour time with seconds. Pass labels explicitly when constructing custom columns.
+
+`useAlertView(alerts)` returns a `RowView<Alert>` and replaces it synchronously when the store changes. It owns the view's connection: cleanup stops feed work, and effect replay reconnects the same handle. Read it through `useRowIds` from the installed `use-row-store` hooks. Do not dispose it yourself; see [view ownership](row-store.md#views).
 
 | History label | Default |
 |---|---|
