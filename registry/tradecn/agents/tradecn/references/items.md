@@ -252,15 +252,15 @@ Exports: `createWindowSet`, `parseWindowSet`, `windowSetOf`, `mainWindow`, `read
 
 ### Amber (`tradecn-amber`)
 
-An amber theme with a day side and a night side: warm paper in light, near-black in dark, and blue and vermilion for up and down, the pair with the widest separation under every kind of color blindness and in grayscale.
+Warm paper in light mode, near-black in dark mode, and blue and vermilion for up and down.
 
 ### Slate (`tradecn-slate`)
 
-A neutral look with a real light side and a real dark side: cool near-neutral surfaces, a calm blue primary, and the colorblind-safe bluish green and vermilion for up and down, every color held to 4.5 to 1 on its surface in both modes.
+Cool neutral surfaces with a blue primary, bluish green for up and vermilion for down, in light and dark modes.
 
 ### Slate East (`tradecn-slate-east`)
 
-Slate with the direction pair turned around, red for up and green for down, as screens in China, Japan, and Taiwan show it. The same colorblind-safe vermilion and bluish green, so it survives the same eyes.
+Slate with the direction convention reversed: vermilion for up and bluish green for down.
 
 ## Shared
 

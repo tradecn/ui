@@ -191,7 +191,9 @@ Flash memory is keyed by row and column. A cell returning with the same value re
 
 ### The reorder hold
 
-Grid key events outside the cell editor and pointer presses in the scroll area call `view.touch()`. During the hold, existing rows keep their relative order, new rows append, and removed or filtered-out rows leave. The view sorts again when the hold expires, even without another feed update.
+Key events delivered to the grid from its own element or contained controls call `view.touch()`, even when already handled. Cell editors and portaled content are excluded. Pointer presses in the scroll area also call `touch()`.
+
+During the hold, existing rows keep their relative order, new rows append, and removed or filtered-out rows leave. The view sorts again when the hold expires, even without another feed update.
 
 The `reorderHoldMs` prop configures the internally owned view. With a supplied `view`, configure its hold yourself; the grid still calls `touch()` on it.
 
@@ -238,6 +240,10 @@ Use `big` to implement a larger step, such as ten ticks with Shift; the grid doe
 
 Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid input. A value equal to the store's current value sends nothing.
 
+Hiding or removing a column while its text editor is still open discards the draft without calling `onEdit`. Removing its `edit` configuration or switching to `toggle` also discards it.
+
+Restoring the column does not reopen the draft. These column changes preserve pending and rejected edits.
+
 A commit calls `onEdit` with `{ rowId, key, value, previous, row }`. The grid never writes the store. Its default renderer shows the committed text muted with `data-pending` until the store value matches it or the returned promise resolves. Resolution clears pending state and displays the current store value, which may still be the old value. Returning nothing leaves the edit pending until the store matches.
 
 A thrown error or rejection of a still-pending promise displays the store value with the error message, `data-rejected`, and destructive styling. Reopening the editor clears the error. A pending cell can also be reopened, starting from its committed text.
@@ -252,7 +258,11 @@ With announcements enabled, a 1,000 ms timer reports the row count through a pol
 
 ### Keyboard
 
-With focus in the grid, outside a text editor:
+These DataGrid shortcuts run with focus on the grid itself. Header controls, selection checkboxes, and custom cell controls keep their own key behavior.
+
+After using a control, press Shift+Tab until the grid itself has focus, or click a cell without a control, to resume grid navigation.
+
+To handle a grid shortcut in a parent, call `preventDefault()` from `onKeyDownCapture`. A parent's bubbling `onKeyDown` runs after the grid. The grid skips commands for events already prevented.
 
 | Key | Action |
 |---|---|
@@ -276,6 +286,12 @@ With focus in the grid, outside a text editor:
 Row navigation also selects the focused row in single-select mode. A double click opens an editable text cell or activates the row. Each column header has move, hide, and reset controls, plus a resize handle. Sort controls appear only when the column has `sortable: true`.
 
 When a column disappears while its menu trigger or menu owns focus, focus returns to the grid. A surviving menu trigger retains the menu's normal close-focus behavior.
+
+If a column disappears or no longer supports a text editor, its focused editor returns focus to the grid when removed. Focus moved elsewhere is left alone.
+
+Hiding or removing the focused column clears column focus. Press Left or Right on the grid to choose a visible column before using its shortcuts.
+
+Existing sort, row focus, and selection remain unchanged. A controlled hide request leaves column focus in place until the caller accepts it.
 
 Inside a text editor:
 
