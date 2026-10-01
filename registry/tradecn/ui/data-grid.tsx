@@ -243,14 +243,24 @@ const ENTER_WINDOW_MS = 1500
 // Native controls, focus targets and ARIA widgets own interaction inside a cell.
 const ROW_CONTROLS = 'a[href], button, input, select, textarea, label, summary, audio[controls], video[controls], iframe, object, embed, [contenteditable]:not([contenteditable="false"]), [tabindex], [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="combobox"], [role="listbox"], [role="option"], [role="textbox"], [role="searchbox"], [role="slider"], [role="spinbutton"], [role="scrollbar"], [role="separator"], [role="tab"], [role="tablist"], [role="toolbar"], [role="menu"], [role="menubar"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="tree"], [role="treeitem"], [role="radiogroup"]'
 
-function gridTarget(root: HTMLElement | null, target: EventTarget): Element | undefined {
+function gridTarget(root: HTMLElement | null, target: EventTarget, path?: EventTarget[]): Element | undefined {
   const element = target as Element
-  return root?.contains(element) && element.closest?.('[role="grid"], [role="treegrid"]') === root ? element : undefined
+  // Portals can dispatch both an inner-target pass and a host-retargeted pass.
+  if (!root?.contains(element) || element.closest?.('[role="grid"], [role="treegrid"]') !== root) return undefined
+  if (!path) return element
+  for (const entry of path) {
+    if (entry === root) return element
+    if ((entry as Element).matches?.('[role="grid"], [role="treegrid"], [data-grid-interaction="independent"]')) return undefined
+  }
+  return undefined
 }
 
-function rowControl(root: HTMLElement | null, target: Element): boolean {
-  const control = target.closest(ROW_CONTROLS)
-  return control !== null && control !== root
+function pathMatches(root: HTMLElement | null, path: EventTarget[], selector: string): boolean {
+  for (const entry of path) {
+    if (entry === root) return false
+    if ((entry as Element).matches?.(selector)) return true
+  }
+  return false
 }
 
 function useControllable<V>(value: V | undefined, onChange: ((v: V) => void) | undefined, initial: V): [V, (v: V) => void] {
@@ -1150,9 +1160,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     // Nested grids and portals own their keys, including reorder holds and following.
-    if (!gridTarget(e.currentTarget, e.target)) return
+    const path = e.nativeEvent.composedPath()
+    if (!gridTarget(e.currentTarget, e.target, path)) return
     // The editor owns its keys; what it lets through (a modifier-held arrow) is for the listeners above the grid.
-    if ((e.target as HTMLElement).closest?.("[data-cell-editor]")) return
+    if (pathMatches(e.currentTarget, path, "[data-cell-editor]")) return
     view.touch()
     stopFollowing()
     // Focused controls own their keys; application handlers can also claim a grid key in capture.
@@ -1270,16 +1281,24 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   const openContextMenuAtFocus = () => {
     if (focusedRowId === null) return
-    const el = rootRef.current?.ownerDocument.getElementById(domId(focusedRowId))
+    const root = rootRef.current
+    const id = domId(focusedRowId)
+    const el = Array.from(root?.querySelectorAll<HTMLElement>('[role="row"][data-row-id]') ?? []).find(row => row.id === id)
     const ownerWindow = el?.ownerDocument.defaultView
-    if (!el || !ownerWindow || !gridTarget(rootRef.current, el)) return
+    if (!el || !ownerWindow || !gridTarget(root, el)) return
     const r = el.getBoundingClientRect()
     el.dispatchEvent(new ownerWindow.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 8, clientY: r.top + r.height / 2, button: 2 }))
   }
 
-  const rowTarget = (target: EventTarget) => {
-    const element = gridTarget(rootRef.current, target)
-    if (!element || rowControl(rootRef.current, element)) return undefined
+  const rowTarget = (event: { target: EventTarget; nativeEvent: Event }, includeShadowTarget = false) => {
+    const path = event.nativeEvent.composedPath()
+    const root = rootRef.current
+    // Menu starts can reach the primitive before a shadow portal's host-targeted pass.
+    const target = includeShadowTarget && !root?.contains(event.target as Node)
+      ? path.find(entry => (entry as Node).nodeType === 1 && root?.contains(entry as Node)) ?? event.target
+      : event.target
+    const element = gridTarget(root, target, path)
+    if (!element || pathMatches(rootRef.current, path, ROW_CONTROLS + ', [data-grid-interaction="control"]')) return undefined
     const row = element.closest<HTMLElement>('[role="row"][data-row-id]')
     const id = row?.dataset.rowId
     if (id === undefined || row?.id !== domId(id) || !indexOf.has(id) || store.getRow(id) === undefined) return undefined
@@ -1291,7 +1310,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   // Right-click targets the row under the pointer: focus it, and make it the selection unless it is already selected.
   const onContextMenu = (e: MouseEvent<HTMLDivElement>) => {
-    const target = rowTarget(e.target)
+    const target = rowTarget(e, true)
     if (e.defaultPrevented || !target) {
       // Leave native defaults intact, but keep the surrounding menu trigger from claiming the event.
       e.stopPropagation()
@@ -1303,16 +1322,16 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   }
 
   const onPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
-    if (!gridTarget(rootRef.current, e.target)) return
+    if (!gridTarget(rootRef.current, e.target, e.nativeEvent.composedPath())) return
     view.touch()
     stopFollowing()
   }
 
   const onRowPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    const target = rowTarget(e.target)
+    const target = rowTarget(e)
     if (e.defaultPrevented || !target) {
       // Radix starts long-press menus from pointerdown; Base UI uses touchstart below.
-      if (renderContextMenu && e.pointerType !== "mouse") e.stopPropagation()
+      if (renderContextMenu && e.pointerType !== "mouse" && (e.defaultPrevented || !rowTarget(e, true))) e.stopPropagation()
       return
     }
     const { id } = target
@@ -1326,7 +1345,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // A double click on an editable cell opens it; anywhere else on the row it activates the row.
   const onRowDoubleClick = (e: MouseEvent<HTMLDivElement>) => {
     if (e.defaultPrevented) return
-    const target = rowTarget(e.target)
+    const target = rowTarget(e)
     if (!target) return
     const { element, id } = target
     const row = store.getRow(id)
@@ -1361,7 +1380,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       onContextMenu={renderContextMenu ? onContextMenu : undefined}
       onTouchStart={renderContextMenu ? event => {
         // Multiple touches must reach the primitive so it can cancel a pending long press.
-        if (event.touches.length === 1 && (event.defaultPrevented || !rowTarget(event.target))) event.stopPropagation()
+        if (event.touches.length === 1 && (event.defaultPrevented || !rowTarget(event, true))) event.stopPropagation()
       } : undefined}
       onScroll={onScroll}
     >

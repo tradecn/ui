@@ -395,6 +395,10 @@ Pass the cell's explicit row id to its action. If the action should also select 
 
 Row actions now run during bubbling and honor a child's `preventDefault()` or `stopPropagation()`. Parent handlers must use capture to claim the event first. Nested grids and content portaled outside the grid no longer touch its reorder hold or pause its tail following; contained controls still do so on pointer press.
 
+Open shadow roots use the same ownership rules. For a closed shadow root, mark its host or a containing element outside that closed root with `data-grid-interaction="control"` to retain the enclosing grid's hold and tail pause, or `data-grid-interaction="independent"` to skip that bookkeeping.
+
+Both exclude this grid's row actions and row menu. Without a marker, the hidden content is indistinguishable from its plain host.
+
 Row context menus now open only from plain content in a current row. Controls retain their own menus, while headers, footers and empty space no longer open the menu for the previous selection.
 
 When `renderContextMenu` is set, rejected context-menu events and single-touch long-press starts stop bubbling at the grid body after child handlers run. Move an ancestor observer to capture if it needs those events. See [pointer interactions](data-grid.md#pointer-interactions), including the wrapper for controls styled with `pointer-events: none`.

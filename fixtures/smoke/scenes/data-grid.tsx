@@ -1,8 +1,9 @@
-import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
 import { createPortal, flushSync } from "react-dom"
+import { useView } from "@/hooks/use-row-store"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { DataGrid, EMPTY_COLUMN_STATE, type CellEditHandle, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/components/ui/data-grid"
-import { createRowStore } from "@/lib/row-store"
+import { createRowStore, type RowView } from "@/lib/row-store"
 import DataGridDefaultsDemo from "./recipes/data-grid-defaults"
 import DataGridSharedDefaultsDemo from "./recipes/data-grid-shared-defaults"
 
@@ -39,6 +40,7 @@ export function DataGridScene() {
       <GridKeyboardScene />
       <GridPointerScene />
       <GridNestedPointerScene />
+      <GridShadowPointerScene />
       <GridResizeScene />
       <GridEditorScene />
       <GridDelayedEditorScene />
@@ -97,6 +99,61 @@ function GridNestedPointerScene() {
   return <div data-grid-nested-pointer data-selection={[...selection].join(",")} data-activated={activated} data-inner-activated={innerActivated} className="flex flex-col gap-1">
     <div className="h-96"><DataGrid store={store} columns={columns} rowHeight={128} label="Outer pointer quotes" focusedRowId="Beta" selection={selection} onSelectionChange={setSelection} onRowActivate={() => setActivated(count => count + 1)} renderContextMenu={(_rows, ids) => <ContextMenuItem>Outer pointer action: {ids.join(",")}</ContextMenuItem>} /></div>
     <div ref={setHost} />
+  </div>
+}
+
+function ShadowCell({ children }: { children: ReactNode }) {
+  const host = useRef<HTMLDivElement>(null)
+  const [shadow, setShadow] = useState<ShadowRoot | null>(null)
+  useLayoutEffect(() => {
+    const root = host.current!.shadowRoot ?? host.current!.attachShadow({ mode: "open" })
+    const styles = Array.from(host.current!.ownerDocument.querySelectorAll('link[rel="stylesheet"]'), link => link.cloneNode(true))
+    root.append(...styles)
+    setShadow(root)
+    return () => styles.forEach(style => root.removeChild(style))
+  }, [])
+  return <div ref={host}>{shadow && createPortal(children, shadow)}</div>
+}
+
+const shadowViewOptions = {}
+
+function GridShadowPointerScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [innerStore] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Beta", px: 9 }] })
+    return store
+  })
+  const view = useView(store, shadowViewOptions)!
+  const [touches, setTouches] = useState(0)
+  const observedView = useMemo<RowView<Row>>(() => ({
+    store: view.store,
+    getIds: () => view.getIds(),
+    subscribe: listener => view.subscribe(listener),
+    touch: () => { view.touch(); setTouches(count => count + 1) },
+    isHeld: () => view.isHeld(),
+    isDisposed: () => view.isDisposed(),
+    dispose: () => view.dispose(),
+  }), [view])
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Beta"]))
+  const [selected, setSelected] = useState(0)
+  const [activated, setActivated] = useState(0)
+  const [inspected, setInspected] = useState(0)
+  const [innerActivated, setInnerActivated] = useState(0)
+  const columns = useMemo<ColumnDef<Row>[]>(() => [editorColumns[0]!, {
+    key: "shadow", header: "Shadow content", width: 320, accessor: () => "",
+    cell: ({ rowId }) => rowId === "Alpha" ? <ShadowCell>
+      <button type="button" onClick={() => setInspected(count => count + 1)}>Inspect shadow quote</button>
+      <div data-shadow-plain className="h-12">Plain shadow quote</div>
+      <div className="h-24"><DataGrid store={innerStore} columns={editorColumns} label="Shadow related quotes" onRowActivate={() => setInnerActivated(count => count + 1)} /></div>
+    </ShadowCell> : rowId,
+  }], [innerStore])
+  return <div data-grid-shadow-pointer data-selection={[...selection].join(",")} data-selected={selected} data-activated={activated} data-inspected={inspected} data-inner-activated={innerActivated} data-touches={touches}>
+    <div className="h-96"><DataGrid store={store} view={observedView} columns={columns} rowHeight={192} label="Shadow outer quotes" selection={selection} onSelectionChange={next => { setSelection(next); setSelected(count => count + 1) }} onRowActivate={() => setActivated(count => count + 1)} renderContextMenu={(_rows, ids) => <ContextMenuItem>Shadow outer action: {ids.join(",")}</ContextMenuItem>} /></div>
   </div>
 }
 

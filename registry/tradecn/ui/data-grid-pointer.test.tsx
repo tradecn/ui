@@ -102,6 +102,34 @@ describe("DataGrid pointer ownership", () => {
     expect(props.onRowActivate).not.toHaveBeenCalled()
   })
 
+  it.each(["control", "independent"])("honors a declared %s host without changing its child actions", ownership => {
+    const props = setup(["a"])
+    const view = props.store.createView()
+    const touch = vi.spyOn(view, "touch")
+    const click = vi.fn()
+    try {
+      render(<DataGrid {...props} view={view} columns={[{ ...columns[0]!, cell: () => <span data-testid="host" data-grid-interaction={ownership}><button onClick={click}>Inspect</button></span> }]} renderContextMenu={() => <span>Row action</span>} />)
+      const host = screen.getByTestId("host")
+      // A closed shadow tree or pointer-events:none can expose only its host.
+      expect(fireEvent.pointerDown(host, pointer)).toBe(true)
+      expect(fireEvent.doubleClick(host)).toBe(true)
+      expect(fireEvent.contextMenu(host)).toBe(true)
+      const button = screen.getByRole("button", { name: "Inspect" })
+      fireEvent.keyDown(button, { key: "Home" })
+      fireEvent.click(button)
+      expect(click).toHaveBeenCalledTimes(1)
+      expect(touch).toHaveBeenCalledTimes(ownership === "control" ? 2 : 0)
+      expect(props.onSelectionChange).not.toHaveBeenCalled()
+      expect(props.onFocusedRowChange).not.toHaveBeenCalled()
+      expect(props.onRowActivate).not.toHaveBeenCalled()
+      expect(screen.queryByRole("menu")).toBeNull()
+      expect(host).not.toHaveAttribute("role")
+      expect(host).not.toHaveAttribute("tabindex")
+    } finally {
+      view.dispose()
+    }
+  })
+
   it.each(["nested", "portaled"])("keeps a %s grid's row actions within that grid even with overlapping row ids", placement => {
     const outer = setup(["a", "b"]), inner = setup(["b"])
     const content = <DataGrid {...inner} label="Detail" />
@@ -191,6 +219,24 @@ describe("DataGrid pointer ownership", () => {
     fireEvent.keyDown(screen.getByRole("grid", { name: "Quotes" }), { key: "F10", shiftKey: true })
     expect(screen.getByText("Outer: b")).toBeInTheDocument()
     expect(screen.queryByText("Inner action")).toBeNull()
+  })
+
+  it.each(["open", "closed"] as const)("opens the focused row's keyboard menu within a shadow root (%s)", mode => {
+    const id = "b"
+    const props = setup(["a", id])
+    const host = document.createElement("div")
+    document.body.append(host)
+    const container = document.createElement("div")
+    host.attachShadow({ mode }).append(container)
+    const { unmount } = render(<DataGrid {...props} focusedRowId={id} renderContextMenu={(_rows, ids) => <span>Shadow target: {ids.join(",")}</span>} />, { container })
+    try {
+      fireEvent.keyDown(within(container).getByRole("grid"), { key: "F10", shiftKey: true })
+      expect(screen.getByText(`Shadow target: ${id}`)).toBeInTheDocument()
+      expect(props.onFocusedRowChange).toHaveBeenLastCalledWith(id)
+    } finally {
+      unmount()
+      host.remove()
+    }
   })
 
   it("lets a second touch cancel the menu's pending long press", () => {

@@ -280,22 +280,24 @@ With `renderContextMenu`, right-clicking a selected row keeps the selection; ano
 
 When a row menu is installed, rejected `contextmenu`, non-mouse `pointerdown`, and single-touch `touchstart` events stop bubbling after child handlers run. Use capture handlers on ancestors to observe them. Multiple-touch `touchstart` events reach the menu so it can cancel a pending long press.
 
+Open shadow roots use the browser's event path. Closed roots expose only their hosts. Set `data-grid-interaction` on the host or a containing element outside that root:
+
+| Value | Row actions | Reorder hold and tail following |
+| --- | --- | --- |
+| `control` | Skip row actions and row menu. | Retain hold and pause on presses and keys. |
+| `independent` | Skip row actions and row menu. | Skip hold and pause. Use for a separate widget. |
+
+Markers add no roles or tab stops. Child handlers still run. Custom content owns accessibility, focus and styles.
+
+Mark interactive closed-root content explicitly. It can otherwise trigger row actions. Plain text in an open shadow root still selects or activates its row.
+
 CSS such as `pointer-events: none` can send a disabled control's press to the cell beneath it. Wrap that control to keep those interactions within the custom content:
 
 ```tsx
 import type { ReactNode } from "react"
 
 export function CellControl({ children }: { children: ReactNode }) {
-  return (
-    <span
-      onPointerDown={(event) => event.stopPropagation()}
-      onDoubleClick={(event) => event.stopPropagation()}
-      onContextMenu={(event) => event.stopPropagation()}
-      onTouchStart={(event) => { if (event.touches.length === 1) event.stopPropagation() }}
-    >
-      {children}
-    </span>
-  )
+  return <span data-grid-interaction="control">{children}</span>
 }
 
 export function DisabledCellAction() {
