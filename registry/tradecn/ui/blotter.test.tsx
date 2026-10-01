@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useState } from "react"
+import { createPortal } from "react-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
@@ -59,6 +60,76 @@ function Harness({ store, actions, onNew, newLabel, selection, onSelectionChange
 
 const rowOf = (id: string) => document.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!
 const cancel = (run = vi.fn()): BlotterAction => ({ id: "cancel", label: "Cancel", run, destructive: true })
+
+describe("Blotter deletion keys", () => {
+  it.each(["Delete", "Backspace"])("leaves %s to controls, nested grids and portaled content", key => {
+    const run = vi.fn()
+    const onKeyDown = vi.fn()
+    const columns = [{ key: "symbol", header: "Symbol", width: 500, accessor: (row: BlotterRow) => row.symbol, cell: ({ row }: { row: BlotterRow }) => row.id === "o1" ? <>
+      <input aria-label="Note" defaultValue="ABC" />
+      <textarea aria-label="Comment" defaultValue="ABC" />
+      <div role="textbox" aria-label="Rich note" contentEditable suppressContentEditableWarning>ABC</div>
+      <button>Inspect</button>
+      <div role="grid" aria-label="Nested orders" tabIndex={0}><div role="row"><div role="gridcell">Nested</div></div></div>
+      {createPortal(<div role="grid" aria-label="Portaled orders" tabIndex={0}><div role="row"><div role="gridcell">Portaled</div></div></div>, document.body)}
+    </> : row.symbol }]
+    render(<Blotter store={seeded()} focusedRowId="o1" actions={[cancel(run)]}>
+      <BlotterGrid columns={columns} deleteAction="cancel" onKeyDown={onKeyDown} initialRect={RECT} />
+    </Blotter>)
+    const targets = [screen.getByRole("textbox", { name: "Note" }), screen.getByRole("textbox", { name: "Comment" }), screen.getByRole("textbox", { name: "Rich note" }), screen.getByRole("button", { name: "Inspect" }), screen.getByRole("button", { name: /Symbol/ }), within(rowOf("o1")).getByRole("checkbox", { name: "Select row" }), screen.getByRole("grid", { name: "Nested orders" }), screen.getByRole("grid", { name: "Portaled orders" })]
+    for (const target of targets) {
+      target.focus()
+      expect(fireEvent.keyDown(target, { key })).toBe(true)
+      expect(run).not.toHaveBeenCalled()
+      expect(target).toHaveFocus()
+    }
+    expect(onKeyDown).toHaveBeenCalledTimes(targets.length)
+    const grid = screen.getByRole("grid", { name: "Blotter" })
+    grid.focus()
+    expect(fireEvent.keyDown(grid, { key })).toBe(false)
+    expect(run).toHaveBeenCalledExactlyOnceWith([ORDERS[0]], ["o1"])
+  })
+
+  it.each(["Delete", "Backspace"])("edits text with %s without running the action", async key => {
+    const user = userEvent.setup()
+    const run = vi.fn()
+    const onEdit = vi.fn()
+    const columns = [{ key: "symbol", header: "Symbol", width: 150, accessor: (row: BlotterRow) => row.symbol, edit: { parse: (text: string) => text } }]
+    render(<Blotter store={seeded()} focusedRowId="o1" actions={[cancel(run)]}>
+      <BlotterGrid columns={columns} deleteAction="cancel" onEdit={onEdit} initialRect={RECT} />
+    </Blotter>)
+    fireEvent.doubleClick(rowOf("o1").querySelector('[data-col="symbol"]')!)
+    const input = screen.getByRole("textbox", { name: "Symbol" })
+    expect(input).toHaveFocus()
+    await user.keyboard(key === "Delete" ? "{Home}{Delete}" : "{End}{Backspace}")
+    expect(input).toHaveValue(key === "Delete" ? "N" : "Z")
+    expect(run).not.toHaveBeenCalled()
+    await user.keyboard("{Enter}")
+    expect(onEdit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ rowId: "o1", value: key === "Delete" ? "N" : "Z" }))
+    expect(screen.getByRole("grid")).toHaveFocus()
+  })
+
+  it.each(["Delete", "Backspace"])("checks current permissions after the caller handles %s", key => {
+    const store = seeded()
+    const run = vi.fn()
+    let cancelled = true
+    render(<Blotter store={store} selection={new Set(["o1", "o2", "o3", "missing"])} actions={[cancel(run)]}>
+      <BlotterGrid deleteAction="cancel" initialRect={RECT} onKeyDown={event => {
+        if (cancelled) event.preventDefault()
+        else store.applyDeltas({ patch: [{ id: "o2", fields: { allowedActions: [] } }] })
+      }} />
+    </Blotter>)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key })
+    expect(run).not.toHaveBeenCalled()
+    cancelled = false
+    expect(fireEvent.keyDown(grid, { key })).toBe(false)
+    expect(run).toHaveBeenCalledExactlyOnceWith([ORDERS[0]], ["o1"])
+    act(() => store.applyDeltas({ patch: [{ id: "o1", fields: { allowedActions: [] } }] }))
+    expect(fireEvent.keyDown(grid, { key })).toBe(false)
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe("blotterColumns", () => {
   it("prints an order: time and price your way, the side as a word, nothing for a missing price", () => {

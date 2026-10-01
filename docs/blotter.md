@@ -110,11 +110,11 @@ Use the same row type for `Blotter<T>` and `BlotterGrid<T>` when supplying custo
 | `time` | `(ms: number) => string` | Local `HH:MM:SS` | Format built-in timestamps, unused with custom columns. |
 | `label` | `string` | `"Blotter"` | Accessible grid name. |
 | `selectionColumn` | `boolean` | `true` | Show checkboxes in multiple-selection mode. |
-| `deleteAction` | `string` | None | Action id for Delete and Backspace inside the grid. |
+| `deleteAction` | `string` | None | Action id for Delete and Backspace on the focused grid. |
 | `renderContextMenu` | `(rows, ids) => ReactNode` | None | Complete caller-owned menu content. |
 | `className` | `string` | None | Classes on the `tradecn-blotter-grid` sizing wrapper. |
 | `ref` | `Ref<HTMLDivElement>` | None | Ref to the sizing wrapper. |
-| `onKeyDown` | `(event) => void` | None | Runs before the optional Delete handler. Prevent default to cancel it. |
+| `onKeyDown` | `(event) => void` | None | Receives bubbling keys before the optional action. Prevent default to cancel it. |
 
 Omitting `columns` builds `blotterColumns({ price, time })`. The menu renderer receives `rows: T[]` and `ids: RowId[]`. `onKeyDown` receives a React `KeyboardEvent<HTMLDivElement>` from the sizing wrapper.
 
@@ -238,11 +238,15 @@ Action invocation rechecks the store even if the displayed count has become stal
 
 ### Delete cancels nothing by default
 
-`deleteAction="cancel"` makes Delete and Backspace on the grid run the matching action on the orders in hand, through the same permission check. It is off by default. Nothing runs if the event was already prevented, no rows are in hand, or the id has no matching action.
+`deleteAction="cancel"` runs the matching action when Delete or Backspace is pressed on the focused grid. It uses the selection, or the focused row when the selection is empty, and rechecks permissions before dispatch.
 
-From the shared toolbar's buttons those keys do nothing.
+Deletion keys are off by default. Nothing runs when the event was prevented, no rows are in hand, no matching action exists or no target still allows it.
 
-With custom editable columns and `deleteAction`, Delete and Backspace in a cell editor can also run the action.
+Cell editors, custom controls, header controls, selection checkboxes, nested grids and portaled content keep their own key behavior. `onKeyDown` still receives bubbling events before this check.
+
+After using a control, press Shift+Tab until the grid has focus to preserve selection. Clicking a cell without a control also focuses the grid and selects that row.
+
+Use action buttons, menu items or `useBlotterActions().run` for commands elsewhere in your layout.
 
 ### Columns
 

@@ -185,7 +185,7 @@ export function Blotter<T extends BlotterRow = BlotterRow>({ store, children, on
 export interface BlotterGridProps<T extends BlotterRow = BlotterRow> extends Omit<DataGridProps<T>, "store" | "preset" | "columns" | "label" | "selection" | "onSelectionChange" | "focusedRowId" | "onFocusedRowChange">, BlotterColumnOptions<T> {
   columns?: ColumnDef<T>[]
   label?: string
-  /** Opt in to Delete and Backspace dispatching this action inside the grid. */
+  /** Opt in to Delete and Backspace dispatching this action from the focused grid root. */
   deleteAction?: string
   /** Ref and key handler on the grid's sizing wrapper. */
   ref?: Ref<HTMLDivElement>
@@ -202,7 +202,8 @@ export function BlotterGrid<T extends BlotterRow = BlotterRow>({ columns, price,
   function keyDown(event: KeyboardEvent<HTMLDivElement>) {
     onKeyDown?.(event)
     if (!deleteAction || event.defaultPrevented || (event.key !== "Delete" && event.key !== "Backspace")) return
-    if (!event.currentTarget.contains(event.target as Node) || !(event.target as Element).closest?.('[role="grid"]') || !targets.length) return
+    // The direct DataGrid root owns action keys; its controls and portals keep theirs.
+    if (event.target !== event.currentTarget.firstElementChild || !targets.length) return
     event.preventDefault()
     run(deleteAction, targets)
   }
