@@ -148,7 +148,7 @@ let defaultRuleColumns: ColumnDef<RfqStackRow>[] | null = null
 /**
  * A view of the store in the desk's order with the threshold, your filter, and the rules applied,
  * for the stack and `useActiveInquiry` to share, so the ticket's next inquiry is one that is on the
- * screen. Remade when an option changes, and the one before is disposed.
+ * screen. Replaced when an option changes, with the previous connection released on cleanup.
  */
 export function useRfqStackView<T extends RfqStackRow>(store: RowStore<T>, options: RfqStackViewOptions<T> = {}): RowView<T> {
   const { comparator, threshold = null, filter, reorderHoldMs = 1000, rules, columns } = options
@@ -163,7 +163,7 @@ export function useRfqStackView<T extends RfqStackRow>(store: RowStore<T>, optio
     const order = comparator && bySort ? stackOrder(comparator, bySort) : (comparator ?? bySort)
     return { comparator: order, filter: passes, reorderHoldMs }
   }, [comparator, threshold, filter, reorderHoldMs, ruleFilter, ruleSort, columns])
-  // Owned through useView, which survives StrictMode's mount rehearsal; a memo's view did not.
+  // One connection owned by this hook, shared with the grid and active inquiry.
   return useView(store, viewOptions)!
 }
 

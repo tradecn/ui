@@ -75,6 +75,12 @@ export interface RowView<T> {
   isDisposed(): boolean
 }
 
+/** A render-safe snapshot with an explicitly owned, reversible connection to its store. */
+export interface PreparedRowView<T> extends RowView<T> {
+  /** Follow batches until the returned release runs. Multiple owners release independently. */
+  connect(): () => void
+}
+
 /** Publish current row, order and metadata snapshots before notifying any subscriber. */
 export interface RowStore<T> {
   /** Stable object reference until the row is replaced or patched. */
@@ -88,6 +94,9 @@ export interface RowStore<T> {
   subscribeMeta(cb: () => void): () => void
   /** Apply one batch synchronously. Call it once per frame. */
   applyDeltas(batch: DeltaBatch<T>): void
+  /** Prepare a current snapshot without subscriptions, registration or timers. Safe during render. */
+  prepareView(opts?: ViewOptions<T>): PreparedRowView<T>
+  /** Follow the store immediately, even without subscribers. The caller must dispose the view. */
   createView(opts?: ViewOptions<T>): RowView<T>
   /** Drop every row (a re-snapshot is coming). Wakes every subscriber. */
   clear(): void
@@ -186,7 +195,7 @@ export function createRowStore<T>(options: RowStoreOptions<T>): RowStore<T> {
     }
 
     if (orderChanged) idsSnapshot = ids.slice()
-    for (const view of views) view.onBatch(touched, removed, orderChanged)
+    for (const view of views) view.onBatch(touched, removed, orderChanged, meta.version)
     for (const id of touched) notifyRow(id)
     if (orderChanged) for (const cb of orderListeners) cb()
     for (const cb of metaListeners) cb()
@@ -215,9 +224,13 @@ export function createRowStore<T>(options: RowStoreOptions<T>): RowStore<T> {
       return () => metaListeners.delete(cb)
     },
     applyDeltas,
-    createView(opts = {}) {
-      const view = new ViewImpl<T>(store, opts, () => views.delete(view))
-      views.add(view)
+    prepareView(opts = {}) {
+      const view = new ViewImpl<T>(store, opts, () => views.add(view), () => views.delete(view))
+      return view
+    },
+    createView(opts) {
+      const view = store.prepareView(opts)
+      view.connect()
       return view
     },
     clear() {
@@ -226,7 +239,7 @@ export function createRowStore<T>(options: RowStoreOptions<T>): RowStore<T> {
       ids = []
       idsSnapshot = ids
       meta = { ...meta, version: meta.version + 1, size: 0, lastBatchAt: now() }
-      for (const view of views) view.onBatch(new Set(all), new Set(all), true)
+      for (const view of views) view.onBatch(new Set(all), new Set(all), true, meta.version)
       for (const id of all) notifyRow(id)
       for (const cb of orderListeners) cb()
       for (const cb of metaListeners) cb()
@@ -236,39 +249,84 @@ export function createRowStore<T>(options: RowStoreOptions<T>): RowStore<T> {
 }
 
 function sameOrder(a: readonly RowId[], b: readonly RowId[]): boolean {
+  if (a === b) return true
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
   return true
 }
 
-class ViewImpl<T> implements RowView<T> {
+class ViewImpl<T> implements PreparedRowView<T> {
   private ids: readonly RowId[] = []
+  private published: readonly RowId[] = []
+  private version: number
   private readonly listeners = new Set<Listener>()
   private holdUntil = 0
+  private settlePending = false
   private timer: ReturnType<typeof setTimeout> | null = null
   private disposed = false
+  private connections = 0
   private readonly now: () => number
   readonly store: RowStore<T>
   private readonly opts: ViewOptions<T>
-  private readonly onDispose: () => void
+  private readonly attach: () => void
+  private readonly detach: () => void
 
-  constructor(store: RowStore<T>, opts: ViewOptions<T>, onDispose: () => void) {
+  constructor(store: RowStore<T>, opts: ViewOptions<T>, attach: () => void, detach: () => void) {
     this.store = store
     this.opts = opts
-    this.onDispose = onDispose
+    this.attach = attach
+    this.detach = detach
     this.now = opts.now ?? Date.now
+    this.version = store.getMeta().version
     this.ids = this.compute()
+    this.published = this.ids
   }
 
   getIds() {
+    if (this.disposed) return this.ids
+    const version = this.store.getMeta().version
+    const expired = !this.connections && this.settlePending && !this.isHeld()
+    if (version !== this.version || expired) {
+      this.cache(this.isHeld() ? this.computeHeld() : this.compute())
+      this.version = version
+      if (expired) this.settlePending = false
+    }
     return this.ids
   }
 
   subscribe(cb: Listener) {
+    if (this.disposed) return () => {}
     this.listeners.add(cb)
     return () => {
       this.listeners.delete(cb)
     }
+  }
+
+  connect() {
+    if (this.disposed) return () => {}
+    let released = false
+    const release = () => {
+      if (released || this.disposed) return
+      released = true
+      if (--this.connections === 0) {
+        this.detach()
+        this.clearTimer()
+      }
+    }
+    if (this.connections === 0) {
+      // Refresh while disconnected, including a hold that expired while effects were hidden.
+      this.getIds()
+      this.attach()
+    }
+    this.connections++
+    try {
+      this.publish()
+      this.armTimer()
+    } catch (error) {
+      release()
+      throw error
+    }
+    return release
   }
 
   isHeld() {
@@ -276,23 +334,39 @@ class ViewImpl<T> implements RowView<T> {
   }
 
   touch() {
+    if (this.disposed) return
     const hold = this.opts.reorderHoldMs ?? 0
     if (hold <= 0) return
+    if (!this.connections) this.getIds()
     this.holdUntil = this.now() + hold
-    if (this.timer) clearTimeout(this.timer)
+    this.settlePending = true
+    this.clearTimer()
+    this.armTimer()
+  }
+
+  private armTimer() {
+    if (this.disposed || !this.connections || !this.settlePending || this.timer !== null) return
     // A quiet feed still settles: recompute when the hold lapses.
     this.timer = setTimeout(() => {
       this.timer = null
-      this.set(this.compute())
-    }, hold)
+      this.settlePending = false
+      this.cache(this.compute())
+      this.publish()
+    }, Math.max(0, this.holdUntil - this.now()))
+  }
+
+  private clearTimer() {
+    if (this.timer !== null) clearTimeout(this.timer)
+    this.timer = null
   }
 
   dispose() {
     if (this.disposed) return
     this.disposed = true
-    if (this.timer) clearTimeout(this.timer)
+    this.clearTimer()
+    this.connections = 0
     this.listeners.clear()
-    this.onDispose()
+    this.detach()
   }
 
   isDisposed() {
@@ -300,22 +374,35 @@ class ViewImpl<T> implements RowView<T> {
   }
 
   /** Called by the store inside applyDeltas, before row listeners fire. */
-  onBatch(touched: Set<RowId>, removed: Set<RowId>, orderChanged: boolean) {
+  onBatch(touched: Set<RowId>, removed: Set<RowId>, orderChanged: boolean, version: number) {
+    // Another view's listener may already have read our current snapshot. It cannot publish it.
+    if (this.version === version) {
+      this.publish()
+      return
+    }
+    this.version = version
     if (!touched.size && !orderChanged) return
     if (this.isHeld()) {
-      // Frozen order: keep what is there, drop removals and rows that no longer pass the filter, append newcomers.
-      const present = new Set(this.ids)
-      const kept = this.ids.filter((id) => !removed.has(id) && this.passes(id))
-      const newcomers = this.store.getIds().filter((id) => !present.has(id) && this.passes(id))
-      if (this.opts.comparator) newcomers.sort(this.compare)
-      const next = kept.length === this.ids.length && !newcomers.length ? this.ids : [...kept, ...newcomers]
-      this.set(next)
+      this.cache(this.computeHeld(removed))
+      this.publish()
       return
     }
     // Only recompute when the batch could have changed this view.
     let relevant = orderChanged
     if (!relevant) for (const id of touched) if (this.passes(id) || this.ids.includes(id)) { relevant = true; break }
-    if (relevant) this.set(this.compute())
+    if (relevant) {
+      this.cache(this.compute())
+      this.publish()
+    }
+  }
+
+  private computeHeld(removed?: Set<RowId>): readonly RowId[] {
+    // Frozen order: drop removals and rows outside the filter, then append sorted newcomers.
+    const present = new Set(this.ids)
+    const kept = this.ids.filter((id) => !removed?.has(id) && this.passes(id))
+    const newcomers = this.store.getIds().filter((id) => !present.has(id) && this.passes(id))
+    if (this.opts.comparator) newcomers.sort(this.compare)
+    return kept.length === this.ids.length && !newcomers.length ? this.ids : [...kept, ...newcomers]
   }
 
   private passes(id: RowId): boolean {
@@ -333,9 +420,13 @@ class ViewImpl<T> implements RowView<T> {
     return list
   }
 
-  private set(next: readonly RowId[]) {
-    if (sameOrder(this.ids, next)) return
-    this.ids = next
+  private cache(next: readonly RowId[]) {
+    if (!sameOrder(this.ids, next)) this.ids = next
+  }
+
+  private publish() {
+    if (sameOrder(this.published, this.ids)) return
+    this.published = this.ids
     for (const cb of this.listeners) cb()
   }
 }

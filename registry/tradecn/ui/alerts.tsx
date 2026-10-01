@@ -160,7 +160,7 @@ const localTime = (ms: number) => (clockFormat ??= new Intl.DateTimeFormat(undef
 
 const NEWEST_FIRST = { comparator: byNewest }
 
-/** A newest-first view, disposed when its owner unmounts. Read its IDs with useRowIds. */
+/** A newest-first view, connected while its owner's effects are mounted. Read its IDs with useRowIds. */
 export function useAlertView(alerts: AlertStore): RowView<Alert> {
   return useView(alerts.store, NEWEST_FIRST)!
 }

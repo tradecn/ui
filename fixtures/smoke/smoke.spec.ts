@@ -35,6 +35,42 @@ test("tradecn items render in this consumer", async ({ page }) => {
   expect(errors).toEqual([])
 })
 
+test("owned and shared row views survive hiding, source transitions and missing rows", async ({ page }) => {
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()) })
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='row-store']")
+  const table = scene.getByRole("table", { name: "Sorted quotes" })
+  const grid = scene.getByRole("grid", { name: "Quote grid" })
+  const symbols = () => table.locator("tbody th[scope='row']")
+  await expect(symbols()).toHaveText(["BETA", "ALPHA"])
+  await expect(table.getByRole("columnheader")).toHaveText(["Symbol", "Price"])
+  await expect(grid.locator("[data-row-id]").first()).toHaveAttribute("data-row-id", "BETA")
+  await scene.getByRole("button", { name: "Use grid order", exact: true }).focus()
+  await page.keyboard.press("Enter")
+  await expect(grid.locator("[data-row-id]").first()).toHaveAttribute("data-row-id", "ALPHA")
+  await expect(symbols()).toHaveText(["BETA", "ALPHA"])
+  await scene.getByRole("button", { name: "Share table order", exact: true }).click()
+  await expect(grid.locator("[data-row-id]").first()).toHaveAttribute("data-row-id", "BETA")
+  await scene.getByRole("button", { name: "Hold and lower ALPHA", exact: true }).click()
+  await expect(symbols()).toHaveText(["BETA", "ALPHA"])
+  await expect(symbols()).toHaveText(["ALPHA", "BETA"])
+  await scene.getByRole("button", { name: "Hide quotes", exact: true }).click()
+  await expect(table).toBeHidden()
+  await scene.getByRole("button", { name: "Add GAMMA", exact: true }).click()
+  await scene.getByRole("button", { name: "Remove BETA", exact: true }).click()
+  await scene.getByRole("button", { name: "Show quotes", exact: true }).click()
+  await expect(symbols()).toHaveText(["GAMMA", "ALPHA"])
+  await expect(grid.locator("[data-row-id]").first()).toHaveAttribute("data-row-id", "GAMMA")
+  await scene.getByRole("button", { name: "Clear quotes", exact: true }).click()
+  await expect(table.getByRole("cell", { name: "No quotes" })).toBeVisible()
+  await expect(grid.locator("[data-row-id]")).toHaveCount(0)
+  await scene.getByRole("button", { name: "Reset quotes", exact: true }).click()
+  await expect(symbols()).toHaveText(["BETA", "ALPHA"])
+  expect(errors).toEqual([])
+})
+
 // Contract rule 14: every number a tradecn item renders is set in lining, tabular figures, whatever font
 // the consumer chose. Asked of the page as the browser drew it, not of the source: every element under a
 // tradecn slot whose own text holds a digit, every input under one holding a number, and every node marked

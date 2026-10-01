@@ -4,6 +4,66 @@ Use this guide to update v1 integrations for the v2 API. Component reference pag
 
 v2 requires React 19. Upgrade React and React DOM together before migrating components. TypeScript projects also need the matching React 19 types.
 
+## Row store
+
+Replace render-time `store.createView(...)`, including calls inside `useMemo` or lazy state, with `useView(store, stableOptions)`. The hook returns the correct sorted and filtered view during that render, including when options change from `null`. Keep options at module scope or memoize them. See the complete [sorted table example](row-store.md#sorted-and-filtered-views).
+
+| v1 contract | v2 contract |
+|---|---|
+| `useView` replaces its result in an effect | Store, options and `null` transitions select the new result synchronously. |
+| Hook cleanup calls terminal `dispose()` | Cleanup releases the connection. Feed work and timers stop, and effect replay reconnects the same handle. `isDisposed()` remains `false` unless explicitly disposed. |
+| Custom `RowStore` supplies `createView` | Every structural `RowStore` must also supply pure `prepareView`, including stores passed only to row-reading consumers. |
+| Imperative `createView` and caller-supplied `RowView` | Retained. Create outside render and dispose when your application finishes with it. Borrowing grids do not dispose supplied views. |
+
+`useAlertView` and `useRfqStackView` use the same connection lifecycle. Remove cleanup that disposes their returned handles. Observe your component's own lifecycle when you need an unmount signal, rather than polling `isDisposed()`.
+
+### Custom stores
+
+`prepareView(options)` must return a current `PreparedRowView<T>` without registering with the store, subscribing upstream or starting timers. Do not alias it to an eager `createView`. Its `connect()` method acquires a connection and returns an idempotent release function. The final release removes registration and timers, and a later connection refreshes the same handle. Explicit `dispose()` remains terminal.
+
+Detached `getIds()` reads must stay current without notifying listeners. `subscribe()` registers only a local listener, and `touch()` records a hold without starting a detached timer. On connection, notify any change since the last published snapshot and resume only the remaining hold duration. Keep sorting, filtering, stable snapshot identity and publication before row notifications consistent with your store.
+
+If your adapter delegates to `createRowStore`, forward the prepared-view protocol too. This complete wrapper retains the adapter as `view.store`:
+
+```ts
+import type { RowStore } from "@/lib/row-store"
+
+export function adaptRowStore<T>(source: RowStore<T>): RowStore<T> {
+  const store: RowStore<T> = {
+    getRowId: (row) => source.getRowId(row),
+    getRow: (id) => source.getRow(id),
+    getIds: () => source.getIds(),
+    getMeta: () => source.getMeta(),
+    subscribeRow: (id, listener) => source.subscribeRow(id, listener),
+    subscribeOrder: (listener) => source.subscribeOrder(listener),
+    subscribeMeta: (listener) => source.subscribeMeta(listener),
+    applyDeltas: (batch) => source.applyDeltas(batch),
+    clear: () => source.clear(),
+    prepareView(options) {
+      const view = source.prepareView(options)
+      return {
+        store,
+        getIds: () => view.getIds(),
+        subscribe: (listener) => view.subscribe(listener),
+        connect: () => view.connect(),
+        touch: () => view.touch(),
+        isHeld: () => view.isHeld(),
+        dispose: () => view.dispose(),
+        isDisposed: () => view.isDisposed(),
+      }
+    },
+    createView(options) {
+      const view = store.prepareView(options)
+      view.connect()
+      return view
+    },
+  }
+  return store
+}
+```
+
+The wrapper requires an updated source store. If you implement storage and ordering yourself, implement the same pure preparation and reversible connection contract before using the updated hooks. `RowView` itself retains its existing methods.
+
 ## Alerts
 
 In v2, `Alerts` is a container whose children you compose. Replace `<Alerts alerts={store} ... />` with `<Alerts>...</Alerts>` and compose its contents. The existing alert-store interface is unchanged.
