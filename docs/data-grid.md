@@ -143,6 +143,10 @@ ColumnChooser normalizes its edits and suppresses effective no-ops; share defaul
 
 Keep an external chooser or application reset control when a snapshot can hide every column: an empty header has no menu to reopen columns.
 
+Drag a column's right edge to resize it. Movement is measured from its starting width, rounded to pixels, and clamped to `minWidth`. Other column settings and the change callback come from the latest committed props.
+
+Releasing or canceling the pointer, losing pointer capture or window focus, or removing the column ends the drag. Accepted widths remain in place. Use **Alt+Shift+Left / Right** on the grid to resize the focused column by 8 px.
+
 ### Columns
 
 Each `ColumnDef<T>` describes one column. Frozen columns stay on the left, before the other columns regardless of `columnState.order`.

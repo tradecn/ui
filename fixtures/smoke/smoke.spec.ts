@@ -1385,6 +1385,51 @@ test("grid reset shares chooser defaults and restores keyboard focus when its op
 })
 
 for (const dark of [false, true]) {
+  test(`grid resizing preserves current settings and ends its pointer gesture (${dark ? "dark" : "light"})`, async ({ page }) => {
+    const errors: string[] = []
+    page.on("pageerror", error => errors.push(error.message))
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-grid-resize]")
+    const grid = scene.getByRole("grid", { name: "Resizable quotes" })
+    const reset = scene.getByRole("button", { name: "Reset resize example" })
+    const handle = grid.getByRole("separator", { name: "Resize Price" })
+    const state = async () => JSON.parse(await scene.getAttribute("data-columns") ?? "{}")
+    await grid.focus()
+    await page.keyboard.press("ArrowRight")
+    await page.keyboard.press("ArrowRight")
+    await page.keyboard.press("Alt+Shift+ArrowRight")
+    expect((await state()).widths.px).toBe(108)
+    for (const end of ["release", "cancel", "capture loss", "hide", "unmount"]) {
+      await reset.click()
+      await handle.scrollIntoViewIfNeeded()
+      await grid.focus()
+      await expect(handle).toHaveAttribute("aria-orientation", "vertical")
+      expect(await handle.evaluate(el => getComputedStyle(el).touchAction)).toBe("none")
+      await handle.evaluate(el => el.addEventListener("pointerdown", event => { el.setAttribute("data-test-pointer", String((event as PointerEvent).pointerId)) }, { once: true }))
+      const box = (await handle.boundingBox())!
+      const x = box.x + box.width / 2, y = box.y + box.height / 2
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.mouse.move(x + 20, y)
+      expect((await state()).widths.px, end).toBe(120)
+      expect(await handle.evaluate(el => el.hasPointerCapture(Number(el.getAttribute("data-test-pointer")))), end).toBe(true)
+      await page.keyboard.press("F8")
+      await page.mouse.move(x + 30, y)
+      expect((await state()).widths, end).toEqual({ id: 150, px: 130 })
+      const calls = await scene.getAttribute("data-calls")
+      if (end === "release") await page.mouse.up()
+      else if (end === "cancel") await handle.dispatchEvent("pointercancel", { pointerId: Number(await handle.getAttribute("data-test-pointer")), pointerType: "mouse", isPrimary: true })
+      else if (end === "capture loss") await handle.evaluate(el => el.releasePointerCapture(Number(el.getAttribute("data-test-pointer"))))
+      else await page.keyboard.press(end === "hide" ? "F9" : "F10")
+      await page.mouse.move(x + 80, y)
+      await page.mouse.up()
+      await expect(scene, end).toHaveAttribute("data-calls", calls!)
+      expect((await state()).widths.px, end).toBe(130)
+    }
+    expect(errors).toEqual([])
+  })
+
   test(`grid controls own their keys and hidden columns lose shortcuts (${dark ? "dark" : "light"})`, async ({ page }) => {
     await page.goto("/")
     await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
