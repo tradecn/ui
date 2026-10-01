@@ -17,7 +17,7 @@ const parameters: ParameterDef<Sheet>[] = [
   { key: "skew", header: "Skew", accessor: (row) => row.skew, step: 0.25, min: -5, max: 5 },
 ]
 
-function PricingParameters() {
+export default function ParameterGridDemo() {
   const [store] = useState(() => {
     const store = createRowStore<Sheet>({ getRowId: (row) => row.id })
     store.applyDeltas({ upsert: [
@@ -137,6 +137,8 @@ The default formatter prints finite numbers to `decimals` places, null, undefine
 ### Editing
 
 Enter, F2, a double click, or typing a non-space character opens an editable parameter cell. Opening selects its text unless you typed a character. Enter commits; Escape discards; Tab and Shift+Tab commit and open the next or previous editable text cell in the row, skipping the checkbox. At either end, focus returns to the grid.
+
+Double-click plain cell content to open its editor. Controls and open editors keep their own [pointer interactions](data-grid.md#pointer-interactions); double-clicking an editor selects text without reopening its draft.
 
 A parse or validation failure on commit keeps the editor open with an accessible error and sends nothing. Leaving the editor commits valid input and discards invalid input. Only one text editor opens at a time.
 

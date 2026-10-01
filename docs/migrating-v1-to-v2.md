@@ -389,6 +389,20 @@ A parent that handles a grid shortcut should call `preventDefault()` from `onKey
 
 Watchlist removal keys and opt-in Blotter action keys now require focus on their own grid too. See [Watchlist removal](watchlist.md#removing) and [Blotter deletion](blotter.md#delete-cancels-nothing-by-default).
 
+Custom controls now own their pointer interactions too. Pressing or double-clicking a button, input, editor or other interactive cell content no longer implicitly selects, focuses, edits or activates its row.
+
+Pass the cell's explicit row id to its action. If the action should also select or focus the row, update controlled `selection` or `focusedRowId` in that handler.
+
+Row actions now run during bubbling and honor a child's `preventDefault()` or `stopPropagation()`. Parent handlers must use capture to claim the event first. Nested grids and content portaled outside the grid no longer touch its reorder hold or pause its tail following; contained controls still do so on pointer press.
+
+Row context menus now open only from plain content in a current row. Controls retain their own menus, while headers, footers and empty space no longer open the menu for the previous selection.
+
+When `renderContextMenu` is set, rejected context-menu events and single-touch long-press starts stop bubbling at the grid body after child handlers run. Move an ancestor observer to capture if it needs those events. See [pointer interactions](data-grid.md#pointer-interactions), including the wrapper for controls styled with `pointer-events: none`.
+
+Resize handles now start only from an unhandled primary-button press by a primary pointer. Secondary buttons, secondary pointers and already-prevented presses do not resize.
+
+The handle is pointer-only. Use Alt+Shift+Left or Right with the grid focused to resize the chosen column.
+
 ## DepthLadder
 
 Replace the self-closing `DepthLadder` with an explicit composition.

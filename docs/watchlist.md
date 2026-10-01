@@ -54,7 +54,7 @@ export default function WatchlistDemo() {
 }
 ```
 
-The example accepts ES, CL and GC. Add a symbol with Enter or the Add button. With the grid focused, press Delete to remove the selection or Enter to activate a row. Use a row's hover button or context menu to remove it, or double-click to activate it.
+The example accepts ES, CL and GC. Add a symbol with Enter or the Add button. With the grid focused, press Delete to remove the selection or Enter to activate a row. Use a row's hover button or context menu to remove it, or double-click plain cell content to activate it. Custom controls retain their own [pointer interactions](data-grid.md#pointer-interactions).
 
 `WatchlistAddControls` and `RemovableWatchlistGrid` are application recipes built from the public parts. Save Usage as `watchlist.tsx` beside examples that import these recipes, outside `components/ui` so the installed component keeps its own file.
 

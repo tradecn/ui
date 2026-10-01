@@ -240,6 +240,19 @@ const EMPTY_SET: ReadonlySet<RowId> = new Set()
 const SELECT_WIDTH = 32
 const ENTER_WINDOW_MS = 1500
 
+// Native controls, focus targets and ARIA widgets own interaction inside a cell.
+const ROW_CONTROLS = 'a[href], button, input, select, textarea, label, summary, audio[controls], video[controls], iframe, object, embed, [contenteditable]:not([contenteditable="false"]), [tabindex], [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="combobox"], [role="listbox"], [role="option"], [role="textbox"], [role="searchbox"], [role="slider"], [role="spinbutton"], [role="scrollbar"], [role="separator"], [role="tab"], [role="tablist"], [role="toolbar"], [role="menu"], [role="menubar"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="tree"], [role="treeitem"], [role="radiogroup"]'
+
+function gridTarget(root: HTMLElement | null, target: EventTarget): Element | undefined {
+  const element = target as Element
+  return root?.contains(element) && element.closest?.('[role="grid"], [role="treegrid"]') === root ? element : undefined
+}
+
+function rowControl(root: HTMLElement | null, target: Element): boolean {
+  const control = target.closest(ROW_CONTROLS)
+  return control !== null && control !== root
+}
+
 function useControllable<V>(value: V | undefined, onChange: ((v: V) => void) | undefined, initial: V): [V, (v: V) => void] {
   const [internal, setInternal] = useState(initial)
   const controlled = value !== undefined
@@ -1136,8 +1149,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    // Portaled menus own their keys even though React bubbles them through the grid.
-    if (!e.currentTarget.contains(e.target as Node)) return
+    // Nested grids and portals own their keys, including reorder holds and following.
+    if (!gridTarget(e.currentTarget, e.target)) return
     // The editor owns its keys; what it lets through (a modifier-held arrow) is for the listeners above the grid.
     if ((e.target as HTMLElement).closest?.("[data-cell-editor]")) return
     view.touch()
@@ -1257,28 +1270,52 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   const openContextMenuAtFocus = () => {
     if (focusedRowId === null) return
-    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-row-id="${cssEscape(focusedRowId)}"]`)
-    if (!el) return
+    const el = rootRef.current?.ownerDocument.getElementById(domId(focusedRowId))
+    const ownerWindow = el?.ownerDocument.defaultView
+    if (!el || !ownerWindow || !gridTarget(rootRef.current, el)) return
     const r = el.getBoundingClientRect()
-    el.dispatchEvent(new window.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 8, clientY: r.top + r.height / 2, button: 2 }))
+    el.dispatchEvent(new ownerWindow.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 8, clientY: r.top + r.height / 2, button: 2 }))
+  }
+
+  const rowTarget = (target: EventTarget) => {
+    const element = gridTarget(rootRef.current, target)
+    if (!element || rowControl(rootRef.current, element)) return undefined
+    const row = element.closest<HTMLElement>('[role="row"][data-row-id]')
+    const id = row?.dataset.rowId
+    if (id === undefined || row?.id !== domId(id) || !indexOf.has(id) || store.getRow(id) === undefined) return undefined
+    // A capture handler may change membership before React commits the new rows.
+    const currentIds = view.getIds()
+    if (currentIds !== ids && !currentIds.includes(id)) return undefined
+    return { element, id }
   }
 
   // Right-click targets the row under the pointer: focus it, and make it the selection unless it is already selected.
-  const onContextMenuCapture = (e: MouseEvent<HTMLDivElement>) => {
-    const rowEl = (e.target as HTMLElement).closest<HTMLElement>("[data-row-id]")
-    const id = rowEl?.dataset.rowId
-    if (!id) return
+  const onContextMenu = (e: MouseEvent<HTMLDivElement>) => {
+    const target = rowTarget(e.target)
+    if (e.defaultPrevented || !target) {
+      // Leave native defaults intact, but keep the surrounding menu trigger from claiming the event.
+      e.stopPropagation()
+      return
+    }
+    const { id } = target
     setFocusedRowId(id)
     if (!selection.has(id)) select([id], "replace")
   }
 
-  const onRowPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+  const onPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
+    if (!gridTarget(rootRef.current, e.target)) return
     view.touch()
     stopFollowing()
-    const rowEl = (e.target as HTMLElement).closest<HTMLElement>("[data-row-id]")
-    const id = rowEl?.dataset.rowId
-    if (!id) return
-    if ((e.target as HTMLElement).closest('[data-slot="checkbox"]')) return
+  }
+
+  const onRowPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    const target = rowTarget(e.target)
+    if (e.defaultPrevented || !target) {
+      // Radix starts long-press menus from pointerdown; Base UI uses touchstart below.
+      if (renderContextMenu && e.pointerType !== "mouse") e.stopPropagation()
+      return
+    }
+    const { id } = target
     setFocusedRowId(id)
     if (e.button !== 0) return
     if (e.shiftKey) select([id], "range")
@@ -1288,11 +1325,13 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   // A double click on an editable cell opens it; anywhere else on the row it activates the row.
   const onRowDoubleClick = (e: MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement
-    const id = target.closest<HTMLElement>("[data-row-id]")?.dataset.rowId
-    const row = id !== undefined ? store.getRow(id) : undefined
-    if (id === undefined || row === undefined) return
-    const key = target.closest<HTMLElement>("[data-col]")?.dataset.col
+    if (e.defaultPrevented) return
+    const target = rowTarget(e.target)
+    if (!target) return
+    const { element, id } = target
+    const row = store.getRow(id)
+    if (row === undefined) return
+    const key = element.closest<HTMLElement>("[data-col]")?.dataset.col
     const col = key !== undefined ? resolved.find((c) => c.key === key) : undefined
     if (edits && canEditCell(col, row) && !col.edit.toggle) {
       setFocusedRowId(id)
@@ -1316,9 +1355,14 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     <div
       ref={scrollRef}
       className="relative h-full min-h-0 flex-1 overflow-auto"
-      onPointerDownCapture={onRowPointerDown}
+      onPointerDownCapture={onPointerDownCapture}
+      onPointerDown={onRowPointerDown}
       onDoubleClick={onRowDoubleClick}
-      onContextMenuCapture={renderContextMenu ? onContextMenuCapture : undefined}
+      onContextMenu={renderContextMenu ? onContextMenu : undefined}
+      onTouchStart={renderContextMenu ? event => {
+        // Multiple touches must reach the primitive so it can cancel a pending long press.
+        if (event.touches.length === 1 && (event.defaultPrevented || !rowTarget(event.target))) event.stopPropagation()
+      } : undefined}
       onScroll={onScroll}
     >
       {/* At least the viewport tall, so a footer sits at the bottom edge when the rows do not reach it. */}
@@ -1591,8 +1635,4 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
       />
     </div>
   )
-}
-
-function cssEscape(s: string): string {
-  return typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(s) : s.replace(/["\\]/g, "\\$&")
 }

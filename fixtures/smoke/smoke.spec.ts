@@ -1508,6 +1508,121 @@ for (const dark of [false, true]) {
     await expect(scene).toHaveAttribute("data-sort", "px:desc")
   })
 
+  test(`grid controls retain pointer actions and native editing (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("section[data-scene='data-grid'] [data-grid-pointer]")
+    const grid = scene.getByRole("grid", { name: "Pointer quotes" })
+    const note = grid.getByRole("textbox", { name: "Pointer note for Alpha" })
+    await note.fill("draft")
+    await note.dblclick()
+    await expect(note).toHaveValue("draft")
+    await expect(scene).toHaveAttribute("data-selection", "Beta")
+    await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+    await expect(scene).toHaveAttribute("data-activated", "0")
+    await note.click({ button: "right" })
+    await expect(scene).toHaveAttribute("data-native-menu", "available")
+    await expect(page.getByRole("menu")).toHaveCount(0)
+    await grid.getByRole("button", { name: "Inspect pointer Alpha" }).dblclick()
+    await expect(scene).toHaveAttribute("data-inspected", "2")
+    await expect(scene).toHaveAttribute("data-activated", "0")
+    await expect(scene).toHaveAttribute("data-selection", "Beta")
+    const price = grid.locator('[data-row-id="Alpha"] [data-col="px"]')
+    await price.dblclick()
+    const editor = price.getByRole("textbox", { name: "Price" })
+    await editor.fill("123")
+    await editor.dblclick()
+    await expect(editor).toHaveValue("123")
+    await editor.press("Escape")
+    await expect(grid).toBeFocused()
+    const quote = grid.locator('[data-row-id="Beta"] [data-col="id"]')
+    await quote.click()
+    await scene.getByRole("checkbox", { name: "Handle pointer in capture" }).check()
+    await grid.locator('[data-row-id="Alpha"] [data-col="id"]').click()
+    await expect(scene).toHaveAttribute("data-selection", "Beta")
+    await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+    await scene.getByRole("checkbox", { name: "Handle pointer in capture" }).uncheck()
+    await grid.locator('[data-row-id="Alpha"]').getByRole("checkbox", { name: "Select row", exact: true }).click()
+    await expect(scene).toHaveAttribute("data-selection", "Beta,Alpha")
+    await quote.click({ button: "right" })
+    await expect(page.getByRole("menuitem", { name: "Pointer action: Beta,Alpha", exact: true })).toBeVisible()
+    await page.keyboard.press("Escape")
+  })
+
+  test(`nested and portaled grids own their row actions (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("section[data-scene='data-grid'] [data-grid-nested-pointer]")
+    const outer = scene.getByRole("grid", { name: "Outer pointer quotes" })
+    for (const [name, activations] of [["Nested pointer quotes", "1"], ["Portaled pointer quotes", "2"]]) {
+      const inner = scene.getByRole("grid", { name })
+      const cell = inner.locator('[data-row-id="Beta"] [data-col="id"]')
+      await cell.dblclick()
+      await expect(scene).toHaveAttribute("data-inner-activated", activations!)
+      await expect(scene).toHaveAttribute("data-selection", "Alpha")
+      await expect(scene).toHaveAttribute("data-activated", "0")
+      await cell.click({ button: "right" })
+      await expect(page.getByRole("menu")).toHaveCount(0)
+    }
+    await outer.focus()
+    await page.keyboard.press("Shift+F10")
+    await expect(page.getByRole("menuitem", { name: "Outer pointer action: Beta", exact: true })).toBeVisible()
+    await expect(scene).toHaveAttribute("data-selection", "Beta")
+    await page.keyboard.press("Escape")
+  })
+
+  test(`grid long presses distinguish controls from rows (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("section[data-scene='data-grid'] [data-grid-pointer]")
+    const grid = scene.getByRole("grid", { name: "Pointer quotes" })
+    const session = await page.context().newCDPSession(page)
+    let touching = false
+    async function longPress(target: Locator) {
+      await target.scrollIntoViewIfNeeded()
+      const box = await target.boundingBox()
+      expect(box).not.toBeNull()
+      await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }] })
+      touching = true
+      // Hold past both installed primitives' long-press thresholds (500 and 700 ms).
+      await page.waitForTimeout(850)
+      await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      touching = false
+    }
+    try {
+      await longPress(grid.getByRole("textbox", { name: "Pointer note for Alpha" }))
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(scene).toHaveAttribute("data-selection", "Beta")
+      await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+      if (JSON.parse(readFileSync("components.json", "utf8")).style.startsWith("base-")) {
+        const row = grid.locator('[data-row-id="Alpha"] [data-col="id"]')
+        const input = grid.getByRole("textbox", { name: "Pointer note for Alpha" })
+        await row.scrollIntoViewIfNeeded()
+        const first = await row.boundingBox(), second = await input.boundingBox()
+        expect(first).not.toBeNull()
+        expect(second).not.toBeNull()
+        const touch = { id: 1, x: first!.x + first!.width / 2, y: first!.y + first!.height / 2 }
+        await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [touch] })
+        touching = true
+        await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [touch, { id: 2, x: second!.x + second!.width / 2, y: second!.y + second!.height / 2 }] })
+        // Base UI cancels a pending long press when a second touch arrives.
+        await page.waitForTimeout(850)
+        await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+        touching = false
+        await expect(page.getByRole("menu")).toHaveCount(0)
+      }
+      await longPress(grid.locator('[data-row-id="Alpha"] [data-col="id"]'))
+      await expect(page.getByRole("menuitem", { name: "Pointer action: Alpha", exact: true })).toBeVisible()
+      await page.keyboard.press("Escape")
+    } finally {
+      try {
+        if (touching) await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] })
+      } finally {
+        await session.detach()
+      }
+    }
+  })
+
   test(`copied grid defaults preserve local settings and agree with the inline chooser (${dark ? "dark" : "light"})`, async ({ page }) => {
     await page.goto("/")
     await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)

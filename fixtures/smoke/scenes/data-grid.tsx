@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
-import { flushSync } from "react-dom"
+import { createPortal, flushSync } from "react-dom"
+import { ContextMenuItem } from "@/components/ui/context-menu"
 import { DataGrid, EMPTY_COLUMN_STATE, type CellEditHandle, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/components/ui/data-grid"
 import { createRowStore } from "@/lib/row-store"
 import DataGridDefaultsDemo from "./recipes/data-grid-defaults"
@@ -36,12 +37,67 @@ export function DataGridScene() {
       <div data-grid-recipe="defaults"><DataGridDefaultsDemo /></div>
       <div data-grid-recipe="shared-defaults"><DataGridSharedDefaultsDemo /></div>
       <GridKeyboardScene />
+      <GridPointerScene />
+      <GridNestedPointerScene />
       <GridResizeScene />
       <GridEditorScene />
       <GridDelayedEditorScene />
       <GridLayoutEditorScene />
     </div>
   )
+}
+
+function GridPointerScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Beta"]))
+  const [focused, setFocused] = useState<string | null>("Beta")
+  const [activated, setActivated] = useState(0)
+  const [inspected, setInspected] = useState(0)
+  const [nativeMenu, setNativeMenu] = useState("none")
+  const [handled, setHandled] = useState(false)
+  const columns = useMemo<ColumnDef<Row>[]>(() => [...editorColumns, {
+    key: "note", header: "Note", width: 140, accessor: () => "",
+    cell: ({ rowId }) => <input aria-label={`Pointer note for ${rowId}`} className="w-full min-w-0" onContextMenu={event => { const native = event.nativeEvent; queueMicrotask(() => setNativeMenu(native.defaultPrevented ? "prevented" : "available")) }} />,
+  }, {
+    key: "inspect", header: "Action", width: 120, accessor: () => "",
+    cell: ({ rowId }) => <button type="button" aria-label={`Inspect pointer ${rowId}`} onClick={() => setInspected(count => count + 1)}>Inspect</button>,
+  }], [])
+  return <div data-grid-pointer data-selection={[...selection].join(",")} data-focused-row={focused} data-activated={activated} data-inspected={inspected} data-native-menu={nativeMenu} className="flex flex-col gap-1" onPointerDownCapture={event => { if (handled && (event.target as Element).closest('[data-col="id"]')) event.preventDefault() }}>
+    <div className="h-40"><DataGrid store={store} columns={columns} label="Pointer quotes" selectionColumn selection={selection} onSelectionChange={setSelection} focusedRowId={focused} onFocusedRowChange={setFocused} onRowActivate={() => setActivated(count => count + 1)} onEdit={() => {}} renderContextMenu={(_rows, ids) => <ContextMenuItem>Pointer action: {ids.join(",")}</ContextMenuItem>} /></div>
+    <label><input type="checkbox" checked={handled} onChange={event => setHandled(event.target.checked)} /> Handle pointer in capture</label>
+  </div>
+}
+
+function GridNestedPointerScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [innerStore] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Beta", px: 9 }] })
+    return store
+  })
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Alpha"]))
+  const [activated, setActivated] = useState(0)
+  const [innerActivated, setInnerActivated] = useState(0)
+  const columns = useMemo<ColumnDef<Row>[]>(() => [editorColumns[0]!, {
+    key: "detail", header: "Related", width: 280, accessor: () => "",
+    cell: ({ rowId }) => rowId === "Alpha" ? <>
+      <div className="h-24 w-64"><DataGrid store={innerStore} columns={editorColumns} label="Nested pointer quotes" onRowActivate={() => setInnerActivated(count => count + 1)} /></div>
+      {host && createPortal(<div className="h-24 w-64"><DataGrid store={innerStore} columns={editorColumns} label="Portaled pointer quotes" onRowActivate={() => setInnerActivated(count => count + 1)} /></div>, host)}
+    </> : rowId,
+  }], [innerStore, host])
+  return <div data-grid-nested-pointer data-selection={[...selection].join(",")} data-activated={activated} data-inner-activated={innerActivated} className="flex flex-col gap-1">
+    <div className="h-96"><DataGrid store={store} columns={columns} rowHeight={128} label="Outer pointer quotes" focusedRowId="Beta" selection={selection} onSelectionChange={setSelection} onRowActivate={() => setActivated(count => count + 1)} renderContextMenu={(_rows, ids) => <ContextMenuItem>Outer pointer action: {ids.join(",")}</ContextMenuItem>} /></div>
+    <div ref={setHost} />
+  </div>
 }
 
 function GridResizeScene() {

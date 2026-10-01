@@ -100,7 +100,7 @@ Column state and keyboard behavior belong to the grid.
 
 Column-formatting and threshold props are listed below. Remaining props use `DataGridProps<T>`, except `preset`.
 
-`onRowActivate(row, id)` also runs after `onActivate(id, row)`; note the reversed arguments. Enter or a row double-click activates a row unless grid editing handles that interaction.
+`onRowActivate(row, id)` also runs after `onActivate(id, row)`; note the reversed arguments. Enter on the grid or a double-click on plain row content activates a row unless grid editing handles that interaction. Custom controls retain their own [pointer interactions](data-grid.md#pointer-interactions).
 
 ### The columns
 
