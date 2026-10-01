@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { createRef, startTransition, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react"
+import { createPortal } from "react-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Button } from "@/components/ui/button"
 import { createRowStore, type RowId, type RowStore } from "@/registry/tradecn/lib/row-store"
@@ -61,6 +62,53 @@ function Harness({ store, onAdd, onRemove, normalize, validate, selection, onSel
 }
 
 const rowOf = (symbol: string) => document.querySelector<HTMLElement>(`[data-row-id="${symbol}"]`)!
+
+describe("Watchlist deletion keys", () => {
+  it.each(["Delete", "Backspace"])("leaves %s to controls, nested grids and portaled content", key => {
+    const onRemove = vi.fn()
+    const onKeyDown = vi.fn()
+    const columns = [{ key: "symbol", header: "Symbol", width: 300, accessor: (row: WatchlistRow) => row.symbol, cell: ({ row }: { row: WatchlistRow }) => row.symbol === "ES" ? <>
+      <input aria-label="Note" defaultValue="ABC" />
+      <button>Inspect</button>
+      <div role="grid" aria-label="Nested quotes" tabIndex={0}><div role="row"><div role="gridcell">Nested</div></div></div>
+      {createPortal(<div role="grid" aria-label="Portaled quotes" tabIndex={0}><div role="row"><div role="gridcell">Portaled</div></div></div>, document.body)}
+    </> : row.symbol }]
+    render(<Watchlist store={seeded()} focusedRowId="ES" onRemove={onRemove}>
+      <WatchlistGrid columns={columns} onKeyDown={onKeyDown} initialRect={RECT} selectionMode="multi" selectionColumn />
+    </Watchlist>)
+    const targets = [screen.getByRole("textbox", { name: "Note" }), screen.getByRole("button", { name: "Inspect" }), screen.getByRole("button", { name: /Symbol/ }), within(rowOf("ES")).getByRole("checkbox", { name: "Select row" }), screen.getByRole("grid", { name: "Nested quotes" }), screen.getByRole("grid", { name: "Portaled quotes" })]
+    for (const target of targets) {
+      target.focus()
+      expect(fireEvent.keyDown(target, { key })).toBe(true)
+      expect(onRemove).not.toHaveBeenCalled()
+      expect(target).toHaveFocus()
+    }
+    expect(onKeyDown).toHaveBeenCalledTimes(targets.length)
+    const grid = screen.getByRole("grid", { name: "Watchlist" })
+    grid.focus()
+    expect(fireEvent.keyDown(grid, { key })).toBe(false)
+    expect(onRemove).toHaveBeenCalledExactlyOnceWith(["ES"])
+  })
+
+  it.each(["Delete", "Backspace"])("edits text with %s without requesting removal", async key => {
+    const user = userEvent.setup()
+    const onRemove = vi.fn()
+    const onEdit = vi.fn()
+    const columns = [{ key: "symbol", header: "Symbol", width: 150, accessor: (row: WatchlistRow) => row.symbol, edit: { parse: (text: string) => text } }]
+    render(<Watchlist store={seeded()} focusedRowId="ES" onRemove={onRemove}>
+      <WatchlistGrid columns={columns} onEdit={onEdit} initialRect={RECT} />
+    </Watchlist>)
+    fireEvent.doubleClick(within(rowOf("ES")).getByRole("gridcell"))
+    const input = screen.getByRole("textbox", { name: "Symbol" })
+    expect(input).toHaveFocus()
+    await user.keyboard(key === "Delete" ? "{Home}{Delete}" : "{End}{Backspace}")
+    expect(input).toHaveValue(key === "Delete" ? "S" : "E")
+    expect(onRemove).not.toHaveBeenCalled()
+    await user.keyboard("{Enter}")
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("grid")).toHaveFocus()
+  })
+})
 
 describe("watchlistColumns", () => {
   it("prints prices through your convention, signs the changes, and uses one token for nothing", () => {

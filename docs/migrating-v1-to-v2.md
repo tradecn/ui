@@ -327,7 +327,7 @@ After using a control, press Shift+Tab until the grid itself has focus, or click
 
 A parent that handles a grid shortcut should call `preventDefault()` from `onKeyDownCapture`. Its bubbling `onKeyDown` runs after the grid.
 
-This changes DataGrid's own commands. Watchlist and opt-in Blotter removal handlers still receive Delete and Backspace from nested controls, including cell editors. See [Watchlist removal](watchlist.md#removing) and [Blotter deletion](blotter.md#delete-cancels-nothing-by-default).
+Watchlist removal keys now require focus on its grid too. Opt-in Blotter removal handlers still receive Delete and Backspace from nested controls, including cell editors. See [Watchlist removal](watchlist.md#removing) and [Blotter deletion](blotter.md#delete-cancels-nothing-by-default).
 
 ## DepthLadder
 
@@ -455,7 +455,11 @@ The Usage example exports `WatchlistAddControls` and `RemovableWatchlistGrid` as
 
 Root `className` still styles the outer container. `WatchlistGrid` adds a sizing wrapper with its own classes, ref and cancellable key handler. The root slot, preset, price formatting, normalization, duplicate lookup, validation order, controlled selection/focus and callback behavior are retained.
 
-Delete and Backspace on the grid still request removal when `onRemove` exists, even without visible removal parts. They use the selection or, when empty, the focused row. Custom editable grid cells retain the existing deletion-key limitation. Preventing the key event also prevents native text deletion.
+Delete and Backspace now request removal only when the grid itself has focus. In v1, keys from cell editors, custom controls, header controls and selection checkboxes could also request removal and prevent native text deletion. These controls, nested grids and portaled content now keep their keys. Remove workarounds that prevented these events solely to avoid row removal. `preventDefault()` also blocks native text deletion.
+
+With `onRemove`, grid deletion keys still work without visible removal parts and use the selection or, when empty, the focused row. `WatchlistGrid.onKeyDown` still receives bubbling events before the removal handler and can cancel a grid removal request.
+
+After using a control, press Shift+Tab until the grid itself has focus, or click a cell without a control, to resume grid commands. Use `WatchlistRemoveButton`, `WatchlistRemoveMenuItem` or `useWatchlist().remove` for removal controls elsewhere in your layout.
 
 The root adds no row subscriptions. Form drafts remain local, and stable grid inputs preserve per-row updates. Keep shared recipes, columns and formatters stable where they feed memoized rows.
 
