@@ -800,7 +800,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
   const editLatest = useRef({ columns, resolved, onEdit })
-  useEffect(() => {
+  useInsertionEffect(() => {
     editLatest.current = { columns, resolved, onEdit }
   })
   const editable = Boolean(onEdit)

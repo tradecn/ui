@@ -352,6 +352,27 @@ for (const dark of [false, true]) for (const hidden of ["state", "definition"]) 
   expect(errors).toEqual([])
 })
 
+for (const dark of [false, true]) for (const change of ["Remove custom column", "Make custom column read-only", "Make custom column a toggle"]) test(`a restored custom column opens its editor from layout (${change}, ${dark ? "dark" : "light"})`, async ({ page }) => {
+  const errors: string[] = []
+  page.on("pageerror", error => errors.push(error.message))
+  await page.goto("/")
+  await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+  const scene = page.locator("[data-grid-layout-editor]")
+  const grid = scene.getByRole("grid", { name: "Layout quotes" })
+  const editor = grid.getByRole("textbox", { name: "Price" })
+  await scene.getByRole("button", { name: change, exact: true }).click()
+  await scene.getByRole("button", { name: "Restore custom editor" }).click()
+  await expect(editor).toBeFocused()
+  await expect(editor).toHaveValue("100")
+  await editor.fill("108")
+  await editor.press("Enter")
+  await expect(scene).toHaveAttribute("data-sent", "1")
+  await expect(editor).toHaveCount(0)
+  await expect(grid.locator('[data-row-id="Alpha"] [data-col="px"]')).toHaveAttribute("data-pending")
+  await expect(grid.locator('[data-row-id="Alpha"] [data-col="px"]')).toHaveText("100")
+  expect(errors).toEqual([])
+})
+
 test("a watchlist grid remains virtual inside a plain bounded container", async ({ page }) => {
   await page.goto("/")
   await page.getByRole("button", { name: "Load 500 quotes" }).click()
@@ -1259,6 +1280,13 @@ for (const dark of [false, true]) {
     await expect(scene).toHaveAttribute("data-activated", "0")
     await expect(scene).toHaveAttribute("data-focused-row", "Beta")
     await expect(scene).toHaveAttribute("data-selection", "Beta,Alpha")
+
+    await grid.locator("[data-row-id='Beta'] [data-col='id']").click()
+    await expect(grid).toBeFocused()
+    await page.keyboard.press("ArrowUp")
+    await expect(scene).toHaveAttribute("data-focused-row", "Alpha")
+    await page.keyboard.press("ArrowDown")
+    await expect(scene).toHaveAttribute("data-focused-row", "Beta")
 
     await scene.getByRole("checkbox", { name: "Handle keys in capture" }).check()
     await grid.focus()

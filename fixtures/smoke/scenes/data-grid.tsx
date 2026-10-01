@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react"
+import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { flushSync } from "react-dom"
-import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type EditChange, type SortState } from "@/components/ui/data-grid"
+import { DataGrid, EMPTY_COLUMN_STATE, type CellEditHandle, type ColumnDef, type EditChange, type SortState } from "@/components/ui/data-grid"
 import { createRowStore } from "@/lib/row-store"
 import DataGridDefaultsDemo from "./recipes/data-grid-defaults"
 import DataGridSharedDefaultsDemo from "./recipes/data-grid-shared-defaults"
@@ -38,6 +38,7 @@ export function DataGridScene() {
       <GridKeyboardScene />
       <GridEditorScene />
       <GridDelayedEditorScene />
+      <GridLayoutEditorScene />
     </div>
   )
 }
@@ -105,6 +106,38 @@ function GridDelayedEditorScene() {
     <button type="button" onClick={() => setMissing("definition")}>Hide price in definition</button>
     <button type="button" onClick={() => { resume.current?.(); resume.current = null }}>Resolve price editor</button>
     <button type="button" onClick={() => setMissing("visible")}>Restore delayed price</button>
+  </div>
+}
+
+function GridLayoutCell({ edit, requestedRef, value }: { edit: CellEditHandle | undefined; requestedRef: RefObject<boolean>; value: unknown }) {
+  useLayoutEffect(() => {
+    if (!requestedRef.current || !edit) return
+    requestedRef.current = false
+    edit.open()
+  })
+  return <span>{String(value)}</span>
+}
+
+function GridLayoutEditorScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }] })
+    return store
+  })
+  const [missing, setMissing] = useState<"visible" | "removed" | "read-only" | "toggle">("visible")
+  const [sent, setSent] = useState(0)
+  const requestedRef = useRef(false)
+  const columns = useMemo<ColumnDef<Row>[]>(() => editorColumns.filter(column => column.key !== "px" || missing !== "removed").map(column => column.key === "px" ? {
+    ...column,
+    edit: missing === "read-only" ? undefined : missing === "toggle" ? { parse: Number, toggle: value => !value } : column.edit,
+    cell: ({ edit, value }) => <GridLayoutCell edit={edit} value={value} requestedRef={requestedRef} />,
+  } : column), [missing])
+  return <div data-grid-layout-editor data-sent={sent} className="flex flex-col gap-1">
+    <div className="h-40"><DataGrid store={store} columns={columns} label="Layout quotes" onEdit={() => setSent(count => count + 1)} /></div>
+    <button type="button" onClick={() => setMissing("removed")}>Remove custom column</button>
+    <button type="button" onClick={() => setMissing("read-only")}>Make custom column read-only</button>
+    <button type="button" onClick={() => setMissing("toggle")}>Make custom column a toggle</button>
+    <button type="button" onClick={() => { requestedRef.current = true; setMissing("visible") }}>Restore custom editor</button>
   </div>
 }
 

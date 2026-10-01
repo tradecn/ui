@@ -902,13 +902,14 @@ describe("editing", () => {
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ key: "qty", value: 222 }))
   })
 
-  function OpenFromLayout({ edit, enabled }: { edit: CellEditHandle | undefined; enabled: boolean }) {
+  function OpenFromLayout({ edit, enabled, commit }: { edit: CellEditHandle | undefined; enabled: boolean; commit?: number }) {
     const opened = useRef(false)
     useLayoutEffect(() => {
       if (!enabled || opened.current || !edit) return
       opened.current = true
-      edit.open()
-    }, [edit, enabled])
+      if (commit === undefined) edit.open()
+      else edit.commit(commit)
+    }, [edit, enabled, commit])
     return <span>Value</span>
   }
 
@@ -934,6 +935,49 @@ describe("editing", () => {
     await act(async () => {})
     expect(editor()).toHaveValue("100.00")
     expect(editor()).toHaveFocus()
+  })
+
+  it.each(["removed", "hidden by definition", "not editable", "toggle"])("opens a restored custom editor from layout after its column was %s", disappearance => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(1, store)
+    let enabled = false
+    const custom = editable.map<ColumnDef<Quote>>(column => column.key === "px" ? { ...column, cell: ({ edit }) => <OpenFromLayout edit={edit} enabled={enabled} /> } : column)
+    const layout = (missing: boolean) => {
+      const definitions = !missing ? custom : disappearance === "removed" ? custom.filter(column => column.key !== "px") : custom.map(column => column.key !== "px" ? column : disappearance === "hidden by definition" ? { ...column, hidden: true } : disappearance === "not editable" ? { ...column, edit: undefined } : { ...column, edit: { parse: price, toggle: (value: unknown) => !value } })
+      return <DataGrid store={store} columns={definitions} label="Sheet" initialRect={RECT} onEdit={() => {}} />
+    }
+    const { rerender } = render(layout(false))
+    rerender(layout(true))
+    enabled = true
+    rerender(layout(false))
+    expect(editor()).toHaveFocus()
+    expect(editor()).toHaveValue("100.00")
+  })
+
+  it.each([true, false])("uses current edit permission %s for a custom layout open", allowed => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(1, store)
+    let enabled = false
+    const layout = (canEdit: boolean) => <DataGrid store={store} columns={editable.map<ColumnDef<Quote>>(column => column.key === "px" ? { ...column, edit: { parse: price, canEdit: () => canEdit }, cell: ({ edit }) => <OpenFromLayout edit={edit} enabled={enabled} /> } : column)} label="Sheet" initialRect={RECT} onEdit={() => {}} />
+    const { rerender } = render(layout(!allowed))
+    enabled = true
+    rerender(layout(allowed))
+    if (allowed) expect(editor()).toHaveFocus()
+    else expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+  })
+
+  it("uses the current save callback for a custom layout commit", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(1, store)
+    const before = vi.fn(), after = vi.fn()
+    let enabled = false
+    const custom = editable.map<ColumnDef<Quote>>(column => column.key === "px" ? { ...column, cell: ({ edit }) => <OpenFromLayout edit={edit} enabled={enabled} commit={108} /> } : column)
+    const { rerender } = render(<DataGrid store={store} columns={custom} label="Sheet" initialRect={RECT} onEdit={before} />)
+    enabled = true
+    rerender(<DataGrid store={store} columns={[...custom]} label="Sheet" initialRect={RECT} onEdit={after} />)
+    expect(before).not.toHaveBeenCalled()
+    expect(after).toHaveBeenCalledOnce()
+    expect(after).toHaveBeenCalledWith(expect.objectContaining({ key: "px", value: 108, previous: 100 }))
   })
 
   it("does not publish unavailable columns from a suspended and abandoned render", async () => {
