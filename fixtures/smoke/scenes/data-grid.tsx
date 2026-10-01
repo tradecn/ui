@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { flushSync } from "react-dom"
-import { DataGrid, EMPTY_COLUMN_STATE, type CellEditHandle, type ColumnDef, type EditChange, type SortState } from "@/components/ui/data-grid"
+import { DataGrid, EMPTY_COLUMN_STATE, type CellEditHandle, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/components/ui/data-grid"
 import { createRowStore } from "@/lib/row-store"
 import DataGridDefaultsDemo from "./recipes/data-grid-defaults"
 import DataGridSharedDefaultsDemo from "./recipes/data-grid-shared-defaults"
@@ -36,11 +36,31 @@ export function DataGridScene() {
       <div data-grid-recipe="defaults"><DataGridDefaultsDemo /></div>
       <div data-grid-recipe="shared-defaults"><DataGridSharedDefaultsDemo /></div>
       <GridKeyboardScene />
+      <GridResizeScene />
       <GridEditorScene />
       <GridDelayedEditorScene />
       <GridLayoutEditorScene />
     </div>
   )
+}
+
+function GridResizeScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }] })
+    return store
+  })
+  const [state, setState] = useState<ColumnState>(EMPTY_COLUMN_STATE)
+  const [calls, setCalls] = useState(0)
+  const [mounted, setMounted] = useState(true)
+  return <div data-grid-resize data-calls={calls} data-columns={JSON.stringify(state)} className="flex flex-col gap-1" onKeyDown={event => {
+    if (event.key === "F8") setState(current => ({ ...current, widths: { ...current.widths, id: 150 } }))
+    if (event.key === "F9") setState(current => ({ ...current, hidden: ["px"] }))
+    if (event.key === "F10") setMounted(false)
+  }}>
+    <div className="h-40">{mounted && <DataGrid store={store} columns={editorColumns} columnState={state} onColumnStateChange={next => { setState(next); setCalls(count => count + 1) }} label="Resizable quotes" />}</div>
+    <button type="button" onClick={() => { setMounted(true); setState(EMPTY_COLUMN_STATE); setCalls(0) }}>Reset resize example</button>
+  </div>
 }
 
 const editorColumns: ColumnDef<Row>[] = [

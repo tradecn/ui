@@ -1460,6 +1460,10 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
   const { col, gridRef } = p
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const resizeRef = useRef(p.onResize)
+  const resizeGesture = useRef<{ pointerId: number; owner: Window; end: () => void } | null>(null)
+  useInsertionEffect(() => { resizeRef.current = p.onResize })
+  useLayoutEffect(() => () => resizeGesture.current?.end(), [])
   useLayoutEffect(() => () => {
     const trigger = triggerRef.current
     const menu = menuRef.current
@@ -1475,17 +1479,63 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
     })
   }, [gridRef])
   const startResize = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented || e.button !== 0 || !e.isPrimary) return
+    const handle = e.currentTarget
+    const owner = handle.ownerDocument.defaultView
+    if (!owner) return
+    if (resizeGesture.current?.owner !== owner) resizeGesture.current?.end()
+    if (resizeGesture.current && resizeGesture.current.pointerId !== e.pointerId) return
     e.preventDefault()
     e.stopPropagation()
+    resizeGesture.current?.end()
+    const pointerId = e.pointerId
     const startX = e.clientX
     const startW = col.width
-    const move = (ev: globalThis.PointerEvent) => p.onResize(startW + ev.clientX - startX)
-    const up = () => {
-      window.removeEventListener("pointermove", move)
-      window.removeEventListener("pointerup", up)
+    const move = (ev: globalThis.PointerEvent) => {
+      if (ev.pointerId !== pointerId) return
+      if (!(ev.buttons & 1) || !handle.isConnected || handle.ownerDocument.defaultView !== owner) {
+        end()
+        return
+      }
+      resizeRef.current(startW + ev.clientX - startX)
     }
-    window.addEventListener("pointermove", move)
-    window.addEventListener("pointerup", up)
+    const finish = (ev: globalThis.PointerEvent) => {
+      if (ev.pointerId === pointerId) end()
+    }
+    const end = () => {
+      if (resizeGesture.current?.end !== end) return
+      observer.disconnect()
+      owner.removeEventListener("pointermove", move, true)
+      owner.removeEventListener("pointerup", finish, true)
+      owner.removeEventListener("pointercancel", finish, true)
+      owner.removeEventListener("lostpointercapture", finish, true)
+      owner.removeEventListener("blur", end)
+      handle.removeEventListener("lostpointercapture", finish)
+      resizeGesture.current = null
+      if (handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture(pointerId)
+    }
+    // Watch ancestor removal only while dragging; row updates need no subtree observation.
+    const observer = new owner.MutationObserver(() => {
+      if (!handle.isConnected || handle.ownerDocument.defaultView !== owner) end()
+      else observeAncestors()
+    })
+    const observeAncestors = () => {
+      observer.disconnect()
+      for (let node: Node | null = handle.parentNode; node; node = node.parentNode ?? (node.nodeType === 11 ? (node as ShadowRoot).host : null)) {
+        observer.observe(node, { childList: true })
+      }
+    }
+    observeAncestors()
+    resizeGesture.current = { pointerId, owner, end }
+    owner.addEventListener("pointermove", move, true)
+    owner.addEventListener("pointerup", finish, true)
+    owner.addEventListener("pointercancel", finish, true)
+    owner.addEventListener("lostpointercapture", finish, true)
+    owner.addEventListener("blur", end)
+    // Adoption can deliver capture loss through the handle's new document.
+    handle.addEventListener("lostpointercapture", finish)
+    // Synthetic events may not have an active browser pointer to capture.
+    try { handle.setPointerCapture?.(pointerId) } catch { /* Window listeners still end the gesture. */ }
   }
   const title = typeof col.header === "string" ? col.header : undefined
   return (
@@ -1537,7 +1587,7 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
         aria-orientation="vertical"
         aria-label={`Resize ${title ?? col.key}`}
         onPointerDown={startResize}
-        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-ring/40"
+        className="absolute top-0 right-0 h-full w-1.5 touch-none cursor-col-resize hover:bg-ring/40"
       />
     </div>
   )
