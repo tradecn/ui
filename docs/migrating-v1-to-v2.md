@@ -327,7 +327,7 @@ After using a control, press Shift+Tab until the grid itself has focus, or click
 
 A parent that handles a grid shortcut should call `preventDefault()` from `onKeyDownCapture`. Its bubbling `onKeyDown` runs after the grid.
 
-Watchlist removal keys now require focus on its grid too. Opt-in Blotter removal handlers still receive Delete and Backspace from nested controls, including cell editors. See [Watchlist removal](watchlist.md#removing) and [Blotter deletion](blotter.md#delete-cancels-nothing-by-default).
+Watchlist removal keys and opt-in Blotter action keys now require focus on their own grid too. See [Watchlist removal](watchlist.md#removing) and [Blotter deletion](blotter.md#delete-cancels-nothing-by-default).
 
 ## DepthLadder
 
@@ -503,6 +503,10 @@ DataGrid now starts fresh menu content on every opening, including a rapid reope
 `BlotterAction`, `BlotterRow`, `BlotterSide`, `BlotterColumnOptions`, `blotterColumns` and `allowedRows` remain available. Order status and action permissions still come from the server. Commands recheck current permissions before invoking handlers.
 
 Delete and Backspace remain opt-in, and request pending/error handling remains application-owned.
+
+When `deleteAction` is set, these keys now run the action only from the focused grid. In v1, keys from cell editors, custom controls, header controls, selection checkboxes and nested grids could also invoke it. Remove event-prevention workarounds used only to protect text editing.
+
+Press Shift+Tab until the grid has focus to preserve selection. Clicking a cell without a control focuses the grid and selects that row. Use action buttons, menu items or `useBlotterActions().run` elsewhere; `BlotterGrid.onKeyDown` still receives bubbling events first and can prevent the action.
 
 The shared scope fixes stale permission readings for empty or NUL-containing ids and for updates between rendering and subscription. It subscribes once per distinct target id, cleans up when targets change, and leaves unrelated rows alone.
 
