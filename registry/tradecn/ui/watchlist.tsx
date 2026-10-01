@@ -176,7 +176,8 @@ export function WatchlistGrid<T extends WatchlistRow = WatchlistRow>({ columns, 
   function keyDown(event: KeyboardEvent<HTMLDivElement>) {
     onKeyDown?.(event)
     if (!canRemove || event.defaultPrevented || (event.key !== "Delete" && event.key !== "Backspace")) return
-    if (!(event.target as Element).closest?.('[role="grid"]') || !targets.length) return
+    // The direct DataGrid root owns removal keys; its controls and portals keep theirs.
+    if (event.target !== event.currentTarget.firstElementChild || !targets.length) return
     event.preventDefault()
     remove(targets)
   }
