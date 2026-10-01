@@ -765,6 +765,23 @@ describe("editing", () => {
     if (result === "matched store") await act(async () => { resolve(); await promise })
   })
 
+  it.each(["hidden", "removed", "disabled editing"])("recovers editor focus when %s is restored before cleanup settles", async disappearance => {
+    const onEdit = vi.fn()
+    const { store, grid, rerender } = setup(onEdit)
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "108" } })
+    const layout = (missing: boolean) => <DataGrid store={store} columns={missing && disappearance === "removed" ? editable.filter(column => column.key !== "px") : editable} label="Sheet" initialRect={RECT} onEdit={missing && disappearance === "disabled editing" ? undefined : onEdit} columnState={{ ...EMPTY_COLUMN_STATE, hidden: missing && disappearance === "hidden" ? ["px"] : [] }} />
+    rerender(layout(true))
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    rerender(layout(false))
+    await act(async () => {})
+    expect(grid).toHaveFocus()
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    expect(onEdit).not.toHaveBeenCalled()
+    fireEvent.doubleClick(grid.querySelector('[data-row-id="r1"] [data-col="px"]')!)
+    expect(editor()).toHaveValue("101.00")
+  })
+
   it("keeps a surviving editor through other hidden columns, reordered widths, and unchanged controlled state", () => {
     const onEdit = vi.fn()
     const { store, grid, rerender } = setup(onEdit)
@@ -895,7 +912,7 @@ describe("editing", () => {
     return <span>Value</span>
   }
 
-  it.each(["initial", "restored", "strict"])("supports a custom cell opening in layout on %s mount", mode => {
+  it.each(["initial", "restored", "strict"])("supports a custom cell opening in layout on %s mount", async mode => {
     const store = createRowStore<Quote>({ getRowId: row => row.id })
     seed(1, store)
     let enabled = mode !== "restored"
@@ -914,7 +931,9 @@ describe("editing", () => {
     fireEvent.change(editor(), { target: { value: "108" } })
     rerender(layout(true))
     rerender(layout(false))
+    await act(async () => {})
     expect(editor()).toHaveValue("100.00")
+    expect(editor()).toHaveFocus()
   })
 
   it("does not publish unavailable columns from a suspended and abandoned render", async () => {

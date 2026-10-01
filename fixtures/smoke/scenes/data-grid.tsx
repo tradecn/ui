@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react"
+import { flushSync } from "react-dom"
 import { DataGrid, EMPTY_COLUMN_STATE, type ColumnDef, type EditChange, type SortState } from "@/components/ui/data-grid"
 import { createRowStore } from "@/lib/row-store"
 import DataGridDefaultsDemo from "./recipes/data-grid-defaults"
@@ -59,7 +60,11 @@ function GridEditorScene() {
   return <div data-grid-editor data-sent={sent.length} className="flex flex-col gap-1" onKeyDownCapture={event => {
     if (event.key !== "F8" && event.key !== "F9") return
     event.preventDefault()
-    setMissing(event.key === "F8" ? "hidden" : "removed")
+    const next = event.key === "F8" ? "hidden" : "removed"
+    if (event.shiftKey) {
+      flushSync(() => setMissing(next))
+      flushSync(() => setMissing("visible"))
+    } else setMissing(next)
   }}>
     <div className="h-40"><DataGrid store={store} columns={columns} columnState={columnState} label="Editable quotes" focusedRowId="Beta" onEdit={change => setSent(previous => [...previous, change])} /></div>
     <input aria-label="Outside editor target" />

@@ -795,6 +795,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const visibleEditColumns = useRef<ReadonlySet<string>>(EMPTY_SET)
+  const editorFocusChecks = useRef(new Set<{ key: string; unavailable: boolean }>())
 
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
@@ -874,10 +875,13 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       unmountEditor(key, input) {
         const doc = input.ownerDocument
         if (doc.activeElement !== input) return
-        // The root commits column availability after child cleanup; preserve any intervening focus move.
+        const check = { key, unavailable: !visibleEditColumns.current.has(key) }
+        editorFocusChecks.current.add(check)
+        // Remember the removal commit even if the column returns before this focus check runs.
         queueMicrotask(() => {
+          editorFocusChecks.current.delete(check)
           const grid = rootRef.current
-          if (input.isConnected || visibleEditColumns.current.has(key) || !grid?.isConnected || grid.ownerDocument !== doc) return
+          if (input.isConnected || !check.unavailable || !grid?.isConnected || grid.ownerDocument !== doc) return
           if (doc.activeElement !== doc.body && doc.activeElement !== input) return
           focusGrid()
         })
@@ -955,6 +959,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // Publish committed visibility before custom cells run layout effects; notify trackers in layout.
   useInsertionEffect(() => {
     visibleEditColumns.current = edits ? new Set(resolved.filter(col => col.edit && !col.edit.toggle).map(col => col.key)) : EMPTY_SET
+    for (const check of editorFocusChecks.current) {
+      if (!visibleEditColumns.current.has(check.key)) check.unavailable = true
+    }
   }, [edits, resolved])
   useLayoutEffect(() => {
     edits?.reconcileColumns(visibleEditColumns.current)
