@@ -48,6 +48,8 @@ describe("normalizeKeys", () => {
     expect(normalizeKeys("+", "other")).toBe("+")
     expect(normalizeKeys(normalizeKeys("mod+plus", "mac"), "mac")).toBe("meta++")
     expect(formatKeys("ctrl++", "other")).toEqual([["Ctrl", "+"]])
+    expect(() => normalizeKeys("ctrl+++", "other")).toThrow("has no key")
+    expect(() => normalizeKeys("++", "other")).toThrow("has no key")
     expect(formatKeys(normalizeKeys("mod+plus", "mac"), "mac")).toEqual([["\u2318", "+"]])
     const registry = createHotkeyRegistry({ platform: "other" })
     registry.register({ id: "zoom.in", keys: "x", scope: "global", description: "Zoom in" })

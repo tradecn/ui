@@ -168,12 +168,14 @@ export function detectPlatform(): Platform {
 function parseStep(part: string, platform: Platform): Step {
   const step: Step = { ctrl: false, alt: false, shift: false, meta: false, key: "" }
   // The canonical form writes the + key as itself, so "ctrl++" and a bare "+" must read back.
+  // Only the canonical shape qualifies: a malformed "ctrl+++" still fails instead of quietly
+  // becoming a live binding from a corrupted stored override.
   let rest = part
   let plusKey = false
   if (rest === "+") {
     plusKey = true
     rest = ""
-  } else if (rest.endsWith("++")) {
+  } else if (rest.endsWith("++") && rest.length > 2 && !rest.slice(0, -2).endsWith("+")) {
     plusKey = true
     rest = rest.slice(0, -2)
   }
