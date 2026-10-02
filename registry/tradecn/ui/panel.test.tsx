@@ -413,6 +413,30 @@ describe("PanelPopout", () => {
     expect(fired).toHaveBeenCalledTimes(1)
   })
 
+  it("keeps presses on actions and the dot away from the header's drag, with your handler running first", () => {
+    const headerPress = vi.fn()
+    const ownPress = vi.fn()
+    render(
+      <div onPointerDown={headerPress}>
+        <PanelActions onPointerDown={ownPress}><button type="button">Close</button></PanelActions>
+        <LinkGroupDot group={1} onGroupChange={() => {}} onPointerDown={ownPress} />
+      </div>,
+    )
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Close" }))
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Link group 1, change" }))
+    expect(ownPress).toHaveBeenCalledTimes(2)
+    expect(headerPress).not.toHaveBeenCalled()
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Close" }), { })
+    expect(headerPress).not.toHaveBeenCalled()
+    render(
+      <div onPointerDown={headerPress}>
+        <PanelActions onPointerDown={(event) => event.preventDefault()}><button type="button">Drag me</button></PanelActions>
+      </div>,
+    )
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Drag me" }))
+    expect(headerPress).toHaveBeenCalledTimes(1)
+  })
+
   it("renders nothing without a host, as on a server", () => {
     const popout: Popout = { isOpen: false, window: null, host: null, slotRef: () => {}, open: () => false, close: () => {} }
     render(

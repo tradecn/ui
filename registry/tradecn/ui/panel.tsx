@@ -26,6 +26,14 @@ function stop(event: SyntheticEvent) {
   event.stopPropagation()
 }
 
+// The consumer's handler runs first, and cancelling it lets the press reach the header's drag.
+function guardFromDrag<E extends SyntheticEvent>(own?: (event: E) => void) {
+  return (event: E) => {
+    own?.(event)
+    if (!event.defaultPrevented) event.stopPropagation()
+  }
+}
+
 export type PanelState = "error" | "drag-target" | "active" | "inactive" | "auto"
 
 export interface PanelProps extends Omit<ComponentProps<"div">, "ref"> {
@@ -77,9 +85,9 @@ export function PanelTitle({ className, ...props }: ComponentProps<"div">) {
   return <div id={panel?.titleId} className={cn("truncate font-medium", className)} {...props} />
 }
 
-/** Your buttons, pushed to the far end of the header. A press on one does not start a drag. */
-export function PanelActions({ className, ...props }: ComponentProps<"div">) {
-  return <div {...keepFromDrag} className={cn("ml-auto flex items-center gap-0.5", className)} {...props} />
+/** Your buttons, pushed to the far end of the header. A press on one does not start a drag unless your handler cancels. */
+export function PanelActions({ className, onPointerDown, onMouseDown, onTouchStart, ...props }: ComponentProps<"div">) {
+  return <div className={cn("ml-auto flex items-center gap-0.5", className)} {...props} onPointerDown={guardFromDrag(onPointerDown)} onMouseDown={guardFromDrag(onMouseDown)} onTouchStart={guardFromDrag(onTouchStart)} />
 }
 
 export function PanelContent({ className, ...props }: ComponentProps<"div">) {
@@ -234,12 +242,14 @@ export interface LinkGroupDotProps extends Omit<ComponentProps<"button">, "onCha
 }
 
 /** Which link group the panel is in, as a color and a number, because color is never the only channel. */
-export function LinkGroupDot({ group, onGroupChange, className, onClick, ...props }: LinkGroupDotProps) {
+export function LinkGroupDot({ group, onGroupChange, className, onClick, onPointerDown, onMouseDown, onTouchStart, ...props }: LinkGroupDotProps) {
   const name = group === null ? "Not linked" : `Link group ${group}`
   return (
     <button
       type="button"
-      {...keepFromDrag}
+      onPointerDown={guardFromDrag(onPointerDown)}
+      onMouseDown={guardFromDrag(onMouseDown)}
+      onTouchStart={guardFromDrag(onTouchStart)}
       aria-label={`${name}, change`}
       title={name}
       data-link-group={group ?? "none"}

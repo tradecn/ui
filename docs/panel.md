@@ -86,9 +86,9 @@ Declare a binding once for `panel:book`; the handler under the focused book answ
 
 ### The header is a drag handle
 
-Point your layout's handle selector at `[data-panel-handle]` on `PanelHeader`. The panel does not drag itself. `SymbolTag`, `LinkGroupDot`, and `PanelActions` stop `pointerdown`, `mousedown`, and `touchstart` from reaching the header. They do not stop `dragstart`; HTML drag and drop needs a separate handle beside these controls.
+Point your layout's handle selector at `[data-panel-handle]` on `PanelHeader`. The panel does not drag itself. `SymbolTag`, `LinkGroupDot`, and `PanelActions` stop `pointerdown`, `mousedown`, and `touchstart` from reaching the header. Your own handler on one of these runs first, and calling `preventDefault()` lets the press through to the header's drag. They do not stop `dragstart`; HTML drag and drop needs a separate handle beside these controls.
 
-`PanelActions` aligns your buttons at the header's far end. Supply their icons; shadcn's icon library varies by base.
+`PanelActions` aligns your buttons at the header's far end. Supply their icons; shadcn resolves the icon library from your project's `iconLibrary` setting.
 
 ### SymbolTag
 
