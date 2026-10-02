@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
+import { createRef } from "react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { resetSizeObserver } from "@/registry/tradecn/lib/sparkline-geometry"
@@ -138,6 +139,28 @@ describe("the crosshair", () => {
     expect(chart).toHaveAttribute("aria-valuenow", "0")
     await user.keyboard("{PageUp}")
     expect(chart).toHaveAttribute("aria-valuenow", "3")
+  })
+
+  it("steps with Up and Down like any slider", async () => {
+    const user = userEvent.setup()
+    render(<Sparkline values={values} label="ZN" interactive pointLabel={times} {...fixed} />)
+    const chart = screen.getByRole("slider")
+    await user.tab()
+    await user.keyboard("{ArrowDown}")
+    expect(chart).toHaveAttribute("aria-valuetext", "10:03 11")
+    await user.keyboard("{ArrowUp}")
+    expect(chart).toHaveAttribute("aria-valuetext", "10:04 15")
+    await user.keyboard("{ArrowUp}")
+    expect(chart).toHaveAttribute("aria-valuenow", "3")
+  })
+
+  it("hands the caller's ref the same element it measures", () => {
+    const ref = createRef<HTMLDivElement>()
+    const { unmount } = render(<Sparkline values={values} label="ZN" ref={ref} {...fixed} />)
+    expect(ref.current).not.toBeNull()
+    expect(ref.current).toHaveAttribute("data-slot", "tradecn-sparkline")
+    unmount()
+    expect(ref.current).toBeNull()
   })
 
   it("puts the crosshair away on Escape and on blur", async () => {

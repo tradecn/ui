@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useLayoutEffect, useMemo, useState, type ComponentProps, type KeyboardEvent, type PointerEvent } from "react"
+import { useCallback, useLayoutEffect, useMemo, useState, type ComponentProps, type KeyboardEvent, type PointerEvent, type Ref } from "react"
 import { directionOf, type Direction } from "@/registry/tradecn/hooks/use-flash"
 import { buildSparklineGeometry, nearestPointIndex, observeSize, type Size } from "@/registry/tradecn/lib/sparkline-geometry"
 
@@ -43,9 +43,23 @@ const WORD: Record<Tone, string> = { up: "up", down: "down", flat: "flat", none:
 
 const defaultFormat = (value: number) => String(value)
 
-export function Sparkline({ values, label, direction = "auto", baseline, width, height, area = true, interactive = false, format = defaultFormat, pointLabel, className, style, ...props }: SparklineProps) {
+function assignRef(ref: Ref<HTMLDivElement> | undefined, node: HTMLDivElement | null) {
+  if (typeof ref === "function") return ref(node)
+  if (ref) ref.current = node
+}
+
+export function Sparkline({ values, label, direction = "auto", baseline, width, height, area = true, interactive = false, format = defaultFormat, pointLabel, className, style, ref, ...props }: SparklineProps) {
   const fixed = width !== undefined && height !== undefined
   const [element, setElement] = useState<HTMLDivElement | null>(null)
+  // The caller's ref rides along with the measurement target instead of being replaced by it.
+  const rootRef = useCallback((node: HTMLDivElement | null) => {
+    setElement(node)
+    const cleanup = assignRef(ref, node)
+    return () => {
+      if (typeof cleanup === "function") cleanup()
+      else assignRef(ref, null)
+    }
+  }, [ref])
   const [measured, setMeasured] = useState<Size | null>(null)
   const [active, setActive] = useState<number | null>(null)
 
@@ -86,7 +100,7 @@ export function Sparkline({ values, label, direction = "auto", baseline, width, 
     props.onKeyDown?.(event)
     if (event.defaultPrevented || !points.length) return
     const from = active === null ? points.length - 1 : Math.min(active, points.length - 1)
-    const to = { ArrowLeft: from - 1, ArrowRight: from + 1, PageDown: from - 10, PageUp: from + 10, Home: 0, End: points.length - 1 }[event.key]
+    const to = { ArrowLeft: from - 1, ArrowDown: from - 1, ArrowRight: from + 1, ArrowUp: from + 1, PageDown: from - 10, PageUp: from + 10, Home: 0, End: points.length - 1 }[event.key]
     if (to === undefined && event.key !== "Escape") return
     // Claimed, so a grid or a hotkey dispatcher further out leaves the key alone.
     event.preventDefault()
@@ -110,7 +124,7 @@ export function Sparkline({ values, label, direction = "auto", baseline, width, 
         ? { tabIndex: 0, "aria-orientation": "horizontal" as const, "aria-valuemin": 0, "aria-valuemax": points.length - 1, "aria-valuenow": at ? points.indexOf(at) : points.length - 1, "aria-valuetext": at ? describe(at.index, at.value) : summary }
         : {})}
       {...props}
-      ref={setElement}
+      ref={rootRef}
       data-slot="tradecn-sparkline"
       data-direction={tone}
       data-empty={points.length === 0 && latest === null ? "" : undefined}

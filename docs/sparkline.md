@@ -78,7 +78,7 @@ By default the root is an image with no tab stop or built-in keyboard navigation
 
 | Input | Result |
 | --- | --- |
-| Left / Right | Move one finite reading backward / forward. |
+| Left / Right, Down / Up | Move one finite reading backward / forward. |
 | PageDown / PageUp | Move ten finite readings backward / forward. |
 | Home / End | Select the first / last finite reading. |
 | Escape | Hide the crosshair without moving focus. |
