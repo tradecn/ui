@@ -173,7 +173,7 @@ describe("LayoutManager", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("That is not a workspace layout.")
     expect(onTemplatesChange).not.toHaveBeenCalled()
     fireEvent.change(paste, { target: { value: JSON.stringify(THREE) } })
-    fireEvent.change(screen.getAllByRole("textbox", { name: "Layout name" })[1]!, { target: { value: "Pasted" } })
+    fireEvent.change(screen.getByRole("textbox", { name: "Imported layout name" }), { target: { value: "Pasted" } })
     fireEvent.click(screen.getByRole("button", { name: "Add" }))
     expect(onTemplatesChange).toHaveBeenLastCalledWith([{ id: "t-1", name: "Pasted", layout: THREE, savedAt: T }])
     expect(screen.queryByRole("textbox", { name: "Paste a layout's JSON" })).toBeNull()
