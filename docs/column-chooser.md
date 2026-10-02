@@ -214,7 +214,7 @@ The collection takes one Tab stop, however many columns it lists. Keys act on th
 | Space | Show or hide the focused column. |
 | Delete or Backspace | Reset the focused column's width override. |
 
-Navigation also runs from a pointer-focused control inside an item. Arrows, Home, and End stay native inside a caller text field, and Ctrl, Meta, and Shift combinations pass through untouched. Space and Delete act only from the item itself, so a focused control keeps its own keys. Your `onKeyDown` runs first; `event.preventDefault()` cancels the chooser's handling.
+Navigation also runs from a pointer-focused control inside an item. A control that owns its arrows keeps every arrow chord, Alt moves included: text fields, selects, radios, sliders, and ARIA widgets such as a combobox, listbox, menu, tree, grid, or spinbutton, recognized by any arrow-owning token in their `role`. Ctrl, Meta, and Shift combinations pass through untouched. Space and Delete act only from the item itself, so a focused control keeps its own keys. Your `onKeyDown` runs first; `event.preventDefault()` cancels the chooser's handling.
 
 ### The grid's state is the only state
 

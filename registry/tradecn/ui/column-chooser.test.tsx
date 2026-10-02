@@ -691,6 +691,33 @@ describe("the keyboard model scales to wide grids", () => {
     fireEvent.keyDown(note, { key: "ArrowDown" })
     expect(document.activeElement).toBe(note)
   })
+
+  it("leaves every arrow chord to a caller ARIA widget that owns its arrows", () => {
+    const onChange = vi.fn()
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange}>
+      <ColumnChooserItem columnKey="px">
+        <div role="slider" aria-label="Spread" aria-valuenow={1} aria-valuemin={0} aria-valuemax={9} tabIndex={-1} />
+        <button type="button" role="combobox" aria-label="Venue" aria-expanded={false} />
+        <span role="unsupported slider" data-testid="fallback-widget">1</span>
+        <div role="separator" aria-orientation="vertical" aria-valuenow={40} tabIndex={-1} data-testid="splitter" />
+      </ColumnChooserItem>
+      <ColumnChooserItem columnKey="size"><ColumnChooserName /></ColumnChooserItem>
+    </ColumnChooser>)
+    const slider = screen.getByRole("slider", { name: "Spread" })
+    slider.focus()
+    expect(fireEvent.keyDown(slider, { key: "ArrowDown" })).toBe(true)
+    expect(document.activeElement).toBe(slider)
+    const venue = screen.getByRole("combobox", { name: "Venue" })
+    expect(fireEvent.keyDown(venue, { key: "ArrowDown", altKey: true })).toBe(true)
+    expect(fireEvent.keyDown(venue, { key: "End" })).toBe(true)
+    expect(fireEvent.keyDown(screen.getByTestId("fallback-widget"), { key: "ArrowUp" })).toBe(true)
+    expect(fireEvent.keyDown(screen.getByTestId("splitter"), { key: "ArrowDown" })).toBe(true)
+    expect(onChange).not.toHaveBeenCalled()
+    const item = screen.getByRole("group", { name: "Price" })
+    item.focus()
+    expect(fireEvent.keyDown(item, { key: "ArrowDown" })).toBe(false)
+    expect(document.activeElement).toBe(screen.getByRole("group", { name: "Size" }))
+  })
 })
 
 // Compiled by the real project TypeScript check. Conditional composition is legitimate.
