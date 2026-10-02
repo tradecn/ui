@@ -4,9 +4,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
-import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
+import { HotkeyScope, useDeclaredHotkeyIds, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
-import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
+import { formatKeys, type HotkeyBinding, type HotkeyEntry, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
@@ -123,6 +123,8 @@ export interface RfqTicketLabels {
   bid: string
   ask: string
   market: string
+  /** The invalid-text both level fields show. */
+  invalidLevel: string
   quoted: string
   suggested: string
   takeSuggested: string
@@ -147,6 +149,7 @@ export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
   bid: "Bid",
   ask: "Offer",
   market: "Market",
+  invalidLevel: "Not a level in this instrument's notation.",
   quoted: "Quoted",
   suggested: "Auto",
   takeSuggested: "Take the suggested levels",
@@ -221,9 +224,9 @@ export function quoteDistance(level: number | null | undefined, market: number |
 
 // Several tickets can be up at once, so the bindings are declared once per registry and taken
 // back when the last ticket that leaned on them leaves. A consumer that declared an id owns it.
-const declared = new WeakMap<HotkeyRegistry, Map<string, { count: number; ours: boolean }>>()
+const declared = new WeakMap<HotkeyRegistry, Map<string, { count: number; ours: boolean; binding: HotkeyBinding; registered?: HotkeyEntry }>>()
 
-function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBinding[]): () => void {
+function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBinding[], declaredElsewhere: ReadonlySet<string>): () => void {
   let table = declared.get(registry)
   if (!table) declared.set(registry, (table = new Map()))
   const have = new Set(registry.list().map((entry) => entry.id))
@@ -231,9 +234,13 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
     const entry = table.get(binding.id)
     if (entry) entry.count += 1
     else {
-      const ours = !have.has(binding.id)
+      // A consumer that declared this id owns it, whether on the registry before render or in a
+      // provider's bindings, whose effect runs after this one.
+      const ours = !have.has(binding.id) && !declaredElsewhere.has(binding.id)
       if (ours) registry.register(binding)
-      table.set(binding.id, { count: 1, ours })
+      // The exact entry registered, defaults included, so cleanup can leave any replacement alone.
+      const registered = ours ? registry.list().find((entry) => entry.id === binding.id) : undefined
+      table.set(binding.id, { count: 1, ours, binding, registered })
     }
   }
   return () => {
@@ -243,7 +250,11 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
       entry.count -= 1
       if (entry.count > 0) continue
       table.delete(binding.id)
-      if (entry.ours) registry.unregister(binding.id)
+      if (!entry.ours || !entry.registered) continue
+      // A declaration that replaced this default after mount is the consumer's to keep, even one
+      // that changed only its keys.
+      const current = registry.list().find((e) => e.id === binding.id)
+      if (current && current.defaultKeys === entry.registered.defaultKeys && current.description === entry.registered.description && current.scope === entry.registered.scope) registry.unregister(binding.id)
     }
   }
 }
@@ -338,7 +349,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const otherBlocks = blocking.filter((p) => p.field !== "bid" && p.field !== "ask")
   const asking = confirming !== null ? confirms(limitProblems) : []
 
-  /** Where a step starts when a field is blank: the market's same side, the suggested level, the market's mid, then its other side. */
+  /** Where a step starts when a field is blank: the market's same side, the suggested level, the market's other side, then its mid. */
   function stepFrom(side: QuoteSide): number | null {
     const market = inquiry.market ?? {}
     const suggested = inquiry.suggested ?? {}
@@ -346,10 +357,8 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
     if (own !== null) return own
     const hint = level(suggested[side])
     if (hint !== null) return hint
-    const bid = level(market.bid)
-    const ask = level(market.ask)
-    if (bid !== null && ask !== null) return stepQuote((bid + ask) / 2, convention, 0)
-    return bid ?? ask ?? level(market.mid)
+    // The same side is blank here, so at most one market side remains.
+    return level(market.bid) ?? level(market.ask) ?? level(market.mid)
   }
 
   function step(side: QuoteSide, steps: number) {
@@ -398,6 +407,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   // Keys: declared once per registry, bound to this ticket's box so another ticket's keys stay its own.
   const registry = useMaybeHotkeys()
+  const declaredByProvider = useDeclaredHotkeyIds()
   const handlers = useRef({ send: () => {}, up: () => {}, down: () => {}, suggested: () => {}, quick: (n: number) => {
       void n
     } })
@@ -417,8 +427,9 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   })
   useEffect(() => {
     if (!registry) return
-    const release = declareHotkeys ? declareBindings(registry, RFQ_TICKET_BINDINGS) : noop()
-    const within = { scope: "editing", element: () => box.current }
+    const release = declareHotkeys ? declareBindings(registry, RFQ_TICKET_BINDINGS, declaredByProvider) : noop()
+    // Fenced to the scope root, so the shortcuts run from the heading, the market, and the padding too.
+    const within = { scope: "editing", element: () => (box.current ? box.current.parentElement ?? box.current : null) }
     const guard = (fn: () => void) => (event: KeyboardEvent) => {
       event.preventDefault()
       fn()
@@ -541,7 +552,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             const distance = quoteDistance(draft[side], level(market?.[side]), convention)
             return (
               <div key={side} className="flex flex-col gap-0.5">
-                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} disabled={!quoting} error={shownProblems[side]} inputRef={inputs[side]} />
+                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} invalidText={labels.invalidLevel} disabled={!quoting} error={shownProblems[side]} inputRef={inputs[side]} />
                 <span className="h-4 text-right text-muted-foreground lining-nums tabular-nums" data-rfq-distance={side} data-numeric="" aria-live="off">
                   {distance ? `${distance.text} ${labels.vsMarket}` : " "}
                 </span>

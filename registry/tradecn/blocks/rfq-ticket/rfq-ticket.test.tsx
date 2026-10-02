@@ -391,3 +391,29 @@ describe("quick sizes", () => {
     expect(lastDraft(onDraftChange).quantity).toBe(5_000_000)
   })
 })
+
+describe("binding ownership and the fence", () => {
+  it("cedes a provider-declared binding across inquiry remounts, runs from the whole ticket, and says a level is not a level", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const bindings = [{ id: "rfq.send", keys: "mod+s", scope: "editing" as const, description: "Ship the quote" }]
+    const quote = vi.fn()
+    const actions: RfqAction[] = [{ id: "quote", label: "Quote", run: quote, primary: true }]
+    const ui = (key: string) => (
+      <HotkeysProvider registry={registry} bindings={bindings}>
+        <RfqTicket key={key} inquiry={inquiry()} actions={actions} onDraftChange={() => {}} defaultDraft={draftOf({ ask: 99.515625 })} />
+      </HotkeysProvider>
+    )
+    const { rerender } = render(ui("a"))
+    expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Ship the quote")
+    rerender(ui("b"))
+    expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Ship the quote")
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "s", ctrlKey: true })
+    expect(quote).toHaveBeenCalledTimes(1)
+    type(field("Offer"), "banana")
+    fireEvent.blur(field("Offer"))
+    expect(screen.getByText("Not a level in this instrument's notation.")).toBeInTheDocument()
+  })
+})
+
