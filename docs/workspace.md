@@ -296,7 +296,7 @@ These mappings follow light, dark, and tradecn themes. `scripts/workspace-theme.
 
 Dock overlays start at z-index `30`; floating groups increase that value, and their overflow popups use twice the group's value. The tab-controls example adds `isolate` to `Workspace`, keeping those native layers in the workspace's stacking context while its portaled menus render above them. Use the same setup when composing tab menus, and choose the workspace's position in your application's layers.
 
-Set `--dv-overlay-z-index` on `.dockview-theme-tradecn` to change the base. The floating-container rule replaces Dockview's self-referencing declaration with the root value. Optional tab-group colors configured through `api.dockview` use `--chart-1` through `--chart-5`, with grey using `--muted-foreground`. Installation also adds `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` if missing, with the shared font tokens and the hyperlegible remap.
+Set `--dv-overlay-z-index` on `.dockview-theme-tradecn` to change the base. The floating-container rule replaces Dockview's self-referencing declaration with the root value. Optional tab-group colors configured through `api.dockview` use `--chart-1` through `--chart-5`, with grey using `--muted-foreground`. Installation also adds `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` if missing, with the mono font token, the accessible pair, and the hyperlegible remap.
 
 ### The dock's own API
 

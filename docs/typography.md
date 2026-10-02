@@ -44,7 +44,7 @@ Fontsource's `@fontsource-variable/inter` registers the family as `'Inter Variab
 
 An item installs the tokens its source uses, their dependencies, and the accessible pair when it uses a font token. Non-theme installs add missing values to `:root` and `.dark`. Theme installs replace existing values and supply the full set below.
 
-The themes install the size, line-height, weight, and body-color tokens below for your own stylesheet; without a theme, declare the ones you use yourself, since a non-theme install adds only tokens its source reads. Setting a size token does not resize a component. Every grid preset uses `text-xs` (12 px with the default 16 px root size). The registry validator rejects explicit source sizes below 12 px; this is a source check, not a browser minimum under consumer CSS.
+The themes install the size, line-height, weight, and body-color tokens below for your own stylesheet; without a theme, declare the ones you use yourself: a non-theme install adds the tokens its source uses, their dependencies, and the accessible pair alongside any font token, not the full set below. Setting a size token does not resize a component. Every grid preset uses `text-xs` (12 px with the default 16 px root size). The registry validator rejects explicit source sizes below 12 px; this is a source check, not a browser minimum under consumer CSS.
 
 | Token | Default | Purpose |
 |---|---|---|

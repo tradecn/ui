@@ -28,7 +28,7 @@ await persistPreferences(prefs)
 
 Create one controller in the desk's owner and await one startup restore. It starts empty and does not discover native windows. Make the adapter's `open` idempotent so it can adopt an existing initial window. Before a quit snapshot, stop new operations and wait for pending ones to finish; persist before destroying any windows.
 
-Every window loads the app and reads `?window=<id>&layout=<layoutId>` to choose its identity and layout. [Desktop shells](shells.md) covers owner placement, initial-window adoption, entry URLs, geometry, and close/quit coordination for Tauri and Electron.
+Every secondary window loads the app and reads `?window=<id>&layout=<layoutId>` to choose its identity and layout; the initial `main` window receives its record at startup instead. [Desktop shells](shells.md) covers owner placement, initial-window adoption, entry URLs, geometry, and close/quit coordination for Tauri and Electron.
 
 The preview uses cards as a simulated shell. Restore opens the missing records, main first; each card's close button reports a shell-initiated closure, while Close all asks the controller to close them. Snapshot reads synthetic bounds offset by 24 pixels from the saved positions. It stays unchanged until you take another snapshot, and nothing is saved across reloads.
 

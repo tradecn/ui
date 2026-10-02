@@ -168,7 +168,7 @@ All `LaneMeta` fields are required:
 | `version` | `number` | Counter used to calculate batches per second. |
 | `dropped` | `number` | Producer's dropped-message count. The grid example shows it for coalesced lanes. |
 | `seq` | `number \| null` | Latest sequence; `null` prints as `–`. The grid example shows it for ordered lanes. |
-| `gap` | `boolean` | The sequence reading adds `gap` when true. |
+| `gap` | `boolean` | Its own reading, printing `gap` when true; the grid example renders it beside `seq`. |
 | `lastBatchAt` | `number \| null` | Last batch's wall-clock timestamp in milliseconds since the epoch; `null` prints its age as `–`. |
 
 Lanes subscribe directly to their stores and can redraw between frame reports. Batches per second starts at zero, then uses the nonnegative change in `version` divided by elapsed report time, rounded to a whole number for display.
