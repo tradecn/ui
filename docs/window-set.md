@@ -57,7 +57,7 @@ Each `WindowRecord`:
 | `display` | `string` | No | Application metadata naming the display; the controller does not discover or move displays. |
 | `main` | `boolean` | No | Selects the first record to restore. Closing it does not automatically close the desk. |
 
-`WindowBounds` has four required numbers. Choose physical or logical pixels, and outer or content size, consistently between the adapter's reads and writes; see the shell recipes above.
+`WindowBounds` has four required numbers. Choose physical or logical pixels, and outer or content size, consistently between the adapter's reads and writes; see the [shell recipes](shells.md).
 
 | Field | Type | Purpose |
 |---|---|---|

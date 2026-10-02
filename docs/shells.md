@@ -20,7 +20,7 @@ The snippets below are integration fragments. The application supplies layout st
 | Window set | One controller in the Tauri main webview or Electron main process | [`window-set`](window-set.md) |
 | Session | One guard per window, reading the same expiry | [`session-guard`](session-guard.md) |
 
-Every renderer loads the same app with `?window=<id>&layout=<layoutId>`. `defaultWindowUrl` produces the current document's path plus that query, not an absolute URL. Choose the shell's entry point explicitly when its loading API needs something else.
+Every secondary renderer loads the same app with `?window=<id>&layout=<layoutId>`; the initial `main` renderer receives its record at startup instead (see Launch and quit). `defaultWindowUrl` produces the current document's path plus that query, not an absolute URL. Choose the shell's entry point explicitly when its loading API needs something else.
 
 ```tsx
 const params = new URLSearchParams(location.search)

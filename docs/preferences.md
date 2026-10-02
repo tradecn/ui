@@ -117,7 +117,7 @@ The transfer boundary accepts `"template"` or `"user"`, defaulting to `"user"`:
 
 Export filters slot values, not the boundary lists: excluded slots' names can still appear in the JSON. Import checks the incoming envelope's boundaries. Each allowed slot replaces the target's same-named slot and takes the incoming boundary, even if the target classified it as `session`. Other target slots and their boundaries stay intact.
 
-Import returns the original target when no allowed values, versions, or boundary assignments change. Parsing and importing do not migrate slot versions; use a migrator when reading or updating older values.
+Import returns the original target when no allowed values, versions, or boundary assignments change; importing a slot the target does not list yet still returns a new object, since it adds the listing. Parsing and importing do not migrate slot versions; use a migrator when reading or updating older values.
 
 ### Versions and migrators
 
