@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from "react"
 import { createFrameSampler, formatMs, type FrameReport, type FrameSampler } from "@/registry/tradecn/lib/frame-stats"
 
 // One sampler and report subscription per monitor; one metadata subscription per lane. Readings
@@ -60,7 +60,10 @@ export function PerfMonitor({ budgetMs = 1000 / 60, window: frames = 600, refres
     sampler.start()
     return () => sampler.stop()
   }, [sampler])
-  const report = useSyncExternalStore(sampler.subscribe ?? noop, sampler.report, sampler.report)
+  // Called through the sampler, not detached from it, so a class-based sampler keeps its `this`.
+  const subscribeReport = useCallback((cb: () => void) => (sampler.subscribe ? sampler.subscribe(cb) : noop()), [sampler])
+  const readReport = useCallback(() => sampler.report(), [sampler])
+  const report = useSyncExternalStore(subscribeReport, readReport, readReport)
   useEffect(() => {
     onReport?.(report)
     // Callback replacement alone must not publish the current report again.
@@ -116,7 +119,10 @@ export function usePerfLane(): PerfLaneState {
 /** Coordinates lane readings without adding markup, including inside a table or list. */
 export function PerfMonitorLane({ store, children }: PerfMonitorLaneProps) {
   const { until: at } = usePerfReport()
-  const meta = useSyncExternalStore(store.subscribeMeta, store.getMeta, store.getMeta)
+  // Called through the store, so a class-based MetaSource keeps its `this`.
+  const subscribeMeta = useCallback((cb: () => void) => store.subscribeMeta(cb), [store])
+  const readMeta = useCallback(() => store.getMeta(), [store])
+  const meta = useSyncExternalStore(subscribeMeta, readMeta, readMeta)
   const [seen, setSeen] = useState({ store, at, version: meta.version, rate: 0 })
   if (seen.store !== store) {
     setSeen({ store, at, version: meta.version, rate: 0 })
