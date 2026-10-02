@@ -63,7 +63,7 @@ Use `baseState` to initialize an uncontrolled grid and choose its reset defaults
 
 ## Selection and actions
 
-Set `selectionMode="multi"` to extend the RFQ preset's single selection. Use the checkboxes, Shift for a range, or Command/Ctrl to toggle rows. Right-click a selected row, or press Shift+F10 with the grid focused, to act on the selection; an unselected row targets just itself.
+Set `selectionMode="multi"` to extend the RFQ preset's single selection. Use the checkboxes, Shift for a range, or Command/Ctrl to toggle rows. Right-click plain content in a selected row, or press Shift+F10 with the grid focused, to act on the selection; an unselected row targets just itself.
 
 Enter on the grid or a double-click on plain cell content activates a row. The Inspect button acts on its own row and preserves selection. This example prints the requested action below the grid; your handler opens a ticket or sends a command.
 
@@ -260,6 +260,8 @@ A thrown error or rejection of a still-pending promise displays the store value 
 
 A custom `cell` receives `edit: { status, commit(value), open() }` when editing is enabled for its column. It sees `status` as absent or an object whose `kind` is `pending` or `rejected`. While a text editor is open, the grid renders its built-in editor instead of calling `cell`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text.
 
+For an available text-editable cell, `open()` opens and focuses the text editor. It does not select the row or change the grid's logical row or chosen column. To return grid navigation to that row after editing, control `focusedRowId` and update it in the action handler before calling `open()`. Column shortcuts still use the previously chosen column; choose a column with grid navigation or its header.
+
 ### Identity
 
 Selection, focus, and context-menu targets use row ids, so a reorder preserves their identity. `aria-activedescendant` names the focused row while its id is in the view; each data row's `aria-rowindex` is its zero-based view index plus two, accounting for the header.
@@ -276,9 +278,13 @@ Buttons, links, inputs, editors, focusable content and interactive ARIA widgets 
 
 Use native controls with accessible names in custom cells. A custom handler can also claim a press or double-click with `preventDefault()` or `stopPropagation()`. Row actions run during bubbling, after the child handler. To claim one from a parent, use its capture handler.
 
-With `renderContextMenu`, right-clicking a selected row keeps the selection; another row becomes the target. Controls, nested grids, content portaled outside this grid, headers, footers and empty space do not open its row menu. Controls retain their own context menus, including the browser's default when the application leaves it available.
+With `renderContextMenu`, right-clicking plain content in a selected row keeps the selection; another row becomes the target. Controls, nested grids, content portaled outside this grid, headers, footers and empty space do not open its row menu. Controls retain their own context menus, including the browser's default when the application leaves it available.
 
-When a row menu is installed, rejected `contextmenu`, non-mouse `pointerdown`, and single-touch `touchstart` events stop bubbling after child handlers run. Use capture handlers on ancestors to observe them. Multiple-touch `touchstart` events reach the menu so it can cancel a pending long press.
+When a row menu is installed, rejected `contextmenu`, non-mouse `pointerdown`, and single-touch `touchstart` events stop React bubbling after child handlers run. Use capture handlers on ancestors to observe them. Multiple-touch `touchstart` events reach the menu so it can cancel a pending long press.
+
+Rejected pointer and touch starts retain native propagation for dialog dismissal and touch tracking. Rejected context-menu events from contained targets also stop native bubbling, including later listeners on a hydrated document root. Events from content portaled outside the grid retain native delivery.
+
+A document-level bubbling handler cannot suppress the browser menu for those contained targets. Call `preventDefault()` in the custom control's `onContextMenu` handler to suppress it there. A capture handler that prevents every context-menu event also claims the grid's row menus.
 
 Open shadow roots use the browser's event path. Closed roots expose only their hosts. Set `data-grid-interaction` on the host or a containing element outside that root:
 

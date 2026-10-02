@@ -228,7 +228,7 @@ Set `hasCustom` when a supplied renderer can return `undefined`. Explicit `null`
 
 The renderer receives the grid's target rows and ids without action-permission filtering.
 
-Right-click requests focus for the targeted row and, when selection is enabled, replaces the selection if that row was not already selected. The menu uses the resulting selection, falling back to row focus.
+Right-clicking plain row content requests focus for that row and, when selection is enabled, replaces the selection if that row was not already selected. The menu uses the resulting selection, falling back to row focus.
 
 Apply these requests when controlling selection or focus. Until then, the menu uses the existing values.
 

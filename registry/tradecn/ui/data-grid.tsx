@@ -18,6 +18,7 @@ import {
   type PointerEvent,
   type ReactNode,
   type RefObject,
+  type SyntheticEvent,
   type UIEvent,
 } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -261,6 +262,19 @@ function pathMatches(root: HTMLElement | null, path: EventTarget[], selector: st
     if ((entry as Element).matches?.(selector)) return true
   }
   return false
+}
+
+function rejectMenuStart(root: HTMLElement | null, event: SyntheticEvent) {
+  const native = event.nativeEvent
+  if (event.type === "contextmenu" && root && native.composedPath().includes(root)) {
+    // Base's document listener also claims contained context menus, including at a hydrated document root.
+    event.stopPropagation()
+    if (native.currentTarget === root.ownerDocument) native.stopImmediatePropagation()
+    return
+  }
+  // React's dispatcher checks this query before visiting an ancestor. This compatibility shim
+  // skips the menu trigger without blocking native listeners used by dialog dismissal and touch tracking.
+  event.isPropagationStopped = () => true
 }
 
 function useControllable<V>(value: V | undefined, onChange: ((v: V) => void) | undefined, initial: V): [V, (v: V) => void] {
@@ -1312,8 +1326,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const onContextMenu = (e: MouseEvent<HTMLDivElement>) => {
     const target = rowTarget(e, true)
     if (e.defaultPrevented || !target) {
-      // Leave native defaults intact, but keep the surrounding menu trigger from claiming the event.
-      e.stopPropagation()
+      rejectMenuStart(rootRef.current, e)
       return
     }
     const { id } = target
@@ -1331,7 +1344,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const target = rowTarget(e)
     if (e.defaultPrevented || !target) {
       // Radix starts long-press menus from pointerdown; Base UI uses touchstart below.
-      if (renderContextMenu && e.pointerType !== "mouse" && (e.defaultPrevented || !rowTarget(e, true))) e.stopPropagation()
+      if (renderContextMenu && e.pointerType !== "mouse" && (e.defaultPrevented || !rowTarget(e, true))) rejectMenuStart(rootRef.current, e)
       return
     }
     const { id } = target
@@ -1380,7 +1393,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       onContextMenu={renderContextMenu ? onContextMenu : undefined}
       onTouchStart={renderContextMenu ? event => {
         // Multiple touches must reach the primitive so it can cancel a pending long press.
-        if (event.touches.length === 1 && (event.defaultPrevented || !rowTarget(event, true))) event.stopPropagation()
+        if (event.touches.length === 1 && (event.defaultPrevented || !rowTarget(event, true))) rejectMenuStart(rootRef.current, event)
       } : undefined}
       onScroll={onScroll}
     >

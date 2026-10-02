@@ -393,7 +393,11 @@ Custom controls now own their pointer interactions too. Pressing or double-click
 
 Pass the cell's explicit row id to its action. If the action should also select or focus the row, update controlled `selection` or `focusedRowId` in that handler.
 
-Row actions now run during bubbling and honor a child's `preventDefault()` or `stopPropagation()`. Parent handlers must use capture to claim the event first. Nested grids and content portaled outside the grid no longer touch its reorder hold or pause its tail following; contained controls still do so on pointer press.
+For an available text-editable cell, a custom `edit.open()` button opens and focuses the text editor but does not change the logical row or chosen column. Updating `focusedRowId` in that handler restores the former incidental row focus; column shortcuts still use the previously chosen column.
+
+Row actions now run during bubbling and honor a child's `preventDefault()` or `stopPropagation()`. In v1, row actions still ran after an earlier handler called `preventDefault()`. Parent handlers must use capture to claim the event first.
+
+Nested grids and content portaled outside the grid no longer touch its reorder hold or pause its tail following; contained controls still do so on pointer press.
 
 Open shadow roots use the same ownership rules. For a closed shadow root, mark its host or a containing element outside that closed root with `data-grid-interaction="control"` to retain the enclosing grid's hold and tail pause, or `data-grid-interaction="independent"` to skip that bookkeeping.
 
@@ -401,7 +405,13 @@ Both exclude this grid's row actions and row menu. Without a marker, the hidden 
 
 Row context menus now open only from plain content in a current row. Controls retain their own menus, while headers, footers and empty space no longer open the menu for the previous selection.
 
-When `renderContextMenu` is set, rejected context-menu events and single-touch long-press starts stop bubbling at the grid body after child handlers run. Move an ancestor observer to capture if it needs those events. See [pointer interactions](data-grid.md#pointer-interactions), including the wrapper for controls styled with `pointer-events: none`.
+With `renderContextMenu`, rejected starts stop React bubbling at the grid body after child handlers run. This covers `contextmenu`, non-mouse `pointerdown`, and single-touch `touchstart` events.
+
+Multiple-touch `touchstart` events still reach the menu to cancel a pending long press. Move an ancestor observer to capture if it needs those events.
+
+Contained context-menu events also stop native bubbling. Rejected pointer and touch starts and events from outside portals retain native delivery. To suppress a custom control's browser menu, call `preventDefault()` in that control's `onContextMenu` handler.
+
+See [pointer interactions](data-grid.md#pointer-interactions), including the wrapper for controls styled with `pointer-events: none`.
 
 Resize handles now start only from an unhandled primary-button press by a primary pointer. Secondary buttons, secondary pointers and already-prevented presses do not resize.
 

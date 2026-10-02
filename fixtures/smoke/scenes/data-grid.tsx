@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObj
 import { createPortal, flushSync } from "react-dom"
 import { useView } from "@/hooks/use-row-store"
 import { ContextMenuItem } from "@/components/ui/context-menu"
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DataGrid, EMPTY_COLUMN_STATE, type CellEditHandle, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/components/ui/data-grid"
 import { createRowStore, type RowView } from "@/lib/row-store"
 import DataGridDefaultsDemo from "./recipes/data-grid-defaults"
@@ -41,12 +42,54 @@ export function DataGridScene() {
       <GridPointerScene />
       <GridNestedPointerScene />
       <GridShadowPointerScene />
+      <GridDialogScene />
       <GridResizeScene />
       <GridEditorScene />
       <GridDelayedEditorScene />
       <GridLayoutEditorScene />
     </div>
   )
+}
+
+function QuoteDetails() {
+  return <Dialog>
+    <DialogTrigger>Quote details for Alpha</DialogTrigger>
+    <DialogContent>
+      <DialogTitle>Quote details</DialogTitle>
+      <DialogDescription>Review the quote before responding.</DialogDescription>
+      <p data-dialog-hold className="min-h-24">Alpha requested a quote.</p>
+      <label>Dialog note<input aria-label="Dialog note" /></label>
+    </DialogContent>
+  </Dialog>
+}
+
+const dialogColumns: ColumnDef<Row>[] = [
+  { key: "id", header: "Quote", width: 120, accessor: row => row.id },
+  { key: "detail", header: "Details", width: 240, accessor: () => "", cell: ({ rowId }) => rowId === "Alpha" ? <QuoteDetails /> : null },
+]
+const dialogControlColumns: ColumnDef<Row>[] = [
+  { key: "id", header: "Quote", width: 120, accessor: row => row.id },
+  { key: "note", header: "Note", width: 200, accessor: () => "", cell: ({ rowId }) => <input aria-label={`Contained note for ${rowId}`} className="w-full min-w-0" /> },
+]
+
+function GridDialogScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Beta"]))
+  return <div data-grid-dialog data-selection={[...selection].join(",")}>
+    <div className="h-40"><DataGrid store={store} columns={dialogColumns} label="Quotes with dialogs" selection={selection} onSelectionChange={setSelection} renderContextMenu={(_rows, ids) => <ContextMenuItem>Dialog quote action: {ids.join(",")}</ContextMenuItem>} /></div>
+    <Dialog>
+      <DialogTrigger>Open quote grid dialog</DialogTrigger>
+      <DialogContent>
+        <DialogTitle>Quote grid</DialogTitle>
+        <DialogDescription>Add notes to the selected quotes.</DialogDescription>
+        <div className="h-40"><DataGrid store={store} columns={dialogControlColumns} label="Contained quotes" renderContextMenu={(_rows, ids) => <ContextMenuItem>Contained quote action: {ids.join(",")}</ContextMenuItem>} /></div>
+      </DialogContent>
+    </Dialog>
+  </div>
 }
 
 function GridPointerScene() {

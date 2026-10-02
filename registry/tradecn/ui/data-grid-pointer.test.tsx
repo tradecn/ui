@@ -256,6 +256,37 @@ describe("DataGrid pointer ownership", () => {
     }
   })
 
+  it.each(["contained", "portaled"])("preserves document touch delivery from a %s control without starting the row menu", placement => {
+    vi.useFakeTimers()
+    const props = setup(["a"])
+    const portal = document.createElement("div")
+    document.body.append(portal)
+    const nativePointer = vi.fn(), nativeTouch = vi.fn(), reactBubble = vi.fn(), child = vi.fn()
+    document.addEventListener("pointerdown", nativePointer)
+    document.addEventListener("touchstart", nativeTouch)
+    try {
+      const control = <input aria-label="Touch note" onPointerDown={child} onTouchStart={child} />
+      render(<div onPointerDown={reactBubble} onTouchStart={reactBubble}><DataGrid {...props} columns={[{ ...columns[0]!, cell: () => placement === "portaled" ? createPortal(control, portal) : control }]} renderContextMenu={() => <span>Unexpected row menu</span>} /></div>)
+      const input = screen.getByRole("textbox", { name: "Touch note" })
+      expect(fireEvent.pointerDown(input, { ...pointer, pointerType: "touch" })).toBe(true)
+      const first = { identifier: 1, clientX: 100, clientY: 100 }
+      expect(fireEvent.touchStart(input, { touches: [first], changedTouches: [first] })).toBe(true)
+      expect(nativePointer).toHaveBeenCalledTimes(1)
+      expect(nativeTouch).toHaveBeenCalledTimes(1)
+      expect(child).toHaveBeenCalledTimes(2)
+      expect(reactBubble).not.toHaveBeenCalled()
+      act(() => vi.advanceTimersByTime(1000))
+      expect(screen.queryByText("Unexpected row menu")).toBeNull()
+      expect(props.onSelectionChange).not.toHaveBeenCalled()
+      expect(props.onFocusedRowChange).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener("pointerdown", nativePointer)
+      document.removeEventListener("touchstart", nativeTouch)
+      portal.remove()
+      vi.useRealTimers()
+    }
+  })
+
   it.each(["nested", "portaled"])("isolates a %s grid's reorder hold and tail pause", placement => {
     const outer = setup(["a", "b"]), inner = setup(["b"])
     const outerView = outer.store.createView(), innerView = inner.store.createView()

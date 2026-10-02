@@ -1608,6 +1608,85 @@ for (const dark of [false, true]) {
     await expect(scene).toHaveAttribute("data-touches", "7")
   })
 
+  test(`document-root grids preserve rejected native context menus (${dark ? "dark" : "light"})`, async ({ page }) => {
+    const errors: string[] = []
+    page.on("pageerror", error => errors.push(error.message))
+    await page.goto("/?document-root")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-grid-pointer]")
+    const grid = scene.getByRole("grid", { name: "Pointer quotes" })
+    await expect(grid).toBeVisible()
+    await page.evaluate(() => {
+      document.addEventListener("contextmenu", event => {
+        Reflect.set(window, "lastGridContextMenu", event)
+      }, true)
+    })
+    for (const target of [grid.getByRole("textbox", { name: "Pointer note for Alpha" }), grid.getByRole("button", { name: "Price column menu" })]) {
+      await target.click({ button: "right" })
+      // Read the captured native event after dispatch, including all document listeners.
+      expect(await page.evaluate(() => (Reflect.get(window, "lastGridContextMenu") as Event).defaultPrevented)).toBe(false)
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(scene).toHaveAttribute("data-selection", "Beta")
+    }
+    await grid.locator('[data-row-id="Alpha"] [data-col="id"]').click({ button: "right" })
+    await expect(page.getByRole("menuitem", { name: "Pointer action: Alpha", exact: true })).toBeVisible()
+    expect(await page.evaluate(() => (Reflect.get(window, "lastGridContextMenu") as Event).defaultPrevented)).toBe(true)
+    await page.keyboard.press("Escape")
+    expect(errors).toEqual([])
+  })
+
+  test(`grid menus preserve portaled and enclosing dialog touch behavior (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-grid-dialog]")
+    const session = await page.context().newCDPSession(page)
+    let touching = false
+    async function press(x: number, y: number, duration: number) {
+      await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
+      touching = true
+      await page.waitForTimeout(duration)
+      await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      touching = false
+    }
+    try {
+      for (const [triggerName, dialogName, target] of [
+        ["Quote details for Alpha", "Quote details", "[data-dialog-hold]"],
+        ["Open quote grid dialog", "Quote grid", 'input[aria-label="Contained note for Alpha"]'],
+      ]) {
+        const trigger = scene.getByRole("button", { name: triggerName, exact: true })
+        await trigger.click()
+        const dialog = page.getByRole("dialog", { name: dialogName, exact: true })
+        await expect(dialog).toBeVisible()
+        const control = dialog.locator(target!)
+        const box = await control.boundingBox()
+        expect(box).not.toBeNull()
+        // A held portal/control press must not start the outer primitive's row menu.
+        await press(box!.x + box!.width / 2, box!.y + box!.height / 2, 850)
+        await expect(dialog).toBeVisible()
+        await expect(page.getByRole("menu")).toHaveCount(0)
+        const bounds = await dialog.boundingBox()
+        expect(bounds).not.toBeNull()
+        expect(bounds!.x > 8 || bounds!.y > 8).toBe(true)
+        // The first outside touch must dismiss; a second attempt would hide lost document delivery.
+        await press(8, 8, 50)
+        await expect(dialog).toHaveCount(0)
+        await expect(page.getByRole("menu")).toHaveCount(0)
+        await expect(scene).toHaveAttribute("data-selection", "Beta")
+        await trigger.click()
+        await expect(dialog).toBeVisible()
+        await page.keyboard.press("Escape")
+        await expect(dialog).toHaveCount(0)
+        await expect(trigger).toBeFocused()
+      }
+    } finally {
+      try {
+        if (touching) await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] })
+      } finally {
+        await session.detach()
+      }
+    }
+  })
+
   test(`grid long presses distinguish controls from rows (${dark ? "dark" : "light"})`, async ({ page }) => {
     await page.goto("/")
     await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
@@ -2671,6 +2750,53 @@ test("a spread matrix prints signed spreads in the row's ticks, flashes the cell
   await expect(cell("10Y", "2Y")).toHaveText("+13.5")
   await expect(cell("5Y", "2Y")).toHaveText("−12.5")
 })
+
+for (const dark of [false, true]) {
+  test(`pending quote actions keep disabled hit targets and gaps out of row actions (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-pending-quote-actions]")
+    const grid = scene.getByRole("grid", { name: "Pending actions" })
+    const actions = grid.locator('[data-row-id="2Y"] [data-quote-actions]')
+    const pause = actions.getByRole("button", { name: "Pause", exact: true })
+    const pull = actions.getByRole("button", { name: "Pull", exact: true })
+    const selected = grid.locator('[data-row-id="10Y"]')
+    await selected.locator('[data-col="instrument"]').click()
+    const focusedRow = await selected.getAttribute("id")
+    expect(focusedRow).not.toBeNull()
+    await pause.click()
+    await expect(scene).toHaveAttribute("data-selection", "10Y")
+    await expect(grid).toHaveAttribute("aria-activedescendant", focusedRow!)
+    await expect(pause).toBeDisabled()
+    await expect(pull).toBeDisabled()
+    await grid.locator('[data-row-id="10Y"] [data-col="instrument"]').click()
+    await pause.scrollIntoViewIfNeeded()
+    const first = await pause.boundingBox(), second = await pull.boundingBox()
+    expect(first).not.toBeNull()
+    expect(second).not.toBeNull()
+    const y = first!.y + first!.height / 2
+    for (const x of [first!.x + first!.width / 2, (first!.x + first!.width + second!.x) / 2]) {
+      // Trusted input must hit the disabled button's wrapper, not dispatch directly to the button.
+      expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.hasAttribute("data-quote-actions"), { x, y })).toBe(true)
+      await page.mouse.click(x, y)
+      await expect(scene).toHaveAttribute("data-selection", "10Y")
+      await page.mouse.dblclick(x, y)
+      await expect(scene).toHaveAttribute("data-activations", "0")
+      await page.mouse.click(x, y, { button: "right" })
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(scene).toHaveAttribute("data-selection", "10Y")
+      await expect(grid).toHaveAttribute("aria-activedescendant", focusedRow!)
+      await expect(scene).toHaveAttribute("data-requests", "1")
+    }
+    await grid.locator('[data-row-id="10Y"] [data-col="instrument"]').click({ button: "right" })
+    await expect(page.getByRole("menuitem", { name: "Pending quote action: 10Y", exact: true })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await scene.getByRole("button", { name: "Finish pending quote action" }).click()
+    await expect(pause).toBeEnabled()
+    await expect(pull).toBeEnabled()
+    await expect(scene).toHaveAttribute("data-requests", "1")
+  })
+}
 
 // The installed quote panel over three notes: the market's and the desk's two-way in 32nds, the server's status
 // word and the buttons it allows per row, a level typed in place and written back by the server, a level too far
