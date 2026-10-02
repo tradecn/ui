@@ -49,7 +49,7 @@ export const DEFAULT_COLUMN_CHOOSER_LABELS: Required<ColumnChooserLabels> = {
   moveDown: "Move down",
   resetAll: "Reset all",
   empty: "No column matches.",
-  dragHint: "Drag a column, or hold Alt with an arrow key, to reorder; Alt+Home and Alt+End move to the edge. Space shows or hides a focused column, and Delete resets its width. Frozen columns stay first.",
+  dragHint: "Arrow keys move between columns, and Home and End jump to the ends. Drag a column, or hold Alt with an arrow key, to reorder; Alt+Home and Alt+End move to the edge. Space shows or hides a focused column, and Delete resets its width. Frozen columns stay first.",
   announceMove: "{name} moved to {n} of {m}.",
   announceReorder: "{name} reordered.",
   announceShow: "{name} shown.",
