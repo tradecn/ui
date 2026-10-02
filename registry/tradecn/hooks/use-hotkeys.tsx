@@ -7,6 +7,8 @@ import { createHotkeyRegistry, type HandlerScope, type HotkeyBinding, type Hotke
 
 const RegistryContext = createContext<HotkeyRegistry | null>(null)
 const ScopeContext = createContext<HandlerScope | null>(null)
+const EMPTY_DECLARED: ReadonlySet<string> = new Set()
+const DeclaredContext = createContext<ReadonlySet<string>>(EMPTY_DECLARED)
 
 export interface HotkeysProviderProps {
   /** Bring your own to declare bindings and load overrides before the first render. One is created otherwise. */
@@ -21,6 +23,13 @@ export interface HotkeysProviderProps {
 export function HotkeysProvider({ registry, bindings, target, children }: HotkeysProviderProps) {
   const [own] = useState(() => createHotkeyRegistry())
   const value = registry ?? own
+  // Visible during render, before any effect runs: a child that supplies a default for an id
+  // the consumer declares here must see the declaration on its first pass, not an effect later.
+  const parentDeclared = useContext(DeclaredContext)
+  const declared = useMemo(() => {
+    if (!bindings?.length) return parentDeclared
+    return new Set([...parentDeclared, ...bindings.map((binding) => binding.id)])
+  }, [parentDeclared, bindings])
   useEffect(() => value.attach(target), [value, target])
   useEffect(() => {
     if (!bindings) return
@@ -29,7 +38,7 @@ export function HotkeysProvider({ registry, bindings, target, children }: Hotkey
       for (const binding of bindings) value.unregister(binding.id)
     }
   }, [value, bindings])
-  return <RegistryContext.Provider value={value}>{children}</RegistryContext.Provider>
+  return <RegistryContext.Provider value={value}><DeclaredContext.Provider value={declared}>{children}</DeclaredContext.Provider></RegistryContext.Provider>
 }
 
 /** The registry from the nearest provider. */
@@ -40,6 +49,11 @@ export function useHotkeys(): HotkeyRegistry {
 }
 
 /** The same, or null without a provider, for components that treat hotkeys as optional. */
+/** Ids the surrounding providers declare through `bindings`, visible during render before any effect registers them. */
+export function useDeclaredHotkeyIds(): ReadonlySet<string> {
+  return useContext(DeclaredContext)
+}
+
 export function useMaybeHotkeys(): HotkeyRegistry | null {
   return useContext(RegistryContext)
 }

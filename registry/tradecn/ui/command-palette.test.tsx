@@ -296,6 +296,22 @@ describe("hotkeys", () => {
     render(<ComposedPalette actions={seed()} hotkeys={hotkeys} hotkey={false} />)
     expect(hotkeys.list()).toEqual([])
   })
+
+  it("cedes the open binding to the provider's declaration, and to one that arrives after mount", () => {
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const declared = [{ id: "palette.open", keys: "mod+p", scope: "editing" as const, description: "Mine" }]
+    const { rerender, unmount } = render(<HotkeysProvider registry={hotkeys} bindings={declared}><ComposedPalette actions={seed()} /></HotkeysProvider>)
+    expect(hotkeys.list()).toMatchObject([{ id: "palette.open", description: "Mine", keys: "ctrl+p" }])
+    rerender(<HotkeysProvider registry={hotkeys} bindings={declared}>{null}</HotkeysProvider>)
+    expect(hotkeys.list()).toMatchObject([{ id: "palette.open", description: "Mine", keys: "ctrl+p" }])
+    unmount()
+    const late = createHotkeyRegistry({ platform: "other" })
+    const view = render(<ComposedPalette actions={seed()} hotkeys={late} />)
+    expect(late.list()).toHaveLength(1)
+    act(() => void late.register({ id: "palette.open", keys: "mod+p", scope: "editing", description: "Mine now" }))
+    view.unmount()
+    expect(late.list()).toMatchObject([{ id: "palette.open", description: "Mine now" }])
+  })
 })
 
 describe("go-bar", () => {

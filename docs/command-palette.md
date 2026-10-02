@@ -159,7 +159,7 @@ Optional keyed group iterator. Its required child is `(group: PaletteGroup) => R
 
 ### `<CommandPaletteItem>`
 
-Requires a `row: PaletteRow` and caller-owned `children`. Forwards `CommandItem` props and ref except managed `value` and `onSelect`. The primitive owns `onClick` and `onPointerMove`, so these props are excluded; use `onClickCapture` or `onPointerMoveCapture` and `stopPropagation()` to intercept them. It sets `data-row={row.key}` and selects through the shared behavior. Native `disabled` prevents selection. Use `row.key` as the React key, and keep row keys unique within a rendered list.
+Requires a `row: PaletteRow` and caller-owned `children`. Forwards `CommandItem` props and ref except managed `value` and `onSelect`. The primitive owns `onClick` and `onPointerMove`, so these props are excluded; use `onClickCapture` or `onPointerMoveCapture` and `stopPropagation()` to intercept them. It sets `data-row={row.key}` and selects through the shared behavior. The item's `disabled` prop prevents selection. Use `row.key` as the React key, and keep row keys unique within a rendered list.
 
 <!-- api-props -->
 
@@ -204,7 +204,7 @@ Reads the nearest Content without starting subscriptions, timers or requests. Mu
 | `input`, `setInput` | `string`, `(input: string) => void` | Raw query and setter; matching uses trimmed input. |
 | `loading` | `boolean` | A qualifying symbol query has no current answer. |
 | `open`, `setOpen` | `boolean`, `(open: boolean) => void` | Root state and a request to change it. |
-| `platform` | `Platform \| undefined` | Explicit hotkey platform when present. |
+| `platform` | `Platform \| undefined` | The registry's hotkey platform: its configured value, else the detected one. |
 | `select` | `(row: PaletteRow, secondary?: boolean) => void` | Clears input, requests close, touches recents and invokes the current callback. Secondary defaults to false and falls back to primary if absent. |
 
 Use `CommandPaletteItem` for result selection and `CommandPaletteSecondary` for its alternate control; they also handle disabled state and events. Calling `select` yourself requires guarding your own control's disabled state. It does nothing while closed.
@@ -218,7 +218,7 @@ Use `CommandPaletteItem` for result selection and `CommandPaletteSecondary` for 
 | `id` | `string` | Required | Identity; registering the same ID replaces the action. |
 | `title` | `string` | Required | Row title and primary search text. |
 | `run` | `() => void` | Required | Primary action. |
-| `subtitle` | `string` | — | Muted text after the title; also searchable. |
+| `subtitle` | `string` | — | Secondary text exposed as `row.subtitle` for your markup; also searchable. |
 | `scope` | `string` | Everywhere | Hotkey scope required to offer a registered action. Exposed as `row.badge`, with `panel:` removed. |
 | `keywords` | `readonly string[]` | — | Additional search terms. |
 | `group` | `string` | `labels.actions` | Heading for registered actions. An explicitly supplied group is also searchable. |
@@ -281,7 +281,7 @@ Selecting a row clears the input and requests closure, then updates recents when
 
 `HotkeysProvider` supplies and attaches the registry. Pass `hotkeys={registry}` to use one directly; attach its dispatcher yourself. See [useHotkeys](use-hotkeys.md) for registry setup and scope rules.
 
-If the binding ID already exists, its keys and wording remain yours; the component only attaches its handler. Otherwise it declares the binding and removes it on unmount. `hotkey="mod+p"` changes the default keys. `hotkey={false}` disables the opening or focus binding but keeps row shortcuts; `hotkeys={null}` disables both.
+If the binding ID already exists — declared on the registry before render, or in the surrounding provider's `bindings`, which the component sees during render — its keys and wording remain yours; the component only attaches its handler. A declaration that replaces the component's default after mount is also yours to keep. Otherwise it declares the binding and removes it on unmount. `hotkey="mod+p"` changes the default keys. `hotkey={false}` disables the opening or focus binding but keeps row shortcuts; `hotkeys={null}` disables both.
 
 Row shortcuts follow the current keys for `bindingId`, including remaps. The dispatcher stops at dialogs. A single-step opening shortcut also closes the palette from inside; use Escape for a multi-step binding.
 

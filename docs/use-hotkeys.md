@@ -103,6 +103,7 @@ Join modifiers and one key with `+`; separate chord steps with spaces: `"mod+k"`
 | `useHotkey(id: string, handler: HotkeyHandler, options?)` | Attach the latest `(event: KeyboardEvent) => void` handler while mounted. `options.enabled` is a boolean, default `true`; `false` detaches the handler but keeps the binding listed. |
 | `useHotkeyList()` | Live `readonly HotkeyEntry[]`, including normalized `keys`, normalized `defaultKeys`, and `remapped` when they differ. |
 | `usePendingChord()` | Normalized steps typed so far, or `null`, for a status-bar hint. |
+| `useDeclaredHotkeyIds()` | Ids the surrounding providers declare through `bindings`, visible during render before any effect registers them. |
 
 All hooks except `useMaybeHotkeys` require a provider.
 
