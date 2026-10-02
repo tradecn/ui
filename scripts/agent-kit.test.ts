@@ -101,7 +101,7 @@ describe("the agent kit", () => {
     const skill = read("registry/tradecn/agents/tradecn/SKILL.md")
     const sources = registry.items.flatMap((item) => item.files ?? []).filter((file) => /\.tsx?$/.test(file.path)).map((file) => read(file.path)).join("\n")
     const exported = (name: string) => new RegExp(`^export (?:async )?(?:function|const|class) ${name}\\b`, "m").test(sources)
-    const names = ["NUMERIC_CLASS", "MONO_NUMERIC_CLASS", "numericFontClass", "createInstrumentFormatter", "formatNotional", "formatBps", "formatTicks", "formatSigned", "parsePrice", "createRowStore", "createFrameBatcher", "useRow", "useRowIds", "FlashCell", "useHotkey", "HotkeyScope", "RfqStack", "Workspace", "Panel", "DATA_GRID_PRESETS", "checkContract"]
+    const names = ["NUMERIC_CLASS", "MONO_NUMERIC_CLASS", "numericFontClass", "createInstrumentFormatter", "formatNotional", "formatBps", "formatTicks", "formatSigned", "parsePrice", "createRowStore", "createFrameBatcher", "useRow", "useRowIds", "FlashCell", "useHotkey", "HotkeysProvider", "HotkeyScope", "RfqStack", "Workspace", "Panel", "DATA_GRID_PRESETS", "checkContract"]
     for (const name of names) {
       expect(skill, name).toContain(`\`${name}`)
       expect(exported(name), `${name} is exported by an item`).toBe(true)
@@ -114,5 +114,17 @@ describe("the agent kit", () => {
     const presets = /`DATA_GRID_PRESETS` \(([^)]*)\)/.exec(skill)?.[1]?.match(/`([\w-]+)`/g)?.map((name) => name.slice(1, -1))
     const block = /export const DATA_GRID_PRESETS[^{]*\{\n([\s\S]*?)\n\}/.exec(read("registry/tradecn/ui/data-grid.tsx"))?.[1] ?? ""
     expect(presets).toEqual([...block.matchAll(/^\s+"?([\w-]+)"?: \{/gm)].map((match) => match[1]))
+  })
+
+  it("names every built-in a compact style draws under the floor, with the working fix for each", () => {
+    const skill = read("registry/tradecn/agents/tradecn/SKILL.md")
+    const contract = read("docs/contract.md")
+    // base-mira's 10 px rules: the seven built-ins plus InputGroupAddon's own rule for the keys inside it.
+    const underFloor = ["`Badge`", "`Kbd`", "`CommandShortcut`", "`ContextMenuShortcut`", "`DropdownMenuShortcut`", '`Button size="xs"`', '`NativeSelect size="sm"`']
+    const fixes = ["[&_select[data-size=sm]]:text-xs", "[&_kbd[data-slot=kbd]]:text-xs", "`InputGroupAddon`"]
+    for (const text of [...underFloor, ...fixes]) {
+      expect(skill, text).toContain(text)
+      expect(contract, text).toContain(text)
+    }
   })
 })
