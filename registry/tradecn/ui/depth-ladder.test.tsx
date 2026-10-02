@@ -161,7 +161,7 @@ describe("the ladder", () => {
     expect(onStage).toHaveBeenCalledTimes(3)
     expect(rung(6371)).toHaveAttribute("data-focused", "true")
     expect(cell(6371, "price")).toHaveAttribute("data-focused-col", "true")
-    expect(screen.getByRole("grid", { name: "ZN ladder" })).toHaveAttribute("aria-activedescendant", rung(6371)!.id)
+    expect(screen.getByRole("grid", { name: "ZN ladder" })).toHaveAttribute("aria-activedescendant", cell(6371, "price")!.id)
   })
 
   it("follows the mid until a pointer touches it, then offers Recenter, which follows again", () => {
@@ -193,7 +193,7 @@ describe("the ladder", () => {
     // Up from nowhere starts at the mid and goes one tick higher; a key is a hand on the ladder.
     fireEvent.keyDown(grid, { key: "ArrowUp" })
     expect(grid).toHaveAttribute("data-following", "false")
-    expect(grid).toHaveAttribute("aria-activedescendant", rung(6370)!.id)
+    expect(grid).toHaveAttribute("aria-activedescendant", cell(6370, "price")!.id)
     expect(cell(6370, "price")).toHaveAttribute("data-focused-col", "true")
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     expect(cell(6370, "ask")).toHaveAttribute("data-focused-col", "true")
@@ -215,11 +215,11 @@ describe("the ladder", () => {
     expect(onStage).toHaveBeenLastCalledWith({ price: 99.5, side: "sell", tick: 6368, level: store.getRow("6368") })
     // A page is a viewport of rungs; the focus stops at the range's edge.
     fireEvent.keyDown(grid, { key: "PageDown" })
-    expect(grid).toHaveAttribute("aria-activedescendant", rung(6365)!.id)
+    expect(grid).toHaveAttribute("aria-activedescendant", cell(6365, "ask")!.id)
     fireEvent.keyDown(grid, { key: "PageUp" })
-    expect(grid).toHaveAttribute("aria-activedescendant", rung(6373)!.id)
+    expect(grid).toHaveAttribute("aria-activedescendant", cell(6373, "ask")!.id)
     fireEvent.keyDown(grid, { key: "ArrowUp" })
-    expect(grid).toHaveAttribute("aria-activedescendant", rung(6373)!.id)
+    expect(grid).toHaveAttribute("aria-activedescendant", cell(6373, "ask")!.id)
     fireEvent.keyDown(grid, { key: "Home" })
     expect(grid).toHaveAttribute("data-following", "true")
   })
@@ -428,8 +428,13 @@ describe("composition", () => {
     fireEvent.click(screen.getByRole("button", { name: "Recenter" }))
     expect(grid).not.toHaveAttribute("aria-activedescendant")
     act(() => store.applyDeltas({ remove: ["6368"] }))
+    // The selection survived the recenter but sits far outside the new range: staging refuses it.
     fireEvent.keyDown(grid, { key: "Enter" })
-    expect(second).toHaveBeenCalledExactlyOnceWith({ price: 99.5, tick: 6368, side: "buy", level: undefined })
+    expect(second).not.toHaveBeenCalled()
+    // Navigation clamps back into range, and the latest callback stages the in-range rung.
+    fireEvent.keyDown(grid, { key: "ArrowUp" })
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(second).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ side: "buy", tick: 6387 }))
     expect(first).toHaveBeenCalledTimes(1)
   })
 
@@ -524,7 +529,7 @@ describe("changing a composed layout", () => {
     expect(grid).toHaveAttribute("title", "Book detail")
     expect(grid).not.toHaveAttribute("aria-activedescendant")
     fireEvent.keyDown(grid, { key: "ArrowLeft" })
-    expect(document.getElementById(grid.getAttribute("aria-activedescendant")!)).toBe(rung(6369))
+    expect(document.getElementById(grid.getAttribute("aria-activedescendant")!)).toBe(cell(6369, "bid"))
   })
 
   it("omits column indices for parts outside the declared columns", () => {
@@ -544,7 +549,7 @@ describe("changing a composed layout", () => {
       fireEvent.keyDown(grid, { key: "PageDown" })
       const id = grid.getAttribute("aria-activedescendant")
       expect(id).not.toBeNull()
-      expect(document.getElementById(id!)).toHaveAttribute("data-focused", "true")
+      expect(document.getElementById(id!)!.closest("[data-tick]")).toHaveAttribute("data-focused", "true")
       expect(document.querySelectorAll("[data-tick]").length).toBeLessThan(40)
     }
   })
@@ -595,7 +600,7 @@ describe("changing a composed layout", () => {
     const grid = screen.getByRole("grid")
     fireEvent.keyDown(grid, { key: "ArrowLeft" })
     const id = grid.getAttribute("aria-activedescendant")!
-    expect(document.getElementById(id)).toBe(rung(6369))
+    expect(document.getElementById(id)).toBe(cell(6369, "bid"))
     expect(rung(6369)).toHaveAttribute("data-application-row", "yes")
   })
 })

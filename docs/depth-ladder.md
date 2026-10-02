@@ -258,7 +258,7 @@ Aggregate each price before feeding the [row store](row-store.md). Upserting the
 
 Prices run high to low by default. `order="ascending"` reverses them. While following, the ladder centers `tickIndexOf(mid, convention.tick)` when that tick changes, within the scrollable bounds.
 
-The mid rung carries `data-mid` and is described as `Mid`. The root carries `data-following="true"`.
+The mid rung carries `data-mid` and is described as `Mid`. The root always carries `data-following`, as `"true"` or `"false"`.
 
 A pointer press or wheel event in the scrolling body, a scroll away from the centered offset, or an arrow or page key stops following. The anchored price range stays fixed while the market moves. With a finite mid, a mounted `DepthLadderRecenter` becomes visible. Pressing it, or Home, centers the range on the current mid and follows again.
 
@@ -318,13 +318,13 @@ The root is a focusable grid named by `label`.
 
 Its column count follows `columns`. `aria-rowcount` includes `headerRows` and the full anchored range.
 
-Mounted rungs report their row indices. The selected rung stays mounted outside the viewport while it remains in the anchored range, so `aria-activedescendant` stays valid during page jumps.
+Mounted rungs report their row indices. `aria-activedescendant` names the focused cell, `<rung id>-bid`, `-price`, or `-ask`, and the cell carries `aria-selected`, so a screen reader hears which side is selected before Enter stages it. The selected rung stays mounted outside the viewport while it remains in the anchored range, so the reference stays valid during page jumps. The cells' `id` is managed; pass your own ids on surrounding content instead.
 
 A cell click focuses the grid.
 
 Nested controls keep their native keys, and composing keys are left alone. Removing a selected column hides its focus marks and reports `focusedColumn: null` to custom row content.
 
-Recenter does not reset keyboard focus. If recentering moves the selected tick outside the anchored range, its focus mark and `aria-activedescendant` disappear, but Enter on the grid still stages that stored tick and side if the column remains in `columns`. Select a rung in the new range before using Enter.
+Recenter does not reset keyboard focus. If recentering moves the selected tick outside the anchored range, its focus mark and `aria-activedescendant` disappear, and Enter stages nothing until navigation clamps the selection back onto the ladder. A selection on the ladder keeps staging as before.
 
 ### Labels
 

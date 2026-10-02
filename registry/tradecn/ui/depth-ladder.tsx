@@ -287,7 +287,8 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
     if (event.key === "Enter") {
       if (selected && selected.col !== "price") {
         event.preventDefault()
-        stage(selected.tick, selected.col)
+        // Stage only a price that is on the ladder: a selection scrolled out of range stays a selection.
+        if (Math.abs(selected.tick - anchor) <= depth) stage(selected.tick, selected.col)
       }
       return
     }
@@ -312,7 +313,7 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
   const selectedMounted = selected !== null && items.some((item) => item.index === selectedIndex)
   const state: LadderContextValue = { following, hasMarket: midTick !== null, hasRows: count > 0, labels, hold, recenter, focus, config, scrollRef, items, totalSize: virtualizer.getTotalSize(), tickAt, domId, midTick, selected, onScroll }
   return <LadderContext value={state}><ConfigurationContext value={config}>
-    <div {...props} role="grid" tabIndex={0} aria-label={label} data-slot="tradecn-depth-ladder" data-following={following ? "true" : "false"} aria-rowcount={count + headerRows} aria-colcount={columns.length} aria-activedescendant={selectedMounted ? domId(selected.tick) : undefined} className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", className)} style={{ lineHeight: `${rowHeight}px`, "--depth-ladder-columns": columns.map((col) => `minmax(0, ${col === "price" ? 1.2 : 1}fr)`).join(" "), ...style } as CSSProperties} ref={rootRef} onKeyDown={(event) => { onKeyDown?.(event); handleKey(event) }}>{children}</div>
+    <div {...props} role="grid" tabIndex={0} aria-label={label} data-slot="tradecn-depth-ladder" data-following={following ? "true" : "false"} aria-rowcount={count + headerRows} aria-colcount={columns.length} aria-activedescendant={selectedMounted ? `${domId(selected.tick)}-${selected.col}` : undefined} className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", className)} style={{ lineHeight: `${rowHeight}px`, "--depth-ladder-columns": columns.map((col) => `minmax(0, ${col === "price" ? 1.2 : 1}fr)`).join(" "), ...style } as CSSProperties} ref={rootRef} onKeyDown={(event) => { onKeyDown?.(event); handleKey(event) }}>{children}</div>
   </ConfigurationContext></LadderContext>
 }
 
@@ -428,19 +429,19 @@ function ownsCellClick(event: MouseEvent<HTMLDivElement>) {
   return !control || control === event.currentTarget || !event.currentTarget.contains(control)
 }
 
-export function DepthLadderSizeCell({ side, ref, className, children, onClick, ...props }: ComponentProps<"div"> & SideProps) {
+export function DepthLadderSizeCell({ side, ref, className, children, onClick, ...props }: Omit<ComponentProps<"div">, "id"> & SideProps) {
   const row = useRowContext()
   const local = useRef<HTMLDivElement>(null)
   const cellRef = useLadderRef(local, ref)
   const size = side === "bid" ? row.bidSize : row.askSize
   const mine = side === "bid" ? row.myBid : row.myAsk
   useFlash(local, size, { windowMs: row.config.flashWindowMs, variant: "fill" })
-  return <div role="gridcell" aria-colindex={row.config.columns.indexOf(side) + 1 || undefined} data-col={side} data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} data-focused-col={row.focusedColumn === side || undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && "bg-muted/50", className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
+  return <div role="gridcell" id={`${row.domId}-${side}`} aria-selected={row.focusedColumn === side || undefined} aria-colindex={row.config.columns.indexOf(side) + 1 || undefined} data-col={side} data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} data-focused-col={row.focusedColumn === side || undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && "bg-muted/50", className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
 }
 
-export function DepthLadderPriceCell({ className, children, onClick, ...props }: ComponentProps<"div">) {
+export function DepthLadderPriceCell({ className, children, onClick, ...props }: Omit<ComponentProps<"div">, "id">) {
   const row = useRowContext()
-  return <div role="gridcell" aria-colindex={row.config.columns.indexOf("price") + 1 || undefined} data-col="price" data-numeric="" data-focused-col={row.focusedColumn === "price" || undefined} className={cn("flex h-full min-w-0 items-center justify-center truncate px-2 text-foreground", numericFontClass(row.config.convention), row.focusedColumn === "price" && "bg-muted/50", className)} {...props} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select("price") }}>{children === undefined ? row.priceText : children}</div>
+  return <div role="gridcell" id={`${row.domId}-price`} aria-selected={row.focusedColumn === "price" || undefined} aria-colindex={row.config.columns.indexOf("price") + 1 || undefined} data-col="price" data-numeric="" data-focused-col={row.focusedColumn === "price" || undefined} className={cn("flex h-full min-w-0 items-center justify-center truncate px-2 text-foreground", numericFontClass(row.config.convention), row.focusedColumn === "price" && "bg-muted/50", className)} {...props} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select("price") }}>{children === undefined ? row.priceText : children}</div>
 }
 
 /** Hides while following or without a market; keep it mounted to retain focus recovery. */
