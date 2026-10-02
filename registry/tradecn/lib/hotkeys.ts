@@ -175,7 +175,7 @@ function parseStep(part: string, platform: Platform): Step {
   if (rest === "+") {
     plusKey = true
     rest = ""
-  } else if (rest.endsWith("++") && rest.length > 2 && !rest.slice(0, -2).endsWith("+")) {
+  } else if (rest.endsWith("++") && rest.length > 2 && rest.slice(0, -2).split("+").every(Boolean)) {
     plusKey = true
     rest = rest.slice(0, -2)
   }
