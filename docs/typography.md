@@ -44,7 +44,7 @@ Fontsource's `@fontsource-variable/inter` registers the family as `'Inter Variab
 
 An item installs the tokens its source uses, their dependencies, and the accessible pair when it uses a font token. Non-theme installs add missing values to `:root` and `.dark`. Theme installs replace existing values and supply the full set below.
 
-Size, line-height, weight, and body-color tokens are available for your own stylesheet. Setting a size token does not resize a component. Every grid preset uses `text-xs` (12 px with the default 16 px root size). The registry validator rejects explicit source sizes below 12 px; this is a source check, not a browser minimum under consumer CSS.
+The themes install the size, line-height, weight, and body-color tokens below for your own stylesheet; without a theme, declare the ones you use yourself, since a non-theme install adds only tokens its source reads. Setting a size token does not resize a component. Every grid preset uses `text-xs` (12 px with the default 16 px root size). The registry validator rejects explicit source sizes below 12 px; this is a source check, not a browser minimum under consumer CSS.
 
 | Token | Default | Purpose |
 |---|---|---|
@@ -53,7 +53,7 @@ Size, line-height, weight, and body-color tokens are available for your own styl
 | `--tradecn-font-numeric` | `var(--tradecn-font-sans)` | Grid numbers |
 | `--tradecn-font-accessible` | `'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif` | Accessible sans stack |
 | `--tradecn-font-accessible-mono` | `'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` | Accessible mono stack |
-| `--tradecn-text-size-body` | `14px` | Suggested body size; maximum default body token value |
+| `--tradecn-text-size-body` | `14px` | Suggested body size; the largest size the tokens suggest |
 | `--tradecn-text-size-grid` | `13px` | Suggested grid size |
 | `--tradecn-text-size-grid-min` | `12px` | Registry source size floor |
 | `--tradecn-line-height-body` | `1.45` | Unitless body line height |

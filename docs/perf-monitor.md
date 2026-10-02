@@ -56,7 +56,7 @@ Place labels, readings, controls, and application content in your own markup. `P
 
 ## Measuring a grid
 
-Save [Usage](#usage) as `perf-monitor.tsx` beside this example to reuse `FrameReadings`, and install [`data-grid`](data-grid.md) separately; it also supplies `row-store`.
+Save [Usage](#usage) as `perf-monitor.tsx` beside this example, outside `components/ui` so it cannot overwrite the installed component, to reuse `FrameReadings`, and install [`data-grid`](data-grid.md) separately; it also supplies `row-store`.
 
 The load starts paused. **Patches per frame** applies one batch per animation frame to a fixed set of 300 rows. **Reset measurements** clears retained gaps and long-task counts without changing the load.
 
@@ -134,19 +134,19 @@ Readings do not announce each refresh. Keep labels beside values, give custom co
 
 ### What it measures
 
-A frame gap is the difference between consecutive `requestAnimationFrame` timestamps. The strip shows the number of gaps retained, p50, p99, maximum, dropped count, and observed long-task count. Gaps are measured in milliseconds; the default budget displays as 16.7 ms.
+A frame gap is the difference between consecutive `requestAnimationFrame` timestamps. `PerfMonitorValue` prints any one `FrameReport` reading: retained gaps, p50, p99, maximum, mean, dropped count, or observed long-task count. The strip in [Usage](#usage) composes six of them. Gaps are measured in milliseconds; the default budget displays as 16.7 ms.
 
 `dropped` counts gaps strictly greater than 1.5 times the sampler's budget: over 25 ms by default. It counts qualifying gaps, not the number of missed display refreshes. A gap over budget but at or below this threshold does not count as dropped.
 
 The sampler retains at most `window` gaps, about ten seconds at 60 Hz by default. Its first animation frame establishes a timestamp without adding a gap.
 
-Long tasks accumulate across sampling until `reset()`; they do not roll out with the frame window. The strip shows `n/a` when long-task observation is unavailable or disabled.
+Long tasks accumulate across sampling until `reset()`; they do not roll out with the frame window. The long-task reading prints `n/a` when observation is unavailable or disabled.
 
 ### The histogram
 
 The chart uses one hue and a dashed, labeled budget marker. The default histogram has 20 bins: `[0, 2)`, `[2, 4)`, through `[36, 38)`, then 38 ms and over. `maxMs: 40` determines the bin count, so the final bin starts at 38 ms and includes all larger gaps.
 
-Each bar's hover title names its range and count. The chart's accessible name includes the bin width, overflow boundary, p50, p99, and dropped count; the same summary statistics appear beside it.
+Each bar's hover title names its range and count. The chart's accessible name includes the bin width, overflow boundary, p50, p99, and dropped count; the Usage example places the same summary readings beside it.
 
 A supplied sampler determines the bins, while the monitor's `budgetMs` sets the marker, clamped to the chart's right edge. Keep that prop aligned with the sampler's budget. The marker's label reads to its right, or to its left once the marker passes the middle of the chart, so it stays inside the chart at any budget.
 
@@ -166,10 +166,10 @@ All `LaneMeta` fields are required:
 | `lane` | `"coalesced" \| "ordered"` | Lane kind beside its label. |
 | `size` | `number` | Current row count. |
 | `version` | `number` | Counter used to calculate batches per second. |
-| `dropped` | `number` | Producer's dropped-message count, shown only for coalesced lanes. |
-| `seq` | `number \| null` | Latest sequence, shown only for ordered lanes; `null` displays as `–`. |
-| `gap` | `boolean` | Adds `gap` beside an ordered lane's sequence when true. |
-| `lastBatchAt` | `number \| null` | Last batch's wall-clock timestamp in milliseconds since the epoch; `null` displays age as `–`. |
+| `dropped` | `number` | Producer's dropped-message count. The grid example shows it for coalesced lanes. |
+| `seq` | `number \| null` | Latest sequence; `null` prints as `–`. The grid example shows it for ordered lanes. |
+| `gap` | `boolean` | The sequence reading adds `gap` when true. |
+| `lastBatchAt` | `number \| null` | Last batch's wall-clock timestamp in milliseconds since the epoch; `null` prints its age as `–`. |
 
 Lanes subscribe directly to their stores and can redraw between frame reports. Batches per second starts at zero, then uses the nonnegative change in `version` divided by elapsed report time, rounded to a whole number for display.
 
@@ -177,7 +177,7 @@ It updates when `report.until` changes; if that timestamp moves backward, the ra
 
 A row store increments `version` on both `applyDeltas()` and `clear()`, so a clear also counts toward that rate.
 
-Age is `max(0, report.until - lastBatchAt)` in milliseconds, using the report's timestamp even when fresh metadata arrives between reports. Lane drops describe producer messages; the frame strip's dropped count describes frame gaps. Add your own IPC batch size, queue depth, or socket state as children.
+Age is `max(0, report.until - lastBatchAt)` in milliseconds, using the report's timestamp even when fresh metadata arrives between reports. Lane drops describe producer messages; the frame `dropped` reading describes frame gaps. Add your own IPC batch size, queue depth, or socket state as children.
 
 ### What it costs
 
@@ -195,7 +195,7 @@ Import `createFrameSampler` and the `FrameReport` and `FrameSampler` types from 
 |---|---|---|
 | `frames` | `number` | Number of retained gaps. |
 | `p50`, `p99` | `number` | Nearest-rank percentiles of retained gaps, in milliseconds; zero when empty. |
-| `max`, `mean` | `number` | Maximum and arithmetic mean gap in milliseconds; zero when empty. The strip omits `mean`. |
+| `max`, `mean` | `number` | Maximum and arithmetic mean gap in milliseconds; zero when empty. The Usage strip omits `mean`. |
 | `dropped` | `number` | Retained gaps strictly greater than `droppedAboveMs`. |
 | `droppedAboveMs` | `number` | Sampler budget multiplied by 1.5. |
 | `longTasks` | `number` | Number of browser long-task entries observed since construction or reset, retained across stop/start. |
@@ -237,3 +237,7 @@ A supplied sampler owns its configuration. In either case, changing the monitor'
 The monitor shows measurements without deciding pass or fail. Set thresholds before a run and measure on the target machine.
 
 Frame gaps do not identify their cause or measure script time inside your work; time that work separately and render it in your composition. Long-task counts depend on the browser's reporting support.
+
+### Tokens
+
+The install adds the `stale` token if absent, with the mono and accessible font tokens and the hyperlegible remap its readings use.
