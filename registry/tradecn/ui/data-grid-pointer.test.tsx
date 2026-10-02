@@ -61,11 +61,18 @@ describe("DataGrid pointer ownership", () => {
     ["editable", <span contentEditable suppressContentEditableWarning>Note</span>],
     ["focusable", <span tabIndex={0}>Custom</span>],
     ["programmatic focus", <span tabIndex={-1}>Custom</span>],
+    ["focusable separator", <span role="separator" tabIndex={0}>Divider</span>],
+    ["programmatically focusable separator", <span role="separator" tabIndex={-1}>Divider</span>],
+    ["native control with separator role", <button type="button" role="separator">Divider</button>],
+    ["marked separator", <span role="separator" data-grid-interaction="control">Divider</span>],
     ["ARIA control", <span role="button">Custom</span>],
     ["fallback ARIA control", <span role="unsupported button">Custom</span>],
     ["abstract ARIA fallback", <span role="widget button">Custom</span>],
     ["mixed-case ARIA fallback", <span role={"unsupported\tBUTTON\nlink"}>Custom</span>],
     ["form-feed ARIA fallback", <span role={"unsupported\fbutton"}>Custom</span>],
+    ["removed association-list role", <span role="associationlist button">Custom</span>],
+    ["removed association-key role", <span role="associationlistitemkey button">Custom</span>],
+    ["removed association-value role", <span role="associationlistitemvalue button">Custom</span>],
     ["doc-backlink fallback", <span role="doc-backlink link">Reference</span>],
     ["doc-biblioref fallback", <span role="doc-biblioref link">Reference</span>],
     ["doc-glossref fallback", <span role="doc-glossref link">Reference</span>],
@@ -88,7 +95,7 @@ describe("DataGrid pointer ownership", () => {
     expect(props.onRowActivate).not.toHaveBeenCalled()
   })
 
-  it.each(["status button", "img button", "graphics-symbol button", "doc-tip button", "unknown", "img grid", "link\u00a0button", "lin\u212a"])("keeps plain content with effective role %s in the row", role => {
+  it.each(["status button", "img button", "graphics-symbol button", "doc-tip button", "unknown", "img grid", "link\u00a0button", "lin\u212a", "separator", "separator button", "separator grid"])("keeps plain content with effective role %s in the row", role => {
     const props = setup(["a"])
     render(<DataGrid {...props} columns={[{ ...columns[0]!, cell: () => <span role={role} data-testid="role-target">Reading</span> }]} />)
     const target = screen.getByTestId("role-target")

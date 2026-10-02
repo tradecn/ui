@@ -158,6 +158,7 @@ function GridRoleScene() {
     { key: "id", header: "Quote", width: 100, accessor: row => row.id },
     { key: "actions", header: "Actions", width: 160, accessor: () => "", cell: () => <div role="unsupported toolbar" aria-label="Quote actions"><span data-role-target="control">Actions</span><button type="button">Inspect</button></div> },
     { key: "reading", header: "Reading", width: 160, accessor: () => "", cell: () => <span role="status button" data-role-target="reading">Available</span> },
+    { key: "divider", header: "Divider", width: 100, accessor: () => "", cell: () => <span role="separator" data-role-target="divider" className="block h-4 w-16 border-t" /> },
     { key: "nested", header: "Detail", width: 160, accessor: () => "", cell: () => <div role="unsupported grid" aria-label="Detail quotes"><div role="row"><span role="gridcell" data-role-target="grid">Detail quote</span></div></div> },
   ]
   return <div data-grid-roles data-selection={[...selection].join(",")} data-focused-row={focused} data-activated={activated} className="h-40">

@@ -1571,6 +1571,19 @@ for (const dark of [false, true]) {
     await expect(page.getByRole("menuitem", { name: "Role action: Alpha", exact: true })).toBeVisible()
   })
 
+  test(`static separators retain row actions (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-grid-roles]")
+    const divider = scene.locator('[data-row-id="Alpha"] [data-role-target="divider"]')
+    await divider.dblclick()
+    await expect(scene).toHaveAttribute("data-selection", "Alpha")
+    await expect(scene).toHaveAttribute("data-focused-row", "Alpha")
+    await expect(scene).toHaveAttribute("data-activated", "1")
+    await divider.click({ button: "right" })
+    await expect(page.getByRole("menuitem", { name: "Role action: Alpha", exact: true })).toBeVisible()
+  })
+
   test(`range selection includes focus callback view changes (${dark ? "dark" : "light"})`, async ({ page }) => {
     await page.goto("/")
     await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
