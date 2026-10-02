@@ -88,7 +88,7 @@ Move the input and hint beside a reordered result list. The clear action shares 
 
 ## Palette adapter
 
-Install [`command-palette`](command-palette.md) separately to use `toSymbolAdapter(search)` with its `symbols` prop. The adapter forwards the recognized query and abort signal; the palette owns debounce, selection and recents.
+Install [`command-palette`](command-palette.md) separately to use `toSymbolAdapter(search)` with its `symbols` prop. Create the adapter once, at module scope or with `useMemo`: the palette keys its request and results on the adapter's identity, so an inline call aborts the request and hides results on every parent render. The adapter forwards the recognized query and abort signal; the palette owns debounce, selection and recents.
 
 This standalone example searches the same two symbols in an inline go-bar and declares no hotkey. Instrument IDs and identifiers are not part of the adapter's results.
 
@@ -165,7 +165,7 @@ Reads the nearest root without starting another request. Use it for your own sta
 
 ### It knows no instruments
 
-`InstrumentSearchFn` takes `(query: string, hint: QueryHint, signal: AbortSignal)` and returns `Promise<readonly InstrumentHit[]>`. The query reaches your function as typed, including its spaces and case; the hint contains the recognized form.
+`InstrumentSearchFn` takes `(query: string, hint: QueryHint, signal: AbortSignal)` and returns `Promise<readonly InstrumentHit[]>`. The query reaches your function as typed from the root, including its spaces and case; through the palette it arrives trimmed. The hint contains the recognized form.
 
 The field waits for the debounce before searching. A query change cancels the pending timer and aborts the previous request; unmounting does the same. Responses from an aborted request are ignored even if your search does not honor the signal. Stored hits appear only when their query string equals the current input, so rows from a different query cannot be selected. A stored result for the exact same query and search function can remain visible while a new request runs. Replacing the search function removes the previous provider's hits immediately.
 
