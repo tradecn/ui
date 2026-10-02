@@ -570,10 +570,10 @@ export function CommandPalette(options: CommandPaletteProps) {
       unbind()
       if (declared || !own) return
       // A declaration that replaced this default after mount is the consumer's to keep, even one
-      // that changed only its keys. An identical redeclaration stays indistinguishable without a
-      // registration handle; it is the one shape this cannot tell apart.
+      // that changed only its keys or its behavior fields. An identical redeclaration stays
+      // indistinguishable without a registration handle; it is the one shape this cannot tell apart.
       const current = hotkeys.list().find((entry) => entry.id === bindingId)
-      if (current && current.defaultKeys === own.defaultKeys && current.description === own.description && current.scope === own.scope && current.group === own.group) hotkeys.unregister(bindingId)
+      if (current && current.defaultKeys === own.defaultKeys && current.description === own.description && current.scope === own.scope && current.group === own.group && current.when === own.when && current.repeat === own.repeat && current.preventDefault === own.preventDefault) hotkeys.unregister(bindingId)
     }
   }, [hotkeys, keys, bindingId, variant, description, group, declaredByProvider])
 

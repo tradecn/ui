@@ -343,6 +343,18 @@ describe("hotkeys", () => {
     view.unmount()
     expect(registry.list()).toMatchObject([{ id: "palette.open", defaultKeys: "ctrl+p" }])
   })
+
+  it("leaves a replacement that changed only its behavior", () => {
+    const behaviors = [{ when: () => false }, { repeat: true }, { preventDefault: false }]
+    for (const behavior of behaviors) {
+      const registry = createHotkeyRegistry({ platform: "other" })
+      const view = render(<ComposedPalette actions={seed()} hotkeys={registry} />)
+      const own = registry.list()[0]!
+      act(() => void registry.register({ id: "palette.open", keys: own.keys, scope: own.scope, description: own.description, group: own.group, ...behavior }))
+      view.unmount()
+      expect(registry.list(), `replacement with ${Object.keys(behavior)[0]}`).toMatchObject([{ id: "palette.open" }])
+    }
+  })
 })
 
 describe("go-bar", () => {
