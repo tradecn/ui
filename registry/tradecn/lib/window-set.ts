@@ -41,7 +41,7 @@ export interface WindowRecord {
   bounds?: WindowBounds
   /** The display the window sits on, as the shell names it. */
   display?: string
-  /** The one window that opens first and whose close ends the desk. At most one; the first wins. */
+  /** The one window that opens first. What closing it means is the owner's policy. At most one; the first wins. */
   main?: boolean
 }
 
@@ -133,7 +133,7 @@ export function parseWindowSet(value: unknown): WindowSet | null {
   return windowSetOf(records, readBoundaries(raw.boundaries))
 }
 
-/** The window that opens first and whose close ends the desk: the one marked main, else the first. */
+/** The window that opens first: the one marked main, else the first. What closing it means is the owner's policy. */
 export function mainWindow(set: WindowSet): WindowRecord | undefined {
   return set.windows.find((w) => w.main) ?? set.windows[0]
 }
