@@ -352,7 +352,7 @@ export interface SessionStatusProps {
   className?: string
 }
 
-/** The session for a status bar: the word, the time left, and the phase on `data-session-status` and in the accessible name. */
+/** The session for a status bar: the word, the time left, and the phase on `data-session-status`, spoken through visually hidden text. */
 export function SessionStatus({ expiresAt, warnMs = DEFAULT_WARN_MS, clock, labels: labelsProp, className }: SessionStatusProps) {
   const labels = useMemo<SessionGuardLabels>(() => ({ ...DEFAULT_SESSION_GUARD_LABELS, ...labelsProp }), [labelsProp])
   const status = useSessionStatus(expiresAt, { warnMs, clock })

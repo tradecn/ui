@@ -229,7 +229,7 @@ Starting another attempt clears failure. Entering `live` or `none` also clears a
 | `expiresAt` | `number \| null \| undefined` | Required | Expiry time in epoch milliseconds; the same no-session values as the guard. |
 | `warnMs` | `number` | `120_000` | Warning window in milliseconds. |
 | `clock` | `Clock` | `sharedClock()` | Clock for the phase and remaining time. |
-| `labels` | `Partial<SessionGuardLabels>` | Default labels | Readout text and accessible phase names. |
+| `labels` | `Partial<SessionGuardLabels>` | Default labels | Readout text, visible and hidden. |
 | `className` | `string` | None | Classes on the readout's span. |
 
 ### Labels
@@ -244,8 +244,8 @@ The provider and standalone readout merge partial overrides into `DEFAULT_SESSIO
 | `reauthenticate` | `Sign in again` | Dialog button |
 | `pending` | `Signing in…` | Either button while pending |
 | `failed` | `That did not work. Try again.` | Alert beside either button |
-| `session` | `Session` | Readout prefix and countdown's accessible name |
-| `live` / `ending` | `signed in` / `ending soon` | Readout's accessible phase names |
+| `session` | `Session` | Readout prefix, spoken through the hidden text |
+| `live` / `ending` | `signed in` / `ending soon` | Phase words in the hidden readout text |
 | `ended` / `noSession` | `ended` / `no session` | Visible and accessible readout text |
 
 ### What it does not do
