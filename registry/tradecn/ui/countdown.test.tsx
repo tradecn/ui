@@ -125,6 +125,28 @@ describe("Countdown", () => {
     expect(animations[1]!.keyframes[0]).toEqual({ transform: "scaleX(0.75)" })
   })
 
+  it("draws the bar from the tick when the browser has no Web Animations", () => {
+    const animate = Element.prototype.animate
+    const spied = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "animate")
+    // A browser without the API has it nowhere on the chain; the suite's spy must vanish too.
+    Object.defineProperty(Element.prototype, "animate", { value: undefined, configurable: true, writable: true })
+    if (spied) Object.defineProperty(HTMLElement.prototype, "animate", { value: undefined, configurable: true, writable: true })
+    try {
+      t = 2000
+      const clock = createClock(1000, () => t)
+      render(<Countdown expiresAt={12_000} startsAt={0} clock={clock} />)
+      expect(animations).toHaveLength(0)
+      expect(bar().style.transform).toBe(`scaleX(${10_000 / 12_000})`)
+      tick(4000)
+      expect(bar().style.transform).toBe(`scaleX(${6_000 / 12_000})`)
+      tick(6000)
+      expect(bar().style.transform).toBe("scaleX(0)")
+    } finally {
+      Object.defineProperty(Element.prototype, "animate", { value: animate, configurable: true, writable: true })
+      if (spied) Object.defineProperty(HTMLElement.prototype, "animate", spied)
+    }
+  })
+
   it("draws the bar at zero with no animation once it is over, and cancels a running one when it gets there", () => {
     t = 20_000
     const clock = createClock(1000, () => t)
