@@ -49,7 +49,7 @@ export const DEFAULT_COLUMN_CHOOSER_LABELS: Required<ColumnChooserLabels> = {
   moveDown: "Move down",
   resetAll: "Reset all",
   empty: "No column matches.",
-  dragHint: "Drag a column, or hold Alt with an arrow key, to reorder. Frozen columns stay first.",
+  dragHint: "Drag a column, or hold Alt with an arrow key, to reorder; Alt+Home and Alt+End move to the edge. Space shows or hides a focused column, and Delete resets its width. Frozen columns stay first.",
   announceMove: "{name} moved to {n} of {m}.",
   announceReorder: "{name} reordered.",
   announceShow: "{name} shown.",
@@ -184,6 +184,11 @@ interface ChooserContextValue extends ColumnChooserState {
   drop: (key: string, event: DragEvent<HTMLDivElement>) => void
   endDrag: (key?: string) => void
   focusFallback: () => void
+  /** The one presented item currently in the tab order. */
+  activeKey: string | null
+  setActive: (key: string) => void
+  registerItem: (key: string, node: HTMLElement | null) => void
+  focusStep: (from: string, step: -1 | 1 | "first" | "last") => void
 }
 
 const ChooserContext = createContext<ChooserContextValue | null>(null)
@@ -206,6 +211,8 @@ export interface ColumnChooserItemState {
   dragging: boolean
   setVisible: (visible: boolean) => void
   move: (delta: -1 | 1) => void
+  /** Move to the first or last presented place on the column's side of the frozen line. */
+  moveToEdge: (edge: "start" | "end") => void
   resetWidth: () => void
 }
 
@@ -335,6 +342,24 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
   }
   const hiddenCount = rows.filter((row) => !row.visible).length
   const isDefault = sameSettings(stateRows, baseRows)
+  // One presented item carries the tab stop; arrows move between items (roving focus).
+  const [active, setActive] = useState<string | null>(null)
+  const activeKey = active !== null && presentedRows.some((row) => row.key === active) ? active : presentedRows[0]?.key ?? null
+  const itemNodes = useRef(new Map<string, HTMLElement>())
+  const registerItem = useCallback((key: string, node: HTMLElement | null) => {
+    if (node) itemNodes.current.set(key, node)
+    else itemNodes.current.delete(key)
+  }, [])
+  const focusStep = (from: string, step: -1 | 1 | "first" | "last") => {
+    const keys = presentedRows.map((row) => row.key)
+    const index = keys.indexOf(from)
+    const target = step === "first" ? keys[0] : step === "last" ? keys[keys.length - 1] : index < 0 ? undefined : keys[index + step]
+    if (target === undefined || target === from) return
+    const node = itemNodes.current.get(target)
+    if (!node || unavailable(node)) return
+    setActive(target)
+    node.focus()
+  }
   const [announcements] = useState(createAnnouncements)
   const committed = useRef({ state: columnState, rows: stateRows })
   const pending = useRef<{ state: ColumnState; before: ChooserRow<T>[]; rows: ChooserRow<T>[]; edit: ChooserEdit } | null>(null)
@@ -387,6 +412,12 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
       const target = neighbors.get(row.key)?.[delta === -1 ? "up" : "down"]
       if (target !== undefined) change(moveColumnTo(stateRows, columnState, row.key, target), { kind: "move", key: row.key })
     },
+    moveToEdge: (edge) => {
+      if (!presentedRows.some((presentedRow) => presentedRow.key === row.key)) return
+      const side = presentedRows.filter((presentedRow) => presentedRow.frozen === row.frozen)
+      const target = edge === "start" ? side[0] : side[side.length - 1]
+      if (target && target.key !== row.key) change(moveColumnTo(stateRows, columnState, row.key, target.key), { kind: "move", key: row.key })
+    },
     resetWidth: () => {
       const width = baseState.widths[row.key]
       change(width === undefined ? resetColumnWidth(columnState, row.key) : { ...columnState, widths: { ...columnState.widths, [row.key]: width } }, { kind: "width", key: row.key })
@@ -400,6 +431,7 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
   }
   return <ChooserContext value={{
     rows, shown, presented: presentedRows, query, setQuery, labels, hiddenCount, isDefault, byKey, focusFallback, endDrag, announcements,
+    activeKey, setActive, registerItem, focusStep,
     reset: () => change(baseState, { kind: "reset" }),
     startDrag: (key, event) => {
       const row = byKey.get(key)?.row
@@ -484,11 +516,24 @@ function ownsItemEvent(event: { target: EventTarget; currentTarget: HTMLDivEleme
   return isElement(event.target) && event.currentTarget.contains(event.target) && event.target.closest("[data-slot=tradecn-column-chooser-item]") === event.currentTarget && event.target.closest("[data-slot=tradecn-column-chooser]") === event.currentTarget.closest("[data-slot=tradecn-column-chooser]")
 }
 
-function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, draggable = true, "aria-label": ariaLabel, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
-  const { row, dragging, move } = item
-  const { focusFallback, startDrag, dragOver, drop, endDrag } = useChooserContext()
+// Controls whose own arrow keys matter: carets, selects, radios and sliders. A checkbox or button has none.
+function arrowOwningTarget(target: EventTarget) {
+  return isElement(target) && target.closest('input:not([type="checkbox"]):not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"])')
+}
+
+function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable = true, "aria-label": ariaLabel, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
+  const { row, dragging, move, moveToEdge, setVisible, resetWidth } = item
+  const { focusFallback, startDrag, dragOver, drop, endDrag, activeKey, setActive, registerItem, focusStep } = useChooserContext()
   const root = useRef<HTMLDivElement>(null)
-  const rootRef = useChooserRef(root, ref)
+  const forwardedRef = useChooserRef(root, ref)
+  const rootRef = useCallback((node: HTMLDivElement | null) => {
+    registerItem(row.key, node)
+    const cleanup = forwardedRef(node)
+    return () => {
+      registerItem(row.key, null)
+      cleanup?.()
+    }
+  }, [row.key, registerItem, forwardedRef])
   const focused = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
     const node = root.current
@@ -509,18 +554,45 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, dragg
       }
     }
   }, [row.key, endDrag, focusFallback])
-  return <ItemContext value={item}><div role={role} tabIndex={tabIndex} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
+  return <ItemContext value={item}><div role={role} tabIndex={tabIndex ?? (activeKey === row.key ? 0 : -1)} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
     onFocusCapture?.(event)
-    if (ownsItemEvent(event)) focused.current = event.target
+    if (ownsItemEvent(event)) {
+      focused.current = event.target
+      setActive(row.key)
+    }
   }} onBlurCapture={(event) => {
     onBlurCapture?.(event)
     if (!event.currentTarget.contains(event.relatedTarget) && (event.relatedTarget || !unavailable(event.target))) focused.current = null
   }} onKeyDown={(event) => {
     onKeyDown?.(event)
-    if (!ownsItemEvent(event) || event.defaultPrevented || event.nativeEvent.isComposing || !event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return
-    event.preventDefault()
-    event.stopPropagation()
-    move(event.key === "ArrowUp" ? -1 : 1)
+    if (!ownsItemEvent(event) || event.defaultPrevented || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey) return
+    if (event.altKey) {
+      if (event.shiftKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "Home" && event.key !== "End")) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") move(event.key === "ArrowUp" ? -1 : 1)
+      else moveToEdge(event.key === "Home" ? "start" : "end")
+      return
+    }
+    if (event.shiftKey) return
+    if (event.key === "ArrowUp" || event.key === "ArrowDown" || event.key === "Home" || event.key === "End") {
+      // Caret, option, radio and slider movement stays native inside controls that own their arrows.
+      if (arrowOwningTarget(event.target)) return
+      event.preventDefault()
+      event.stopPropagation()
+      focusStep(row.key, event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : event.key === "Home" ? "first" : "last")
+      return
+    }
+    if (event.target !== event.currentTarget) return
+    if (event.key === " ") {
+      event.preventDefault()
+      event.stopPropagation()
+      setVisible(!row.visible)
+    } else if ((event.key === "Delete" || event.key === "Backspace") && row.resized) {
+      event.preventDefault()
+      event.stopPropagation()
+      resetWidth()
+    }
   }} onDragStart={(event) => {
     onDragStart?.(event)
     if (ownsItemEvent(event) && !event.defaultPrevented) startDrag(row.key, event)
@@ -538,10 +610,10 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, dragg
   }} /></ItemContext>
 }
 
-export function ColumnChooserVisibility({ onClick, onCheckedChange, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<typeof Checkbox>, "checked" | "defaultChecked" | "indeterminate">) {
+export function ColumnChooserVisibility({ onClick, onCheckedChange, tabIndex = -1, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<typeof Checkbox>, "checked" | "defaultChecked" | "indeterminate">) {
   const { row, setVisible } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <Checkbox aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.show} ${row.name}`)} {...props} checked={row.visible} onClick={(event) => {
+  return <Checkbox tabIndex={tabIndex} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.show} ${row.name}`)} {...props} checked={row.visible} onClick={(event) => {
     onClick?.(event)
     // Some built-ins separate browser cancellation from their own click handler.
     if (event.defaultPrevented && "preventBaseUIHandler" in event && typeof event.preventBaseUIHandler === "function") event.preventBaseUIHandler()
@@ -578,19 +650,19 @@ export function ColumnChooserWidth({ className, "aria-label": ariaLabel, ...prop
   return <span aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.width} ${row.width}`)} data-column-width={row.width} className={cn("w-14 shrink-0 text-right text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{row.width} px</span>
 }
 
-export function ColumnChooserResetWidth({ type = "button", variant = "ghost", size, disabled, onClick, className, "aria-label": ariaLabel, ...props }: ActionProps) {
+export function ColumnChooserResetWidth({ type = "button", variant = "ghost", size, disabled, onClick, className, tabIndex = -1, "aria-label": ariaLabel, ...props }: ActionProps) {
   const { row, resetWidth } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.resetWidth}: ${row.name}`)} aria-hidden={!row.resized || undefined} tabIndex={row.resized ? undefined : -1} className={cn(size === undefined && "h-6 px-1.5 text-xs", !row.resized && "invisible", className)} {...props} disabled={disabled || !row.resized} onClick={(event) => {
+  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.resetWidth}: ${row.name}`)} aria-hidden={!row.resized || undefined} tabIndex={tabIndex} className={cn(size === undefined && "h-6 px-1.5 text-xs", !row.resized && "invisible", className)} {...props} disabled={disabled || !row.resized} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) resetWidth()
   }} />
 }
 
-export function ColumnChooserMove({ direction, type = "button", variant = "ghost", size, disabled, onClick, className, "aria-label": ariaLabel, ...props }: ActionProps & { direction: "up" | "down" }) {
+export function ColumnChooserMove({ direction, type = "button", variant = "ghost", size, disabled, onClick, className, tabIndex = -1, "aria-label": ariaLabel, ...props }: ActionProps & { direction: "up" | "down" }) {
   const { row, canMoveUp, canMoveDown, move } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${direction === "up" ? labels.moveUp : labels.moveDown}: ${row.name}`)} className={cn(size === undefined && "h-6 px-1.5 text-xs", className)} {...props} disabled={disabled || !(direction === "up" ? canMoveUp : canMoveDown)} onClick={(event) => {
+  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${direction === "up" ? labels.moveUp : labels.moveDown}: ${row.name}`)} tabIndex={tabIndex} className={cn(size === undefined && "h-6 px-1.5 text-xs", className)} {...props} disabled={disabled || !(direction === "up" ? canMoveUp : canMoveDown)} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) move(direction === "up" ? -1 : 1)
   }} />
