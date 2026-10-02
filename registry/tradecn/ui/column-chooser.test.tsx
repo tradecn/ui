@@ -579,6 +579,120 @@ describe("public composition", () => {
   })
 })
 
+describe("the keyboard model scales to wide grids", () => {
+  const many: ColumnDef<Rfq>[] = Array.from({ length: 100 }, (_, i) => ({ key: `c${i}`, header: `Column ${i}`, width: 80, accessor: (r) => r.id }))
+  const tabStops = (root: HTMLElement) => root.querySelectorAll('input:not([disabled]):not([tabindex="-1"]), button:not([disabled]):not([tabindex="-1"]), [tabindex="0"]').length
+
+  function Controlled({ cols = many, initial = EMPTY_COLUMN_STATE, onChange }: { cols?: ColumnDef<Rfq>[]; initial?: ColumnState; onChange?: (state: ColumnState) => void }) {
+    const [state, setState] = useState(initial)
+    return <ColumnSettingsPanel columns={cols} columnState={state} onColumnStateChange={(next) => { setState(next); onChange?.(next) }} />
+  }
+
+  it("keeps one tab stop in the collection for 100 columns", () => {
+    render(<Controlled />)
+    expect(tabStops(screen.getByRole("group", { name: "Columns" }))).toBeLessThanOrEqual(3)
+    const items = screen.getAllByRole("group", { name: /^Column / })
+    expect(items.filter((item) => item.getAttribute("tabindex") === "0")).toEqual([items[0]])
+    expect(items.filter((item) => item.getAttribute("tabindex") === "-1")).toHaveLength(99)
+  })
+
+  it("moves focus between columns with the arrows, and to the edges with Home and End", () => {
+    render(<Controlled />)
+    const first = screen.getByRole("group", { name: "Column 0" })
+    first.focus()
+    fireEvent.keyDown(first, { key: "ArrowDown" })
+    const second = screen.getByRole("group", { name: "Column 1" })
+    expect(document.activeElement).toBe(second)
+    expect(second.getAttribute("tabindex")).toBe("0")
+    expect(first.getAttribute("tabindex")).toBe("-1")
+    fireEvent.keyDown(second, { key: "End" })
+    expect(document.activeElement).toBe(screen.getByRole("group", { name: "Column 99" }))
+    fireEvent.keyDown(screen.getByRole("group", { name: "Column 99" }), { key: "Home" })
+    expect(document.activeElement).toBe(first)
+    fireEvent.keyDown(first, { key: "ArrowUp" })
+    expect(document.activeElement).toBe(first)
+  })
+
+  it("moves a column to the edge of its side in one step with Alt+Home and Alt+End", () => {
+    let saved = EMPTY_COLUMN_STATE
+    render(<Controlled onChange={(next) => { saved = next }} />)
+    fireEvent.keyDown(screen.getByRole("group", { name: "Column 90" }), { key: "Home", altKey: true })
+    expect(saved.order[0]).toBe("c90")
+    fireEvent.keyDown(screen.getByRole("group", { name: "Column 90" }), { key: "End", altKey: true })
+    expect(saved.order[saved.order.length - 1]).toBe("c90")
+  })
+
+  it("keeps an edge move on its own side of the frozen line", () => {
+    let saved = EMPTY_COLUMN_STATE
+    render(<Controlled cols={columns} onChange={(next) => { saved = next }} />)
+    fireEvent.keyDown(screen.getByRole("group", { name: "RFQ" }), { key: "End", altKey: true })
+    expect(saved.order.slice(0, 2)).toEqual(["client", "id"])
+    fireEvent.keyDown(screen.getByRole("group", { name: "status" }), { key: "Home", altKey: true })
+    expect(saved.order).toEqual(["client", "id", "status", "px", "size", "internal"])
+    saved = EMPTY_COLUMN_STATE
+    fireEvent.keyDown(screen.getByRole("group", { name: "status" }), { key: "Home", altKey: true })
+    expect(saved).toBe(EMPTY_COLUMN_STATE)
+  })
+
+  it("shows or hides the focused column with Space, only from the item itself", () => {
+    let saved: ColumnState | null = null
+    render(<Controlled cols={columns} onChange={(next) => { saved = next }} />)
+    const item = screen.getByRole("group", { name: "Price" })
+    item.focus()
+    fireEvent.keyDown(item, { key: " " })
+    expect(saved!.hidden).toEqual(["px"])
+    fireEvent.keyDown(item, { key: " " })
+    expect(saved!.hidden).toEqual([])
+    saved = null
+    fireEvent.keyDown(screen.getByRole("checkbox", { name: "Show Price" }), { key: " " })
+    expect(saved).toBeNull()
+  })
+
+  it("resets a resized column's width with Delete from the item itself", () => {
+    let saved: ColumnState | null = null
+    render(<Controlled cols={columns} initial={{ ...EMPTY_COLUMN_STATE, widths: { px: 200 } }} onChange={(next) => { saved = next }} />)
+    const item = screen.getByRole("group", { name: "Size" })
+    item.focus()
+    fireEvent.keyDown(item, { key: "Delete" })
+    expect(saved).toBeNull()
+    const resized = screen.getByRole("group", { name: "Price" })
+    resized.focus()
+    fireEvent.keyDown(resized, { key: "Delete" })
+    expect(saved!.widths).toEqual({})
+  })
+
+  it("moves the tab stop with pointer focus and keeps it valid when search filters the active column out", () => {
+    render(<Controlled cols={columns} />)
+    const size = screen.getByRole("group", { name: "Size" })
+    fireEvent.focus(size)
+    expect(size.getAttribute("tabindex")).toBe("0")
+    expect(screen.getByRole("group", { name: "RFQ" }).getAttribute("tabindex")).toBe("-1")
+    const search = screen.getByRole("textbox", { name: "Find a column" })
+    search.focus()
+    fireEvent.change(search, { target: { value: "price" } })
+    expect(document.activeElement).toBe(search)
+    expect(screen.getByRole("group", { name: "Price" }).getAttribute("tabindex")).toBe("0")
+  })
+
+  it("navigates from a pointer-focused inner control and keeps arrows native inside caller text fields", () => {
+    render(<Controlled cols={columns} />)
+    const move = screen.getByRole("button", { name: "Move down: RFQ" })
+    expect(move.getAttribute("tabindex")).toBe("-1")
+    move.focus()
+    fireEvent.keyDown(move, { key: "ArrowDown" })
+    expect(document.activeElement).toBe(screen.getByRole("group", { name: "Client" }))
+    const onChange = vi.fn()
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange}>
+      <ColumnChooserItem columnKey="px"><input aria-label="Note" /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="size"><ColumnChooserName /></ColumnChooserItem>
+    </ColumnChooser>)
+    const note = screen.getByRole("textbox", { name: "Note" })
+    note.focus()
+    fireEvent.keyDown(note, { key: "ArrowDown" })
+    expect(document.activeElement).toBe(note)
+  })
+})
+
 // Compiled by the real project TypeScript check. Conditional composition is legitimate.
 export function columnChooserMigrationTypes() {
   const base = { columns, columnState: EMPTY_COLUMN_STATE, onColumnStateChange: () => {} }
