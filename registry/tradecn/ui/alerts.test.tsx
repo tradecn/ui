@@ -275,16 +275,22 @@ describe("AlertHistory and alertColumns", () => {
     expect(screen.getByRole("gridcell", { name: "Newest" })).toBeInTheDocument()
   })
 
-  it("offers no sort affordance: the newest-first view owns the order, whatever the columns say", () => {
+  it("offers no sort affordance: the newest-first view owns the order, whatever the columns say", async () => {
     const alerts = seeded(clock().now)
-    render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Log" /></div>)
+    const first = render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Log" /></div>)
     expect(alertColumns()[0]!.sortable).toBe(true)
     for (const header of screen.getAllByRole("columnheader")) expect(header).not.toHaveAttribute("aria-sort")
+    fireEvent.click(screen.getByRole("button", { name: "Time column menu" }))
+    expect(await screen.findByRole("menuitem", { name: "Hide column" })).toBeInTheDocument()
     expect(screen.queryByRole("menuitem", { name: /Sort/ })).toBeNull()
+    first.unmount()
     render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Custom" columns={[{ key: "title", header: "Subject", width: 200, sortable: true, accessor: (a) => a.title }]} /></div>)
     const custom = within(screen.getByRole("grid", { name: "Custom" })).getAllByRole("columnheader")
     expect(custom).not.toHaveLength(0)
     for (const header of custom) expect(header).not.toHaveAttribute("aria-sort")
+    fireEvent.click(screen.getByRole("button", { name: "Subject column menu" }))
+    expect(await screen.findByRole("menuitem", { name: "Hide column" })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /Sort/ })).toBeNull()
   })
 
   it("keeps caller columns stable through inline labels, so rows do not re-render", () => {
