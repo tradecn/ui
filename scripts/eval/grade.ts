@@ -3,6 +3,7 @@
 // are checkContract's, the same function the kit hands the agent.
 import path from "node:path"
 import type { Browser } from "@playwright/test"
+import ts from "typescript"
 import { checkContract, CONTRACT_RULES, type ContractFinding, type ContractRule } from "../../registry/tradecn/lib/agent-kit"
 import { fontSizesUnderFloor } from "../lib/registry"
 
@@ -43,13 +44,21 @@ export function sourceFindings(files: SourceFile[]): SourceFindings {
   return out
 }
 
-/** The tradecn items the files import, by registry name: `@/components/ui/data-grid`, `./lib/format`, `@/components/ticket`. */
-export function itemsImported(files: SourceFile[], items: ReadonlySet<string>): string[] {
+/** The tradecn items the files import, by registry name: `@/components/ui/data-grid`, `./lib/format`,
+ * `@/components/ticket`. Real import declarations only, read as the compiler reads them, and each specifier
+ * resolved against `installed`, the files the install wrote: an agent's own `./components/watchlist` names no
+ * item, and neither does an import in a comment. */
+export function itemsImported(files: SourceFile[], items: ReadonlySet<string>, installed: ReadonlySet<string>): string[] {
   const used = new Set<string>()
-  for (const { source } of files) {
-    for (const match of source.matchAll(/(?:from\s+|import\s*\(\s*)["']([^"']+)["']/g)) {
-      const name = path.basename(match[1]!).replace(/\.(tsx?|jsx?)$/, "")
-      if (items.has(name)) used.add(name)
+  for (const { file, source } of files) {
+    for (const imported of ts.preProcessFile(source, true, true).importedFiles) {
+      const spec = imported.fileName
+      const target = spec.startsWith("@/") ? path.join("src", spec.slice(2)) : spec.startsWith(".") ? path.join(path.dirname(file), spec) : null
+      if (!target) continue
+      const name = path.basename(target).replace(/\.(tsx?|jsx?)$/, "")
+      if (!items.has(name)) continue
+      const stem = target.replace(/\.(tsx?|jsx?)$/, "")
+      if (installed.has(target) || [".ts", ".tsx", ".js", ".jsx", "/index.ts", "/index.tsx"].some((tail) => installed.has(stem + tail))) used.add(name)
     }
   }
   return [...used].sort()

@@ -25,15 +25,28 @@ describe("the agent kit eval", () => {
     })
   })
 
-  it("names the tradecn items a screen imports, and nothing else it imports", () => {
+  it("names the tradecn items a screen imports, and nothing it only mentions or wrote itself", () => {
+    const installed = new Set([
+      "src/components/ui/data-grid.tsx",
+      "src/lib/format.ts",
+      "src/components/ticket.tsx",
+      "src/components/ui/button.tsx",
+      "src/hooks/use-hotkeys.ts",
+      "src/components/ui/sparkline.tsx",
+      "src/components/ui/watchlist.tsx",
+    ])
     const source = [
       'import { DataGrid } from "@/components/ui/data-grid"',
       'import { formatSigned } from "./lib/format"',
       'import { Ticket } from "@/components/ticket"',
       'import { Button } from "@/components/ui/button"',
       'const hotkeys = import("@/hooks/use-hotkeys")',
+      // An import in a comment is a mention, and the agent's own ./components/watchlist is not the item,
+      // however it names the file.
+      '// import { Sparkline } from "@/components/ui/sparkline"',
+      'import { Watchlist } from "./components/watchlist"',
     ].join("\n")
-    expect(itemsImported([{ file: "src/App.tsx", source }], items)).toEqual(["data-grid", "format", "ticket", "use-hotkeys"])
+    expect(itemsImported([{ file: "src/App.tsx", source }], items, installed)).toEqual(["data-grid", "format", "ticket", "use-hotkeys"])
   })
 
   it("asks for each screen in words that name no rule, and expects only items the registry has", () => {
