@@ -273,6 +273,35 @@ describe("AlertHistory and alertColumns", () => {
     expect(document.querySelector("[data-row-id]")).toHaveAttribute("data-row-id", "n5")
     expect(screen.getByRole("gridcell", { name: "Newest" })).toBeInTheDocument()
   })
+
+  it("offers no sort affordance: the newest-first view owns the order, whatever the columns say", () => {
+    const alerts = seeded(clock().now)
+    render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Log" /></div>)
+    expect(alertColumns()[0]!.sortable).toBe(true)
+    for (const header of screen.getAllByRole("columnheader")) expect(header).not.toHaveAttribute("aria-sort")
+    render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Custom" columns={[{ key: "title", header: "Subject", width: 200, sortable: true, accessor: (a) => a.title }]} /></div>)
+    const custom = within(screen.getByRole("grid", { name: "Custom" })).getAllByRole("columnheader")
+    expect(custom).not.toHaveLength(0)
+    for (const header of custom) expect(header).not.toHaveAttribute("aria-sort")
+  })
+
+  it("forwards announceRowCount, and the default preset's polite region stays", () => {
+    vi.useFakeTimers()
+    try {
+      const alerts = seeded(clock().now)
+      const { container, unmount } = render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Spoken" /></div>)
+      act(() => void vi.advanceTimersByTime(1100))
+      const region = container.querySelector("[aria-live='polite']")
+      expect(region).not.toBeNull()
+      expect(region!.textContent).toMatch(/4 rows/)
+      unmount()
+      const silent = render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Silent" announceRowCount="off" /></div>)
+      act(() => void vi.advanceTimersByTime(1100))
+      expect(silent.container.querySelector("[aria-live='polite']")).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe("useToastBridge", () => {
