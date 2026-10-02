@@ -82,8 +82,10 @@ export function Countdown({ expiresAt, startsAt, thresholds = PROVISIONAL_COUNTD
   const total = Math.max(1, expiresAt - (startsAt ?? firstSeen))
   const fraction = Math.max(0, Math.min(1, remaining / total))
   const [reduced] = useState(prefersReducedMotion)
-  // Drawn from the digits' tick when it cannot animate: reduced motion, or nothing left to animate.
-  const staticBar = reduced || tier === "expired"
+  // A browser without Web Animations draws the bar from the digits' tick too, instead of holding it full.
+  const [canAnimate] = useState(() => typeof Element !== "undefined" && typeof Element.prototype.animate === "function")
+  // Drawn from the digits' tick when it cannot animate: reduced motion, no API, or nothing left to animate.
+  const staticBar = reduced || !canAnimate || tier === "expired"
 
   const bar = useRef<HTMLSpanElement>(null)
   useLayoutEffect(() => {

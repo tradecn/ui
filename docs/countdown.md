@@ -68,7 +68,7 @@ The default, `PROVISIONAL_COUNTDOWN_THRESHOLDS`, is a placeholder. Set `threshol
 
 Pass `startsAt` so the full bar represents the time from start to expiry. Without it, the bar starts full on first render if time remains, even for a countdown restored partway through.
 
-One linear Web Animation shrinks the bar to zero, with no JavaScript work per frame. Changing `expiresAt` cancels and restarts it. Under `prefers-reduced-motion`, the bar steps with the digits instead.
+One linear Web Animation shrinks the bar to zero, with no JavaScript work per frame. Changing `expiresAt` cancels and restarts it. Under `prefers-reduced-motion`, or in a browser without Web Animations, the bar steps with the digits instead.
 
 ### The clock
 
