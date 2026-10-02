@@ -149,8 +149,9 @@ function wallUtc(ms: number, zone: string): number {
  * The instant a wall-clock time in a zone falls on. The wall time is read as if it were UTC, the
  * zone's offset at that instant is taken off, and the result is checked; when the offset changed in
  * between (a daylight-saving boundary) the other offset is tried. A time that happens twice, in the
- * hour the clocks fall back, is its first occurrence. A time that never happens, in the hour they
- * spring forward, moves forward by the length of the gap, as 02:30 becomes 03:30.
+ * hour the clocks fall back, resolves to whichever occurrence that check settles on: New York's
+ * 01:30 is its first, London's its second. A time that never happens, in the hour they spring
+ * forward, moves forward by the length of the gap, as 02:30 becomes 03:30.
  */
 export function zonedInstant(date: string, time: string, zone: string): number {
   const [y, m, d] = splitDate(date)
