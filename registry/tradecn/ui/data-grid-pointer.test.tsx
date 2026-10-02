@@ -62,6 +62,14 @@ describe("DataGrid pointer ownership", () => {
     ["focusable", <span tabIndex={0}>Custom</span>],
     ["programmatic focus", <span tabIndex={-1}>Custom</span>],
     ["ARIA control", <span role="button">Custom</span>],
+    ["fallback ARIA control", <span role="unsupported button">Custom</span>],
+    ["abstract ARIA fallback", <span role="widget button">Custom</span>],
+    ["mixed-case ARIA fallback", <span role={"unsupported\tBUTTON\nlink"}>Custom</span>],
+    ["form-feed ARIA fallback", <span role={"unsupported\fbutton"}>Custom</span>],
+    ["doc-backlink fallback", <span role="doc-backlink link">Reference</span>],
+    ["doc-biblioref fallback", <span role="doc-biblioref link">Reference</span>],
+    ["doc-glossref fallback", <span role="doc-glossref link">Reference</span>],
+    ["doc-noteref fallback", <span role="doc-noteref link">Reference</span>],
     ["ARIA composite", <span role="toolbar" aria-label="Quote actions"><span data-testid="target">Actions</span><button type="button">Inspect</button></span>],
     ["label", <label>Accept<input type="checkbox" /></label>],
   ] satisfies [string, ReactNode][])("leaves the %s and its double-click to the consumer", (name, control) => {
@@ -78,6 +86,89 @@ describe("DataGrid pointer ownership", () => {
     expect(props.onSelectionChange).not.toHaveBeenCalled()
     expect(props.onFocusedRowChange).not.toHaveBeenCalled()
     expect(props.onRowActivate).not.toHaveBeenCalled()
+  })
+
+  it.each(["status button", "img button", "graphics-symbol button", "doc-tip button", "unknown", "img grid", "link\u00a0button", "lin\u212a"])("keeps plain content with effective role %s in the row", role => {
+    const props = setup(["a"])
+    render(<DataGrid {...props} columns={[{ ...columns[0]!, cell: () => <span role={role} data-testid="role-target">Reading</span> }]} />)
+    const target = screen.getByTestId("role-target")
+    fireEvent.pointerDown(target, pointer)
+    fireEvent.doubleClick(target)
+    expect(props.onSelectionChange).toHaveBeenCalledExactlyOnceWith(new Set(["a"]))
+    expect(props.onFocusedRowChange).toHaveBeenCalledExactlyOnceWith("a")
+    expect(props.onRowActivate).toHaveBeenCalledExactlyOnceWith(props.store.getRow("a"), "a")
+  })
+
+  it.each(["unsupported grid", "widget treegrid"])("excludes a nested %s from outer capture and row actions", role => {
+    const props = setup(["a"])
+    const view = props.store.createView()
+    const touch = vi.spyOn(view, "touch")
+    try {
+      render(<DataGrid {...props} view={view} columns={[{ ...columns[0]!, cell: () => <div role={role}><span data-testid="role-target">Nested reading</span></div> }]} renderContextMenu={() => <span>Outer action</span>} />)
+      const target = screen.getByTestId("role-target")
+      fireEvent.pointerDown(target, pointer)
+      fireEvent.doubleClick(target)
+      fireEvent.keyDown(target, { key: "ArrowDown" })
+      expect(fireEvent.contextMenu(target)).toBe(true)
+      expect(touch).not.toHaveBeenCalled()
+      expect(props.onSelectionChange).not.toHaveBeenCalled()
+      expect(props.onFocusedRowChange).not.toHaveBeenCalled()
+      expect(props.onRowActivate).not.toHaveBeenCalled()
+      expect(screen.queryByText("Outer action")).toBeNull()
+    } finally {
+      view.dispose()
+    }
+  })
+
+  it.each([
+    ["filter", ["a", "c"]],
+    ["insert", ["a", "x", "b", "c"]],
+    ["reorder", ["a", "c"]],
+    ["filter anchor", ["a", "b", "c"]],
+    ["filter target", null],
+  ] as const)("uses current membership and order when capture can %s before a range press", (change, expected) => {
+    const props = setup()
+    const view = props.store.createView({ filter: row => row.px >= 0 })
+    const update = () => {
+      if (change === "filter") props.store.applyDeltas({ patch: [{ id: "b", fields: { px: -1 } }] })
+      if (change === "insert") props.store.applyDeltas({ upsert: [{ id: "x", px: 4 }], order: ["a", "x", "b", "c"] })
+      if (change === "reorder") props.store.applyDeltas({ order: ["a", "c", "b"] })
+      if (change === "filter anchor") props.store.applyDeltas({ patch: [{ id: "a", fields: { px: -1 } }] })
+      if (change === "filter target") props.store.applyDeltas({ patch: [{ id: "c", fields: { px: -1 } }] })
+    }
+    try {
+      render(<div onPointerDownCapture={event => { if (event.shiftKey) update() }}><DataGrid {...props} view={view} /></div>)
+      const grid = screen.getByRole("grid")
+      fireEvent.pointerDown(cell(grid, "a"), pointer)
+      props.onSelectionChange.mockClear()
+      fireEvent.pointerDown(cell(grid, "c"), { ...pointer, shiftKey: true })
+      if (expected === null) expect(props.onSelectionChange).not.toHaveBeenCalled()
+      else expect(props.onSelectionChange).toHaveBeenCalledExactlyOnceWith(new Set(expected))
+    } finally {
+      view.dispose()
+    }
+  })
+
+  it.each(["pointer", "keyboard"])("reads the %s range after a focus callback updates membership", input => {
+    const props = setup()
+    const view = props.store.createView({ filter: row => row.px >= 0 })
+    props.onFocusedRowChange.mockImplementation(id => {
+      if (id === "c") props.store.applyDeltas({ patch: [{ id: "b", fields: { px: -1 } }] })
+    })
+    try {
+      render(<DataGrid {...props} view={view} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.pointerDown(cell(grid, "a"), pointer)
+      props.onSelectionChange.mockClear()
+      if (input === "pointer") fireEvent.pointerDown(cell(grid, "c"), { ...pointer, shiftKey: true })
+      else {
+        fireEvent.keyDown(grid, { key: "ArrowDown" })
+        fireEvent.keyDown(grid, { key: "ArrowDown", shiftKey: true })
+      }
+      expect(props.onSelectionChange).toHaveBeenCalledExactlyOnceWith(new Set(["a", "c"]))
+    } finally {
+      view.dispose()
+    }
   })
 
   it.each(["prevent", "stop"])("honors a cell handler that chooses to %s pointer and double-click propagation", method => {

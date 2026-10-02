@@ -272,9 +272,13 @@ With announcements enabled, a 1,000 ms timer reports the row count through a pol
 
 A primary-button press on plain cell content requests row focus and selection. Other buttons request focus only. `selectionMode="none"` leaves selection unchanged, and controlled state changes only when your callback applies the request.
 
-In multi-select mode, Shift extends a range and Ctrl or Cmd toggles a row. A double-click opens an editable text cell or activates the row.
+In multi-select mode, Shift adds a range from the current view without clearing the existing selection. Changes made in capture or focus callbacks are included. Ctrl or Cmd toggles a row.
+
+A double-click opens an editable text cell or activates the row.
 
 Buttons, links, inputs, editors, focusable content and interactive ARIA widgets keep their own pointer behavior. Their presses and double-clicks do not implicitly select, focus, edit or activate the row. Selection checkboxes and custom `edit.commit` controls still run their explicit actions.
+
+Fallback ARIA role lists use the first recognized role: `role="unsupported button"` owns its interaction, while `role="status button"` remains plain content.
 
 Use native controls with accessible names in custom cells. A custom handler can also claim a press or double-click with `preventDefault()` or `stopPropagation()`. Row actions run during bubbling, after the child handler. To claim one from a parent, use its capture handler.
 

@@ -41,6 +41,8 @@ export function DataGridScene() {
       <div data-grid-recipe="shared-defaults"><DataGridSharedDefaultsDemo /></div>
       <GridKeyboardScene />
       <GridPointerScene />
+      <GridRoleScene />
+      <GridRangeScene />
       <GridNestedPointerScene />
       <GridShadowPointerScene />
       <GridDialogScene />
@@ -140,6 +142,41 @@ function GridPointerScene() {
   return <div data-grid-pointer data-selection={[...selection].join(",")} data-focused-row={focused} data-activated={activated} data-inspected={inspected} data-native-menu={nativeMenu} className="flex flex-col gap-1" onPointerDownCapture={event => { if (handled && (event.target as Element).closest('[data-col="id"]')) event.preventDefault() }}>
     <div className="h-40"><DataGrid store={store} columns={columns} label="Pointer quotes" selectionColumn selection={selection} onSelectionChange={setSelection} focusedRowId={focused} onFocusedRowChange={setFocused} onRowActivate={() => setActivated(count => count + 1)} onEdit={() => {}} renderContextMenu={(_rows, ids) => <ContextMenuItem>Pointer action: {ids.join(",")}</ContextMenuItem>} /></div>
     <label><input type="checkbox" checked={handled} onChange={event => setHandled(event.target.checked)} /> Handle pointer in capture</label>
+  </div>
+}
+
+function GridRoleScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Beta"]))
+  const [focused, setFocused] = useState<string | null>("Beta")
+  const [activated, setActivated] = useState(0)
+  const columns: ColumnDef<Row>[] = [
+    { key: "id", header: "Quote", width: 100, accessor: row => row.id },
+    { key: "actions", header: "Actions", width: 160, accessor: () => "", cell: () => <div role="unsupported toolbar" aria-label="Quote actions"><span data-role-target="control">Actions</span><button type="button">Inspect</button></div> },
+    { key: "reading", header: "Reading", width: 160, accessor: () => "", cell: () => <span role="status button" data-role-target="reading">Available</span> },
+    { key: "nested", header: "Detail", width: 160, accessor: () => "", cell: () => <div role="unsupported grid" aria-label="Detail quotes"><div role="row"><span role="gridcell" data-role-target="grid">Detail quote</span></div></div> },
+  ]
+  return <div data-grid-roles data-selection={[...selection].join(",")} data-focused-row={focused} data-activated={activated} className="h-40">
+    <DataGrid store={store} columns={columns} label="Fallback roles" selection={selection} onSelectionChange={setSelection} focusedRowId={focused} onFocusedRowChange={setFocused} onRowActivate={() => setActivated(count => count + 1)} renderContextMenu={(_rows, ids) => <ContextMenuItem>Role action: {ids.join(",")}</ContextMenuItem>} />
+  </div>
+}
+
+function GridRangeScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }, { id: "Gamma", px: 102 }] })
+    return store
+  })
+  const options = useMemo(() => ({ filter: (row: Row) => row.px >= 0 }), [])
+  const view = useView(store, options)!
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set())
+  const columns: ColumnDef<Row>[] = [{ key: "id", header: "Quote", width: 160, accessor: row => row.id }]
+  return <div data-grid-current-range data-selection={[...selection].join(",")} className="h-40">
+    <DataGrid store={store} view={view} columns={columns} label="Current quote range" selection={selection} onSelectionChange={setSelection} onFocusedRowChange={id => { if (id === "Gamma") store.applyDeltas({ patch: [{ id: "Beta", fields: { px: -1 } }] }) }} />
   </div>
 }
 

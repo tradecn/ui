@@ -1549,6 +1549,39 @@ for (const dark of [false, true]) {
     await page.keyboard.press("Escape")
   })
 
+  test(`fallback roles preserve control and nested grid ownership (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-grid-roles]")
+    const row = scene.locator('[data-row-id="Alpha"]')
+    for (const kind of ["control", "grid"]) {
+      const target = row.locator(`[data-role-target="${kind}"]`)
+      await target.dblclick()
+      await expect(scene).toHaveAttribute("data-selection", "Beta")
+      await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+      await expect(scene).toHaveAttribute("data-activated", "0")
+      await target.click({ button: "right" })
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())))
+      await expect(page.getByRole("menu")).toHaveCount(0)
+    }
+    await row.locator('[data-role-target="reading"]').dblclick()
+    await expect(scene).toHaveAttribute("data-selection", "Alpha")
+    await expect(scene).toHaveAttribute("data-activated", "1")
+    await row.locator('[data-role-target="reading"]').click({ button: "right" })
+    await expect(page.getByRole("menuitem", { name: "Role action: Alpha", exact: true })).toBeVisible()
+  })
+
+  test(`range selection includes focus callback view changes (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-grid-current-range]")
+    await scene.locator('[data-row-id="Alpha"] [data-col="id"]').click()
+    await expect(scene).toHaveAttribute("data-selection", "Alpha")
+    await scene.locator('[data-row-id="Gamma"] [data-col="id"]').click({ modifiers: ["Shift"] })
+    await expect(scene.locator('[data-row-id="Beta"]')).toHaveCount(0)
+    await expect(scene).toHaveAttribute("data-selection", "Alpha,Gamma")
+  })
+
   test(`nested and portaled grids own their row actions (${dark ? "dark" : "light"})`, async ({ page }) => {
     await page.goto("/")
     await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
@@ -1651,6 +1684,8 @@ for (const dark of [false, true]) {
       await grid.locator('[data-row-id="Alpha"] [data-col="id"]').click({ button: "right" })
       await expect(page.getByRole("menuitem", { name: "Wrapped action: Alpha", exact: true })).toBeVisible()
       await page.keyboard.press("Escape")
+      await expect(page.locator('[role="menu"]')).toHaveCount(0)
+      await expect(grid).toBeFocused()
     }
   })
 

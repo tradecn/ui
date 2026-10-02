@@ -241,25 +241,53 @@ const EMPTY_SET: ReadonlySet<RowId> = new Set()
 const SELECT_WIDTH = 32
 const ENTER_WINDOW_MS = 1500
 
-// Native controls, focus targets and ARIA widgets own interaction inside a cell.
-const ROW_CONTROLS = 'a[href], button, input, select, textarea, label, summary, audio[controls], video[controls], iframe, object, embed, [contenteditable]:not([contenteditable="false"]), [tabindex], [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="combobox"], [role="listbox"], [role="option"], [role="textbox"], [role="searchbox"], [role="slider"], [role="spinbutton"], [role="scrollbar"], [role="separator"], [role="tab"], [role="tablist"], [role="toolbar"], [role="menu"], [role="menubar"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="tree"], [role="treeitem"], [role="radiogroup"]'
+// Native controls and focus targets own interaction regardless of an authored role.
+const ROW_CONTROLS = 'a[href], button, input, select, textarea, label, summary, audio[controls], video[controls], iframe, object, embed, [contenteditable]:not([contenteditable="false"]), [tabindex], [data-grid-interaction="control"]'
+const CONTROL_ROLES = new Set("button link checkbox radio switch combobox listbox option textbox searchbox slider spinbutton scrollbar separator tab tablist toolbar menu menubar menuitem menuitemcheckbox menuitemradio tree treeitem radiogroup doc-backlink doc-biblioref doc-glossref doc-noteref".split(" "))
+// Include noninteractive roles: in "status button", status wins. Abstract roles cannot win a fallback list.
+const ARIA_ROLES = new Set([
+  ..."alert alertdialog application article banner blockquote button caption cell checkbox code columnheader combobox comment complementary contentinfo definition deletion dialog directory document emphasis feed figure form generic grid gridcell group heading image img insertion link list listbox listitem log main mark marquee math menu menubar menuitem menuitemcheckbox menuitemradio meter navigation none note option paragraph presentation progressbar radio radiogroup region row rowgroup rowheader scrollbar search searchbox sectionfooter sectionheader separator slider spinbutton status strong subscript suggestion superscript switch tab table tablist tabpanel term textbox time timer toolbar tooltip tree treegrid treeitem".split(" "),
+  ..."document object symbol".split(" ").map(role => `graphics-${role}`),
+  ..."abstract acknowledgments afterword appendix backlink biblioentry bibliography biblioref chapter colophon conclusion cover credit credits dedication endnote endnotes epigraph epilogue errata example footnote foreword glossary glossref index introduction noteref notice pagebreak pagefooter pageheader pagelist part preface prologue pullquote qna subtitle tip toc".split(" ").map(role => `doc-${role}`),
+])
+
+function roleOf(element: Element): string | undefined {
+  const value = element.getAttribute("role")
+  if (!value) return
+  for (const token of value.split(/[\t\n\f\r ]+/)) {
+    if (!/^[A-Za-z-]+$/.test(token)) continue
+    const role = token.toLowerCase()
+    if (ARIA_ROLES.has(role)) return role
+  }
+}
+
+function independentGrid(element: Element): boolean {
+  const role = roleOf(element)
+  return role === "grid" || role === "treegrid" || element.getAttribute("data-grid-interaction") === "independent"
+}
 
 function gridTarget(root: HTMLElement | null, target: EventTarget, path?: EventTarget[]): Element | undefined {
   const element = target as Element
   // Portals can dispatch both an inner-target pass and a host-retargeted pass.
-  if (!root?.contains(element) || element.closest?.('[role="grid"], [role="treegrid"]') !== root) return undefined
-  if (!path) return element
-  for (const entry of path) {
-    if (entry === root) return element
-    if ((entry as Element).matches?.('[role="grid"], [role="treegrid"], [data-grid-interaction="independent"]')) return undefined
+  if (!root?.contains(element)) return undefined
+  if (path) {
+    for (const entry of path) {
+      if (entry === root) return element
+      if ((entry as Node).nodeType === 1 && independentGrid(entry as Element)) return undefined
+    }
+  } else {
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      if (node === root) return element
+      if (independentGrid(node)) return undefined
+    }
   }
   return undefined
 }
 
-function pathMatches(root: HTMLElement | null, path: EventTarget[], selector: string): boolean {
+function pathMatches(root: HTMLElement | null, path: EventTarget[], matches: (element: Element) => boolean): boolean {
   for (const entry of path) {
     if (entry === root) return false
-    if ((entry as Element).matches?.(selector)) return true
+    if ((entry as Node).nodeType === 1 && matches(entry as Element)) return true
   }
   return false
 }
@@ -1106,13 +1134,16 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       } else {
         const to = targets[targets.length - 1]!
         const from = anchorRef.current ?? to
-        const a = indexOf.get(from) ?? 0
-        const b = indexOf.get(to) ?? 0
-        for (let i = Math.min(a, b); i <= Math.max(a, b); i++) next.add(ids[i]!)
+        // Capture and focus callbacks can publish a new order before this render commits.
+        const currentIds = view.getIds()
+        const a = currentIds === ids ? indexOf.get(from) ?? 0 : Math.max(0, currentIds.indexOf(from))
+        const b = currentIds === ids ? indexOf.get(to) ?? -1 : currentIds.indexOf(to)
+        if (b < 0) return
+        for (let i = Math.min(a, b); i <= Math.max(a, b); i++) next.add(currentIds[i]!)
       }
       setSelection(next)
     },
-    [ids, indexOf, selection, selectionMode, setSelection],
+    [ids, indexOf, selection, selectionMode, setSelection, view],
   )
 
   const focusIndex = useCallback(
@@ -1177,7 +1208,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const path = e.nativeEvent.composedPath()
     if (!gridTarget(e.currentTarget, e.target, path)) return
     // The editor owns its keys; what it lets through (a modifier-held arrow) is for the listeners above the grid.
-    if (pathMatches(e.currentTarget, path, "[data-cell-editor]")) return
+    if (pathMatches(e.currentTarget, path, element => element.hasAttribute("data-cell-editor"))) return
     view.touch()
     stopFollowing()
     // Focused controls own their keys; application handlers can also claim a grid key in capture.
@@ -1312,7 +1343,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       ? path.find(entry => (entry as Node).nodeType === 1 && root?.contains(entry as Node)) ?? event.target
       : event.target
     const element = gridTarget(root, target, path)
-    if (!element || pathMatches(rootRef.current, path, ROW_CONTROLS + ', [data-grid-interaction="control"]')) return undefined
+    if (!element || pathMatches(root, path, element => element.matches(ROW_CONTROLS) || CONTROL_ROLES.has(roleOf(element) ?? ""))) return undefined
     const row = element.closest<HTMLElement>('[role="row"][data-row-id]')
     const id = row?.dataset.rowId
     if (id === undefined || row?.id !== domId(id) || !indexOf.has(id) || store.getRow(id) === undefined) return undefined
