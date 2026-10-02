@@ -641,8 +641,11 @@ describe("the keyboard model scales to wide grids", () => {
     item.focus()
     fireEvent.keyDown(item, { key: " " })
     expect(saved!.hidden).toEqual(["px"])
+    expect(item).toHaveAttribute("aria-description", "hidden")
+    expect(item).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete")
     fireEvent.keyDown(item, { key: " " })
     expect(saved!.hidden).toEqual([])
+    expect(item).not.toHaveAttribute("aria-description")
     saved = null
     fireEvent.keyDown(screen.getByRole("checkbox", { name: "Show Price" }), { key: " " })
     expect(saved).toBeNull()
