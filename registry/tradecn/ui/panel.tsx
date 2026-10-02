@@ -27,10 +27,13 @@ function stop(event: SyntheticEvent) {
 }
 
 // The consumer's handler runs first, and cancelling it lets the press reach the header's drag.
+// Only a cancellation the handler itself adds opts out: a press an ancestor capture already
+// prevented still stays away from the drag.
 function guardFromDrag<E extends SyntheticEvent>(own?: (event: E) => void) {
   return (event: E) => {
+    const alreadyPrevented = event.defaultPrevented
     own?.(event)
-    if (!event.defaultPrevented) event.stopPropagation()
+    if (alreadyPrevented || !event.defaultPrevented) event.stopPropagation()
   }
 }
 

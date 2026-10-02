@@ -417,16 +417,16 @@ describe("PanelPopout", () => {
     const headerPress = vi.fn()
     const ownPress = vi.fn()
     render(
-      <div onPointerDown={headerPress}>
-        <PanelActions onPointerDown={ownPress}><button type="button">Close</button></PanelActions>
-        <LinkGroupDot group={1} onGroupChange={() => {}} onPointerDown={ownPress} />
+      <div onPointerDown={headerPress} onMouseDown={headerPress} onTouchStart={headerPress}>
+        <PanelActions onPointerDown={ownPress} onMouseDown={ownPress} onTouchStart={ownPress}><button type="button">Close</button></PanelActions>
+        <LinkGroupDot group={1} onGroupChange={() => {}} onPointerDown={ownPress} onMouseDown={ownPress} onTouchStart={ownPress} />
       </div>,
     )
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Close" }))
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Link group 1, change" }))
-    expect(ownPress).toHaveBeenCalledTimes(2)
-    expect(headerPress).not.toHaveBeenCalled()
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Close" }), { })
+    for (const fire of [fireEvent.pointerDown, fireEvent.mouseDown, fireEvent.touchStart]) {
+      fire(screen.getByRole("button", { name: "Close" }))
+      fire(screen.getByRole("button", { name: "Link group 1, change" }))
+    }
+    expect(ownPress).toHaveBeenCalledTimes(6)
     expect(headerPress).not.toHaveBeenCalled()
     render(
       <div onPointerDown={headerPress}>
@@ -434,6 +434,14 @@ describe("PanelPopout", () => {
       </div>,
     )
     fireEvent.pointerDown(screen.getByRole("button", { name: "Drag me" }))
+    expect(headerPress).toHaveBeenCalledTimes(1)
+    // A press an ancestor capture already prevented is not the consumer's opt-out.
+    render(
+      <div onPointerDown={headerPress} onPointerDownCapture={(event) => event.preventDefault()}>
+        <PanelActions onPointerDown={ownPress}><button type="button">Held</button></PanelActions>
+      </div>,
+    )
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Held" }))
     expect(headerPress).toHaveBeenCalledTimes(1)
   })
 
