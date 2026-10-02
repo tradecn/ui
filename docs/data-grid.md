@@ -303,7 +303,7 @@ CSS such as `pointer-events: none` can send a disabled control's press to the ce
 import type { ReactNode } from "react"
 
 export function CellControl({ children }: { children: ReactNode }) {
-  return <span data-grid-interaction="control">{children}</span>
+  return <span className="inline-flex leading-normal" data-grid-interaction="control">{children}</span>
 }
 
 export function DisabledCellAction() {

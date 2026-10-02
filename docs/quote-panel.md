@@ -140,6 +140,8 @@ Each `QuoteAction<T>` defines a row button:
 
 Buttons follow your `actions` order and appear only when `allowedActions` includes their ids. A click rechecks permission against the rendered row. While a returned promise is pending, every action button on that row is disabled. Fulfillment or rejection re-enables them; rejection shows no built-in error. The status changes only when the store changes.
 
+Action buttons and the gaps between them preserve row selection and logical focus, including while a command is pending.
+
 Pull all appears when `onPullAll` is given. The first press changes its label to `Pull all anyway?`; a click elsewhere inside the panel or Escape within it cancels the question. The second press rereads the store and passes every row whose `allowedActions` includes `pullAction`, regardless of the grid's filter or selection. The button is disabled when no row allows the action or its returned promise is pending. Fulfillment or rejection clears the pending state without an error message. `data-quote-pull-all` carries the eligible row count.
 
 ### Columns

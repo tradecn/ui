@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
 import { createPortal, flushSync } from "react-dom"
 import { useView } from "@/hooks/use-row-store"
+import { Button } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DataGrid, EMPTY_COLUMN_STATE, type CellEditHandle, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/components/ui/data-grid"
@@ -43,6 +44,8 @@ export function DataGridScene() {
       <GridNestedPointerScene />
       <GridShadowPointerScene />
       <GridDialogScene />
+      <GridDisabledControlScene />
+      <GridDisabledControlScene tall />
       <GridResizeScene />
       <GridEditorScene />
       <GridDelayedEditorScene />
@@ -89,6 +92,29 @@ function GridDialogScene() {
         <div className="h-40"><DataGrid store={store} columns={dialogControlColumns} label="Contained quotes" renderContextMenu={(_rows, ids) => <ContextMenuItem>Contained quote action: {ids.join(",")}</ContextMenuItem>} /></div>
       </DialogContent>
     </Dialog>
+  </div>
+}
+
+function CellControl({ children }: { children: ReactNode }) {
+  return <span className="inline-flex leading-normal" data-grid-interaction="control">{children}</span>
+}
+
+function GridDisabledControlScene({ tall = false }: { tall?: boolean }) {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Beta"]))
+  const [focused, setFocused] = useState<string | null>("Beta")
+  const [activated, setActivated] = useState(0)
+  const columns = useMemo<ColumnDef<Row>[]>(() => [
+    { key: "id", header: "Quote", width: 100, accessor: row => row.id },
+    { key: "native", header: "Native action", width: 120, accessor: () => "", cell: () => <CellControl><button type="button" disabled className="pointer-events-none">Inspect</button></CellControl> },
+    { key: "installed", header: "Installed action", width: 160, accessor: () => "", cell: () => <CellControl><Button disabled size="sm" className={tall ? "h-16" : undefined}>Review</Button></CellControl> },
+  ], [tall])
+  return <div data-grid-disabled-controls={tall ? "tall" : "ordinary"} data-selection={[...selection].join(",")} data-focused-row={focused} data-activated={activated}>
+    <div className={tall ? "h-96" : "h-40"}><DataGrid store={store} columns={columns} label={tall ? "Tall disabled controls" : "Disabled controls"} rowHeight={tall ? 96 : 32} selection={selection} onSelectionChange={setSelection} focusedRowId={focused} onFocusedRowChange={setFocused} onRowActivate={() => setActivated(count => count + 1)} renderContextMenu={(_rows, ids) => <ContextMenuItem>Wrapped action: {ids.join(",")}</ContextMenuItem>} /></div>
   </div>
 }
 

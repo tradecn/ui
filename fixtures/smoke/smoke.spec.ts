@@ -1608,6 +1608,52 @@ for (const dark of [false, true]) {
     await expect(scene).toHaveAttribute("data-touches", "7")
   })
 
+  test(`copied control wrappers contain disabled button edges (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    for (const layout of ["ordinary", "tall"]) {
+      const scene = page.locator(`[data-grid-disabled-controls="${layout}"]`)
+      const grid = scene.getByRole("grid")
+      await grid.locator('[data-row-id="Beta"] [data-col="id"]').click()
+      await expect(grid).toBeFocused()
+      await page.keyboard.press("ArrowUp")
+      await expect(scene).toHaveAttribute("data-focused-row", "Alpha")
+      await page.keyboard.press("ArrowDown")
+      await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+      for (const name of ["Inspect", "Review"]) {
+        const button = grid.locator('[data-row-id="Alpha"]').getByRole("button", { name, exact: true })
+        await expect(button).toBeDisabled()
+        await button.scrollIntoViewIfNeeded()
+        const bounds = await button.evaluate(element => {
+          const button = element.getBoundingClientRect()
+          const cell = element.closest('[role="gridcell"]')!.getBoundingClientRect()
+          return { left: Math.max(button.left, cell.left), right: Math.min(button.right, cell.right), top: Math.max(button.top, cell.top), bottom: Math.min(button.bottom, cell.bottom) }
+        })
+        expect(bounds.right - bounds.left).toBeGreaterThan(2)
+        expect(bounds.bottom - bounds.top).toBeGreaterThan(2)
+        const x = (bounds.left + bounds.right) / 2, y = (bounds.top + bounds.bottom) / 2
+        // Probe visible edges; a bare inline span covers the text baseline but misses these points.
+        for (const point of [{ x, y: bounds.top + 1 }, { x, y: bounds.bottom - 1 }, { x: bounds.left + 1, y }, { x: bounds.right - 1, y }]) {
+          const ownsHit = await button.evaluate((element, point) => document.elementFromPoint(point.x, point.y)?.closest('[data-grid-interaction="control"]') === element.parentElement, point)
+          await page.mouse.click(point.x, point.y)
+          await expect(scene).toHaveAttribute("data-selection", "Beta")
+          await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+          await page.mouse.dblclick(point.x, point.y)
+          await expect(scene).toHaveAttribute("data-activated", "0")
+          await page.mouse.click(point.x, point.y, { button: "right" })
+          await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())))
+          await expect(page.getByRole("menu")).toHaveCount(0)
+          await expect(scene).toHaveAttribute("data-selection", "Beta")
+          await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+          expect(ownsHit).toBe(true)
+        }
+      }
+      await grid.locator('[data-row-id="Alpha"] [data-col="id"]').click({ button: "right" })
+      await expect(page.getByRole("menuitem", { name: "Wrapped action: Alpha", exact: true })).toBeVisible()
+      await page.keyboard.press("Escape")
+    }
+  })
+
   test(`document-root grids preserve rejected native context menus (${dark ? "dark" : "light"})`, async ({ page }) => {
     const errors: string[] = []
     page.on("pageerror", error => errors.push(error.message))
