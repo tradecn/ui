@@ -377,7 +377,7 @@ List-editing helpers return new arrays, retaining unchanged entries. Custom menu
 
 ### Labels
 
-`labels` overrides the region title and public parts. The import form's name field has its own key, `importName`, defaulting to `Imported layout name`, so the two name fields never share an accessible name. All v1 keys remain available through `useLayoutManager().labels`, including `empty`, `export`, and `reset` for caller-owned content.
+`labels` overrides the region title and public parts. The import form's name field has its own key, `importName`, defaulting to `Imported layout name`, so the two name fields are distinct by default; matching values you supply, or `aria-label` overrides, are yours. All v1 keys remain available through `useLayoutManager().labels`, including `empty`, `export`, and `reset` for caller-owned content.
 
 `taken` and `copyOf` interpolate `{name}`, `panels` uses `{n}`, and `unknownKinds` uses `{kinds}`. The generated `Imported` prefix and date/time formatting are not label overrides.
 
