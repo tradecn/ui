@@ -187,7 +187,7 @@ interface ChooserContextValue extends ColumnChooserState {
   /** The one presented item currently in the tab order. */
   activeKey: string | null
   setActive: (key: string) => void
-  registerItem: (key: string, node: HTMLElement | null) => void
+  registerItem: (key: string, node: HTMLElement | null, optedOut?: boolean) => void
   focusStep: (from: string, step: -1 | 1 | "first" | "last") => void
 }
 
@@ -342,20 +342,48 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
   }
   const hiddenCount = rows.filter((row) => !row.visible).length
   const isDefault = sameSettings(stateRows, baseRows)
-  // One presented item carries the tab stop; arrows move between items (roving focus).
+  // One presented item carries the tab stop; arrows move between items (roving focus). Items register
+  // their nodes, and whether an explicit tabIndex opted them out, through a store subscribed here so the
+  // owner settles in render once registrations land after this provider's first pass.
   const [active, setActive] = useState<string | null>(null)
-  const activeKey = active !== null && presentedRows.some((row) => row.key === active) ? active : presentedRows[0]?.key ?? null
-  const itemNodes = useRef(new Map<string, HTMLElement>())
-  const registerItem = useCallback((key: string, node: HTMLElement | null) => {
-    if (node) itemNodes.current.set(key, node)
-    else itemNodes.current.delete(key)
-  }, [])
+  const [registrations] = useState(() => {
+    const nodes = new Map<string, HTMLElement>()
+    const optedOut = new Set<string>()
+    const listeners = new Set<() => void>()
+    let version = 0
+    return {
+      nodes,
+      optedOut,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener)
+        return () => void listeners.delete(listener)
+      },
+      version: () => version,
+      set(key: string, node: HTMLElement | null, opted: boolean) {
+        if (node) {
+          nodes.set(key, node)
+          if (opted) optedOut.add(key)
+          else optedOut.delete(key)
+        } else {
+          nodes.delete(key)
+          optedOut.delete(key)
+        }
+        version += 1
+        for (const listener of listeners) listener()
+      },
+    }
+  })
+  useSyncExternalStore(registrations.subscribe, registrations.version, registrations.version)
+  // An explicitly opted-out item never owns the collection's tab stop.
+  const coordinated = (key: string) => !registrations.optedOut.has(key)
+  const activeKey = active !== null && presentedRows.some((row) => row.key === active && coordinated(row.key)) ? active : presentedRows.find((row) => coordinated(row.key))?.key ?? null
+  const registerItem = useCallback((key: string, node: HTMLElement | null, optedOut = false) => registrations.set(key, node, optedOut), [registrations])
   const focusStep = (from: string, step: -1 | 1 | "first" | "last") => {
     const keys = presentedRows.map((row) => row.key)
     const index = keys.indexOf(from)
     const target = step === "first" ? keys[0] : step === "last" ? keys[keys.length - 1] : index < 0 ? undefined : keys[index + step]
     if (target === undefined || target === from) return
-    const node = itemNodes.current.get(target)
+    const node = registrations.nodes.get(target)
     if (!node || unavailable(node)) return
     setActive(target)
     node.focus()
@@ -522,13 +550,15 @@ const ARROW_OWNING_ROLES = new Set("application columnheader combobox grid gridc
 
 // Controls whose own keys matter: carets, selects, radios, sliders, and ARIA widgets built on
 // generic elements. Any recognized arrow-owning token counts, a conservative reading of fallback
-// role lists. A checkbox or plain button owns no arrows. The walk stays inside the item.
+// role lists. A checkbox or plain button owns no arrows. The walk checks the item itself last and
+// stays inside it, so an editable item, or one given an arrow-owning role, keeps its own keys.
 function arrowOwningTarget(target: EventTarget, item: HTMLElement) {
   if (!isElement(target)) return false
-  for (let node: Element | null = target; node && node !== item; node = node.parentElement) {
+  for (let node: Element | null = target; node; node = node.parentElement) {
     if (node.matches('input:not([type="checkbox"]):not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"])')) return true
     const role = node.getAttribute("role")
     if (role && role.toLowerCase().split(/[\t\n\f\r ]+/).some((token) => ARROW_OWNING_ROLES.has(token))) return true
+    if (node === item) break
   }
   return false
 }
@@ -539,13 +569,13 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
   const root = useRef<HTMLDivElement>(null)
   const forwardedRef = useChooserRef(root, ref)
   const rootRef = useCallback((node: HTMLDivElement | null) => {
-    registerItem(row.key, node)
+    registerItem(row.key, node, tabIndex !== undefined)
     const cleanup = forwardedRef(node)
     return () => {
       registerItem(row.key, null)
       cleanup?.()
     }
-  }, [row.key, registerItem, forwardedRef])
+  }, [row.key, registerItem, forwardedRef, tabIndex])
   const focused = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
     const node = root.current
@@ -570,7 +600,8 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
     onFocusCapture?.(event)
     if (ownsItemEvent(event)) {
       focused.current = event.target
-      setActive(row.key)
+      // An explicitly opted-out item never takes the roving stop, even by pointer focus.
+      if (tabIndex === undefined) setActive(row.key)
     }
   }} onBlurCapture={(event) => {
     onBlurCapture?.(event)
