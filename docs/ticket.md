@@ -82,7 +82,7 @@ This is the registry's first block: `ticket.tsx` installs into your `components`
 
 ### What it does
 
-The [`quote-field`](quote-field.md) parses through `parseQuote` and formats through `formatQuote`: `99-16+` becomes `99.515625` and prints back in the instrument's notation on blur. Invalid text is marked on blur; typing clears the mark. The field's arrows and step buttons use `stepQuote`; Shift multiplies arrow steps by ten.
+The [`quote-field`](quote-field.md) parses through `parseQuote` and formats through `formatQuote`: `99-16+` becomes `99.515625` and prints back in the instrument's notation on blur. A typed decimal snaps to the printable grid when parsed, so the described draft, the limits check, and `run` all receive the price the field shows. Invalid text is marked on blur; typing clears the mark. The field's arrows and step buttons use `stepQuote`; Shift multiplies arrow steps by ten.
 
 Reference prices appear above the fields; click one to use it. Blank or invalid prices step from `last`, then the bid/ask midpoint snapped to `convention.tick`, then whichever side exists. Without a parsed value or reference, stepping does nothing. Reference buttons format with `formatPrice`; see [Keys](#keys) for the modifier shortcuts' step.
 

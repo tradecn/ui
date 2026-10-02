@@ -156,7 +156,10 @@ export function parsePrice(s: string, c: PriceConvention): number | null {
   if (!Number.isFinite(n)) return null
   if (c.kind === "tick") return roundToTick(n, c.tick)
   if (c.kind === "decimal") return Number(n.toFixed(c.decimals))
-  return n
+  // A decimal typed into a fraction convention snaps to the printable grid, so the value a field
+  // reports is the price its formatted text shows.
+  const unitsPerWhole = c.denominator * (c.eighths ? 8 : 2)
+  return Math.round(n * unitsPerWhole) / unitsPerWhole
 }
 
 /** 4.2531 as "4.253%". */

@@ -103,6 +103,18 @@ describe("fractions", () => {
     fc.assert(fc.property(fc.integer({ min: 0, max: 200 * 64 }), (n) => parsePrice(formatFraction(n / 64, T32_5), T32_5) === n / 64))
     fc.assert(fc.property(fc.integer({ min: 0, max: 200 * 128 }), (n) => parsePrice(formatFraction(n / 128, T64), T64) === n / 128))
   })
+  it("snaps a typed decimal to the printable grid, so the value is the price the text shows", () => {
+    expect(parsePrice("99.7", T32)).toBe(99.703125)
+    expect(formatFraction(parsePrice("99.7", T32)!, T32)).toBe("99-22+")
+    expect(parsePrice("99.7", T32_8)).toBe(99.69921875)
+    expect(formatFraction(parsePrice("99.7", T32_8)!, T32_8)).toBe("99-223")
+    expect(parsePrice("-99.7", T32)).toBe(-99.703125)
+    fc.assert(fc.property(fc.double({ min: 0, max: 200, noNaN: true }), (v) => {
+      const snapped = parsePrice(String(v), T32)!
+      return parsePrice(formatFraction(snapped, T32), T32) === snapped
+    }))
+  })
+
   it("parses what a trader types", () => {
     expect(parsePrice("99-16+", T32)).toBe(99.515625)
     expect(parsePrice(" 99-16 ", T32)).toBe(99.5)
