@@ -176,7 +176,7 @@ Keep `labels` referentially stable: the default columns are rebuilt whenever it 
 
 <div id="labels"></div>
 
-Five v1 labels moved or fell away; [Migrating to v2](migrating-v1-to-v2.md#labels) maps each, and v1's `title` named the whole strip where the history's names its grid.
+Seven v1 labels moved or fell away; [Migrating to v2](migrating-v1-to-v2.md#labels) maps each, and v1's `title` named the whole strip where the history's `title` names its grid.
 
 | History label | Default |
 |---|---|
