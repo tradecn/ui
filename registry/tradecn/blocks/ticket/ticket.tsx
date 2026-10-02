@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
-import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
+import { HotkeyScope, useDeclaredHotkeyIds, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { NUMERIC_CLASS, formatNotional, formatPrice, formatQuantity, numericFontClass, stepByTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
-import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
+import { formatKeys, type HotkeyBinding, type HotkeyEntry, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
 
 // An order ticket. Its price field is a quote-field, so it types a price the way the instrument
@@ -196,9 +196,9 @@ export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption
 
 // Several tickets can be up at once, so the bindings are declared once per registry and taken
 // back when the last ticket that leaned on them leaves. A consumer that declared an id owns it.
-const declared = new WeakMap<HotkeyRegistry, Map<string, { count: number; ours: boolean }>>()
+const declared = new WeakMap<HotkeyRegistry, Map<string, { count: number; ours: boolean; binding: HotkeyBinding; registered?: HotkeyEntry }>>()
 
-function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBinding[]): () => void {
+function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBinding[], declaredElsewhere: ReadonlySet<string>): () => void {
   let table = declared.get(registry)
   if (!table) declared.set(registry, (table = new Map()))
   const have = new Set(registry.list().map((entry) => entry.id))
@@ -206,9 +206,13 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
     const entry = table.get(binding.id)
     if (entry) entry.count += 1
     else {
-      const ours = !have.has(binding.id)
+      // A consumer that declared this id owns it, whether on the registry before render or in a
+      // provider's bindings, whose effect runs after this one.
+      const ours = !have.has(binding.id) && !declaredElsewhere.has(binding.id)
       if (ours) registry.register(binding)
-      table.set(binding.id, { count: 1, ours })
+      // The exact entry registered, defaults included, so cleanup can leave any replacement alone.
+      const registered = ours ? registry.list().find((entry) => entry.id === binding.id) : undefined
+      table.set(binding.id, { count: 1, ours, binding, registered })
     }
   }
   return () => {
@@ -218,7 +222,11 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
       entry.count -= 1
       if (entry.count > 0) continue
       table.delete(binding.id)
-      if (entry.ours) registry.unregister(binding.id)
+      if (!entry.ours || !entry.registered) continue
+      // A declaration that replaced this default after mount is the consumer's to keep, even one
+      // that changed only its keys.
+      const current = registry.list().find((e) => e.id === binding.id)
+      if (current && current.defaultKeys === entry.registered.defaultKeys && current.description === entry.registered.description && current.scope === entry.registered.scope) registry.unregister(binding.id)
     }
   }
 }
@@ -386,6 +394,7 @@ export function Ticket({
 
   // Keys: declared once per registry, bound to this ticket's box so another ticket's keys stay its own.
   const registry = useMaybeHotkeys()
+  const declaredByProvider = useDeclaredHotkeyIds()
   const handlers = useRef({ send: () => {}, flip: () => {}, up: () => {}, down: () => {}, quick: (n: number) => {
       void n
     } })
@@ -405,8 +414,9 @@ export function Ticket({
   })
   useEffect(() => {
     if (!registry) return
-    const release = declareHotkeys ? declareBindings(registry, TICKET_BINDINGS) : noop()
-    const within = { scope: "editing", element: () => box.current }
+    const release = declareHotkeys ? declareBindings(registry, TICKET_BINDINGS, declaredByProvider) : noop()
+    // Fenced to the scope root, so the shortcuts run from the symbol, the status, and the padding too.
+    const within = { scope: "editing", element: () => (box.current ? box.current.parentElement ?? box.current : null) }
     const guard = (fn: () => void) => (event: KeyboardEvent | globalThis.KeyboardEvent) => {
       event.preventDefault()
       fn()
@@ -422,7 +432,7 @@ export function Ticket({
       for (const u of unbind) u()
       release()
     }
-  }, [registry, declareHotkeys])
+  }, [registry, declareHotkeys, declaredByProvider])
   const sendKeys = useSyncExternalStore(
     registry?.subscribe ?? noop,
     () => registry?.list().find((entry) => entry.id === "ticket.send")?.keys ?? null,

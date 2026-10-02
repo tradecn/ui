@@ -33,7 +33,7 @@ The instrument supplies ZN's fractional notation and tick size. Click Bid or Ask
 
 ## Shortcuts and draft changes
 
-The provider enables Ticket's editing shortcuts while focus is inside the ticket. Try mod+3 for the third quick size, mod+up to raise the price, mod+shift+x to flip the side, and mod+enter to submit. Here `mod` means Command on Mac and Ctrl elsewhere; the submit button shows the current binding. Plain Enter in a field submits nothing.
+The provider enables Ticket's editing shortcuts while focus is inside the ticket. Try mod+3 for the third quick size, mod+up to raise the price, mod+shift+x to flip the side, and mod+enter to submit. Here `mod` means Command on Mac and Ctrl elsewhere; the submit button shows the current binding. Plain Enter in a field submits nothing. The shortcuts run anywhere inside the ticket, its padding and symbol included.
 
 Quick sizes and account choices are ordinary props. The Draft line follows `onDraftChange`; the separate submitted line changes only when the action runs. The initial draft is explicit because `onDraftChange` does not fire on mount. A Last reference supplies a starting price when the field is blank.
 
@@ -51,7 +51,7 @@ Every state stays visible until you choose the next event. Reset server restores
 
 ## API Reference
 
-This is the registry's first block: `ticket.tsx` installs into your `components` alias, not `components/ui`. Its shared files use the same source as `quote-field`, `format`, `flash-cell`, and `use-hotkeys`.
+This is the registry's first block: `ticket.tsx` installs into your `components` alias, not `components/ui`. Its shared files use the same source as `quote-field`, `format`, `flash-cell`, `limits`, and `use-hotkeys`.
 
 ### Props
 
@@ -73,7 +73,7 @@ This is the registry's first block: `ticket.tsx` installs into your `components`
 | `acknowledged` | `unknown` | None | A changed value triggers the acknowledgement ring. |
 | `disabled` | `boolean` | `false` | Disables fields and buttons; stops actions and quick-size shortcuts. |
 | `hotkeys` | `boolean` | `true` | Declares missing bindings in the nearest hotkey registry. |
-| `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Built-in labels and validation messages. |
+| `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Built-in labels and validation messages. Four strings stay fixed: the unpriced `market` placeholder and `at market` wording, the references' `, use it` name suffix, the step buttons' names, and the built-in limit messages. |
 | `className` | `string` | None | Classes on the outer group. |
 
 `TicketInstrument` requires `symbol: string` and `convention: InstrumentConvention`; `quantityStep?: number` defaults to `1`. See [`format`](format.md) for conventions. `TicketReference` has optional `bid`, `ask`, and `last` fields, each `number | null`.
@@ -151,7 +151,7 @@ Use these helpers in a confirmation dialog, palette row, or test.
 
 ### Limits
 
-Pass a [`limits`](limits.md) table for quantity thresholds, distance from market, permitted sides, or custom rules. Checks run live and again when an action runs, using `reference` as the market. A buyer's price is measured against the offer, a seller's against the bid, falling back to the midpoint and then last. Distance uses ticks for a price basis and basis points for other quote bases.
+Pass a [`limits`](limits.md) table for quantity thresholds, distance from market, permitted sides, or custom rules. Checks run live and again when an action runs, using `reference` as the market. A buyer's price is measured against the offer, a seller's against the bid, falling back to `last` when that side is missing, since the reference carries no midpoint. Distance uses ticks for a price basis and basis points for other quote bases.
 
 - A `block` appears under its quantity or price field and disables checked actions. Other fields, including side, appear below the actions. An action with `checked: false` can still run.
 - A `confirm` makes the chosen checked action ask again: its label becomes `{action} anyway?`, and reasons appear below the actions. The next activation of that same action runs it if checks still pass. Any draft update clears the confirmation; changes to the market or limits alone do not.
@@ -166,4 +166,4 @@ Pass a [`limits`](limits.md) table for quantity thresholds, distance from market
 
 ### Tokens
 
-The install adds `up`, `down`, and their `-soft` variants if absent. Side buttons use `up` and `down`; the acknowledgement ring uses `primary`.
+The install adds `up`, `down`, and `flat` with their `-soft` variants, and `stale`, if absent, with the shared font tokens and the hyperlegible remap. Side buttons use `up` and `down`; the acknowledgement ring uses `primary`.

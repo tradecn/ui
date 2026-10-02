@@ -1174,7 +1174,7 @@
           },
           {
             "title": "TICKET_BINDINGS",
-            "description": "Its four editing bindings, to spread into your own list or leave to it."
+            "description": "Its thirteen editing bindings, the nine quick sizes included, to spread into your own list or leave to it."
           },
           {
             "title": "describeDraft",
@@ -1414,7 +1414,7 @@
           },
           {
             "title": "RFQ_TICKET_BINDINGS",
-            "description": "Its four editing bindings, to spread into your own list or leave to it."
+            "description": "Its thirteen editing bindings, the nine quick sizes included, to spread into your own list or leave to it."
           },
           {
             "title": "checkQuote",

@@ -292,6 +292,24 @@ describe("Ticket keys", () => {
     expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
   })
 
+  it("cedes a binding declared through the provider's bindings, and runs shortcuts from the whole ticket", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const bindings = [{ id: "ticket.send", keys: "mod+s", scope: "editing" as const, description: "Ship it" }]
+    const run = vi.fn()
+    const { rerender } = render(
+      <HotkeysProvider registry={registry} bindings={bindings}>
+        <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", run, primary: true }]} allowedActions={["send"]} defaultDraft={{ quantity: 5, price: 99.5 }} />
+      </HotkeysProvider>,
+    )
+    expect(registry.list().find((e) => e.id === "ticket.send")?.description).toBe("Ship it")
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "s", ctrlKey: true })
+    expect(run).toHaveBeenCalledTimes(1)
+    rerender(<HotkeysProvider registry={registry} bindings={bindings}>{null}</HotkeysProvider>)
+    expect(registry.list().find((e) => e.id === "ticket.send")?.description).toBe("Ship it")
+  })
+
   it("renders without a HotkeysProvider and shows no keys", () => {
     mount({}, null)
     expect(screen.getByRole("button", { name: "Send" }).querySelectorAll("kbd")).toHaveLength(0)
