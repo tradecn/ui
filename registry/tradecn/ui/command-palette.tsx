@@ -552,7 +552,9 @@ export function CommandPalette(options: CommandPaletteProps) {
       else inputRef.current?.focus()
     }
   })
-  const declaredByProvider = useDeclaredHotkeyIds()
+  // Keyed to the registry this palette actually uses: an explicit `hotkeys` registry ignores a
+  // provider's declarations for its own, different registry.
+  const declaredByProvider = useDeclaredHotkeyIds(hotkeys)
   useEffect(() => {
     if (!hotkeys || keys === null) return
     // A consumer that declared this id already owns its keys and its wording, whether it declared
@@ -561,13 +563,17 @@ export function CommandPalette(options: CommandPaletteProps) {
     const scope = variant === "palette" ? ("editing" as const) : ("global" as const)
     const declared = declaredByProvider.has(bindingId) || hotkeys.list().some((entry) => entry.id === bindingId)
     if (!declared) hotkeys.register({ id: bindingId, keys, scope, description, group })
+    // The exact registration owned here, for a cleanup that leaves any replacement alone.
+    const own = declared ? undefined : hotkeys.list().find((entry) => entry.id === bindingId)
     const unbind = hotkeys.bind(bindingId, () => onHotkey.current())
     return () => {
       unbind()
-      if (declared) return
-      // A declaration that replaced this default after mount is the consumer's to keep.
+      if (declared || !own) return
+      // A declaration that replaced this default after mount is the consumer's to keep, even one
+      // that changed only its keys. An identical redeclaration stays indistinguishable without a
+      // registration handle; it is the one shape this cannot tell apart.
       const current = hotkeys.list().find((entry) => entry.id === bindingId)
-      if (current && current.description === description && current.scope === scope && current.group === group) hotkeys.unregister(bindingId)
+      if (current && current.defaultKeys === own.defaultKeys && current.description === own.description && current.scope === own.scope && current.group === own.group) hotkeys.unregister(bindingId)
     }
   }, [hotkeys, keys, bindingId, variant, description, group, declaredByProvider])
 

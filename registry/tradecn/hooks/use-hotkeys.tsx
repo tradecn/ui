@@ -8,7 +8,8 @@ import { createHotkeyRegistry, type HandlerScope, type HotkeyBinding, type Hotke
 const RegistryContext = createContext<HotkeyRegistry | null>(null)
 const ScopeContext = createContext<HandlerScope | null>(null)
 const EMPTY_DECLARED: ReadonlySet<string> = new Set()
-const DeclaredContext = createContext<ReadonlySet<string>>(EMPTY_DECLARED)
+const EMPTY_DECLARED_MAP: ReadonlyMap<HotkeyRegistry, ReadonlySet<string>> = new Map()
+const DeclaredContext = createContext<ReadonlyMap<HotkeyRegistry, ReadonlySet<string>>>(EMPTY_DECLARED_MAP)
 
 export interface HotkeysProviderProps {
   /** Bring your own to declare bindings and load overrides before the first render. One is created otherwise. */
@@ -25,11 +26,14 @@ export function HotkeysProvider({ registry, bindings, target, children }: Hotkey
   const value = registry ?? own
   // Visible during render, before any effect runs: a child that supplies a default for an id
   // the consumer declares here must see the declaration on its first pass, not an effect later.
+  // Keyed by registry, so a nested provider with its own registry inherits nothing it doesn't own.
   const parentDeclared = useContext(DeclaredContext)
   const declared = useMemo(() => {
     if (!bindings?.length) return parentDeclared
-    return new Set([...parentDeclared, ...bindings.map((binding) => binding.id)])
-  }, [parentDeclared, bindings])
+    const next = new Map(parentDeclared)
+    next.set(value, new Set([...(parentDeclared.get(value) ?? EMPTY_DECLARED), ...bindings.map((binding) => binding.id)]))
+    return next
+  }, [parentDeclared, bindings, value])
   useEffect(() => value.attach(target), [value, target])
   useEffect(() => {
     if (!bindings) return
@@ -49,13 +53,20 @@ export function useHotkeys(): HotkeyRegistry {
 }
 
 /** The same, or null without a provider, for components that treat hotkeys as optional. */
-/** Ids the surrounding providers declare through `bindings`, visible during render before any effect registers them. */
-export function useDeclaredHotkeyIds(): ReadonlySet<string> {
-  return useContext(DeclaredContext)
-}
-
 export function useMaybeHotkeys(): HotkeyRegistry | null {
   return useContext(RegistryContext)
+}
+
+/**
+ * Ids the surrounding providers declare through `bindings` for one registry — the nearest
+ * provider's unless another is given — visible during render before any effect registers them.
+ * Returns an empty set without a provider.
+ */
+export function useDeclaredHotkeyIds(registry?: HotkeyRegistry | null): ReadonlySet<string> {
+  const map = useContext(DeclaredContext)
+  const nearest = useContext(RegistryContext)
+  const key = registry ?? nearest
+  return (key && map.get(key)) || EMPTY_DECLARED
 }
 
 export interface UseHotkeyOptions {
