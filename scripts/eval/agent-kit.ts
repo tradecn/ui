@@ -26,20 +26,39 @@ const option = (name: string) => {
 }
 const list = (name: string, fallback: string) => (option(name) ?? fallback).split(",").map((value) => value.trim()).filter(Boolean)
 
-const models = list("models", "gpt-5.6-sol,gpt-5.6-terra,gemini-3.8-flash")
-const arms = list("arms", "kit,bare") as Arm[]
-const trials = Number(option("trials") ?? 2)
-const jobs = Number(option("jobs") ?? 3)
-const style = option("style") ?? "base-mira"
-const timeoutMs = Number(option("timeout-min") ?? 20) * 60_000
-const machine = option("machine")
-const allTasks = readTasks()
-const wanted = option("tasks")?.split(",")
-const tasks = wanted ? allTasks.filter((task) => wanted.includes(task.name)) : allTasks
-if (!tasks.length || arms.some((arm) => arm !== "kit" && arm !== "bare")) {
+const complain = (message: string): never => {
+  console.error(message)
   console.error("usage: bun scripts/eval/agent-kit.ts [--models a,b] [--tasks a,b] [--arms kit,bare] [--trials N] [--jobs N] [--style base-mira] [--timeout-min N] [--machine <name>] [--no-build] [--keep]")
   process.exit(2)
 }
+const whole = (name: string, fallback: number) => {
+  const value = Number(option(name) ?? fallback)
+  if (!Number.isInteger(value) || value < 1) complain(`--${name} wants a whole number of at least 1`)
+  return value
+}
+
+// Duplicates collapse: a model or arm named twice would run trials whose ids collide.
+const models = [...new Set(list("models", "gpt-5.6-sol,gpt-5.6-terra,gemini-3.8-flash"))]
+const arms = [...new Set(list("arms", "kit,bare"))] as Arm[]
+const trials = whole("trials", 2)
+const jobs = whole("jobs", 3)
+const style = option("style") ?? "base-mira"
+const timeoutMin = Number(option("timeout-min") ?? 20)
+const timeoutMs = timeoutMin * 60_000
+const machine = option("machine")
+const allTasks = readTasks()
+const wanted = option("tasks")?.split(",").map((value) => value.trim()).filter(Boolean)
+const tasks = wanted ? allTasks.filter((task) => wanted.includes(task.name)) : allTasks
+
+// A run that would do nothing, or do it wrong, ends here, before a template is built or a request spent: an
+// empty queue still summarizes, and a zero-screen result with a verdict in it reads like a run.
+if (!models.length) complain("--models is empty")
+if (!arms.length || arms.some((arm) => arm !== "kit" && arm !== "bare")) complain("--arms wants kit, bare, or both")
+const unknownTasks = wanted?.filter((name) => !allTasks.some((task) => task.name === name)) ?? []
+if (unknownTasks.length) complain(`no such task: ${unknownTasks.join(", ")}; bench/agent-kit/tasks has ${allTasks.map((task) => task.name).join(", ")}`)
+if (!tasks.length) complain("--tasks is empty")
+if (!Number.isFinite(timeoutMin) || timeoutMin <= 0) complain("--timeout-min wants a positive number of minutes")
+if (!existsSync(path.join(ROOT, "fixtures/consumers", style))) complain(`no such consumer style: ${style}; fixtures/consumers has ${readdirSync(path.join(ROOT, "fixtures/consumers")).join(", ")}`)
 
 function run(cmd: string[], cwd: string, timeout = 600_000, env: Record<string, string | undefined> = process.env) {
   const result = Bun.spawnSync(cmd, { cwd, stdout: "pipe", stderr: "pipe", timeout, env })
@@ -58,7 +77,8 @@ const copilot = run(["copilot", "--version"], ROOT, 60_000, { PATH: process.env.
 rmSync(probeHome, { recursive: true, force: true })
 if (!copilot.ok) throw new Error("copilot is not on PATH: install GitHub Copilot CLI first")
 const cliVersion = /\d+\.\d+\.\d+(?:-[\w.]*\w)?/.exec(copilot.output)?.[0] ?? copilot.output.trim()
-const token = run(["gh", "auth", "token"], ROOT).output.trim()
+const auth = run(["gh", "auth", "token"], ROOT)
+const token = auth.ok ? auth.output.trim() : ""
 if (!token) throw new Error("gh has no token: run `gh auth login` first")
 const shadcn = `shadcn@${readJson<{ devDependencies: Record<string, string> }>(path.join(ROOT, "package.json")).devDependencies.shadcn}`
 
@@ -69,9 +89,11 @@ const items = itemFiles.map((file) => ({ file: path.join(built, file), ...readJs
 const itemNames = new Set(items.map((item) => item.name))
 if (!itemNames.has("agent-kit")) throw new Error("public/r has no agent-kit item: build the registry from a branch that has the kit")
 
-const stamp = new Date().toISOString().slice(0, 16).replace(":", "")
+const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, "")
 const runDir = path.join(os.tmpdir(), "tradecn-agent-kit-eval", stamp)
-mkdirSync(runDir, { recursive: true })
+mkdirSync(path.dirname(runDir), { recursive: true })
+// Not recursive: a second run in the same second would land in this one's directory and overwrite its results file.
+mkdirSync(runDir)
 const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
 console.log(`agent kit eval: ${count(models.length, "model")}, ${count(tasks.length, "task")}, arms ${arms.join(" and ")}, ${count(trials, "trial")} each, in ${runDir}`)
 
@@ -224,7 +246,7 @@ async function runTrial(trial: Trial, template: string, browser: Browser): Promi
   const mine = new Set(authored.map((file) => file.file))
   const typeErrors = tsc.output.split("\n").filter((line) => /\berror TS\d+/.test(line) && mine.has(line.split("(")[0]!.trim()))
   const source = sourceFindings(authored)
-  const used = itemsImported(authored, itemNames)
+  const used = itemsImported(authored, itemNames, new Set(before.keys()))
   const page = build.ok ? await gradePage(path.join(work, "dist"), browser, { screenshot: path.join(meta, "screen.png") }) : null
   const findings = page ? CONTRACT_RULES.reduce((sum, rule) => sum + page.findings[rule], 0) : 0
   const passes: Record<Grade, boolean> = {
