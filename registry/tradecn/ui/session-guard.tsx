@@ -361,9 +361,10 @@ export function SessionStatus({ expiresAt, warnMs = DEFAULT_WARN_MS, clock, labe
   return (
     <span
       data-session-status={status.phase}
-      aria-label={`${labels.session}: ${word}${remaining === null ? "" : `, ${remaining}`}`}
       className={cn("inline-flex items-center gap-1 whitespace-nowrap", status.phase === "warning" && "text-expiring", status.phase === "expired" && "text-destructive", className)}
     >
+      {/* A generic span cannot carry aria-label, so the spoken sentence is hidden text. */}
+      <span className="sr-only">{`${labels.session}: ${word}${remaining === null ? "" : `, ${remaining}`}`}</span>
       <span aria-hidden>{labels.session}</span>{" "}
       {status.phase === "expired" ? (
         <span aria-hidden>{labels.ended}</span>
