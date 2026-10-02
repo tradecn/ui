@@ -89,7 +89,7 @@ By default the root is an image with no tab stop or built-in keyboard navigation
 
 Navigation skips gaps and stops at the ends. If the series shrinks, a selection beyond its end displays the last remaining point. The readout uses `format`, prefixed by `pointLabel(index)` when supplied. The slider's numeric range is `0` through `points.length - 1`, counting only finite readings; `aria-valuetext` contains the readout while a point is active and the full summary otherwise.
 
-Caller handlers run first. Calling `preventDefault()` in `onKeyDown` cancels built-in keyboard navigation; focus, blur, and pointer handling do not check that flag. The component prevents default for its unmodified navigation keys and Escape, leaves modified chords and other keys alone, and does not stop propagation. Outer grids and hotkey dispatchers should respect `defaultPrevented`.
+Caller handlers run first. Calling `preventDefault()` in `onKeyDown` cancels built-in keyboard navigation; focus, blur, and pointer handling do not check that flag. The component prevents default for its navigation keys and Escape, with or without Shift; it leaves Ctrl, Cmd, and Alt chords and other keys alone, and does not stop propagation. Outer grids and hotkey dispatchers should respect `defaultPrevented`.
 
 ### The geometry, on its own
 

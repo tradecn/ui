@@ -924,8 +924,8 @@ Popout tab clicks and `focusPanel` now focus the adopted panel body correctly. S
 
 Existing `Sparkline` calls keep their props and markup. No API migration is required.
 
-Up and Down now move the crosshair one reading, matching Right and Left. An interactive sparkline claims the unmodified keys with `preventDefault`, so handlers above it that respect `defaultPrevented` no longer act on them while it has focus.
+Up and Down now move the crosshair one reading, matching Right and Left. An interactive sparkline claims them with `preventDefault`, with or without Shift, so handlers above it that respect `defaultPrevented` no longer act on them while it has focus; a `shift+up` binding that fired from a focused version-1 sparkline no longer does.
 
 Ctrl, Cmd, and Alt chords now pass through untouched. Version 1 claimed Left, Right, PageUp, PageDown, Home, End, and Escape even with one of those modifiers held, so an `alt+left` binding never fired from a focused sparkline; now it does.
 
-A caller `ref` now receives the root element. Version 1 replaced it with the component's own measurement ref, so the forwarded ref stayed `null`.
+A caller `ref` now receives the root element. Version 1 replaced it with the component's own measurement ref: an object ref stayed `null`, and a callback ref was never called.

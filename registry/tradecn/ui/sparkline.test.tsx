@@ -190,11 +190,15 @@ describe("the crosshair", () => {
     const chart = screen.getByRole("slider")
     fireEvent.keyDown(chart, { key: "ArrowLeft" })
     fireEvent.keyDown(chart, { key: "ArrowDown" })
+    fireEvent.keyDown(chart, { key: "ArrowLeft", shiftKey: true })
+    const settled = chart.getAttribute("aria-valuenow")!
     fireEvent.keyDown(chart, { key: "x" })
     fireEvent.keyDown(chart, { key: "ArrowDown", altKey: true })
     fireEvent.keyDown(chart, { key: "ArrowUp", ctrlKey: true })
     fireEvent.keyDown(chart, { key: "ArrowLeft", metaKey: true })
-    expect(outer.mock.results.map((r) => r.value)).toEqual([true, true, false, false, false, false])
+    expect(outer.mock.results.map((r) => r.value)).toEqual([true, true, true, false, false, false, false])
+    // Untouched means the crosshair stayed put too, not just that default survived.
+    expect(chart).toHaveAttribute("aria-valuenow", settled)
   })
 
   it("follows the pointer to the nearest reading, and lets go when it leaves", () => {
