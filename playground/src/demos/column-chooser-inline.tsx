@@ -50,5 +50,5 @@ function ColumnCards() {
 function ColumnCardVisibility() {
   const { row, setVisible } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <input type="checkbox" checked={row.visible} aria-label={`${labels.show} ${row.name}`} className="size-4 shrink-0 accent-primary" onChange={(event) => setVisible(event.target.checked)} />
+  return <input type="checkbox" checked={row.visible} tabIndex={-1} aria-label={`${labels.show} ${row.name}`} className="size-4 shrink-0 accent-primary" onChange={(event) => setVisible(event.target.checked)} />
 }

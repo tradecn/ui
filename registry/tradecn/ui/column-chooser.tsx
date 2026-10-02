@@ -535,7 +535,7 @@ function arrowOwningTarget(target: EventTarget, item: HTMLElement) {
 
 function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable = true, "aria-label": ariaLabel, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
   const { row, dragging, move, moveToEdge, setVisible, resetWidth } = item
-  const { focusFallback, startDrag, dragOver, drop, endDrag, activeKey, setActive, registerItem, focusStep } = useChooserContext()
+  const { labels, focusFallback, startDrag, dragOver, drop, endDrag, activeKey, setActive, registerItem, focusStep } = useChooserContext()
   const root = useRef<HTMLDivElement>(null)
   const forwardedRef = useChooserRef(root, ref)
   const rootRef = useCallback((node: HTMLDivElement | null) => {
@@ -566,7 +566,7 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
       }
     }
   }, [row.key, endDrag, focusFallback])
-  return <ItemContext value={item}><div role={role} tabIndex={tabIndex ?? (activeKey === row.key ? 0 : -1)} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
+  return <ItemContext value={item}><div role={role} tabIndex={tabIndex ?? (activeKey === row.key ? 0 : -1)} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-description={row.visible ? undefined : labels.hidden} aria-keyshortcuts="Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
     onFocusCapture?.(event)
     if (ownsItemEvent(event)) {
       focused.current = event.target
