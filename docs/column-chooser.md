@@ -170,7 +170,7 @@ Use cards to place descriptions beside column settings and move actions below ea
 
 ### Public parts
 
-`ColumnChooserItem` renders a focusable, draggable `div` with `role="group"`, named by its column. One presented item holds the collection's tab stop; the rest take `tabIndex={-1}` until focus or the arrow keys reach them. A hidden column's item carries `aria-description` with `labels.hidden`, so the state is spoken where the checkbox no longer sits in the Tab order. An explicit `tabIndex` opts an item out of that coordination. Place the item inside your `li` or card. Keep collection keys tied to the column key. A missing or definition-hidden key renders nothing.
+`ColumnChooserItem` renders a focusable, draggable `div` with `role="group"`, named by its column. One presented item holds the collection's tab stop; the rest take `tabIndex={-1}` until focus or the arrow keys reach them. A hidden column's item carries `aria-description` with `labels.hidden`, so the state is spoken where the checkbox no longer sits in the Tab order. An explicit `tabIndex` opts an item out of that coordination, and the collection's tab stop stays with a coordinated item. Place the item inside your `li` or card. Keep collection keys tied to the column key. A missing or definition-hidden key renders nothing.
 
 | Part | Inputs | Description |
 |---|---|---|
@@ -214,7 +214,7 @@ The collection takes one Tab stop, however many columns it lists. Keys act on th
 | Space | Show or hide the focused column. |
 | Delete or Backspace | Reset the focused column's width override. |
 
-A caller-owned control joins the model the same way: give it `tabIndex={-1}` and let the item's keys drive it, as the inline example's native checkbox does, or it adds a Tab stop per column again. Point the collection's `aria-describedby` at your hint text so the commands are announced. Navigation also runs from a pointer-focused control inside an item. A control that owns its arrows keeps every arrow chord, Alt moves included: text fields, selects, radios, sliders, and ARIA widgets such as a combobox, listbox, menu, toolbar, tree, grid, or spinbutton, recognized by any arrow-owning token in their `role` or an ancestor's within the item. Ctrl, Meta, and Shift combinations pass through untouched. Space and Delete act only from the item itself, so a focused control keeps its own keys. Your `onKeyDown` runs first; `event.preventDefault()` cancels the chooser's handling.
+A caller-owned control joins the model the same way: give it `tabIndex={-1}` and let the item's keys drive it, as the inline example's native checkbox does, or it adds a Tab stop per column again. Point the collection's `aria-describedby` at your hint text so the commands are announced. Navigation also runs from a pointer-focused control inside an item. A control that owns its arrows keeps every arrow chord, Alt moves included: text fields, selects, radios, sliders, and ARIA widgets such as a combobox, listbox, menu, toolbar, tree, grid, or spinbutton, recognized by any arrow-owning token in their `role` or an ancestor's within the item, the item itself included. An item made editable, or given an arrow-owning role of its own, keeps every key, Space and Delete too. Ctrl, Meta, and Shift combinations pass through untouched. Space and Delete otherwise act only from the item itself, so a focused control keeps its own keys. Your `onKeyDown` runs first; `event.preventDefault()` cancels the chooser's handling.
 
 ### The grid's state is the only state
 

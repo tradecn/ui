@@ -727,6 +727,37 @@ describe("the keyboard model scales to wide grids", () => {
     expect(fireEvent.keyDown(item, { key: "ArrowDown" })).toBe(false)
     expect(document.activeElement).toBe(screen.getByRole("group", { name: "Size" }))
   })
+
+  it("keeps the tab stop with a coordinated item when another opts out", () => {
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+      <ColumnChooserItem columnKey="id" tabIndex={-1} aria-label="RFQ card"><ColumnChooserName /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="client"><ColumnChooserName /></ColumnChooserItem>
+    </ColumnChooser>)
+    const optedOut = screen.getByLabelText("RFQ card")
+    const sibling = screen.getByRole("group", { name: "Client" })
+    expect(optedOut).toHaveAttribute("tabindex", "-1")
+    expect(sibling).toHaveAttribute("tabindex", "0")
+    fireEvent.focus(optedOut)
+    expect(sibling).toHaveAttribute("tabindex", "0")
+    expect(optedOut).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("leaves an editable item every key", () => {
+    const onChange = vi.fn()
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange}>
+      <ColumnChooserItem columnKey="id" contentEditable suppressContentEditableWarning aria-label="RFQ note"><ColumnChooserName /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="client"><ColumnChooserName /></ColumnChooserItem>
+    </ColumnChooser>)
+    const note = screen.getByLabelText("RFQ note")
+    note.focus()
+    expect(fireEvent.keyDown(note, { key: "ArrowDown" })).toBe(true)
+    expect(fireEvent.keyDown(note, { key: "Home" })).toBe(true)
+    expect(fireEvent.keyDown(note, { key: " " })).toBe(true)
+    expect(fireEvent.keyDown(note, { key: "Delete" })).toBe(true)
+    expect(fireEvent.keyDown(note, { key: "ArrowDown", altKey: true })).toBe(true)
+    expect(document.activeElement).toBe(note)
+    expect(onChange).not.toHaveBeenCalled()
+  })
 })
 
 // Compiled by the real project TypeScript check. Conditional composition is legitimate.
