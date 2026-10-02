@@ -516,9 +516,21 @@ function ownsItemEvent(event: { target: EventTarget; currentTarget: HTMLDivEleme
   return isElement(event.target) && event.currentTarget.contains(event.target) && event.target.closest("[data-slot=tradecn-column-chooser-item]") === event.currentTarget && event.target.closest("[data-slot=tradecn-column-chooser]") === event.currentTarget.closest("[data-slot=tradecn-column-chooser]")
 }
 
-// Controls whose own arrow keys matter: carets, selects, radios and sliders. A checkbox or button has none.
-function arrowOwningTarget(target: EventTarget) {
-  return isElement(target) && target.closest('input:not([type="checkbox"]):not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"])')
+// Widget roles whose keyboard model uses the arrows, per the ARIA authoring practices. A separator
+// only receives keys when it is focusable, and a focusable separator is a splitter that owns them.
+const ARROW_OWNING_ROLES = new Set("combobox grid gridcell listbox menu menubar menuitem menuitemcheckbox menuitemradio option radio radiogroup row scrollbar searchbox separator slider spinbutton tab tablist textbox tree treegrid treeitem".split(" "))
+
+// Controls whose own keys matter: carets, selects, radios, sliders, and ARIA widgets built on
+// generic elements. Any recognized arrow-owning token counts, a conservative reading of fallback
+// role lists. A checkbox or plain button owns no arrows. The walk stays inside the item.
+function arrowOwningTarget(target: EventTarget, item: HTMLElement) {
+  if (!isElement(target)) return false
+  for (let node: Element | null = target; node && node !== item; node = node.parentElement) {
+    if (node.matches('input:not([type="checkbox"]):not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"])')) return true
+    const role = node.getAttribute("role")
+    if (role && role.toLowerCase().split(/[\t\n\f\r ]+/).some((token) => ARROW_OWNING_ROLES.has(token))) return true
+  }
+  return false
 }
 
 function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable = true, "aria-label": ariaLabel, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
@@ -566,6 +578,8 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
   }} onKeyDown={(event) => {
     onKeyDown?.(event)
     if (!ownsItemEvent(event) || event.defaultPrevented || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey) return
+    // A control that owns its arrows keeps every arrow chord: word movement, combobox opening, slider steps.
+    if (arrowOwningTarget(event.target, event.currentTarget)) return
     if (event.altKey) {
       if (event.shiftKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "Home" && event.key !== "End")) return
       event.preventDefault()
@@ -576,8 +590,6 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
     }
     if (event.shiftKey) return
     if (event.key === "ArrowUp" || event.key === "ArrowDown" || event.key === "Home" || event.key === "End") {
-      // Caret, option, radio and slider movement stays native inside controls that own their arrows.
-      if (arrowOwningTarget(event.target)) return
       event.preventDefault()
       event.stopPropagation()
       focusStep(row.key, event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : event.key === "Home" ? "first" : "last")
