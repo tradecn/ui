@@ -518,7 +518,7 @@ function ownsItemEvent(event: { target: EventTarget; currentTarget: HTMLDivEleme
 
 // Widget roles whose keyboard model uses the arrows, per the ARIA authoring practices. A separator
 // only receives keys when it is focusable, and a focusable separator is a splitter that owns them.
-const ARROW_OWNING_ROLES = new Set("combobox grid gridcell listbox menu menubar menuitem menuitemcheckbox menuitemradio option radio radiogroup row scrollbar searchbox separator slider spinbutton tab tablist textbox tree treegrid treeitem".split(" "))
+const ARROW_OWNING_ROLES = new Set("application columnheader combobox grid gridcell listbox menu menubar menuitem menuitemcheckbox menuitemradio option radio radiogroup row rowheader scrollbar searchbox separator slider spinbutton tab tablist textbox toolbar tree treegrid treeitem".split(" "))
 
 // Controls whose own keys matter: carets, selects, radios, sliders, and ARIA widgets built on
 // generic elements. Any recognized arrow-owning token counts, a conservative reading of fallback

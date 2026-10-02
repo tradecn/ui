@@ -700,6 +700,7 @@ describe("the keyboard model scales to wide grids", () => {
         <button type="button" role="combobox" aria-label="Venue" aria-expanded={false} />
         <span role="unsupported slider" data-testid="fallback-widget">1</span>
         <div role="separator" aria-orientation="vertical" aria-valuenow={40} tabIndex={-1} data-testid="splitter" />
+        <div role="toolbar" aria-label="Column tools" aria-orientation="vertical"><button type="button" tabIndex={-1}>Pin</button></div>
       </ColumnChooserItem>
       <ColumnChooserItem columnKey="size"><ColumnChooserName /></ColumnChooserItem>
     </ColumnChooser>)
@@ -712,6 +713,11 @@ describe("the keyboard model scales to wide grids", () => {
     expect(fireEvent.keyDown(venue, { key: "End" })).toBe(true)
     expect(fireEvent.keyDown(screen.getByTestId("fallback-widget"), { key: "ArrowUp" })).toBe(true)
     expect(fireEvent.keyDown(screen.getByTestId("splitter"), { key: "ArrowDown" })).toBe(true)
+    const toolbarButton = within(screen.getByRole("toolbar", { name: "Column tools" })).getByRole("button", { name: "Pin" })
+    toolbarButton.focus()
+    expect(fireEvent.keyDown(toolbarButton, { key: "ArrowDown" })).toBe(true)
+    expect(fireEvent.keyDown(toolbarButton, { key: "Home" })).toBe(true)
+    expect(document.activeElement).toBe(toolbarButton)
     expect(onChange).not.toHaveBeenCalled()
     const item = screen.getByRole("group", { name: "Price" })
     item.focus()
