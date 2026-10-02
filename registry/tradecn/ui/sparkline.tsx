@@ -98,7 +98,8 @@ export function Sparkline({ values, label, direction = "auto", baseline, width, 
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     props.onKeyDown?.(event)
-    if (event.defaultPrevented || !points.length) return
+    // Modified chords belong to listeners above: Ctrl, Cmd, or Alt with an arrow is a hotkey, not a step.
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || !points.length) return
     const from = active === null ? points.length - 1 : Math.min(active, points.length - 1)
     const to = { ArrowLeft: from - 1, ArrowDown: from - 1, ArrowRight: from + 1, ArrowUp: from + 1, PageDown: from - 10, PageUp: from + 10, Home: 0, End: points.length - 1 }[event.key]
     if (to === undefined && event.key !== "Escape") return

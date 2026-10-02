@@ -919,3 +919,13 @@ Tab parts accept native props and refs, and Workspace now forwards its outer div
 Dockview still owns the outer tab's accessible name, selection, focus navigation and keyboard closing. Use `setTitle` to rename it. Removing a close button does not disable other close paths.
 
 Popout tab clicks and `focusPanel` now focus the adopted panel body correctly. See the [Workspace reference](workspace.md) for composition, overflow and window limits.
+
+## Sparkline
+
+Existing `Sparkline` calls keep their props and markup. No API migration is required.
+
+Up and Down now move the crosshair one reading, matching Right and Left. An interactive sparkline claims the unmodified keys with `preventDefault`, so handlers above it that respect `defaultPrevented` no longer act on them while it has focus.
+
+Ctrl, Cmd, and Alt chords now pass through untouched. Version 1 claimed Left, Right, PageUp, PageDown, Home, End, and Escape even with one of those modifiers held, so an `alt+left` binding never fired from a focused sparkline; now it does.
+
+A caller `ref` now receives the root element. Version 1 replaced it with the component's own measurement ref, so the forwarded ref stayed `null`.

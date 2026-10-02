@@ -189,8 +189,12 @@ describe("the crosshair", () => {
     )
     const chart = screen.getByRole("slider")
     fireEvent.keyDown(chart, { key: "ArrowLeft" })
+    fireEvent.keyDown(chart, { key: "ArrowDown" })
     fireEvent.keyDown(chart, { key: "x" })
-    expect(outer.mock.results.map((r) => r.value)).toEqual([true, false])
+    fireEvent.keyDown(chart, { key: "ArrowDown", altKey: true })
+    fireEvent.keyDown(chart, { key: "ArrowUp", ctrlKey: true })
+    fireEvent.keyDown(chart, { key: "ArrowLeft", metaKey: true })
+    expect(outer.mock.results.map((r) => r.value)).toEqual([true, true, false, false, false, false])
   })
 
   it("follows the pointer to the nearest reading, and lets go when it leaves", () => {
