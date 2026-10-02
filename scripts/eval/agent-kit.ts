@@ -181,6 +181,10 @@ interface TrialRecord {
   passes: Record<Grade, boolean>
 }
 
+// A session that neither finished nor timed out never ran the task: quota, a bad login, or the service itself.
+// Its trial says nothing about the agent, so it leaves every rate, and a run it touched gets no verdict.
+const ran = (record: TrialRecord) => record.agent.timedOut || record.agent.exitCode === 0
+
 // Copilot reads its skills and instructions from the working directory once it trusts it (COPILOT_ALLOW_ALL=true),
 // and nothing of the person running the eval: its own HOME and COPILOT_HOME, the token passed in and hidden from
 // the agent's shell, and no GitHub MCP server.
@@ -240,7 +244,9 @@ async function runTrial(trial: Trial, template: string, browser: Browser): Promi
   const authored = [...added, ...changed].filter((file) => /\.(tsx?|jsx?|css)$/.test(file) && !file.startsWith(".github/")).map((file) => ({ file, source: readFileSync(path.join(work, file), "utf8") }))
 
   rmSync(path.join(work, "dist"), { recursive: true, force: true })
-  const graderEnv = { ...process.env, HOME: path.join(meta, "home"), TMPDIR: path.join(meta, "tmp") }
+  // The build and the typecheck execute the agent's own vite.config.ts, so they get the agent's environment,
+  // not the runner's: no token, and no secret the runner's shell happens to carry.
+  const graderEnv = { PATH: process.env.PATH ?? "", LANG: process.env.LANG ?? "en_US.UTF-8", HOME: path.join(meta, "home"), TMPDIR: path.join(meta, "tmp"), NO_COLOR: "1" }
   const build = run(sandboxed(["bunx", "vite", "build", "--logLevel", "error"]), work, 300_000, graderEnv)
   const tsc = run(sandboxed(["bunx", "tsc", "-p", "tsconfig.app.json", "--noEmit", "--pretty", "false"]), work, 300_000, graderEnv)
   const mine = new Set(authored.map((file) => file.file))
@@ -290,7 +296,8 @@ const records = await pool(queue, jobs, async (trial) => {
   done++
   const found = record.page ? CONTRACT_RULES.filter((rule) => record.page!.findings[rule]).map((rule) => `${rule} ${record.page!.findings[rule]}`).join(", ") || "none" : "no page"
   const failed = GRADES.filter((grade) => !record.passes[grade])
-  console.log(`[${done}/${queue.length}] ${trial.id}: ${failed.length ? `fails ${failed.join(", ")}` : "passes all"}; findings ${found}; ${record.agent.timedOut ? "timed out" : `${record.agent.minutes.toFixed(1)} min`}, ${record.agent.premiumRequests ?? "?"} requests`)
+  const graded = ran(record) ? (failed.length ? `fails ${failed.join(", ")}` : "passes all") : `session never ran (exit ${record.agent.exitCode})`
+  console.log(`[${done}/${queue.length}] ${trial.id}: ${graded}; findings ${found}; ${record.agent.timedOut ? "timed out" : `${record.agent.minutes.toFixed(1)} min`}, ${record.agent.premiumRequests ?? "?"} requests`)
   return record
 })
 await browser.close()
@@ -298,27 +305,31 @@ await browser.close()
 // Rates per model and arm, and the verdict the expectations file defines.
 interface Summary {
   screens: number
+  sessionFailures: number
   rates: Record<Grade, number>
   meanFindings: Record<ContractRule, number>
   meanHandFormatted: number
   meanVisibleCueDirection: number
   timedOut: number
   meanMinutes: number
-  premiumRequests: number
+  /** Known spend, and the sessions that reported none: a killed or failed session spends what it never reports. */
+  premiumRequests: { known: number; unreported: number }
 }
-function summarize(of: TrialRecord[]): Summary {
+function summarize(all: TrialRecord[]): Summary {
+  const of = all.filter(ran)
   const rate = (grade: Grade) => (of.length ? of.filter((record) => record.passes[grade]).length / of.length : 0)
   const pages = of.filter((record) => record.page?.rendered)
   const mean = (value: (record: TrialRecord) => number, from: TrialRecord[]) => (from.length ? from.reduce((sum, record) => sum + value(record), 0) / from.length : 0)
   return {
     screens: of.length,
+    sessionFailures: all.length - of.length,
     rates: Object.fromEntries(GRADES.map((grade) => [grade, rate(grade)])) as Record<Grade, number>,
     meanFindings: Object.fromEntries(CONTRACT_RULES.map((rule) => [rule, mean((record) => record.page!.findings[rule], pages)])) as Record<ContractRule, number>,
     meanHandFormatted: mean((record) => record.source.handFormatted.length, of),
     meanVisibleCueDirection: mean((record) => record.page!.visibleCueDirection, pages),
     timedOut: of.filter((record) => record.agent.timedOut).length,
     meanMinutes: mean((record) => record.agent.minutes, of),
-    premiumRequests: of.reduce((sum, record) => sum + (record.agent.premiumRequests ?? 0), 0),
+    premiumRequests: { known: all.reduce((sum, record) => sum + (record.agent.premiumRequests ?? 0), 0), unreported: all.filter((record) => record.agent.premiumRequests === null).length },
   }
 }
 
@@ -329,7 +340,7 @@ interface Expectations {
 }
 const expectations = readJson<Expectations>(path.join(ROOT, "bench/agent-kit/expectations.json"))
 const summary: Record<string, Partial<Record<Arm, Summary>>> = {}
-const verdict: Record<string, { helps: boolean; why: string }> = {}
+const verdict: Record<string, { helps: boolean | null; why: string }> = {}
 const pct = (value: number) => `${Math.round(value * 100)}%`
 for (const model of models) {
   summary[model] = {}
@@ -337,21 +348,28 @@ for (const model of models) {
   const kit = summary[model].kit
   const bare = summary[model].bare
   if (kit && bare) {
-    const higher = kit.rates[expectations.helps.higher] > bare.rates[expectations.helps.higher]
-    const lower = expectations.helps.noLower.filter((grade) => kit.rates[grade] < bare.rates[grade])
-    verdict[model] = {
-      helps: higher && lower.length === 0,
-      why: `${expectations.helps.higher} ${pct(kit.rates[expectations.helps.higher])} with the kit against ${pct(bare.rates[expectations.helps.higher])} without${lower.length ? `; lower with the kit: ${lower.join(", ")}` : ""}`,
+    const failures = kit.sessionFailures + bare.sessionFailures
+    if (failures) {
+      verdict[model] = { helps: null, why: `${count(failures, "session")} never ran, so the arms are not comparable` }
+    } else {
+      const higher = kit.rates[expectations.helps.higher] > bare.rates[expectations.helps.higher]
+      const lower = expectations.helps.noLower.filter((grade) => kit.rates[grade] < bare.rates[grade])
+      verdict[model] = {
+        helps: higher && lower.length === 0,
+        why: `${expectations.helps.higher} ${pct(kit.rates[expectations.helps.higher])} with the kit against ${pct(bare.rates[expectations.helps.higher])} without${lower.length ? `; lower with the kit: ${lower.join(", ")}` : ""}`,
+      }
     }
   }
 }
 
 console.log("")
 for (const model of models) {
-  console.log(`${model}${verdict[model] ? `: ${verdict[model].helps ? "the kit helps" : "the kit does not help"} (${verdict[model].why})` : ""}`)
+  const called = verdict[model]
+  console.log(`${model}${called ? `: ${called.helps === null ? "no verdict" : called.helps ? "the kit helps" : "the kit does not help"} (${called.why})` : ""}`)
   for (const arm of arms) {
     const s = summary[model]![arm]!
-    console.log(`  ${arm.padEnd(4)} ${s.screens} screens | ${GRADES.map((grade) => `${grade} ${pct(s.rates[grade])}`).join(" | ")} | findings per page ${CONTRACT_RULES.map((rule) => `${rule} ${s.meanFindings[rule].toFixed(1)}`).join(" ")} | hand-formatted ${s.meanHandFormatted.toFixed(1)} | ${s.meanMinutes.toFixed(1)} min | ${s.premiumRequests} requests${s.timedOut ? ` | ${s.timedOut} timed out` : ""}`)
+    const requests = `${s.premiumRequests.known}${s.premiumRequests.unreported ? `+? (${count(s.premiumRequests.unreported, "session")} unreported)` : ""} requests`
+    console.log(`  ${arm.padEnd(4)} ${s.screens} screens | ${GRADES.map((grade) => `${grade} ${pct(s.rates[grade])}`).join(" | ")} | findings per page ${CONTRACT_RULES.map((rule) => `${rule} ${s.meanFindings[rule].toFixed(1)}`).join(" ")} | hand-formatted ${s.meanHandFormatted.toFixed(1)} | ${s.meanMinutes.toFixed(1)} min | ${requests}${s.timedOut ? ` | ${s.timedOut} timed out` : ""}${s.sessionFailures ? ` | ${count(s.sessionFailures, "session")} never ran` : ""}`)
   }
 }
 

@@ -80,12 +80,16 @@ const empty = (): Record<ContractRule, number> => ({ floor: 0, numeric: 0, direc
 
 /** Serve a built app, open it, let its mock feeds run, and read the page with checkContract. */
 export async function gradePage(dist: string, browser: Browser, options: { settleMs?: number; screenshot?: string } = {}): Promise<PageGrade> {
+  const root = path.resolve(dist)
+  const index = path.join(root, "index.html")
   const server = Bun.serve({
     port: 0,
     async fetch(request) {
-      const pathname = decodeURIComponent(new URL(request.url).pathname)
-      const file = Bun.file(path.join(dist, pathname === "/" ? "index.html" : pathname))
-      return (await file.exists()) ? new Response(file) : new Response(Bun.file(path.join(dist, "index.html")))
+      // The page under test authors these requests: nothing outside the build directory resolves, however the
+      // path spells its dots and slashes.
+      const target = path.resolve(root, decodeURIComponent(new URL(request.url).pathname).replace(/^\/+/, ""))
+      const file = Bun.file(target.startsWith(root + path.sep) ? target : index)
+      return (await file.exists()) ? new Response(file) : new Response(Bun.file(index))
     },
   })
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
