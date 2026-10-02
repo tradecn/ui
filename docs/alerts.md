@@ -155,7 +155,7 @@ The announcer follows the selected row, including repeats; it is not a queue of 
 
 `AlertHistory` is an optional DataGrid presentation, ordered newest first by `at`, then `seq`. Give its container a height. It does not supply action or dismiss controls, create a dialog, or start TTL timers. Its default `blotter` preset adjusts scroll position when notices arrive above the first visible row.
 
-The history's view owns its order, so the grid renders without sort affordances, whatever the column definitions say. Under the default `blotter` preset the grid also announces its row count politely about a second after each change, including on mount. Pass `announceRowCount="off"` to silence it, and keep one announcement path when the history sits beside an `AlertsAnnouncer` or a toast adapter.
+The history's view owns its order, so the grid renders without sort affordances, whatever the column definitions say. Under the default `blotter` preset the grid also announces its row count politely, about a second after the count stops changing, including on mount; folded repeats and arrivals into a full store leave the count unchanged and announce nothing. Pass `announceRowCount="off"` to silence it, and keep one announcement path when the history sits beside an `AlertsAnnouncer` or a toast adapter.
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
@@ -170,11 +170,13 @@ The history's view owns its order, so the grid renders without sort affordances,
 
 Keep `labels` referentially stable: the default columns are rebuilt whenever it changes, and an inline object rebuilds them every render.
 
-`alertColumns({ time?, labels? })` returns time, severity, title, message, and count columns, imported from `@/components/ui/alerts` with `Alert` and `AlertTone` coming from the installed `@/lib/alert-store`. `time` accepts `(ms: number) => string` and defaults to local 24-hour time with seconds. Pass labels explicitly when constructing custom columns. Its time, severity, title, and count columns are marked sortable for grids you compose yourself; the history removes those affordances.
+`alertColumns({ time?, labels? })` returns time, severity, title, message, and count columns, imported from `@/components/ui/alerts` with `Alert` and `AlertTone` coming from the installed `@/lib/alert-store`. `time` accepts `(ms: number) => string` and defaults to local 24-hour time with seconds. Pass labels explicitly when constructing custom columns. Its time, severity, title, and count columns are marked sortable for grids that build their own view; with a supplied view such as `useAlertView`'s, wire `sort` and `onSortChange` yourself. The history removes those affordances.
 
 `useAlertView(alerts)` returns a `RowView<Alert>` and replaces it synchronously when the store changes. It owns the view's connection: cleanup stops feed work, and effect replay reconnects the same handle. Read it through `useRowIds` from the installed `use-row-store` hooks. Do not dispose it yourself; see [view ownership](row-store.md#views).
 
 <div id="labels"></div>
+
+Five v1 labels moved or fell away; [Migrating to v2](migrating-v1-to-v2.md#labels) maps each, and v1's `title` named the whole strip where the history's names its grid.
 
 | History label | Default |
 |---|---|
