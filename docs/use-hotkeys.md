@@ -149,7 +149,7 @@ Beyond that, these reports compare declarations, regardless of `when()`. They do
 
 Persistence is yours. `onChange` receives the full override map after `remap` or `reset`; `load` restores it without calling `onChange`. Overrides can load before or after their bindings. An override that fails to parse falls back to the binding's default keys.
 
-For the plus key, strings such as `"ctrl++"` returned by normalization or capture cannot be parsed again. If a binding defaults to `"x"`, `remap(id, "ctrl+plus")` stores that invalid form and falls back to `"x"`.
+For the plus key, `remap(id, "ctrl+plus")` stores the canonical `"ctrl++"`, which parses back and prints as `Ctrl` `+`.
 
 For persistence, create a registry once, restore saved overrides with `load`, and pass it to `HotkeysProvider`. Subscribe to `onChange` to save the override map, for example as JSON in `localStorage`; unsubscribe when the owner unmounts. Handle missing or invalid stored data in the application. The [live shortcut list](#live-shortcut-list) shows `remap` and `reset` without storage.
 
