@@ -127,8 +127,10 @@ describe("Countdown", () => {
 
   it("draws the bar from the tick when the browser has no Web Animations", () => {
     const animate = Element.prototype.animate
-    // The absence is seen at first render, where the component feature-detects the API.
+    const spied = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "animate")
+    // A browser without the API has it nowhere on the chain; the suite's spy must vanish too.
     Object.defineProperty(Element.prototype, "animate", { value: undefined, configurable: true, writable: true })
+    if (spied) Object.defineProperty(HTMLElement.prototype, "animate", { value: undefined, configurable: true, writable: true })
     try {
       t = 2000
       const clock = createClock(1000, () => t)
@@ -141,6 +143,7 @@ describe("Countdown", () => {
       expect(bar().style.transform).toBe("scaleX(0)")
     } finally {
       Object.defineProperty(Element.prototype, "animate", { value: animate, configurable: true, writable: true })
+      if (spied) Object.defineProperty(HTMLElement.prototype, "animate", spied)
     }
   })
 

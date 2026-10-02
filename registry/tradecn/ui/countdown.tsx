@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useNow } from "@/registry/tradecn/hooks/use-clock"
 import { sharedClock, type Clock } from "@/registry/tradecn/lib/clock"
 
@@ -71,6 +71,11 @@ export interface CountdownProps {
   className?: string
 }
 
+// The capability never changes within a session, so the store is three constants.
+const subscribeToNothing = () => () => {}
+const hasWebAnimations = () => typeof Element !== "undefined" && typeof Element.prototype.animate === "function"
+const optimistic = () => true
+
 export function Countdown({ expiresAt, startsAt, thresholds = PROVISIONAL_COUNTDOWN_THRESHOLDS, clock, label = "Time left", compact = false, announce = true, onExpire, className }: CountdownProps) {
   const c = clock ?? sharedClock()
   const now = useNow(c)
@@ -82,8 +87,9 @@ export function Countdown({ expiresAt, startsAt, thresholds = PROVISIONAL_COUNTD
   const total = Math.max(1, expiresAt - (startsAt ?? firstSeen))
   const fraction = Math.max(0, Math.min(1, remaining / total))
   const [reduced] = useState(prefersReducedMotion)
-  // A browser without Web Animations draws the bar from the digits' tick too, instead of holding it full.
-  const [canAnimate] = useState(() => typeof Element !== "undefined" && typeof Element.prototype.animate === "function")
+  // A browser without Web Animations draws the bar from the digits' tick too, instead of holding it
+  // full. The server snapshot is optimistic so hydration agrees, and the client reads the real API.
+  const canAnimate = useSyncExternalStore(subscribeToNothing, hasWebAnimations, optimistic)
   // Drawn from the digits' tick when it cannot animate: reduced motion, no API, or nothing left to animate.
   const staticBar = reduced || !canAnimate || tier === "expired"
 
