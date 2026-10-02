@@ -45,9 +45,9 @@ Alerts
 
 Map your collection into `AlertItem` children. Place, omit, or reorder the other parts as needed. `AlertBody` supports rich content and wraps by default. Use an accessible link or button for interactive content, and pair tone with a severity word or another non-color cue.
 
-For a live store, use `useRowIds(useAlertView(alerts))` to read newest-first IDs, then map them into your own row component. Call `useAlert(alerts, id)` inside that row so a notice update rerenders its subscriber. The store coalesces repeated keys and enforces its cap; see [alert-store](alert-store.md).
-
 <div id="a-store-not-a-toast-each"></div>
+
+For a live store, use `useRowIds(useAlertView(alerts))` to read newest-first IDs, then map them into your own row component. Call `useAlert(alerts, id)` inside that row so a notice update rerenders its subscriber. The store coalesces repeated keys and enforces its cap; see [alert-store](alert-store.md).
 
 ## Local collection
 
@@ -65,7 +65,7 @@ Choose **Receive slow feed** or **Receive rejection** to restore or repeat a not
 
 ## History in your own dialog
 
-This example displays two notices and puts the full history in a caller-owned dialog. You decide the slice, history button, clear control, and history height. The button uses `DialogTrigger` and stays mounted so closing the dialog returns focus to it even if notices expire or are cleared. It reads "History" when nothing overflows. Install shadcn's `dialog` component separately before copying this example. `AlertHistory` also works in an always-open panel with a height.
+This example displays two notices and puts the full history in a caller-owned dialog. You decide the slice, history button, clear control, and history height. The button uses `DialogTrigger` and stays mounted so closing the dialog returns focus to it even if notices expire or are cleared. It reads "History" when nothing overflows. The history passes `announceRowCount="off"`, keeping the announcer the one announcement path while the dialog is open. Install shadcn's `dialog` component separately before copying this example. `AlertHistory` also works in an always-open panel with a height.
 
 <!-- demo: alerts-history -->
 
