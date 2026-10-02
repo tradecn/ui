@@ -4042,7 +4042,7 @@
           },
           {
             "title": "mainWindow",
-            "description": "The window that opens first and whose close ends the desk."
+            "description": "The window that opens first; what closing it means is the owner's policy."
           },
           {
             "title": "readWindowSet",
