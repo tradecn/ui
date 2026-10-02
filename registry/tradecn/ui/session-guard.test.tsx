@@ -3,7 +3,7 @@ import { SessionNotice, type SessionNoticeProps } from "@/demos/session-guard"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createClock } from "@/registry/tradecn/lib/clock"
-import { DEFAULT_SESSION_GUARD_LABELS, DEFAULT_WARN_MS, SessionStatus, sessionStatus } from "@/registry/tradecn/ui/session-guard"
+import { DEFAULT_SESSION_GUARD_LABELS, DEFAULT_WARN_MS, SessionGuardProvider, SessionStatus, sessionStatus, useSessionGuard } from "@/registry/tradecn/ui/session-guard"
 
 function SessionGuard(props: Omit<SessionNoticeProps, "fallbackFocusRef">) {
   const fallback = useRef<HTMLInputElement>(null)
@@ -89,6 +89,33 @@ describe("the guard", () => {
     fireEvent.keyDown(dialog, { key: "Escape" })
     expect(screen.getByRole("dialog")).toBe(dialog)
     expect(root()).toHaveAttribute("data-session-phase", "expired")
+  })
+
+  it("keeps a class-based clock bound to its instance", () => {
+    class ClassClock {
+      private listeners = new Set<() => void>()
+      now() { return t }
+      subscribe(cb: () => void) {
+        this.listeners.add(cb)
+        return () => void this.listeners.delete(cb)
+      }
+      fire() { for (const cb of this.listeners) cb() }
+    }
+    function Phase() {
+      return <output>{useSessionGuard().phase}</output>
+    }
+    const clock = new ClassClock()
+    render(
+      <SessionGuardProvider expiresAt={T0 + MINUTE} clock={clock} onReauthenticate={() => Promise.resolve(true)}>
+        <Phase />
+      </SessionGuardProvider>,
+    )
+    expect(screen.getByRole("status")).toHaveTextContent("warning")
+    act(() => {
+      t += 2 * MINUTE
+      clock.fire()
+    })
+    expect(screen.getByRole("status")).toHaveTextContent("expired")
   })
 
   it("lets recipe classes override the phase wrapper's display in every phase", () => {

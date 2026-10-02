@@ -176,7 +176,9 @@ export function SessionGuardProvider({ expiresAt: suppliedExpiry, warnMs = DEFAU
   const clock = suppliedClock ?? sharedClock()
   const expiresAt = suppliedExpiry === null || suppliedExpiry === undefined || !Number.isFinite(suppliedExpiry) ? null : suppliedExpiry
   const phaseSnapshot = useCallback(() => sessionStatus(expiresAt, clock.now(), warnMs).phase, [expiresAt, clock, warnMs])
-  const phase = useSyncExternalStore(clock.subscribe, phaseSnapshot, phaseSnapshot)
+  // Subscribed through the clock, not detached from it, so a class-based Clock keeps its `this`.
+  const subscribeClock = useCallback((cb: () => void) => clock.subscribe(cb), [clock])
+  const phase = useSyncExternalStore(subscribeClock, phaseSnapshot, phaseSnapshot)
   const labels = useMemo<SessionGuardLabels>(() => ({ ...DEFAULT_SESSION_GUARD_LABELS, ...labelsProp }), [labelsProp])
   const [request] = useState(() => createRequestStore(onReauthenticate))
   const expire = useRef(onExpire)
