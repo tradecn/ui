@@ -170,7 +170,7 @@ Use cards to place descriptions beside column settings and move actions below ea
 
 ### Public parts
 
-`ColumnChooserItem` renders a focusable, draggable `div` with `role="group"`, named by its column. One presented item holds the collection's tab stop; the rest take `tabIndex={-1}` until focus or the arrow keys reach them. A hidden column's item carries `aria-description` with `labels.hidden`, so the state is spoken where the checkbox no longer sits in the Tab order. An explicit `tabIndex` opts an item out of that coordination, and the collection's tab stop stays with a coordinated item. Place the item inside your `li` or card. Keep collection keys tied to the column key. A missing or definition-hidden key renders nothing.
+`ColumnChooserItem` renders a focusable, draggable `div` with `role="group"`, named by its column. One presented item holds the collection's tab stop; the rest take `tabIndex={-1}` until focus or the arrow keys reach them. A hidden column's item carries `aria-description` with `labels.hidden`, so the state is spoken where the checkbox no longer sits in the Tab order. An explicit `tabIndex` opts an item out of that coordination, and the collection's tab stop stays with a coordinated item. Server-rendered markup settles that stop at hydration, where the key handlers attach too, so the collection turns interactive with the stop already in place. Place the item inside your `li` or card. Keep collection keys tied to the column key. A missing or definition-hidden key renders nothing.
 
 | Part | Inputs | Description |
 |---|---|---|
