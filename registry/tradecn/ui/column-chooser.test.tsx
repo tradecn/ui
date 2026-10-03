@@ -224,6 +224,14 @@ describe("public composition", () => {
     expect(toggle).not.toBeChecked()
     fireEvent.click(toggle)
     expect(toggle).toBeChecked()
+    // The native checkbox stays out of the Tab order, and its declared command keeps Space live.
+    expect(toggle).toHaveAttribute("tabindex", "-1")
+    const card = screen.getByRole("group", { name: "Client" })
+    act(() => card.focus())
+    fireEvent.keyDown(card, { key: " " })
+    expect(toggle).not.toBeChecked()
+    fireEvent.keyDown(card, { key: " " })
+    expect(toggle).toBeChecked()
     expect(screen.getByRole("button", { name: "Earlier: Client" })).toHaveTextContent("Earlier")
     fireEvent.click(screen.getByRole("button", { name: "Later: Client" }))
     expect([...document.querySelectorAll<HTMLElement>("[data-column]")].map(n => n.dataset.column)).toEqual(["id", "price", "client"])
@@ -816,6 +824,27 @@ describe("the keyboard model scales to wide grids", () => {
     fireEvent.keyDown(full, { key: " " })
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange.mock.lastCall![0].hidden).toEqual(["client"])
+  })
+
+  it("lets a disabled control's key pass through until it enables", () => {
+    const onChange = vi.fn()
+    function Card({ off }: { off: boolean }) {
+      return (
+        <ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={onChange}>
+          <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /><ColumnChooserVisibility disabled={off} /><ColumnChooserResetWidth disabled={off}>Reset</ColumnChooserResetWidth></ColumnChooserItem>
+        </ColumnChooser>
+      )
+    }
+    const { rerender } = render(<Card off />)
+    const card = screen.getByLabelText("Price card")
+    act(() => card.focus())
+    expect(fireEvent.keyDown(card, { key: " " })).toBe(true)
+    expect(fireEvent.keyDown(card, { key: "Delete" })).toBe(true)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(card).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
+    rerender(<Card off={false} />)
+    fireEvent.keyDown(card, { key: " " })
+    expect(onChange).toHaveBeenCalledTimes(1)
   })
 
   it("re-renders only the items a focus move touches", () => {
