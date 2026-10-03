@@ -413,6 +413,38 @@ describe("PanelPopout", () => {
     expect(fired).toHaveBeenCalledTimes(1)
   })
 
+  it("keeps presses on actions and the dot away from the header's drag, with your handler running first", () => {
+    const headerPress = vi.fn()
+    const ownPress = vi.fn()
+    render(
+      <div onPointerDown={headerPress} onMouseDown={headerPress} onTouchStart={headerPress}>
+        <PanelActions onPointerDown={ownPress} onMouseDown={ownPress} onTouchStart={ownPress}><button type="button">Close</button></PanelActions>
+        <LinkGroupDot group={1} onGroupChange={() => {}} onPointerDown={ownPress} onMouseDown={ownPress} onTouchStart={ownPress} />
+      </div>,
+    )
+    for (const fire of [fireEvent.pointerDown, fireEvent.mouseDown, fireEvent.touchStart]) {
+      fire(screen.getByRole("button", { name: "Close" }))
+      fire(screen.getByRole("button", { name: "Link group 1, change" }))
+    }
+    expect(ownPress).toHaveBeenCalledTimes(6)
+    expect(headerPress).not.toHaveBeenCalled()
+    render(
+      <div onPointerDown={headerPress}>
+        <PanelActions onPointerDown={(event) => event.preventDefault()}><button type="button">Drag me</button></PanelActions>
+      </div>,
+    )
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Drag me" }))
+    expect(headerPress).toHaveBeenCalledTimes(1)
+    // A press an ancestor capture already prevented is not the consumer's opt-out.
+    render(
+      <div onPointerDown={headerPress} onPointerDownCapture={(event) => event.preventDefault()}>
+        <PanelActions onPointerDown={ownPress}><button type="button">Held</button></PanelActions>
+      </div>,
+    )
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Held" }))
+    expect(headerPress).toHaveBeenCalledTimes(1)
+  })
+
   it("renders nothing without a host, as on a server", () => {
     const popout: Popout = { isOpen: false, window: null, host: null, slotRef: () => {}, open: () => false, close: () => {} }
     render(
