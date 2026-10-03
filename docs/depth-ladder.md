@@ -186,7 +186,7 @@ The row height and transform, and the rows container height, are reserved for vi
 
 Set `--depth-ladder-columns` on the root's style to customize track widths consistently across headers and rows.
 
-Row and cell IDs are generated and reserved: the grid's active descendant names the focused cell, which also carries `aria-selected`. Use a data attribute to identify an application row.
+Row and cell IDs are generated and reserved: the grid's active descendant names the focused cell, which also carries `aria-selected` where its rendered role takes the state — `gridcell`, `rowheader`, or `columnheader`. Use a data attribute to identify an application row.
 
 ### Hooks
 

@@ -435,23 +435,32 @@ function ownsCellClick(event: MouseEvent<HTMLDivElement>) {
 
 type CellOwnedProps = "id" | "aria-selected"
 
+// The rendered role, explicit undefined included; aria-selected is inherited into the header
+// roles from gridcell, and no other rendered role takes it.
+function cellRoleTakesSelected(props: { role?: ComponentProps<"div">["role"] }): boolean {
+  const role = "role" in props ? props.role : "gridcell"
+  return role === "gridcell" || role === "rowheader" || role === "columnheader"
+}
+
 export function DepthLadderSizeCell({ side, ref, className, children, onClick, ...props }: Omit<ComponentProps<"div">, CellOwnedProps> & Partial<Record<CellOwnedProps, never>> & SideProps) {
   const row = useRowContext()
   const local = useRef<HTMLDivElement>(null)
   const cellRef = useLadderRef(local, ref)
   const size = side === "bid" ? row.bidSize : row.askSize
   const mine = side === "bid" ? row.myBid : row.myAsk
+  const selectable = cellRoleTakesSelected(props)
   useFlash(local, size, { windowMs: row.config.flashWindowMs, variant: "fill" })
   // Only the reserved pair lands after the spread: the generated id is what aria-activedescendant
   // points at, and the selected state is what the keyboard contract rests on. Everything else
-  // stays overridable — and a caller-supplied role that is not gridcell suppresses the selected
-  // state, since other roles do not take it.
-  return <div role="gridcell" aria-colindex={row.config.columns.indexOf(side) + 1 || undefined} data-col={side} data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} data-focused-col={row.focusedColumn === side || undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && "bg-muted/50", className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }} id={`${row.domId}-${side}`} aria-selected={((props.role ?? "gridcell") === "gridcell" && row.focusedColumn === side) || undefined}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
+  // stays overridable — and the selected state follows the rendered role, emitted only where
+  // ARIA takes it: gridcell, rowheader, or columnheader.
+  return <div role="gridcell" aria-colindex={row.config.columns.indexOf(side) + 1 || undefined} data-col={side} data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} data-focused-col={row.focusedColumn === side || undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && "bg-muted/50", className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }} id={`${row.domId}-${side}`} aria-selected={(selectable && row.focusedColumn === side) || undefined}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
 }
 
 export function DepthLadderPriceCell({ className, children, onClick, ...props }: Omit<ComponentProps<"div">, CellOwnedProps> & Partial<Record<CellOwnedProps, never>>) {
   const row = useRowContext()
-  return <div role="gridcell" aria-colindex={row.config.columns.indexOf("price") + 1 || undefined} data-col="price" data-numeric="" data-focused-col={row.focusedColumn === "price" || undefined} className={cn("flex h-full min-w-0 items-center justify-center truncate px-2 text-foreground", numericFontClass(row.config.convention), row.focusedColumn === "price" && "bg-muted/50", className)} {...props} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select("price") }} id={`${row.domId}-price`} aria-selected={((props.role ?? "gridcell") === "gridcell" && row.focusedColumn === "price") || undefined}>{children === undefined ? row.priceText : children}</div>
+  const selectable = cellRoleTakesSelected(props)
+  return <div role="gridcell" aria-colindex={row.config.columns.indexOf("price") + 1 || undefined} data-col="price" data-numeric="" data-focused-col={row.focusedColumn === "price" || undefined} className={cn("flex h-full min-w-0 items-center justify-center truncate px-2 text-foreground", numericFontClass(row.config.convention), row.focusedColumn === "price" && "bg-muted/50", className)} {...props} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select("price") }} id={`${row.domId}-price`} aria-selected={(selectable && row.focusedColumn === "price") || undefined}>{children === undefined ? row.priceText : children}</div>
 }
 
 /** Hides while following or without a market; keep it mounted to retain focus recovery. */

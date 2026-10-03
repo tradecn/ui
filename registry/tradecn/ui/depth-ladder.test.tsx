@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, createRef } from "react"
+import { type ComponentProps, useEffect, useLayoutEffect, createRef } from "react"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
@@ -669,19 +669,30 @@ describe("changing a composed layout", () => {
     expect(stage).not.toHaveBeenCalled()
   })
 
-  it("suppresses the selected state on a caller role that does not take it", () => {
+  it("emits the selected state only on rendered roles that take it", () => {
     const store = seed()
-    render(<DepthLadder store={store} convention={ZN} mid={MID} label="Book" depth={0} initialRect={RECT}>
-      <DepthLadderViewport><DepthLadderRows>{() => <DepthLadderRow><DepthLadderSizeCell side="bid" /><DepthLadderPriceCell role="rowheader" /><DepthLadderSizeCell side="ask" /></DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
-    </DepthLadder>)
+    const compose = (role: ComponentProps<"div">["role"] | undefined, withRole: boolean) => (
+      <DepthLadder store={store} convention={ZN} mid={MID} label="Book" depth={0} initialRect={RECT}>
+        <DepthLadderViewport><DepthLadderRows>{() => <DepthLadderRow><DepthLadderSizeCell side="bid" /><DepthLadderPriceCell {...(withRole ? { role } : {})} /><DepthLadderSizeCell side="ask" /></DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
+      </DepthLadder>
+    )
+    // A row header inherits aria-selected from gridcell, so the price-as-header pattern keeps
+    // its state; a presentation cell and an explicit undefined role render without it.
+    const view = render(compose("rowheader", true))
     const grid = screen.getByRole("grid")
     fireEvent.keyDown(grid, { key: "ArrowLeft" })
     fireEvent.keyDown(grid, { key: "ArrowRight" })
-    const price = cell(6369, "price")!
-    expect(price).toHaveAttribute("role", "rowheader")
-    expect(grid).toHaveAttribute("aria-activedescendant", price.id)
-    expect(price).not.toHaveAttribute("aria-selected")
+    expect(cell(6369, "price")).toHaveAttribute("role", "rowheader")
+    expect(grid).toHaveAttribute("aria-activedescendant", cell(6369, "price")!.id)
+    expect(cell(6369, "price")).toHaveAttribute("aria-selected", "true")
     expect(cell(6369, "bid")).not.toHaveAttribute("aria-selected")
+    view.rerender(compose("presentation", true))
+    expect(cell(6369, "price")).not.toHaveAttribute("aria-selected")
+    view.rerender(compose(undefined, true))
+    expect(cell(6369, "price")).not.toHaveAttribute("role")
+    expect(cell(6369, "price")).not.toHaveAttribute("aria-selected")
+    view.rerender(compose(undefined, false))
+    expect(cell(6369, "price")).toHaveAttribute("aria-selected", "true")
   })
 
   it("resolves active descendants to generated cell ids under legacy row props", () => {
