@@ -148,7 +148,10 @@ export function parsePrice(s: string, c: PriceConvention): number | null {
         else return null
       }
       const value = Number(wholeText) + (ticks + subFraction) / c.denominator
-      return sign === "-" ? -value : value
+      // What cannot scale into printable units finitely cannot be formatted back; refuse it, and
+      // keep "-0" plain zero.
+      if (!Number.isFinite(value * c.denominator * (c.eighths ? 8 : 2))) return null
+      return value === 0 ? 0 : sign === "-" ? -value : value
     }
   }
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) return null
@@ -161,7 +164,9 @@ export function parsePrice(s: string, c: PriceConvention): number | null {
   // so a negative tie snaps away from zero the way it prints.
   const unitsPerWhole = c.denominator * (c.eighths ? 8 : 2)
   const units = Math.round(Math.abs(n) * unitsPerWhole)
-  return (n < 0 ? -units : units) / unitsPerWhole
+  // Scaling can overflow a finite input, and a sub-half-unit negative would make negative zero.
+  if (!Number.isFinite(units)) return null
+  return units === 0 ? 0 : (n < 0 ? -units : units) / unitsPerWhole
 }
 
 /** 4.2531 as "4.253%". */

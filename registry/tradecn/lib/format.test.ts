@@ -112,6 +112,11 @@ describe("fractions", () => {
     // A negative tie snaps away from zero, exactly as the formatter prints it.
     expect(parsePrice("-0.0078125", T32)).toBe(-0.015625)
     expect(Object.is(parsePrice("-0.0078125", T32), -0)).toBe(false)
+    // A sub-half-unit negative snaps to plain zero, and scaling overflow refuses instead of Infinity.
+    expect(Object.is(parsePrice("-0.001", T32), 0)).toBe(true)
+    expect(parsePrice("1" + "0".repeat(307), T32)).toBeNull()
+    expect(parsePrice("1" + "0".repeat(307) + ".5", T32)).toBeNull()
+    expect(Object.is(parsePrice("-0", T32), 0)).toBe(true)
     // Plain-decimal spellings only: a double near zero stringifies in exponent notation, which the
     // parser rejects, and a null would have slipped through a non-null assertion unexercised.
     fc.assert(fc.property(fc.double({ min: -200, max: 200, noNaN: true }), (v) => {
