@@ -233,6 +233,8 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
 }
 
 const noop = () => () => {}
+const RFQ_CORE_BINDINGS = RFQ_TICKET_BINDINGS.filter((binding) => !binding.id.startsWith("rfq.size-"))
+const RFQ_SIZE_BINDINGS = RFQ_TICKET_BINDINGS.filter((binding) => binding.id.startsWith("rfq.size-"))
 const level = (v: number | null | undefined) => (typeof v === "number" ? v : null)
 
 export interface RfqTicketProps {
@@ -386,20 +388,28 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   useEffect(() => {
     handlers.current = {
       send: () => {
-        const { actions: list, inquiry: now } = latest.current
+        const { actions: list, inquiry: now, disabled: locked } = latest.current
+        if (locked) return
         const open = list.filter((action) => now.allowedActions?.includes(action.id))
         const first = open.find((action) => action.primary) ?? open.find((action) => action.needsQuote !== false) ?? open[0]
         if (first) run(first)
       },
-      up: () => step(focusedSide(), 1),
-      down: () => step(focusedSide(), -1),
-      suggested: takeSuggested,
+      up: () => {
+        if (!latest.current.disabled) step(focusedSide(), 1)
+      },
+      down: () => {
+        if (!latest.current.disabled) step(focusedSide(), -1)
+      },
+      suggested: () => {
+        if (!latest.current.disabled) takeSuggested()
+      },
       quick,
     }
   })
+  const quickCount = quickSizes?.length ?? 0
   useEffect(() => {
     if (!registry) return
-    const release = declareHotkeys ? declareBindings(registry, RFQ_TICKET_BINDINGS) : noop()
+    const release = declareHotkeys ? declareBindings(registry, RFQ_CORE_BINDINGS) : noop()
     // Fenced to the scope root, so the shortcuts run from the heading, the market, and the padding too.
     const within = { scope: "editing", element: () => (box.current ? box.current.parentElement ?? box.current : null) }
     const guard = (fn: () => void) => (event: KeyboardEvent) => {
@@ -411,13 +421,26 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       registry.bind("rfq.tick-up", guard(() => handlers.current.up()), within),
       registry.bind("rfq.tick-down", guard(() => handlers.current.down()), within),
       registry.bind("rfq.suggested", guard(() => handlers.current.suggested()), within),
-      ...QUICK_SIZE_KEYS.map((_, i) => registry.bind(`rfq.size-${i + 1}`, guard(() => handlers.current.quick(i + 1)), within)),
+      // Fenced handlers for all nine, acting only on a present size: an id anyone declares
+      // meets this fence, and an undeclared absent size's event passes through untouched.
+      ...RFQ_SIZE_BINDINGS.map((binding, i) => registry.bind(binding.id, (event) => {
+        if (i >= (latest.current.quickSizes?.length ?? 0)) return
+        event.preventDefault()
+        handlers.current.quick(i + 1)
+      }, within)),
     ]
     return () => {
       for (const u of unbind) u()
       release()
     }
   }, [registry, declareHotkeys])
+  // The sizes declare only for the quick sizes passed, in their own effect, so a size-count
+  // change never re-declares the core bindings and an absent id never stands fenceless.
+  useEffect(() => {
+    if (!registry || quickCount === 0) return
+    const release = declareHotkeys ? declareBindings(registry, RFQ_SIZE_BINDINGS.slice(0, quickCount)) : noop()
+    return release
+  }, [registry, declareHotkeys, quickCount])
   const sendKeys = useSyncExternalStore(
     registry?.subscribe ?? noop,
     () => registry?.list().find((entry) => entry.id === "rfq.send")?.keys ?? null,

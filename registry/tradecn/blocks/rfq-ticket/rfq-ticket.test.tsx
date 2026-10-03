@@ -165,7 +165,7 @@ describe("RfqTicket", () => {
     expect(document.querySelector("[data-rfq-distance='ask']")?.textContent?.trim()).toBe("")
   })
 
-  it("steps a blank level from the market's same side, then the suggested level, then the mid", () => {
+  it("steps a blank level from the same side, the suggestion, the other side, then the mid", () => {
     const { onDraftChange, rerender } = mount()
     fireEvent.keyDown(field("Offer"), { key: "ArrowUp" })
     expect(lastDraft(onDraftChange).ask).toBe(99.53125)
@@ -174,6 +174,16 @@ describe("RfqTicket", () => {
     fireEvent.keyDown(field("Offer"), { key: "ArrowDown" })
     expect(lastDraft(onDraftChange).ask).toBe(99.484375)
     rerender({ inquiry: inquiry({ market: { bid: 99.5, ask: 99.53125 }, side: "sell" }) })
+    type(field("Bid"), "")
+    fireEvent.keyDown(field("Bid"), { key: "ArrowUp" })
+    expect(lastDraft(onDraftChange).bid).toBe(99.515625)
+    // Only the other side quoted: the bid starts from the ask.
+    rerender({ inquiry: inquiry({ market: { ask: 99.53125 }, side: "sell" }) })
+    type(field("Bid"), "")
+    fireEvent.keyDown(field("Bid"), { key: "ArrowUp" })
+    expect(lastDraft(onDraftChange).bid).toBe(99.546875)
+    // Only a mid: it is the last fallback.
+    rerender({ inquiry: inquiry({ market: { mid: 99.5 }, side: "sell" }) })
     type(field("Bid"), "")
     fireEvent.keyDown(field("Bid"), { key: "ArrowUp" })
     expect(lastDraft(onDraftChange).bid).toBe(99.515625)
@@ -252,7 +262,7 @@ describe("RfqTicket", () => {
 
 describe("RfqTicket keys", () => {
   it("sends, steps the field the keyboard is in, and takes the suggested levels, all from inside the fields", () => {
-    const { quote, registry, onDraftChange } = mount({ inquiry: inquiry({ side: "two-way", suggested: { bid: 99.5, ask: 99.515625 } }) })
+    const { quote, registry, onDraftChange } = mount({ inquiry: inquiry({ side: "two-way", suggested: { bid: 99.5, ask: 99.515625 } }), quickSizes: [1, 2, 3, 4, 5, 6, 7, 8, 9] })
     expect(registry!.list().map((e) => e.id)).toEqual(expect.arrayContaining(RFQ_TICKET_BINDINGS.map((b) => b.id)))
     expect(registry!.list().find((e) => e.id === "rfq.send")?.scope).toBe("editing")
     field("Offer").focus()
@@ -354,7 +364,7 @@ describe("RfqTicket keys", () => {
     expect(registry.list().some((e) => e.id === "rfq.send")).toBe(false)
   })
 
-  it("leaves a binding the consumer declared before mount alone, and shows its keys", () => {
+  it("leaves a pre-mount consumer binding alone, shows its keys, and runs it from the group", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     registry.register({ id: "rfq.send", keys: "mod+s", scope: "editing", description: "Ship it" })
     const quote = vi.fn()
@@ -390,6 +400,46 @@ describe("RfqTicket keys", () => {
     view.rerender(ui(false))
     expect(registry.list().find((e) => e.id === "rfq.send")?.declaredKeys).toBe("mod+enter")
     view.unmount()
+  })
+
+  it("locks every shortcut while disabled", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const quote = vi.fn()
+    const { onDraftChange } = mount({ disabled: true, actions: [{ id: "quote", label: "Quote", run: quote, primary: true }], inquiry: inquiry({ suggested: { bid: 99.5 } }), quickSizes: [1, 5] }, registry)
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "Enter", ctrlKey: true })
+    fireEvent.keyDown(group, { key: "ArrowUp", ctrlKey: true })
+    fireEvent.keyDown(group, { key: "a", ctrlKey: true, shiftKey: true })
+    fireEvent.keyDown(group, { key: "1", ctrlKey: true })
+    expect(quote).not.toHaveBeenCalled()
+    expect(onDraftChange).not.toHaveBeenCalled()
+  })
+
+  it("turns a binding off the documented way", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const quote = vi.fn()
+    mount({ actions: [{ id: "quote", label: "Quote", run: quote, primary: true }], defaultDraft: draftOf({ ask: 99.515625 }) }, registry)
+    act(() => void registry.register({ id: "rfq.send", keys: "", scope: "editing", description: "Send the quote" }))
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "Enter", ctrlKey: true })
+    expect(quote).not.toHaveBeenCalled()
+  })
+
+  it("keeps a desk conflict-free when the consumer spreads all nine size bindings", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    render(
+      <HotkeysProvider registry={registry} bindings={RFQ_TICKET_BINDINGS}>
+        <RfqTicket inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn() }]} defaultDraft={{ ask: 99.5 }} quickSizes={[1, 5]} />
+      </HotkeysProvider>,
+    )
+    const el = document.body.appendChild(document.createElement("div"))
+    const detach = registry.bind("desk.nine", () => {}, { scope: "editing", element: () => el })
+    act(() => void registry.register({ id: "desk.nine", keys: "mod+9", scope: "editing", description: "Ninth desk thing" }))
+    expect(registry.conflicts()).toEqual([])
+    detach()
+    el.remove()
   })
 
   it("renders without a HotkeysProvider and shows no keys", () => {
@@ -502,7 +552,7 @@ describe("binding ownership and the fence", () => {
     expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Ship the quote")
   })
 
-  it("runs shortcuts from the whole ticket, heading and padding included", () => {
+  it("runs shortcuts from the ticket's own group, where clicks land", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const quote = vi.fn()
     mount({ actions: [{ id: "quote", label: "Quote", run: quote, primary: true }], defaultDraft: draftOf({ ask: 99.515625 }) }, registry)

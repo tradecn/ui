@@ -121,7 +121,7 @@ The headline reads `Client A buys 5mm T 4 1/8 05/15/34`. `instrument.description
 
 ### The quote
 
-Each [`quote-field`](quote-field.md) parses and steps in the instrument's convention: `99-16+` for a fractional note price or `4.253` for a bill on discount. Arrows and step buttons use the convention's step. A blank field starts from the market's same side, then the suggested same side, then the other market side, then `market.mid`. With no starting level, stepping does nothing.
+Each [`quote-field`](quote-field.md) parses and steps in the instrument's convention: `99-16+` for a fractional note price or `4.253` for a bill on discount. Arrows and step buttons use the convention's step. A blank field starts from the market's same side, then the suggested same side, then the other market side, then `market.mid`. With neither a market side nor a suggestion nor `market.mid`, stepping does nothing, and `maxDistance` skips a field that has no market to measure from.
 
 Distance below a field compares it with the market's same side: ticks for price, basis points for yield, discount, or spread. For example, one tick above shows `+1 vs market`. Missing or nonfinite levels show no distance. Yield and discount differences multiply by 100; spreads are already in basis points.
 
@@ -205,7 +205,7 @@ Choosing a size changes the draft's `quantity`. Supply sizes the venue accepts; 
 
 ### Labels
 
-`labels` overrides entries in `DEFAULT_RFQ_TICKET_LABELS`: side words, field and reference labels, quote-check messages, the nothing-allowed message, the unparsable-level message (`invalidLevel`, shown by the quote fields), and confirmation text (`anyway`, with an `{action}` placeholder). Action labels and server text come from their own inputs. Limit messages and hotkey descriptions are separate from this prop.
+`labels` overrides entries in `DEFAULT_RFQ_TICKET_LABELS`: side words, field and reference labels, quote-check messages, the nothing-allowed message, the unparsable-level message (`invalidLevel`, shown by the quote fields), and confirmation text (`anyway`, with an `{action}` placeholder). Action labels and server text come from their own inputs. Limit messages, the step buttons' fixed `up one tick` and `down one tick` name tails, and hotkey descriptions are separate from this prop.
 
 The group and timer are both named `Inquiry Q-1` by default, using `labels.ticket` and the inquiry id. Fields have visible labels and use `aria-invalid` when an error is shown.
 
