@@ -746,7 +746,7 @@ Copy the complete [Usage example](column-chooser.md#usage) into `column-chooser.
 | Reset and move controls | `ColumnChooserResetAll`, `ColumnChooserResetWidth`, and `ColumnChooserMove`, with required action content. |
 | Labels for surrounding content | Read `useColumnChooser().labels` for the description, empty state, action content, and hint. |
 | Full-order keyboard and button moves | Neighbors follow the search results by default. Pass `presented` for a custom collection. Pure move helpers retain full-order semantics. |
-| A Tab stop on every item and control | One Tab stop for the collection. Arrows move focus between columns, Home and End reach its edges, Space toggles visibility, Delete resets a width, and Alt+Home or Alt+End moves a column to the edge of its side. Pass `tabIndex={0}` to a part or item to restore its own Tab stop. |
+| A Tab stop on every item and control | One Tab stop for the collection. Up and Down move focus between columns, Home and End reach its edges, Space toggles visibility and Delete resets a width where the item renders the matching control, and Alt+Home or Alt+End moves a column to the edge of its side. Pass `tabIndex={0}` to a part or item to restore its own Tab stop. |
 | Reset to empty state | Pass shared defaults as `baseState`. Root reset, width reset and `isDefault` use that baseline; omission retains the empty baseline. |
 | Silent edits | Mount `ColumnChooserAnnouncer` once to announce accepted changes. The shared recipes include it. |
 

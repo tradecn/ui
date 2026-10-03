@@ -1,4 +1,4 @@
-import { createRef, StrictMode, useState } from "react"
+import { createRef, Profiler, StrictMode, useState } from "react"
 import { createPortal } from "react-dom"
 import { renderToString } from "react-dom/server"
 import { Button } from "@/components/ui/button"
@@ -792,6 +792,59 @@ describe("the keyboard model scales to wide grids", () => {
     render(ui, { container, hydrate: true })
     expect(screen.getByRole("group", { name: "Client" })).toHaveAttribute("tabindex", "0")
     expect(screen.getByLabelText("RFQ card")).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("runs Space and Delete only where the matching control is rendered, and once per press", () => {
+    const onChange = vi.fn()
+    render(<ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { id: 140 } }} onColumnStateChange={onChange}>
+      <ColumnChooserItem columnKey="id" aria-label="Bare card"><ColumnChooserName /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="client" aria-label="Full card"><ColumnChooserName /><ColumnChooserVisibility /><ColumnChooserResetWidth>Reset</ColumnChooserResetWidth></ColumnChooserItem>
+    </ColumnChooser>)
+    const bare = screen.getByLabelText("Bare card")
+    const full = screen.getByLabelText("Full card")
+    // A visible-only layout renders no visibility control, so Space passes through untouched.
+    act(() => bare.focus())
+    expect(fireEvent.keyDown(bare, { key: " " })).toBe(true)
+    expect(fireEvent.keyDown(bare, { key: "Delete" })).toBe(true)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(bare).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
+    expect(full).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete")
+    // A held Space toggles once: repeats are ignored.
+    act(() => full.focus())
+    expect(fireEvent.keyDown(full, { key: " ", repeat: true })).toBe(true)
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.keyDown(full, { key: " " })
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange.mock.lastCall![0].hidden).toEqual(["client"])
+  })
+
+  it("re-renders only the items a focus move touches", () => {
+    const renders = vi.fn()
+    function Harness() {
+      const [state, setState] = useState<ColumnState>(EMPTY_COLUMN_STATE)
+      return (
+        <ColumnChooser columns={columns} columnState={state} onColumnStateChange={setState}>
+          <ColumnChooserSearch />
+          {columns.filter((column) => !column.hidden).map((column) => (
+            <Profiler key={column.key} id={column.key} onRender={(id) => renders(id)}>
+              <ColumnChooserItem columnKey={column.key}><ColumnChooserName /></ColumnChooserItem>
+            </Profiler>
+          ))}
+        </ColumnChooser>
+      )
+    }
+    render(<Harness />)
+    const counts = () => renders.mock.calls.reduce<Record<string, number>>((all, [key]) => ({ ...all, [key]: (all[key] ?? 0) + 1 }), {})
+    // Mount renders each item once, plus one ownership settle for the first coordinated item:
+    // the provider does not subscribe to registrations, so there is no collection pass.
+    expect(counts()).toEqual({ id: 2, client: 1, px: 1, size: 1, status: 1 })
+    renders.mockClear()
+    const first = screen.getByRole("group", { name: "RFQ" })
+    act(() => first.focus())
+    renders.mockClear()
+    fireEvent.keyDown(first, { key: "ArrowDown" })
+    // The step re-renders the two items whose ownership changed, and nothing else.
+    expect(counts()).toEqual({ id: 1, client: 1 })
   })
 
   it("keeps the roving owner when arrows visit an opted-out item", () => {
