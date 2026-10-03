@@ -157,8 +157,15 @@ export function parsePrice(s: string, c: PriceConvention): number | null {
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) return null
   const n = Number(text)
   if (!Number.isFinite(n)) return null
-  if (c.kind === "tick") return roundToTick(n, c.tick)
-  if (c.kind === "decimal") return Number(n.toFixed(c.decimals))
+  // Every convention keeps the promise the reference row makes: what parses can print back.
+  if (c.kind === "tick") {
+    const rounded = roundToTick(n, c.tick)
+    return Number.isFinite(rounded) && Math.abs(rounded) < 1e21 ? rounded : null
+  }
+  if (c.kind === "decimal") {
+    const fixed = Number(n.toFixed(c.decimals))
+    return Math.abs(fixed) < 1e21 ? fixed : null
+  }
   // A decimal typed into a fraction convention snaps to the printable grid, so the value a field
   // reports is the price its formatted text shows. The magnitude rounds, as the formatter rounds,
   // so a negative tie snaps away from zero the way it prints.

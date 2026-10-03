@@ -120,6 +120,13 @@ describe("fractions", () => {
     expect(parsePrice("1" + "0".repeat(21), T32)).toBeNull()
     expect(parsePrice("1" + "0".repeat(21) + ".5", T32)).toBeNull()
     expect(parsePrice("99999999999999999999", T32)).not.toBeNull()
+    // The same promise for the other conventions: tick scaling that overflows, or a magnitude
+    // that prints in exponent form, parses as null there too.
+    expect(parsePrice("1" + "0".repeat(308), { kind: "tick", tick: 0.001 })).toBeNull()
+    expect(parsePrice("1" + "0".repeat(21), { kind: "tick", tick: 0.5 })).toBeNull()
+    expect(parsePrice("99999999999999999999", { kind: "tick", tick: 0.5 })).toBe(1e20)
+    expect(parsePrice("1" + "0".repeat(21), { kind: "decimal", decimals: 2 })).toBeNull()
+    expect(parsePrice("99999999999999999999", { kind: "decimal", decimals: 2 })).toBe(1e20)
     expect(Object.is(parsePrice("-0", T32), 0)).toBe(true)
     // Plain-decimal spellings only: a double near zero stringifies in exponent notation, which the
     // parser rejects, and a null would have slipped through a non-null assertion unexercised. The
