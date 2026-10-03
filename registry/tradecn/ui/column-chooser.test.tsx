@@ -652,7 +652,7 @@ describe("the keyboard model scales to wide grids", () => {
     fireEvent.keyDown(item, { key: " " })
     expect(saved!.hidden).toEqual(["px"])
     expect(item).toHaveAttribute("aria-description", "hidden")
-    expect(item).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete")
+    expect(item).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete Backspace")
     fireEvent.keyDown(item, { key: " " })
     expect(saved!.hidden).toEqual([])
     expect(item).not.toHaveAttribute("aria-description")
@@ -670,7 +670,7 @@ describe("the keyboard model scales to wide grids", () => {
     expect(saved).toBeNull()
     const resized = screen.getByRole("group", { name: "Price" })
     resized.focus()
-    expect(resized).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete")
+    expect(resized).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete Backspace")
     fireEvent.keyDown(resized, { key: "Delete" })
     expect(saved!.widths).toEqual({})
     // The reset consumed the only resized width, so the shortcut leaves the metadata with it.
@@ -820,7 +820,7 @@ describe("the keyboard model scales to wide grids", () => {
     expect(fireEvent.keyDown(bare, { key: "Delete" })).toBe(true)
     expect(onChange).not.toHaveBeenCalled()
     expect(bare).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
-    expect(full).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete")
+    expect(full).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete Backspace")
     // A held Space toggles once but every handled press cancels, or repeats scroll the page.
     act(() => full.focus())
     expect(fireEvent.keyDown(full, { key: " ", repeat: true })).toBe(false)
@@ -870,6 +870,17 @@ describe("the keyboard model scales to wide grids", () => {
     expect(card).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
   })
 
+  it("advertises nothing on an item that keeps its native keys", () => {
+    render(
+      <ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={() => {}}>
+        <ColumnChooserItem columnKey="px" role="option" aria-label="Option card"><ColumnChooserName /><ColumnChooserVisibility /><ColumnChooserResetWidth>Reset</ColumnChooserResetWidth></ColumnChooserItem>
+        <ColumnChooserItem columnKey="client" contentEditable suppressContentEditableWarning aria-label="Editable card"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    expect(screen.getByLabelText("Option card")).not.toHaveAttribute("aria-keyshortcuts")
+    expect(screen.getByLabelText("Editable card")).not.toHaveAttribute("aria-keyshortcuts")
+  })
+
   it("suspends a command while its control sits in a disabled fieldset", () => {
     const onChange = vi.fn()
     function Card({ off }: { off: boolean }) {
@@ -877,7 +888,7 @@ describe("the keyboard model scales to wide grids", () => {
         <ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={onChange}>
           <ColumnChooserItem columnKey="px" aria-label="Price card">
             <ColumnChooserName />
-            <fieldset disabled={off || undefined}><ColumnChooserResetWidth>Reset</ColumnChooserResetWidth></fieldset>
+            <fieldset disabled={off || undefined}><ColumnChooserVisibility /><ColumnChooserResetWidth>Reset</ColumnChooserResetWidth></fieldset>
           </ColumnChooserItem>
         </ColumnChooser>
       )
@@ -885,10 +896,12 @@ describe("the keyboard model scales to wide grids", () => {
     const { rerender } = render(<Card off />)
     const card = screen.getByLabelText("Price card")
     act(() => card.focus())
-    fireEvent.keyDown(card, { key: "Delete" })
+    // Not claimed: the key passes through exactly like a declared-disabled control's.
+    expect(fireEvent.keyDown(card, { key: "Delete" })).toBe(true)
+    expect(fireEvent.keyDown(card, { key: " " })).toBe(true)
     expect(onChange).not.toHaveBeenCalled()
     rerender(<Card off={false} />)
-    fireEvent.keyDown(card, { key: "Delete" })
+    expect(fireEvent.keyDown(card, { key: "Delete" })).toBe(false)
     expect(onChange).toHaveBeenCalledTimes(1)
   })
 

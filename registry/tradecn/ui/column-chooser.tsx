@@ -627,6 +627,9 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
   const { row, dragging, move, moveToEdge, setVisible, resetWidth } = item
   const { labels, focusFallback, startDrag, dragOver, drop, endDrag, registrations, registerItem, focusStep } = useChooserContext()
   const isOwner = useSyncExternalStore(registrations.subscribe, () => registrations.owner() === row.key, () => false)
+  // An item made editable, or given an arrow-owning role of its own, keeps every native key:
+  // the handler bows out, so the metadata must advertise nothing.
+  const itemKeyless = (props.contentEditable !== undefined && props.contentEditable !== false && props.contentEditable !== "false") || (role ?? "").toLowerCase().split(/[\t\n\f\r ]+/).some((token) => ARROW_OWNING_ROLES.has(token))
   const [controls, setControls] = useState<{ visibility: { element: () => HTMLElement | null }[]; resetWidth: { element: () => HTMLElement | null }[] }>({ visibility: [], resetWidth: [] })
   const registerControl = useCallback((kind: "visibility" | "resetWidth", element: () => HTMLElement | null) => {
     // Each registration is its own token: two getter-less declarations share one element
@@ -676,7 +679,7 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
       }
     }
   }, [row.key, endDrag, focusFallback])
-  return <ItemContext value={item}><ControlsContext value={registerControl}><div role={role} tabIndex={tabIndex ?? (isOwner ? 0 : -1)} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-description={row.visible ? undefined : labels.hidden} aria-keyshortcuts={`${controls.visibility.length ? "Space " : ""}Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End${controls.resetWidth.length ? " Delete" : ""}`} data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
+  return <ItemContext value={item}><ControlsContext value={registerControl}><div role={role} tabIndex={tabIndex ?? (isOwner ? 0 : -1)} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-description={row.visible ? undefined : labels.hidden} aria-keyshortcuts={itemKeyless ? undefined : `${controls.visibility.length ? "Space " : ""}Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End${controls.resetWidth.length ? " Delete Backspace" : ""}`} data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
     onFocusCapture?.(event)
     if (ownsItemEvent(event)) {
       focused.current = event.target
@@ -709,16 +712,16 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
     if (event.target !== event.currentTarget) return
     // Space and Delete run only where the layout renders the matching control, so a visible-only
     // list cannot hide a column it offers no way to bring back, and a held key toggles once.
-    if (event.key === " " && controls.visibility.length) {
-      // Every handled Space cancels, or held repeats scroll the page; the toggle runs once,
-      // and only through a control that is effectively enabled where it stands.
+    if (event.key === " " && controls.visibility.length && liveControl("visibility")) {
+      // Every handled Space cancels, or held repeats scroll the page; the toggle runs once.
+      // A control that is effectively disabled where it stands never claims the key at all.
       event.preventDefault()
       event.stopPropagation()
-      if (!event.repeat && liveControl("visibility")) setVisible(!row.visible)
-    } else if ((event.key === "Delete" || event.key === "Backspace") && controls.resetWidth.length && !event.repeat && row.resized) {
+      if (!event.repeat) setVisible(!row.visible)
+    } else if ((event.key === "Delete" || event.key === "Backspace") && controls.resetWidth.length && !event.repeat && row.resized && liveControl("resetWidth")) {
       event.preventDefault()
       event.stopPropagation()
-      if (liveControl("resetWidth")) resetWidth()
+      resetWidth()
     }
   }} onDragStart={(event) => {
     onDragStart?.(event)
