@@ -225,7 +225,7 @@ Removing a focused item moves focus to the editor's search field, or its root wh
 
 Keep a public editing field mounted for every editing mode your triggers can start.
 
-The plus key works through either entry method: capture and typed entry store `ctrl+plus` in its canonical form `ctrl++`, remapping accepts it, and the keycaps print `Ctrl` `+`. See [remapping](use-hotkeys.md#remapping).
+The plus key works through either entry method: capture and typed entry store `ctrl+plus` in its canonical form `ctrl++`, remapping accepts it, and the keycaps print `Ctrl` `+` (`⌃` `+` on a Mac). See [remapping](use-hotkeys.md#remapping).
 
 ### Conflicts
 

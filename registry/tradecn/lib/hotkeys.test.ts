@@ -48,16 +48,12 @@ describe("normalizeKeys", () => {
     expect(normalizeKeys("+", "other")).toBe("+")
     expect(normalizeKeys(normalizeKeys("mod+plus", "mac"), "mac")).toBe("meta++")
     expect(formatKeys("ctrl++", "other")).toEqual([["Ctrl", "+"]])
-    expect(() => normalizeKeys("ctrl+++", "other")).toThrow("has no key")
-    expect(() => normalizeKeys("++", "other")).toThrow("has no key")
-    expect(() => normalizeKeys("+ctrl++", "other")).toThrow("has no key")
-    expect(() => normalizeKeys("ctrl++shift++", "other")).toThrow("has no key")
-    expect(() => normalizeKeys("shift+ +", "other")).toThrow("has no key")
     expect(formatKeys(normalizeKeys("mod+plus", "mac"), "mac")).toEqual([["\u2318", "+"]])
     const registry = createHotkeyRegistry({ platform: "other" })
     registry.register({ id: "zoom.in", keys: "x", scope: "global", description: "Zoom in" })
     expect(registry.remap("zoom.in", "ctrl+plus")).toEqual([])
     expect(registry.overrides()["zoom.in"]).toBe("ctrl++")
+    expect(registry.list()[0]).toMatchObject({ keys: "ctrl++", remapped: true })
     expect(formatKeys("ctrl++", "other")).toEqual([["Ctrl", "+"]])
     expect(normalizeKeys("", "other")).toBe("")
   })
@@ -65,6 +61,19 @@ describe("normalizeKeys", () => {
   it("rejects keys that do not parse", () => {
     expect(() => normalizeKeys("mod+", "other")).toThrow(/no key/)
     expect(() => normalizeKeys("g+h", "other")).toThrow(/two keys/)
+  })
+
+  it.each(["ctrl+++", "++", "+ctrl++", "ctrl++shift++", "shift+ +"])("rejects the malformed plus spelling %s", (keys) => {
+    expect(() => normalizeKeys(keys, "other")).toThrow("has no key")
+  })
+
+  it("fires a v1-stored plus override once loaded", () => {
+    const fired = vi.fn()
+    const registry = attached()
+    registry.register(binding("zoom.in", "x"), fired)
+    registry.load({ "zoom.in": "ctrl++" })
+    press("+", { ctrlKey: true })
+    expect(fired).toHaveBeenCalledTimes(1)
   })
 })
 

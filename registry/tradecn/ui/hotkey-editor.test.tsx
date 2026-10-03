@@ -421,6 +421,10 @@ describe("composition and migration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Change: Open the command palette" }))
     const capture = document.querySelector<HTMLElement>("[data-hotkey-capture]")!
     expect(capture).toHaveAccessibleDescription("Choose a shortcut Escape cancels, Backspace unbinds")
+    // A lone modifier still cannot commit: the capture stays, with the problem linked to the field.
+    fireEvent.keyDown(capture, { key: "Super" })
+    expect(document.querySelector("[data-hotkey-capture]")).toBe(capture)
+    expect(capture).toHaveAccessibleDescription(/Not a shortcut/)
     // Ctrl with the + key is a real shortcut, so capturing it commits instead of flagging it.
     fireEvent.keyDown(capture, { key: "+", ctrlKey: true })
     expect(document.querySelector("[data-hotkey-capture]")).toBeNull()
