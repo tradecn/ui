@@ -611,7 +611,22 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       u.redraw(false, false)
     })
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme", "data-accessibility"] })
+    // A theme that follows the system needs no attribute change, so the scheme flip is watched too.
+    const scheme = plotEl.ownerDocument.defaultView?.matchMedia?.("(prefers-color-scheme: dark)")
+    const onScheme = () => {
+      const next = readPalette(plotEl)
+      const fontChanged = next.font !== live.current.palette.font
+      live.current.palette = next
+      if (fontChanged) {
+        setFontEpoch((n) => n + 1)
+        return
+      }
+      styleCursor(u, next)
+      u.redraw(false, false)
+    }
+    scheme?.addEventListener("change", onScheme)
     return () => {
+      scheme?.removeEventListener("change", onScheme)
       observer.disconnect()
       u.destroy()
       plot.current = null

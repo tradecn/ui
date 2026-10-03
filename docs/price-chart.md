@@ -195,8 +195,8 @@ Update data through the store and move the cursor through the plot.
 | `kind`, `crosshair`, `lastLine`, `zone`, or serialized `convention` | Recreates the plot. |
 | Overlay ids, colors, widths, or order | Recreates the plot. |
 | `baseline` alone | Updates the readings without recalculating the price scale. An out-of-range reference can stay offscreen until data updates or the plot is recreated. |
-| Theme or mode | Repaints the colors. |
-| `--tradecn-font-mono` stack | Recreates the plot to update its axis font. |
+| Theme or mode | Repaints the colors on an `<html>` class, style, `data-theme`, or `data-accessibility` change, and on a system color-scheme flip. A theme switched on a container alone keeps the painted colors until one of those changes. |
+| `--tradecn-font-mono` stack | Recreates the plot to update its axis font, on the same triggers. |
 | Empty store or unmount | Destroys the plot. |
 
 ### Bars
@@ -366,7 +366,7 @@ Existing shadcn chart tokens are preserved during installation. Each tradecn the
 
 Overlays use your palette's value at their assigned slot. Use legend labels to name the lines.
 
-Set `--tradecn-font-mono` to change the axis and last-price tag's tabular canvas font.
+Set `--tradecn-font-mono` to change the axis and last-price tag's tabular canvas font. The canvas re-reads its palette on `<html>` attribute changes and system scheme flips, the triggers the lifecycle table names.
 
 ### What it does not do
 
