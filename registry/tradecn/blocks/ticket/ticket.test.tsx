@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatQuickSize, checkDraft, describeDraft, parseQuantity, Ticket, TICKET_BINDINGS, type TicketDraft, type TicketInstrument, type TicketProps } from "@/registry/tradecn/blocks/ticket/ticket"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
@@ -288,6 +288,16 @@ describe("Ticket keys", () => {
     expect(screen.getByRole("button", { name: "Send" }).textContent).toContain("S")
     fireEvent.keyDown(quantity(), { key: "s", ctrlKey: true })
     expect(run).toHaveBeenCalledTimes(1)
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
+  })
+
+  it("leaves a replacement that changed only a behavior field or its spelling", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { view } = mount({ defaultDraft: { quantity: 5, price: 99.5 } }, registry)
+    const own = registry.list().find((e) => e.id === "ticket.send")!
+    // Same keys and wording, a `when` guard added: a real replacement the cleanup must keep.
+    act(() => void registry.register({ id: "ticket.send", keys: own.declaredKeys, scope: own.scope, description: own.description, group: own.group, when: () => false }))
     view.unmount()
     expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
   })

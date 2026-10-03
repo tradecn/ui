@@ -10,7 +10,7 @@ import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useDeclaredHotkeyIds, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { NUMERIC_CLASS, formatNotional, formatPrice, formatQuantity, numericFontClass, stepByTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
-import { formatKeys, type HotkeyBinding, type HotkeyEntry, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
+import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
 
 // An order ticket. Its price field is a quote-field, so it types a price the way the instrument
@@ -196,7 +196,7 @@ export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption
 
 // Several tickets can be up at once, so the bindings are declared once per registry and taken
 // back when the last ticket that leaned on them leaves. A consumer that declared an id owns it.
-const declared = new WeakMap<HotkeyRegistry, Map<string, { count: number; ours: boolean; binding: HotkeyBinding; registered?: HotkeyEntry }>>()
+const declared = new WeakMap<HotkeyRegistry, Map<string, { count: number; ours: boolean; binding: HotkeyBinding }>>()
 
 function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBinding[], declaredElsewhere: ReadonlySet<string>): () => void {
   let table = declared.get(registry)
@@ -210,9 +210,7 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
       // provider's bindings, whose effect runs after this one.
       const ours = !have.has(binding.id) && !declaredElsewhere.has(binding.id)
       if (ours) registry.register(binding)
-      // The exact entry registered, defaults included, so cleanup can leave any replacement alone.
-      const registered = ours ? registry.list().find((entry) => entry.id === binding.id) : undefined
-      table.set(binding.id, { count: 1, ours, binding, registered })
+      table.set(binding.id, { count: 1, ours, binding })
     }
   }
   return () => {
@@ -222,11 +220,13 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
       entry.count -= 1
       if (entry.count > 0) continue
       table.delete(binding.id)
-      if (!entry.ours || !entry.registered) continue
-      // A declaration that replaced this default after mount is the consumer's to keep, even one
-      // that changed only its keys.
+      if (!entry.ours) continue
+      // Ownership is the exact declaration this effect made; a replacement differing anywhere —
+      // spelling, wording, scope, group, or a behavior field, even one registered by a subscriber
+      // during the register call — is the consumer's to keep.
+      const declaration = entry.binding
       const current = registry.list().find((e) => e.id === binding.id)
-      if (current && current.defaultKeys === entry.registered.defaultKeys && current.description === entry.registered.description && current.scope === entry.registered.scope) registry.unregister(binding.id)
+      if (current && current.declaredKeys === declaration.keys && current.description === declaration.description && current.scope === declaration.scope && current.group === declaration.group && current.when === declaration.when && current.repeat === declaration.repeat && current.preventDefault === declaration.preventDefault) registry.unregister(binding.id)
     }
   }
 }
