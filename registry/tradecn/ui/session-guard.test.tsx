@@ -116,6 +116,15 @@ describe("the guard", () => {
       clock.fire()
     })
     expect(screen.getByRole("status")).toHaveTextContent("expired")
+    // The public reading paths cross useNow, which also calls through the clock; prove one end to end.
+    render(<SessionStatus expiresAt={t + MINUTE} clock={clock} />)
+    const reading = document.querySelector("[data-session-status]")!
+    expect(reading).toHaveAttribute("data-session-status", "warning")
+    act(() => {
+      t += 2 * MINUTE
+      clock.fire()
+    })
+    expect(reading).toHaveAttribute("data-session-status", "expired")
   })
 
   it("lets recipe classes override the phase wrapper's display in every phase", () => {
