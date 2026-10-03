@@ -109,7 +109,10 @@ describe("fractions", () => {
     expect(parsePrice("99.7", T32_8)).toBe(99.69921875)
     expect(formatFraction(parsePrice("99.7", T32_8)!, T32_8)).toBe("99-223")
     expect(parsePrice("-99.7", T32)).toBe(-99.703125)
-    fc.assert(fc.property(fc.double({ min: 0, max: 200, noNaN: true }), (v) => {
+    // A negative tie snaps away from zero, exactly as the formatter prints it.
+    expect(parsePrice("-0.0078125", T32)).toBe(-0.015625)
+    expect(Object.is(parsePrice("-0.0078125", T32), -0)).toBe(false)
+    fc.assert(fc.property(fc.double({ min: -200, max: 200, noNaN: true }), (v) => {
       const snapped = parsePrice(String(v), T32)!
       return parsePrice(formatFraction(snapped, T32), T32) === snapped
     }))
