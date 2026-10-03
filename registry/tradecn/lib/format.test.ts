@@ -116,6 +116,10 @@ describe("fractions", () => {
     expect(Object.is(parsePrice("-0.001", T32), 0)).toBe(true)
     expect(parsePrice("1" + "0".repeat(307), T32)).toBeNull()
     expect(parsePrice("1" + "0".repeat(307) + ".5", T32)).toBeNull()
+    // From 1e21 the whole part prints in exponent form, which the notation cannot read back.
+    expect(parsePrice("1" + "0".repeat(21), T32)).toBeNull()
+    expect(parsePrice("1" + "0".repeat(21) + ".5", T32)).toBeNull()
+    expect(parsePrice("99999999999999999999", T32)).not.toBeNull()
     expect(Object.is(parsePrice("-0", T32), 0)).toBe(true)
     // Plain-decimal spellings only: a double near zero stringifies in exponent notation, which the
     // parser rejects, and a null would have slipped through a non-null assertion unexercised. The

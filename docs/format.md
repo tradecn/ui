@@ -43,7 +43,7 @@ In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `ei
 |---|---|
 | `formatPrice(value, convention, locale?)` | Format a `Nullable` price; the third argument is a `Locale` object |
 | `formatFraction(value, convention)` | Format a `Nullable` price with the fraction variant of `PriceConvention` |
-| `parsePrice(text, convention)` | Read a string in the convention's notation or as a plain decimal; return a number, or `null` for unreadable text or a value too large to scale into the convention's units |
+| `parsePrice(text, convention)` | Read a string in the convention's notation or as a plain decimal; return a number, or `null` for unreadable text or a value too large to print back in the convention's notation |
 | `decimalsFromTick(tick, max = 8)` | Decimal places needed for a numeric tick, capped at `max`; `0.005` gives `3`, `1 / 32` gives `5`; nonpositive or nonfinite ticks give `0` |
 | `roundToTick(value, tick)` | Snap a number to the nearest tick and clean float noise; return `value` unchanged if it or the tick is nonfinite, or the tick is nonpositive |
 | `stepByTick(value, tick, steps)` | Snap to the grid, move by `steps` ticks, then snap again; all inputs are numbers and negative steps are allowed |

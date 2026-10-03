@@ -148,9 +148,9 @@ export function parsePrice(s: string, c: PriceConvention): number | null {
         else return null
       }
       const value = Number(wholeText) + (ticks + subFraction) / c.denominator
-      // What cannot scale into printable units finitely cannot be formatted back; refuse it, and
-      // keep "-0" plain zero.
-      if (!Number.isFinite(value * c.denominator * (c.eighths ? 8 : 2))) return null
+      // What cannot print back in the notation is refused: unit scaling must stay finite, the
+      // whole part must stay out of exponent form (1e21 up), and "-0" stays plain zero.
+      if (value >= 1e21 || !Number.isFinite(value * c.denominator * (c.eighths ? 8 : 2))) return null
       return value === 0 ? 0 : sign === "-" ? -value : value
     }
   }
@@ -164,8 +164,9 @@ export function parsePrice(s: string, c: PriceConvention): number | null {
   // so a negative tie snaps away from zero the way it prints.
   const unitsPerWhole = c.denominator * (c.eighths ? 8 : 2)
   const units = Math.round(Math.abs(n) * unitsPerWhole)
-  // Scaling can overflow a finite input, and a sub-half-unit negative would make negative zero.
-  if (!Number.isFinite(units)) return null
+  // Scaling can overflow a finite input, a magnitude from 1e21 up prints in exponent form the
+  // notation cannot parse back, and a sub-half-unit negative would make negative zero.
+  if (!Number.isFinite(units) || units / unitsPerWhole >= 1e21) return null
   return units === 0 ? 0 : (n < 0 ? -units : units) / unitsPerWhole
 }
 
