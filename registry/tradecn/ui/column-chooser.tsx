@@ -627,15 +627,18 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
   const { row, dragging, move, moveToEdge, setVisible, resetWidth } = item
   const { labels, focusFallback, startDrag, dragOver, drop, endDrag, registrations, registerItem, focusStep } = useChooserContext()
   const isOwner = useSyncExternalStore(registrations.subscribe, () => registrations.owner() === row.key, () => false)
-  const [controls, setControls] = useState<{ visibility: (() => HTMLElement | null)[]; resetWidth: (() => HTMLElement | null)[] }>({ visibility: [], resetWidth: [] })
+  const [controls, setControls] = useState<{ visibility: { element: () => HTMLElement | null }[]; resetWidth: { element: () => HTMLElement | null }[] }>({ visibility: [], resetWidth: [] })
   const registerControl = useCallback((kind: "visibility" | "resetWidth", element: () => HTMLElement | null) => {
-    setControls((current) => ({ ...current, [kind]: [...current[kind], element] }))
-    return () => setControls((current) => ({ ...current, [kind]: current[kind].filter((entry) => entry !== element) }))
+    // Each registration is its own token: two getter-less declarations share one element
+    // function, and removing one must never remove the other.
+    const token = { element }
+    setControls((current) => ({ ...current, [kind]: [...current[kind], token] }))
+    return () => setControls((current) => ({ ...current, [kind]: current[kind].filter((entry) => entry !== token) }))
   }, [])
   // Effectively enabled at press time: a declared control can still sit in a disabled fieldset.
   // The first-legend exception is knowingly ignored; a getter-less declaration counts as live.
-  const liveControl = (kind: "visibility" | "resetWidth") => controls[kind].some((get) => {
-    const el = get()
+  const liveControl = (kind: "visibility" | "resetWidth") => controls[kind].some((entry) => {
+    const el = entry.element()
     return !el || !(el.matches(":disabled") || el.closest("fieldset[disabled]"))
   })
   const root = useRef<HTMLDivElement>(null)
