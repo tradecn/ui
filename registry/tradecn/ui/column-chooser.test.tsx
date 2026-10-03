@@ -817,9 +817,9 @@ describe("the keyboard model scales to wide grids", () => {
     expect(onChange).not.toHaveBeenCalled()
     expect(bare).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
     expect(full).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete")
-    // A held Space toggles once: repeats are ignored.
+    // A held Space toggles once but every handled press cancels, or repeats scroll the page.
     act(() => full.focus())
-    expect(fireEvent.keyDown(full, { key: " ", repeat: true })).toBe(true)
+    expect(fireEvent.keyDown(full, { key: " ", repeat: true })).toBe(false)
     expect(onChange).not.toHaveBeenCalled()
     fireEvent.keyDown(full, { key: " " })
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -845,6 +845,34 @@ describe("the keyboard model scales to wide grids", () => {
     rerender(<Card off={false} />)
     fireEvent.keyDown(card, { key: " " })
     expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("hands the stop to a usable sibling when only the owner's item re-renders hidden", () => {
+    function MaybeHidden() {
+      const [hidden, setHidden] = useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setHidden((value) => !value)}>Toggle client</button>
+          <ColumnChooserItem columnKey="client" aria-label="Client card" hidden={hidden || undefined}><ColumnChooserName /></ColumnChooserItem>
+        </>
+      )
+    }
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <MaybeHidden />
+        <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const price = screen.getByLabelText("Price card")
+    const client = screen.getByLabelText("Client card")
+    const toggle = screen.getByRole("button", { name: "Toggle client" })
+    expect(client).toHaveAttribute("tabindex", "0")
+    expect(price).toHaveAttribute("tabindex", "-1")
+    fireEvent.click(toggle)
+    expect(price).toHaveAttribute("tabindex", "0")
+    fireEvent.click(toggle)
+    expect(client).toHaveAttribute("tabindex", "0")
+    expect(price).toHaveAttribute("tabindex", "-1")
   })
 
   it("re-renders only the items a focus move touches", () => {
