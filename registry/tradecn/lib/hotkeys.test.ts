@@ -562,6 +562,125 @@ describe("registering", () => {
   })
 })
 
+describe("defaults", () => {
+  it("lists and dispatches a default until a consumer shadows it, and brings it back", () => {
+    const registry = attached()
+    const run = vi.fn()
+    registry.bind("a", run)
+    const release = registry.declareDefault(binding("a", "x"))
+    expect(registry.list().map((e) => e.id)).toEqual(["a"])
+    press("x")
+    expect(run).toHaveBeenCalledTimes(1)
+    registry.register(binding("a", "y"))
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("y")
+    press("x")
+    expect(run).toHaveBeenCalledTimes(1)
+    press("y")
+    expect(run).toHaveBeenCalledTimes(2)
+    registry.unregister("a")
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+    press("x")
+    expect(run).toHaveBeenCalledTimes(3)
+    release()
+    expect(registry.list()).toEqual([])
+  })
+
+  it("holds a default while any declarer remains, and releases once with the last", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const first = registry.declareDefault(binding("a", "x"))
+    const second = registry.declareDefault(binding("a", "x"))
+    first()
+    first()
+    expect(registry.list().map((e) => e.id)).toEqual(["a"])
+    second()
+    expect(registry.list()).toEqual([])
+  })
+
+  it("keeps a consumer registration that matches the default exactly", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const release = registry.declareDefault(binding("a", "x"))
+    registry.register(binding("a", "x"))
+    release()
+    expect(registry.list().map((e) => e.id)).toEqual(["a"])
+    registry.unregister("a")
+    expect(registry.list()).toEqual([])
+  })
+
+  it("promotes a remaining declarer's binding when the one in force releases", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const first = registry.declareDefault(binding("a", "x"))
+    registry.declareDefault(binding("a", "y"))
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+    first()
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("y")
+  })
+
+  it("keeps ownership whole when a shadow attempt throws on malformed keys", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const release = registry.declareDefault(binding("a", "x"))
+    expect(() => registry.register(binding("a", "ctrl+"))).toThrow()
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+    release()
+    expect(registry.list()).toEqual([])
+  })
+
+  it("releases the caller's own declaration when declarers share one binding object", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const shared = binding("a", "x")
+    registry.declareDefault(shared)
+    registry.declareDefault(binding("a", "y"))
+    const third = registry.declareDefault(shared)
+    // Releasing the third declarer must not remove the first's entry: x stays in force.
+    third()
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+  })
+
+  it("leaves a default alone when unregister names it", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const woke = vi.fn()
+    registry.declareDefault(binding("a", "x"))
+    registry.subscribe(woke)
+    registry.unregister("a")
+    expect(woke).not.toHaveBeenCalled()
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+    // The style the palette tests: a subscriber that unregisters whatever it sees listed must
+    // settle, not recurse, when the listed record is a default.
+    registry.subscribe(() => {
+      if (registry.list().some((e) => e.id === "a")) registry.unregister("a")
+    })
+    expect(() => registry.register(binding("b", "z"))).not.toThrow()
+    expect(registry.list().map((e) => e.id).sort()).toEqual(["a", "b"])
+  })
+
+  it("keeps a resurfaced default in its record's position", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.declareDefault(binding("a", "x"))
+    registry.register(binding("b", "z"))
+    registry.register(binding("a", "y"))
+    registry.unregister("a")
+    expect(registry.list().map((e) => e.id)).toEqual(["a", "b"])
+  })
+
+  it("rejects a malformed default even while the id is shadowed", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register(binding("a", "y"))
+    expect(() => registry.declareDefault(binding("a", "ctrl+"))).toThrow()
+    registry.unregister("a")
+    expect(registry.list()).toEqual([])
+  })
+
+  it("leaves a shadowing registration alone when the shadowed default releases", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const release = registry.declareDefault(binding("a", "x"))
+    registry.register({ ...binding("a", "y"), when: () => false })
+    release()
+    const entry = registry.list().find((e) => e.id === "a")
+    expect(entry?.declaredKeys).toBe("y")
+    registry.unregister("a")
+    expect(registry.list()).toEqual([])
+  })
+})
+
 describe("attach", () => {
   it("adds one listener however many times a target is attached", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
