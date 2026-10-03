@@ -38,6 +38,8 @@ export interface HotkeyEntry extends HotkeyBinding {
   /** The keys in force: the override when there is one, else the binding's own. */
   keys: string
   defaultKeys: string
+  /** The keys exactly as the binding declared them, before normalization: `"mod+k"` stays `"mod+k"`. */
+  declaredKeys: string
   remapped: boolean
 }
 
@@ -550,7 +552,7 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
       return (snapshot ??= [...recs.values()].map((rec) => {
         const keys = rec.sequence.join(" ")
         const defaultKeys = normalizeKeys(rec.binding.keys, platform)
-        return { ...rec.binding, keys, defaultKeys, remapped: keys !== defaultKeys }
+        return { ...rec.binding, keys, defaultKeys, declaredKeys: rec.binding.keys, remapped: keys !== defaultKeys }
       }))
     },
     conflicts() {

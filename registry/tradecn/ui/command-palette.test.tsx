@@ -344,13 +344,25 @@ describe("hotkeys", () => {
     expect(registry.list()).toMatchObject([{ id: "palette.open", defaultKeys: "ctrl+p" }])
   })
 
+  it("leaves a replacement whose spelling normalizes to the default", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const view = render(<ComposedPalette actions={seed()} hotkeys={registry} />)
+    const own = registry.list()[0]!
+    // The default declares "mod+…", which this platform normalizes to "ctrl+…"; writing the
+    // normalized chord out is a different declaration of the same keys, and it is the consumer's.
+    expect(own.declaredKeys).not.toBe(own.defaultKeys)
+    act(() => void registry.register({ id: "palette.open", keys: own.defaultKeys, scope: own.scope, description: own.description, group: own.group }))
+    view.unmount()
+    expect(registry.list()).toMatchObject([{ id: "palette.open", declaredKeys: own.defaultKeys }])
+  })
+
   it("leaves a replacement that changed only its behavior", () => {
     const behaviors = [{ when: () => false }, { repeat: true }, { preventDefault: false }]
     for (const behavior of behaviors) {
       const registry = createHotkeyRegistry({ platform: "other" })
       const view = render(<ComposedPalette actions={seed()} hotkeys={registry} />)
       const own = registry.list()[0]!
-      act(() => void registry.register({ id: "palette.open", keys: own.keys, scope: own.scope, description: own.description, group: own.group, ...behavior }))
+      act(() => void registry.register({ id: "palette.open", keys: own.declaredKeys, scope: own.scope, description: own.description, group: own.group, ...behavior }))
       view.unmount()
       expect(registry.list(), `replacement with ${Object.keys(behavior)[0]}`).toMatchObject([{ id: "palette.open" }])
     }
