@@ -1,5 +1,6 @@
 import { createRef, StrictMode, useState } from "react"
 import { createPortal } from "react-dom"
+import { renderToString } from "react-dom/server"
 import { Button } from "@/components/ui/button"
 import { ColumnSettingsPanel, ColumnSettingsDialog } from "@/demos/column-chooser"
 import ColumnChooserInlineDemo from "@/demos/column-chooser-inline"
@@ -774,6 +775,23 @@ describe("the keyboard model scales to wide grids", () => {
     render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}><Cards /></ColumnChooser>)
     expect(screen.getByLabelText("RFQ card")).toHaveAttribute("tabindex", "0")
     expect(screen.getByRole("group", { name: "Client" })).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("hands the stop to a coordinated item at hydration when the first opts out", () => {
+    const ui = (
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <ColumnChooserItem columnKey="id" tabIndex={-1} aria-label="RFQ card"><ColumnChooserName /></ColumnChooserItem>
+        <ColumnChooserItem columnKey="client"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>
+    )
+    const container = document.createElement("div")
+    document.body.append(container)
+    container.innerHTML = renderToString(ui)
+    // Static markup carries no stop; no handler is attached before hydration either.
+    expect(container.querySelectorAll("[data-slot='tradecn-column-chooser-item'][tabindex='0']")).toHaveLength(0)
+    render(ui, { container, hydrate: true })
+    expect(screen.getByRole("group", { name: "Client" })).toHaveAttribute("tabindex", "0")
+    expect(screen.getByLabelText("RFQ card")).toHaveAttribute("tabindex", "-1")
   })
 
   it("keeps the roving owner when arrows visit an opted-out item", () => {
