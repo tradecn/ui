@@ -405,6 +405,7 @@ See [DepthLadder Usage](depth-ladder.md#usage) for a complete replacement.
 | Floating Recenter button | Add `DepthLadderRecenter`. To preserve placement, pass `className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2"`. It now uses your installed shadcn `Button` with `size="sm"`. Its height, weight, and shadow follow that style (22px instead of 26px, weight 500, and no shadow). The registry installs that dependency. |
 | Own-size chip before market size | Still the default of `DepthLadderSizeCell`. Replace its children with `DepthLadderOwnSize` and `DepthLadderSize` to change the order or add content. |
 | Fixed descending prices and Bid / Price / Ask order | Still the defaults. Set `order` and `columns` when changing the visual layout, and render matching headers and cells. |
+| Active descendant resolved to the focused row | It resolves to the focused cell, which carries `aria-selected`. Read `focusedColumn` from the row callback or `useDepthLadderRow()`, or walk `closest("[data-tick]")` from the cell. |
 
 Keep `store`, `convention`, `mid`, `label`, `depth`, `rowHeight`, `overscan`, `onStage`, `formatSize`, `flashWindowMs`, `labels`, `initialRect`, and `className` on the root.
 
@@ -428,9 +429,9 @@ A focused Recenter returns focus to the grid when it disappears or becomes disab
 
 Keep the part mounted and let it manage visibility.
 
-`aria-activedescendant` stays valid during page jumps by keeping the selected row mounted while its tick remains in the anchored range. The root reserves its grid role, tab stop, accessible name, counts, and active descendant. `DepthLadderRow` reserves its generated `id`. Use a data attribute for application row identifiers.
+`aria-activedescendant` stays valid during page jumps by keeping the selected rung mounted while its tick remains in the anchored range. The descendant now names the focused cell, not the row: cells carry generated ids and `aria-selected`, so code that resolved the descendant to read the row's `data-tick` should read the cell's `data-col` and `closest("[data-tick]")`, or take `focusedColumn` from the row callback or `useDepthLadderRow()`. The root reserves its grid role, tab stop, accessible name, counts, and active descendant. `DepthLadderRow` reserves its generated `id`, and `DepthLadderSizeCell` and `DepthLadderPriceCell` reserve `id` and `aria-selected`. Use a data attribute for application row identifiers.
 
-Recenter still retains the selected tick and column, and Enter on the grid can stage that tick after it leaves the anchored range. Choose a current row first when that is not intended.
+Recenter still retains the selected tick and column, but Enter stages nothing while that tick sits outside the anchored range — in v1 it staged the stored tick. Navigation clamps the selection back onto the ladder first.
 
 Preserve visible side headers, own-size descriptions, and your staging status or ticket when composing another layout.
 

@@ -1,4 +1,4 @@
-import { createRef } from "react"
+import { useEffect, createRef } from "react"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
@@ -215,6 +215,8 @@ describe("the ladder", () => {
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     fireEvent.keyDown(grid, { key: "ArrowDown" })
     fireEvent.keyDown(grid, { key: "ArrowDown" })
+    expect(cell(6368, "ask")).toHaveAttribute("aria-selected", "true")
+    expect(cell(6370, "ask")).not.toHaveAttribute("aria-selected")
     fireEvent.keyDown(grid, { key: "Enter" })
     expect(onStage).toHaveBeenLastCalledWith({ price: 99.5, side: "sell", tick: 6368, level: store.getRow("6368") })
     // A page is a viewport of rungs; the focus stops at the range's edge.
@@ -314,13 +316,17 @@ describe("composition", () => {
     const rows = <DepthLadderRows />
     // @ts-expect-error A row needs caller content.
     const row = <DepthLadderRow />
-    // @ts-expect-error The generated row ID is reserved for active descendants.
+    // @ts-expect-error Generated row ids are reserved; descendants point at cells.
     const customId = <DepthLadderRow id="custom"><span /></DepthLadderRow>
     // @ts-expect-error The root owns its active descendant.
     const customGrid = { ...rootProps, children: null, "aria-activedescendant": "application-row" } satisfies DepthLadderProps
     const conditional = <DepthLadder {...rootProps}>{Boolean(vi.fn()()) && <DepthLadderEmpty />}</DepthLadder>
     const empty = <DepthLadder {...rootProps}>{null}</DepthLadder>
-    expect([minimal, configured, emptyState, rows, row, customId, customGrid, conditional, empty]).toHaveLength(9)
+    // @ts-expect-error Cell ids are generated for the grid's active descendant.
+    const cellId = <DepthLadderPriceCell id="custom" />
+    // @ts-expect-error The selected state belongs to the keyboard model.
+    const cellSelected = <DepthLadderSizeCell side="bid" aria-selected={false} />
+    expect([minimal, configured, emptyState, rows, row, customId, customGrid, conditional, empty, cellId, cellSelected]).toHaveLength(11)
   })
 
   it("supports ascending prices, reordered cells and readings, and caller controls without extra row subscriptions", () => {
@@ -378,6 +384,10 @@ describe("composition", () => {
     expect(stage).not.toHaveBeenCalled()
     fireEvent.keyDown(root.current!, { key: "ArrowLeft" })
     expect(root.current).not.toHaveAttribute("aria-activedescendant")
+    // The rogue spread loses throughout: selecting the cell marks it and the descendant resolves.
+    fireEvent.click(price.current!)
+    expect(price.current).toHaveAttribute("aria-selected", "true")
+    expect(root.current).toHaveAttribute("aria-activedescendant", price.current!.id)
   })
 
   it("leaves Enter on Recenter to the button without staging the selected size", () => {
@@ -438,10 +448,13 @@ describe("composition", () => {
     // The selection survived the recenter but sits far outside the new range: staging refuses it.
     fireEvent.keyDown(grid, { key: "Enter" })
     expect(second).not.toHaveBeenCalled()
-    // Navigation clamps back into range, and the latest callback stages the in-range rung.
+    // Navigation clamps back into range, and the latest callback stages the in-range rung with
+    // the store row as it is at stage time.
     fireEvent.keyDown(grid, { key: "ArrowUp" })
+    act(() => store.applyDeltas({ upsert: [{ tick: 6387, bidSize: 55 }] }))
     fireEvent.keyDown(grid, { key: "Enter" })
-    expect(second).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ side: "buy", tick: 6387 }))
+    expect(second).toHaveBeenCalledExactlyOnceWith({ price: priceAtTick(6387, ZN.tick), side: "buy", tick: 6387, level: store.getRow("6387") })
+    expect(store.getRow("6387")!.bidSize).toBe(55)
     expect(first).toHaveBeenCalledTimes(1)
   })
 
@@ -599,7 +612,34 @@ describe("changing a composed layout", () => {
     expect(stage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ side: "sell", tick: 6369 }))
   })
 
-  it("keeps generated row identity authoritative for active descendants", () => {
+  it("refuses a kept select reference once its rung leaves the range", () => {
+    const store = seed()
+    const stage = vi.fn()
+    const keep: { select?: (column: "bid" | "ask" | "price") => void } = {}
+    function KeepSelect() {
+      const row = useDepthLadderRow()
+      useEffect(() => {
+        if (row.tick === 6368) keep.select = row.select
+      })
+      return null
+    }
+    const compose = (mid: number) => (
+      <DepthLadder store={store} convention={ZN} mid={mid} label="Book" depth={5} initialRect={RECT} onStage={stage}>
+        <DepthLadderRecenter>Recenter</DepthLadderRecenter>
+        <DepthLadderViewport><DepthLadderRows>{() => <DepthLadderRow><DepthLadderSizeCell side="bid" /><KeepSelect /><DepthLadderPriceCell /><DepthLadderSizeCell side="ask" /></DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
+      </DepthLadder>
+    )
+    const view = render(compose(MID))
+    act(() => keep.select!("bid"))
+    expect(stage).toHaveBeenCalledTimes(1)
+    view.rerender(compose(priceAtTick(6390, ZN.tick)))
+    fireEvent.click(screen.getByRole("button", { name: "Recenter" }))
+    // The rung is out of the recentered range; the reference held by desk code stages nothing.
+    act(() => keep.select!("bid"))
+    expect(stage).toHaveBeenCalledTimes(1)
+  })
+
+  it("resolves active descendants to generated cell ids under legacy row props", () => {
     const legacyProps = { id: "application-row", "data-application-row": "yes" }
     render(<DepthLadder store={seed()} convention={ZN} mid={MID} label="Book" depth={0} initialRect={RECT}>
       <DepthLadderViewport><DepthLadderRows>{() => <DepthLadderRow {...legacyProps}><DepthLadderSizeCell side="bid" /><DepthLadderPriceCell /><DepthLadderSizeCell side="ask" /></DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>

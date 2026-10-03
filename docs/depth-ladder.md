@@ -100,7 +100,7 @@ DepthLadder
 └── DepthLadderRecenter
 ```
 
-`DepthLadderRows` calls your render function for each mounted tick. Return one `DepthLadderRow` with cells in the same order as `columns`.
+`DepthLadderRows` calls your render function for each mounted tick. Return one `DepthLadderRow` with cells in the same order as `columns`, each declared column rendered once by its tradecn cell part: the generated cell ids the descendant points at exist only through those parts.
 
 Parts whose column is absent from `columns` omit `aria-colindex`. They do not change the declared navigation order.
 
@@ -186,7 +186,7 @@ The row height and transform, and the rows container height, are reserved for vi
 
 Set `--depth-ladder-columns` on the root's style to customize track widths consistently across headers and rows.
 
-Row IDs are generated and reserved for the grid's active descendant. Use a data attribute to identify an application row.
+Row and cell IDs are generated and reserved: the grid's active descendant names the focused cell, which also carries `aria-selected`. Use a data attribute to identify an application row.
 
 ### Hooks
 
@@ -324,7 +324,7 @@ A cell click focuses the grid.
 
 Nested controls keep their native keys, and composing keys are left alone. Removing a selected column hides its focus marks and reports `focusedColumn: null` to custom row content.
 
-Recenter does not reset keyboard focus. If recentering moves the selected tick outside the anchored range, its focus mark and `aria-activedescendant` disappear, and Enter stages nothing until navigation clamps the selection back onto the ladder. A selection on the ladder keeps staging as before.
+Recenter does not reset keyboard focus. Whenever the selected tick sits outside the anchored range — after a recenter, a drift while following, or a smaller `depth` — its focus mark and `aria-activedescendant` disappear, and staging refuses it from every path, Enter and kept `select` references alike. The refused Enter is consumed and gives no feedback. Navigation clamps the selection back onto the ladder, and a selection on the ladder keeps staging as before.
 
 ### Labels
 
