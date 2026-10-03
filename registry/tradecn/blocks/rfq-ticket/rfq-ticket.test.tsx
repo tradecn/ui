@@ -313,7 +313,7 @@ describe("RfqTicket keys", () => {
     view.unmount()
   })
 
-  it("leaves a replacement that changed only a behavior field or its spelling", () => {
+  it("leaves a replacement that changed only a behavior field", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const { view } = mount({}, registry)
     const own = registry.list().find((e) => e.id === "rfq.send")!
@@ -352,6 +352,44 @@ describe("RfqTicket keys", () => {
     expect(registry.list().some((e) => e.id === "rfq.send")).toBe(true)
     view.unmount()
     expect(registry.list().some((e) => e.id === "rfq.send")).toBe(false)
+  })
+
+  it("leaves a binding the consumer declared before mount alone, and shows its keys", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register({ id: "rfq.send", keys: "mod+s", scope: "editing", description: "Ship it" })
+    const quote = vi.fn()
+    mount({ actions: [{ id: "quote", label: "Quote", run: quote, primary: true }], defaultDraft: draftOf({ ask: 99.515625 }) }, registry)
+    expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Ship it")
+    const button = screen.getByRole("button", { name: /Quote/ })
+    expect(button.textContent).toContain("S")
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "s", ctrlKey: true })
+    expect(quote).toHaveBeenCalledTimes(1)
+  })
+
+  it("holds its default against unregister while a ticket stands", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { view } = mount({}, registry)
+    registry.unregister("rfq.send")
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(true)
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(false)
+  })
+
+  it("keeps the defaults when a ticketless declaring provider leaves", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const one = <RfqTicket inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn() }]} defaultDraft={{ ask: 99.5 }} />
+    const ui = (nested: boolean) => (
+      <HotkeysProvider registry={registry}>
+        {one}
+        {nested && <HotkeysProvider registry={registry} bindings={RFQ_TICKET_BINDINGS}>{null}</HotkeysProvider>}
+      </HotkeysProvider>
+    )
+    const view = render(ui(true))
+    view.rerender(ui(false))
+    expect(registry.list().find((e) => e.id === "rfq.send")?.declaredKeys).toBe("mod+enter")
+    view.unmount()
   })
 
   it("renders without a HotkeysProvider and shows no keys", () => {
@@ -450,24 +488,32 @@ describe("quick sizes", () => {
 })
 
 describe("binding ownership and the fence", () => {
-  it("cedes a provider-declared binding across inquiry remounts, runs from the whole ticket, and says a level is not a level", () => {
+  it("cedes a provider-declared binding across inquiry remounts", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const bindings = [{ id: "rfq.send", keys: "mod+s", scope: "editing" as const, description: "Ship the quote" }]
-    const quote = vi.fn()
-    const actions: RfqAction[] = [{ id: "quote", label: "Quote", run: quote, primary: true }]
     const ui = (key: string) => (
       <HotkeysProvider registry={registry} bindings={bindings}>
-        <RfqTicket key={key} inquiry={inquiry()} actions={actions} onDraftChange={() => {}} defaultDraft={draftOf({ ask: 99.515625 })} />
+        <RfqTicket key={key} inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn(), primary: true }]} onDraftChange={() => {}} defaultDraft={draftOf({ ask: 99.515625 })} />
       </HotkeysProvider>
     )
     const { rerender } = render(ui("a"))
     expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Ship the quote")
     rerender(ui("b"))
     expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Ship the quote")
+  })
+
+  it("runs shortcuts from the whole ticket, heading and padding included", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const quote = vi.fn()
+    mount({ actions: [{ id: "quote", label: "Quote", run: quote, primary: true }], defaultDraft: draftOf({ ask: 99.515625 }) }, registry)
     const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
     group.focus()
-    fireEvent.keyDown(group, { key: "s", ctrlKey: true })
+    fireEvent.keyDown(group, { key: "Enter", ctrlKey: true })
     expect(quote).toHaveBeenCalledTimes(1)
+  })
+
+  it("says a level is not a level in the field's own words", () => {
+    mount()
     type(field("Offer"), "banana")
     fireEvent.blur(field("Offer"))
     expect(screen.getByText("Not a level in this instrument's notation.")).toBeInTheDocument()

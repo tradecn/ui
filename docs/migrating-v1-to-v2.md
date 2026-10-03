@@ -473,6 +473,15 @@ Custom cell children replace the default reading, including on missing and diago
 
 Flashes stay on the cell and clean up on unmount. Components add no order actions or keyboard shortcuts.
 
+## Ticket and RfqTicket
+
+Both tickets declare their bindings as registry defaults through [`declareDefault`](use-hotkeys.md#api-reference), replacing v1's declare-when-missing registrations.
+
+- `unregister("ticket.send")` or `unregister("rfq.send")` does nothing while a ticket holds the default. To disable one, register the id with `keys: ""`; `remap(id, "")` also unbinds it, as a user override the hotkey editor shows and Reset undoes. Your own registration shadows the default whenever it comes — in v1.4.13 a registration made after an RFQ ticket mounted was deleted at the next inquiry — and unregistering yours brings the default back immediately.
+- Shortcuts now run from the whole ticket. v1 scoped handlers to each ticket's inner box, so after clicking the heading, the market, or the padding, the keys did nothing; now they act there, outer bindings on the same combinations no longer fire from inside a ticket, macOS Cmd+Up and Cmd+Down no longer scroll the page from one, and `mod+1` through `mod+9` are claimed even without `quickSizes`.
+- Both RFQ level fields say `Not a level in this instrument's notation.` instead of naming the side, and the optional `labels.invalidLevel` carries that text; a test matching the old strings, or a complete translated label set, meets the change without a compiler prompt.
+- `ticket.tsx` and `rfq-ticket.tsx` now require a `lib/hotkeys.ts` with `declareDefault`: reinstall the shared file alongside the block, and a hand-written or wrapped `HotkeyRegistry` must implement the method.
+
 ## PerfMonitor
 
 `PerfMonitor` now requires children. Replace self-closing calls with the complete [Usage composition](perf-monitor.md#usage), which retains the histogram and six frame readings. The sampler and frame-statistics exports are unchanged.

@@ -166,7 +166,7 @@ export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
 /** `mod+1` to `mod+9`: the quick sizes, in order. */
 export const QUICK_SIZE_KEYS: readonly string[] = ["mod+1", "mod+2", "mod+3", "mod+4", "mod+5", "mod+6", "mod+7", "mod+8", "mod+9"]
 
-/** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket when you have not. */
+/** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket as registry defaults your own registration shadows. */
 export const RFQ_TICKET_BINDINGS: readonly HotkeyBinding[] = [
   { id: "rfq.send", keys: "mod+enter", scope: "editing", description: "Send the quote", group: "Inquiry" },
   { id: "rfq.tick-up", keys: "mod+up", scope: "editing", description: "Level up one tick", group: "Inquiry" },
@@ -246,7 +246,7 @@ export interface RfqTicketProps {
   /** Put the keyboard in the first quote field on mount. Off by default: the parent decides where focus goes when an inquiry becomes active. */
   autoFocus?: boolean
   disabled?: boolean
-  /** Declare `RFQ_TICKET_BINDINGS` in the hotkey registry when they are not. Default true. */
+  /** Declare `RFQ_TICKET_BINDINGS` as registry defaults. Default true. */
   hotkeys?: boolean
   /** The desk's lines, from `limits`: a block shows under its field and holds the actions that send a quote; a confirm makes the action ask again. Each level is checked against the inquiry's market. */
   limits?: Limits
@@ -378,7 +378,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
     action.run(current, now)
   }
 
-  // Keys: declared once per registry, bound to this ticket's box so another ticket's keys stay its own.
+  // Keys: defaults declared per ticket, handlers fenced to this ticket so another's keys stay its own.
   const registry = useMaybeHotkeys()
   const handlers = useRef({ send: () => {}, up: () => {}, down: () => {}, suggested: () => {}, quick: (n: number) => {
       void n
