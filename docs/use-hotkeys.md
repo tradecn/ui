@@ -171,6 +171,7 @@ For persistence, create a registry once, restore saved overrides with `load`, an
 | Registry method | Result or behavior |
 |---|---|
 | `register(binding: HotkeyBinding, handler?: HotkeyHandler)` | Declare or replace a binding; return its `HotkeyConflict[]`. |
+| `declareDefault(binding: HotkeyBinding)` | Declare a component's built-in binding; return the release. It lists and dispatches like a registration until a consumer `register` of the id shadows it, `unregister` brings it back, and it stands while any declarer holds it. |
 | `unregister(id: string)` | Remove a declaration. |
 | `bind(id: string, handler: HotkeyHandler, within?: HandlerScope \| null)` | Attach a handler before or after declaration; return a detach function. `within` optionally supplies `{ scope: string, element: () => Element \| null }` for the element restriction described above. Attaching or detaching wakes `subscribe`, since a fenced handler can settle a conflict. |
 | `list()` | Current `readonly HotkeyEntry[]`, also read by `useHotkeyList`. |

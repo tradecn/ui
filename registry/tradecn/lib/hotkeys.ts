@@ -73,6 +73,12 @@ export interface HotkeyRegistry {
   /** Declare a binding, or replace the one with the same id. Returns the conflicts it takes part in. */
   register(binding: HotkeyBinding, handler?: HotkeyHandler): HotkeyConflict[]
   unregister(id: string): void
+  /**
+   * Declare a component's built-in binding. It lists and dispatches like a registration until a
+   * consumer registers the id — the registration shadows it, and unregistering brings it back —
+   * and it stands while any declarer holds it. Returns the release.
+   */
+  declareDefault(binding: HotkeyBinding): () => void
   /** Attach a handler to a declared (or not yet declared) binding. Returns the detach. A fenced handler can settle a conflict, so attaching and detaching wake `subscribe` as a declaration does. */
   bind(id: string, handler: HotkeyHandler, within?: HandlerScope | null): () => void
   /** Override a binding's keys; `""` unbinds it. Notifies `onChange`. Returns the conflicts the new keys take part in. */
@@ -336,6 +342,11 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
   const platform = options.platform ?? detectPlatform()
   const chordTimeoutMs = options.chordTimeoutMs ?? 1000
   const recs = new Map<string, Rec>()
+  // Component defaults: each declaration is held individually beside the live records, installed
+  // only while no consumer registration shadows the id — the earliest held declaration is the
+  // one in force. `defaultIds` marks the ids whose live record is the default.
+  const defaults = new Map<string, HotkeyBinding[]>()
+  const defaultIds = new Set<string>()
   const overrides = new Map<string, string>()
   const bound = new Map<string, Bound[]>()
   const listeners = new Set<() => void>()
@@ -509,17 +520,69 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
     register(binding, handler) {
       if (!binding.id) throw new Error("hotkeys: a binding needs an id")
       const previous = recs.get(binding.id)
-      // Declaring the same thing again (a remount, a hot reload) is not a change.
-      if (previous && !handler && sameBinding(previous.binding, binding)) return conflictsFor(binding.id)
-      recs.set(binding.id, build(binding, handler ?? previous?.handler))
+      // Declaring the same thing again (a remount, a hot reload) is not a change — though a
+      // consumer registering over a default claims the id either way.
+      if (previous && !handler && sameBinding(previous.binding, binding)) {
+        defaultIds.delete(binding.id)
+        return conflictsFor(binding.id)
+      }
+      // Built before any marker moves: a throw on malformed keys must leave ownership untouched.
+      const next = build(binding, handler ?? previous?.handler)
+      defaultIds.delete(binding.id)
+      recs.set(binding.id, next)
       clearPending()
       emit()
       return conflictsFor(binding.id)
     },
     unregister(id) {
       if (!recs.delete(id)) return
+      defaultIds.delete(id)
+      // The earliest held default resurfaces when the consumer registration leaves.
+      const held = defaults.get(id)
+      if (held?.[0]) {
+        recs.set(id, build(held[0]))
+        defaultIds.add(id)
+      }
       clearPending()
       emit()
+    },
+    declareDefault(binding) {
+      if (!binding.id) throw new Error("hotkeys: a binding needs an id")
+      // Built before the declaration is held, so a throw leaves nothing half-registered.
+      const rec = recs.has(binding.id) ? null : build(binding)
+      const held = defaults.get(binding.id)
+      if (held) held.push(binding)
+      else defaults.set(binding.id, [binding])
+      if (rec) {
+        recs.set(binding.id, rec)
+        defaultIds.add(binding.id)
+        clearPending()
+        emit()
+      }
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        const current = defaults.get(binding.id)
+        if (!current) return
+        const at = current.indexOf(binding)
+        if (at < 0) return
+        current.splice(at, 1)
+        if (current.length === 0) defaults.delete(binding.id)
+        if (!defaultIds.has(binding.id)) return
+        const next = current[0]
+        if (next === undefined) {
+          defaultIds.delete(binding.id)
+          recs.delete(binding.id)
+          clearPending()
+          emit()
+        } else if (!sameBinding(recs.get(binding.id)!.binding, next)) {
+          // A remaining declarer's own binding takes over from the released one's.
+          recs.set(binding.id, build(next))
+          clearPending()
+          emit()
+        }
+      }
     },
     bind(id, handler, within = null) {
       const entry: Bound = { handler, within }
