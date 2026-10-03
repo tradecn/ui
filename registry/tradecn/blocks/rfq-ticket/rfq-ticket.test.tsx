@@ -297,6 +297,22 @@ describe("RfqTicket keys", () => {
     expect(registry.list().some((e) => e.id === "rfq.send")).toBe(false)
   })
 
+  it("cedes to a nested provider that declares while tickets come and go", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const one = <RfqTicket inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn() }]} defaultDraft={{ ask: 99.5 }} />
+    const ui = (tickets: boolean) => (
+      <HotkeysProvider registry={registry}>
+        {tickets && one}
+        <HotkeysProvider registry={registry} bindings={RFQ_TICKET_BINDINGS}>{tickets && one}</HotkeysProvider>
+      </HotkeysProvider>
+    )
+    const view = render(ui(true))
+    // Both tickets leave; the nested provider stays, and its declaration must survive.
+    view.rerender(ui(false))
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(true)
+    view.unmount()
+  })
+
   it("leaves a replacement that changed only a behavior field or its spelling", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const { view } = mount({}, registry)
