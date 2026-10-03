@@ -352,6 +352,21 @@ describe("Ticket keys", () => {
     el.remove()
   })
 
+  it("keeps a desk conflict-free when the consumer spreads all nine size bindings", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    render(
+      <HotkeysProvider registry={registry} bindings={TICKET_BINDINGS}>
+        <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", run: vi.fn() }]} allowedActions={["send"]} quickSizes={[1, 5]} />
+      </HotkeysProvider>,
+    )
+    const el = document.body.appendChild(document.createElement("div"))
+    const detach = registry.bind("desk.nine", () => {}, { scope: "editing", element: () => el })
+    act(() => void registry.register({ id: "desk.nine", keys: "mod+9", scope: "editing", description: "Ninth desk thing" }))
+    expect(registry.conflicts()).toEqual([])
+    detach()
+    el.remove()
+  })
+
   it("binds only the quick sizes that exist, absent ones falling through", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const { onDraftChange } = mount({ quickSizes: [1, 5], defaultDraft: { price: 99.5 } }, registry)

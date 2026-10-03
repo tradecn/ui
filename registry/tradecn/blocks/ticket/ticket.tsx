@@ -414,19 +414,27 @@ export function Ticket({
       release()
     }
   }, [registry, declareHotkeys, within])
-  // The sizes ride their own effect: only the sizes passed declare and bind — a declared id
-  // without a handler has no fence and would conflict with another ticket's — so an absent
-  // mod+N stays unclaimed, and a size-count change never re-declares the core four.
+  // The sizes declare only for the quick sizes passed — a declared id needs its handler or it
+  // has no fence and conflicts with another ticket's — and a size-count change never touches
+  // the core four. Handlers still bind fenced for all nine, acting only on a present size and
+  // leaving an absent size's event untouched, so an id anyone else declares — spreading
+  // TICKET_BINDINGS is the documented pattern — always meets a fence too.
   useEffect(() => {
     if (!registry || quickCount === 0) return
-    const sizes = TICKET_SIZE_BINDINGS.slice(0, quickCount)
-    const release = declareHotkeys ? declareBindings(registry, sizes) : noop()
-    const unbind = sizes.map((binding, i) => registry.bind(binding.id, guardKey(() => handlers.current.quick(i + 1)), within))
+    const release = declareHotkeys ? declareBindings(registry, TICKET_SIZE_BINDINGS.slice(0, quickCount)) : noop()
+    return release
+  }, [registry, declareHotkeys, quickCount])
+  useEffect(() => {
+    if (!registry) return
+    const unbind = TICKET_SIZE_BINDINGS.map((binding, i) => registry.bind(binding.id, (event) => {
+      if (i >= (latest.current.quickSizes?.length ?? 0)) return
+      event.preventDefault()
+      handlers.current.quick(i + 1)
+    }, within))
     return () => {
       for (const u of unbind) u()
-      release()
     }
-  }, [registry, declareHotkeys, quickCount, within])
+  }, [registry, within])
   const sendKeys = useSyncExternalStore(
     registry?.subscribe ?? noop,
     () => registry?.list().find((entry) => entry.id === "ticket.send")?.keys ?? null,

@@ -122,7 +122,7 @@ Change `acknowledged` when the server acknowledges, using an order id or timesta
 
 `hotkeys={false}` skips declarations but still attaches handlers for bindings you supply. Each ticket has its own `HotkeyScope` and handlers, so shortcuts work while typing inside that ticket. They also work inside a dialog; global keys cannot reach a blotter behind it.
 
-Price-step shortcuts do not check whether the order type is priced, and they use `convention.tick`, even when the quote field uses another quote basis or step. A disabled ticket runs no shortcuts at all, though its keys are still consumed. `mod+1` through `mod+9` declare and bind only for the quick sizes you pass; an absent size's keys stay unclaimed.
+Price-step shortcuts do not check whether the order type is priced, and they use `convention.tick`, even when the quote field uses another quote basis or step. A disabled ticket runs no shortcuts at all, though its keys are still consumed. `mod+1` through `mod+9` declare only for the quick sizes you pass; the ticket's fenced handler answers an absent size by leaving the event untouched, so those keys keep their defaults, and an id you declare yourself always meets the ticket's fence.
 
 Plain Enter in a field does not submit an order. The ticket has no `<form>` or implicit submit.
 
