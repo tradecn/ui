@@ -416,9 +416,10 @@ export function Ticket({
   }, [registry, declareHotkeys, within])
   // The sizes declare only for the quick sizes passed — a declared id needs its handler or it
   // has no fence and conflicts with another ticket's — and a size-count change never touches
-  // the core four. Handlers still bind fenced for all nine, acting only on a present size and
-  // leaving an absent size's event untouched, so an id anyone else declares — spreading
-  // TICKET_BINDINGS is the documented pattern — always meets a fence too.
+  // the core four. Handlers still bind fenced for all nine so an id anyone else declares —
+  // spreading TICKET_BINDINGS is the documented pattern — always meets a fence. An undeclared
+  // absent size passes through untouched; a declared one is consumed by the registry before
+  // this handler runs, which then does nothing for a size this ticket lacks.
   useEffect(() => {
     if (!registry || quickCount === 0) return
     const release = declareHotkeys ? declareBindings(registry, TICKET_SIZE_BINDINGS.slice(0, quickCount)) : noop()

@@ -367,6 +367,22 @@ describe("Ticket keys", () => {
     el.remove()
   })
 
+  it("consumes a declared absent size and does nothing with it", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const onDraftChange = vi.fn()
+    render(
+      <HotkeysProvider registry={registry} bindings={TICKET_BINDINGS}>
+        <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", run: vi.fn() }]} allowedActions={["send"]} onDraftChange={onDraftChange} quickSizes={[1, 5]} />
+      </HotkeysProvider>,
+    )
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    group.focus()
+    // The consumer declared all nine, so the registry consumes mod+9 inside the fence; the
+    // ticket, lacking a ninth size, does nothing with it.
+    expect(fireEvent.keyDown(group, { key: "9", ctrlKey: true })).toBe(false)
+    expect(onDraftChange).not.toHaveBeenCalled()
+  })
+
   it("binds only the quick sizes that exist, absent ones falling through", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const { onDraftChange } = mount({ quickSizes: [1, 5], defaultDraft: { price: 99.5 } }, registry)
