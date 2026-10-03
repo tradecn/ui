@@ -1,9 +1,10 @@
-import { createRef, StrictMode, useState } from "react"
+import { createRef, Profiler, StrictMode, useState } from "react"
 import { createPortal } from "react-dom"
+import { renderToString } from "react-dom/server"
 import { Button } from "@/components/ui/button"
 import { ColumnSettingsPanel, ColumnSettingsDialog } from "@/demos/column-chooser"
 import ColumnChooserInlineDemo from "@/demos/column-chooser-inline"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ColumnRule } from "@/registry/tradecn/lib/grid-rules"
 import {
@@ -17,6 +18,7 @@ import {
   ColumnChooserResetAll,
   ColumnChooserResetWidth,
   useColumnChooser,
+  useColumnChooserCommand,
   useColumnChooserItem,
   DEFAULT_COLUMN_CHOOSER_LABELS,
   chooserRows,
@@ -222,6 +224,14 @@ describe("public composition", () => {
     expect(toggle.tagName).toBe("INPUT")
     expect(toggle).not.toBeChecked()
     fireEvent.click(toggle)
+    expect(toggle).toBeChecked()
+    // The native checkbox stays out of the Tab order, and its declared command keeps Space live.
+    expect(toggle).toHaveAttribute("tabindex", "-1")
+    const card = screen.getByRole("group", { name: "Client" })
+    act(() => card.focus())
+    fireEvent.keyDown(card, { key: " " })
+    expect(toggle).not.toBeChecked()
+    fireEvent.keyDown(card, { key: " " })
     expect(toggle).toBeChecked()
     expect(screen.getByRole("button", { name: "Earlier: Client" })).toHaveTextContent("Earlier")
     fireEvent.click(screen.getByRole("button", { name: "Later: Client" }))
@@ -576,6 +586,505 @@ describe("public composition", () => {
     vi.spyOn(console, "error").mockImplementation(() => {})
     expect(() => render(<OutsideRoot />)).toThrow("inside ColumnChooser")
     expect(() => render(<OutsideItem />)).toThrow("inside ColumnChooserItem")
+  })
+})
+
+describe("the keyboard model scales to wide grids", () => {
+  const many: ColumnDef<Rfq>[] = Array.from({ length: 100 }, (_, i) => ({ key: `c${i}`, header: `Column ${i}`, width: 80, accessor: (r) => r.id }))
+  const tabStops = (root: HTMLElement) => root.querySelectorAll('input:not([disabled]):not([tabindex="-1"]), button:not([disabled]):not([tabindex="-1"]), [tabindex="0"]').length
+
+  function Controlled({ cols = many, initial = EMPTY_COLUMN_STATE, onChange }: { cols?: ColumnDef<Rfq>[]; initial?: ColumnState; onChange?: (state: ColumnState) => void }) {
+    const [state, setState] = useState(initial)
+    return <ColumnSettingsPanel columns={cols} columnState={state} onColumnStateChange={(next) => { setState(next); onChange?.(next) }} />
+  }
+
+  it("keeps one tab stop in the collection for 100 columns", () => {
+    render(<Controlled />)
+    expect(tabStops(screen.getByRole("group", { name: "Columns" }))).toBeLessThanOrEqual(3)
+    const items = screen.getAllByRole("group", { name: /^Column / })
+    expect(items.filter((item) => item.getAttribute("tabindex") === "0")).toEqual([items[0]])
+    expect(items.filter((item) => item.getAttribute("tabindex") === "-1")).toHaveLength(99)
+  })
+
+  it("moves focus between columns with the arrows, and to the edges with Home and End", () => {
+    render(<Controlled />)
+    const first = screen.getByRole("group", { name: "Column 0" })
+    first.focus()
+    fireEvent.keyDown(first, { key: "ArrowDown" })
+    const second = screen.getByRole("group", { name: "Column 1" })
+    expect(document.activeElement).toBe(second)
+    expect(second.getAttribute("tabindex")).toBe("0")
+    expect(first.getAttribute("tabindex")).toBe("-1")
+    fireEvent.keyDown(second, { key: "End" })
+    expect(document.activeElement).toBe(screen.getByRole("group", { name: "Column 99" }))
+    fireEvent.keyDown(screen.getByRole("group", { name: "Column 99" }), { key: "Home" })
+    expect(document.activeElement).toBe(first)
+    fireEvent.keyDown(first, { key: "ArrowUp" })
+    expect(document.activeElement).toBe(first)
+  })
+
+  it("moves a column to the edge of its side in one step with Alt+Home and Alt+End", () => {
+    let saved = EMPTY_COLUMN_STATE
+    render(<Controlled onChange={(next) => { saved = next }} />)
+    fireEvent.keyDown(screen.getByRole("group", { name: "Column 90" }), { key: "Home", altKey: true })
+    expect(saved.order[0]).toBe("c90")
+    fireEvent.keyDown(screen.getByRole("group", { name: "Column 90" }), { key: "End", altKey: true })
+    expect(saved.order[saved.order.length - 1]).toBe("c90")
+  })
+
+  it("keeps an edge move on its own side of the frozen line", () => {
+    let saved = EMPTY_COLUMN_STATE
+    render(<Controlled cols={columns} onChange={(next) => { saved = next }} />)
+    fireEvent.keyDown(screen.getByRole("group", { name: "RFQ" }), { key: "End", altKey: true })
+    expect(saved.order.slice(0, 2)).toEqual(["client", "id"])
+    fireEvent.keyDown(screen.getByRole("group", { name: "status" }), { key: "Home", altKey: true })
+    expect(saved.order).toEqual(["client", "id", "status", "px", "size", "internal"])
+    saved = EMPTY_COLUMN_STATE
+    fireEvent.keyDown(screen.getByRole("group", { name: "status" }), { key: "Home", altKey: true })
+    expect(saved).toBe(EMPTY_COLUMN_STATE)
+  })
+
+  it("shows or hides the focused column with Space, only from the item itself", () => {
+    let saved: ColumnState | null = null
+    render(<Controlled cols={columns} initial={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onChange={(next) => { saved = next }} />)
+    const item = screen.getByRole("group", { name: "Price" })
+    item.focus()
+    fireEvent.keyDown(item, { key: " " })
+    expect(saved!.hidden).toEqual(["px"])
+    expect(item).toHaveAttribute("aria-description", "hidden")
+    expect(item).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete Backspace")
+    fireEvent.keyDown(item, { key: " " })
+    expect(saved!.hidden).toEqual([])
+    expect(item).not.toHaveAttribute("aria-description")
+    saved = null
+    fireEvent.keyDown(screen.getByRole("checkbox", { name: "Show Price" }), { key: " " })
+    expect(saved).toBeNull()
+  })
+
+  it("resets a resized column's width with Delete from the item itself", () => {
+    let saved: ColumnState | null = null
+    render(<Controlled cols={columns} initial={{ ...EMPTY_COLUMN_STATE, widths: { px: 200 } }} onChange={(next) => { saved = next }} />)
+    const item = screen.getByRole("group", { name: "Size" })
+    item.focus()
+    fireEvent.keyDown(item, { key: "Delete" })
+    expect(saved).toBeNull()
+    const resized = screen.getByRole("group", { name: "Price" })
+    resized.focus()
+    expect(resized).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete Backspace")
+    fireEvent.keyDown(resized, { key: "Delete" })
+    expect(saved!.widths).toEqual({})
+    // The reset consumed the only resized width, so the shortcut leaves the metadata with it.
+    expect(resized).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
+  })
+
+  it("moves the tab stop with pointer focus and keeps it valid when search filters the active column out", () => {
+    render(<Controlled cols={columns} />)
+    const size = screen.getByRole("group", { name: "Size" })
+    fireEvent.focus(size)
+    expect(size.getAttribute("tabindex")).toBe("0")
+    expect(screen.getByRole("group", { name: "RFQ" }).getAttribute("tabindex")).toBe("-1")
+    const search = screen.getByRole("textbox", { name: "Find a column" })
+    search.focus()
+    fireEvent.change(search, { target: { value: "price" } })
+    expect(document.activeElement).toBe(search)
+    expect(screen.getByRole("group", { name: "Price" }).getAttribute("tabindex")).toBe("0")
+  })
+
+  it("navigates from a pointer-focused inner control and keeps arrows native inside caller text fields", () => {
+    render(<Controlled cols={columns} />)
+    const move = screen.getByRole("button", { name: "Move down: RFQ" })
+    expect(move.getAttribute("tabindex")).toBe("-1")
+    move.focus()
+    fireEvent.keyDown(move, { key: "ArrowDown" })
+    expect(document.activeElement).toBe(screen.getByRole("group", { name: "Client" }))
+    const onChange = vi.fn()
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange}>
+      <ColumnChooserItem columnKey="px"><input aria-label="Note" /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="size"><ColumnChooserName /></ColumnChooserItem>
+    </ColumnChooser>)
+    const note = screen.getByRole("textbox", { name: "Note" })
+    note.focus()
+    fireEvent.keyDown(note, { key: "ArrowDown" })
+    expect(document.activeElement).toBe(note)
+  })
+
+  it("leaves every arrow chord to a caller ARIA widget that owns its arrows", () => {
+    const onChange = vi.fn()
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange}>
+      <ColumnChooserItem columnKey="px">
+        <div role="slider" aria-label="Spread" aria-valuenow={1} aria-valuemin={0} aria-valuemax={9} tabIndex={-1} />
+        <button type="button" role="combobox" aria-label="Venue" aria-expanded={false} />
+        <span role="unsupported slider" data-testid="fallback-widget">1</span>
+        <div role="separator" aria-orientation="vertical" aria-valuenow={40} tabIndex={-1} data-testid="splitter" />
+        <div role="toolbar" aria-label="Column tools" aria-orientation="vertical"><button type="button" tabIndex={-1}>Pin</button></div>
+      </ColumnChooserItem>
+      <ColumnChooserItem columnKey="size"><ColumnChooserName /></ColumnChooserItem>
+    </ColumnChooser>)
+    const slider = screen.getByRole("slider", { name: "Spread" })
+    slider.focus()
+    expect(fireEvent.keyDown(slider, { key: "ArrowDown" })).toBe(true)
+    expect(document.activeElement).toBe(slider)
+    const venue = screen.getByRole("combobox", { name: "Venue" })
+    expect(fireEvent.keyDown(venue, { key: "ArrowDown", altKey: true })).toBe(true)
+    expect(fireEvent.keyDown(venue, { key: "End" })).toBe(true)
+    expect(fireEvent.keyDown(screen.getByTestId("fallback-widget"), { key: "ArrowUp" })).toBe(true)
+    expect(fireEvent.keyDown(screen.getByTestId("splitter"), { key: "ArrowDown" })).toBe(true)
+    const toolbarButton = within(screen.getByRole("toolbar", { name: "Column tools" })).getByRole("button", { name: "Pin" })
+    toolbarButton.focus()
+    expect(fireEvent.keyDown(toolbarButton, { key: "ArrowDown" })).toBe(true)
+    expect(fireEvent.keyDown(toolbarButton, { key: "Home" })).toBe(true)
+    expect(document.activeElement).toBe(toolbarButton)
+    expect(onChange).not.toHaveBeenCalled()
+    const item = screen.getByRole("group", { name: "Price" })
+    item.focus()
+    expect(fireEvent.keyDown(item, { key: "ArrowDown" })).toBe(false)
+    expect(document.activeElement).toBe(screen.getByRole("group", { name: "Size" }))
+  })
+
+  it("keeps the tab stop with a coordinated item when another opts out", () => {
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+      <ColumnChooserItem columnKey="id" tabIndex={-1} aria-label="RFQ card"><ColumnChooserName /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="client"><ColumnChooserName /></ColumnChooserItem>
+    </ColumnChooser>)
+    const optedOut = screen.getByLabelText("RFQ card")
+    const sibling = screen.getByRole("group", { name: "Client" })
+    expect(optedOut).toHaveAttribute("tabindex", "-1")
+    expect(sibling).toHaveAttribute("tabindex", "0")
+    fireEvent.focus(optedOut)
+    expect(sibling).toHaveAttribute("tabindex", "0")
+    expect(optedOut).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("leaves an editable item every key", () => {
+    const onChange = vi.fn()
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange}>
+      <ColumnChooserItem columnKey="id" contentEditable suppressContentEditableWarning aria-label="RFQ note"><ColumnChooserName /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="client"><ColumnChooserName /></ColumnChooserItem>
+    </ColumnChooser>)
+    const note = screen.getByLabelText("RFQ note")
+    note.focus()
+    expect(fireEvent.keyDown(note, { key: "ArrowDown" })).toBe(true)
+    expect(fireEvent.keyDown(note, { key: "Home" })).toBe(true)
+    expect(fireEvent.keyDown(note, { key: " " })).toBe(true)
+    expect(fireEvent.keyDown(note, { key: "Delete" })).toBe(true)
+    expect(fireEvent.keyDown(note, { key: "ArrowDown", altKey: true })).toBe(true)
+    expect(document.activeElement).toBe(note)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it("settles with inline callback refs on a subscribed collection", () => {
+    // A collection reading useColumnChooser re-renders with the chooser, so inline refs change
+    // identity every pass; registration must not re-run on ref identity or the two loop.
+    function Cards() {
+      useColumnChooser()
+      return (
+        <>
+          <ColumnChooserItem columnKey="id" ref={() => {}} aria-label="RFQ card"><ColumnChooserName /></ColumnChooserItem>
+          <ColumnChooserItem columnKey="client" ref={() => {}}><ColumnChooserName /></ColumnChooserItem>
+        </>
+      )
+    }
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}><Cards /></ColumnChooser>)
+    expect(screen.getByLabelText("RFQ card")).toHaveAttribute("tabindex", "0")
+    expect(screen.getByRole("group", { name: "Client" })).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("hands the stop to a coordinated item at hydration when the first opts out", () => {
+    const ui = (
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <ColumnChooserItem columnKey="id" tabIndex={-1} aria-label="RFQ card"><ColumnChooserName /></ColumnChooserItem>
+        <ColumnChooserItem columnKey="client"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>
+    )
+    const container = document.createElement("div")
+    document.body.append(container)
+    container.innerHTML = renderToString(ui)
+    // Static markup carries no stop; no handler is attached before hydration either.
+    expect(container.querySelectorAll("[data-slot='tradecn-column-chooser-item'][tabindex='0']")).toHaveLength(0)
+    render(ui, { container, hydrate: true })
+    expect(screen.getByRole("group", { name: "Client" })).toHaveAttribute("tabindex", "0")
+    expect(screen.getByLabelText("RFQ card")).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("runs Space and Delete only where the matching control is rendered, and once per press", () => {
+    const onChange = vi.fn()
+    render(<ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { client: 140 } }} onColumnStateChange={onChange}>
+      <ColumnChooserItem columnKey="id" aria-label="Bare card"><ColumnChooserName /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="client" aria-label="Full card"><ColumnChooserName /><ColumnChooserVisibility /><ColumnChooserResetWidth>Reset</ColumnChooserResetWidth></ColumnChooserItem>
+    </ColumnChooser>)
+    const bare = screen.getByLabelText("Bare card")
+    const full = screen.getByLabelText("Full card")
+    // A visible-only layout renders no visibility control, so Space passes through untouched.
+    act(() => bare.focus())
+    expect(fireEvent.keyDown(bare, { key: " " })).toBe(true)
+    expect(fireEvent.keyDown(bare, { key: "Delete" })).toBe(true)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(bare).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
+    expect(full).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete Backspace")
+    // A held Space toggles once but every handled press cancels, or repeats scroll the page.
+    act(() => full.focus())
+    expect(fireEvent.keyDown(full, { key: " ", repeat: true })).toBe(false)
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.keyDown(full, { key: " " })
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange.mock.lastCall![0].hidden).toEqual(["client"])
+  })
+
+  it("keeps the command when one of two bare declarations leaves", () => {
+    const onChange = vi.fn()
+    function Extra({ on }: { on: boolean }) {
+      return on ? <ExtraCommand /> : null
+    }
+    function ExtraCommand() {
+      useColumnChooserCommand("visibility")
+      return null
+    }
+    function BaseCommand() {
+      useColumnChooserCommand("visibility")
+      return null
+    }
+    const ui = (on: boolean) => (
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange}>
+        <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /><BaseCommand /><Extra on={on} /></ColumnChooserItem>
+      </ColumnChooser>
+    )
+    const view = render(ui(true))
+    const card = screen.getByLabelText("Price card")
+    view.rerender(ui(false))
+    act(() => card.focus())
+    fireEvent.keyDown(card, { key: " " })
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("treats a read-only visibility control as keyless", () => {
+    const onChange = vi.fn()
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange}>
+        <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /><ColumnChooserVisibility readOnly /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const card = screen.getByLabelText("Price card")
+    act(() => card.focus())
+    expect(fireEvent.keyDown(card, { key: " " })).toBe(true)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(card).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
+  })
+
+  it("advertises nothing on an item that keeps its native keys", () => {
+    render(
+      <ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={() => {}}>
+        <ColumnChooserItem columnKey="px" role="option" aria-label="Option card"><ColumnChooserName /><ColumnChooserVisibility /><ColumnChooserResetWidth>Reset</ColumnChooserResetWidth></ColumnChooserItem>
+        <ColumnChooserItem columnKey="client" contentEditable suppressContentEditableWarning aria-label="Editable card"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    expect(screen.getByLabelText("Option card")).not.toHaveAttribute("aria-keyshortcuts")
+    expect(screen.getByLabelText("Editable card")).not.toHaveAttribute("aria-keyshortcuts")
+  })
+
+  it("suspends a command while its control sits in a disabled fieldset", () => {
+    const onChange = vi.fn()
+    function Card({ off }: { off: boolean }) {
+      return (
+        <ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={onChange}>
+          <ColumnChooserItem columnKey="px" aria-label="Price card">
+            <ColumnChooserName />
+            <fieldset disabled={off || undefined}><ColumnChooserVisibility /><ColumnChooserResetWidth>Reset</ColumnChooserResetWidth></fieldset>
+          </ColumnChooserItem>
+        </ColumnChooser>
+      )
+    }
+    const { rerender } = render(<Card off />)
+    const card = screen.getByLabelText("Price card")
+    act(() => card.focus())
+    // Not claimed: the key passes through exactly like a declared-disabled control's.
+    expect(fireEvent.keyDown(card, { key: "Delete" })).toBe(true)
+    expect(fireEvent.keyDown(card, { key: " " })).toBe(true)
+    expect(onChange).not.toHaveBeenCalled()
+    rerender(<Card off={false} />)
+    expect(fireEvent.keyDown(card, { key: "Delete" })).toBe(false)
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("lets a disabled control's key pass through until it enables", () => {
+    const onChange = vi.fn()
+    function Card({ off }: { off: boolean }) {
+      return (
+        <ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={onChange}>
+          <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /><ColumnChooserVisibility disabled={off} /><ColumnChooserResetWidth disabled={off}>Reset</ColumnChooserResetWidth></ColumnChooserItem>
+        </ColumnChooser>
+      )
+    }
+    const { rerender } = render(<Card off />)
+    const card = screen.getByLabelText("Price card")
+    act(() => card.focus())
+    expect(fireEvent.keyDown(card, { key: " " })).toBe(true)
+    expect(fireEvent.keyDown(card, { key: "Delete" })).toBe(true)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(card).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
+    rerender(<Card off={false} />)
+    fireEvent.keyDown(card, { key: " " })
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("hands the stop to a usable sibling when only the owner's item re-renders hidden", () => {
+    function MaybeHidden() {
+      const [hidden, setHidden] = useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setHidden((value) => !value)}>Toggle client</button>
+          <ColumnChooserItem columnKey="client" aria-label="Client card" hidden={hidden || undefined}><ColumnChooserName /></ColumnChooserItem>
+        </>
+      )
+    }
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <MaybeHidden />
+        <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const price = screen.getByLabelText("Price card")
+    const client = screen.getByLabelText("Client card")
+    const toggle = screen.getByRole("button", { name: "Toggle client" })
+    expect(client).toHaveAttribute("tabindex", "0")
+    expect(price).toHaveAttribute("tabindex", "-1")
+    fireEvent.click(toggle)
+    expect(price).toHaveAttribute("tabindex", "0")
+    fireEvent.click(toggle)
+    expect(client).toHaveAttribute("tabindex", "0")
+    expect(price).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("regains the stop when an external mask lifts without any chooser render", async () => {
+    render(
+      <div aria-hidden="true" data-testid="mask">
+        <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+          <ColumnChooserItem columnKey="client" aria-label="Client card"><ColumnChooserName /></ColumnChooserItem>
+          <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem>
+        </ColumnChooser>
+      </div>,
+    )
+    const client = screen.getByLabelText("Client card")
+    expect(client).toHaveAttribute("tabindex", "-1")
+    // The modal closes by plain DOM mutation: no chooser state changes, no react render.
+    screen.getByTestId("mask").removeAttribute("aria-hidden")
+    await waitFor(() => expect(client).toHaveAttribute("tabindex", "0"))
+  })
+
+  it("hands the stop onward when only the owner's item re-renders aria-hidden", () => {
+    function MaybeHidden() {
+      const [hidden, setHidden] = useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setHidden((value) => !value)}>Veil client</button>
+          <ColumnChooserItem columnKey="client" aria-label="Client card" aria-hidden={hidden || undefined}><ColumnChooserName /></ColumnChooserItem>
+        </>
+      )
+    }
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <MaybeHidden />
+        <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const price = screen.getByLabelText("Price card")
+    const client = screen.getByLabelText("Client card")
+    expect(client).toHaveAttribute("tabindex", "0")
+    fireEvent.click(screen.getByRole("button", { name: "Veil client" }))
+    expect(price).toHaveAttribute("tabindex", "0")
+    expect(client).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("hands the stop onward when only the owner's item re-renders styled away", () => {
+    function MaybeStyled() {
+      const [gone, setGone] = useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setGone((value) => !value)}>Collapse client</button>
+          <ColumnChooserItem columnKey="client" aria-label="Client card" style={gone ? { display: "none" } : undefined}><ColumnChooserName /></ColumnChooserItem>
+        </>
+      )
+    }
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <MaybeStyled />
+        <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const price = screen.getByLabelText("Price card")
+    const client = screen.getByLabelText("Client card")
+    const toggle = screen.getByRole("button", { name: "Collapse client" })
+    expect(client).toHaveAttribute("tabindex", "0")
+    fireEvent.click(toggle)
+    expect(price).toHaveAttribute("tabindex", "0")
+    expect(client).toHaveAttribute("tabindex", "-1")
+    fireEvent.click(toggle)
+    expect(client).toHaveAttribute("tabindex", "0")
+  })
+
+  it("scans arrows and edges past unavailable and unregistered items", () => {
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <ColumnChooserItem columnKey="client" aria-label="Client card"><ColumnChooserName /></ColumnChooserItem>
+        <ColumnChooserItem columnKey="px" aria-label="Price card" hidden><ColumnChooserName /></ColumnChooserItem>
+        <ColumnChooserItem columnKey="size" aria-label="Size card"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const client = screen.getByLabelText("Client card")
+    const size = screen.getByLabelText("Size card")
+    // Down from Client skips the hidden Price card; id has no item, so End walks back to Size.
+    act(() => client.focus())
+    fireEvent.keyDown(client, { key: "ArrowDown" })
+    expect(size).toHaveFocus()
+    fireEvent.keyDown(size, { key: "ArrowUp" })
+    expect(client).toHaveFocus()
+    fireEvent.keyDown(client, { key: "End" })
+    expect(size).toHaveFocus()
+    fireEvent.keyDown(size, { key: "Home" })
+    expect(client).toHaveFocus()
+  })
+
+  it("re-renders only the items a focus move touches", () => {
+    const renders = vi.fn()
+    function Harness() {
+      const [state, setState] = useState<ColumnState>(EMPTY_COLUMN_STATE)
+      return (
+        <ColumnChooser columns={columns} columnState={state} onColumnStateChange={setState}>
+          <ColumnChooserSearch />
+          {columns.filter((column) => !column.hidden).map((column) => (
+            <Profiler key={column.key} id={column.key} onRender={(id) => renders(id)}>
+              <ColumnChooserItem columnKey={column.key}><ColumnChooserName /></ColumnChooserItem>
+            </Profiler>
+          ))}
+        </ColumnChooser>
+      )
+    }
+    render(<Harness />)
+    const counts = () => renders.mock.calls.reduce<Record<string, number>>((all, [key]) => ({ ...all, [key]: (all[key] ?? 0) + 1 }), {})
+    // Mount renders each item once, plus one ownership settle for the first coordinated item:
+    // the provider does not subscribe to registrations, so there is no collection pass.
+    expect(counts()).toEqual({ id: 2, client: 1, px: 1, size: 1, status: 1 })
+    renders.mockClear()
+    const first = screen.getByRole("group", { name: "RFQ" })
+    act(() => first.focus())
+    renders.mockClear()
+    fireEvent.keyDown(first, { key: "ArrowDown" })
+    // The step re-renders the two items whose ownership changed, and nothing else.
+    expect(counts()).toEqual({ id: 1, client: 1 })
+  })
+
+  it("keeps the roving owner when arrows visit an opted-out item", () => {
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+      <ColumnChooserItem columnKey="id"><ColumnChooserName /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="client" tabIndex={-1} aria-label="Client card"><ColumnChooserName /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="px"><ColumnChooserName /></ColumnChooserItem>
+    </ColumnChooser>)
+    const price = screen.getByRole("group", { name: "Price" })
+    act(() => price.focus())
+    expect(price).toHaveAttribute("tabindex", "0")
+    fireEvent.keyDown(price, { key: "ArrowUp" })
+    expect(document.activeElement).toBe(screen.getByLabelText("Client card"))
+    expect(price).toHaveAttribute("tabindex", "0")
+    expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "-1")
   })
 })
 

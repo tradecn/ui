@@ -747,10 +747,13 @@ Copy the complete [Usage example](column-chooser.md#usage) into `column-chooser.
 | Reset and move controls | `ColumnChooserResetAll`, `ColumnChooserResetWidth`, and `ColumnChooserMove`, with required action content. |
 | Labels for surrounding content | Read `useColumnChooser().labels` for the description, empty state, action content, and hint. |
 | Full-order keyboard and button moves | Neighbors follow the search results by default. Pass `presented` for a custom collection. Pure move helpers retain full-order semantics. |
+| A Tab stop on every item and control | One Tab stop for the collection. Up and Down move focus between columns, Home and End reach its edges, Space toggles visibility and Delete resets a width where the item renders the matching control, and Alt+Home or Alt+End moves a column to the edge of its side. Pass `tabIndex={0}` to a part or item to restore its own Tab stop. |
 | Reset to empty state | Pass shared defaults as `baseState`. Root reset, width reset and `isDefault` use that baseline; omission retains the empty baseline. |
 | Silent edits | Mount `ColumnChooserAnnouncer` once to announce accepted changes. The shared recipes include it. |
 
 The `data-column`, `data-visible`, `data-frozen`, and `data-dragging` markers now belong to `ColumnChooserItem`, not its caller-owned `li`. Update selectors such as `li[data-column]` to `[data-column]`.
+
+The keyboard model scales to wide grids: visibility, move, and width-reset controls default to `tabIndex={-1}`, so a hundred columns tab past as one stop instead of four hundred. The controls remain pointer targets, the same commands run on the focused item, and `useColumnChooserItem` adds `moveToEdge`. A test that tabbed to a checkbox or move button now focuses the item and sends the key instead. The default `dragHint` text names the new keys; a custom `labels.dragHint` keeps your wording.
 
 For a minimal inline replacement, install ColumnChooser and copy the shared file first:
 
