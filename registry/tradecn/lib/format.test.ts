@@ -120,13 +120,15 @@ describe("fractions", () => {
     expect(parsePrice("1" + "0".repeat(21), T32)).toBeNull()
     expect(parsePrice("1" + "0".repeat(21) + ".5", T32)).toBeNull()
     expect(parsePrice("99999999999999999999", T32)).not.toBeNull()
-    // The same promise for the other conventions: tick scaling that overflows, or a magnitude
-    // that prints in exponent form, parses as null there too.
+    // Tick scaling that overflows parses as null; Intl prints tick and decimal prices in full
+    // digits at any finite size, so their large values round-trip rather than refuse, and zero
+    // is plain zero everywhere.
     expect(parsePrice("1" + "0".repeat(308), { kind: "tick", tick: 0.001 })).toBeNull()
-    expect(parsePrice("1" + "0".repeat(21), { kind: "tick", tick: 0.5 })).toBeNull()
-    expect(parsePrice("99999999999999999999", { kind: "tick", tick: 0.5 })).toBe(1e20)
-    expect(parsePrice("1" + "0".repeat(21), { kind: "decimal", decimals: 2 })).toBeNull()
-    expect(parsePrice("99999999999999999999", { kind: "decimal", decimals: 2 })).toBe(1e20)
+    expect(parsePrice("1" + "0".repeat(21), { kind: "tick", tick: 0.5 })).toBe(1e21)
+    expect(parsePrice("1" + "0".repeat(21), { kind: "decimal", decimals: 2 })).toBe(1e21)
+    expect(parsePrice(formatPrice(1e21, { kind: "decimal", decimals: 2 }), { kind: "decimal", decimals: 2 })).toBe(1e21)
+    expect(Object.is(parsePrice("-0.001", { kind: "decimal", decimals: 2 }), 0)).toBe(true)
+    expect(Object.is(parsePrice("-0.2", { kind: "tick", tick: 0.5 }), 0)).toBe(true)
     expect(Object.is(parsePrice("-0", T32), 0)).toBe(true)
     // Plain-decimal spellings only: a double near zero stringifies in exponent notation, which the
     // parser rejects, and a null would have slipped through a non-null assertion unexercised. The

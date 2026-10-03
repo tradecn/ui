@@ -158,13 +158,15 @@ export function parsePrice(s: string, c: PriceConvention): number | null {
   const n = Number(text)
   if (!Number.isFinite(n)) return null
   // Every convention keeps the promise the reference row makes: what parses can print back.
+  // Intl prints tick and decimal prices in full digits at any finite size, so only fraction
+  // notation carries the 1e21 bound; tick scaling must stay finite, and zero stays plain zero.
   if (c.kind === "tick") {
     const rounded = roundToTick(n, c.tick)
-    return Number.isFinite(rounded) && Math.abs(rounded) < 1e21 ? rounded : null
+    return Number.isFinite(rounded) ? (rounded === 0 ? 0 : rounded) : null
   }
   if (c.kind === "decimal") {
     const fixed = Number(n.toFixed(c.decimals))
-    return Math.abs(fixed) < 1e21 ? fixed : null
+    return fixed === 0 ? 0 : fixed
   }
   // A decimal typed into a fraction convention snaps to the printable grid, so the value a field
   // reports is the price its formatted text shows. The magnitude rounds, as the formatter rounds,
