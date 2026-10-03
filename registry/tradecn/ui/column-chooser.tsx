@@ -635,14 +635,16 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
   // Registration is a layout effect, not part of the ref: an inline caller ref changes identity
   // every render, and re-registering on each change would invalidate the provider's subscription
   // in a loop.
-  // Availability props re-run it too: hiding the owner must hand the stop to a usable sibling
-  // even when only this item re-rendered, and set() alone no-ops on an unchanged registration.
-  const ariaHidden = props["aria-hidden"]
   useLayoutEffect(() => {
     registerItem(row.key, root.current, tabIndex !== undefined)
-    registrations.refresh()
     return () => registerItem(row.key, null)
-  }, [row.key, registerItem, registrations, tabIndex, props.hidden, props.inert, ariaHidden])
+  }, [row.key, registerItem, tabIndex])
+  // Any commit of an item can change its availability — hidden, inert, aria-hidden, a class or
+  // style that removes it — so every one re-resolves; the store publishes only when the owner
+  // actually moves, which keeps re-renders from looping.
+  useLayoutEffect(() => {
+    registrations.refresh()
+  })
   const focused = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
     const node = root.current
