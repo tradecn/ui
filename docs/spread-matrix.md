@@ -292,7 +292,7 @@ The default formatter keeps the spread's sign visible after the flash ends. That
 
 Write headings, captions and unit labels in your composition. Use `ticks` for price ticks and `bp` for basis points.
 
-The Usage example writes its matrix caption as `Each cell is the row less the column. ticks.` and a structures caption as `Spread: bp.`; v2 renders no caption of its own. Write yours to say whose values and what unit, and translate those children and the table's `label` together.
+The Usage example writes its matrix caption as `Each cell is the row less the column. ticks.`, and the Curves and butterflies example writes `Spread: bp.`; v2 renders no caption of its own. Write yours to say whose values and what unit, and translate those children and the table's `label` together.
 
 ### What it does not do
 
