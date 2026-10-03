@@ -124,7 +124,7 @@ export interface RfqTicketLabels {
   ask: string
   market: string
   /** The invalid-text both level fields show. */
-  invalidLevel: string
+  invalidLevel?: string
   quoted: string
   suggested: string
   takeSuggested: string
