@@ -703,12 +703,20 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
   }} /></ControlsContext></ItemContext>
 }
 
+/**
+ * Declares that this item renders a control for one of the item-level keys, so Space or Delete
+ * stays live where a caller-owned control covers the command. A disabled control declares nothing.
+ */
+export function useColumnChooserCommand(kind: "visibility" | "resetWidth", enabled = true) {
+  const registerControl = useContext(ControlsContext)
+  useLayoutEffect(() => (enabled ? registerControl?.(kind) : undefined), [registerControl, kind, enabled])
+}
+
 export function ColumnChooserVisibility({ onClick, onCheckedChange, tabIndex = -1, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<typeof Checkbox>, "checked" | "defaultChecked" | "indeterminate">) {
   const { row, setVisible } = useColumnChooserItem()
   const { labels } = useColumnChooser()
   // Presence tells the item Space has a rendered counterpart, so the key runs only here.
-  const registerControl = useContext(ControlsContext)
-  useLayoutEffect(() => registerControl?.("visibility"), [registerControl])
+  useColumnChooserCommand("visibility", !props.disabled)
   return <Checkbox tabIndex={tabIndex} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.show} ${row.name}`)} {...props} checked={row.visible} onClick={(event) => {
     onClick?.(event)
     // Some built-ins separate browser cancellation from their own click handler.
@@ -750,8 +758,7 @@ export function ColumnChooserResetWidth({ type = "button", variant = "ghost", si
   const { row, resetWidth } = useColumnChooserItem()
   const { labels } = useColumnChooser()
   // Presence tells the item Delete has a rendered counterpart, so the key runs only here.
-  const registerControl = useContext(ControlsContext)
-  useLayoutEffect(() => registerControl?.("resetWidth"), [registerControl])
+  useColumnChooserCommand("resetWidth", !disabled)
   return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.resetWidth}: ${row.name}`)} aria-hidden={!row.resized || undefined} tabIndex={tabIndex} className={cn(size === undefined && "h-6 px-1.5 text-xs", !row.resized && "invisible", className)} {...props} disabled={disabled || !row.resized} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) resetWidth()
