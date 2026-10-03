@@ -275,16 +275,16 @@ export function describeRule<T>(rule: { column: string; when?: RuleCondition } &
   const text = (raw: RuleValue | undefined) => {
     if (raw === undefined || raw === null) return ""
     if (typeof raw === "string" && column?.parse && column.format) {
-      try {
-        // Normalized like the comparison: a parser's NaN matches nothing, so its words must not
-        // print a formatted non-value.
-        const parsed = normalizeValue(column.parse(raw))
-        if (parsed !== null && parsed !== undefined) {
+      // Normalized like the comparison: a parser's NaN matches nothing, so its words must not
+      // print a formatted non-value. A parser's throw propagates here as it does everywhere.
+      const parsed = normalizeValue(column.parse(raw))
+      if (parsed !== null && parsed !== undefined) {
+        try {
           const printed = column.format(parsed)
           if (typeof printed === "string" && printed !== "") return printed
+        } catch {
+          // A format that needs its row has no row here; the typed text stands.
         }
-      } catch {
-        // A format that needs its row has no row here; the typed text stands.
       }
     }
     return String(raw)

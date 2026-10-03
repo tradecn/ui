@@ -240,6 +240,12 @@ describe("the words", () => {
     expect(describeRule({ column: "px", when: { op: "gt", value: "99.7" } }, columns)).toBe("Price above 99.7")
     const broken = { ...columns[2]!, parse: () => Number.NaN, format: (value: unknown) => formatFraction(value as number | null, THIRTY_SECONDS) }
     expect(describeRule({ column: "px", when: { op: "gt", value: "99.7" } }, [broken])).toBe("Price above 99.7")
+    // A parser's throw propagates, exactly as compileCondition and ruleProblem let it; only a
+    // row-hungry format falls back to the typed text.
+    const throwing = { ...columns[2]!, parse: () => { throw new Error("bad parser") }, format: () => "never" }
+    expect(() => describeRule({ column: "px", when: { op: "gt", value: "99.7" } }, [throwing])).toThrow("bad parser")
+    const rowHungry = { ...columns[2]!, format: (value: unknown, row?: { px: number }) => String(row!.px * (value as number)) }
+    expect(describeRule({ column: "px", when: { op: "gt", value: "99.7" } }, [rowHungry])).toBe("Price above 99.7")
   })
 
   it("describes a rule as the column's name, the op's word, and the value as typed", () => {
