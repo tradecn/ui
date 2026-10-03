@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { RFQ_TICKET_BINDINGS, RfqTicket, checkQuote, describeQuote, formatSize, quoteDistance, quotedSides, type RfqAction, type RfqInquiry, type RfqQuoteDraft, type RfqTicketProps } from "@/registry/tradecn/blocks/rfq-ticket/rfq-ticket"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
-import { createHotkeyRegistry, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
+import { type HotkeyBinding, createHotkeyRegistry, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 
 const T32: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
@@ -295,6 +295,30 @@ describe("RfqTicket keys", () => {
     expect(registry.list().filter((e) => e.id === "rfq.send")).toHaveLength(1)
     view.unmount()
     expect(registry.list().some((e) => e.id === "rfq.send")).toBe(false)
+  })
+
+  it("leaves a replacement that changed only a behavior field or its spelling", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { view } = mount({}, registry)
+    const own = registry.list().find((e) => e.id === "rfq.send")!
+    // Same keys and wording, a `when` guard added: a real replacement the cleanup must keep.
+    act(() => void registry.register({ id: "rfq.send", keys: own.declaredKeys, scope: own.scope, description: own.description, group: own.group, when: () => false }))
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(true)
+  })
+
+  it("installs its defaults again when the provider stops declaring them", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const consumers: HotkeyBinding[] = [{ id: "rfq.send", keys: "mod+s", scope: "editing", description: "Ship the quote" }]
+    const ui = (bindings: readonly HotkeyBinding[]) => (
+      <HotkeysProvider registry={registry} bindings={bindings}>
+        <RfqTicket inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn() }]} defaultDraft={{ ask: 99.5 }} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(consumers))
+    expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Ship the quote")
+    view.rerender(ui([]))
+    expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Send the quote")
   })
 
   it("renders without a HotkeysProvider and shows no keys", () => {
