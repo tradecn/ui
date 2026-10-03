@@ -333,7 +333,7 @@ Use the public capture and input parts with custom controls to retain their even
 
 ## LayoutManager
 
-`LayoutManager` now requires children. Compose save fields, template readings, editing controls, and import fields explicitly.
+`LayoutManager` now requires children. Compose save fields, template readings, editing controls, and import fields explicitly. The import form's name field is named `Imported layout name` through its own `labels.importName`; it no longer shares `Layout name` with the save field, so update selectors that relied on the collision.
 
 See the [list](layout-manager.md#usage), [card](layout-manager.md#cards), and [workspace](layout-manager.md#saving-and-restoring-a-workspace) examples for complete compositions.
 
