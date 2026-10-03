@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
-import { HotkeyScope, useDeclaredHotkeyIds, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
+import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
@@ -222,44 +222,13 @@ export function quoteDistance(level: number | null | undefined, market: number |
   return { value, text: formatBps(value, { signed: true }) }
 }
 
-// Several tickets can be up at once, so the bindings are declared once per registry and taken
-// back when the last ticket that leaned on them leaves. A consumer that declared an id owns it.
-const declared = new WeakMap<HotkeyRegistry, Map<string, { count: number; ours: boolean; binding: HotkeyBinding }>>()
-
-function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBinding[], declaredElsewhere: ReadonlySet<string>): () => void {
-  let table = declared.get(registry)
-  if (!table) declared.set(registry, (table = new Map()))
-  const have = new Set(registry.list().map((entry) => entry.id))
-  for (const binding of bindings) {
-    const entry = table.get(binding.id)
-    if (entry) {
-      entry.count += 1
-      // A provider that began declaring this id after the first ticket owns it now; without the
-      // cession, the last unmount would delete the provider's live declaration.
-      if (declaredElsewhere.has(binding.id)) entry.ours = false
-    } else {
-      // A consumer that declared this id owns it, whether on the registry before render or in a
-      // provider's bindings, whose effect runs after this one.
-      const ours = !have.has(binding.id) && !declaredElsewhere.has(binding.id)
-      if (ours) registry.register(binding)
-      table.set(binding.id, { count: 1, ours, binding })
-    }
-  }
+// Every ticket declares the bindings as registry defaults: the registry refcounts them, a
+// consumer registration of an id shadows its default, and unregistering surfaces it again, so
+// no mount order can delete a consumer's declaration or strand a remaining ticket without one.
+function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBinding[]): () => void {
+  const releases = bindings.map((binding) => registry.declareDefault(binding))
   return () => {
-    for (const binding of bindings) {
-      const entry = table.get(binding.id)
-      if (!entry) continue
-      entry.count -= 1
-      if (entry.count > 0) continue
-      table.delete(binding.id)
-      if (!entry.ours) continue
-      // Ownership is the exact declaration this effect made; a replacement differing anywhere —
-      // spelling, wording, scope, group, or a behavior field, even one registered by a subscriber
-      // during the register call — is the consumer's to keep.
-      const declaration = entry.binding
-      const current = registry.list().find((e) => e.id === binding.id)
-      if (current && current.declaredKeys === declaration.keys && current.description === declaration.description && current.scope === declaration.scope && current.group === declaration.group && current.when === declaration.when && current.repeat === declaration.repeat && current.preventDefault === declaration.preventDefault) registry.unregister(binding.id)
-    }
+    for (const release of releases) release()
   }
 }
 
@@ -411,7 +380,6 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   // Keys: declared once per registry, bound to this ticket's box so another ticket's keys stay its own.
   const registry = useMaybeHotkeys()
-  const declaredByProvider = useDeclaredHotkeyIds()
   const handlers = useRef({ send: () => {}, up: () => {}, down: () => {}, suggested: () => {}, quick: (n: number) => {
       void n
     } })
@@ -431,7 +399,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   })
   useEffect(() => {
     if (!registry) return
-    const release = declareHotkeys ? declareBindings(registry, RFQ_TICKET_BINDINGS, declaredByProvider) : noop()
+    const release = declareHotkeys ? declareBindings(registry, RFQ_TICKET_BINDINGS) : noop()
     // Fenced to the scope root, so the shortcuts run from the heading, the market, and the padding too.
     const within = { scope: "editing", element: () => (box.current ? box.current.parentElement ?? box.current : null) }
     const guard = (fn: () => void) => (event: KeyboardEvent) => {
@@ -449,7 +417,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       for (const u of unbind) u()
       release()
     }
-  }, [registry, declareHotkeys, declaredByProvider])
+  }, [registry, declareHotkeys])
   const sendKeys = useSyncExternalStore(
     registry?.subscribe ?? noop,
     () => registry?.list().find((entry) => entry.id === "rfq.send")?.keys ?? null,

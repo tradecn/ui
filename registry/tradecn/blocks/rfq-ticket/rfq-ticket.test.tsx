@@ -337,6 +337,23 @@ describe("RfqTicket keys", () => {
     expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Send the quote")
   })
 
+  it("keeps a remaining ticket's declarations when a nested declaring provider leaves", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const one = <RfqTicket inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn() }]} defaultDraft={{ ask: 99.5 }} />
+    const ui = (nested: boolean) => (
+      <HotkeysProvider registry={registry}>
+        {one}
+        {nested && <HotkeysProvider registry={registry} bindings={RFQ_TICKET_BINDINGS}>{one}</HotkeysProvider>}
+      </HotkeysProvider>
+    )
+    const view = render(ui(true))
+    // The nested provider and its ticket leave together; the outer ticket still needs its keys.
+    view.rerender(ui(false))
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(true)
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(false)
+  })
+
   it("renders without a HotkeysProvider and shows no keys", () => {
     mount({}, null)
     expect(screen.getByRole("button", { name: "Quote" }).querySelectorAll("kbd")).toHaveLength(0)
