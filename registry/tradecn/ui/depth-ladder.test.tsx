@@ -669,6 +669,21 @@ describe("changing a composed layout", () => {
     expect(stage).not.toHaveBeenCalled()
   })
 
+  it("suppresses the selected state on a caller role that does not take it", () => {
+    const store = seed()
+    render(<DepthLadder store={store} convention={ZN} mid={MID} label="Book" depth={0} initialRect={RECT}>
+      <DepthLadderViewport><DepthLadderRows>{() => <DepthLadderRow><DepthLadderSizeCell side="bid" /><DepthLadderPriceCell role="rowheader" /><DepthLadderSizeCell side="ask" /></DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
+    </DepthLadder>)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    const price = cell(6369, "price")!
+    expect(price).toHaveAttribute("role", "rowheader")
+    expect(grid).toHaveAttribute("aria-activedescendant", price.id)
+    expect(price).not.toHaveAttribute("aria-selected")
+    expect(cell(6369, "bid")).not.toHaveAttribute("aria-selected")
+  })
+
   it("resolves active descendants to generated cell ids under legacy row props", () => {
     const legacyProps = { id: "application-row", "data-application-row": "yes" }
     render(<DepthLadder store={seed()} convention={ZN} mid={MID} label="Book" depth={0} initialRect={RECT}>
