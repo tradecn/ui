@@ -48,7 +48,7 @@ Use the same readings in a grid, with the user first and the environment after t
 
 ## Feed and frame health
 
-Install [`feed-health`](feed-health.md) and [`perf-monitor`](perf-monitor.md), then save the complete [PerfMonitor Usage example](perf-monitor.md#usage) as `perf-monitor.tsx` beside this example to supply `FrameReadings`.
+Install [`feed-health`](feed-health.md) and [`perf-monitor`](perf-monitor.md), then save the complete [PerfMonitor Usage example](perf-monitor.md#usage) as `perf-monitor.tsx` beside this example, outside `components/ui` so it cannot overwrite the installed component, to supply `FrameReadings`.
 
 Choose **Receive message** to refresh the feed timestamp. Its default thresholds mark it aging after two seconds and stale after ten. The compact feed keeps its tier word available to screen readers and in its tooltip.
 
@@ -104,7 +104,7 @@ Each readout shows its label beside a `<time>` element with lining, tabular figu
 
 Every readout subscribes locally through `useNow`. Three readings using the default source share one timer, which stops after its last subscriber leaves. Setting `seconds={false}` changes the visible format, while the ISO timestamp still updates on the source cadence, once a second by default. A bar without clock readings creates no clock subscriptions.
 
-Pass `source` to each readout to use a custom clock, and keep it and its methods stable between renders: the readout resubscribes when they change. Its `Clock` interface has `now(): number`, returning the last tick's epoch milliseconds, and `subscribe(callback: () => void): () => void`, returning cleanup. Keep `now()` stable between ticks and supply valid timestamps within JavaScript's date range.
+Pass `source` to each readout to use a custom clock, and keep the object stable between renders: the readout resubscribes when `source` changes, and a new object built each render resubscribes each render. Its `Clock` interface has `now(): number`, returning the last tick's epoch milliseconds, and `subscribe(callback: () => void): () => void`, returning cleanup. Keep `now()` stable between ticks and supply valid timestamps within JavaScript's date range.
 
 The `StatusBarClock` descriptor type retains `label`, `zone`, `seconds` and `hourCycle`. When mapping descriptors, use a stable key such as a unique label/zone pair and spread each descriptor onto `StatusBarClockReadout`.
 
@@ -144,4 +144,4 @@ The application owns environment, session and feed state. Content inside the bar
 
 ### Tokens
 
-The install adds the `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants if you do not already have them, along with the shared font tokens and the hyperlegible remap. The environment badge uses those pairs; `primary` and `destructive` use the corresponding shadcn tokens with a translucent background.
+The install adds the `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants if you do not already have them, along with the `--tradecn-font-sans`, `--tradecn-font-mono`, and `--tradecn-font-numeric` tokens, their accessible pair, and the hyperlegible remap. The environment badge uses those pairs; `primary` and `destructive` use the corresponding shadcn tokens with a translucent background.

@@ -128,7 +128,7 @@ Formatters add no alignment spaces. tradecn components set lining, tabular figur
 
 The numeric family defaults to sans: letters stay proportional and digits have equal widths. Fraction prices use mono for equal digit and dash widths; quotes with and without a tail still differ in length, so a right-aligned column lines tails up only against padding you add. [`quote-field`](quote-field.md), [`ticket`](ticket.md), and [`rfq-ticket`](rfq-ticket.md) use `numericFontClass`; a [`data-grid`](data-grid.md) column uses `numeric: true` and `font: "mono"` for the same effect. [`typography.md`](typography.md) explains the tokens and choices.
 
-The install adds the shared font tokens and the hyperlegible remap alongside these helpers.
+The install adds the `--tradecn-font-sans`, `--tradecn-font-mono`, and `--tradecn-font-numeric` tokens, their accessible pair, and the hyperlegible remap alongside these helpers.
 
 ### The rest
 

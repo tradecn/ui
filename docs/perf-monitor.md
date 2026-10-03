@@ -161,9 +161,9 @@ Pass a [`row-store`](row-store.md) or another `MetaSource` to each `PerfMonitorL
 
 All `LaneMeta` fields are required:
 
-| Field | Type | Display |
+| Field | Type | Purpose |
 |---|---|---|
-| `lane` | `"coalesced" \| "ordered"` | Lane kind beside its label. |
+| `lane` | `"coalesced" \| "ordered"` | Lane kind, reaching your readings through `usePerfLane().meta`. |
 | `size` | `number` | Current row count. |
 | `version` | `number` | Counter used to calculate batches per second. |
 | `dropped` | `number` | Producer's dropped-message count. The grid example shows it for coalesced lanes. |

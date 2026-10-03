@@ -309,7 +309,7 @@ Set `--dv-overlay-z-index` on `.dockview-theme-tradecn` to change the base. The 
 | `focusPanel(id)` | `void` | Activates and focuses the panel. |
 | `focusNext(step = 1)` | `void` | Moves forward (`1`) or backward (`-1`). |
 | `panels()` | `WorkspacePanelInfo[]` | Lists each panel's `id`, `kind`, `title`, `active`, and `location`. Raw panels are not listed. |
-| `activePanel()` | `string \| null` | Returns the active id, or `null`. |
+| `activePanel()` | `string \| null` | Returns the active id, a raw panel's included, or `null`. |
 | `getState(id)` | `WorkspacePanelState \| undefined` | Reads a panel's state. |
 | `setTitle(id, title)` | `void` | Updates a nonempty title. |
 | `setState(id, patch)` | `void` | Applies the same patch or updater accepted by the panel handle. |
