@@ -1165,7 +1165,7 @@
       "categories": [
         "ticket"
       ],
-      "docs": "The registry first block: ticket.tsx goes to your components alias, not components/ui. Installs quote-field, format, use-flash, and the hotkey registry alongside, composes your button, button-group, field, input, input-group, kbd, and native-select, and adds the up and down tokens. Inside a HotkeysProvider it declares ticket.send (mod+enter), ticket.flip, ticket.tick-up, ticket.tick-down, and ticket.size-1 to ticket.size-9 (mod+1 to mod+9, the quick sizes) as editing bindings unless you did.",
+      "docs": "The registry first block: ticket.tsx goes to your components alias, not components/ui. Installs quote-field, format, use-flash, and the hotkey registry alongside, composes your button, button-group, field, input, input-group, kbd, and native-select, and adds the up and down tokens. Inside a HotkeysProvider it declares ticket.send (mod+enter), ticket.flip, ticket.tick-up, ticket.tick-down, and ticket.size-1 to ticket.size-9 (mod+1 to mod+9, the quick sizes) as editing defaults your own declaration replaces.",
       "meta": {
         "components": [
           {

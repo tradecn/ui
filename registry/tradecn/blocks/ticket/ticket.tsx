@@ -125,7 +125,7 @@ export const DEFAULT_TIME_IN_FORCES: readonly TicketOption[] = [
 /** `mod+1` to `mod+9`: the quick sizes, in order. */
 export const QUICK_SIZE_KEYS: readonly string[] = ["mod+1", "mod+2", "mod+3", "mod+4", "mod+5", "mod+6", "mod+7", "mod+8", "mod+9"]
 
-/** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket when you have not. */
+/** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket as registry defaults your own registration shadows. */
 export const TICKET_BINDINGS: readonly HotkeyBinding[] = [
   { id: "ticket.send", keys: "mod+enter", scope: "editing", description: "Send the ticket", group: "Ticket" },
   { id: "ticket.flip", keys: "mod+shift+x", scope: "editing", description: "Flip buy and sell", group: "Ticket" },
@@ -165,7 +165,7 @@ export interface TicketProps {
   /** Anything that changes identity when the server acknowledges: an order id, a timestamp. The ticket rings once in `primary`. */
   acknowledged?: unknown
   disabled?: boolean
-  /** Declare `TICKET_BINDINGS` in the hotkey registry when they are not. Default true. */
+  /** Declare `TICKET_BINDINGS` as registry defaults. Default true. */
   hotkeys?: boolean
   labels?: Partial<TicketLabels>
   className?: string
