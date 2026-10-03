@@ -1738,7 +1738,7 @@ export function DeskAlerts({ alerts, actions }: { alerts: AlertStore; actions: N
       </Alerts>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col sm:max-w-3xl">
         <DialogHeader className="shrink-0"><DialogTitle>All notices</DialogTitle><DialogDescription>Every notice, newest first.</DialogDescription></DialogHeader>
-        <div className="h-80 min-h-0 min-w-0"><AlertHistory alerts={alerts} /></div>
+        <div className="h-80 min-h-0 min-w-0"><AlertHistory announceRowCount="off" alerts={alerts} /></div>
       </DialogContent>
     </Dialog>
   )

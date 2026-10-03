@@ -2,6 +2,7 @@ import { act, fireEvent, render, renderHook, screen, within } from "@testing-lib
 import { createRef, StrictMode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createAlertStore, type Alert, type AlertStore } from "@/registry/tradecn/lib/alert-store"
+import type { ColumnDef } from "@/registry/tradecn/ui/data-grid"
 import { useRowIds } from "@/registry/tradecn/hooks/use-row-store"
 import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertActions, AlertActionButton, AlertDismiss, AlertHistory, AlertSeverity, alertColumns, useAlert, useAlertView, useToastBridge, type UseAlertOptions } from "@/registry/tradecn/ui/alerts"
 
@@ -272,6 +273,64 @@ describe("AlertHistory and alertColumns", () => {
     expect(screen.getByRole("grid", { name: "Log" })).toHaveAttribute("aria-rowcount", "6")
     expect(document.querySelector("[data-row-id]")).toHaveAttribute("data-row-id", "n5")
     expect(screen.getByRole("gridcell", { name: "Newest" })).toBeInTheDocument()
+  })
+
+  it("offers no sort affordance: the newest-first view owns the order, whatever the columns say", async () => {
+    const alerts = seeded(clock().now)
+    const first = render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Log" /></div>)
+    expect(alertColumns()[0]!.sortable).toBe(true)
+    for (const header of screen.getAllByRole("columnheader")) expect(header).not.toHaveAttribute("aria-sort")
+    fireEvent.click(screen.getByRole("button", { name: "Time column menu" }))
+    expect(await screen.findByRole("menuitem", { name: "Hide column" })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /Sort/ })).toBeNull()
+    first.unmount()
+    render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Custom" columns={[{ key: "title", header: "Subject", width: 200, sortable: true, accessor: (a) => a.title }]} /></div>)
+    const custom = within(screen.getByRole("grid", { name: "Custom" })).getAllByRole("columnheader")
+    expect(custom).not.toHaveLength(0)
+    for (const header of custom) expect(header).not.toHaveAttribute("aria-sort")
+    fireEvent.click(screen.getByRole("button", { name: "Subject column menu" }))
+    expect(await screen.findByRole("menuitem", { name: "Hide column" })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /Sort/ })).toBeNull()
+  })
+
+  it("keeps caller columns stable through inline labels, so rows do not re-render", () => {
+    const alerts = seeded(clock().now)
+    const cell = vi.fn(() => <span>X</span>)
+    const columns: ColumnDef<Alert>[] = [{ key: "title", header: "Subject", width: 200, sortable: true, accessor: (a) => a.title, cell }]
+    function Harness({ tick }: { tick: number }) {
+      return <div data-tick={tick} style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Stable" columns={columns} labels={{ empty: "none" }} /></div>
+    }
+    const { rerender } = render(<Harness tick={0} />)
+    const calls = cell.mock.calls.length
+    expect(calls).toBeGreaterThan(0)
+    rerender(<Harness tick={1} />)
+    expect(cell.mock.calls.length).toBe(calls)
+  })
+
+  it("forwards announceRowCount, and the default preset's polite region stays", () => {
+    vi.useFakeTimers()
+    try {
+      const alerts = seeded(clock().now)
+      const { container, unmount } = render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Spoken" /></div>)
+      act(() => void vi.advanceTimersByTime(1100))
+      const region = container.querySelector("[aria-live='polite']")
+      expect(region).not.toBeNull()
+      expect(region!.textContent).toMatch(/4 rows/)
+      unmount()
+      const silent = render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Silent" announceRowCount="off" /></div>)
+      act(() => void vi.advanceTimersByTime(1100))
+      expect(silent.container.querySelector("[aria-live='polite']")).toBeNull()
+      silent.unmount()
+      const preset = render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Preset" preset="watchlist" /></div>)
+      act(() => void vi.advanceTimersByTime(1100))
+      expect(preset.container.querySelector("[aria-live='polite']")).toBeNull()
+      preset.unmount()
+      const loud = render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Loud" preset="watchlist" announceRowCount="debounced" /></div>)
+      act(() => void vi.advanceTimersByTime(1100))
+      expect(loud.container.querySelector("[aria-live='polite']")).not.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

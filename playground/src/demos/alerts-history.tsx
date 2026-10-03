@@ -46,7 +46,7 @@ export default function AlertsHistoryDemo() {
           <DialogTitle>Notice history</DialogTitle>
           <DialogDescription>Every notice, newest first.</DialogDescription>
         </DialogHeader>
-        <div className="h-80 min-h-0 min-w-0"><AlertHistory alerts={alerts} /></div>
+        <div className="h-80 min-h-0 min-w-0"><AlertHistory alerts={alerts} announceRowCount="off" /></div>
       </DialogContent>
     </Dialog>
   )

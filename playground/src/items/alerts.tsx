@@ -102,7 +102,7 @@ export function AlertsScene() {
           {ids.length > visible && <p>{ids.length - visible} more in the history panel</p>}
         </Alerts>
         <div className="min-h-0">
-          <AlertHistory alerts={alerts} label="Every notice" />
+          <AlertHistory announceRowCount="off" alerts={alerts} label="Every notice" />
         </div>
       </div>
     </main>

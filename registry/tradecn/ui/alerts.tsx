@@ -183,6 +183,8 @@ export interface AlertHistoryProps {
   alerts: AlertStore
   columns?: ColumnDef<Alert>[]
   preset?: DataGridPreset
+  /** The embedded grid's row-count announcements. The preset's setting unless given. */
+  announceRowCount?: "off" | "debounced"
   label?: string
   labels?: Partial<AlertHistoryLabels>
   renderContextMenu?: (rows: Alert[], ids: RowId[]) => ReactNode
@@ -190,14 +192,18 @@ export interface AlertHistoryProps {
 }
 
 /** The optional grid view. Put it in a panel, dialog, or sheet at the call site. */
-export function AlertHistory({ alerts, columns, preset = "blotter", label, labels: labelsProp, renderContextMenu, className }: AlertHistoryProps) {
+export function AlertHistory({ alerts, columns, preset = "blotter", announceRowCount, label, labels: labelsProp, renderContextMenu, className }: AlertHistoryProps) {
   const labels = { ...DEFAULT_ALERT_HISTORY_LABELS, ...labelsProp }
   const view = useAlertView(alerts)
-  // Depend on the caller's partial labels, not the merged object recreated on every render.
-  const cols = useMemo(() => columns ?? alertColumns({ labels: labelsProp }), [columns, labelsProp])
+  // Depend on the caller's partial labels, not the merged object recreated on every render — and
+  // keep caller columns keyed to their own identity, so an inline labels object cannot rebuild them.
+  const defaults = useMemo(() => (columns ? undefined : alertColumns({ labels: labelsProp })), [columns, labelsProp])
+  // The history's newest-first view owns the order, so a header sort could not reorder it: the
+  // grid gets no sort affordances, whatever the column definitions say.
+  const cols = useMemo(() => (columns ?? defaults!).map((col) => (col.sortable ? { ...col, sortable: false } : col)), [columns, defaults])
   return (
     <div data-slot="tradecn-alert-history" className={cn("h-full min-h-0 min-w-0", className)}>
-      <DataGrid<Alert> store={alerts.store} view={view} columns={cols} preset={preset} label={label ?? labels.title} renderContextMenu={renderContextMenu} emptyState={labels.empty} />
+      <DataGrid<Alert> store={alerts.store} view={view} columns={cols} preset={preset} announceRowCount={announceRowCount} label={label ?? labels.title} renderContextMenu={renderContextMenu} emptyState={labels.empty} />
     </div>
   )
 }
