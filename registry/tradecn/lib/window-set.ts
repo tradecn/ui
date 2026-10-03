@@ -185,7 +185,7 @@ export interface WindowSetController {
   dispose(): void
 }
 
-/** `?window=<id>&layout=<layoutId>` on the document's own path, so every window loads the same app and reads the query to know which it is. */
+/** `?window=<id>&layout=<layoutId>` on the document's own path, so every secondary window loads the same app and reads the query to know which it is; the initial main window receives its record at startup instead. */
 export function defaultWindowUrl(record: WindowRecord): string {
   const path = typeof location === "object" && location !== null && typeof location.pathname === "string" ? location.pathname : ""
   return `${path}?window=${encodeURIComponent(record.id)}&layout=${encodeURIComponent(record.layoutId)}`

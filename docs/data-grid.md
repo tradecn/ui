@@ -170,7 +170,7 @@ Each `ColumnDef<T>` describes one column. Frozen columns stay on the left, befor
 | `parse` | `(text: string) => unknown` | Number if numeric; otherwise text | Read values in grid rules. Separate from `edit.parse`. |
 | `edit` | `CellEdit<T>` | None | Editing behavior; also requires the grid's `onEdit`. |
 
-Numeric cells carry `data-numeric` and use lining, tabular figures in `--tradecn-font-numeric`. Use `font: "mono"` for fraction quotes such as `99-16+` so their punctuation aligns too. [`typography`](typography.md) explains the choice; `numericFontClass` in [`format`](format.md) selects it from an instrument convention.
+Numeric cells carry `data-numeric` and use lining, tabular figures in `--tradecn-font-numeric`. Use `font: "mono"` for fraction quotes such as `99-16+`, giving digits and dashes equal widths; quotes with and without a tail still differ in length, so a right-aligned column lines tails up only against padding you add. [`typography`](typography.md) explains the choice; `numericFontClass` in [`format`](format.md) selects it from an instrument convention.
 
 ### Presets
 

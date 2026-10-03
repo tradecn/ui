@@ -287,13 +287,13 @@ export function formatTicks(v: Nullable, o: { signed?: boolean; unit?: string } 
  * width, which is what a column of prices wants. docs/typography.md has the reasoning and the tokens.
  */
 export const NUMERIC_CLASS = "font-(family-name:--tradecn-font-numeric) lining-nums tabular-nums"
-/** The same figures in the mono stack, `--tradecn-font-mono`: for a fraction quote, whose dash, ticks, and tail must line up down a column. */
+/** The same figures in the mono stack, `--tradecn-font-mono`: for a fraction quote, so digits and the dash take one width; tails still lengthen a quote. */
 export const MONO_NUMERIC_CLASS = "font-(family-name:--tradecn-font-mono) lining-nums tabular-nums"
 
 /**
  * The class for a number printed under a convention: a fraction price (99-16+) sets in the mono stack, so
- * 99-16+ over 99-17 keeps its dash and its tail in the same place; every other price, and every quote in
- * another basis, keeps the numeric family.
+ * digits and the dash take one width down a column; a tailed quote still runs longer than an untailed one.
+ * Every other price, and every quote in another basis, keeps the numeric family.
  */
 export function numericFontClass(c?: PriceConvention | InstrumentConvention | null): string {
   const price = c && "price" in c ? (quoteBasisOf(c) === "price" ? c.price : null) : c
