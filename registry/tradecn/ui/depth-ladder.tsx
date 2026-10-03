@@ -1,6 +1,6 @@
 import { defaultRangeExtractor, useVirtualizer, type Range, type VirtualItem } from "@tanstack/react-virtual"
 import { cn } from "cn"
-import { createContext, memo, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref, type RefObject, type UIEvent } from "react"
+import { createContext, memo, useCallback, useContext, useId, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref, type RefObject, type UIEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { useRow } from "@/registry/tradecn/hooks/use-row-store"
@@ -251,7 +251,9 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
   }, [following, midTick, anchor, depth, rowHeight, direction])
 
   const latest = useRef({ onStage, store, tickSize, anchor, depth })
-  useLayoutEffect(() => { latest.current = { onStage, store, tickSize, anchor, depth } })
+  // Insertion-phase publish: descendants' layout effects already see the committed range, so a
+  // select retained by composed row content validates against the ladder as rendered.
+  useInsertionEffect(() => { latest.current = { onStage, store, tickSize, anchor, depth } })
   const hold = useCallback(() => setFollowing(false), [])
   const recenter = () => {
     if (midTick === null) return

@@ -1,4 +1,4 @@
-import { useEffect, createRef } from "react"
+import { useEffect, useLayoutEffect, createRef } from "react"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
@@ -637,6 +637,36 @@ describe("changing a composed layout", () => {
     // The rung is out of the recentered range; the reference held by desk code stages nothing.
     act(() => keep.select!("bid"))
     expect(stage).toHaveBeenCalledTimes(1)
+  })
+
+  it("validates a layout-effect select against the committed range", () => {
+    const store = seed()
+    const stage = vi.fn()
+    const keep: { select?: (column: "bid" | "ask" | "price") => void } = {}
+    function KeepSelect() {
+      const row = useDepthLadderRow()
+      useEffect(() => {
+        if (row.tick === 6368) keep.select = row.select
+      })
+      return null
+    }
+    function Prodder({ probe }: { probe: boolean }) {
+      useLayoutEffect(() => {
+        if (probe) keep.select!("bid")
+      }, [probe])
+      return null
+    }
+    const compose = (mid: number, probe: boolean) => (
+      <DepthLadder store={store} convention={ZN} mid={mid} label="Book" depth={5} initialRect={RECT} onStage={stage}>
+        <Prodder probe={probe} />
+        <DepthLadderViewport><DepthLadderRows>{() => <DepthLadderRow><DepthLadderSizeCell side="bid" /><KeepSelect /><DepthLadderPriceCell /><DepthLadderSizeCell side="ask" /></DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
+      </DepthLadder>
+    )
+    const view = render(compose(MID, false))
+    // The drift while following moves the anchor in this commit, and the child's layout effect
+    // fires during it holding a reference from the old range: it must see the committed ladder.
+    view.rerender(compose(priceAtTick(6390, ZN.tick), true))
+    expect(stage).not.toHaveBeenCalled()
   })
 
   it("resolves active descendants to generated cell ids under legacy row props", () => {
