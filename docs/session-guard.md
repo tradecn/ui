@@ -244,7 +244,7 @@ The provider and standalone readout merge partial overrides into `DEFAULT_SESSIO
 | `reauthenticate` | `Sign in again` | Dialog button |
 | `pending` | `Signing in…` | Either button while pending |
 | `failed` | `That did not work. Try again.` | Alert beside either button |
-| `session` | `Session` | Readout prefix, spoken through the hidden text |
+| `session` | `Session` | Readout prefix and hidden text; `SessionGuardRemaining`'s default accessible name |
 | `live` / `ending` | `signed in` / `ending soon` | Phase words in the hidden readout text |
 | `ended` / `noSession` | `ended` / `no session` | Visible and accessible readout text |
 

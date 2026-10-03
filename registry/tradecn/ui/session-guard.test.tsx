@@ -215,6 +215,11 @@ describe("the status readout", () => {
     const spoken = () => readout().querySelector(".sr-only")!.textContent
     expect(readout()).not.toHaveAttribute("aria-label")
     expect(spoken()).toBe("Session: signed in, 5:00")
+    // The sentence reaches readers and nothing is read twice: the hidden span is exposed, the rest hidden.
+    expect(readout().querySelector(".sr-only")).not.toHaveAttribute("aria-hidden")
+    const visibleSpans = readout().querySelectorAll(":scope > span:not(.sr-only)")
+    expect(visibleSpans.length).toBeGreaterThan(0)
+    for (const span of visibleSpans) expect(span).toHaveAttribute("aria-hidden")
     expect(readout().className).not.toContain("text-expiring")
     tick(4 * MINUTE)
     expect(readout()).toHaveAttribute("data-session-status", "warning")

@@ -1614,7 +1614,7 @@ function Session() {
     <span className="inline-flex items-baseline gap-1.5 text-muted-foreground">
       <span>
         Globex{" "}
-        <span className="text-foreground" data-session-status={status}>
+        <span className="text-foreground" data-market-session={status}>
           {status}
         </span>
       </span>
