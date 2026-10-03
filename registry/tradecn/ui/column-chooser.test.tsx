@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { ColumnSettingsPanel, ColumnSettingsDialog } from "@/demos/column-chooser"
 import ColumnChooserInlineDemo from "@/demos/column-chooser-inline"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ColumnRule } from "@/registry/tradecn/lib/grid-rules"
 import {
@@ -757,6 +757,38 @@ describe("the keyboard model scales to wide grids", () => {
     expect(fireEvent.keyDown(note, { key: "ArrowDown", altKey: true })).toBe(true)
     expect(document.activeElement).toBe(note)
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it("settles with inline callback refs on a subscribed collection", () => {
+    // A collection reading useColumnChooser re-renders with the chooser, so inline refs change
+    // identity every pass; registration must not re-run on ref identity or the two loop.
+    function Cards() {
+      useColumnChooser()
+      return (
+        <>
+          <ColumnChooserItem columnKey="id" ref={() => {}} aria-label="RFQ card"><ColumnChooserName /></ColumnChooserItem>
+          <ColumnChooserItem columnKey="client" ref={() => {}}><ColumnChooserName /></ColumnChooserItem>
+        </>
+      )
+    }
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}><Cards /></ColumnChooser>)
+    expect(screen.getByLabelText("RFQ card")).toHaveAttribute("tabindex", "0")
+    expect(screen.getByRole("group", { name: "Client" })).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("keeps the roving owner when arrows visit an opted-out item", () => {
+    render(<ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+      <ColumnChooserItem columnKey="id"><ColumnChooserName /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="client" tabIndex={-1} aria-label="Client card"><ColumnChooserName /></ColumnChooserItem>
+      <ColumnChooserItem columnKey="px"><ColumnChooserName /></ColumnChooserItem>
+    </ColumnChooser>)
+    const price = screen.getByRole("group", { name: "Price" })
+    act(() => price.focus())
+    expect(price).toHaveAttribute("tabindex", "0")
+    fireEvent.keyDown(price, { key: "ArrowUp" })
+    expect(document.activeElement).toBe(screen.getByLabelText("Client card"))
+    expect(price).toHaveAttribute("tabindex", "0")
+    expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "-1")
   })
 })
 
