@@ -276,7 +276,9 @@ export function describeRule<T>(rule: { column: string; when?: RuleCondition } &
     if (raw === undefined || raw === null) return ""
     if (typeof raw === "string" && column?.parse && column.format) {
       try {
-        const parsed = column.parse(raw)
+        // Normalized like the comparison: a parser's NaN matches nothing, so its words must not
+        // print a formatted non-value.
+        const parsed = normalizeValue(column.parse(raw))
         if (parsed !== null && parsed !== undefined) {
           const printed = column.format(parsed)
           if (typeof printed === "string" && printed !== "") return printed

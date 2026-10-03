@@ -138,7 +138,7 @@ For `eq`, `ne`, and `in`, two strings compare without regard to case; a string a
 | `RULE_OP_LABELS` | Human-readable wording for each operator. |
 | `opsFor(column)` | `NUMBER_OPS` when `column.numeric` is true, otherwise `TEXT_OPS`, including for `undefined`. This is an editor choice list; compilation does not restrict operators by column kind. |
 | `columnName(column, key?)` | A nonblank string header, otherwise the column key. Without a column, uses `key` or `""`. |
-| `describeRule(rule, columns)` | Words for a `ColumnRule` or `FilterRule`, using values as typed: `Price above 99-16+`, `Client one of ALPHA, BETA`, `Status is empty`. |
+| `describeRule(rule, columns)` | Words for a `ColumnRule` or `FilterRule`: `Price above 99-16+`, `Client one of ALPHA, BETA`, `Status is empty`. A string value prints through the column's `format` over its parsed, normalized reading when the column has both `parse` and `format`, so the words say what the rule compares; it stays as typed otherwise. |
 
 ### Values are typed in the column's format
 
@@ -151,6 +151,7 @@ For `eq`, `ne`, and `in`, two strings compare without regard to case; a string a
 | `accessor` | `(row: T) => unknown` | Required | Reads the row value to compare. |
 | `numeric` | `boolean` | `false` | Selects numeric parsing and the numeric operator list. |
 | `parse` | `(text: string) => unknown` | Numeric or text fallback | Reads a string entered in a rule. |
+| `format` | `(value: unknown) => string` | Values stay as typed | Prints a parsed rule value in descriptions. It is called without a row, so a `ColumnDef` `format` fits when it reads only the value. |
 
 `readRuleValue(column, value)` accepts a `RuleColumn<T>` or `undefined`, and a `RuleValue` or `undefined`:
 

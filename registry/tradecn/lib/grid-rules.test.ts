@@ -235,8 +235,11 @@ describe("the words", () => {
     expect(compileCondition({ op: "lt", value: "99.71" }, px)(row)).toBe(false)
     expect(describeRule({ column: "px", when: { op: "gt", value: "99.7" } }, [px])).toBe("Price above 99-22+")
     expect(describeRule({ column: "px", when: { op: "between", values: ["99.7", "99.8"] } }, [px])).toBe("Price between 99-22+ and 99-25+")
-    // Without a format the words keep the typed text.
+    // Without a format the words keep the typed text, and a parser's NaN never prints: the
+    // comparison treats it as nothing to match, so the words stay as typed too.
     expect(describeRule({ column: "px", when: { op: "gt", value: "99.7" } }, columns)).toBe("Price above 99.7")
+    const broken = { ...columns[2]!, parse: () => Number.NaN, format: (value: unknown) => formatFraction(value as number | null, THIRTY_SECONDS) }
+    expect(describeRule({ column: "px", when: { op: "gt", value: "99.7" } }, [broken])).toBe("Price above 99.7")
   })
 
   it("describes a rule as the column's name, the op's word, and the value as typed", () => {
