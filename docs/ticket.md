@@ -72,7 +72,7 @@ This is the registry's first block: `ticket.tsx` installs into your `components`
 | `message` | `string` | None | Server detail, such as a rejection reason. |
 | `acknowledged` | `unknown` | None | A changed value triggers the acknowledgement ring. |
 | `disabled` | `boolean` | `false` | Disables fields and buttons; stops actions and quick-size shortcuts. |
-| `hotkeys` | `boolean` | `true` | Declares missing bindings in the nearest hotkey registry. |
+| `hotkeys` | `boolean` | `true` | Declares `TICKET_BINDINGS` as registry defaults. |
 | `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Built-in labels and validation messages. Four strings stay fixed: the unpriced `market` placeholder and `at market` wording, the references' `, use it` name suffix, the step buttons' names, and the built-in limit messages. |
 | `className` | `string` | None | Classes on the outer group. |
 
@@ -118,7 +118,7 @@ Change `acknowledged` when the server acknowledges, using an order id or timesta
 | Up / Down | Field behavior | Steps the focused price or quantity field. |
 | Shift+Up / Shift+Down | Field behavior | Takes ten field steps. |
 
-`mod` is Command on Mac and Ctrl elsewhere. Registry shortcuts need a [`HotkeysProvider`](use-hotkeys.md). The ticket declares missing `TICKET_BINDINGS` as `editing` bindings and removes its shared declarations when no ticket with `hotkeys` enabled uses them. Declare your own bindings or remap them to change keys or wording. The primary button shows the registry's current send keys.
+`mod` is Command on Mac and Ctrl elsewhere. Registry shortcuts need a [`HotkeysProvider`](use-hotkeys.md). The ticket declares `TICKET_BINDINGS` as registry defaults: your registration of an id shadows the ticket's default whenever it comes, unregistering yours brings the default back, and the defaults leave when no ticket with `hotkeys` enabled remains. `unregister("ticket.send")` does nothing while a ticket holds the default — register your own binding or remap to change keys or wording. The primary button shows the registry's current send keys.
 
 `hotkeys={false}` skips declarations but still attaches handlers for bindings you supply. Each ticket has its own `HotkeyScope` and handlers, so shortcuts work while typing inside that ticket. They also work inside a dialog; global keys cannot reach a blotter behind it.
 
