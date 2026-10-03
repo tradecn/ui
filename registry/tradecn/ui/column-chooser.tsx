@@ -361,10 +361,12 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
       version: () => version,
       set(key: string, node: HTMLElement | null, opted: boolean) {
         if (node) {
+          if (nodes.get(key) === node && optedOut.has(key) === opted) return
           nodes.set(key, node)
           if (opted) optedOut.add(key)
           else optedOut.delete(key)
         } else {
+          if (!nodes.has(key)) return
           nodes.delete(key)
           optedOut.delete(key)
         }
@@ -385,7 +387,8 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
     if (target === undefined || target === from) return
     const node = registrations.nodes.get(target)
     if (!node || unavailable(node)) return
-    setActive(target)
+    // Navigation can visit an opted-out item, but the roving stop stays with a coordinated one.
+    if (!registrations.optedOut.has(target)) setActive(target)
     node.focus()
   }
   const [announcements] = useState(createAnnouncements)
@@ -567,15 +570,14 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
   const { row, dragging, move, moveToEdge, setVisible, resetWidth } = item
   const { labels, focusFallback, startDrag, dragOver, drop, endDrag, activeKey, setActive, registerItem, focusStep } = useChooserContext()
   const root = useRef<HTMLDivElement>(null)
-  const forwardedRef = useChooserRef(root, ref)
-  const rootRef = useCallback((node: HTMLDivElement | null) => {
-    registerItem(row.key, node, tabIndex !== undefined)
-    const cleanup = forwardedRef(node)
-    return () => {
-      registerItem(row.key, null)
-      cleanup?.()
-    }
-  }, [row.key, registerItem, forwardedRef, tabIndex])
+  const rootRef = useChooserRef(root, ref)
+  // Registration is a layout effect, not part of the ref: an inline caller ref changes identity
+  // every render, and re-registering on each change would invalidate the provider's subscription
+  // in a loop.
+  useLayoutEffect(() => {
+    registerItem(row.key, root.current, tabIndex !== undefined)
+    return () => registerItem(row.key, null)
+  }, [row.key, registerItem, tabIndex])
   const focused = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
     const node = root.current
