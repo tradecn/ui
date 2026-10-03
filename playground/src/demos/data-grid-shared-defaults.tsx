@@ -38,15 +38,18 @@ export default function DataGridSharedDefaultsDemo() {
 }
 
 function VisibleColumns() {
-  const { rows } = useColumnChooser()
+  const { rows, labels } = useColumnChooser()
   return (
-    <ul className="flex flex-col gap-1" aria-label="Visible columns">
+    <>
+      <p className="text-xs text-muted-foreground">{labels.dragHint}</p>
+      <ul className="flex flex-col gap-1" aria-label="Visible columns">
       {rows.map(row => <li key={row.key}>
         <ColumnChooserItem columnKey={row.key}>
           <ColumnChooserVisibility />
           <ColumnChooserName />
         </ColumnChooserItem>
       </li>)}
-    </ul>
+      </ul>
+    </>
   )
 }
