@@ -24,7 +24,8 @@ export default function DataGridSharedDefaultsDemo() {
   const settings = { columns, columnState, onColumnStateChange: setColumnState, baseState }
   return (
     <div className="flex w-fit max-w-full flex-wrap items-start gap-4">
-      <ColumnChooser {...settings} className="w-44 max-w-full shrink-0">
+      {/* No reset-width control here, so the hint must not promise Delete. */}
+      <ColumnChooser {...settings} labels={{ dragHint: "Up and Down move between columns, and Home and End jump to the ends. Drag a column, or hold Alt with an arrow key, to reorder; Alt+Home and Alt+End move to the edge. Space shows or hides a focused column. Frozen columns stay first." }} className="w-44 max-w-full shrink-0">
         <p className="font-medium">Visible columns</p>
         <ColumnChooserAnnouncer />
         <VisibleColumns />

@@ -899,6 +899,33 @@ describe("the keyboard model scales to wide grids", () => {
     expect(client).toHaveAttribute("tabindex", "-1")
   })
 
+  it("hands the stop onward when only the owner's item re-renders styled away", () => {
+    function MaybeStyled() {
+      const [gone, setGone] = useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setGone((value) => !value)}>Collapse client</button>
+          <ColumnChooserItem columnKey="client" aria-label="Client card" style={gone ? { display: "none" } : undefined}><ColumnChooserName /></ColumnChooserItem>
+        </>
+      )
+    }
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <MaybeStyled />
+        <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const price = screen.getByLabelText("Price card")
+    const client = screen.getByLabelText("Client card")
+    const toggle = screen.getByRole("button", { name: "Collapse client" })
+    expect(client).toHaveAttribute("tabindex", "0")
+    fireEvent.click(toggle)
+    expect(price).toHaveAttribute("tabindex", "0")
+    expect(client).toHaveAttribute("tabindex", "-1")
+    fireEvent.click(toggle)
+    expect(client).toHaveAttribute("tabindex", "0")
+  })
+
   it("scans arrows and edges past unavailable and unregistered items", () => {
     render(
       <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
