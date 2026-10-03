@@ -199,6 +199,8 @@ interface ChooserRegistrations {
   set: (key: string, node: HTMLElement | null, opted: boolean) => void
   present: (keys: readonly string[]) => void
   focus: (key: string) => void
+  /** Re-resolves against live availability; publishes only when the owner moves. */
+  refresh: () => void
 }
 
 const ChooserContext = createContext<ChooserContextValue | null>(null)
@@ -406,6 +408,9 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
       },
       focus(key) {
         active = key
+        if (resolve()) publish()
+      },
+      refresh() {
         if (resolve()) publish()
       },
     }
@@ -620,10 +625,13 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
   // Registration is a layout effect, not part of the ref: an inline caller ref changes identity
   // every render, and re-registering on each change would invalidate the provider's subscription
   // in a loop.
+  // Availability props re-run it too: hiding the owner must hand the stop to a usable sibling
+  // even when only this item re-rendered, and set() alone no-ops on an unchanged registration.
   useLayoutEffect(() => {
     registerItem(row.key, root.current, tabIndex !== undefined)
+    registrations.refresh()
     return () => registerItem(row.key, null)
-  }, [row.key, registerItem, tabIndex])
+  }, [row.key, registerItem, registrations, tabIndex, props.hidden, props.inert])
   const focused = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
     const node = root.current
@@ -677,10 +685,11 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
     if (event.target !== event.currentTarget) return
     // Space and Delete run only where the layout renders the matching control, so a visible-only
     // list cannot hide a column it offers no way to bring back, and a held key toggles once.
-    if (event.key === " " && controls.visibility && !event.repeat) {
+    if (event.key === " " && controls.visibility) {
+      // Every handled Space cancels, or held repeats scroll the page; the toggle runs once.
       event.preventDefault()
       event.stopPropagation()
-      setVisible(!row.visible)
+      if (!event.repeat) setVisible(!row.visible)
     } else if ((event.key === "Delete" || event.key === "Backspace") && controls.resetWidth && !event.repeat && row.resized) {
       event.preventDefault()
       event.stopPropagation()
