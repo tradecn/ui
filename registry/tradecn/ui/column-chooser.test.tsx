@@ -18,6 +18,7 @@ import {
   ColumnChooserResetAll,
   ColumnChooserResetWidth,
   useColumnChooser,
+  useColumnChooserCommand,
   useColumnChooserItem,
   DEFAULT_COLUMN_CHOOSER_LABELS,
   chooserRows,
@@ -827,6 +828,32 @@ describe("the keyboard model scales to wide grids", () => {
     fireEvent.keyDown(full, { key: " " })
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange.mock.lastCall![0].hidden).toEqual(["client"])
+  })
+
+  it("keeps the command when one of two bare declarations leaves", () => {
+    const onChange = vi.fn()
+    function Extra({ on }: { on: boolean }) {
+      return on ? <ExtraCommand /> : null
+    }
+    function ExtraCommand() {
+      useColumnChooserCommand("visibility")
+      return null
+    }
+    function BaseCommand() {
+      useColumnChooserCommand("visibility")
+      return null
+    }
+    const ui = (on: boolean) => (
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange}>
+        <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /><BaseCommand /><Extra on={on} /></ColumnChooserItem>
+      </ColumnChooser>
+    )
+    const view = render(ui(true))
+    const card = screen.getByLabelText("Price card")
+    view.rerender(ui(false))
+    act(() => card.focus())
+    fireEvent.keyDown(card, { key: " " })
+    expect(onChange).toHaveBeenCalledTimes(1)
   })
 
   it("treats a read-only visibility control as keyless", () => {
