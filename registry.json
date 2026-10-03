@@ -1405,7 +1405,7 @@
         "rfq",
         "ticket"
       ],
-      "docs": "A block: rfq-ticket.tsx goes to your components alias. Installs quote-field, countdown, format, use-flash, the shared clock, and the hotkey registry alongside, composes your badge, button, field, input-group, and kbd, and adds the up, down, flat, and expiring tokens. Inside a HotkeysProvider it declares rfq.send (mod+enter), rfq.tick-up, rfq.tick-down, rfq.suggested (mod+shift+a), and rfq.size-1 through rfq.size-9 as editing bindings unless you did. Mount it with key={inquiry.id}.",
+      "docs": "A block: rfq-ticket.tsx goes to your components alias. Installs quote-field, countdown, limits, format, use-flash, the shared clock, and the hotkey registry alongside, composes your badge, button, field, input-group, and kbd, and adds the up, down, flat, expiring, and stale tokens, their soft variants, and the tradecn font tokens. Inside a HotkeysProvider it declares rfq.send (mod+enter), rfq.tick-up, rfq.tick-down, rfq.suggested (mod+shift+a), and rfq.size-1 through rfq.size-9 as editing bindings unless you did. Mount it with key={inquiry.id}.",
       "meta": {
         "components": [
           {
