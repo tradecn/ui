@@ -428,13 +428,23 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
   const focusStep = (from: string, step: -1 | 1 | "first" | "last") => {
     const keys = presentedRows.map((row) => row.key)
     const index = keys.indexOf(from)
-    const target = step === "first" ? keys[0] : step === "last" ? keys[keys.length - 1] : index < 0 ? undefined : keys[index + step]
-    if (target === undefined || target === from) return
-    const node = registrations.nodes.get(target)
-    if (!node || unavailable(node)) return
+    // Scan past unregistered or unavailable items: a hidden column between two live ones must
+    // not wall off arrows, and Home and End walk inward from their edge to the first usable item.
+    const usable = (key: string | undefined) => {
+      if (key === undefined) return null
+      const node = registrations.nodes.get(key)
+      return node && !unavailable(node) ? { key, node } : null
+    }
+    let found: { key: string; node: HTMLElement } | null = null
+    if (step === "first" || step === "last") {
+      for (const key of step === "first" ? keys : [...keys].reverse()) if ((found = usable(key))) break
+    } else if (index >= 0) {
+      for (let i = index + step; i >= 0 && i < keys.length; i += step) if ((found = usable(keys[i]))) break
+    }
+    if (!found || found.key === from) return
     // Navigation can visit an opted-out item, but the roving stop stays with a coordinated one.
-    if (!registrations.optedOut.has(target)) registrations.focus(target)
-    node.focus()
+    if (!registrations.optedOut.has(found.key)) registrations.focus(found.key)
+    found.node.focus()
   }
   const [announcements] = useState(createAnnouncements)
   const committed = useRef({ state: columnState, rows: stateRows })
@@ -627,11 +637,12 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
   // in a loop.
   // Availability props re-run it too: hiding the owner must hand the stop to a usable sibling
   // even when only this item re-rendered, and set() alone no-ops on an unchanged registration.
+  const ariaHidden = props["aria-hidden"]
   useLayoutEffect(() => {
     registerItem(row.key, root.current, tabIndex !== undefined)
     registrations.refresh()
     return () => registerItem(row.key, null)
-  }, [row.key, registerItem, registrations, tabIndex, props.hidden, props.inert])
+  }, [row.key, registerItem, registrations, tabIndex, props.hidden, props.inert, ariaHidden])
   const focused = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
     const node = root.current

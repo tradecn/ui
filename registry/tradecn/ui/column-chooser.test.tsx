@@ -875,6 +875,52 @@ describe("the keyboard model scales to wide grids", () => {
     expect(price).toHaveAttribute("tabindex", "-1")
   })
 
+  it("hands the stop onward when only the owner's item re-renders aria-hidden", () => {
+    function MaybeHidden() {
+      const [hidden, setHidden] = useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setHidden((value) => !value)}>Veil client</button>
+          <ColumnChooserItem columnKey="client" aria-label="Client card" aria-hidden={hidden || undefined}><ColumnChooserName /></ColumnChooserItem>
+        </>
+      )
+    }
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <MaybeHidden />
+        <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const price = screen.getByLabelText("Price card")
+    const client = screen.getByLabelText("Client card")
+    expect(client).toHaveAttribute("tabindex", "0")
+    fireEvent.click(screen.getByRole("button", { name: "Veil client" }))
+    expect(price).toHaveAttribute("tabindex", "0")
+    expect(client).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("scans arrows and edges past unavailable and unregistered items", () => {
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <ColumnChooserItem columnKey="client" aria-label="Client card"><ColumnChooserName /></ColumnChooserItem>
+        <ColumnChooserItem columnKey="px" aria-label="Price card" hidden><ColumnChooserName /></ColumnChooserItem>
+        <ColumnChooserItem columnKey="size" aria-label="Size card"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const client = screen.getByLabelText("Client card")
+    const size = screen.getByLabelText("Size card")
+    // Down from Client skips the hidden Price card; id has no item, so End walks back to Size.
+    act(() => client.focus())
+    fireEvent.keyDown(client, { key: "ArrowDown" })
+    expect(size).toHaveFocus()
+    fireEvent.keyDown(size, { key: "ArrowUp" })
+    expect(client).toHaveFocus()
+    fireEvent.keyDown(client, { key: "End" })
+    expect(size).toHaveFocus()
+    fireEvent.keyDown(size, { key: "Home" })
+    expect(client).toHaveFocus()
+  })
+
   it("re-renders only the items a focus move touches", () => {
     const renders = vi.fn()
     function Harness() {
