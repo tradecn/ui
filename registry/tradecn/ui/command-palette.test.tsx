@@ -344,6 +344,18 @@ describe("hotkeys", () => {
     expect(registry.list()).toMatchObject([{ id: "palette.open", defaultKeys: "ctrl+p" }])
   })
 
+  it("leaves a replacement a subscriber makes while the default is being declared", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const mine = { id: "palette.open", keys: "mod+p", scope: "editing" as const, description: "Mine" }
+    registry.subscribe(() => {
+      if (registry.list().some((entry) => entry.id === "palette.open" && entry.description !== "Mine")) registry.register(mine)
+    })
+    const view = render(<ComposedPalette actions={seed()} hotkeys={registry} />)
+    expect(registry.list()).toMatchObject([{ id: "palette.open", description: "Mine" }])
+    view.unmount()
+    expect(registry.list()).toMatchObject([{ id: "palette.open", description: "Mine" }])
+  })
+
   it("leaves a replacement whose spelling normalizes to the default", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const view = render(<ComposedPalette actions={seed()} hotkeys={registry} />)

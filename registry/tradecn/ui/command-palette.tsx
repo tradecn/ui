@@ -563,18 +563,17 @@ export function CommandPalette(options: CommandPaletteProps) {
     const scope = variant === "palette" ? ("editing" as const) : ("global" as const)
     const declared = declaredByProvider.has(bindingId) || hotkeys.list().some((entry) => entry.id === bindingId)
     if (!declared) hotkeys.register({ id: bindingId, keys, scope, description, group })
-    // The exact registration owned here, for a cleanup that leaves any replacement alone.
-    const own = declared ? undefined : hotkeys.list().find((entry) => entry.id === bindingId)
     const unbind = hotkeys.bind(bindingId, () => onHotkey.current())
     return () => {
       unbind()
-      if (declared || !own) return
-      // A declaration that replaced this default after mount is the consumer's to keep, even one
-      // that changed only its keys' spelling or its behavior fields. A field-identical
+      if (declared) return
+      // Ownership is the exact declaration this effect made: this spelling, wording, scope, and
+      // group, with no behavior fields. A replacement differing anywhere is the consumer's to
+      // keep, even one a subscriber registered during the register call above. A field-identical
       // redeclaration stays indistinguishable without a registration handle; it is the one shape
       // this cannot tell apart.
       const current = hotkeys.list().find((entry) => entry.id === bindingId)
-      if (current && current.declaredKeys === own.declaredKeys && current.description === own.description && current.scope === own.scope && current.group === own.group && current.when === own.when && current.repeat === own.repeat && current.preventDefault === own.preventDefault) hotkeys.unregister(bindingId)
+      if (current && current.declaredKeys === keys && current.description === description && current.scope === scope && current.group === group && current.when === undefined && current.repeat === undefined && current.preventDefault === undefined) hotkeys.unregister(bindingId)
     }
   }, [hotkeys, keys, bindingId, variant, description, group, declaredByProvider])
 
