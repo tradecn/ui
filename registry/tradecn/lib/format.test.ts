@@ -118,12 +118,16 @@ describe("fractions", () => {
     expect(parsePrice("1" + "0".repeat(307) + ".5", T32)).toBeNull()
     expect(Object.is(parsePrice("-0", T32), 0)).toBe(true)
     // Plain-decimal spellings only: a double near zero stringifies in exponent notation, which the
-    // parser rejects, and a null would have slipped through a non-null assertion unexercised.
-    fc.assert(fc.property(fc.double({ min: -200, max: 200, noNaN: true }), (v) => {
-      const snapped = parsePrice(v.toFixed(7), T32)
-      if (snapped === null) return false
-      return parsePrice(formatFraction(snapped, T32), T32) === snapped
-    }))
+    // parser rejects, and a null would have slipped through a non-null assertion unexercised. The
+    // parsed value must round-trip AND print as the typed number prints, or a floor would pass.
+    for (const convention of [T32, T32_5, T32_8, T64]) {
+      fc.assert(fc.property(fc.double({ min: -200, max: 200, noNaN: true }), (v) => {
+        const text = v.toFixed(7)
+        const snapped = parsePrice(text, convention)
+        if (snapped === null) return false
+        return parsePrice(formatFraction(snapped, convention), convention) === snapped && formatFraction(snapped, convention) === formatFraction(Number(text), convention)
+      }))
+    }
   })
 
   it("parses what a trader types", () => {

@@ -61,7 +61,7 @@ Parsing trims whitespace, removes commas, and accepts either minus sign; decimal
 
 ### Typing and stepping
 
-Each text edit calls `onValueChange` with the parsed number, or `null` for blank or invalid text. Keep that value in parent state. Blur formats valid text (`99.75` becomes `99-24` for 32nds) or marks invalid text with `aria-invalid` and a message below the field. Blur does not call `onValueChange`; it does not need to, since parsing already snapped the value to what the text will show.
+Each text edit calls `onValueChange` with the parsed number, or `null` for blank or invalid text. Keep that value in parent state. Blur formats valid text (`99.75` becomes `99-24` for 32nds) or marks invalid text with `aria-invalid` and a message below the field. Blur does not call `onValueChange`; it does not need to, since parsing already snapped the value to the printable grid — for a decimal convention that holds when its places can show the step.
 
 The default message is `Not a <lowercase label> in this instrument's notation.` Typing clears the field's own error; blank text is not marked invalid. A supplied `error` remains until the parent clears it. `error=""` suppresses the field's message and invalid mark, as does `invalidText=""` when `error` is unset.
 

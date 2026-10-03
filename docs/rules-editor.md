@@ -222,7 +222,7 @@ Render all four value fields: `<RulesEditorValue />`, `<RulesEditorValue field="
 
 `withOp` keeps values for the same shape and clears them otherwise. `withColumn` keeps supported conditions, or selects the first operator and drops values.
 
-Values stay as typed strings, read through the column's `parse` function or numerically for numeric columns. A 32nds parser accepts `100-00`.
+Values stay as typed strings in the model and the fields, read through the column's `parse` function or numerically for numeric columns. A 32nds parser accepts `100-00`, and a typed decimal compares on the convention's printable grid; a column `format` makes descriptions print the compared price.
 
 The set field trims members and drops empties, without quoting or escaping. Enter `1000000` for one numeric member.
 

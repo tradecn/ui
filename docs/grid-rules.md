@@ -164,7 +164,7 @@ For `eq`, `ne`, and `in`, two strings compare without regard to case; a string a
 
 `normalizeValue(value)` maps `null`, `undefined`, `NaN`, and infinities to `null`, leaving other values unchanged. A custom `parse` should return a missing value when it cannot read the text; thrown errors are not caught.
 
-For a 32nds price column, use `parse: (text) => parsePrice(text, convention)` to accept `99-16+`. A numeric size column accepts `5,000,000` without a custom parser. For a boolean column, `parse: (text) => text === "yes"` makes `yes` true and every other string false.
+For a 32nds price column, use `parse: (text) => parsePrice(text, convention)` to accept `99-16+`. A decimal threshold then snaps to the convention's printable grid like any other parsed price, so `gt "99.7"` compares against `99.703125` in 32nds; give the column a `format` and `describeRule` prints that compared price (`Price above 99-22+`) instead of the typed text. A numeric size column accepts `5,000,000` without a custom parser. For a boolean column, `parse: (text) => text === "yes"` makes `yes` true and every other string false.
 
 If a required scalar comparison value parses to `null`, the condition matches no rows. As a highlight, it colors nothing; as a filter, it excludes every row. For `in` and `between`, compilation drops values that parse to `null`: `in` uses the remaining candidates, and `between` uses the first two remaining values, low then high. No candidates, or fewer than two endpoints, matches nothing.
 

@@ -225,7 +225,7 @@ Totals calculate on mount and subscribe to store batches. Changes to the view's 
 
 A supplied view also ignores `sort` for ordering. Header controls can still report changes through `onSortChange` for you to apply.
 
-String rule values use the column's `parse` when provided, for example `parse: (text) => parsePrice(text, convention)`. Numeric and boolean values bypass it. Matched cells and rows carry `data-rule`, `data-tone`, and an accessible description. `getRowProps` takes precedence over row decorations; a cell's rejection message takes precedence over its rule description.
+String rule values use the column's `parse` when provided, for example `parse: (text) => parsePrice(text, convention)`, and a parsed decimal threshold snaps to the convention's grid the way the cell's own editing does; the column's `format` then carries into rule descriptions. Numeric and boolean values bypass it. Matched cells and rows carry `data-rule`, `data-tone`, and an accessible description. `getRowProps` takes precedence over row decorations; a cell's rejection message takes precedence over its rule description.
 
 ### Editing in place
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parsePrice } from "@/registry/tradecn/lib/format"
+import { formatFraction, parsePrice } from "@/registry/tradecn/lib/format"
 import {
   NUMBER_OPS,
   RULE_OPS,
@@ -223,6 +223,20 @@ describe("the words", () => {
     expect(TEXT_OPS).not.toContain("between")
     expect(TEXT_OPS).toContain("contains")
     expect(NUMBER_OPS).not.toContain("contains")
+  })
+
+  it("snaps a decimal threshold to the column's grid and says the price it compares", () => {
+    const px = { ...columns[2]!, format: (value: unknown) => formatFraction(value as number | null, THIRTY_SECONDS) }
+    // The threshold reads through parse, so it lives on the printable grid: the snapped-equal
+    // row is not above it, equality matches the grid price, and the words print that price.
+    const row = { px: 99.703125 } as Rfq
+    expect(compileCondition({ op: "gt", value: "99.7" }, px)(row)).toBe(false)
+    expect(compileCondition({ op: "eq", value: "99.7" }, px)(row)).toBe(true)
+    expect(compileCondition({ op: "lt", value: "99.71" }, px)(row)).toBe(false)
+    expect(describeRule({ column: "px", when: { op: "gt", value: "99.7" } }, [px])).toBe("Price above 99-22+")
+    expect(describeRule({ column: "px", when: { op: "between", values: ["99.7", "99.8"] } }, [px])).toBe("Price between 99-22+ and 99-25+")
+    // Without a format the words keep the typed text.
+    expect(describeRule({ column: "px", when: { op: "gt", value: "99.7" } }, columns)).toBe("Price above 99.7")
   })
 
   it("describes a rule as the column's name, the op's word, and the value as typed", () => {
