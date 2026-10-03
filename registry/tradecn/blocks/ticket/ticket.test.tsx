@@ -325,7 +325,48 @@ describe("Ticket keys", () => {
     view.unmount()
   })
 
-  it("leaves a replacement that changed only a behavior field or its spelling", () => {
+  it("runs nothing in a disabled ticket, flip and price steps included", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { onDraftChange } = mount({ disabled: true, reference: { last: 99.5 } }, registry)
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "x", ctrlKey: true, shiftKey: true })
+    fireEvent.keyDown(group, { key: "ArrowUp", ctrlKey: true })
+    expect(onDraftChange).not.toHaveBeenCalled()
+    expect(price().value).toBe("")
+  })
+
+  it("binds only the quick sizes that exist, absent ones falling through", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { onDraftChange } = mount({ quickSizes: [1, 5], defaultDraft: { price: 99.5 } }, registry)
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    group.focus()
+    // An absent size's key is not claimed: the event keeps its default and the draft stands.
+    expect(fireEvent.keyDown(group, { key: "9", ctrlKey: true })).toBe(true)
+    expect(onDraftChange).not.toHaveBeenCalled()
+    expect(fireEvent.keyDown(group, { key: "2", ctrlKey: true })).toBe(false)
+    expect(onDraftChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("brings the default back when the consumer unregisters their replacement", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { view } = mount({}, registry)
+    registry.register({ id: "ticket.send", keys: "mod+s", scope: "editing", description: "Ship it" })
+    expect(registry.list().find((e) => e.id === "ticket.send")?.description).toBe("Ship it")
+    act(() => registry.unregister("ticket.send"))
+    expect(registry.list().find((e) => e.id === "ticket.send")?.description).toBe("Send the ticket")
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(false)
+  })
+
+  it("holds its default against unregister while a ticket stands", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    mount({}, registry)
+    registry.unregister("ticket.send")
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
+  })
+
+  it("leaves a replacement that changed only a behavior field", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const { view } = mount({ defaultDraft: { quantity: 5, price: 99.5 } }, registry)
     const own = registry.list().find((e) => e.id === "ticket.send")!

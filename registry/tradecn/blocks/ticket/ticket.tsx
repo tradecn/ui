@@ -365,7 +365,7 @@ export function Ticket({
     send()
   }
 
-  // Keys: declared once per registry, bound to this ticket's box so another ticket's keys stay its own.
+  // Keys: defaults declared per ticket, handlers fenced to this ticket so another's keys stay its own.
   const registry = useMaybeHotkeys()
   const handlers = useRef({ send: () => {}, flip: () => {}, up: () => {}, down: () => {}, quick: (n: number) => {
       void n
@@ -378,12 +378,20 @@ export function Ticket({
         const first = now.find((action) => action.primary) ?? now[0]
         if (first) run(first)
       },
-      flip: () => update({ side: draft.side === "buy" ? "sell" : "buy" }),
-      up: () => stepPrice(1),
-      down: () => stepPrice(-1),
+      flip: () => {
+        if (latest.current.disabled) return
+        update({ side: draft.side === "buy" ? "sell" : "buy" })
+      },
+      up: () => {
+        if (!latest.current.disabled) stepPrice(1)
+      },
+      down: () => {
+        if (!latest.current.disabled) stepPrice(-1)
+      },
       quick,
     }
   })
+  const quickCount = quickSizes?.length ?? 0
   useEffect(() => {
     if (!registry) return
     const release = declareHotkeys ? declareBindings(registry, TICKET_BINDINGS) : noop()
@@ -398,13 +406,14 @@ export function Ticket({
       registry.bind("ticket.flip", guard(() => handlers.current.flip()), within),
       registry.bind("ticket.tick-up", guard(() => handlers.current.up()), within),
       registry.bind("ticket.tick-down", guard(() => handlers.current.down()), within),
-      ...QUICK_SIZE_KEYS.map((_, i) => registry.bind(`ticket.size-${i + 1}`, guard(() => handlers.current.quick(i + 1)), within)),
+      // Only the sizes that exist bind, so an absent mod+N falls through to outer scopes.
+      ...QUICK_SIZE_KEYS.slice(0, quickCount).map((_, i) => registry.bind(`ticket.size-${i + 1}`, guard(() => handlers.current.quick(i + 1)), within)),
     ]
     return () => {
       for (const u of unbind) u()
       release()
     }
-  }, [registry, declareHotkeys])
+  }, [registry, declareHotkeys, quickCount])
   const sendKeys = useSyncExternalStore(
     registry?.subscribe ?? noop,
     () => registry?.list().find((entry) => entry.id === "ticket.send")?.keys ?? null,
