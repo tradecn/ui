@@ -205,7 +205,9 @@ interface ChooserRegistrations {
 
 const ChooserContext = createContext<ChooserContextValue | null>(null)
 const ItemContext = createContext<ColumnChooserItemState | null>(null)
-const ControlsContext = createContext<((kind: "visibility" | "resetWidth") => () => void) | null>(null)
+const ControlsContext = createContext<((kind: "visibility" | "resetWidth", element: () => HTMLElement | null) => () => void) | null>(null)
+
+const NO_CONTROL_ELEMENT = () => null
 
 function useChooserContext() {
   const value = useContext(ChooserContext)
@@ -625,11 +627,17 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
   const { row, dragging, move, moveToEdge, setVisible, resetWidth } = item
   const { labels, focusFallback, startDrag, dragOver, drop, endDrag, registrations, registerItem, focusStep } = useChooserContext()
   const isOwner = useSyncExternalStore(registrations.subscribe, () => registrations.owner() === row.key, () => false)
-  const [controls, setControls] = useState({ visibility: 0, resetWidth: 0 })
-  const registerControl = useCallback((kind: "visibility" | "resetWidth") => {
-    setControls((current) => ({ ...current, [kind]: current[kind] + 1 }))
-    return () => setControls((current) => ({ ...current, [kind]: current[kind] - 1 }))
+  const [controls, setControls] = useState<{ visibility: (() => HTMLElement | null)[]; resetWidth: (() => HTMLElement | null)[] }>({ visibility: [], resetWidth: [] })
+  const registerControl = useCallback((kind: "visibility" | "resetWidth", element: () => HTMLElement | null) => {
+    setControls((current) => ({ ...current, [kind]: [...current[kind], element] }))
+    return () => setControls((current) => ({ ...current, [kind]: current[kind].filter((entry) => entry !== element) }))
   }, [])
+  // Effectively enabled at press time: a declared control can still sit in a disabled fieldset.
+  // The first-legend exception is knowingly ignored; a getter-less declaration counts as live.
+  const liveControl = (kind: "visibility" | "resetWidth") => controls[kind].some((get) => {
+    const el = get()
+    return !el || !(el.matches(":disabled") || el.closest("fieldset[disabled]"))
+  })
   const root = useRef<HTMLDivElement>(null)
   const rootRef = useChooserRef(root, ref)
   // Registration is a layout effect, not part of the ref: an inline caller ref changes identity
@@ -665,7 +673,7 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
       }
     }
   }, [row.key, endDrag, focusFallback])
-  return <ItemContext value={item}><ControlsContext value={registerControl}><div role={role} tabIndex={tabIndex ?? (isOwner ? 0 : -1)} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-description={row.visible ? undefined : labels.hidden} aria-keyshortcuts={`${controls.visibility ? "Space " : ""}Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End${controls.resetWidth ? " Delete" : ""}`} data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
+  return <ItemContext value={item}><ControlsContext value={registerControl}><div role={role} tabIndex={tabIndex ?? (isOwner ? 0 : -1)} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-description={row.visible ? undefined : labels.hidden} aria-keyshortcuts={`${controls.visibility.length ? "Space " : ""}Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End${controls.resetWidth.length ? " Delete" : ""}`} data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
     onFocusCapture?.(event)
     if (ownsItemEvent(event)) {
       focused.current = event.target
@@ -698,15 +706,16 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
     if (event.target !== event.currentTarget) return
     // Space and Delete run only where the layout renders the matching control, so a visible-only
     // list cannot hide a column it offers no way to bring back, and a held key toggles once.
-    if (event.key === " " && controls.visibility) {
-      // Every handled Space cancels, or held repeats scroll the page; the toggle runs once.
+    if (event.key === " " && controls.visibility.length) {
+      // Every handled Space cancels, or held repeats scroll the page; the toggle runs once,
+      // and only through a control that is effectively enabled where it stands.
       event.preventDefault()
       event.stopPropagation()
-      if (!event.repeat) setVisible(!row.visible)
-    } else if ((event.key === "Delete" || event.key === "Backspace") && controls.resetWidth && !event.repeat && row.resized) {
+      if (!event.repeat && liveControl("visibility")) setVisible(!row.visible)
+    } else if ((event.key === "Delete" || event.key === "Backspace") && controls.resetWidth.length && !event.repeat && row.resized) {
       event.preventDefault()
       event.stopPropagation()
-      resetWidth()
+      if (liveControl("resetWidth")) resetWidth()
     }
   }} onDragStart={(event) => {
     onDragStart?.(event)
@@ -727,19 +736,27 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
 
 /**
  * Declares that this item renders a control for one of the item-level keys, so Space or Delete
- * stays live where a caller-owned control covers the command. A disabled control declares nothing.
+ * stays live where a caller-owned control covers the command. A disabled control declares
+ * nothing. Pass `element` so a state only the DOM knows — a disabled enclosing fieldset —
+ * suspends the key while the declaration stands; without one the command counts as enabled.
  */
-export function useColumnChooserCommand(kind: "visibility" | "resetWidth", enabled = true) {
+export function useColumnChooserCommand(kind: "visibility" | "resetWidth", enabled = true, element?: () => HTMLElement | null) {
   const registerControl = useContext(ControlsContext)
-  useLayoutEffect(() => (enabled ? registerControl?.(kind) : undefined), [registerControl, kind, enabled])
+  useLayoutEffect(() => (enabled ? registerControl?.(kind, element ?? NO_CONTROL_ELEMENT) : undefined), [registerControl, kind, enabled, element])
 }
 
-export function ColumnChooserVisibility({ onClick, onCheckedChange, tabIndex = -1, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<typeof Checkbox>, "checked" | "defaultChecked" | "indeterminate">) {
+export function ColumnChooserVisibility({ onClick, onCheckedChange, tabIndex = -1, ref, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<typeof Checkbox>, "checked" | "defaultChecked" | "indeterminate">) {
   const { row, setVisible } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  // Presence tells the item Space has a rendered counterpart, so the key runs only here.
-  useColumnChooserCommand("visibility", !props.disabled)
-  return <Checkbox tabIndex={tabIndex} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.show} ${row.name}`)} {...props} checked={row.visible} onClick={(event) => {
+  const local = useRef<HTMLElement | null>(null)
+  const mergedRef = useChooserRef(local, ref)
+  const element = useCallback(() => local.current, [])
+  // Presence tells the item Space has a rendered counterpart, so the key runs only here — a
+  // read-only checkbox rejects changes from everywhere, the keyboard included. Read untyped:
+  // one base's checkbox types carry readOnly and the other's do not.
+  const readOnly = "readOnly" in props && Boolean((props as { readOnly?: unknown }).readOnly)
+  useColumnChooserCommand("visibility", !props.disabled && !readOnly, element)
+  return <Checkbox ref={mergedRef} tabIndex={tabIndex} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.show} ${row.name}`)} {...props} checked={row.visible} onClick={(event) => {
     onClick?.(event)
     // Some built-ins separate browser cancellation from their own click handler.
     if (event.defaultPrevented && "preventBaseUIHandler" in event && typeof event.preventBaseUIHandler === "function") event.preventBaseUIHandler()
@@ -776,13 +793,16 @@ export function ColumnChooserWidth({ className, "aria-label": ariaLabel, ...prop
   return <span aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.width} ${row.width}`)} data-column-width={row.width} className={cn("w-14 shrink-0 text-right text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{row.width} px</span>
 }
 
-export function ColumnChooserResetWidth({ type = "button", variant = "ghost", size, disabled, onClick, className, tabIndex = -1, "aria-label": ariaLabel, ...props }: ActionProps) {
+export function ColumnChooserResetWidth({ type = "button", variant = "ghost", size, disabled, onClick, className, tabIndex = -1, ref, "aria-label": ariaLabel, ...props }: ActionProps) {
   const { row, resetWidth } = useColumnChooserItem()
   const { labels } = useColumnChooser()
+  const local = useRef<HTMLElement | null>(null)
+  const mergedRef = useChooserRef(local, ref)
+  const element = useCallback(() => local.current, [])
   // Presence tells the item Delete has a rendered counterpart, so the key runs only here — and
   // the control renders disabled for an unresized column, so the declaration follows both.
-  useColumnChooserCommand("resetWidth", !disabled && row.resized)
-  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.resetWidth}: ${row.name}`)} aria-hidden={!row.resized || undefined} tabIndex={tabIndex} className={cn(size === undefined && "h-6 px-1.5 text-xs", !row.resized && "invisible", className)} {...props} disabled={disabled || !row.resized} onClick={(event) => {
+  useColumnChooserCommand("resetWidth", !disabled && row.resized, element)
+  return <Button ref={mergedRef} type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.resetWidth}: ${row.name}`)} aria-hidden={!row.resized || undefined} tabIndex={tabIndex} className={cn(size === undefined && "h-6 px-1.5 text-xs", !row.resized && "invisible", className)} {...props} disabled={disabled || !row.resized} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) resetWidth()
   }} />

@@ -829,6 +829,42 @@ describe("the keyboard model scales to wide grids", () => {
     expect(onChange.mock.lastCall![0].hidden).toEqual(["client"])
   })
 
+  it("treats a read-only visibility control as keyless", () => {
+    const onChange = vi.fn()
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange}>
+        <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /><ColumnChooserVisibility readOnly /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const card = screen.getByLabelText("Price card")
+    act(() => card.focus())
+    expect(fireEvent.keyDown(card, { key: " " })).toBe(true)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(card).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
+  })
+
+  it("suspends a command while its control sits in a disabled fieldset", () => {
+    const onChange = vi.fn()
+    function Card({ off }: { off: boolean }) {
+      return (
+        <ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={onChange}>
+          <ColumnChooserItem columnKey="px" aria-label="Price card">
+            <ColumnChooserName />
+            <fieldset disabled={off || undefined}><ColumnChooserResetWidth>Reset</ColumnChooserResetWidth></fieldset>
+          </ColumnChooserItem>
+        </ColumnChooser>
+      )
+    }
+    const { rerender } = render(<Card off />)
+    const card = screen.getByLabelText("Price card")
+    act(() => card.focus())
+    fireEvent.keyDown(card, { key: "Delete" })
+    expect(onChange).not.toHaveBeenCalled()
+    rerender(<Card off={false} />)
+    fireEvent.keyDown(card, { key: "Delete" })
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
   it("lets a disabled control's key pass through until it enables", () => {
     const onChange = vi.fn()
     function Card({ off }: { off: boolean }) {
