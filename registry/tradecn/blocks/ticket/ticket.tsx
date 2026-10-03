@@ -204,8 +204,12 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
   const have = new Set(registry.list().map((entry) => entry.id))
   for (const binding of bindings) {
     const entry = table.get(binding.id)
-    if (entry) entry.count += 1
-    else {
+    if (entry) {
+      entry.count += 1
+      // A provider that began declaring this id after the first ticket owns it now; without the
+      // cession, the last unmount would delete the provider's live declaration.
+      if (declaredElsewhere.has(binding.id)) entry.ours = false
+    } else {
       // A consumer that declared this id owns it, whether on the registry before render or in a
       // provider's bindings, whose effect runs after this one.
       const ours = !have.has(binding.id) && !declaredElsewhere.has(binding.id)

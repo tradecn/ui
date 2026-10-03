@@ -292,6 +292,22 @@ describe("Ticket keys", () => {
     expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
   })
 
+  it("cedes to a nested provider that declares while tickets come and go", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const one = <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", run: vi.fn() }]} allowedActions={["send"]} />
+    const ui = (tickets: boolean) => (
+      <HotkeysProvider registry={registry}>
+        {tickets && one}
+        <HotkeysProvider registry={registry} bindings={TICKET_BINDINGS}>{tickets && one}</HotkeysProvider>
+      </HotkeysProvider>
+    )
+    const view = render(ui(true))
+    // Both tickets leave; the nested provider stays, and its declaration must survive.
+    view.rerender(ui(false))
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
+    view.unmount()
+  })
+
   it("leaves a replacement that changed only a behavior field or its spelling", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const { view } = mount({ defaultDraft: { quantity: 5, price: 99.5 } }, registry)
