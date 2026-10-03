@@ -112,8 +112,11 @@ describe("fractions", () => {
     // A negative tie snaps away from zero, exactly as the formatter prints it.
     expect(parsePrice("-0.0078125", T32)).toBe(-0.015625)
     expect(Object.is(parsePrice("-0.0078125", T32), -0)).toBe(false)
+    // Plain-decimal spellings only: a double near zero stringifies in exponent notation, which the
+    // parser rejects, and a null would have slipped through a non-null assertion unexercised.
     fc.assert(fc.property(fc.double({ min: -200, max: 200, noNaN: true }), (v) => {
-      const snapped = parsePrice(String(v), T32)!
+      const snapped = parsePrice(v.toFixed(7), T32)
+      if (snapped === null) return false
       return parsePrice(formatFraction(snapped, T32), T32) === snapped
     }))
   })
