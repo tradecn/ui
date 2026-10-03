@@ -954,6 +954,22 @@ describe("the keyboard model scales to wide grids", () => {
     expect(price).toHaveAttribute("tabindex", "-1")
   })
 
+  it("regains the stop when an external mask lifts without any chooser render", async () => {
+    render(
+      <div aria-hidden="true" data-testid="mask">
+        <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+          <ColumnChooserItem columnKey="client" aria-label="Client card"><ColumnChooserName /></ColumnChooserItem>
+          <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem>
+        </ColumnChooser>
+      </div>,
+    )
+    const client = screen.getByLabelText("Client card")
+    expect(client).toHaveAttribute("tabindex", "-1")
+    // The modal closes by plain DOM mutation: no chooser state changes, no react render.
+    screen.getByTestId("mask").removeAttribute("aria-hidden")
+    await waitFor(() => expect(client).toHaveAttribute("tabindex", "0"))
+  })
+
   it("hands the stop onward when only the owner's item re-renders aria-hidden", () => {
     function MaybeHidden() {
       const [hidden, setHidden] = useState(false)
