@@ -875,7 +875,7 @@ function SignInAction() {
 }
 ```
 
-`SessionStatus`, `useSessionStatus`, `sessionStatus`, phase/status/options types and label constants retain their public contracts. `expiresAt`, `warnMs`, `clock`, `labels` and `onExpire` move to the provider with the same phase and callback semantics. Ordinary clock ticks update time readings locally.
+`SessionStatus`, `useSessionStatus`, `sessionStatus`, phase/status/options types and label constants keep their APIs, with one accessibility change: the readout's spoken sentence moved from an `aria-label` into visually hidden text, which assistive technology is actually required to announce. A selector or query built on the old accessible name — `[aria-label^="Session:"]`, `getByLabelText("Session: …")`, or an exact text match — no longer matches; select the readout by `[data-session-status]` instead, and match its text with the hidden sentence included. `expiresAt`, `warnMs`, `clock`, `labels` and `onExpire` move to the provider with the same phase and callback semantics. Ordinary clock ticks update time readings locally.
 
 Requests survive phase, expiry, clock and callback changes. Returning `true` alone does not renew the session; the application still updates `expiresAt`. A late refusal after recovery can set failure again.
 
