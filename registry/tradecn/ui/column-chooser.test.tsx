@@ -645,7 +645,7 @@ describe("the keyboard model scales to wide grids", () => {
 
   it("shows or hides the focused column with Space, only from the item itself", () => {
     let saved: ColumnState | null = null
-    render(<Controlled cols={columns} onChange={(next) => { saved = next }} />)
+    render(<Controlled cols={columns} initial={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onChange={(next) => { saved = next }} />)
     const item = screen.getByRole("group", { name: "Price" })
     item.focus()
     fireEvent.keyDown(item, { key: " " })
@@ -669,8 +669,11 @@ describe("the keyboard model scales to wide grids", () => {
     expect(saved).toBeNull()
     const resized = screen.getByRole("group", { name: "Price" })
     resized.focus()
+    expect(resized).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End Delete")
     fireEvent.keyDown(resized, { key: "Delete" })
     expect(saved!.widths).toEqual({})
+    // The reset consumed the only resized width, so the shortcut leaves the metadata with it.
+    expect(resized).toHaveAttribute("aria-keyshortcuts", "Space Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
   })
 
   it("moves the tab stop with pointer focus and keeps it valid when search filters the active column out", () => {
@@ -804,7 +807,7 @@ describe("the keyboard model scales to wide grids", () => {
 
   it("runs Space and Delete only where the matching control is rendered, and once per press", () => {
     const onChange = vi.fn()
-    render(<ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { id: 140 } }} onColumnStateChange={onChange}>
+    render(<ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { client: 140 } }} onColumnStateChange={onChange}>
       <ColumnChooserItem columnKey="id" aria-label="Bare card"><ColumnChooserName /></ColumnChooserItem>
       <ColumnChooserItem columnKey="client" aria-label="Full card"><ColumnChooserName /><ColumnChooserVisibility /><ColumnChooserResetWidth>Reset</ColumnChooserResetWidth></ColumnChooserItem>
     </ColumnChooser>)
