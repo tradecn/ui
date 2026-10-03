@@ -548,12 +548,14 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
     },
     declareDefault(binding) {
       if (!binding.id) throw new Error("hotkeys: a binding needs an id")
-      // Built before the declaration is held, so a throw leaves nothing half-registered.
-      const rec = recs.has(binding.id) ? null : build(binding)
+      // Built before the declaration is held — shadowed or not — so malformed keys throw here
+      // and never wait inside the held list to break a later resurface.
+      const rec = build(binding)
+      const installing = !recs.has(binding.id)
       const held = defaults.get(binding.id)
       if (held) held.push(binding)
       else defaults.set(binding.id, [binding])
-      if (rec) {
+      if (installing) {
         recs.set(binding.id, rec)
         defaultIds.add(binding.id)
         clearPending()

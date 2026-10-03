@@ -624,6 +624,14 @@ describe("defaults", () => {
     expect(registry.list()).toEqual([])
   })
 
+  it("rejects a malformed default even while the id is shadowed", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register(binding("a", "y"))
+    expect(() => registry.declareDefault(binding("a", "ctrl+"))).toThrow()
+    registry.unregister("a")
+    expect(registry.list()).toEqual([])
+  })
+
   it("leaves a shadowing registration alone when the shadowed default releases", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const release = registry.declareDefault(binding("a", "x"))
