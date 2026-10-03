@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react"
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
@@ -213,6 +213,12 @@ export function parseQuantity(text: string): number | null {
 }
 
 const noop = () => () => {}
+const guardKey = (fn: () => void) => (event: KeyboardEvent | globalThis.KeyboardEvent) => {
+  event.preventDefault()
+  fn()
+}
+const TICKET_CORE_BINDINGS = TICKET_BINDINGS.filter((binding) => !binding.id.startsWith("ticket.size-"))
+const TICKET_SIZE_BINDINGS = TICKET_BINDINGS.filter((binding) => binding.id.startsWith("ticket.size-"))
 
 export function Ticket({
   instrument,
@@ -392,28 +398,35 @@ export function Ticket({
     }
   })
   const quickCount = quickSizes?.length ?? 0
+  // Fenced to the scope root, so the shortcuts run from the symbol, the status, and the padding too.
+  const within = useMemo(() => ({ scope: "editing", element: () => (box.current ? box.current.parentElement ?? box.current : null) }), [])
   useEffect(() => {
     if (!registry) return
-    const release = declareHotkeys ? declareBindings(registry, TICKET_BINDINGS) : noop()
-    // Fenced to the scope root, so the shortcuts run from the symbol, the status, and the padding too.
-    const within = { scope: "editing", element: () => (box.current ? box.current.parentElement ?? box.current : null) }
-    const guard = (fn: () => void) => (event: KeyboardEvent | globalThis.KeyboardEvent) => {
-      event.preventDefault()
-      fn()
-    }
+    const release = declareHotkeys ? declareBindings(registry, TICKET_CORE_BINDINGS) : noop()
     const unbind = [
-      registry.bind("ticket.send", guard(() => handlers.current.send()), within),
-      registry.bind("ticket.flip", guard(() => handlers.current.flip()), within),
-      registry.bind("ticket.tick-up", guard(() => handlers.current.up()), within),
-      registry.bind("ticket.tick-down", guard(() => handlers.current.down()), within),
-      // Only the sizes that exist bind, so an absent mod+N falls through to outer scopes.
-      ...QUICK_SIZE_KEYS.slice(0, quickCount).map((_, i) => registry.bind(`ticket.size-${i + 1}`, guard(() => handlers.current.quick(i + 1)), within)),
+      registry.bind("ticket.send", guardKey(() => handlers.current.send()), within),
+      registry.bind("ticket.flip", guardKey(() => handlers.current.flip()), within),
+      registry.bind("ticket.tick-up", guardKey(() => handlers.current.up()), within),
+      registry.bind("ticket.tick-down", guardKey(() => handlers.current.down()), within),
     ]
     return () => {
       for (const u of unbind) u()
       release()
     }
-  }, [registry, declareHotkeys, quickCount])
+  }, [registry, declareHotkeys, within])
+  // The sizes ride their own effect: only the sizes passed declare and bind — a declared id
+  // without a handler has no fence and would conflict with another ticket's — so an absent
+  // mod+N stays unclaimed, and a size-count change never re-declares the core four.
+  useEffect(() => {
+    if (!registry || quickCount === 0) return
+    const sizes = TICKET_SIZE_BINDINGS.slice(0, quickCount)
+    const release = declareHotkeys ? declareBindings(registry, sizes) : noop()
+    const unbind = sizes.map((binding, i) => registry.bind(binding.id, guardKey(() => handlers.current.quick(i + 1)), within))
+    return () => {
+      for (const u of unbind) u()
+      release()
+    }
+  }, [registry, declareHotkeys, quickCount, within])
   const sendKeys = useSyncExternalStore(
     registry?.subscribe ?? noop,
     () => registry?.list().find((entry) => entry.id === "ticket.send")?.keys ?? null,

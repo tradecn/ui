@@ -227,7 +227,7 @@ describe("Ticket", () => {
 
 describe("Ticket keys", () => {
   it("sends, flips, and steps from inside its own fields, with the keys in the editing scope", () => {
-    const { run, registry } = mount({ defaultDraft: { quantity: 5, price: 99.5 } })
+    const { run, registry } = mount({ defaultDraft: { quantity: 5, price: 99.5 }, quickSizes: [1, 2, 3, 4, 5, 6, 7, 8, 9] })
     expect(registry!.list().map((e) => e.id)).toEqual(expect.arrayContaining(TICKET_BINDINGS.map((b) => b.id)))
     expect(registry!.list().find((e) => e.id === "ticket.send")?.scope).toBe("editing")
     quantity().focus()
@@ -334,6 +334,22 @@ describe("Ticket keys", () => {
     fireEvent.keyDown(group, { key: "ArrowUp", ctrlKey: true })
     expect(onDraftChange).not.toHaveBeenCalled()
     expect(price().value).toBe("")
+  })
+
+  it("declares only the sizes passed, so another fenced desk stays conflict-free", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    mount({ quickSizes: [1, 5], defaultDraft: { price: 99.5 } }, registry)
+    expect(registry.list().some((e) => e.id === "ticket.size-2")).toBe(true)
+    expect(registry.list().some((e) => e.id === "ticket.size-9")).toBe(false)
+    // Another component's fenced mod+9 — an RFQ ticket's ninth size — reports no conflict,
+    // since an absent size declares nothing rather than standing unbound and fenceless.
+    const el = document.createElement("div")
+    document.body.appendChild(el)
+    const detach = registry.bind("desk.nine", () => {}, { scope: "editing", element: () => el })
+    act(() => void registry.register({ id: "desk.nine", keys: "mod+9", scope: "editing", description: "Ninth desk thing" }))
+    expect(registry.conflicts()).toEqual([])
+    detach()
+    el.remove()
   })
 
   it("binds only the quick sizes that exist, absent ones falling through", () => {

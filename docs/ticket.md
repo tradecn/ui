@@ -72,8 +72,8 @@ This is the registry's first block: `ticket.tsx` installs into your `components`
 | `message` | `string` | None | Server detail, such as a rejection reason. |
 | `acknowledged` | `unknown` | None | A changed value triggers the acknowledgement ring. |
 | `disabled` | `boolean` | `false` | Disables fields and buttons; stops actions and every ticket shortcut — send, flip, price steps, and quick sizes. |
-| `hotkeys` | `boolean` | `true` | Declares `TICKET_BINDINGS` as registry defaults. |
-| `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Built-in labels and validation messages. Fixed strings remain: the unpriced `market` placeholder and `at market` wording, the references' `, use it` name suffix, the `up one tick` and `down one tick` tails after your `labels.price` in the step buttons' names, the quick sizes' notional `mm` suffix, and the built-in limit messages. |
+| `hotkeys` | `boolean` | `true` | Declares `TICKET_BINDINGS` as registry defaults, the size keys for the quick sizes passed. |
+| `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Built-in labels and validation messages. Fixed strings remain: the unpriced `market` placeholder and `at market` wording, the references' `, use it` name suffix, the `up one tick` and `down one tick` tails after your `labels.price` in the step buttons' names, the quick sizes' notional `mm` suffix, the key caps the primary button shows, and the built-in limit messages. |
 | `className` | `string` | None | Classes on the outer group. |
 
 `TicketInstrument` requires `symbol: string` and `convention: InstrumentConvention`; `quantityStep?: number` defaults to `1`. See [`format`](format.md) for conventions. `TicketReference` has optional `bid`, `ask`, and `last` fields, each `number | null`.
@@ -122,7 +122,7 @@ Change `acknowledged` when the server acknowledges, using an order id or timesta
 
 `hotkeys={false}` skips declarations but still attaches handlers for bindings you supply. Each ticket has its own `HotkeyScope` and handlers, so shortcuts work while typing inside that ticket. They also work inside a dialog; global keys cannot reach a blotter behind it.
 
-Price-step shortcuts do not check whether the order type is priced, and they use `convention.tick`, even when the quote field uses another quote basis or step. A disabled ticket runs no shortcuts at all. `mod+1` through `mod+9` bind only for the quick sizes you pass; an absent size's keys fall through.
+Price-step shortcuts do not check whether the order type is priced, and they use `convention.tick`, even when the quote field uses another quote basis or step. A disabled ticket runs no shortcuts at all, though its keys are still consumed. `mod+1` through `mod+9` declare and bind only for the quick sizes you pass; an absent size's keys stay unclaimed.
 
 Plain Enter in a field does not submit an order. The ticket has no `<form>` or implicit submit.
 
