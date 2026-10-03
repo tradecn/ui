@@ -344,8 +344,9 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
   const recs = new Map<string, Rec>()
   // Component defaults: each declaration is held individually beside the live records, installed
   // only while no consumer registration shadows the id — the earliest held declaration is the
-  // one in force. `defaultIds` marks the ids whose live record is the default.
-  const defaults = new Map<string, HotkeyBinding[]>()
+  // one in force. Tokens, not the bindings, carry identity: two declarers may pass one shared
+  // module constant. `defaultIds` marks the ids whose live record is the default.
+  const defaults = new Map<string, { binding: HotkeyBinding }[]>()
   const defaultIds = new Set<string>()
   const overrides = new Map<string, string>()
   const bound = new Map<string, Bound[]>()
@@ -378,15 +379,15 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
   }
 
   function build(binding: HotkeyBinding, handler?: HotkeyHandler): Rec {
-    const defaults = parseKeys(binding.keys, platform)
-    let steps = defaults
+    const declaredSteps = parseKeys(binding.keys, platform)
+    let steps = declaredSteps
     const override = overrides.get(binding.id)
     if (override !== undefined) {
       // A stale override from storage must not take the app down: fall back to the default.
       try {
         steps = parseKeys(override, platform)
       } catch {
-        steps = defaults
+        steps = declaredSteps
       }
     }
     return { binding, steps, sequence: steps.map(stepToString), handler }
@@ -535,13 +536,15 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
       return conflictsFor(binding.id)
     },
     unregister(id) {
-      if (!recs.has(id)) return
-      defaultIds.delete(id)
+      // A default is not removable here — only shadowed or released; `remap(id, "")` unbinds
+      // its keys. Removing-and-reinstalling would wake subscribers with an unchanged list, and
+      // a subscriber that unregisters whatever it sees listed would recurse forever.
+      if (!recs.has(id) || defaultIds.has(id)) return
       // The earliest held default resurfaces when the consumer registration leaves — replaced
       // in place, since the record's position carries conflict resolution and list order.
       const held = defaults.get(id)
       if (held?.[0]) {
-        recs.set(id, build(held[0]))
+        recs.set(id, build(held[0].binding))
         defaultIds.add(id)
       } else {
         recs.delete(id)
@@ -555,22 +558,20 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
       // and never wait inside the held list to break a later resurface.
       const rec = build(binding)
       const installing = !recs.has(binding.id)
+      const token = { binding }
       const held = defaults.get(binding.id)
-      if (held) held.push(binding)
-      else defaults.set(binding.id, [binding])
+      if (held) held.push(token)
+      else defaults.set(binding.id, [token])
       if (installing) {
         recs.set(binding.id, rec)
         defaultIds.add(binding.id)
         clearPending()
         emit()
       }
-      let released = false
       return () => {
-        if (released) return
-        released = true
         const current = defaults.get(binding.id)
         if (!current) return
-        const at = current.indexOf(binding)
+        const at = current.indexOf(token)
         if (at < 0) return
         current.splice(at, 1)
         if (current.length === 0) defaults.delete(binding.id)
@@ -581,9 +582,9 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
           recs.delete(binding.id)
           clearPending()
           emit()
-        } else if (!sameBinding(recs.get(binding.id)!.binding, next)) {
+        } else if (!sameBinding(recs.get(binding.id)!.binding, next.binding)) {
           // A remaining declarer's own binding takes over from the released one's.
-          recs.set(binding.id, build(next))
+          recs.set(binding.id, build(next.binding))
           clearPending()
           emit()
         }

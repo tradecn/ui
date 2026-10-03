@@ -624,6 +624,34 @@ describe("defaults", () => {
     expect(registry.list()).toEqual([])
   })
 
+  it("releases the caller's own declaration when declarers share one binding object", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const shared = binding("a", "x")
+    registry.declareDefault(shared)
+    registry.declareDefault(binding("a", "y"))
+    const third = registry.declareDefault(shared)
+    // Releasing the third declarer must not remove the first's entry: x stays in force.
+    third()
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+  })
+
+  it("leaves a default alone when unregister names it", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const woke = vi.fn()
+    registry.declareDefault(binding("a", "x"))
+    registry.subscribe(woke)
+    registry.unregister("a")
+    expect(woke).not.toHaveBeenCalled()
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+    // The style the palette tests: a subscriber that unregisters whatever it sees listed must
+    // settle, not recurse, when the listed record is a default.
+    registry.subscribe(() => {
+      if (registry.list().some((e) => e.id === "a")) registry.unregister("a")
+    })
+    expect(() => registry.register(binding("b", "z"))).not.toThrow()
+    expect(registry.list().map((e) => e.id).sort()).toEqual(["a", "b"])
+  })
+
   it("keeps a resurfaced default in its record's position", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     registry.declareDefault(binding("a", "x"))
