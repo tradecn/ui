@@ -195,8 +195,12 @@ describe("the ladder", () => {
     expect(grid).toHaveAttribute("data-following", "false")
     expect(grid).toHaveAttribute("aria-activedescendant", cell(6370, "price")!.id)
     expect(cell(6370, "price")).toHaveAttribute("data-focused-col", "true")
+    expect(cell(6370, "price")).toHaveAttribute("aria-selected", "true")
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     expect(cell(6370, "ask")).toHaveAttribute("data-focused-col", "true")
+    // The selected state travels with the active cell: marked on the new one, gone from the old.
+    expect(cell(6370, "ask")).toHaveAttribute("aria-selected", "true")
+    expect(cell(6370, "price")).not.toHaveAttribute("aria-selected")
     // Enter on the price column stages nothing; on a size cell it stages that side.
     fireEvent.keyDown(grid, { key: "ArrowLeft" })
     fireEvent.keyDown(grid, { key: "Enter" })
@@ -356,16 +360,19 @@ describe("composition", () => {
     const price = createRef<HTMLDivElement>()
     const viewport = createRef<HTMLDivElement>()
     const stage = vi.fn()
+    // A JavaScript caller can spread past the types; the managed id and selected state still win.
+    const rogue = { id: "rogue", "aria-selected": false } as object
     render(<DepthLadder {...rootProps} ref={root} data-desk="rates" onStage={stage} onKeyDown={(event) => event.preventDefault()}>
       <DepthLadderViewport ref={viewport}><DepthLadderRows>{() => <DepthLadderRow>
         <DepthLadderSizeCell side="bid" onClick={(event) => event.preventDefault()} />
-        <DepthLadderPriceCell ref={price} title="Quoted price" />
+        <DepthLadderPriceCell ref={price} title="Quoted price" {...rogue} />
         <DepthLadderSizeCell side="ask"><button type="button">Inspect level</button></DepthLadderSizeCell>
       </DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
     </DepthLadder>)
     expect(root.current).toHaveAttribute("data-desk", "rates")
     expect(viewport.current).toHaveAttribute("data-slot", "tradecn-depth-ladder-viewport")
     expect(price.current).toHaveAttribute("title", "Quoted price")
+    expect(price.current!.id).not.toBe("rogue")
     fireEvent.click(cell(6368, "bid")!)
     fireEvent.click(screen.getAllByRole("button", { name: "Inspect level" })[0]!)
     expect(stage).not.toHaveBeenCalled()

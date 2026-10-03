@@ -429,19 +429,21 @@ function ownsCellClick(event: MouseEvent<HTMLDivElement>) {
   return !control || control === event.currentTarget || !event.currentTarget.contains(control)
 }
 
-export function DepthLadderSizeCell({ side, ref, className, children, onClick, ...props }: Omit<ComponentProps<"div">, "id"> & SideProps) {
+export function DepthLadderSizeCell({ side, ref, className, children, onClick, ...props }: Omit<ComponentProps<"div">, "id" | "aria-selected"> & SideProps) {
   const row = useRowContext()
   const local = useRef<HTMLDivElement>(null)
   const cellRef = useLadderRef(local, ref)
   const size = side === "bid" ? row.bidSize : row.askSize
   const mine = side === "bid" ? row.myBid : row.myAsk
   useFlash(local, size, { windowMs: row.config.flashWindowMs, variant: "fill" })
-  return <div role="gridcell" id={`${row.domId}-${side}`} aria-selected={row.focusedColumn === side || undefined} aria-colindex={row.config.columns.indexOf(side) + 1 || undefined} data-col={side} data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} data-focused-col={row.focusedColumn === side || undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && "bg-muted/50", className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
+  // Managed attributes land after the spread: the generated id is what aria-activedescendant
+  // points at, and the selected state is what this cell's keyboard contract rests on.
+  return <div data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && "bg-muted/50", className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }} role="gridcell" id={`${row.domId}-${side}`} aria-selected={row.focusedColumn === side || undefined} aria-colindex={row.config.columns.indexOf(side) + 1 || undefined} data-col={side} data-focused-col={row.focusedColumn === side || undefined}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
 }
 
-export function DepthLadderPriceCell({ className, children, onClick, ...props }: Omit<ComponentProps<"div">, "id">) {
+export function DepthLadderPriceCell({ className, children, onClick, ...props }: Omit<ComponentProps<"div">, "id" | "aria-selected">) {
   const row = useRowContext()
-  return <div role="gridcell" id={`${row.domId}-price`} aria-selected={row.focusedColumn === "price" || undefined} aria-colindex={row.config.columns.indexOf("price") + 1 || undefined} data-col="price" data-numeric="" data-focused-col={row.focusedColumn === "price" || undefined} className={cn("flex h-full min-w-0 items-center justify-center truncate px-2 text-foreground", numericFontClass(row.config.convention), row.focusedColumn === "price" && "bg-muted/50", className)} {...props} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select("price") }}>{children === undefined ? row.priceText : children}</div>
+  return <div data-numeric="" className={cn("flex h-full min-w-0 items-center justify-center truncate px-2 text-foreground", numericFontClass(row.config.convention), row.focusedColumn === "price" && "bg-muted/50", className)} {...props} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select("price") }} role="gridcell" id={`${row.domId}-price`} aria-selected={row.focusedColumn === "price" || undefined} aria-colindex={row.config.columns.indexOf("price") + 1 || undefined} data-col="price" data-focused-col={row.focusedColumn === "price" || undefined}>{children === undefined ? row.priceText : children}</div>
 }
 
 /** Hides while following or without a market; keep it mounted to retain focus recovery. */

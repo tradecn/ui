@@ -165,8 +165,8 @@ Use a nonnegative integer `depth`, a positive `rowHeight`, and nonnegative integ
 | `DepthLadderViewport` | Native `div` props. | Caller-owned rows and empty state. |
 | `DepthLadderRows` | Native `div` props with required `children: (row: DepthLadderRowState) => ReactNode`. | One callback per mounted tick. |
 | `DepthLadderRow` | Native `div` props except `id`, and required `children`. | Caller-owned cells. |
-| `DepthLadderSizeCell` | Native `div` props and required `side: "bid" \| "ask"`. | Own size followed by market size. |
-| `DepthLadderPriceCell` | Native `div` props. | The formatted price. |
+| `DepthLadderSizeCell` | Native `div` props except `id` and `aria-selected`, and required `side: "bid" \| "ask"`. | Own size followed by market size. |
+| `DepthLadderPriceCell` | Native `div` props except `id` and `aria-selected`. | The formatted price. |
 | `DepthLadderSize` | Native `span` props except `children`, and required `side`. | The formatted market size. Absent for a blank size. |
 | `DepthLadderOwnSize` | Native `span` props except `children`, and required `side`. | The own-size chip and `labels.mine`. Absent for a blank size. |
 | `DepthLadderEmpty` | Native `div` props. | `labels.noMarket`. Only before the first finite mid. |
