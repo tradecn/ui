@@ -426,6 +426,31 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
   useEffect(() => {
     registrations.present(presentedRows.map((row) => row.key))
   })
+  // While every item reads unusable — a modal keeps an ancestor masked — nothing inside the
+  // chooser will re-render when that mask lifts, so a document-level observer watches the
+  // masking attributes for exactly as long as the collection has no owner.
+  useEffect(() => {
+    const observer = new MutationObserver(() => registrations.refresh())
+    let watching = false
+    const check = () => {
+      const masked = registrations.owner() === null && registrations.nodes.size > 0
+      if (masked && !watching) {
+        const node = registrations.nodes.values().next().value
+        if (!node) return
+        observer.observe(node.ownerDocument.body, { attributes: true, subtree: true, attributeFilter: ["aria-hidden", "inert", "hidden"] })
+        watching = true
+      } else if (!masked && watching) {
+        observer.disconnect()
+        watching = false
+      }
+    }
+    check()
+    const unsubscribe = registrations.subscribe(check)
+    return () => {
+      unsubscribe()
+      observer.disconnect()
+    }
+  }, [registrations])
   const registerItem = useCallback((key: string, node: HTMLElement | null, optedOut = false) => registrations.set(key, node, optedOut), [registrations])
   const focusStep = (from: string, step: -1 | 1 | "first" | "last") => {
     const keys = presentedRows.map((row) => row.key)
