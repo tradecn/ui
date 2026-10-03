@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { formatNotional } from "@/registry/tradecn/lib/format"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
@@ -6,7 +6,7 @@ import { DataGrid, type ColumnDef } from "@/registry/tradecn/ui/data-grid"
 
 interface Inquiry { id: string; client: string; size: number }
 
-const columns: ColumnDef<Inquiry>[] = [
+const inquiryColumns: ColumnDef<Inquiry>[] = [
   { key: "client", header: "Client", width: 160, accessor: (row) => row.client },
   { key: "size", header: "Size", width: 120, numeric: true, accessor: (row) => row.size, format: (value) => formatNotional(value as number, { unit: "mm" }) },
 ]
@@ -23,6 +23,10 @@ export default function DataGridSelectionDemo() {
   })
   const [selection, setSelection] = useState<ReadonlySet<string>>(new Set())
   const [action, setAction] = useState("No action yet.")
+  const columns = useMemo<ColumnDef<Inquiry>[]>(() => [...inquiryColumns, {
+    key: "inspect", header: "Action", width: 100, accessor: () => null,
+    cell: ({ row }) => <button type="button" className="rounded border border-border px-2 focus-visible:outline-2 focus-visible:outline-ring" aria-label={`Inspect ${row.client}`} onClick={() => setAction(`Inspect: ${row.client}`)}>Inspect</button>,
+  }], [])
   return (
     <div className="w-fit max-w-full space-y-2 text-xs lining-nums tabular-nums">
       <div className="h-48">

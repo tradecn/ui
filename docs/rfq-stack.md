@@ -40,7 +40,7 @@ export default function RfqStackDemo() {
 
 The store starts with three inquiries, ordered by size and then earliest expiry. Use your venue's statuses in `isEnded`.
 
-Focus the grid and use the arrow keys, then Enter, or double-click a row to activate it. The caption shows the active id; your app can use `active.row` to populate a ticket.
+Focus the grid and use the arrow keys, then Enter, or double-click plain row content to activate it. Controls keep their own pointer actions. The caption shows the active id; your app can use `active.row` to populate a ticket.
 
 Give the stack a parent with a fixed height. The preview's alignment buttons apply across examples and remember your choice; left alignment keeps the edge still while you resize columns.
 
@@ -58,9 +58,9 @@ Raise the field to `6` to hide ALPHA too. Its Q-1 inquiry remains active: filter
 
 ## Parking an inquiry
 
-Park an inquiry to skip it during automatic selection without removing it from the stack. Right-click a row, or focus it with the arrow keys and press Shift+F10, to open its menu. Parking the active inquiry advances to the next eligible row; the caption lists parked ids, and parked rows carry an accessible description.
+Park an inquiry to skip it during automatic selection without removing it from the stack. Right-click plain row content, or focus the grid and use the arrow keys and Shift+F10, to open the row's menu. Parking the active inquiry advances to the next eligible row; the caption lists parked ids, and parked rows carry an accessible description.
 
-Unparking makes a row eligible again without replacing the current active inquiry. Activating a parked row with Enter or a double-click also unparks it. Parking is local state and sends nothing to the venue.
+Unparking makes a row eligible again without replacing the current active inquiry. Press Enter with the grid focused, or double-click plain content in a parked row, to activate and unpark it. Parking is local state and sends nothing to the venue.
 
 <!-- demo: rfq-stack-parking -->
 
@@ -100,7 +100,7 @@ Column state and keyboard behavior belong to the grid.
 
 Column-formatting and threshold props are listed below. Remaining props use `DataGridProps<T>`, except `preset`.
 
-`onRowActivate(row, id)` also runs after `onActivate(id, row)`; note the reversed arguments. Enter or a row double-click activates a row unless grid editing handles that interaction.
+`onRowActivate(row, id)` also runs after `onActivate(id, row)`; note the reversed arguments. Enter on the grid or a double-click on plain row content activates a row unless grid editing handles that interaction. Custom controls retain their own [pointer interactions](data-grid.md#pointer-interactions).
 
 ### The columns
 

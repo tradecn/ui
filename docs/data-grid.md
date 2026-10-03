@@ -63,7 +63,9 @@ Use `baseState` to initialize an uncontrolled grid and choose its reset defaults
 
 ## Selection and actions
 
-Set `selectionMode="multi"` to extend the RFQ preset's single selection. Use the checkboxes, Shift for a range, or Command/Ctrl to toggle rows. Right-click a selected row, or press Shift+F10 from it, to act on the selection; an unselected row targets just itself. Enter or a double-click activates a row. This example prints the requested action below the grid; your handler opens a ticket or sends a command.
+Set `selectionMode="multi"` to extend the RFQ preset's single selection. Use the checkboxes, Shift for a range, or Command/Ctrl to toggle rows. Right-click plain content in a selected row, or press Shift+F10 with the grid focused, to act on the selection; an unselected row targets just itself.
+
+Enter on the grid or a double-click on plain cell content activates a row. The Inspect button acts on its own row and preserves selection. This example prints the requested action below the grid; your handler opens a ticket or sends a command.
 
 <!-- demo: data-grid-selection -->
 
@@ -106,8 +108,8 @@ Scroll down before receiving a batch to see the RFQ preset keep the first visibl
 | `flashWindowMs` | `number` | `900` | Cell flash duration in ms. |
 | `footer` | `Record<string, (rows: T[]) => string>` | None | Totals keyed by column key. |
 | `onEdit` | `(change: EditChange<T>) => void \| Promise<unknown>` | None | Handle commits; enables columns with `edit`. |
-| `onRowActivate` | `(row: T, id: RowId) => void` | None | Handle Enter or a double click when it does not edit a cell. |
-| `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Menu items for the selection or targeted row. |
+| `onRowActivate` | `(row: T, id: RowId) => void` | None | Handle grid Enter or an unhandled double-click on plain row content, unless it opens an editor. |
+| `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Menu items opened from an owned row, for the selection or targeted row. |
 | `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Row classes, state, tone, and accessible description. |
 | `emptyState` | `ReactNode` | `"No rows"` | Empty-view content. |
 | `className` | `string` | None | Classes on the grid root. |
@@ -145,7 +147,9 @@ Keep an external chooser or application reset control when a snapshot can hide e
 
 Drag a column's right edge to resize it. Movement is measured from its starting width, rounded to pixels, and clamped to `minWidth`. Other column settings and the change callback come from the latest committed props.
 
-Releasing or canceling the pointer, losing pointer capture or window focus, or removing the column ends the drag. Accepted widths remain in place. Use **Alt+Shift+Left / Right** on the grid to resize the focused column by 8 px.
+Resizing starts on an unhandled primary-button press from a primary pointer. A press already prevented by an application handler does not start a drag.
+
+Releasing or canceling the pointer, losing pointer capture or window focus, or removing the column ends the drag. Accepted widths remain in place. The edge handle is pointer-only; focus the grid, choose a column with Left or Right, then use **Alt+Shift+Left / Right** to resize it by 8 px.
 
 ### Columns
 
@@ -195,7 +199,9 @@ Flash memory is keyed by row and column. A cell returning with the same value re
 
 ### The reorder hold
 
-Key events delivered to the grid from its own element or contained controls call `view.touch()`, even when already handled. Cell editors and portaled content are excluded. Pointer presses in the scroll area also call `touch()`.
+Key events delivered to the grid from its own element or contained controls call `view.touch()`, even when already handled. Cell editors, nested grids and portaled content outside the grid are excluded.
+
+Pointer presses in the scroll area call `touch()` during capture, including presses on controls and editors. This keeps rows steady while a control handles its press. Nested grids and content portaled outside the grid have their own interaction ownership.
 
 During the hold, existing rows keep their relative order, new rows append, and removed or filtered-out rows leave. The view sorts again when the hold expires, even without another feed update.
 
@@ -205,7 +211,7 @@ The `reorderHoldMs` prop configures the internally owned view. With a supplied `
 
 Use `tape` for append-only feeds, or set `rowEnter={{ followTail: true, pinViewport: false }}` on another preset. Row-entry overrides merge with the preset, so turn pinning off explicitly when switching from it.
 
-The viewport moves to the end when following is enabled and as rows arrive. Grid keys, pointer presses in the scroll area, or scrolling away pause following. An `N new` button counts the increase in row count since the pause; click it or scroll to the end to resume. For feeds that also remove rows, this count is net growth, not total arrivals.
+The viewport moves to the end when following is enabled and as rows arrive. Interactions that touch this grid's reorder hold, or scrolling away, pause following. An `N new` button counts the increase in row count since the pause; click it or scroll to the end to resume. For feeds that also remove rows, this count is net growth, not total arrivals.
 
 ### Footer totals
 
@@ -254,11 +260,60 @@ A thrown error or rejection of a still-pending promise displays the store value 
 
 A custom `cell` receives `edit: { status, commit(value), open() }` when editing is enabled for its column. It sees `status` as absent or an object whose `kind` is `pending` or `rejected`. While a text editor is open, the grid renders its built-in editor instead of calling `cell`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text.
 
+For an available text-editable cell, `open()` opens and focuses the text editor. It does not select the row or change the grid's logical row or chosen column. To return grid navigation to that row after editing, control `focusedRowId` and update it in the action handler before calling `open()`. Column shortcuts still use the previously chosen column; choose a column with grid navigation or its header.
+
 ### Identity
 
 Selection, focus, and context-menu targets use row ids, so a reorder preserves their identity. `aria-activedescendant` names the focused row while its id is in the view; each data row's `aria-rowindex` is its zero-based view index plus two, accounting for the header.
 
 With announcements enabled, a 1,000 ms timer reports the row count through a polite live region, for example "1,024 rows, 12 new". It starts on mount and restarts when the count changes. Continuous count changes delay the announcement.
+
+### Pointer interactions
+
+A primary-button press on plain cell content requests row focus and selection. Other buttons request focus only. `selectionMode="none"` leaves selection unchanged, and controlled state changes only when your callback applies the request.
+
+In multi-select mode, Shift adds a range from the current view without clearing the existing selection. Changes made in capture or focus callbacks are included. Ctrl or Cmd toggles a row.
+
+A double-click opens an editable text cell or activates the row.
+
+Buttons, links, inputs, editors, focusable content and interactive ARIA widgets keep their own pointer behavior. Their presses and double-clicks do not implicitly select, focus, edit or activate the row. Selection checkboxes and custom `edit.commit` controls still run their explicit actions.
+
+Fallback ARIA role lists use the first recognized role: `role="unsupported button"` owns its interaction, while `role="status button"` remains plain content.
+
+Use native controls with accessible names in custom cells. A custom handler can also claim a press or double-click with `preventDefault()` or `stopPropagation()`. Row actions run during bubbling, after the child handler. To claim one from a parent, use its capture handler.
+
+With `renderContextMenu`, right-clicking plain content in a selected row keeps the selection; another row becomes the target. Controls, nested grids, content portaled outside this grid, headers, footers and empty space do not open its row menu. Controls retain their own context menus, including the browser's default when the application leaves it available.
+
+When a row menu is installed, rejected `contextmenu`, non-mouse `pointerdown`, and single-touch `touchstart` events stop React bubbling after child handlers run. Use capture handlers on ancestors to observe them. Multiple-touch `touchstart` events reach the menu so it can cancel a pending long press.
+
+Rejected pointer and touch starts retain native propagation for dialog dismissal and touch tracking. Rejected context-menu events from contained targets also stop native bubbling, including later listeners on a hydrated document root. Events from content portaled outside the grid retain native delivery.
+
+A document-level bubbling handler cannot suppress the browser menu for those contained targets. Call `preventDefault()` in the custom control's `onContextMenu` handler to suppress it there. A capture handler that prevents every context-menu event also claims the grid's row menus.
+
+Open shadow roots use the browser's event path. Closed roots expose only their hosts. Set `data-grid-interaction` on the host or a containing element outside that root:
+
+| Value | Row actions | Reorder hold and tail following |
+| --- | --- | --- |
+| `control` | Skip row actions and row menu. | Retain hold and pause on presses and keys. |
+| `independent` | Skip row actions and row menu. | Skip hold and pause. Use for a separate widget. |
+
+Markers add no roles or tab stops. Child handlers still run. Custom content owns accessibility, focus and styles.
+
+Mark interactive closed-root content explicitly. It can otherwise trigger row actions. Plain text in an open shadow root still selects or activates its row.
+
+CSS such as `pointer-events: none` can send a disabled control's press to the cell beneath it. Wrap that control to keep those interactions within the custom content:
+
+```tsx
+import type { ReactNode } from "react"
+
+export function CellControl({ children }: { children: ReactNode }) {
+  return <span className="inline-flex leading-normal" data-grid-interaction="control">{children}</span>
+}
+
+export function DisabledCellAction() {
+  return <CellControl><button type="button" disabled className="pointer-events-none">Inspect</button></CellControl>
+}
+```
 
 ### Keyboard
 
@@ -287,7 +342,7 @@ To handle a grid shortcut in a parent, call `preventDefault()` from `onKeyDownCa
 | Alt+H | Hide the focused column. |
 | Shift+F10 / Menu | Open the context menu on the focused row. |
 
-Row navigation also selects the focused row in single-select mode. A double click opens an editable text cell or activates the row. Each column header has move, hide, and reset controls, plus a resize handle. Sort controls appear only when the column has `sortable: true`.
+Row navigation also selects the focused row in single-select mode. Each column header has move, hide, and reset controls, plus a resize handle. Sort controls appear only when the column has `sortable: true`.
 
 When a column disappears while its menu trigger or menu owns focus, focus returns to the grid. A surviving menu trigger retains the menu's normal close-focus behavior.
 
