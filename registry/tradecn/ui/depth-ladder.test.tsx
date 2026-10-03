@@ -1,4 +1,4 @@
-import { createRef } from "react"
+import { type ComponentProps, useEffect, useLayoutEffect, createRef } from "react"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
@@ -161,7 +161,7 @@ describe("the ladder", () => {
     expect(onStage).toHaveBeenCalledTimes(3)
     expect(rung(6371)).toHaveAttribute("data-focused", "true")
     expect(cell(6371, "price")).toHaveAttribute("data-focused-col", "true")
-    expect(screen.getByRole("grid", { name: "ZN ladder" })).toHaveAttribute("aria-activedescendant", rung(6371)!.id)
+    expect(screen.getByRole("grid", { name: "ZN ladder" })).toHaveAttribute("aria-activedescendant", cell(6371, "price")!.id)
   })
 
   it("follows the mid until a pointer touches it, then offers Recenter, which follows again", () => {
@@ -193,10 +193,14 @@ describe("the ladder", () => {
     // Up from nowhere starts at the mid and goes one tick higher; a key is a hand on the ladder.
     fireEvent.keyDown(grid, { key: "ArrowUp" })
     expect(grid).toHaveAttribute("data-following", "false")
-    expect(grid).toHaveAttribute("aria-activedescendant", rung(6370)!.id)
+    expect(grid).toHaveAttribute("aria-activedescendant", cell(6370, "price")!.id)
     expect(cell(6370, "price")).toHaveAttribute("data-focused-col", "true")
+    expect(cell(6370, "price")).toHaveAttribute("aria-selected", "true")
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     expect(cell(6370, "ask")).toHaveAttribute("data-focused-col", "true")
+    // The selected state travels with the active cell: marked on the new one, gone from the old.
+    expect(cell(6370, "ask")).toHaveAttribute("aria-selected", "true")
+    expect(cell(6370, "price")).not.toHaveAttribute("aria-selected")
     // Enter on the price column stages nothing; on a size cell it stages that side.
     fireEvent.keyDown(grid, { key: "ArrowLeft" })
     fireEvent.keyDown(grid, { key: "Enter" })
@@ -211,15 +215,17 @@ describe("the ladder", () => {
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     fireEvent.keyDown(grid, { key: "ArrowDown" })
     fireEvent.keyDown(grid, { key: "ArrowDown" })
+    expect(cell(6368, "ask")).toHaveAttribute("aria-selected", "true")
+    expect(cell(6370, "ask")).not.toHaveAttribute("aria-selected")
     fireEvent.keyDown(grid, { key: "Enter" })
     expect(onStage).toHaveBeenLastCalledWith({ price: 99.5, side: "sell", tick: 6368, level: store.getRow("6368") })
     // A page is a viewport of rungs; the focus stops at the range's edge.
     fireEvent.keyDown(grid, { key: "PageDown" })
-    expect(grid).toHaveAttribute("aria-activedescendant", rung(6365)!.id)
+    expect(grid).toHaveAttribute("aria-activedescendant", cell(6365, "ask")!.id)
     fireEvent.keyDown(grid, { key: "PageUp" })
-    expect(grid).toHaveAttribute("aria-activedescendant", rung(6373)!.id)
+    expect(grid).toHaveAttribute("aria-activedescendant", cell(6373, "ask")!.id)
     fireEvent.keyDown(grid, { key: "ArrowUp" })
-    expect(grid).toHaveAttribute("aria-activedescendant", rung(6373)!.id)
+    expect(grid).toHaveAttribute("aria-activedescendant", cell(6373, "ask")!.id)
     fireEvent.keyDown(grid, { key: "Home" })
     expect(grid).toHaveAttribute("data-following", "true")
   })
@@ -310,13 +316,17 @@ describe("composition", () => {
     const rows = <DepthLadderRows />
     // @ts-expect-error A row needs caller content.
     const row = <DepthLadderRow />
-    // @ts-expect-error The generated row ID is reserved for active descendants.
+    // @ts-expect-error Generated row ids are reserved; descendants point at cells.
     const customId = <DepthLadderRow id="custom"><span /></DepthLadderRow>
     // @ts-expect-error The root owns its active descendant.
     const customGrid = { ...rootProps, children: null, "aria-activedescendant": "application-row" } satisfies DepthLadderProps
     const conditional = <DepthLadder {...rootProps}>{Boolean(vi.fn()()) && <DepthLadderEmpty />}</DepthLadder>
     const empty = <DepthLadder {...rootProps}>{null}</DepthLadder>
-    expect([minimal, configured, emptyState, rows, row, customId, customGrid, conditional, empty]).toHaveLength(9)
+    // @ts-expect-error Cell ids are generated for the grid's active descendant.
+    const cellId = <DepthLadderPriceCell id="custom" />
+    // @ts-expect-error The selected state belongs to the keyboard model.
+    const cellSelected = <DepthLadderSizeCell side="bid" aria-selected={false} />
+    expect([minimal, configured, emptyState, rows, row, customId, customGrid, conditional, empty, cellId, cellSelected]).toHaveLength(11)
   })
 
   it("supports ascending prices, reordered cells and readings, and caller controls without extra row subscriptions", () => {
@@ -356,21 +366,28 @@ describe("composition", () => {
     const price = createRef<HTMLDivElement>()
     const viewport = createRef<HTMLDivElement>()
     const stage = vi.fn()
+    // A JavaScript caller can spread past the types; the managed id and selected state still win.
+    const rogue = { id: "rogue", "aria-selected": false } as object
     render(<DepthLadder {...rootProps} ref={root} data-desk="rates" onStage={stage} onKeyDown={(event) => event.preventDefault()}>
       <DepthLadderViewport ref={viewport}><DepthLadderRows>{() => <DepthLadderRow>
         <DepthLadderSizeCell side="bid" onClick={(event) => event.preventDefault()} />
-        <DepthLadderPriceCell ref={price} title="Quoted price" />
+        <DepthLadderPriceCell ref={price} title="Quoted price" {...rogue} />
         <DepthLadderSizeCell side="ask"><button type="button">Inspect level</button></DepthLadderSizeCell>
       </DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
     </DepthLadder>)
     expect(root.current).toHaveAttribute("data-desk", "rates")
     expect(viewport.current).toHaveAttribute("data-slot", "tradecn-depth-ladder-viewport")
     expect(price.current).toHaveAttribute("title", "Quoted price")
+    expect(price.current!.id).not.toBe("rogue")
     fireEvent.click(cell(6368, "bid")!)
     fireEvent.click(screen.getAllByRole("button", { name: "Inspect level" })[0]!)
     expect(stage).not.toHaveBeenCalled()
     fireEvent.keyDown(root.current!, { key: "ArrowLeft" })
     expect(root.current).not.toHaveAttribute("aria-activedescendant")
+    // The rogue spread loses throughout: selecting the cell marks it and the descendant resolves.
+    fireEvent.click(price.current!)
+    expect(price.current).toHaveAttribute("aria-selected", "true")
+    expect(root.current).toHaveAttribute("aria-activedescendant", price.current!.id)
   })
 
   it("leaves Enter on Recenter to the button without staging the selected size", () => {
@@ -428,8 +445,16 @@ describe("composition", () => {
     fireEvent.click(screen.getByRole("button", { name: "Recenter" }))
     expect(grid).not.toHaveAttribute("aria-activedescendant")
     act(() => store.applyDeltas({ remove: ["6368"] }))
+    // The selection survived the recenter but sits far outside the new range: staging refuses it.
     fireEvent.keyDown(grid, { key: "Enter" })
-    expect(second).toHaveBeenCalledExactlyOnceWith({ price: 99.5, tick: 6368, side: "buy", level: undefined })
+    expect(second).not.toHaveBeenCalled()
+    // Navigation clamps back into range, and the latest callback stages the in-range rung with
+    // the store row as it is at stage time.
+    fireEvent.keyDown(grid, { key: "ArrowUp" })
+    act(() => store.applyDeltas({ upsert: [{ tick: 6387, bidSize: 55 }] }))
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(second).toHaveBeenCalledExactlyOnceWith({ price: priceAtTick(6387, ZN.tick), side: "buy", tick: 6387, level: store.getRow("6387") })
+    expect(store.getRow("6387")!.bidSize).toBe(55)
     expect(first).toHaveBeenCalledTimes(1)
   })
 
@@ -524,7 +549,7 @@ describe("changing a composed layout", () => {
     expect(grid).toHaveAttribute("title", "Book detail")
     expect(grid).not.toHaveAttribute("aria-activedescendant")
     fireEvent.keyDown(grid, { key: "ArrowLeft" })
-    expect(document.getElementById(grid.getAttribute("aria-activedescendant")!)).toBe(rung(6369))
+    expect(document.getElementById(grid.getAttribute("aria-activedescendant")!)).toBe(cell(6369, "bid"))
   })
 
   it("omits column indices for parts outside the declared columns", () => {
@@ -544,7 +569,7 @@ describe("changing a composed layout", () => {
       fireEvent.keyDown(grid, { key: "PageDown" })
       const id = grid.getAttribute("aria-activedescendant")
       expect(id).not.toBeNull()
-      expect(document.getElementById(id!)).toHaveAttribute("data-focused", "true")
+      expect(document.getElementById(id!)!.closest("[data-tick]")).toHaveAttribute("data-focused", "true")
       expect(document.querySelectorAll("[data-tick]").length).toBeLessThan(40)
     }
   })
@@ -587,7 +612,90 @@ describe("changing a composed layout", () => {
     expect(stage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ side: "sell", tick: 6369 }))
   })
 
-  it("keeps generated row identity authoritative for active descendants", () => {
+  it("refuses a kept select reference once its rung leaves the range", () => {
+    const store = seed()
+    const stage = vi.fn()
+    const keep: { select?: (column: "bid" | "ask" | "price") => void } = {}
+    function KeepSelect() {
+      const row = useDepthLadderRow()
+      useEffect(() => {
+        if (row.tick === 6368) keep.select = row.select
+      })
+      return null
+    }
+    const compose = (mid: number) => (
+      <DepthLadder store={store} convention={ZN} mid={mid} label="Book" depth={5} initialRect={RECT} onStage={stage}>
+        <DepthLadderRecenter>Recenter</DepthLadderRecenter>
+        <DepthLadderViewport><DepthLadderRows>{() => <DepthLadderRow><DepthLadderSizeCell side="bid" /><KeepSelect /><DepthLadderPriceCell /><DepthLadderSizeCell side="ask" /></DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
+      </DepthLadder>
+    )
+    const view = render(compose(MID))
+    act(() => keep.select!("bid"))
+    expect(stage).toHaveBeenCalledTimes(1)
+    view.rerender(compose(priceAtTick(6390, ZN.tick)))
+    fireEvent.click(screen.getByRole("button", { name: "Recenter" }))
+    // The rung is out of the recentered range; the reference held by desk code stages nothing.
+    act(() => keep.select!("bid"))
+    expect(stage).toHaveBeenCalledTimes(1)
+  })
+
+  it("validates a layout-effect select against the committed range", () => {
+    const store = seed()
+    const stage = vi.fn()
+    const keep: { select?: (column: "bid" | "ask" | "price") => void } = {}
+    function KeepSelect() {
+      const row = useDepthLadderRow()
+      useEffect(() => {
+        if (row.tick === 6368) keep.select = row.select
+      })
+      return null
+    }
+    function Prodder({ probe }: { probe: boolean }) {
+      useLayoutEffect(() => {
+        if (probe) keep.select!("bid")
+      }, [probe])
+      return null
+    }
+    const compose = (mid: number, probe: boolean) => (
+      <DepthLadder store={store} convention={ZN} mid={mid} label="Book" depth={5} initialRect={RECT} onStage={stage}>
+        <Prodder probe={probe} />
+        <DepthLadderViewport><DepthLadderRows>{() => <DepthLadderRow><DepthLadderSizeCell side="bid" /><KeepSelect /><DepthLadderPriceCell /><DepthLadderSizeCell side="ask" /></DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
+      </DepthLadder>
+    )
+    const view = render(compose(MID, false))
+    // The drift while following moves the anchor in this commit, and the child's layout effect
+    // fires during it holding a reference from the old range: it must see the committed ladder.
+    view.rerender(compose(priceAtTick(6390, ZN.tick), true))
+    expect(stage).not.toHaveBeenCalled()
+  })
+
+  it("emits the selected state only on rendered roles that take it", () => {
+    const store = seed()
+    const compose = (role: ComponentProps<"div">["role"] | undefined, withRole: boolean) => (
+      <DepthLadder store={store} convention={ZN} mid={MID} label="Book" depth={0} initialRect={RECT}>
+        <DepthLadderViewport><DepthLadderRows>{() => <DepthLadderRow><DepthLadderSizeCell side="bid" /><DepthLadderPriceCell {...(withRole ? { role } : {})} /><DepthLadderSizeCell side="ask" /></DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
+      </DepthLadder>
+    )
+    // A row header inherits aria-selected from gridcell, so the price-as-header pattern keeps
+    // its state; a presentation cell and an explicit undefined role render without it.
+    const view = render(compose("rowheader", true))
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    expect(cell(6369, "price")).toHaveAttribute("role", "rowheader")
+    expect(grid).toHaveAttribute("aria-activedescendant", cell(6369, "price")!.id)
+    expect(cell(6369, "price")).toHaveAttribute("aria-selected", "true")
+    expect(cell(6369, "bid")).not.toHaveAttribute("aria-selected")
+    view.rerender(compose("presentation", true))
+    expect(cell(6369, "price")).not.toHaveAttribute("aria-selected")
+    view.rerender(compose(undefined, true))
+    expect(cell(6369, "price")).not.toHaveAttribute("role")
+    expect(cell(6369, "price")).not.toHaveAttribute("aria-selected")
+    view.rerender(compose(undefined, false))
+    expect(cell(6369, "price")).toHaveAttribute("aria-selected", "true")
+  })
+
+  it("resolves active descendants to generated cell ids under legacy row props", () => {
     const legacyProps = { id: "application-row", "data-application-row": "yes" }
     render(<DepthLadder store={seed()} convention={ZN} mid={MID} label="Book" depth={0} initialRect={RECT}>
       <DepthLadderViewport><DepthLadderRows>{() => <DepthLadderRow {...legacyProps}><DepthLadderSizeCell side="bid" /><DepthLadderPriceCell /><DepthLadderSizeCell side="ask" /></DepthLadderRow>}</DepthLadderRows></DepthLadderViewport>
@@ -595,7 +703,7 @@ describe("changing a composed layout", () => {
     const grid = screen.getByRole("grid")
     fireEvent.keyDown(grid, { key: "ArrowLeft" })
     const id = grid.getAttribute("aria-activedescendant")!
-    expect(document.getElementById(id)).toBe(rung(6369))
+    expect(document.getElementById(id)).toBe(cell(6369, "bid"))
     expect(rung(6369)).toHaveAttribute("data-application-row", "yes")
   })
 })

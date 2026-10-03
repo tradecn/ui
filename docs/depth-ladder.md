@@ -100,7 +100,7 @@ DepthLadder
 └── DepthLadderRecenter
 ```
 
-`DepthLadderRows` calls your render function for each mounted tick. Return one `DepthLadderRow` with cells in the same order as `columns`.
+`DepthLadderRows` calls your render function for each mounted tick. Return one `DepthLadderRow` with cells in the same order as `columns`, each declared column rendered once by its tradecn cell part: the generated cell ids the descendant points at exist only through those parts.
 
 Parts whose column is absent from `columns` omit `aria-colindex`. They do not change the declared navigation order.
 
@@ -165,8 +165,8 @@ Use a nonnegative integer `depth`, a positive `rowHeight`, and nonnegative integ
 | `DepthLadderViewport` | Native `div` props. | Caller-owned rows and empty state. |
 | `DepthLadderRows` | Native `div` props with required `children: (row: DepthLadderRowState) => ReactNode`. | One callback per mounted tick. |
 | `DepthLadderRow` | Native `div` props except `id`, and required `children`. | Caller-owned cells. |
-| `DepthLadderSizeCell` | Native `div` props and required `side: "bid" \| "ask"`. | Own size followed by market size. |
-| `DepthLadderPriceCell` | Native `div` props. | The formatted price. |
+| `DepthLadderSizeCell` | Native `div` props except `id` and `aria-selected`, and required `side: "bid" \| "ask"`. | Own size followed by market size. |
+| `DepthLadderPriceCell` | Native `div` props except `id` and `aria-selected`. | The formatted price. |
 | `DepthLadderSize` | Native `span` props except `children`, and required `side`. | The formatted market size. Absent for a blank size. |
 | `DepthLadderOwnSize` | Native `span` props except `children`, and required `side`. | The own-size chip and `labels.mine`. Absent for a blank size. |
 | `DepthLadderEmpty` | Native `div` props. | `labels.noMarket`. Only before the first finite mid. |
@@ -186,7 +186,7 @@ The row height and transform, and the rows container height, are reserved for vi
 
 Set `--depth-ladder-columns` on the root's style to customize track widths consistently across headers and rows.
 
-Row IDs are generated and reserved for the grid's active descendant. Use a data attribute to identify an application row.
+Row and cell IDs are generated and reserved: the grid's active descendant names the focused cell, which also carries `aria-selected` where its rendered role takes the state — `gridcell`, `rowheader`, or `columnheader`. Use a data attribute to identify an application row.
 
 ### Hooks
 
@@ -258,7 +258,7 @@ Aggregate each price before feeding the [row store](row-store.md). Upserting the
 
 Prices run high to low by default. `order="ascending"` reverses them. While following, the ladder centers `tickIndexOf(mid, convention.tick)` when that tick changes, within the scrollable bounds.
 
-The mid rung carries `data-mid` and is described as `Mid`. The root carries `data-following="true"`.
+The mid rung carries `data-mid` and is described as `Mid`. The root always carries `data-following`, as `"true"` or `"false"`.
 
 A pointer press or wheel event in the scrolling body, a scroll away from the centered offset, or an arrow or page key stops following. The anchored price range stays fixed while the market moves. With a finite mid, a mounted `DepthLadderRecenter` becomes visible. Pressing it, or Home, centers the range on the current mid and follows again.
 
@@ -318,13 +318,13 @@ The root is a focusable grid named by `label`.
 
 Its column count follows `columns`. `aria-rowcount` includes `headerRows` and the full anchored range.
 
-Mounted rungs report their row indices. The selected rung stays mounted outside the viewport while it remains in the anchored range, so `aria-activedescendant` stays valid during page jumps.
+Mounted rungs report their row indices. `aria-activedescendant` names the focused cell, `<rung id>-bid`, `-price`, or `-ask`, and the cell carries `aria-selected`, so a screen reader hears which side is selected before Enter stages it. The selected rung stays mounted outside the viewport while it remains in the anchored range, so the reference stays valid during page jumps. The cells' `id` is managed; pass your own ids on surrounding content instead.
 
 A cell click focuses the grid.
 
 Nested controls keep their native keys, and composing keys are left alone. Removing a selected column hides its focus marks and reports `focusedColumn: null` to custom row content.
 
-Recenter does not reset keyboard focus. If recentering moves the selected tick outside the anchored range, its focus mark and `aria-activedescendant` disappear, but Enter on the grid still stages that stored tick and side if the column remains in `columns`. Select a rung in the new range before using Enter.
+Recenter does not reset keyboard focus. Whenever the selected tick sits outside the anchored range — after a recenter, a drift while following, or a smaller `depth` — its focus mark and `aria-activedescendant` disappear, and staging refuses it from every path, Enter and kept `select` references alike. The refused Enter is consumed and gives no feedback. Navigation clamps the selection back onto the ladder, and a selection on the ladder keeps staging as before.
 
 ### Labels
 
