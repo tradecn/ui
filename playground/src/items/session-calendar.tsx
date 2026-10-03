@@ -42,7 +42,7 @@ function Reading({ name, calendar, at }: { name: string; calendar: FullSessionCa
   const local = calendar.local(at)
   const fmt = new Intl.DateTimeFormat("en-US", { timeZone: calendar.zone, weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
   return (
-    <div className="rounded-md border border-border p-2" data-calendar={name} data-session-status={status}>
+    <div className="rounded-md border border-border p-2" data-calendar={name} data-calendar-status={status}>
       <p className="font-semibold">
         {name} <span className="font-normal text-muted-foreground">{calendar.zone}</span>
       </p>

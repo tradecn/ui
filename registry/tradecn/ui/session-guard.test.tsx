@@ -3,7 +3,7 @@ import { SessionNotice, type SessionNoticeProps } from "@/demos/session-guard"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createClock } from "@/registry/tradecn/lib/clock"
-import { DEFAULT_SESSION_GUARD_LABELS, DEFAULT_WARN_MS, SessionStatus, sessionStatus } from "@/registry/tradecn/ui/session-guard"
+import { DEFAULT_SESSION_GUARD_LABELS, DEFAULT_WARN_MS, SessionGuardProvider, SessionStatus, sessionStatus, useSessionGuard } from "@/registry/tradecn/ui/session-guard"
 
 function SessionGuard(props: Omit<SessionNoticeProps, "fallbackFocusRef">) {
   const fallback = useRef<HTMLInputElement>(null)
@@ -91,6 +91,42 @@ describe("the guard", () => {
     expect(root()).toHaveAttribute("data-session-phase", "expired")
   })
 
+  it("keeps a class-based clock bound to its instance", () => {
+    class ClassClock {
+      private listeners = new Set<() => void>()
+      now() { return t }
+      subscribe(cb: () => void) {
+        this.listeners.add(cb)
+        return () => void this.listeners.delete(cb)
+      }
+      fire() { for (const cb of this.listeners) cb() }
+    }
+    function Phase() {
+      return <output>{useSessionGuard().phase}</output>
+    }
+    const clock = new ClassClock()
+    render(
+      <SessionGuardProvider expiresAt={T0 + MINUTE} clock={clock} onReauthenticate={() => Promise.resolve(true)}>
+        <Phase />
+      </SessionGuardProvider>,
+    )
+    expect(screen.getByRole("status")).toHaveTextContent("warning")
+    act(() => {
+      t += 2 * MINUTE
+      clock.fire()
+    })
+    expect(screen.getByRole("status")).toHaveTextContent("expired")
+    // The public reading paths cross useNow, which also calls through the clock; prove one end to end.
+    render(<SessionStatus expiresAt={t + MINUTE} clock={clock} />)
+    const reading = document.querySelector("[data-session-status]")!
+    expect(reading).toHaveAttribute("data-session-status", "warning")
+    act(() => {
+      t += 2 * MINUTE
+      clock.fire()
+    })
+    expect(reading).toHaveAttribute("data-session-status", "expired")
+  })
+
   it("lets recipe classes override the phase wrapper's display in every phase", () => {
     const clock = createClock(1000, () => t)
     const scene = (expiresAt: number | null, className: string) => <SessionGuard expiresAt={expiresAt} clock={clock} className={className} onReauthenticate={async () => true} />
@@ -176,22 +212,29 @@ describe("the status readout", () => {
     const readout = () => document.querySelector<HTMLElement>("[data-session-status]")!
     expect(readout()).toHaveAttribute("data-session-status", "live")
     expect(readout()).toHaveTextContent("Session 5:00")
-    expect(readout()).toHaveAttribute("aria-label", "Session: signed in, 5:00")
+    const spoken = () => readout().querySelector(".sr-only")!.textContent
+    expect(readout()).not.toHaveAttribute("aria-label")
+    expect(spoken()).toBe("Session: signed in, 5:00")
+    // The sentence reaches readers and nothing is read twice: the hidden span is exposed, the rest hidden.
+    expect(readout().querySelector(".sr-only")).not.toHaveAttribute("aria-hidden")
+    const visibleSpans = readout().querySelectorAll(":scope > span:not(.sr-only)")
+    expect(visibleSpans.length).toBeGreaterThan(0)
+    for (const span of visibleSpans) expect(span).toHaveAttribute("aria-hidden")
     expect(readout().className).not.toContain("text-expiring")
     tick(4 * MINUTE)
     expect(readout()).toHaveAttribute("data-session-status", "warning")
     expect(readout()).toHaveTextContent("Session 1:00")
-    expect(readout()).toHaveAttribute("aria-label", "Session: ending soon, 1:00")
+    expect(spoken()).toBe("Session: ending soon, 1:00")
     expect(readout().className).toContain("text-expiring")
     tick(MINUTE)
     expect(readout()).toHaveAttribute("data-session-status", "expired")
     expect(readout()).toHaveTextContent("Session ended")
-    expect(readout()).toHaveAttribute("aria-label", "Session: ended")
+    expect(spoken()).toBe("Session: ended")
     expect(readout().className).toContain("text-destructive")
     rerender(<SessionStatus expiresAt={null} clock={clock} labels={{ noSession: "signed out" }} />)
     expect(readout()).toHaveAttribute("data-session-status", "none")
     expect(readout()).toHaveTextContent("Session signed out")
-    expect(readout()).toHaveAttribute("aria-label", "Session: signed out")
+    expect(spoken()).toBe("Session: signed out")
     expect(DEFAULT_SESSION_GUARD_LABELS.session).toBe("Session")
   })
 })
