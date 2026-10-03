@@ -5,7 +5,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry, type HotkeyBinding, type HotkeyEntry, type HotkeyOverrides } from "@/registry/tradecn/lib/hotkeys"
-import { HotkeyEditor, HotkeyEditorItem, HotkeyEditorKeys, HotkeyEditorChange, HotkeyEditorEdit, HotkeyEditorCapture, HotkeyEditorInput, HotkeyEditorProblem, HotkeyEditorConflicts, HotkeyEditorResetAll, useHotkeyEditor, useHotkeyEditorItem, groupOf, matchesQuery, scopeWord, type HotkeyEditorProps } from "@/registry/tradecn/ui/hotkey-editor"
+import { HotkeyEditor, HotkeyEditorItem, HotkeyEditorKeys, HotkeyEditorSearch, HotkeyEditorChange, HotkeyEditorEdit, HotkeyEditorCapture, HotkeyEditorInput, HotkeyEditorProblem, HotkeyEditorConflicts, HotkeyEditorResetAll, useHotkeyEditor, useHotkeyEditorItem, groupOf, matchesQuery, scopeWord, type HotkeyEditorProps } from "@/registry/tradecn/ui/hotkey-editor"
 
 const BINDINGS: HotkeyBinding[] = [
   { id: "palette.open", keys: "mod+k", scope: "editing", description: "Open the command palette", group: "General" },
@@ -414,15 +414,22 @@ describe("composition and migration", () => {
     expect(keysOf("go.book")).toBe("g o")
   })
 
-  it("retains caller field descriptions alongside capture hints and validation", () => {
+  it("retains caller field descriptions alongside capture hints, and captures a plus chord as a shortcut", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     registry.register(BINDINGS[0]!)
-    render(<HotkeysProvider registry={registry}><HotkeyEditor><p id="help">Choose a shortcut</p><HotkeyEditorItem bindingId="palette.open"><HotkeyEditorChange>Change</HotkeyEditorChange><HotkeyEditorCapture aria-describedby="help" /><HotkeyEditorProblem /></HotkeyEditorItem></HotkeyEditor></HotkeysProvider>)
+    render(<HotkeysProvider registry={registry}><HotkeyEditor><p id="help">Choose a shortcut</p><HotkeyEditorItem bindingId="palette.open"><HotkeyEditorChange>Change</HotkeyEditorChange><HotkeyEditorCapture aria-describedby="help" /><HotkeyEditorKeys /><HotkeyEditorProblem /></HotkeyEditorItem></HotkeyEditor></HotkeysProvider>)
     fireEvent.click(screen.getByRole("button", { name: "Change: Open the command palette" }))
     const capture = document.querySelector<HTMLElement>("[data-hotkey-capture]")!
     expect(capture).toHaveAccessibleDescription("Choose a shortcut Escape cancels, Backspace unbinds")
+    // A lone modifier still cannot commit: the capture stays, with the problem linked to the field.
+    fireEvent.keyDown(capture, { key: "Super" })
+    expect(document.querySelector("[data-hotkey-capture]")).toBe(capture)
+    expect(capture).toHaveAccessibleDescription(/Not a shortcut/)
+    // Ctrl with the + key is a real shortcut, so capturing it commits instead of flagging it.
     fireEvent.keyDown(capture, { key: "+", ctrlKey: true })
-    expect(capture).toHaveAccessibleDescription(/Choose a shortcut Escape cancels, Backspace unbinds Not a shortcut/)
+    expect(document.querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(keysOf("palette.open")).toBe("ctrl++")
+    expect(caps("palette.open")).toEqual(["Ctrl", "+"])
   })
 
   it("reports missing coordination contexts", () => {
@@ -430,5 +437,24 @@ describe("composition and migration", () => {
     function MissingItem() { useHotkeyEditorItem(); return null }
     expect(() => render(<MissingRoot />)).toThrow("inside HotkeyEditor")
     expect(() => render(<MissingItem />)).toThrow("inside HotkeyEditorItem")
+  })
+})
+
+describe("the plus key", () => {
+  it("renders and searches a plus binding instead of throwing", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register({ id: "zoom.in", keys: "mod+plus", scope: "global", description: "Zoom in" })
+    render(
+      <HotkeysProvider registry={registry}>
+        <HotkeyEditor>
+          <HotkeyEditorSearch aria-label="Find a shortcut" />
+          <HotkeyEditorItem bindingId="zoom.in"><HotkeyEditorKeys /></HotkeyEditorItem>
+        </HotkeyEditor>
+      </HotkeysProvider>,
+    )
+    expect(keysOf("zoom.in")).toBe("ctrl++")
+    expect(caps("zoom.in")).toEqual(["Ctrl", "+"])
+    fireEvent.change(screen.getByRole("textbox", { name: "Find a shortcut" }), { target: { value: "zoom" } })
+    expect(row("zoom.in")).toBeTruthy()
   })
 })

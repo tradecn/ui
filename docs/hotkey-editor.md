@@ -225,9 +225,7 @@ Removing a focused item moves focus to the editor's search field, or its root wh
 
 Keep a public editing field mounted for every editing mode your triggers can start.
 
-The plus key retains a registry limitation: capture can produce `ctrl++`, which remapping rejects. Typing `ctrl+plus` for a binding whose default is `x` stores `ctrl++`, then falls back to `x` without an editor error. Declaring or loading `ctrl+plus` can produce effective keys the keycap formatter cannot display.
-
-Neither entry method reliably supports plus-key shortcuts. See [remapping](use-hotkeys.md).
+The plus key works through either entry method: capture and typed entry store `ctrl+plus` in its canonical form `ctrl++`, remapping accepts it, and the keycaps print `Ctrl` `+` (`⌃` `+` on a Mac). See [remapping](use-hotkeys.md#remapping).
 
 ### Conflicts
 

@@ -167,7 +167,19 @@ export function detectPlatform(): Platform {
 
 function parseStep(part: string, platform: Platform): Step {
   const step: Step = { ctrl: false, alt: false, shift: false, meta: false, key: "" }
-  for (const token of part.toLowerCase().split("+")) {
+  // The canonical form writes the + key as itself, so "ctrl++" and a bare "+" must read back.
+  // Only the canonical shape qualifies: a malformed "ctrl+++" still fails instead of quietly
+  // becoming a live binding from a corrupted stored override.
+  let rest = part
+  let plusKey = false
+  if (rest === "+") {
+    plusKey = true
+    rest = ""
+  } else if (rest.endsWith("++") && rest.length > 2 && rest.slice(0, -2).split("+").every(Boolean)) {
+    plusKey = true
+    rest = rest.slice(0, -2)
+  }
+  for (const token of rest ? rest.toLowerCase().split("+") : []) {
     if (token === "mod") step[platform === "mac" ? "meta" : "ctrl"] = true
     else if (token === "ctrl" || token === "control") step.ctrl = true
     else if (token === "alt" || token === "option" || token === "opt") step.alt = true
@@ -175,6 +187,10 @@ function parseStep(part: string, platform: Platform): Step {
     else if (token === "meta" || token === "cmd" || token === "command" || token === "win" || token === "super") step.meta = true
     else if (step.key) throw new Error(`hotkeys: "${part}" names two keys; separate the steps of a chord with a space`)
     else step.key = KEY_ALIASES[token] ?? token
+  }
+  if (plusKey) {
+    if (step.key) throw new Error(`hotkeys: "${part}" names two keys; separate the steps of a chord with a space`)
+    step.key = "+"
   }
   if (!step.key) throw new Error(`hotkeys: "${part}" has no key (write the + key as "plus")`)
   return step

@@ -329,7 +329,7 @@ Capture's default accessible name changes from `Press the new shortcut, Escape c
 
 Validation now has an alert role and a linked field description. Its message clears on blur, where v1 kept it. `data-hotkey-capture`, `data-hotkey-problem`, and `data-hotkey-conflicts` retain their `"true"` values.
 
-Use the public capture and input parts with custom controls to retain their event handling. The hooks expose editing state and operations without duplicating registry subscriptions. The underlying registry and its documented plus-key limitation are unchanged.
+Use the public capture and input parts with custom controls to retain their event handling. The hooks expose editing state and operations without duplicating registry subscriptions. The registry now reads the canonical plus spellings back: a bare `+` and modifier steps ending in `++`, such as `ctrl++` and `meta++`. Version 1 stored those overrides — from typing the text `ctrl+plus` into the editor's field, or calling `remap(id, "ctrl+plus")` — and silently fell back to the default when reading them, wherever your application persisted the map; after upgrading they take effect, so reset a binding that was unintended. Malformed spellings such as `ctrl+++` still fail instead of becoming live bindings.
 
 ## LayoutManager
 
