@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatQuickSize, checkDraft, describeDraft, parseQuantity, Ticket, TICKET_BINDINGS, type TicketDraft, type TicketInstrument, type TicketProps } from "@/registry/tradecn/blocks/ticket/ticket"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
@@ -227,7 +227,7 @@ describe("Ticket", () => {
 
 describe("Ticket keys", () => {
   it("sends, flips, and steps from inside its own fields, with the keys in the editing scope", () => {
-    const { run, registry } = mount({ defaultDraft: { quantity: 5, price: 99.5 } })
+    const { run, registry } = mount({ defaultDraft: { quantity: 5, price: 99.5 }, quickSizes: [1, 2, 3, 4, 5, 6, 7, 8, 9] })
     expect(registry!.list().map((e) => e.id)).toEqual(expect.arrayContaining(TICKET_BINDINGS.map((b) => b.id)))
     expect(registry!.list().find((e) => e.id === "ticket.send")?.scope).toBe("editing")
     quantity().focus()
@@ -290,6 +290,155 @@ describe("Ticket keys", () => {
     expect(run).toHaveBeenCalledTimes(1)
     view.unmount()
     expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
+  })
+
+  it("keeps a provider's declaration made while no ticket sat beneath it", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const one = <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", run: vi.fn() }]} allowedActions={["send"]} />
+    const ui = (tickets: boolean) => (
+      <HotkeysProvider registry={registry}>
+        {tickets && one}
+        <HotkeysProvider registry={registry} bindings={TICKET_BINDINGS}>{null}</HotkeysProvider>
+      </HotkeysProvider>
+    )
+    const view = render(ui(true))
+    // The ticket leaves; the declaring provider never had a ticket beneath it and must stand.
+    view.rerender(ui(false))
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(false)
+  })
+
+  it("cedes to a nested provider that declares while tickets come and go", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const one = <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", run: vi.fn() }]} allowedActions={["send"]} />
+    const ui = (tickets: boolean) => (
+      <HotkeysProvider registry={registry}>
+        {tickets && one}
+        <HotkeysProvider registry={registry} bindings={TICKET_BINDINGS}>{tickets && one}</HotkeysProvider>
+      </HotkeysProvider>
+    )
+    const view = render(ui(true))
+    // Both tickets leave; the nested provider stays, and its declaration must survive.
+    view.rerender(ui(false))
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
+    view.unmount()
+  })
+
+  it("runs nothing in a disabled ticket, flip and price steps included", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { onDraftChange } = mount({ disabled: true, reference: { last: 99.5 } }, registry)
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "x", ctrlKey: true, shiftKey: true })
+    fireEvent.keyDown(group, { key: "ArrowUp", ctrlKey: true })
+    expect(onDraftChange).not.toHaveBeenCalled()
+    expect(price().value).toBe("")
+  })
+
+  it("declares only the sizes passed, so another fenced desk stays conflict-free", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    mount({ quickSizes: [1, 5], defaultDraft: { price: 99.5 } }, registry)
+    expect(registry.list().some((e) => e.id === "ticket.size-2")).toBe(true)
+    expect(registry.list().some((e) => e.id === "ticket.size-9")).toBe(false)
+    // Another component's fenced mod+9 — an RFQ ticket's ninth size — reports no conflict,
+    // since an absent size declares nothing rather than standing unbound and fenceless.
+    const el = document.createElement("div")
+    document.body.appendChild(el)
+    const detach = registry.bind("desk.nine", () => {}, { scope: "editing", element: () => el })
+    act(() => void registry.register({ id: "desk.nine", keys: "mod+9", scope: "editing", description: "Ninth desk thing" }))
+    expect(registry.conflicts()).toEqual([])
+    detach()
+    el.remove()
+  })
+
+  it("keeps a desk conflict-free when the consumer spreads all nine size bindings", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    render(
+      <HotkeysProvider registry={registry} bindings={TICKET_BINDINGS}>
+        <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", run: vi.fn() }]} allowedActions={["send"]} quickSizes={[1, 5]} />
+      </HotkeysProvider>,
+    )
+    const el = document.body.appendChild(document.createElement("div"))
+    const detach = registry.bind("desk.nine", () => {}, { scope: "editing", element: () => el })
+    act(() => void registry.register({ id: "desk.nine", keys: "mod+9", scope: "editing", description: "Ninth desk thing" }))
+    expect(registry.conflicts()).toEqual([])
+    detach()
+    el.remove()
+  })
+
+  it("consumes a declared absent size and does nothing with it", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const onDraftChange = vi.fn()
+    render(
+      <HotkeysProvider registry={registry} bindings={TICKET_BINDINGS}>
+        <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", run: vi.fn() }]} allowedActions={["send"]} onDraftChange={onDraftChange} quickSizes={[1, 5]} />
+      </HotkeysProvider>,
+    )
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    group.focus()
+    // The consumer declared all nine, so the registry consumes mod+9 inside the fence; the
+    // ticket, lacking a ninth size, does nothing with it.
+    expect(fireEvent.keyDown(group, { key: "9", ctrlKey: true })).toBe(false)
+    expect(onDraftChange).not.toHaveBeenCalled()
+  })
+
+  it("binds only the quick sizes that exist, absent ones falling through", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { onDraftChange } = mount({ quickSizes: [1, 5], defaultDraft: { price: 99.5 } }, registry)
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    group.focus()
+    // An absent size's key is not claimed: the event keeps its default and the draft stands.
+    expect(fireEvent.keyDown(group, { key: "9", ctrlKey: true })).toBe(true)
+    expect(onDraftChange).not.toHaveBeenCalled()
+    expect(fireEvent.keyDown(group, { key: "2", ctrlKey: true })).toBe(false)
+    expect(onDraftChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("brings the default back when the consumer unregisters their replacement", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { view } = mount({}, registry)
+    registry.register({ id: "ticket.send", keys: "mod+s", scope: "editing", description: "Ship it" })
+    expect(registry.list().find((e) => e.id === "ticket.send")?.description).toBe("Ship it")
+    act(() => registry.unregister("ticket.send"))
+    expect(registry.list().find((e) => e.id === "ticket.send")?.description).toBe("Send the ticket")
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(false)
+  })
+
+  it("holds its default against unregister while a ticket stands", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    mount({}, registry)
+    registry.unregister("ticket.send")
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
+  })
+
+  it("leaves a replacement that changed only a behavior field", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { view } = mount({ defaultDraft: { quantity: 5, price: 99.5 } }, registry)
+    const own = registry.list().find((e) => e.id === "ticket.send")!
+    // Same keys and wording, a `when` guard added: a real replacement the cleanup must keep.
+    act(() => void registry.register({ id: "ticket.send", keys: own.declaredKeys, scope: own.scope, description: own.description, group: own.group, when: () => false }))
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
+  })
+
+  it("cedes a binding declared through the provider's bindings, and runs shortcuts from the whole ticket", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const bindings = [{ id: "ticket.send", keys: "mod+s", scope: "editing" as const, description: "Ship it" }]
+    const run = vi.fn()
+    const { rerender } = render(
+      <HotkeysProvider registry={registry} bindings={bindings}>
+        <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", run, primary: true }]} allowedActions={["send"]} defaultDraft={{ quantity: 5, price: 99.5 }} />
+      </HotkeysProvider>,
+    )
+    expect(registry.list().find((e) => e.id === "ticket.send")?.description).toBe("Ship it")
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "s", ctrlKey: true })
+    expect(run).toHaveBeenCalledTimes(1)
+    rerender(<HotkeysProvider registry={registry} bindings={bindings}>{null}</HotkeysProvider>)
+    expect(registry.list().find((e) => e.id === "ticket.send")?.description).toBe("Ship it")
   })
 
   it("renders without a HotkeysProvider and shows no keys", () => {

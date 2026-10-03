@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react"
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
@@ -125,7 +125,7 @@ export const DEFAULT_TIME_IN_FORCES: readonly TicketOption[] = [
 /** `mod+1` to `mod+9`: the quick sizes, in order. */
 export const QUICK_SIZE_KEYS: readonly string[] = ["mod+1", "mod+2", "mod+3", "mod+4", "mod+5", "mod+6", "mod+7", "mod+8", "mod+9"]
 
-/** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket when you have not. */
+/** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket as registry defaults your own registration shadows. */
 export const TICKET_BINDINGS: readonly HotkeyBinding[] = [
   { id: "ticket.send", keys: "mod+enter", scope: "editing", description: "Send the ticket", group: "Ticket" },
   { id: "ticket.flip", keys: "mod+shift+x", scope: "editing", description: "Flip buy and sell", group: "Ticket" },
@@ -165,7 +165,7 @@ export interface TicketProps {
   /** Anything that changes identity when the server acknowledges: an order id, a timestamp. The ticket rings once in `primary`. */
   acknowledged?: unknown
   disabled?: boolean
-  /** Declare `TICKET_BINDINGS` in the hotkey registry when they are not. Default true. */
+  /** Declare `TICKET_BINDINGS` as registry defaults. Default true. */
   hotkeys?: boolean
   labels?: Partial<TicketLabels>
   className?: string
@@ -194,32 +194,13 @@ export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption
   return problems
 }
 
-// Several tickets can be up at once, so the bindings are declared once per registry and taken
-// back when the last ticket that leaned on them leaves. A consumer that declared an id owns it.
-const declared = new WeakMap<HotkeyRegistry, Map<string, { count: number; ours: boolean }>>()
-
+// Every ticket declares the bindings as registry defaults: the registry refcounts them, a
+// consumer registration of an id shadows its default, and unregistering surfaces it again, so
+// no mount order can delete a consumer's declaration or strand a remaining ticket without one.
 function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBinding[]): () => void {
-  let table = declared.get(registry)
-  if (!table) declared.set(registry, (table = new Map()))
-  const have = new Set(registry.list().map((entry) => entry.id))
-  for (const binding of bindings) {
-    const entry = table.get(binding.id)
-    if (entry) entry.count += 1
-    else {
-      const ours = !have.has(binding.id)
-      if (ours) registry.register(binding)
-      table.set(binding.id, { count: 1, ours })
-    }
-  }
+  const releases = bindings.map((binding) => registry.declareDefault(binding))
   return () => {
-    for (const binding of bindings) {
-      const entry = table.get(binding.id)
-      if (!entry) continue
-      entry.count -= 1
-      if (entry.count > 0) continue
-      table.delete(binding.id)
-      if (entry.ours) registry.unregister(binding.id)
-    }
+    for (const release of releases) release()
   }
 }
 
@@ -232,6 +213,12 @@ export function parseQuantity(text: string): number | null {
 }
 
 const noop = () => () => {}
+const guardKey = (fn: () => void) => (event: KeyboardEvent | globalThis.KeyboardEvent) => {
+  event.preventDefault()
+  fn()
+}
+const TICKET_CORE_BINDINGS = TICKET_BINDINGS.filter((binding) => !binding.id.startsWith("ticket.size-"))
+const TICKET_SIZE_BINDINGS = TICKET_BINDINGS.filter((binding) => binding.id.startsWith("ticket.size-"))
 
 export function Ticket({
   instrument,
@@ -384,7 +371,7 @@ export function Ticket({
     send()
   }
 
-  // Keys: declared once per registry, bound to this ticket's box so another ticket's keys stay its own.
+  // Keys: defaults declared per ticket, handlers fenced to this ticket so another's keys stay its own.
   const registry = useMaybeHotkeys()
   const handlers = useRef({ send: () => {}, flip: () => {}, up: () => {}, down: () => {}, quick: (n: number) => {
       void n
@@ -397,32 +384,58 @@ export function Ticket({
         const first = now.find((action) => action.primary) ?? now[0]
         if (first) run(first)
       },
-      flip: () => update({ side: draft.side === "buy" ? "sell" : "buy" }),
-      up: () => stepPrice(1),
-      down: () => stepPrice(-1),
+      flip: () => {
+        if (latest.current.disabled) return
+        update({ side: draft.side === "buy" ? "sell" : "buy" })
+      },
+      up: () => {
+        if (!latest.current.disabled) stepPrice(1)
+      },
+      down: () => {
+        if (!latest.current.disabled) stepPrice(-1)
+      },
       quick,
     }
   })
+  const quickCount = quickSizes?.length ?? 0
+  // Fenced to the scope root, so the shortcuts run from the symbol, the status, and the padding too.
+  const within = useMemo(() => ({ scope: "editing", element: () => (box.current ? box.current.parentElement ?? box.current : null) }), [])
   useEffect(() => {
     if (!registry) return
-    const release = declareHotkeys ? declareBindings(registry, TICKET_BINDINGS) : noop()
-    const within = { scope: "editing", element: () => box.current }
-    const guard = (fn: () => void) => (event: KeyboardEvent | globalThis.KeyboardEvent) => {
-      event.preventDefault()
-      fn()
-    }
+    const release = declareHotkeys ? declareBindings(registry, TICKET_CORE_BINDINGS) : noop()
     const unbind = [
-      registry.bind("ticket.send", guard(() => handlers.current.send()), within),
-      registry.bind("ticket.flip", guard(() => handlers.current.flip()), within),
-      registry.bind("ticket.tick-up", guard(() => handlers.current.up()), within),
-      registry.bind("ticket.tick-down", guard(() => handlers.current.down()), within),
-      ...QUICK_SIZE_KEYS.map((_, i) => registry.bind(`ticket.size-${i + 1}`, guard(() => handlers.current.quick(i + 1)), within)),
+      registry.bind("ticket.send", guardKey(() => handlers.current.send()), within),
+      registry.bind("ticket.flip", guardKey(() => handlers.current.flip()), within),
+      registry.bind("ticket.tick-up", guardKey(() => handlers.current.up()), within),
+      registry.bind("ticket.tick-down", guardKey(() => handlers.current.down()), within),
     ]
     return () => {
       for (const u of unbind) u()
       release()
     }
-  }, [registry, declareHotkeys])
+  }, [registry, declareHotkeys, within])
+  // The sizes declare only for the quick sizes passed — a declared id needs its handler or it
+  // has no fence and conflicts with another ticket's — and a size-count change never touches
+  // the core four. Handlers still bind fenced for all nine so an id anyone else declares —
+  // spreading TICKET_BINDINGS is the documented pattern — always meets a fence. An undeclared
+  // absent size passes through untouched; a declared one is consumed by the registry before
+  // this handler runs, which then does nothing for a size this ticket lacks.
+  useEffect(() => {
+    if (!registry || quickCount === 0) return
+    const release = declareHotkeys ? declareBindings(registry, TICKET_SIZE_BINDINGS.slice(0, quickCount)) : noop()
+    return release
+  }, [registry, declareHotkeys, quickCount])
+  useEffect(() => {
+    if (!registry) return
+    const unbind = TICKET_SIZE_BINDINGS.map((binding, i) => registry.bind(binding.id, (event) => {
+      if (i >= (latest.current.quickSizes?.length ?? 0)) return
+      event.preventDefault()
+      handlers.current.quick(i + 1)
+    }, within))
+    return () => {
+      for (const u of unbind) u()
+    }
+  }, [registry, within])
   const sendKeys = useSyncExternalStore(
     registry?.subscribe ?? noop,
     () => registry?.list().find((entry) => entry.id === "ticket.send")?.keys ?? null,
