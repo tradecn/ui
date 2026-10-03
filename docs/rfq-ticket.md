@@ -187,7 +187,7 @@ Inside a `HotkeysProvider`, the ticket declares these `editing` bindings as regi
 
 `hotkeys={false}` skips declarations but still binds handlers for these ids, declared before or after. Without a provider, there are no shortcuts or key hints. Plain Enter sends nothing; the ticket has no form.
 
-A disabled ticket runs no shortcuts at all, though its keys are still consumed. While nobody declares an absent size's id, its keys pass through untouched; once the id is declared — by you, or by another ticket with more sizes on the shared registry — the registry consumes the key wherever the fence reaches, and a ticket without that size does nothing with it. Draft shortcuts do not check allowed actions when fields are live; sending checks both. Use registry binding conditions to suppress draft shortcuts when needed.
+A disabled ticket runs no shortcuts at all, though its keys are still consumed. While nobody declares an absent size's id, its keys pass through untouched; once the id is declared — by you, or by another ticket with more sizes on the shared registry — the registry consumes the key wherever the fence reaches, and a ticket without that size does nothing with it. Draft shortcuts run only while the fields are live — an allowed action needs a quote — exactly as the controls do, and sending checks everything again as the click lands. Use registry binding conditions to suppress draft shortcuts when needed.
 
 ### Limits
 

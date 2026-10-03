@@ -402,6 +402,19 @@ describe("RfqTicket keys", () => {
     view.unmount()
   })
 
+  it("moves no draft while no allowed action needs a quote", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { onDraftChange } = mount({ inquiry: inquiry({ allowedActions: ["pass"], suggested: { bid: 99.5 } }), actions: [{ id: "pass", label: "Pass", run: vi.fn(), needsQuote: false }], quickSizes: [1, 5] }, registry)
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    // The fields and size buttons render disabled under this inquiry; the keys obey the same
+    // quoting condition, so a pass-only inquiry's draft never moves from the keyboard.
+    fireEvent.keyDown(group, { key: "ArrowUp", ctrlKey: true })
+    fireEvent.keyDown(group, { key: "a", ctrlKey: true, shiftKey: true })
+    fireEvent.keyDown(group, { key: "1", ctrlKey: true })
+    expect(onDraftChange).not.toHaveBeenCalled()
+  })
+
   it("locks every shortcut while disabled", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const quote = vi.fn()

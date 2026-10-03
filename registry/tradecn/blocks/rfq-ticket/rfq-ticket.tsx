@@ -272,9 +272,14 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   const box = useRef<HTMLDivElement>(null)
   const inputs = { bid: useRef<HTMLInputElement>(null), ask: useRef<HTMLInputElement>(null) }
-  const latest = useRef({ onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes })
+  const allowed = actions.filter((action) => inquiry.allowedActions?.includes(action.id))
+  const primary = allowed.find((action) => action.primary) ?? allowed.find((action) => action.needsQuote !== false) ?? allowed[0]
+  // The fields are live while some allowed action would send what is in them.
+  const quoting = !disabled && allowed.some((action) => action.needsQuote !== false)
+
+  const latest = useRef({ onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes, quoting })
   useEffect(() => {
-    latest.current = { onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes }
+    latest.current = { onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes, quoting }
   })
 
   // The draft is told after it changed, never on the first render.
@@ -293,10 +298,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   // The acknowledgement: a ring in primary, once, when the server says so. No direction, because it has none.
   useFlash(box, acknowledged, { variant: "ring", color: "var(--primary)" })
 
-  const allowed = actions.filter((action) => inquiry.allowedActions?.includes(action.id))
-  const primary = allowed.find((action) => action.primary) ?? allowed.find((action) => action.needsQuote !== false) ?? allowed[0]
-  // The fields are live while some allowed action would send what is in them.
-  const quoting = !disabled && allowed.some((action) => action.needsQuote !== false)
+
 
   /** The size the quote is for: the inquiry's own, or the n-th quick size (from 1). */
   function setQuantity(quantity: number) {
@@ -305,7 +307,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   }
   function quick(n: number) {
     const size = latest.current.quickSizes?.[n - 1]
-    if (size !== undefined && !latest.current.disabled) setQuantity(size)
+    if (size !== undefined && latest.current.quoting) setQuantity(size)
   }
 
   function setLevel(side: QuoteSide, value: number | null) {
@@ -394,14 +396,16 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
         const first = open.find((action) => action.primary) ?? open.find((action) => action.needsQuote !== false) ?? open[0]
         if (first) run(first)
       },
+      // The draft moves only while the fields are live: the same quoting condition that
+      // enables the controls, so a pass-only inquiry's keys change nothing either.
       up: () => {
-        if (!latest.current.disabled) step(focusedSide(), 1)
+        if (latest.current.quoting) step(focusedSide(), 1)
       },
       down: () => {
-        if (!latest.current.disabled) step(focusedSide(), -1)
+        if (latest.current.quoting) step(focusedSide(), -1)
       },
       suggested: () => {
-        if (!latest.current.disabled) takeSuggested()
+        if (latest.current.quoting) takeSuggested()
       },
       quick,
     }
