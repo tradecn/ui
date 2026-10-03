@@ -624,6 +624,15 @@ describe("defaults", () => {
     expect(registry.list()).toEqual([])
   })
 
+  it("keeps a resurfaced default in its record's position", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.declareDefault(binding("a", "x"))
+    registry.register(binding("b", "z"))
+    registry.register(binding("a", "y"))
+    registry.unregister("a")
+    expect(registry.list().map((e) => e.id)).toEqual(["a", "b"])
+  })
+
   it("rejects a malformed default even while the id is shadowed", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     registry.register(binding("a", "y"))

@@ -535,13 +535,16 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
       return conflictsFor(binding.id)
     },
     unregister(id) {
-      if (!recs.delete(id)) return
+      if (!recs.has(id)) return
       defaultIds.delete(id)
-      // The earliest held default resurfaces when the consumer registration leaves.
+      // The earliest held default resurfaces when the consumer registration leaves — replaced
+      // in place, since the record's position carries conflict resolution and list order.
       const held = defaults.get(id)
       if (held?.[0]) {
         recs.set(id, build(held[0]))
         defaultIds.add(id)
+      } else {
+        recs.delete(id)
       }
       clearPending()
       emit()
