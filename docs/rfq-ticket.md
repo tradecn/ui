@@ -82,7 +82,7 @@ This block installs `rfq-ticket.tsx` in your `components` alias. It shares sourc
 | `acknowledged` | `unknown` | `undefined` | Change this value when the server acknowledges a quote. |
 | `autoFocus` | `boolean` | `false` | Requests focus on the first quote field on mount. |
 | `disabled` | `boolean` | `false` | Disables fields and buttons and blocks action execution; see Keys for draft shortcuts. |
-| `hotkeys` | `boolean` | `true` | Declares missing bindings in the hotkey registry. |
+| `hotkeys` | `boolean` | `true` | Declares `RFQ_TICKET_BINDINGS` as registry defaults. |
 | `limits` | `Limits` | None | Checks quoted sides before sending. |
 | `quickSizes` | `readonly number[]` | None | Alternative quote quantities in raw notional or contracts. |
 | `labels` | `Partial<RfqTicketLabels>` | `DEFAULT_RFQ_TICKET_LABELS` | Overrides the ticket's own wording. |
@@ -174,7 +174,7 @@ The [`countdown`](countdown.md) uses `receivedAt` to `expiresAt` for its bar, fa
 
 ### Keys
 
-Inside a `HotkeysProvider`, the ticket declares these `editing` bindings when their ids are missing:
+Inside a `HotkeysProvider`, the ticket declares these `editing` bindings as registry defaults:
 
 | Binding | Default key | Action |
 |---|---|---|
@@ -183,7 +183,7 @@ Inside a `HotkeysProvider`, the ticket declares these `editing` bindings when th
 | `rfq.suggested` | `mod+shift+a` | Copies suggested levels. |
 | `rfq.size-1` … `rfq.size-9` | `mod+1` … `mod+9` | Selects an entry from `quickSizes`, in supplied order. |
 
-`mod` is Command on Mac and Control elsewhere. `QUICK_SIZE_KEYS` exports the nine size shortcuts. Spread `RFQ_TICKET_BINDINGS` into your own registry list to change keys or descriptions. Tickets share declarations; the last declaring ticket's unmount removes only ticket-owned bindings, and a binding you declare — on the registry before render or in the provider's `bindings` — stays yours through the per-inquiry remounts. Handlers run anywhere inside the ticket, and dialog boundaries keep outside handlers from running.
+`mod` is Command on Mac and Control elsewhere. `QUICK_SIZE_KEYS` exports the nine size shortcuts. Spread `RFQ_TICKET_BINDINGS` into your own registry list to change keys or descriptions. The defaults stand while any ticket with `hotkeys` enabled remains: your registration of an id shadows the ticket's default whenever it comes, unregistering yours brings the default back, and `unregister("rfq.send")` does nothing while a ticket holds the default — so a binding you declare stays yours through the per-inquiry remounts. Handlers run anywhere inside the ticket, and dialog boundaries keep outside handlers from running.
 
 `hotkeys={false}` skips declarations but still binds handlers for these ids, declared before or after. Without a provider, there are no shortcuts or key hints. Plain Enter sends nothing; the ticket has no form.
 
