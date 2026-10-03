@@ -779,8 +779,9 @@ export function ColumnChooserWidth({ className, "aria-label": ariaLabel, ...prop
 export function ColumnChooserResetWidth({ type = "button", variant = "ghost", size, disabled, onClick, className, tabIndex = -1, "aria-label": ariaLabel, ...props }: ActionProps) {
   const { row, resetWidth } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  // Presence tells the item Delete has a rendered counterpart, so the key runs only here.
-  useColumnChooserCommand("resetWidth", !disabled)
+  // Presence tells the item Delete has a rendered counterpart, so the key runs only here — and
+  // the control renders disabled for an unresized column, so the declaration follows both.
+  useColumnChooserCommand("resetWidth", !disabled && row.resized)
   return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.resetWidth}: ${row.name}`)} aria-hidden={!row.resized || undefined} tabIndex={tabIndex} className={cn(size === undefined && "h-6 px-1.5 text-xs", !row.resized && "invisible", className)} {...props} disabled={disabled || !row.resized} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) resetWidth()
