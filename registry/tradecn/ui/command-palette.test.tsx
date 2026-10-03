@@ -296,6 +296,89 @@ describe("hotkeys", () => {
     render(<ComposedPalette actions={seed()} hotkeys={hotkeys} hotkey={false} />)
     expect(hotkeys.list()).toEqual([])
   })
+
+  it("cedes the open binding to the provider's declaration, and to one that arrives after mount", () => {
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const declared = [{ id: "palette.open", keys: "mod+p", scope: "editing" as const, description: "Mine" }]
+    const { rerender, unmount } = render(<HotkeysProvider registry={hotkeys} bindings={declared}><ComposedPalette actions={seed()} /></HotkeysProvider>)
+    expect(hotkeys.list()).toMatchObject([{ id: "palette.open", description: "Mine", keys: "ctrl+p" }])
+    rerender(<HotkeysProvider registry={hotkeys} bindings={declared}>{null}</HotkeysProvider>)
+    expect(hotkeys.list()).toMatchObject([{ id: "palette.open", description: "Mine", keys: "ctrl+p" }])
+    unmount()
+    const late = createHotkeyRegistry({ platform: "other" })
+    const view = render(<ComposedPalette actions={seed()} hotkeys={late} />)
+    expect(late.list()).toHaveLength(1)
+    act(() => void late.register({ id: "palette.open", keys: "mod+p", scope: "editing", description: "Mine now" }))
+    view.unmount()
+    expect(late.list()).toMatchObject([{ id: "palette.open", description: "Mine now" }])
+  })
+
+  it("declares on its own registry despite a parent provider's same-id declaration elsewhere", () => {
+    const outer = createHotkeyRegistry({ platform: "other" })
+    const inner = createHotkeyRegistry({ platform: "other" })
+    const declared = [{ id: "palette.open", keys: "mod+p", scope: "editing" as const, description: "Outer's" }]
+    render(
+      <HotkeysProvider registry={outer} bindings={declared}>
+        <HotkeysProvider registry={inner}>
+          <ComposedPalette actions={seed()} />
+        </HotkeysProvider>
+      </HotkeysProvider>,
+    )
+    expect(inner.list()).toHaveLength(1)
+    expect(inner.list()[0]!.description).not.toBe("Outer's")
+    const explicit = createHotkeyRegistry({ platform: "other" })
+    render(
+      <HotkeysProvider registry={outer} bindings={declared}>
+        <ComposedPalette actions={seed()} hotkeys={explicit} />
+      </HotkeysProvider>,
+    )
+    expect(explicit.list()).toHaveLength(1)
+  })
+
+  it("leaves a replacement that changed only its keys", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const view = render(<ComposedPalette actions={seed()} hotkeys={registry} />)
+    const own = registry.list()[0]!
+    act(() => void registry.register({ id: "palette.open", keys: "mod+p", scope: own.scope, description: own.description, group: own.group }))
+    view.unmount()
+    expect(registry.list()).toMatchObject([{ id: "palette.open", defaultKeys: "ctrl+p" }])
+  })
+
+  it("leaves a replacement a subscriber makes while the default is being declared", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const mine = { id: "palette.open", keys: "mod+p", scope: "editing" as const, description: "Mine" }
+    registry.subscribe(() => {
+      if (registry.list().some((entry) => entry.id === "palette.open" && entry.description !== "Mine")) registry.register(mine)
+    })
+    const view = render(<ComposedPalette actions={seed()} hotkeys={registry} />)
+    expect(registry.list()).toMatchObject([{ id: "palette.open", description: "Mine" }])
+    view.unmount()
+    expect(registry.list()).toMatchObject([{ id: "palette.open", description: "Mine" }])
+  })
+
+  it("leaves a replacement whose spelling normalizes to the default", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const view = render(<ComposedPalette actions={seed()} hotkeys={registry} />)
+    const own = registry.list()[0]!
+    // The default declares "mod+…", which this platform normalizes to "ctrl+…"; writing the
+    // normalized chord out is a different declaration of the same keys, and it is the consumer's.
+    expect(own.declaredKeys).not.toBe(own.defaultKeys)
+    act(() => void registry.register({ id: "palette.open", keys: own.defaultKeys, scope: own.scope, description: own.description, group: own.group }))
+    view.unmount()
+    expect(registry.list()).toMatchObject([{ id: "palette.open", declaredKeys: own.defaultKeys }])
+  })
+
+  it("leaves a replacement that changed only its behavior", () => {
+    const behaviors = [{ when: () => false }, { repeat: true }, { preventDefault: false }]
+    for (const behavior of behaviors) {
+      const registry = createHotkeyRegistry({ platform: "other" })
+      const view = render(<ComposedPalette actions={seed()} hotkeys={registry} />)
+      const own = registry.list()[0]!
+      act(() => void registry.register({ id: "palette.open", keys: own.declaredKeys, scope: own.scope, description: own.description, group: own.group, ...behavior }))
+      view.unmount()
+      expect(registry.list(), `replacement with ${Object.keys(behavior)[0]}`).toMatchObject([{ id: "palette.open" }])
+    }
+  })
 })
 
 describe("go-bar", () => {

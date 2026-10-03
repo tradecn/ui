@@ -101,10 +101,11 @@ Join modifiers and one key with `+`; separate chord steps with spaces: `"mod+k"`
 | `useHotkeys()` | Nearest provider's `HotkeyRegistry`; throws without a provider. |
 | `useMaybeHotkeys()` | Same registry, or `null` without a provider. |
 | `useHotkey(id: string, handler: HotkeyHandler, options?)` | Attach the latest `(event: KeyboardEvent) => void` handler while mounted. `options.enabled` is a boolean, default `true`; `false` detaches the handler but keeps the binding listed. |
-| `useHotkeyList()` | Live `readonly HotkeyEntry[]`, including normalized `keys`, normalized `defaultKeys`, and `remapped` when they differ. |
+| `useHotkeyList()` | Live `readonly HotkeyEntry[]`, including normalized `keys`, normalized `defaultKeys`, the declaration's own spelling as `declaredKeys`, and `remapped` when the first two differ. |
 | `usePendingChord()` | Normalized steps typed so far, or `null`, for a status-bar hint. |
+| `useDeclaredHotkeyIds(registry?)` | Ids the surrounding providers declare through `bindings` for one registry — the nearest provider's unless given — visible during render before any effect registers them. |
 
-All hooks except `useMaybeHotkeys` require a provider.
+All hooks except `useMaybeHotkeys` and `useDeclaredHotkeyIds`, which returns an empty set, require a provider.
 
 ### Scopes
 

@@ -41,10 +41,10 @@ describe("the pure parts", () => {
   it("names a scope, groups a binding, and finds one by its words or its keys", () => {
     expect(scopeWord("panel:book")).toBe("book")
     expect(scopeWord("global")).toBe("global")
-    const entry: HotkeyEntry = { ...BINDINGS[3]!, defaultKeys: "x", remapped: false }
+    const entry: HotkeyEntry = { ...BINDINGS[3]!, defaultKeys: "x", declaredKeys: BINDINGS[3]!.keys, remapped: false }
     expect(groupOf(entry)).toBe("book")
-    expect(groupOf({ ...BINDINGS[1]!, defaultKeys: "g b", remapped: false })).toBe("Go")
-    const palette: HotkeyEntry = { ...BINDINGS[0]!, defaultKeys: "mod+k", remapped: false }
+    expect(groupOf({ ...BINDINGS[1]!, defaultKeys: "g b", declaredKeys: BINDINGS[1]!.keys, remapped: false })).toBe("Go")
+    const palette: HotkeyEntry = { ...BINDINGS[0]!, defaultKeys: "mod+k", declaredKeys: BINDINGS[0]!.keys, remapped: false }
     expect(matchesQuery(palette, "", "other")).toBe(true)
     expect(matchesQuery(palette, "palette", "other")).toBe(true)
     expect(matchesQuery(palette, "ctrl", "other")).toBe(true)

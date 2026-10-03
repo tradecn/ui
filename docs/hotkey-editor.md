@@ -203,7 +203,7 @@ Groups use the binding's `group`, falling back to its scope: `global`, `editing`
 
 Search trims the query and matches case-insensitive substrings of the description, group, id, normalized keys, or displayed keycaps (`ctrl` finds `Ctrl K` on non-Mac platforms). `hide` and search only filter `groups`: hidden bindings stay registered, can appear in another row's conflict message, and remain included in export and Reset all.
 
-`HotkeyEntry` extends `HotkeyBinding` with normalized effective `keys`, normalized `defaultKeys`, and `remapped`. Registry types come from `@/lib/hotkeys`.
+`HotkeyEntry` extends `HotkeyBinding` with normalized effective `keys`, normalized `defaultKeys`, the declaration's own spelling as `declaredKeys`, and `remapped`. Registry types come from `@/lib/hotkeys`.
 
 ### Three ways to change a shortcut
 
