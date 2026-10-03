@@ -292,6 +292,23 @@ describe("Ticket keys", () => {
     expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
   })
 
+  it("keeps a provider's declaration made while no ticket sat beneath it", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const one = <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", run: vi.fn() }]} allowedActions={["send"]} />
+    const ui = (tickets: boolean) => (
+      <HotkeysProvider registry={registry}>
+        {tickets && one}
+        <HotkeysProvider registry={registry} bindings={TICKET_BINDINGS}>{null}</HotkeysProvider>
+      </HotkeysProvider>
+    )
+    const view = render(ui(true))
+    // The ticket leaves; the declaring provider never had a ticket beneath it and must stand.
+    view.rerender(ui(false))
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(true)
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "ticket.send")).toBe(false)
+  })
+
   it("cedes to a nested provider that declares while tickets come and go", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const one = <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", run: vi.fn() }]} allowedActions={["send"]} />
