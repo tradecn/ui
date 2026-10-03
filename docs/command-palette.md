@@ -281,7 +281,7 @@ Selecting a row clears the input and requests closure, then updates recents when
 
 `HotkeysProvider` supplies and attaches the registry. Pass `hotkeys={registry}` to use one directly; attach its dispatcher yourself. See [useHotkeys](use-hotkeys.md) for registry setup and scope rules.
 
-If the binding ID already exists — declared on the registry before render, or in the surrounding provider's `bindings`, which the component sees during render — its keys and wording remain yours; the component only attaches its handler. A declaration that replaces the component's default after mount is also yours to keep. Otherwise it declares the binding and removes it on unmount. `hotkey="mod+p"` changes the default keys. `hotkey={false}` disables the opening or focus binding but keeps row shortcuts; `hotkeys={null}` disables both.
+If the binding ID already exists — declared on the registry before render, or in the surrounding provider's `bindings`, which the component sees during render — its keys and wording remain yours; the component only attaches its handler. A declaration that replaces the component's default after mount is also yours to keep, unless it matches the default in every field: the component cannot tell that apart from its own registration, so unmount removes it, along with any handler it carried. Otherwise it declares the binding and removes it on unmount. `hotkey="mod+p"` changes the default keys. `hotkey={false}` disables the opening or focus binding but keeps row shortcuts; `hotkeys={null}` disables both.
 
 Row shortcuts follow the current keys for `bindingId`, including remaps. The dispatcher stops at dialogs. A single-step opening shortcut also closes the palette from inside; use Escape for a multi-step binding.
 
