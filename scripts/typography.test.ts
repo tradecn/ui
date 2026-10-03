@@ -137,7 +137,7 @@ describe("the items' typography", () => {
     // the select and outranks a plain [&_select] on the wrapper.
     const NAMED_SIZE = /(?<![\w:-])text-(?:xs|sm|base|lg|[2-9]?xl)(?![\w-])/
     const SMALL_SELECT_SIZE = /\[&_select\[data-size=sm\]\]:text-(?:xs|sm|base|lg|[2-9]?xl)(?![\w-])/
-    const ADDON_KBD_SIZE = /\[&_kbd\[data-slot=kbd\]\]:text-(?:xs|sm|base|lg|[2-9]?xl)(?![\w-])/
+    const ADDON_KBD_SIZE = /(?<![\w:-])\[&_kbd\[data-slot=kbd\]\]:text-(?:xs|sm|base|lg|[2-9]?xl)(?![\w-])/
     const UNDER_FLOOR = new Map<string, { size?: string; classes: RegExp }>([
       ["Badge", { classes: NAMED_SIZE }],
       ["Kbd", { classes: NAMED_SIZE }],
@@ -183,6 +183,7 @@ describe("the items' typography", () => {
     const snippet = (text: string) => sizeViolations(project.createSourceFile(`zz-snippet-${snippets++}.tsx`, text))
     expect(snippet('const a = <InputGroupAddon><Kbd className="text-xs">K</Kbd></InputGroupAddon>')).toEqual(["1: <InputGroupAddon> around <Kbd>"])
     expect(snippet('const a = <InputGroupAddon className="[&_kbd[data-slot=kbd]]:text-xs"><Kbd>K</Kbd></InputGroupAddon>')).toEqual([])
+    expect(snippet('const a = <InputGroupAddon className="md:[&_kbd[data-slot=kbd]]:text-xs"><Kbd>K</Kbd></InputGroupAddon>')).toEqual(["1: <InputGroupAddon> around <Kbd>"])
     expect(snippet("const a = <Kbd>K</Kbd>")).toEqual(["1: <Kbd>"])
     // Every ui item and block sets the figures on its root, so everything inside inherits them.
     for (const item of registry.items) {
