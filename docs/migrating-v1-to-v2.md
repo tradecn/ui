@@ -639,7 +639,7 @@ When omitting the changes section from the side-by-side recipe, remove its two-c
 
 Use the responsive layout in [Usage](audit-trail.md#usage) to stack the pane below the grid on narrow screens.
 
-Selection, default columns, time/value formatting and cumulative calculations are retained. `foldChanges`, `diffEvents`, `formatAuditValue`, `auditTrailColumns` and `DEFAULT_AUDIT_TRAIL_LABELS` remain available.
+Selection, default columns, time/value formatting and cumulative calculations are retained, with one wording change: the changes column reads `Fields: {n}`, where v1 printed `{n} fields` in the grid, to screen readers, and in the CSV — pass `labels={{ fields: "{n} fields" }}` to keep the old text. `foldChanges`, `diffEvents`, `formatAuditValue`, `auditTrailColumns` and `DEFAULT_AUDIT_TRAIL_LABELS` remain available.
 
 Changes and CSV still use the supplied view or raw store order, independent of grid-local sorting and filtering. Keep selected ids within that view and retain the preceding history needed for comparisons. Column-state hiding and reordering do not affect CSV.
 

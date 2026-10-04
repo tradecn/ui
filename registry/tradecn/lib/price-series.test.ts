@@ -179,6 +179,18 @@ describe("the clock reading", () => {
     expect(dayFormatter("Mars/Olympus")(noon)).toMatch(/^\d\d\/\d\d$/)
   })
 
+  it("drops a malformed locale onto the en-US default, keeping the zone", () => {
+    // A malformed tag throws the same RangeError a wrong zone does; the fallback lands on
+    // the documented en-US, never the runtime's locale, and the zone survives on its own.
+    const kept = timeFormatter("Asia/Tokyo", "en_US")
+    expect(kept(Date.UTC(2026, 0, 15, 0, 0, 0))).toBe("09:00:00")
+    const both = timeFormatter("Not/AZone", "en_US")
+    expect(both(Date.UTC(2026, 0, 15, 12, 30, 5))).toMatch(/^\d{2}:\d{2}:\d{2}$/)
+    // An empty locale shares the omitted-locale cache key; both must read as en-US.
+    const empty = timeFormatter("Asia/Tokyo", "")
+    expect(empty(Date.UTC(2026, 0, 15, 0, 0, 0))).toBe("09:00:00")
+  })
+
   it("prints the day in the zone for an axis that runs past one", () => {
     // 21:00 in Tokyo is still the 15th; 07:00 in New York is too, but 03:00 UTC on the 16th is the 15th in Chicago.
     expect(dayFormatter("Asia/Tokyo")(noon)).toBe("01/15")
