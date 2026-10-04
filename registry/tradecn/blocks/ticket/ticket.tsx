@@ -504,7 +504,7 @@ export function Ticket({
   )
 
   return (
-    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block outline-none lining-nums tabular-nums", className)}>
+    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/30 lining-nums tabular-nums", className)}>
       <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }} onBlurCapture={(event) => {
         // Focus moving somewhere outside the ticket on purpose: the leaving control is still
         // in the document and enabled, so there is nothing to recover from.
