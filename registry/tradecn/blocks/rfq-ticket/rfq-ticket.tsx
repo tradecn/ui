@@ -200,9 +200,10 @@ export function checkQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: Rf
   const ask = level(draft.ask)
   if (sides.includes("bid") && bid === null) problems.bid = labels.bidNeeded
   if (sides.includes("ask") && ask === null) problems.ask = labels.askNeeded
-  // A crossed quote bids above its offer, unless a higher quote means a lower price — yield
-  // and discount always, spread only where the instrument declares it, since CDS quotes bid
-  // below offer while cash credit quotes the other way.
+  // A crossed quote bids above its offer, unless a higher quote means a lower price. A
+  // declared quoteInverted decides for any basis; the defaults are yield and discount
+  // inverted, price and spread not, since CDS quotes bid below offer while cash credit
+  // quotes the other way.
   const inverted = quoteInvertedOf(inquiry.instrument.convention)
   if (bid !== null && ask !== null && (inverted ? bid < ask : bid > ask)) problems.ask = labels.crossed
   return problems
