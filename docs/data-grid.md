@@ -162,7 +162,7 @@ Each `ColumnDef<T>` describes one column. Frozen columns stay on the left, befor
 | `frozen` | `"left"` | None | Keep the column visible during horizontal scrolling. |
 | `sortable` | `boolean` | `false` | Enable header sort controls. |
 | `hidden` | `boolean` | `false` | Hide the column regardless of column state. |
-| `format` | `(value: unknown, row: T) => string` | `String(value)`; nullish values use `NULL_TOKEN` | Display text. Carries into rule descriptions when it reads just the value. |
+| `format` | `(value: unknown, row: T) => string` | `String(value)`; nullish values use `NULL_TOKEN` | Display text. Carries into rule descriptions on a column that also has `parse`, when it reads just the value. |
 | `cell` | `(ctx: { row: T; value: unknown; rowId: RowId; edit?: CellEditHandle }) => ReactNode` | Formatted text | Custom content; flashes still follow the accessor. |
 | `numeric` | `boolean` | `false` | Numeric typography, alignment, and default flashing. |
 | `font` | `"numeric" \| "mono"` | `"numeric"` | Font family for numeric cells. |
