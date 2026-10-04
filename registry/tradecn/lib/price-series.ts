@@ -230,7 +230,7 @@ function zonedFormat(cache: Map<string, Intl.DateTimeFormat>, key: string, local
     // RangeError a wrong zone does — so the fallbacks drop one, then the other, then both,
     // always landing on the documented en-US default rather than the runtime's locale, which
     // would also poison the shared cache entry for charts that omit a locale.
-    for (const [loc, tz] of [[locale ?? "en-US", zone], [locale ?? "en-US", undefined], ["en-US", zone], ["en-US", undefined]] as const) {
+    for (const [loc, tz] of [[locale ?? "en-US", zone], [locale ?? "en-US", undefined], ["en-US", zone]] as const) {
       try {
         format = new Intl.DateTimeFormat(loc, tz ? { ...options, timeZone: tz } : options)
         break
@@ -238,7 +238,8 @@ function zonedFormat(cache: Map<string, Intl.DateTimeFormat>, key: string, local
         continue
       }
     }
-    cache.set(key, format!)
+    format ??= new Intl.DateTimeFormat("en-US", options)
+    cache.set(key, format)
   }
   return format
 }
