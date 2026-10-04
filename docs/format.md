@@ -89,7 +89,7 @@ In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `ei
 | `quoteBasisOf(convention)` | Effective basis, defaulting to `"price"` |
 | `quoteStepOf(convention)` | Effective step from the table or an applicable `quoteStep` override |
 | `formatQuote(value, convention, locale?)` | Format a `Nullable` quote; optional third argument is `Locale` |
-| `parseQuote(text, convention)` | Parse a string as a price or a decimal in the selected basis; return a number, or `null` for unreadable text or a price too large to print back |
+| `parseQuote(text, convention)` | Parse a string as a price or a decimal in the selected basis; return a number, or `null` for unreadable text or a value too large to print back in its basis |
 | `stepQuote(value, convention, steps)` | Move a numeric quote by `steps` from the nearest grid value; negative steps are allowed |
 
 Price quotes format and parse through `convention.price`. Other bases snap to `quoteStep` and print a fixed decimal with no unit; the field's label supplies the basis. Yield and discount values use percentage points; spread values use basis points. Set `quoteDecimals` high enough to display the chosen step without losing precision.
@@ -144,6 +144,6 @@ These functions take a `Nullable` value and an optional options object. Every op
 | `formatPercent` | `decimals: number = 2`, `signed: boolean = false` | `1.234` → `1.23%`; signed → `+1.23%` |
 | `formatQuantity` | No options beyond `locale` | `1000000.6` → `1,000,001` |
 
-Yield and percent inputs are already percentage points: `1` means `1%`. DV01 rounds to whole currency units. Compact notional output uses `K`, `M`, `B`, or `T`; values below `1,000` round to a whole number. Signed formatters omit the sign when the displayed value rounds to zero.
+Yield and percent inputs are already percentage points: `1` means `1%`. DV01 rounds to whole currency units in its full form; the compact form keeps the compact decimals, as in `$1.23K`. Compact notional output uses `K`, `M`, `B`, or `T`; values below `1,000` round to a whole number. Signed formatters omit the sign when the displayed value rounds to zero.
 
 `numberFormat(locale, options)` returns a cached `Intl.NumberFormat` for a locale string (or `undefined` for `"en-US"`) and `Intl.NumberFormatOptions`. Numeric formatters share this cache by locale and option set.
