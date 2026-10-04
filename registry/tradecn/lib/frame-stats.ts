@@ -172,7 +172,10 @@ export function createFrameSampler(options: FrameSamplerOptions = {}): FrameSamp
       since = now()
       frame = raf(tick)
       timer = setTimer(refresh, refreshMs)
-      if (observe && typeof PerformanceObserver !== "undefined") {
+      // The spec ignores an unsupported entry type with a console warning, not an exception,
+      // so observe() returning says nothing: ask the support list, or a browser without long
+      // tasks would report a measured zero.
+      if (observe && typeof PerformanceObserver !== "undefined" && PerformanceObserver.supportedEntryTypes?.includes("longtask")) {
         try {
           observer = new PerformanceObserver((list) => {
             longTasks += list.getEntries().length

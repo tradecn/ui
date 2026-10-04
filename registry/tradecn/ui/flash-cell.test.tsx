@@ -38,3 +38,15 @@ describe("FlashCell", () => {
     expect(el.className).toContain("shadow-[inset_0_0_0_1px_var(--up)]")
   })
 })
+
+it("keeps flashing when a wrapper injects its own ref", () => {
+  // Radix asChild, Base UI render, and spreading wrappers all inject a ref; it must merge
+  // with the flash target, never replace it silently.
+  const outside = { current: null as HTMLDivElement | null }
+  const injected = { ref: outside } as Record<string, unknown>
+  const { rerender } = render(<FlashCell value={1} {...injected}>1</FlashCell>)
+  rerender(<FlashCell value={2} {...injected}>2</FlashCell>)
+  const cell = document.querySelector<HTMLElement>("[data-slot='tradecn-flash-cell']")!
+  expect(cell.dataset.direction).toBe("up")
+  expect(outside.current).toBe(cell)
+})

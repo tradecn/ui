@@ -37,7 +37,7 @@ Every `Limits` field is optional. Omitted rules do nothing.
 | `sides` | `readonly ("buy" \| "sell")[]` | Blocks a disallowed ticket side, bid (`buy`), or ask (`sell`). An empty array allows neither side. |
 | `custom` | `(draft: LimitsDraft, context: LimitsContext) => Problem[]` | Appends your problems after the built-in checks. Receives the original draft and context, including any partial labels. |
 
-`Threshold` accepts these forms. Quantity and thresholds use the same units; there is no conversion to thousands or millions.
+`Threshold` accepts these forms. Quantity and thresholds use the same units; there is no conversion to thousands or millions. Sizes are positive magnitudes — the side rides separately, and a negative quantity is never above a maximum. A fractional size prints exactly in the messages; whole sizes print with digit grouping.
 
 | Form | Result when crossed |
 |---|---|
@@ -66,7 +66,7 @@ Comparisons are strict: `>` for a maximum and `<` for a minimum. Equality does n
 | `convention` | `InstrumentConvention` | Price basis, tick `1` | Sets the distance unit and tick size through [`format`](format.md). |
 | `labels` | `Partial<LimitsLabels>` | `DEFAULT_LIMITS_LABELS` | Overrides built-in messages, side names, and units. |
 
-Quantity and distance checks skip missing, null, and non-finite values. A partial draft can still have problems: `sides` checks a supplied `side` before any number is entered, and checks any numeric bid or ask, including `NaN` and infinities. `custom` runs even on an empty draft. With neither of those rules producing a problem, a blank draft returns `[]`; required-field validation belongs to the caller.
+The install writes the shared font tokens and the hyperlegible remap into the stylesheet where missing, because the bundled `format` source references them. Quantity and distance checks skip missing, null, and non-finite values. A partial draft can still have problems: `sides` checks a supplied `side` before any number is entered, and checks any numeric bid or ask, including `NaN` and infinities. `custom` runs even on an empty draft. With neither of those rules producing a problem, a blank draft returns `[]`; required-field validation belongs to the caller.
 
 ### What comes back
 

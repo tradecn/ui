@@ -343,10 +343,29 @@ describe("PerfMonitor composition", () => {
     expect(sampler.started).toBe(sampler.stopped)
   })
 
+  it("prints n/a where the browser cannot observe long tasks", () => {
+    // The spec ignores an unsupported entry type without throwing, so a browser without
+    // longtask support would otherwise report a measured zero forever.
+    vi.stubGlobal("PerformanceObserver", class {
+      static supportedEntryTypes = ["mark", "measure"]
+      disconnect = vi.fn()
+      observe = vi.fn()
+    })
+    const timers = new Set<() => void>()
+    const sampler = createFrameSampler({ raf: () => 42, caf: vi.fn(), setTimer: (cb) => { timers.add(cb); return cb }, clearTimer: (id) => { timers.delete(id as () => void) } })
+    render(<PerfMonitor sampler={sampler}><PerfMonitorValue metric="long" /></PerfMonitor>)
+    // Refreshed: the report now carries whether long tasks were ever observable.
+    act(() => timers.forEach((tick) => tick()))
+    expect(screen.getByText("n/a")).toBeInTheDocument()
+    expect(screen.queryByText("0")).toBeNull()
+    vi.unstubAllGlobals()
+  })
+
   it("disconnects real sampler observers and cancels timers through effect replay and unmount", () => {
     const observers: { receive: (list: { getEntries(): unknown[] }) => void; disconnect: ReturnType<typeof vi.fn> }[] = []
     const observe = vi.fn()
     vi.stubGlobal("PerformanceObserver", class {
+      static supportedEntryTypes = ["longtask"]
       disconnect = vi.fn()
       observe = observe
       constructor(receive: (list: { getEntries(): unknown[] }) => void) { observers.push({ receive, disconnect: this.disconnect }) }

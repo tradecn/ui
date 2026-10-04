@@ -73,9 +73,6 @@ export function Sparkline({ values, label, direction = "auto", baseline, width, 
   const h = fixed ? height : measured?.height
   const geometry = useMemo(() => (w === undefined || h === undefined ? null : buildSparklineGeometry(values, w, h, { baseline })), [values, w, h, baseline])
   const points = geometry?.points ?? []
-  const first = points[0]
-  const last = points[points.length - 1]
-  const tone: Tone = direction === "auto" ? (first && last ? directionOf(baseline ?? first.value, last.value) : "flat") : direction
   // The series can get shorter under a crosshair that was parked at its end.
   const at = active === null || !points.length ? null : points[Math.min(active, points.length - 1)]!
 
@@ -83,13 +80,18 @@ export function Sparkline({ values, label, direction = "auto", baseline, width, 
   // Scanned once per render instead of taken from the geometry, so the words are right before the first measurement too.
   let low = Infinity
   let high = -Infinity
+  let earliest: number | null = null
   let latest: number | null = null
   for (const v of values) {
     if (typeof v !== "number" || !Number.isFinite(v)) continue
+    if (earliest === null) earliest = v
     latest = v
     if (v < low) low = v
     if (v > high) high = v
   }
+  // Direction reads the data the same way, never the drawn geometry, which is empty before
+  // the first measurement and in server output.
+  const tone: Tone = direction === "auto" ? (earliest !== null && latest !== null ? directionOf(baseline ?? earliest, latest) : "flat") : direction
   const summary = latest === null ? `${label}: no data` : `${label}: ${WORD[tone] ? `${WORD[tone]}, ` : ""}last ${format(latest)}, low ${format(low)}, high ${format(high)}`
 
   function move(to: number) {
@@ -133,7 +135,9 @@ export function Sparkline({ values, label, direction = "auto", baseline, width, 
       onPointerMove={live ? onPointerMove : props.onPointerMove}
       onPointerLeave={(event) => {
         props.onPointerLeave?.(event)
-        if (live && document.activeElement !== event.currentTarget) setActive(null)
+        // The chart's own document: a popout runs in the opener's JavaScript, where the
+        // global document never holds the popout's focus.
+        if (live && event.currentTarget.ownerDocument.activeElement !== event.currentTarget) setActive(null)
       }}
       onFocus={(event) => {
         props.onFocus?.(event)

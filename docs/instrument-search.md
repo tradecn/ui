@@ -78,6 +78,8 @@ Use the same parts with a controlled query and an abortable service request. Sav
 
 This example adds a 300 ms request delay after the debounce. Its local lookup matches recognized identifiers or numeric coupon and maturity fields. It treats two-digit years as 2000–2099; the recognizer preserves the written year. An optional day or ticker must match when supplied.
 
+The install writes the shared font tokens and the hyperlegible remap into the stylesheet where missing, since the hint prints in the mono font.
+
 <!-- demo: instrument-search-hints -->
 
 ## Custom layout
@@ -90,7 +92,7 @@ Move the input and hint beside a reordered result list. The clear action shares 
 
 Install [`command-palette`](command-palette.md) separately to use `toSymbolAdapter(search)` with its `symbols` prop. Create the adapter once, at module scope or with `useMemo`: the palette keys its request and results on the adapter's identity, so an inline call aborts the request and hides results on every parent render. The adapter forwards the recognized query and abort signal; the palette owns debounce, selection and recents.
 
-This standalone example searches the same two symbols in an inline go-bar and declares no hotkey. Instrument IDs and identifiers are not part of the adapter's results.
+This standalone example searches the same two symbols in an inline go-bar and declares no hotkey. Instrument IDs and identifiers are not part of the adapter's results: the palette identifies a row by symbol plus exchange, so keep that pair unique across your reference data, or two hits collide and a pick can load the other instrument.
 
 <!-- demo: instrument-search-palette -->
 
