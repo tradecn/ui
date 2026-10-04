@@ -156,9 +156,9 @@ The last two helpers default to `DEFAULT_RFQ_TICKET_LABELS` and accept a full `R
 | `run` | `(draft: RfqQuoteDraft, inquiry: RfqInquiry) => void` | Required | Executes the action with the current draft and inquiry. |
 | `needsQuote` | `boolean` | `true` | Requires quote and limit checks. |
 | `destructive` | `boolean` | `false` | Uses the destructive button style. |
-| `primary` | `boolean` | Automatic | Selects the action for `rfq.send`; uses primary styling unless destructive. |
+| `primary` | `boolean` | Automatic | Preferred by `rfq.send` among quote-sending actions; uses primary styling unless destructive. |
 
-Only matching actions render, in your `actions` order. No matches produces the nothing-allowed message. The primary action is the first allowed action marked `primary`, otherwise the first that needs a quote, otherwise the first allowed action.
+Only matching actions render, in your `actions` order. No matches produces the nothing-allowed message. The primary action — for styling — is the first allowed action marked `primary`, otherwise the first that needs a quote, otherwise the first allowed action. The send key chooses separately: the first allowed quote-sending action, preferring one marked `primary`, so a `needsQuote: false` action never runs on it however it is marked.
 
 On execution, the ticket rechecks `disabled`, permission, and any required quote and limit checks against current props. Quote errors appear under their fields. Set `needsQuote: false` for pass, stop, or server-priced actions; these receive the current draft without quote or limit validation.
 
@@ -178,7 +178,7 @@ Inside a `HotkeysProvider`, the ticket declares these `editing` bindings as regi
 
 | Binding | Default key | Action |
 |---|---|---|
-| `rfq.send` | `mod+enter` | Runs the primary action. |
+| `rfq.send` | `mod+enter` | Runs the first allowed quote-sending action, preferring the primary; its key caps render on that action's button. |
 | `rfq.tick-up`, `rfq.tick-down` | `mod+up`, `mod+down` | Steps the focused quote field, or the first field. |
 | `rfq.suggested` | `mod+shift+a` | Copies suggested levels. |
 | `rfq.size-1` … `rfq.size-N` | `mod+1` … `mod+N` | Selects an entry from `quickSizes`, in supplied order; declared through `N = quickSizes.length`, at most nine. |

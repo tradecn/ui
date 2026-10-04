@@ -108,7 +108,7 @@ export interface RfqAction {
   /** The action sends the levels in the fields, so the check wants them. Default true; a pass, a stop, or a quote the server prices itself wants none. */
   needsQuote?: boolean
   destructive?: boolean
-  /** What `rfq.send` runs. The first allowed action that needs a quote by default, else the first allowed. */
+  /** Preferred by `rfq.send` among quote-sending actions; a `needsQuote: false` action never runs on the key. */
   primary?: boolean
 }
 
