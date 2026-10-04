@@ -63,12 +63,13 @@ it("replaces the local collection with its empty state and restores the notices,
   render(<AlertsCollectionDemo />)
   const notices = within(screen.getByRole("group", { name: "Notices" }))
   const buttons = notices.getAllByRole("button", { name: /^Dismiss:/ })
-  // Dismissing a focused notice hands focus to the next notice's dismiss, then to Restore
-  // notices when the list empties — removal itself never moves focus.
-  act(() => buttons[0]!.focus())
-  fireEvent.click(buttons[0]!)
+  // Dismissing a focused notice hands focus to the first remaining notice's dismiss — here
+  // the one BEFORE the dismissed notice, which is what distinguishes first from next — then
+  // to Restore notices when the list empties. Removal itself never moves focus.
+  act(() => buttons[1]!.focus())
+  fireEvent.click(buttons[1]!)
   await act(async () => {})
-  expect(notices.getAllByRole("button", { name: /^Dismiss:/ })[0]).toHaveFocus()
+  expect(notices.getByRole("button", { name: "Dismiss: Order filled" })).toHaveFocus()
   fireEvent.click(notices.getAllByRole("button", { name: /^Dismiss:/ })[0]!)
   await act(async () => {})
   expect(screen.getByRole("button", { name: "Restore notices" })).toHaveFocus()

@@ -8,8 +8,8 @@ const initial = [
 
 export default function AlertsCollectionDemo() {
   const [notices, setNotices] = useState(initial)
-  // Removal never moves focus, so the dismiss handler does: the next notice's dismiss, or
-  // Restore notices when the list empties.
+  // Removal never moves focus, so the dismiss handler does: the first remaining notice's
+  // dismiss, or Restore notices when the list empties.
   const region = useRef<HTMLDivElement>(null)
   const restore = useRef<HTMLButtonElement>(null)
   const refocus = () => queueMicrotask(() => (region.current?.querySelector<HTMLElement>("[data-slot='tradecn-alert-dismiss']") ?? restore.current)?.focus())

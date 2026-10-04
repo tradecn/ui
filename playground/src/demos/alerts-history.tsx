@@ -30,8 +30,8 @@ export default function AlertsHistoryDemo() {
   })
   const ids = useRowIds(useAlertView(alerts))
   const shown = ids.slice(0, 2)
-  // Removal never moves focus, so the demo restores it: the next notice's control, or the
-  // History trigger, which stays rendered whatever the list holds.
+  // Removal never moves focus, so the demo restores it: the first remaining notice's
+  // control, or the History trigger, which stays rendered whatever the list holds.
   const region = useRef<HTMLDivElement>(null)
   const refocus = () => queueMicrotask(() => (region.current?.querySelector<HTMLElement>("[data-slot='tradecn-alert-dismiss']") ?? region.current?.querySelector<HTMLElement>("button"))?.focus())
   return (

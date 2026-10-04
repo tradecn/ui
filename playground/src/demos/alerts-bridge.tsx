@@ -26,8 +26,8 @@ export default function AlertsBridgeDemo() {
   const ids = useRowIds(useAlertView(alerts))
   const [forwarded, setForwarded] = useState({ count: 0, title: "None yet" })
   useToastBridge(alerts, (alert) => setForwarded((previous) => ({ count: previous.count + 1, title: alert.title })))
-  // Removal never moves focus, so the handlers do: the next dismiss, or Receive slow notice
-  // when the list empties — the controls row is the column's previous sibling.
+  // Removal never moves focus, so the handlers do: the first remaining dismiss, or Receive
+  // slow notice when the list empties — the controls row is the column's previous sibling.
   const region = useRef<HTMLDivElement>(null)
   const refocus = () => queueMicrotask(() => (region.current?.querySelector<HTMLElement>("[data-slot='tradecn-alert-dismiss']") ?? region.current?.previousElementSibling?.querySelector<HTMLElement>("button"))?.focus())
   return (
