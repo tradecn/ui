@@ -277,6 +277,31 @@ function unavailableWithin(node: HTMLElement, root: HTMLElement | null) {
     const style = view?.getComputedStyle(ancestor)
     if (style?.display === "none" || style?.contentVisibility === "hidden") return true
   }
+  // A closed details hides through the browser's own slotting, which no light ancestor's
+  // attribute or style carries, so it is checked by element: content below the root inside a
+  // closed details is the item's own fault, except the details' first summary, which stays
+  // rendered.
+  if (insideClosedDetails(node, root)) return true
+  return false
+}
+
+/**
+ * A disabled fieldset suspends a control unless the control lives in that fieldset's first
+ * legend, which HTML leaves enabled; an outer disabled fieldset can still suspend it.
+ */
+function fieldsetSuspended(el: HTMLElement) {
+  for (let fieldset = el.closest("fieldset[disabled]"); fieldset; fieldset = fieldset.parentElement ? fieldset.parentElement.closest("fieldset[disabled]") : null) {
+    const legend = Array.prototype.find.call(fieldset.children, (child: Element) => child.tagName === "LEGEND") as Element | undefined
+    if (!legend || !legend.contains(el)) return true
+  }
+  return false
+}
+
+function insideClosedDetails(node: HTMLElement, boundary: HTMLElement | null) {
+  for (let details = node.closest("details:not([open])"); details && details !== boundary && (!boundary || boundary.contains(details)); details = details.parentElement ? details.parentElement.closest("details:not([open])") : null) {
+    const summary = Array.prototype.find.call(details.children, (child: Element) => child.tagName === "SUMMARY") as Element | undefined
+    if (!summary || !summary.contains(node)) return true
+  }
   return false
 }
 
@@ -711,11 +736,12 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
     setControls((current) => ({ ...current, [kind]: [...current[kind], token] }))
     return () => setControls((current) => ({ ...current, [kind]: current[kind].filter((entry) => entry !== token) }))
   }, [])
-  // Effectively enabled at press time: a declared control can still sit in a disabled fieldset.
-  // The first-legend exception is knowingly ignored; a getter-less declaration counts as live.
+  // Effectively enabled at press time: a declared control can still sit in a disabled fieldset,
+  // where HTML leaves the first legend's controls enabled; a getter-less declaration counts as
+  // live.
   const liveControl = (kind: "visibility" | "resetWidth") => controls[kind].some((entry) => {
     const el = entry.element()
-    return !el || !(el.matches(":disabled") || el.closest("fieldset[disabled]"))
+    return !el || !(el.matches(":disabled") || fieldsetSuspended(el))
   })
   // The command runs through the live control itself when one is in the DOM: a click carries
   // every veto — onClick preventDefault, a checkbox's cancel, readOnly — exactly as a pointer
@@ -723,7 +749,7 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
   const runControl = (kind: "visibility" | "resetWidth", direct: () => void) => {
     for (const entry of controls[kind]) {
       const el = entry.element()
-      if (el && !(el.matches(":disabled") || el.closest("fieldset[disabled]"))) {
+      if (el && !(el.matches(":disabled") || fieldsetSuspended(el))) {
         el.click()
         return
       }

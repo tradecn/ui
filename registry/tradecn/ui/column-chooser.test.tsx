@@ -1050,6 +1050,46 @@ describe("the keyboard model scales to wide grids", () => {
     expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "-1")
   })
 
+  it("passes a closed details by under an external mask", () => {
+    render(
+      <div aria-hidden="true" data-testid="veil">
+        <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+          <details>
+            <summary>Desk</summary>
+            <ColumnChooserItem columnKey="client" aria-label="Client card"><ColumnChooserName /></ColumnChooserItem>
+          </details>
+          <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem>
+        </ColumnChooser>
+      </div>,
+    )
+    // The closed details hides Client by its own fault — no light ancestor carries it, so the
+    // element check must. The fallback stop belongs to Price, tabbable the moment the veil lifts.
+    expect(screen.getByLabelText("Price card")).toHaveAttribute("tabindex", "0")
+    expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("keeps a first-legend control's keys inside a disabled fieldset", () => {
+    const onChange = vi.fn()
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onChange}>
+        <ColumnChooserItem columnKey="px" aria-label="Price card">
+          <ColumnChooserName />
+          <fieldset disabled>
+            <legend>
+              <ColumnChooserVisibility />
+            </legend>
+          </fieldset>
+        </ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const card = screen.getByLabelText("Price card")
+    act(() => card.focus())
+    // HTML leaves the first legend's controls enabled, so the item's Space stays live and runs
+    // through the control.
+    fireEvent.keyDown(card, { key: " " })
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
   it("moves the stop when a sibling render hides the owner and commits nothing", async () => {
     function Group({ label, children }: { label: string; children: ReactNode }) {
       const [open, setOpen] = useState(true)
