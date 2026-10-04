@@ -139,6 +139,8 @@ Timers belong to the hook invocation. Put TTL on the displayed notice row only. 
 
 <div id="it-never-takes-focus"></div>
 
+Removal never moves focus: dismissal, TTL expiry, the cap, and `clear()` unmount the notice's controls where they stand, and focus falls to the body when one of them held it. Restore focus yourself when you remove the notice under the user — the dismiss handler knows where to send it — and keep TTL off notices whose controls expect to hold focus.
+
 ### AlertsAnnouncer
 
 Mount one announcer for the collection. It keeps two visually hidden regions: polite `role="status"` and assertive `role="alert"`. Only one contains the selected notice's announcement, including severity, title, optional message, and repeat count above one. It does not take focus or open UI.
@@ -168,7 +170,7 @@ The history's view owns its order, so the grid renders without sort affordances,
 | `renderContextMenu` | `(rows: Alert[], ids: RowId[]) => ReactNode` | Unset | Caller-composed context menu. |
 | `className` | `string` | Unset | History wrapper classes. |
 
-Keep `labels` referentially stable: the default columns are rebuilt whenever it changes, and an inline object rebuilds them every render.
+Keep `labels` referentially stable when the grid builds its default columns, since they rebuild whenever it changes, and keep a custom `columns` array stable for the same reason; with custom columns, a `labels` change deliberately rebuilds nothing.
 
 `alertColumns({ time?, labels? })` returns time, severity, title, message, and count columns, imported from `@/components/ui/alerts` with `Alert` and `AlertTone` coming from the installed `@/lib/alert-store`. `time` accepts `(ms: number) => string` and defaults to local 24-hour time with seconds. Pass labels explicitly when constructing custom columns. Its time, severity, title, and count columns are marked sortable for grids that build their own view: omit `view` and the grid orders rows from its `sort`. A supplied view owns its order and ignores `sort`, so derive the view you supply from your controlled sort state. `useAlertView`'s is fixed newest-first, and the history removes those affordances.
 

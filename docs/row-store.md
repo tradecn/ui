@@ -72,7 +72,7 @@ Messages received counts every queued message; Batches applied excludes the seed
 
 Queue then cancel discards the queued batch without changing the store. The next burst continues the sample feed's prices, so canceled values are skipped.
 
-Cleanup also calls `cancel()` on unmount. Call `flush()` when queued work must apply immediately; an already-batched feed should call `applyDeltas` directly.
+The demo's own cleanup effect calls `cancel()` on unmount — the batcher has no lifecycle of its own. `pending()` says whether a batch is queued, and `flush()` applies queued work immediately; an already-batched feed should call `applyDeltas` directly. The batcher merges queued metadata by summing `dropped`, OR-ing `gap`, and letting the last value win for the rest, and it takes `raf`/`caf` options for environments without animation frames.
 
 <!-- demo: row-store-batching -->
 
@@ -90,6 +90,20 @@ Static options stay at module scope. `useView` owns the view's connection and st
 
 You own the feed and call `applyDeltas` once per frame. `useRow(store, id)` subscribes to that row's snapshot; unrelated updates leave its object identity unchanged. React batches a call's notifications into one render pass over the affected rows.
 
+### The batch
+
+`applyDeltas(batch)` takes a `DeltaBatch`, applying `upsert`, then `patch`, then `remove`, then `order` — so removing an id beats upserting it in the same batch.
+
+| Field | What it does |
+|---|---|
+| `upsert` | Whole rows. Replaces the row object, so every subscriber of that row wakes. |
+| `patch` | Partial rows merged into a new object. A patch to an unknown id is ignored. |
+| `remove` | Row ids to drop. |
+| `order` | The authoritative order for an ordered lane. Ids not listed keep their previous relative order, after the listed ones. |
+| `meta` | Producer readings: `dropped` accumulates across batches, `gap` flags a replay in progress, and `lane`, `seq`, and `producedAt` carry the last value given. Fields omitted keep their previous values. |
+
+`createRowStore({ getRowId, lane?, now? })` names how a row yields its id, the store's default lane, and the clock its metadata timestamps read.
+
 Choose the path that matches your feed:
 
 - **Already batched per frame:** call `applyDeltas` from the event listener, as with a desktop app's native process. Another animation-frame wait adds latency.
@@ -97,7 +111,7 @@ Choose the path that matches your feed:
 
 ### Views
 
-`store.createView(options)` makes a sorted, filtered id list. `useRowIds(view)` returns the same array until its ids or their order change. All view options are optional:
+`useView(store, options)` is the usual door: the hook prepares a view and owns its connection, as the section below describes. `store.createView(options)` is the imperative route — it connects eagerly, makes a sorted, filtered id list, and leaves disposal to you. `useRowIds(view)` returns the same array until its ids or their order change. All view options are optional:
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
