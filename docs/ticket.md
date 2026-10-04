@@ -73,7 +73,7 @@ This is the registry's first block: `ticket.tsx` installs into your `components`
 | `acknowledged` | `unknown` | None | A changed value triggers the acknowledgement ring. |
 | `disabled` | `boolean` | `false` | Disables fields and buttons; stops actions and every ticket shortcut — send, flip, price steps, and quick sizes. |
 | `hotkeys` | `boolean` | `true` | Declares `TICKET_BINDINGS` as registry defaults, the size keys for the quick sizes passed. |
-| `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Built-in labels and validation messages. Fixed strings remain: the unpriced `market` placeholder and `at market` wording, the references' `, use it` name suffix, the `up one tick` and `down one tick` tails after your `labels.price` in the step buttons' names, the quick sizes' notional `mm` suffix, the key caps the primary button shows, and the built-in limit messages. |
+| `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Built-in labels and validation messages. Fixed strings remain: the unpriced `market` placeholder and `at market` wording, the references' `, use it` name suffix, the `up one tick` and `down one tick` tails after your `labels.price` in the step buttons' names, the quick sizes' notional `mm` suffix, the key caps the send target's button shows, and the built-in limit messages. |
 | `className` | `string` | None | Classes on the outer group. |
 
 `TicketInstrument` requires `symbol: string` and `convention: InstrumentConvention`; `quantityStep?: number` defaults to `1`. See [`format`](format.md) for conventions. `TicketReference` has optional `bid`, `ask`, and `last` fields, each `number | null`.
@@ -105,7 +105,7 @@ The ticket makes no network request and infers no order state from `run`. As wit
 
 Only actions named in `allowedActions` render, in `actions` order. A missing or empty allowlist shows `labels.nothingAllowed`. Permission and `disabled` are checked again when an action runs. `status` and `message` print as supplied; clicking a button never sets “Sent.”
 
-Change `acknowledged` when the server acknowledges, using an order id or timestamp. After mount, each change under `Object.is` triggers a 900 ms `useFlash` ring in `primary`, without direction coloring. The initial value does not flash. When the control under focus leaves with the acknowledgement — a sent action's button unmounts or disables — focus moves to the ticket itself, so the shortcuts stay live. Under `prefers-reduced-motion`, the ticket does not ring.
+Change `acknowledged` when the server acknowledges, using an order id or timestamp. After mount, each change under `Object.is` triggers a 900 ms `useFlash` ring in `primary`, without direction coloring. The initial value does not flash. When the control under focus leaves for any reason — a sent action's button unmounts or disables, with or without an acknowledgement — focus moves to the ticket itself, so the shortcuts stay live. Under `prefers-reduced-motion`, the ticket does not ring.
 
 ### Keys
 
@@ -113,7 +113,7 @@ Change `acknowledged` when the server acknowledges, using an order id or timesta
 |---|---|---|
 | `mod+enter` | `ticket.send` | Runs the first allowed action that checks the draft, preferring the primary one. |
 | `mod+shift+x` | `ticket.flip` | Swaps buy and sell. |
-| `mod+up` / `mod+down` | `ticket.tick-up` / `ticket.tick-down` | Steps the price by `convention.tick` from anywhere in the ticket. |
+| `mod+up` / `mod+down` | `ticket.tick-up` / `ticket.tick-down` | Steps the price by the quote step from anywhere in the ticket, as the field's own arrows do. |
 | `mod+1` … `mod+9` | `ticket.size-1` … `ticket.size-9` | Selects the corresponding quick size, if present. |
 | Up / Down | Field behavior | Steps the focused price or quantity field. |
 | Shift+Up / Shift+Down | Field behavior | Takes ten field steps. |

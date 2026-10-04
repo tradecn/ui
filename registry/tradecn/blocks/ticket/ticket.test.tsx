@@ -454,8 +454,36 @@ describe("Ticket keys", () => {
     const button = screen.getByRole("button", { name: "Send" })
     act(() => button.focus())
     rerender({ allowedActions: [] })
-    expect(document.activeElement).not.toBe(document.body)
-    expect(group.contains(document.activeElement)).toBe(true)
+    // The park lands on the scope root itself, the element the fence makes focusable — an
+    // inner div would be a browser no-op.
+    expect(document.activeElement).toBe(group)
+  })
+
+  it("sends the first checked action, preferring a checked primary", () => {
+    const hold = vi.fn()
+    const send = vi.fn()
+    const actions = [
+      { id: "hold", label: "Hold", primary: true, checked: false as const, run: hold },
+      { id: "send", label: "Send", run: send },
+    ]
+    mount({ actions, allowedActions: ["hold", "send"], defaultDraft: { quantity: 1, price: 99.5 } })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    act(() => group.focus())
+    fireEvent.keyDown(quantity(), { key: "Enter", ctrlKey: true })
+    // Hold styles as primary but checks nothing of the draft, so the send key and its caps
+    // pass it by for the checked action.
+    expect(hold).not.toHaveBeenCalled()
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("button", { name: "Hold" }).querySelector("kbd")).toBeNull()
+    expect(screen.getByRole("button", { name: /^Send/ }).querySelector("kbd")).not.toBeNull()
+    const amend = vi.fn()
+    const primarySend = vi.fn()
+    const second = mount({ actions: [{ id: "amend", label: "Amend", run: amend }, { id: "send", label: "Send it", primary: true, run: primarySend }], allowedActions: ["amend", "send"], defaultDraft: { quantity: 1, price: 99.5 } })
+    const groups = document.querySelectorAll<HTMLElement>("[data-slot='tradecn-ticket']")
+    act(() => groups[1]!.focus())
+    fireEvent.keyDown(within(second.view.container).getByLabelText("Quantity") as HTMLInputElement, { key: "Enter", ctrlKey: true })
+    expect(primarySend).toHaveBeenCalledTimes(1)
+    expect(amend).not.toHaveBeenCalled()
   })
 
   it("steps, references, and describes in the instrument's quote basis", () => {

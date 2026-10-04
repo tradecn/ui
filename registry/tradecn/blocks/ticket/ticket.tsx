@@ -129,8 +129,8 @@ export const QUICK_SIZE_KEYS: readonly string[] = ["mod+1", "mod+2", "mod+3", "m
 export const TICKET_BINDINGS: readonly HotkeyBinding[] = [
   { id: "ticket.send", keys: "mod+enter", scope: "editing", description: "Send the ticket", group: "Ticket" },
   { id: "ticket.flip", keys: "mod+shift+x", scope: "editing", description: "Flip buy and sell", group: "Ticket" },
-  { id: "ticket.tick-up", keys: "mod+up", scope: "editing", description: "Price up one tick", group: "Ticket" },
-  { id: "ticket.tick-down", keys: "mod+down", scope: "editing", description: "Price down one tick", group: "Ticket" },
+  { id: "ticket.tick-up", keys: "mod+up", scope: "editing", description: "Price up one step", group: "Ticket" },
+  { id: "ticket.tick-down", keys: "mod+down", scope: "editing", description: "Price down one step", group: "Ticket" },
   ...QUICK_SIZE_KEYS.map((keys, i) => ({ id: `ticket.size-${i + 1}`, keys, scope: "editing" as const, description: `Quick size ${i + 1}`, group: "Ticket" })),
 ]
 
