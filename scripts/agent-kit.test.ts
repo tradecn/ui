@@ -95,11 +95,14 @@ describe("the agent kit", () => {
 
   it("names every registry block in its blocks sentence", () => {
     // The SKILL's exception sentence is the only list of blocks an agent gets: every
-    // registry:block item must appear in it, so a new block cannot ship unnamed.
+    // registry:block item must appear in that guidance line itself, so a new block cannot
+    // ship unnamed or merely mentioned elsewhere.
     const skill = read("registry/tradecn/agents/tradecn/SKILL.md")
+    const line = skill.split("\n").find((text) => text.includes("The ticket blocks"))
+    expect(line, "the blocks guidance line exists").toBeTruthy()
     const blocks = registry.items.filter((item) => item.type === "registry:block").map((item) => item.name)
     expect(blocks.length).toBeGreaterThanOrEqual(3)
-    for (const name of blocks) expect(skill, name).toContain(`\`${name}\``)
+    for (const name of blocks) expect(line, name).toContain(`\`${name}\``)
   })
 
   it("installs with the CLI the registry is tested with", () => {
