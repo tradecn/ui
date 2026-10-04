@@ -358,7 +358,7 @@ Use `locale` to change the readout's clock format. It does not change the axis l
 
 ### Tokens
 
-The install adds missing `up`, `down`, and `flat` tokens with their soft variants, plus `chart-1` through `chart-8`.
+The install adds missing `up`, `down`, and `flat` tokens with their soft variants, plus `chart-1` through `chart-8`, plus the shared font tokens and the hyperlegible remap.
 
 The item palette adapts [Okabe and Ito's palette](https://jfly.uni-koeln.de/color/) with lightness adjusted for each mode. It uses orange, sky blue, bluish green, yellow, blue, vermilion, reddish purple, and your foreground for black.
 

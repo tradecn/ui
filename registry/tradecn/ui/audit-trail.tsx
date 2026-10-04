@@ -67,7 +67,7 @@ export const DEFAULT_AUDIT_TRAIL_LABELS: AuditTrailLabels = {
   eventTitle: "{event} at {time}",
   diffTitle: "{a} to {b}",
   same: "Nothing differs between these two events.",
-  fields: "{n} fields",
+  fields: "Fields: {n}",
 }
 
 let clockFormat: Intl.DateTimeFormat | null = null

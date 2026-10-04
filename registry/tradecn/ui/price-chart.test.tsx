@@ -59,6 +59,24 @@ describe("PriceChart", () => {
     expect(root().querySelector("[data-chart-header]")!.className).toContain("tabular-nums")
   })
 
+  it("prints its readings in the price notation's font, survives a malformed locale, and drops a non-finite volume", () => {
+    // The readings print convention.price whatever the quote basis, so the font follows the
+    // notation: a fraction price on a yield-quoted instrument stays monospace.
+    const onYield: InstrumentConvention = { ...ZN, quoteBasis: "yield" }
+    const store = seeded()
+    render(<PriceChart store={store} convention={onYield} label="Yield note" locale="en_US"><PriceChartHeader><PriceChartLast /><PriceChartChange /><PriceChartReadout /></PriceChartHeader><PriceChartPlot><PriceChartEmpty /></PriceChartPlot></PriceChart>)
+    expect(document.querySelector("[data-chart-last]")!.className).toContain("--tradecn-font-mono")
+    expect(document.querySelector("[data-chart-change]")!.className).toContain("--tradecn-font-mono")
+    // A malformed locale tag must not throw during render: the formatter drops it and renders.
+    expect(screen.getByRole("group", { name: "Yield note" })).toBeInTheDocument()
+    // A non-finite volume reads as absent: focusing the plot puts the cursor on the last bar,
+    // whose NaN volume must not print as a dash.
+    act(() => store.applyDeltas({ upsert: [{ ...bar(2, 110.5, 110.5625), volume: Number.NaN }] }))
+    act(() => screen.getByRole("slider").focus())
+    const readout = document.querySelector("[data-chart-readout]")!
+    expect(readout.textContent).not.toContain("V ")
+  })
+
   it("is a slider over the bars whose name says the direction in a word, the range, and the count", () => {
     render(<PriceChart store={seeded()} convention={ZN} label="ZN, today"><PriceChartHeader><PriceChartLast /><PriceChartChange /><PriceChartReadout /></PriceChartHeader><PriceChartPlot><PriceChartEmpty /></PriceChartPlot></PriceChart>)
     const plot = screen.getByRole("slider")

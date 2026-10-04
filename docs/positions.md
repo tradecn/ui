@@ -31,7 +31,7 @@ Every value is a fixed server snapshot. The grid displays these numbers and tota
 
 ## Formats and units
 
-Set `quantityUnit="contracts"` for a contract count and leave it omitted for notional amounts. This example prints TY as `+120` and the cash position as `−25mm`. A stable `price` callback chooses fractional prices for T 10Y and three decimal places for TY. The shared money formatter prints compact P&L and DV01 for both cells and totals; it retains negative signs.
+Set `quantityUnit: "contracts"` on a row for a contract count and leave it off for notional amounts. This example prints TY as `+120` and the cash position as `−25mm`. A stable `price` callback chooses fractional prices for T 10Y and three decimal places for TY. The shared money formatter prints compact P&L and DV01 for both cells and totals; it retains negative signs.
 
 <!-- demo: positions-formats -->
 
@@ -142,4 +142,4 @@ It does not fetch, price, or net positions, or derive a position from fills. Use
 
 ### Tokens
 
-The install adds the grid's `up`, `down`, `flat`, `stale`, and `expiring` tokens and their soft variants where missing. Positive, negative, and flat cells use the first three.
+The install adds the grid's `up`, `down`, `flat`, `stale`, and `expiring` tokens and their soft variants where missing, plus the shared font tokens and the hyperlegible remap. Positive, negative, and flat cells use the first three.

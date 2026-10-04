@@ -68,7 +68,7 @@ describe("the pure parts", () => {
     const columns = auditTrailColumns({ time: (ms) => `t${ms - T0}` })
     expect(columns.map((c) => c.key)).toEqual(["at", "event", "by", "message", "changes"])
     expect(columns[0]?.format?.(T0 + 1200, EVENTS[1]!)).toBe("t1200")
-    expect(columns[4]?.format?.(3, EVENTS[0]!)).toBe("3 fields")
+    expect(columns[4]?.format?.(3, EVENTS[0]!)).toBe("Fields: 3")
     expect(columns[4]?.format?.(0, EVENTS[4]!)).toBe("–")
     expect(columns.every((c) => c.flash === false)).toBe(true)
   })
@@ -95,7 +95,7 @@ describe("AuditTrail", () => {
     expect(grid).toHaveAttribute("data-preset", "tape")
     expect(grid).toHaveAttribute("aria-multiselectable", "true")
     expect(grid).toHaveAttribute("aria-rowcount", "6")
-    expect(row("e2")).toHaveTextContent("t1200AcknowledgedvenueOrder id 88171 fields")
+    expect(row("e2")).toHaveTextContent("t1200AcknowledgedvenueOrder id 8817Fields: 1")
     expect(row("e5").querySelector("[data-col='changes']")).toHaveTextContent("–")
     expect(pane).toHaveAttribute("data-audit-pane", "none")
     expect(pane).toHaveTextContent(DEFAULT_AUDIT_TRAIL_LABELS.select)
@@ -136,8 +136,8 @@ describe("AuditTrail", () => {
     expect(onExport).toHaveBeenCalledTimes(1)
     const csv = onExport.mock.calls[0]![0] as string
     expect(csv.split("\r\n")[0]).toBe("Time,Event,By,Message,Changes")
-    expect(csv).toContain("t1200,Acknowledged,venue,Order id 8817,1 fields")
-    expect(csv).toContain("t12000,Filled,venue,,2 fields")
+    expect(csv).toContain("t1200,Acknowledged,venue,Order id 8817,Fields: 1")
+    expect(csv).toContain("t12000,Filled,venue,,Fields: 2")
     expect(csv.trim().split("\r\n")).toHaveLength(7)
   })
 

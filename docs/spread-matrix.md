@@ -302,4 +302,4 @@ Place actions in your own cells or surrounding controls. Native cell events are 
 
 ### Tokens
 
-The install adds `up`, `down`, and `flat` with their soft variants if you do not have them. The flashes use the soft ones.
+The install adds `up`, `down`, and `flat` with their soft variants if you do not have them, plus the shared font tokens and the hyperlegible remap. The flashes use the soft ones.
