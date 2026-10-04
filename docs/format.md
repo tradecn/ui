@@ -89,7 +89,7 @@ In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `ei
 | `quoteBasisOf(convention)` | Effective basis, defaulting to `"price"` |
 | `quoteStepOf(convention)` | Effective step from the table or an applicable `quoteStep` override |
 | `formatQuote(value, convention, locale?)` | Format a `Nullable` quote; optional third argument is `Locale` |
-| `parseQuote(text, convention)` | Parse a string as a price or a decimal in the selected basis; return a number or `null` for unreadable text |
+| `parseQuote(text, convention)` | Parse a string as a price or a decimal in the selected basis; return a number, or `null` for unreadable text or a price too large to print back |
 | `stepQuote(value, convention, steps)` | Move a numeric quote by `steps` from the nearest grid value; negative steps are allowed |
 
 Price quotes format and parse through `convention.price`. Other bases snap to `quoteStep` and print a fixed decimal with no unit; the field's label supplies the basis. Yield and discount values use percentage points; spread values use basis points. Set `quoteDecimals` high enough to display the chosen step without losing precision.
