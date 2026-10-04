@@ -973,6 +973,41 @@ describe("the keyboard model scales to wide grids", () => {
     expect(screen.getByLabelText("Price card")).toHaveAttribute("tabindex", "-1")
   })
 
+  it("falls back past an item hidden by itself, under a shared mask", () => {
+    render(
+      <div style={{ display: "none" }} data-testid="veil2">
+        <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+          <ColumnChooserItem columnKey="client" aria-label="Client card" hidden><ColumnChooserName /></ColumnChooserItem>
+          <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem>
+        </ColumnChooser>
+      </div>,
+    )
+    // Client hides itself; only the veil hides Price. The fallback judges each by its own
+    // fault, so the stop lands where lifting the veil makes it reachable.
+    expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "-1")
+    expect(screen.getByLabelText("Price card")).toHaveAttribute("tabindex", "0")
+    screen.getByTestId("veil2").style.display = ""
+    expect(screen.getByLabelText("Price card")).toHaveAttribute("tabindex", "0")
+  })
+
+  it("keeps a standing owner through a masked commit", () => {
+    const ui = (masked: boolean, label: string) => (
+      <div aria-hidden={masked || undefined}>
+        <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}} aria-label={label}>
+          <ColumnChooserItem columnKey="client" aria-label="Client card" hidden><ColumnChooserName /></ColumnChooserItem>
+          <ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem>
+        </ColumnChooser>
+      </div>
+    )
+    const view = render(ui(false, "Columns"))
+    expect(screen.getByLabelText("Price card")).toHaveAttribute("tabindex", "0")
+    // A modal masks the page and something re-renders the chooser under it: the owner stands,
+    // so removing the mask by plain DOM mutation leaves the stop reachable.
+    view.rerender(ui(true, "Columns renamed"))
+    expect(screen.getByLabelText("Price card")).toHaveAttribute("tabindex", "0")
+    expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "-1")
+  })
+
   it("holds a stop through a CSS-only reveal", () => {
     render(
       <div style={{ display: "none" }} data-testid="veil">

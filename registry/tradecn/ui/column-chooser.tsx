@@ -201,6 +201,8 @@ interface ChooserRegistrations {
   focus: (key: string) => void
   /** Re-resolves against live availability; publishes only when the owner moves. */
   refresh: () => void
+  /** The collection's root, the boundary for judging an item's own availability. */
+  setRoot: (node: HTMLElement | null) => void
 }
 
 const ChooserContext = createContext<ChooserContextValue | null>(null)
@@ -252,6 +254,28 @@ function useChooserRef<T>(localRef: { current: T | null }, forwarded: Ref<T> | u
       else assignRef(forwarded, null)
     }
   }, [localRef, forwarded])
+}
+
+/**
+ * Unavailable for reasons of its own, judged no higher than the collection's root: a shared
+ * ancestor mask hides every item equally and is not the item's fault. Display does not inherit,
+ * so each step's own computed display is positional; visibility does inherit, so the item is
+ * self-hidden only when the root itself still reads visible.
+ */
+function unavailableWithin(node: HTMLElement, root: HTMLElement | null) {
+  if (!root || !root.contains(node)) return unavailable(node)
+  if (node.matches(":disabled") || (node.matches("[aria-disabled=true]") && node.tabIndex < 0)) return true
+  const mask = node.closest("[hidden], [aria-hidden=true], [inert]")
+  if (mask && mask !== root && root.contains(mask)) return true
+  const view = node.ownerDocument.defaultView
+  const visibility = view?.getComputedStyle(node).visibility
+  const rootVisibility = view?.getComputedStyle(root).visibility
+  if ((visibility === "hidden" || visibility === "collapse") && rootVisibility !== visibility) return true
+  for (let ancestor: HTMLElement | null = node; ancestor && ancestor !== root; ancestor = ancestor.parentElement) {
+    const style = view?.getComputedStyle(ancestor)
+    if (style?.display === "none" || style?.contentVisibility === "hidden") return true
+  }
+  return false
 }
 
 function unavailable(node: HTMLElement) {
@@ -368,19 +392,25 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
     let presented: readonly string[] = []
     let active: string | null = null
     let owner: string | null = null
+    let rootEl: HTMLElement | null = null
     // The stop stays on the focused coordinated item while it is presented and registered, else
     // it falls to the first presented key with a usable registered item.
     const resolve = () => {
-      const registered = (key: string) => nodes.has(key) && !optedOut.has(key)
       const usable = (key: string) => {
         const node = nodes.get(key)
         return node !== undefined && !optedOut.has(key) && !unavailable(node)
       }
-      // When nothing is usable — an ancestor masks every item — the stop falls back to a
-      // registered item anyway: unreachable while hidden, tabbable the moment the mask lifts,
-      // with nothing to watch and nothing to re-render.
+      // When nothing is usable — an ancestor masks every item — the stop falls back to an item
+      // that is clean by its own fault, judged no higher than the collection's root: a standing
+      // owner first, so a shared mask never moves the stop, then the focused item, then the
+      // first presented one. Unreachable while hidden, tabbable the moment the mask lifts.
+      const clean = (key: string) => {
+        const node = nodes.get(key)
+        return node !== undefined && !optedOut.has(key) && !unavailableWithin(node, rootEl)
+      }
       const next = (active !== null && presented.includes(active) && usable(active) ? active : presented.find(usable))
-        ?? (active !== null && presented.includes(active) && registered(active) ? active : presented.find(registered))
+        ?? (owner !== null && presented.includes(owner) && clean(owner) ? owner : undefined)
+        ?? (active !== null && presented.includes(active) && clean(active) ? active : presented.find(clean))
         ?? null
       if (next === owner) return false
       owner = next
@@ -421,8 +451,17 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
       refresh() {
         if (resolve()) publish()
       },
+      setRoot(node) {
+        rootEl = node
+        if (resolve()) publish()
+      },
     }
   })
+  // The root is the boundary for judging an item's own availability.
+  useLayoutEffect(() => {
+    registrations.setRoot(root.current)
+    return () => registrations.setRoot(null)
+  }, [registrations])
   // Presentation order reaches the store after each commit; the owner moves only when it must.
   useLayoutEffect(() => {
     registrations.present(presentedRows.map((row) => row.key))
