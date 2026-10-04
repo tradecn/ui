@@ -63,6 +63,7 @@ In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `ei
 | `quoteBasis` | `QuoteBasis` | `"price"` | Basis used by quote methods |
 | `quoteStep` | `number` | Basis default below | Step for yield, discount, or spread quotes; ignored for price quotes |
 | `quoteDecimals` | `number` | Basis default below | Decimal places for yield, discount, or spread quotes; ignored for price quotes |
+| `quoteInverted` | `boolean` | Yield and discount invert; price and spread do not | Whether a higher quote means a lower price, so a normal market quotes the bid above the offer. A CDS spread quotes bid below offer; cash credit quotes the other way, so declare it where the default reads wrong. `quoteInvertedOf(convention)` reads the effective direction |
 
 | Bound member | Equivalent |
 |---|---|

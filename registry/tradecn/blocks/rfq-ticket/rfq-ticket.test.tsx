@@ -370,9 +370,14 @@ describe("RfqTicket keys", () => {
     // NaN pair cannot cross.
     expect(checkQuote(draftOf({ bid: Number.NaN }), sell).bid).toBeTruthy()
     expect(checkQuote(draftOf({ bid: Number.NaN, ask: Number.NaN }), inquiry({ side: "two-way" })).ask).toBeTruthy()
-    const credit = inquiry({ instrument: { symbol: "CDX", convention: CREDIT }, side: "two-way" })
-    expect(checkQuote(draftOf({ bid: 105.5, ask: 103 }), credit).ask).toBeUndefined()
-    expect(checkQuote(draftOf({ bid: 103, ask: 105.5 }), credit).ask).toBe("The quote is crossed.")
+    // A CDS index quotes the bid below the offer — the spread default — while cash credit
+    // declares quoteInverted and reads the other way.
+    const cdx = inquiry({ instrument: { symbol: "CDX", convention: CREDIT }, side: "two-way" })
+    expect(checkQuote(draftOf({ bid: 52.5, ask: 53 }), cdx).ask).toBeUndefined()
+    expect(checkQuote(draftOf({ bid: 53, ask: 52.5 }), cdx).ask).toBe("The quote is crossed.")
+    const cash = inquiry({ instrument: { symbol: "GE 4.25 2034", convention: { ...CREDIT, quoteInverted: true } }, side: "two-way" })
+    expect(checkQuote(draftOf({ bid: 105.5, ask: 103 }), cash).ask).toBeUndefined()
+    expect(checkQuote(draftOf({ bid: 103, ask: 105.5 }), cash).ask).toBe("The quote is crossed.")
   })
 
   it("forgets a deliberate leave, and parks the ticket the user was in", () => {

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
-import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, quoteInvertedOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
@@ -190,7 +190,7 @@ export interface RfqQuoteProblems {
   ask?: string
 }
 
-/** What stops a quote from being sent: a needed side that is blank, or a crossed pair in the instrument's quote basis — bid above offer in the price basis, bid below offer on discount, yield, and spread, where the numbers invert. Empty when nothing does. */
+/** What stops a quote from being sent: a needed side that is blank, or a crossed pair read through the instrument's quote direction — bid above offer normally, bid below offer where a higher quote means a lower price, as `quoteInvertedOf` reads it. Empty when nothing does. */
 export function checkQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: RfqTicketLabels = DEFAULT_RFQ_TICKET_LABELS): RfqQuoteProblems {
   const problems: RfqQuoteProblems = {}
   const sides = quotedSides(inquiry.side)
@@ -200,10 +200,10 @@ export function checkQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: Rf
   const ask = level(draft.ask)
   if (sides.includes("bid") && bid === null) problems.bid = labels.bidNeeded
   if (sides.includes("ask") && ask === null) problems.ask = labels.askNeeded
-  // In the price basis a crossed quote bids above its offer; in the discount, yield, and
-  // spread bases the numbers invert, so a normal market quotes the bid above the offer and
-  // crossing runs the other way.
-  const inverted = quoteBasisOf(inquiry.instrument.convention) !== "price"
+  // A crossed quote bids above its offer, unless a higher quote means a lower price — yield
+  // and discount always, spread only where the instrument declares it, since CDS quotes bid
+  // below offer while cash credit quotes the other way.
+  const inverted = quoteInvertedOf(inquiry.instrument.convention)
   if (bid !== null && ask !== null && (inverted ? bid < ask : bid > ask)) problems.ask = labels.crossed
   return problems
 }
