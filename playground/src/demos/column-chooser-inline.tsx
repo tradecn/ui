@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useCallback, useState } from "react"
 import type { ColumnRule } from "@/registry/tradecn/lib/grid-rules"
 import { ColumnChooser, ColumnChooserAnnouncer, ColumnChooserFrozen, ColumnChooserHiddenCount, ColumnChooserItem, ColumnChooserMove, ColumnChooserName, ColumnChooserResetAll, ColumnChooserResetWidth, ColumnChooserRule, ColumnChooserSearch, ColumnChooserWidth, useColumnChooser, useColumnChooserCommand, useColumnChooserItem } from "@/registry/tradecn/ui/column-chooser"
 import type { ColumnDef, ColumnState } from "@/registry/tradecn/ui/data-grid"
@@ -50,7 +50,11 @@ function ColumnCards() {
 function ColumnCardVisibility() {
   const { row, setVisible } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  // Declaring the command keeps Space live on the card while this checkbox stays out of the Tab order.
-  useColumnChooserCommand("visibility")
-  return <input type="checkbox" checked={row.visible} tabIndex={-1} aria-label={`${labels.show} ${row.name}`} className="size-4 shrink-0 accent-primary" onChange={(event) => setVisible(event.target.checked)} />
+  const el = useRef<HTMLInputElement>(null)
+  const element = useCallback(() => el.current, [])
+  // Declaring the command keeps Space live on the card while this checkbox stays out of the
+  // Tab order; handing the element routes the key through the checkbox's own click, vetoes
+  // and disabled states included.
+  useColumnChooserCommand("visibility", true, element)
+  return <input ref={el} type="checkbox" checked={row.visible} tabIndex={-1} aria-label={`${labels.show} ${row.name}`} className="size-4 shrink-0 accent-primary" onChange={(event) => setVisible(event.target.checked)} />
 }

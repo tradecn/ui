@@ -1,4 +1,4 @@
-import { createRef, Profiler, StrictMode, useState } from "react"
+import { type ReactNode, createRef, Profiler, StrictMode, useState } from "react"
 import { createPortal } from "react-dom"
 import { renderToString } from "react-dom/server"
 import { Button } from "@/components/ui/button"
@@ -1048,6 +1048,29 @@ describe("the keyboard model scales to wide grids", () => {
     view.rerender(ui(true, "Columns renamed"))
     expect(screen.getByLabelText("Price card")).toHaveAttribute("tabindex", "0")
     expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("keeps the stop through a collapse inside the root, re-render and all", () => {
+    function Section({ open, children }: { open: boolean; children: ReactNode }) {
+      return <div hidden={!open}>{children}</div>
+    }
+    const ui = (open: boolean, label: string) => (
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}} aria-label={label}>
+        <Section open={open}>
+          <ColumnChooserItem columnKey="client" aria-label="Client card"><ColumnChooserName /></ColumnChooserItem>
+        </Section>
+      </ColumnChooser>
+    )
+    const view = render(ui(true, "Columns"))
+    const client = screen.getByLabelText("Client card")
+    expect(client).toHaveAttribute("tabindex", "0")
+    // Collapse, then force a chooser render while collapsed: the owner stands, so expanding
+    // by a parent-only render leaves the stop in place with no chooser commit needed.
+    view.rerender(ui(false, "Columns"))
+    view.rerender(ui(false, "Columns renamed"))
+    expect(client).toHaveAttribute("tabindex", "0")
+    view.rerender(ui(true, "Columns renamed"))
+    expect(client).toHaveAttribute("tabindex", "0")
   })
 
   it("holds a stop through a CSS-only reveal", () => {

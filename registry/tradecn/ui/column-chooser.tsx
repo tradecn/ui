@@ -411,9 +411,15 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
         const node = nodes.get(key)
         return node !== undefined && !optedOut.has(key) && !unavailableWithin(node, rootEl)
       }
+      // A registered coordinated item always leaves one stop standing: usable first, then clean
+      // by its own fault, then — when a mask inside the root hides everything — any registered
+      // item at all, the standing owner preferred at every tier.
+      const registered = (key: string) => nodes.has(key) && !optedOut.has(key)
       const next = (active !== null && presented.includes(active) && usable(active) ? active : presented.find(usable))
         ?? (owner !== null && presented.includes(owner) && clean(owner) ? owner : undefined)
         ?? (active !== null && presented.includes(active) && clean(active) ? active : presented.find(clean))
+        ?? (owner !== null && presented.includes(owner) && registered(owner) ? owner : undefined)
+        ?? presented.find(registered)
         ?? null
       if (next === owner) return false
       owner = next
