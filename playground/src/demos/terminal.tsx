@@ -992,10 +992,16 @@ function OrderPanel() {
   const instrument = useMemo<TicketInstrument>(() => ({ symbol: future.symbol, convention: future.convention, quantityStep: 1 }), [future])
   // A ladder restage re-keys the ticket, and the trader's own quantity, time in force, and
   // account ride along — never the order type, whose Market would discard the staged price —
-  // and only the staged side and price are new. The carry belongs to its symbol: a
-  // linked-symbol switch remounts a blank ticket, and the next stage must not resurrect the
-  // previous instrument's draft.
+  // and only the staged side and price are new. The carry belongs to one shown ticket: any
+  // remount without a stage shows fresh defaults, so the carry clears with it, or a later
+  // stage would resurrect a draft the trader just saw blank.
   const [carried, setCarried] = useState<{ symbol: string; draft: Partial<TicketDraft> } | null>(null)
+  const ticketKey = stagedHere ? `${future.symbol}:${stagedHere.seq}` : future.symbol
+  const [shownKey, setShownKey] = useState(ticketKey)
+  if (shownKey !== ticketKey) {
+    setShownKey(ticketKey)
+    if (!stagedHere) setCarried(null)
+  }
   const actions = useMemo<TicketAction[]>(
     () => [
       { id: "send", label: (draft) => (draft.side === "buy" ? "Buy" : "Sell"), primary: true, run: (draft, inst) => setLastId(desk.send(draft, inst)) },
@@ -1026,7 +1032,7 @@ function OrderPanel() {
       </PanelHeader>
       <PanelContent className="p-2">
         <Ticket
-          key={stagedHere ? `${future.symbol}:${stagedHere.seq}` : future.symbol}
+          key={ticketKey}
           defaultDraft={stagedHere ? { ...(carried?.symbol === future.symbol ? carried.draft : undefined), side: stagedHere.side, price: stagedHere.price } : undefined}
           onDraftChange={(draft) => setCarried({ symbol: future.symbol, draft: { quantity: draft.quantity, tif: draft.tif, account: draft.account } })}
           instrument={instrument}
