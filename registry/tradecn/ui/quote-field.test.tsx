@@ -61,6 +61,15 @@ describe("QuoteField", () => {
     expect(input()).not.toHaveAttribute("aria-invalid")
   })
 
+  it("reports the price the text will show: a typed decimal snaps to the printable grid", () => {
+    const { changes, set } = mount()
+    type(input(), "99.7")
+    expect(last(changes)).toBe(99.703125)
+    set(99.703125)
+    fireEvent.blur(input())
+    expect(input().value).toBe("99-22+")
+  })
+
   it("names the basis in its own words when the text is not a quote, or says what it is told to", () => {
     render(<QuoteField convention={BILL} value={null} onValueChange={() => {}} />)
     type(input("Discount"), "4-16")
