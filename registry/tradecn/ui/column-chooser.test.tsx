@@ -954,7 +954,7 @@ describe("the keyboard model scales to wide grids", () => {
     expect(price).toHaveAttribute("tabindex", "-1")
   })
 
-  it("regains the stop when an external mask lifts without any chooser render", async () => {
+  it("keeps a fallback stop under an external mask, tabbable the moment it lifts", () => {
     render(
       <div aria-hidden="true" data-testid="mask">
         <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
@@ -963,11 +963,47 @@ describe("the keyboard model scales to wide grids", () => {
         </ColumnChooser>
       </div>,
     )
+    // Nothing is usable while the ancestor masks the list, so the stop falls back to the first
+    // registered item: unreachable while hidden, and already tabbable when the mask lifts by
+    // plain DOM mutation — nothing watches, nothing re-renders.
     const client = screen.getByLabelText("Client card")
-    expect(client).toHaveAttribute("tabindex", "-1")
-    // The modal closes by plain DOM mutation: no chooser state changes, no react render.
+    expect(client).toHaveAttribute("tabindex", "0")
     screen.getByTestId("mask").removeAttribute("aria-hidden")
-    await waitFor(() => expect(client).toHaveAttribute("tabindex", "0"))
+    expect(client).toHaveAttribute("tabindex", "0")
+    expect(screen.getByLabelText("Price card")).toHaveAttribute("tabindex", "-1")
+  })
+
+  it("holds a stop through a CSS-only reveal", () => {
+    render(
+      <div style={{ display: "none" }} data-testid="veil">
+        <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+          <ColumnChooserItem columnKey="client" aria-label="Client card"><ColumnChooserName /></ColumnChooserItem>
+        </ColumnChooser>
+      </div>,
+    )
+    const client = screen.getByLabelText("Client card")
+    expect(client).toHaveAttribute("tabindex", "0")
+    // The reveal is a style change the old observer never watched; the fallback needs no watcher.
+    screen.getByTestId("veil").style.display = ""
+    expect(client).toHaveAttribute("tabindex", "0")
+  })
+
+  it("owns a stop when items mount under a mask that later lifts", () => {
+    function LateItems({ on }: { on: boolean }) {
+      return on ? <ColumnChooserItem columnKey="client" aria-label="Client card"><ColumnChooserName /></ColumnChooserItem> : null
+    }
+    const ui = (masked: boolean, items: boolean) => (
+      <div aria-hidden={masked || undefined} data-testid="mask2">
+        <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+          <LateItems on={items} />
+        </ColumnChooser>
+      </div>
+    )
+    const view = render(ui(true, false))
+    view.rerender(ui(true, true))
+    expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "0")
+    screen.getByTestId("mask2").removeAttribute("aria-hidden")
+    expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "0")
   })
 
   it("hands the stop onward when only the owner's item re-renders aria-hidden", () => {

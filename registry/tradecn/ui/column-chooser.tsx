@@ -371,11 +371,17 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
     // The stop stays on the focused coordinated item while it is presented and registered, else
     // it falls to the first presented key with a usable registered item.
     const resolve = () => {
+      const registered = (key: string) => nodes.has(key) && !optedOut.has(key)
       const usable = (key: string) => {
         const node = nodes.get(key)
         return node !== undefined && !optedOut.has(key) && !unavailable(node)
       }
-      const next = active !== null && presented.includes(active) && usable(active) ? active : presented.find(usable) ?? null
+      // When nothing is usable — an ancestor masks every item — the stop falls back to a
+      // registered item anyway: unreachable while hidden, tabbable the moment the mask lifts,
+      // with nothing to watch and nothing to re-render.
+      const next = (active !== null && presented.includes(active) && usable(active) ? active : presented.find(usable))
+        ?? (active !== null && presented.includes(active) && registered(active) ? active : presented.find(registered))
+        ?? null
       if (next === owner) return false
       owner = next
       return true
@@ -426,31 +432,6 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
   useEffect(() => {
     registrations.present(presentedRows.map((row) => row.key))
   })
-  // While every item reads unusable — a modal keeps an ancestor masked — nothing inside the
-  // chooser will re-render when that mask lifts, so a document-level observer watches the
-  // masking attributes for exactly as long as the collection has no owner.
-  useEffect(() => {
-    const observer = new MutationObserver(() => registrations.refresh())
-    let watching = false
-    const check = () => {
-      const masked = registrations.owner() === null && registrations.nodes.size > 0
-      if (masked && !watching) {
-        const node = registrations.nodes.values().next().value
-        if (!node) return
-        observer.observe(node.ownerDocument.body, { attributes: true, subtree: true, attributeFilter: ["aria-hidden", "inert", "hidden"] })
-        watching = true
-      } else if (!masked && watching) {
-        observer.disconnect()
-        watching = false
-      }
-    }
-    check()
-    const unsubscribe = registrations.subscribe(check)
-    return () => {
-      unsubscribe()
-      observer.disconnect()
-    }
-  }, [registrations])
   const registerItem = useCallback((key: string, node: HTMLElement | null, optedOut = false) => registrations.set(key, node, optedOut), [registrations])
   const focusStep = (from: string, step: -1 | 1 | "first" | "last") => {
     const keys = presentedRows.map((row) => row.key)
