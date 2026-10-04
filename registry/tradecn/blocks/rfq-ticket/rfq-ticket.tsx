@@ -298,8 +298,6 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   // The acknowledgement: a ring in primary, once, when the server says so. No direction, because it has none.
   useFlash(box, acknowledged, { variant: "ring", color: "var(--primary)" })
 
-
-
   /** The size the quote is for: the inquiry's own, or the n-th quick size (from 1). */
   function setQuantity(quantity: number) {
     setDraft((d) => (d.quantity === quantity ? d : { ...d, quantity }))
@@ -392,8 +390,10 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       send: () => {
         const { actions: list, inquiry: now, disabled: locked } = latest.current
         if (locked) return
-        const open = list.filter((action) => now.allowedActions?.includes(action.id))
-        const first = open.find((action) => action.primary) ?? open.find((action) => action.needsQuote !== false) ?? open[0]
+        // The send key runs only an action that sends the quote: with the whole ticket armed,
+        // falling back to a destructive pass from a heading click would be too wide a reach.
+        const open = list.filter((action) => now.allowedActions?.includes(action.id) && action.needsQuote !== false)
+        const first = open.find((action) => action.primary) ?? open[0]
         if (first) run(first)
       },
       // The draft moves only while the fields are live: the same quoting condition that
@@ -425,8 +425,9 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       registry.bind("rfq.tick-up", guard(() => handlers.current.up()), within),
       registry.bind("rfq.tick-down", guard(() => handlers.current.down()), within),
       registry.bind("rfq.suggested", guard(() => handlers.current.suggested()), within),
-      // Fenced handlers for all nine, acting only on a present size: an id anyone declares
-      // meets this fence, and an undeclared absent size's event passes through untouched.
+      // Fenced handlers for all nine, acting only on a present size: an id anyone declares in
+      // the editing scope meets this fence, and an undeclared absent size's event passes
+      // through untouched.
       ...RFQ_SIZE_BINDINGS.map((binding, i) => registry.bind(binding.id, (event) => {
         if (i >= (latest.current.quickSizes?.length ?? 0)) return
         event.preventDefault()

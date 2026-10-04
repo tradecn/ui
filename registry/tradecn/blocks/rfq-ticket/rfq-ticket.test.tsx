@@ -402,17 +402,28 @@ describe("RfqTicket keys", () => {
     view.unmount()
   })
 
-  it("moves no draft while no allowed action needs a quote", () => {
+  it("moves no draft and sends nothing while no allowed action needs a quote", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
-    const { onDraftChange } = mount({ inquiry: inquiry({ allowedActions: ["pass"], suggested: { bid: 99.5 } }), actions: [{ id: "pass", label: "Pass", run: vi.fn(), needsQuote: false }], quickSizes: [1, 5] }, registry)
+    const pass = vi.fn()
+    // A buy inquiry quotes the ask, so the suggestion targets the quoted side: removing the
+    // quoting gate would move the draft from mod+shift+a here.
+    const { onDraftChange } = mount({ inquiry: inquiry({ side: "buy", allowedActions: ["pass"], suggested: { ask: 99.53125 } }), actions: [{ id: "pass", label: "Pass", run: pass, needsQuote: false }], quickSizes: [1, 5] }, registry)
     const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
     group.focus()
-    // The fields and size buttons render disabled under this inquiry; the keys obey the same
-    // quoting condition, so a pass-only inquiry's draft never moves from the keyboard.
     fireEvent.keyDown(group, { key: "ArrowUp", ctrlKey: true })
     fireEvent.keyDown(group, { key: "a", ctrlKey: true, shiftKey: true })
     fireEvent.keyDown(group, { key: "1", ctrlKey: true })
     expect(onDraftChange).not.toHaveBeenCalled()
+    // The send key runs only quote-sending actions, so it cannot fall back to a pass.
+    fireEvent.keyDown(group, { key: "Enter", ctrlKey: true })
+    expect(pass).not.toHaveBeenCalled()
+  })
+
+  it("declares only the sizes passed in the registry's list", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    mount({ quickSizes: [1, 5] }, registry)
+    expect(registry.list().some((e) => e.id === "rfq.size-2")).toBe(true)
+    expect(registry.list().some((e) => e.id === "rfq.size-9")).toBe(false)
   })
 
   it("locks every shortcut while disabled", () => {

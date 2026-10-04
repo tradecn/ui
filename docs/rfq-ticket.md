@@ -82,7 +82,7 @@ This block installs `rfq-ticket.tsx` in your `components` alias. It shares sourc
 | `acknowledged` | `unknown` | `undefined` | Change this value when the server acknowledges a quote. |
 | `autoFocus` | `boolean` | `false` | Requests focus on the first quote field on mount. |
 | `disabled` | `boolean` | `false` | Disables fields and buttons, blocks action execution, and stops every ticket shortcut. |
-| `hotkeys` | `boolean` | `true` | Declares `RFQ_TICKET_BINDINGS` as registry defaults. |
+| `hotkeys` | `boolean` | `true` | Declares `RFQ_TICKET_BINDINGS` as registry defaults, the size keys for the quick sizes passed. |
 | `limits` | `Limits` | None | Checks quoted sides before sending. |
 | `quickSizes` | `readonly number[]` | None | Alternative quote quantities in raw notional or contracts. |
 | `labels` | `Partial<RfqTicketLabels>` | `DEFAULT_RFQ_TICKET_LABELS` | Overrides the ticket's own wording. |
@@ -181,13 +181,13 @@ Inside a `HotkeysProvider`, the ticket declares these `editing` bindings as regi
 | `rfq.send` | `mod+enter` | Runs the primary action. |
 | `rfq.tick-up`, `rfq.tick-down` | `mod+up`, `mod+down` | Steps the focused quote field, or the first field. |
 | `rfq.suggested` | `mod+shift+a` | Copies suggested levels. |
-| `rfq.size-1` … `rfq.size-N` | `mod+1` … `mod+N` | Selects an entry from `quickSizes`, in supplied order; declared through `N = quickSizes.length`. |
+| `rfq.size-1` … `rfq.size-N` | `mod+1` … `mod+N` | Selects an entry from `quickSizes`, in supplied order; declared through `N = quickSizes.length`, at most nine. |
 
 `mod` is Command on Mac and Control elsewhere. `QUICK_SIZE_KEYS` exports the nine size shortcuts. Spread `RFQ_TICKET_BINDINGS` into your own registry list to change keys or descriptions. The defaults stand while any ticket with `hotkeys` enabled remains: your registration of an id shadows the ticket's default whenever it comes, unregistering yours brings the default back, and `unregister("rfq.send")` does nothing while a ticket holds the default — so a binding you declare stays yours through the per-inquiry remounts. Handlers run anywhere inside the ticket, and dialog boundaries keep outside handlers from running.
 
 `hotkeys={false}` skips declarations but still binds handlers for these ids, declared before or after. Without a provider, there are no shortcuts or key hints. Plain Enter sends nothing; the ticket has no form.
 
-A disabled ticket runs no shortcuts at all, though its keys are still consumed. While nobody declares an absent size's id, its keys pass through untouched; once the id is declared — by you, or by another ticket with more sizes on the shared registry — the registry consumes the key wherever the fence reaches, and a ticket without that size does nothing with it. Draft shortcuts run only while the fields are live — an allowed action needs a quote — exactly as the controls do, and sending checks everything again as the click lands. Use registry binding conditions to suppress draft shortcuts when needed.
+A disabled ticket runs no shortcuts at all, though its keys are still consumed. While nobody declares an absent size's id, its keys pass through untouched; once the id is declared in the `editing` scope — by you, or by another ticket with more sizes on the shared registry — the registry consumes the key wherever the fence reaches, and a ticket without that size does nothing with it; keep ticket ids in `editing`, since a declaration in another scope dispatches unfenced. Draft shortcuts run only while the fields are live — an allowed action needs a quote — exactly as the controls do; the send key runs only an action that sends the quote; and sending checks everything again as the click lands. `remap(id, "")` turns a key off as a user override the hotkey editor shows and Reset undoes. Use registry binding conditions to suppress draft shortcuts when needed.
 
 ### Limits
 
