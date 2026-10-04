@@ -157,7 +157,7 @@ export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
   settlement: "Settles",
   bidNeeded: "A bid is needed.",
   askNeeded: "An offer is needed.",
-  crossed: "The bid is above the offer.",
+  crossed: "The quote is crossed.",
   nothingAllowed: "Nothing can be done with this inquiry right now.",
   for: "for",
   anyway: "{action} anyway?",
@@ -190,7 +190,7 @@ export interface RfqQuoteProblems {
   ask?: string
 }
 
-/** What stops a quote from being sent: a needed side that is blank, or a market whose bid is above its offer. Empty when nothing does. */
+/** What stops a quote from being sent: a needed side that is blank, or a crossed pair in the instrument's quote basis — bid above offer in the price basis, bid below offer on discount, yield, and spread, where the numbers invert. Empty when nothing does. */
 export function checkQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: RfqTicketLabels = DEFAULT_RFQ_TICKET_LABELS): RfqQuoteProblems {
   const problems: RfqQuoteProblems = {}
   const sides = quotedSides(inquiry.side)
@@ -370,11 +370,14 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   /** The side the key came from: the event's target, else focus in this ticket's own document — a popout runs in the opener's JavaScript, so the global document never holds its fields — a side's step buttons counting as the side; else the first side the client asked for. */
   function focusedSide(target?: EventTarget | null): QuoteSide {
-    const from = target instanceof Element ? target : (box.current?.ownerDocument ?? (typeof document === "undefined" ? null : document))?.activeElement ?? null
+    // A popout's nodes come from another realm, where instanceof Element fails; nodeType is
+    // realm-proof.
+    const isElement = (node: EventTarget | null | undefined): node is Element => typeof node === "object" && node !== null && (node as Node).nodeType === 1
+    const from = isElement(target) ? target : (box.current?.ownerDocument ?? (typeof document === "undefined" ? null : document))?.activeElement ?? null
     for (const side of sides) {
       const input = inputs[side].current
       if (!input) continue
-      if (from === input || (from instanceof Element && input.closest("[data-slot='tradecn-quote-field']")?.contains(from))) return side
+      if (from === input || (isElement(from) && input.closest("[data-slot='tradecn-quote-field']")?.contains(from))) return side
     }
     return sides[0]!
   }

@@ -70,7 +70,7 @@ describe("the pure parts", () => {
     expect(checkQuote(draftOf(), inquiry())).toEqual({ ask: "An offer is needed." })
     expect(checkQuote(draftOf(), inquiry({ side: "sell" }))).toEqual({ bid: "A bid is needed." })
     expect(checkQuote(draftOf({ bid: 99.5 }), inquiry({ side: "two-way" }))).toEqual({ ask: "An offer is needed." })
-    expect(checkQuote(draftOf({ bid: 99.53125, ask: 99.5 }), inquiry({ side: "two-way" }))).toEqual({ ask: "The bid is above the offer." })
+    expect(checkQuote(draftOf({ bid: 99.53125, ask: 99.5 }), inquiry({ side: "two-way" }))).toEqual({ ask: "The quote is crossed." })
     expect(checkQuote(draftOf({ bid: 99.5, ask: 99.5 }), inquiry({ side: "two-way" }))).toEqual({})
   })
   it("says a quote in words", () => {
@@ -312,7 +312,7 @@ describe("RfqTicket keys", () => {
     const bill = inquiry({ instrument: { symbol: "B912", convention: BILL }, side: "two-way", market: { bid: 4.255, ask: 4.25 } })
     // A normal discount market quotes the bid above the offer; crossing runs the other way.
     expect(checkQuote(draftOf({ bid: 4.255, ask: 4.25 }), bill).ask).toBeUndefined()
-    expect(checkQuote(draftOf({ bid: 4.25, ask: 4.255 }), bill).ask).toBeTruthy()
+    expect(checkQuote(draftOf({ bid: 4.25, ask: 4.255 }), bill).ask).toBe("The quote is crossed.")
     const note = inquiry({ side: "two-way" })
     expect(checkQuote(draftOf({ bid: 99.5, ask: 99.515625 }), note).ask).toBeUndefined()
     expect(checkQuote(draftOf({ bid: 99.515625, ask: 99.5 }), note).ask).toBeTruthy()

@@ -142,7 +142,7 @@ These helpers are exported for confirmations, palette rows, and tests:
 | `quotedSides(side)` | Requested dealer sides as `readonly QuoteSide[]`, where `QuoteSide` is `"bid" \| "ask"`. |
 | `formatSize(quantity, convention)` | Millions of notional (`5_000_000` → `5mm`) or a contract count. |
 | `quoteDistance(level, market, convention)` | `{ value, text }`, or `null` for a missing or nonfinite input. Both levels accept `number \| null \| undefined`. |
-| `checkQuote(draft, inquiry, labels?)` | `RfqQuoteProblems`: optional `bid` and `ask` messages for required `null` levels or a bid above the ask. |
+| `checkQuote(draft, inquiry, labels?)` | `RfqQuoteProblems`: optional `bid` and `ask` messages for required `null` levels or a crossed pair in the quote basis. |
 | `describeQuote(draft, inquiry, labels?)` | Text such as `Offer 5mm T 4 1/8 05/15/34 @ 99-16+`; uses `draft.quantity ?? inquiry.quantity`. |
 
 The last two helpers default to `DEFAULT_RFQ_TICKET_LABELS` and accept a full `RfqTicketLabels` object. `checkQuote` does not check limits or quantity; it rejects crossed levels in the instrument's quote basis whenever both are non-null — bid above offer in the price basis, bid below offer in the others — including an unused side supplied through `defaultDraft`.
