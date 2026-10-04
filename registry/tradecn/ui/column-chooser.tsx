@@ -282,6 +282,9 @@ function unavailableWithin(node: HTMLElement, root: HTMLElement | null) {
 
 function unavailable(node: HTMLElement) {
   if (!node.isConnected || node.matches(":disabled") || (node.matches("[aria-disabled=true]") && node.tabIndex < 0) || node.closest("[hidden], [aria-hidden=true], [inert]")) return true
+  // Where the platform has it, checkVisibility also sees hiding no ancestor attribute carries,
+  // a closed details element's slotted content among it.
+  if (typeof node.checkVisibility === "function" && !node.checkVisibility()) return true
   const view = node.ownerDocument.defaultView
   const visibility = view?.getComputedStyle(node).visibility
   if (visibility === "hidden" || visibility === "collapse") return true
@@ -474,6 +477,17 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
   useLayoutEffect(() => {
     registrations.setRoot(root.current)
     return () => registrations.setRoot(null)
+  }, [registrations])
+  // A change inside the root can hide the owner without any commit — a collapsible kept
+  // mounted, a class toggle, a details element. The root watches its own subtree and asks the
+  // store to re-resolve; publish-on-change keeps it from looping, and the cost is scoped to
+  // this collection's markup.
+  useEffect(() => {
+    const node = root.current
+    if (!node) return
+    const observer = new MutationObserver(() => registrations.refresh())
+    observer.observe(node, { attributes: true, subtree: true, attributeFilter: ["hidden", "inert", "aria-hidden", "open", "class", "style"] })
+    return () => observer.disconnect()
   }, [registrations])
   // Presentation order reaches the store after each commit; the owner moves only when it must.
   useLayoutEffect(() => {
@@ -756,7 +770,7 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
     if (ownsItemEvent(event)) {
       focused.current = event.target
       // An explicitly opted-out item never takes the roving stop, even by pointer focus.
-      if (tabIndex === undefined) registrations.focus(row.key)
+      if (tabIndex === undefined && !itemKeyless) registrations.focus(row.key)
     }
   }} onBlurCapture={(event) => {
     onBlurCapture?.(event)

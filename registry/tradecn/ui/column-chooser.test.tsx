@@ -1050,6 +1050,26 @@ describe("the keyboard model scales to wide grids", () => {
     expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "-1")
   })
 
+  it("moves the stop when a sibling render hides the owner and commits nothing", async () => {
+    function Group({ label, children }: { label: string; children: ReactNode }) {
+      const [open, setOpen] = useState(true)
+      return <section><button type="button" onClick={() => setOpen(!open)}>{label}</button><div hidden={!open}>{children}</div></section>
+    }
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <Group label="Desk"><ColumnChooserItem columnKey="client" aria-label="Client card"><ColumnChooserName /></ColumnChooserItem></Group>
+        <Group label="Pricing"><ColumnChooserItem columnKey="px" aria-label="Price card"><ColumnChooserName /></ColumnChooserItem></Group>
+      </ColumnChooser>,
+    )
+    expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "0")
+    // The group re-renders itself; the items are its parent's elements, so no item commits.
+    // The root's own observer sees the hidden attribute land and hands the stop over.
+    fireEvent.click(screen.getByRole("button", { name: "Desk" }))
+    await waitFor(() => expect(screen.getByLabelText("Price card")).toHaveAttribute("tabindex", "0"))
+    fireEvent.click(screen.getByRole("button", { name: "Desk" }))
+    await waitFor(() => expect(screen.getByLabelText("Client card")).toHaveAttribute("tabindex", "0"))
+  })
+
   it("keeps the stop through a collapse inside the root, re-render and all", () => {
     function Section({ open, children }: { open: boolean; children: ReactNode }) {
       return <div hidden={!open}>{children}</div>
