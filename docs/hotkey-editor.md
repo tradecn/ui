@@ -47,7 +47,7 @@ function Shortcut() {
   )
 }
 
-function ShortcutSettings() {
+export default function ShortcutSettings() {
   return (
     <HotkeysProvider bindings={BINDINGS}>
       <HotkeyEditor className="w-sm max-w-full">

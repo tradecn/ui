@@ -69,6 +69,13 @@ describe("the list as data", () => {
     expect(importTemplate(list, "not json", "x", T)).toBeNull()
   })
 
+  it("reads a timestamp beyond the Date range as never saved", () => {
+    // toISOString and the formatter both throw past the Date range, so a stored 1e20 — or a
+    // JSON 1e400 that parses to Infinity — must not survive into a render.
+    const kept = parseLayoutTemplates({ version: 1, templates: [{ id: "a", name: "Desk", layout: TWO, savedAt: 1e20 }, { id: "b", name: "Desk B", layout: TWO, savedAt: Number.POSITIVE_INFINITY }] })
+    expect(kept.map((t) => t.savedAt)).toEqual([0, 0])
+  })
+
   it("reads a stored list taking nothing on trust, and round-trips through a preferences slot", () => {
     const list = saveTemplate(saveTemplate([], "Desk A", TWO, T), "Desk B", THREE, T + 1)
     let prefs = createPreferences({ template: [LAYOUT_TEMPLATES_SLOT] })

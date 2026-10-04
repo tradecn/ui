@@ -637,7 +637,9 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
       return (snapshot ??= [...recs.values()].map((rec) => {
         const keys = rec.sequence.join(" ")
         const defaultKeys = normalizeKeys(rec.binding.keys, platform)
-        return { ...rec.binding, keys, defaultKeys, declaredKeys: rec.binding.keys, remapped: keys !== defaultKeys }
+        // Remapped means an override is stored, not that the resolved keys differ: a corrupt
+        // override falls back to the default keys, and Reset must still be able to clear it.
+        return { ...rec.binding, keys, defaultKeys, declaredKeys: rec.binding.keys, remapped: keys !== defaultKeys || overrides.has(rec.binding.id) }
       }))
     },
     conflicts() {
