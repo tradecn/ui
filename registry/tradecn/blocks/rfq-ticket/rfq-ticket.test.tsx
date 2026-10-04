@@ -413,6 +413,19 @@ describe("RfqTicket keys", () => {
     expect(groups[0]!.contains(document.activeElement)).toBe(false)
   })
 
+  it("keeps the record through a window switch, and parks on return", () => {
+    const { rerender } = mount({ defaultDraft: { ask: 99.515625 } })
+    const button = screen.getByRole("button", { name: "Quote" })
+    act(() => button.focus())
+    const away = vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    fireEvent.blur(button, { relatedTarget: null })
+    away.mockRestore()
+    rerender({ inquiry: inquiry({ allowedActions: ["pass"] }) })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    expect(group.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
   it("keeps focus in the ticket when the focused action leaves", () => {
     const { rerender } = mount({ defaultDraft: { ask: 99.515625 } })
     const button = screen.getByRole("button", { name: "Quote" })
