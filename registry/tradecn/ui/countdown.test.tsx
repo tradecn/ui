@@ -108,6 +108,18 @@ describe("Countdown", () => {
     expect(parentRenders).toBe(1)
   })
 
+  it("sizes the bar from a fresh sample while the shared clock idles", () => {
+    let t = 0
+    const clock = createClock(1000, () => t)
+    // Start and stop the clock: its last tick stays 0 while ten minutes pass unsubscribed.
+    clock.subscribe(() => {})()
+    t = 600_000
+    render(<Countdown clock={clock} startsAt={600_000} expiresAt={630_000} />)
+    // The animation runs for the thirty seconds actually left, not the stale ten minutes.
+    const recorded = animations.at(-1)!
+    expect(recorded.options.duration).toBe(30_000)
+  })
+
   it("animates the bar once, linear, for exactly the time left, and starts over when the end moves", () => {
     t = 2000
     const clock = createClock(1000, () => t)
