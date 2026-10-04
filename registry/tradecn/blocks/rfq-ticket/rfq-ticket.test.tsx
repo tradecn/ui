@@ -364,6 +364,50 @@ describe("RfqTicket keys", () => {
     expect(quote).not.toHaveBeenCalled()
   })
 
+  it("reads crossing and need through finiteness, in any basis", () => {
+    const sell = inquiry({ side: "sell" })
+    // A non-finite level is absent to the helper too: a needed NaN is a missing side, and a
+    // NaN pair cannot cross.
+    expect(checkQuote(draftOf({ bid: Number.NaN }), sell).bid).toBeTruthy()
+    expect(checkQuote(draftOf({ bid: Number.NaN, ask: Number.NaN }), inquiry({ side: "two-way" })).ask).toBeTruthy()
+    const credit = inquiry({ instrument: { symbol: "CDX", convention: CREDIT }, side: "two-way" })
+    expect(checkQuote(draftOf({ bid: 105.5, ask: 103 }), credit).ask).toBeUndefined()
+    expect(checkQuote(draftOf({ bid: 103, ask: 105.5 }), credit).ask).toBe("The quote is crossed.")
+  })
+
+  it("forgets a deliberate leave, and parks the ticket the user was in", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const actions: RfqAction[] = [{ id: "quote", label: "Quote", run: vi.fn(), primary: true }]
+    const ui = (allowed: string[]) => (
+      <>
+        <button type="button">Elsewhere</button>
+        <HotkeysProvider registry={registry}>
+          <RfqTicket inquiry={inquiry({ id: "Q-1", allowedActions: allowed })} actions={actions} defaultDraft={{ ask: 99.515625 }} />
+          <RfqTicket inquiry={inquiry({ id: "Q-2", allowedActions: allowed })} actions={actions} defaultDraft={{ ask: 99.515625 }} />
+        </HotkeysProvider>
+      </>
+    )
+    const view = render(ui(["quote"]))
+    const buttons = screen.getAllByRole("button", { name: "Quote" })
+    const elsewhere = screen.getByRole("button", { name: "Elsewhere" })
+    // A deliberate leave clears the record: withdrawing the action later must not steal
+    // focus from the page.
+    act(() => buttons[0]!.focus())
+    act(() => elsewhere.focus())
+    view.rerender(ui([]))
+    expect(document.activeElement).toBe(elsewhere)
+    // The ticket the user was last in takes the park; a sibling's stale record cannot,
+    // since focusing the second ticket's control blurred the first's record away.
+    view.rerender(ui(["quote"]))
+    const again = screen.getAllByRole("button", { name: "Quote" })
+    act(() => again[0]!.focus())
+    act(() => again[1]!.focus())
+    view.rerender(ui([]))
+    const groups = document.querySelectorAll<HTMLElement>("[data-slot='tradecn-rfq-ticket']")
+    expect(groups[1]!.contains(document.activeElement)).toBe(true)
+    expect(groups[0]!.contains(document.activeElement)).toBe(false)
+  })
+
   it("keeps focus in the ticket when the focused action leaves", () => {
     const { rerender } = mount({ defaultDraft: { ask: 99.515625 } })
     const button = screen.getByRole("button", { name: "Quote" })

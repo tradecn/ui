@@ -194,13 +194,17 @@ export interface RfqQuoteProblems {
 export function checkQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: RfqTicketLabels = DEFAULT_RFQ_TICKET_LABELS): RfqQuoteProblems {
   const problems: RfqQuoteProblems = {}
   const sides = quotedSides(inquiry.side)
-  if (sides.includes("bid") && draft.bid === null) problems.bid = labels.bidNeeded
-  if (sides.includes("ask") && draft.ask === null) problems.ask = labels.askNeeded
+  // Levels read through level(): a non-finite value counts as absent here too, as the page
+  // promises for every reader of a level.
+  const bid = level(draft.bid)
+  const ask = level(draft.ask)
+  if (sides.includes("bid") && bid === null) problems.bid = labels.bidNeeded
+  if (sides.includes("ask") && ask === null) problems.ask = labels.askNeeded
   // In the price basis a crossed quote bids above its offer; in the discount, yield, and
   // spread bases the numbers invert, so a normal market quotes the bid above the offer and
   // crossing runs the other way.
   const inverted = quoteBasisOf(inquiry.instrument.convention) !== "price"
-  if (draft.bid !== null && draft.ask !== null && (inverted ? draft.bid < draft.ask : draft.bid > draft.ask)) problems.ask = labels.crossed
+  if (bid !== null && ask !== null && (inverted ? bid < ask : bid > ask)) problems.ask = labels.crossed
   return problems
 }
 
@@ -305,7 +309,12 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
     if (!node || !previous) return
     const doc = node.ownerDocument
     const gone = !previous.isConnected || previous.matches(":disabled")
-    if (gone && (doc.activeElement === previous || doc.activeElement === doc.body)) node.focus()
+    if (gone && (doc.activeElement === previous || doc.activeElement === doc.body)) {
+      // Once parked, the record is spent: a later commit must not take focus again, and a
+      // sibling ticket's stale record must not outrank the one the user was in.
+      focusedInside.current = null
+      node.focus()
+    }
   })
 
   // The draft is told after it changed, never on the first render.
@@ -500,7 +509,13 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   return (
     <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${inquiry.id}`} data-slot="tradecn-rfq-ticket" data-inquiry={inquiry.id} data-side={inquiry.side} data-status={inquiry.status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/30 lining-nums tabular-nums", className)}>
-      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }}>
+      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }} onBlurCapture={(event) => {
+        // Focus moving somewhere outside the ticket on purpose: the leaving control is still
+        // in the document and enabled, so there is nothing to recover from.
+        const leaving = event.target as HTMLElement
+        const next = event.relatedTarget as HTMLElement | null
+        if (focusedInside.current === leaving && leaving.isConnected && !leaving.matches(":disabled") && (!next || !event.currentTarget.contains(next))) focusedInside.current = null
+      }}>
         <div className="flex items-start gap-2">
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <div className="flex flex-wrap items-baseline gap-x-1.5" data-rfq-headline>
