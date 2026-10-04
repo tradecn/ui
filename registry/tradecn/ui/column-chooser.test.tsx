@@ -870,6 +870,48 @@ describe("the keyboard model scales to wide grids", () => {
     expect(card).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End")
   })
 
+  it("gives a keyless item its own stop and routes arrows around it", () => {
+    render(
+      <ColumnChooser columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}}>
+        <ColumnChooserItem columnKey="client" aria-label="Client card"><ColumnChooserName /></ColumnChooserItem>
+        <ColumnChooserItem columnKey="px" role="option" aria-label="Option card"><ColumnChooserName /></ColumnChooserItem>
+        <ColumnChooserItem columnKey="size" aria-label="Size card"><ColumnChooserName /></ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const client = screen.getByLabelText("Client card")
+    const option = screen.getByLabelText("Option card")
+    const size = screen.getByLabelText("Size card")
+    // The option card keeps every native key, so no arrow can serve it: it owns a Tab stop of
+    // its own, the collection's roving stop stays with coordinated items, and arrows skip it.
+    expect(option).toHaveAttribute("tabindex", "0")
+    expect(client).toHaveAttribute("tabindex", "0")
+    expect(size).toHaveAttribute("tabindex", "-1")
+    act(() => client.focus())
+    fireEvent.keyDown(client, { key: "ArrowDown" })
+    expect(size).toHaveFocus()
+    fireEvent.keyDown(size, { key: "ArrowUp" })
+    expect(client).toHaveFocus()
+  })
+
+  it("runs item keys through the control, so its vetoes hold", () => {
+    const onChange = vi.fn()
+    render(
+      <ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={onChange}>
+        <ColumnChooserItem columnKey="px" aria-label="Price card">
+          <ColumnChooserName />
+          <ColumnChooserVisibility onClick={(event) => event.preventDefault()} />
+          <ColumnChooserResetWidth onClick={(event) => event.preventDefault()}>Reset</ColumnChooserResetWidth>
+        </ColumnChooserItem>
+      </ColumnChooser>,
+    )
+    const card = screen.getByLabelText("Price card")
+    act(() => card.focus())
+    // The caller's onClick veto covers the keyboard exactly as it covers the pointer.
+    fireEvent.keyDown(card, { key: " " })
+    fireEvent.keyDown(card, { key: "Delete" })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it("advertises nothing on an item that keeps its native keys", () => {
     render(
       <ColumnChooser columns={columns} columnState={{ ...EMPTY_COLUMN_STATE, widths: { px: 140 } }} onColumnStateChange={() => {}}>
