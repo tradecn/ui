@@ -63,6 +63,8 @@ export interface RuleColumn<T> {
   numeric?: boolean
   /** Reads a value typed into a rule in this column's own format. Default: a number for a numeric column, the text itself for the rest. */
   parse?: (text: string) => unknown
+  /** Prints a parsed rule value in the rule's words, so a description says what the rule compares — a data-grid column's `format` fits when it reads only the value, since no row exists here. */
+  format?: (value: unknown, ...rest: never[]) => string
 }
 
 export const RULE_OPS: readonly RuleOp[] = ["eq", "ne", "gt", "gte", "lt", "lte", "between", "in", "contains", "startsWith", "isNull", "notNull"]
@@ -268,7 +270,25 @@ export function describeRule<T>(rule: { column: string; when?: RuleCondition } &
   const condition: RuleCondition = rule.when ?? { op: rule.op!, value: rule.value, values: rule.values }
   const name = columnName(column, rule.column)
   const word = RULE_OP_LABELS[condition.op]
-  const text = (raw: RuleValue | undefined) => (raw === undefined || raw === null ? "" : String(raw))
+  // A string threshold reads through the column's parse, so the words print what the rule
+  // compares: a decimal typed into a fraction column describes, as it matches, on the grid.
+  const text = (raw: RuleValue | undefined) => {
+    if (raw === undefined || raw === null) return ""
+    if (typeof raw === "string" && column?.parse && column.format) {
+      // Normalized like the comparison: a parser's NaN matches nothing, so its words must not
+      // print a formatted non-value. A parser's throw propagates here as it does everywhere.
+      const parsed = normalizeValue(column.parse(raw))
+      if (parsed !== null && parsed !== undefined) {
+        try {
+          const printed = column.format(parsed)
+          if (typeof printed === "string" && printed !== "") return printed
+        } catch {
+          // A format that needs its row has no row here; the typed text stands.
+        }
+      }
+    }
+    return String(raw)
+  }
   if (condition.op === "isNull" || condition.op === "notNull") return `${name} ${word}`
   if (condition.op === "between") {
     const [lo, hi] = condition.values ?? []

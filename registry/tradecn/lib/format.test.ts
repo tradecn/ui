@@ -103,6 +103,46 @@ describe("fractions", () => {
     fc.assert(fc.property(fc.integer({ min: 0, max: 200 * 64 }), (n) => parsePrice(formatFraction(n / 64, T32_5), T32_5) === n / 64))
     fc.assert(fc.property(fc.integer({ min: 0, max: 200 * 128 }), (n) => parsePrice(formatFraction(n / 128, T64), T64) === n / 128))
   })
+  it("snaps a typed decimal to the printable grid, so the value is the price the text shows", () => {
+    expect(parsePrice("99.7", T32)).toBe(99.703125)
+    expect(formatFraction(parsePrice("99.7", T32)!, T32)).toBe("99-22+")
+    expect(parsePrice("99.7", T32_8)).toBe(99.69921875)
+    expect(formatFraction(parsePrice("99.7", T32_8)!, T32_8)).toBe("99-223")
+    expect(parsePrice("-99.7", T32)).toBe(-99.703125)
+    // A negative tie snaps away from zero, exactly as the formatter prints it.
+    expect(parsePrice("-0.0078125", T32)).toBe(-0.015625)
+    expect(Object.is(parsePrice("-0.0078125", T32), -0)).toBe(false)
+    // A sub-half-unit negative snaps to plain zero, and scaling overflow refuses instead of Infinity.
+    expect(Object.is(parsePrice("-0.001", T32), 0)).toBe(true)
+    expect(parsePrice("1" + "0".repeat(307), T32)).toBeNull()
+    expect(parsePrice("1" + "0".repeat(307) + ".5", T32)).toBeNull()
+    // From 1e21 the whole part prints in exponent form, which the notation cannot read back.
+    expect(parsePrice("1" + "0".repeat(21), T32)).toBeNull()
+    expect(parsePrice("1" + "0".repeat(21) + ".5", T32)).toBeNull()
+    expect(parsePrice("99999999999999999999", T32)).not.toBeNull()
+    // Tick scaling that overflows parses as null; Intl prints tick and decimal prices in full
+    // digits at any finite size, so their large values round-trip rather than refuse, and zero
+    // is plain zero everywhere.
+    expect(parsePrice("1" + "0".repeat(308), { kind: "tick", tick: 0.001 })).toBeNull()
+    expect(parsePrice("1" + "0".repeat(21), { kind: "tick", tick: 0.5 })).toBe(1e21)
+    expect(parsePrice("1" + "0".repeat(21), { kind: "decimal", decimals: 2 })).toBe(1e21)
+    expect(parsePrice(formatPrice(1e21, { kind: "decimal", decimals: 2 }), { kind: "decimal", decimals: 2 })).toBe(1e21)
+    expect(Object.is(parsePrice("-0.001", { kind: "decimal", decimals: 2 }), 0)).toBe(true)
+    expect(Object.is(parsePrice("-0.2", { kind: "tick", tick: 0.5 }), 0)).toBe(true)
+    expect(Object.is(parsePrice("-0", T32), 0)).toBe(true)
+    // Plain-decimal spellings only: a double near zero stringifies in exponent notation, which the
+    // parser rejects, and a null would have slipped through a non-null assertion unexercised. The
+    // parsed value must round-trip AND print as the typed number prints, or a floor would pass.
+    for (const convention of [T32, T32_5, T32_8, T64]) {
+      fc.assert(fc.property(fc.double({ min: -200, max: 200, noNaN: true }), (v) => {
+        const text = v.toFixed(7)
+        const snapped = parsePrice(text, convention)
+        if (snapped === null) return false
+        return parsePrice(formatFraction(snapped, convention), convention) === snapped && formatFraction(snapped, convention) === formatFraction(Number(text), convention)
+      }))
+    }
+  })
+
   it("parses what a trader types", () => {
     expect(parsePrice("99-16+", T32)).toBe(99.515625)
     expect(parsePrice(" 99-16 ", T32)).toBe(99.5)

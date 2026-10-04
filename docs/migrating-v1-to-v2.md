@@ -64,6 +64,10 @@ export function adaptRowStore<T>(source: RowStore<T>): RowStore<T> {
 
 The wrapper requires an updated source store. If you implement storage and ordering yourself, implement the same pure preparation and reversible connection contract before using the updated hooks. `RowView` itself retains its existing methods.
 
+## Prices and parsing
+
+`parsePrice` snaps a plain decimal typed into a fraction convention onto the printable grid — half or eighth ticks — so the parsed value is the price its formatted text shows. v1 accepted fraction decimals without snapping. Every reader of a parsed price moves with it: `onValueChange` from a quote field, a ticket's described draft and `run`, an RFQ quote, QuotePanel's `onEdit`, and a grid-rule threshold parsed with `parsePrice`. A saved rule whose decimal threshold sits off the grid matches on the snapped price after upgrading — `gt "99.7"` in 32nds compares against `99.703125` — and a rule column given a `format` describes that compared price instead of the typed text. A negative tie snaps away from zero as it prints, zero is always plain zero, and a value too large to print back in the convention's notation — from 1e21, where whole parts take exponent form — parses as `null`; v1 returned the number and let the formatter print text that could not be read back.
+
 ## Alerts
 
 In v2, `Alerts` is a container whose children you compose. Replace `<Alerts alerts={store} ... />` with `<Alerts>...</Alerts>` and compose its contents. The existing alert-store interface is unchanged.

@@ -55,13 +55,13 @@ The preview compares a note on price, a bill on discount, and credit on spread. 
 
 For non-price quotes, `quoteStep` overrides the default step. Price quotes ignore `quoteStep` and `quoteDecimals`. Set precision high enough to display the step; the bill above steps by `0.001` in discount, despite its price tick of `0.0005`.
 
-The field uses [`format`](format.md)'s `parseQuote`, `formatQuote`, and `stepQuote`. Price input accepts the instrument's notation (`99-16+`) or a decimal. Decimal price conventions round to their decimal places, tick conventions snap to their price tick, and fraction conventions accept decimal input without snapping. Other bases accept decimals, snap to the quote step, and print without a unit suffix.
+The field uses [`format`](format.md)'s `parseQuote`, `formatQuote`, and `stepQuote`. Price input accepts the instrument's notation (`99-16+`) or a decimal. Decimal price conventions round to their decimal places, tick conventions snap to their price tick, and fraction conventions snap decimal input to their printable grid, so the value reported is the price the formatted text shows. Other bases accept decimals, snap to the quote step, and print without a unit suffix.
 
 Parsing trims whitespace, removes commas, and accepts either minus sign; decimal input uses a point. Fraction prices use the mono font; other quotes use the numeric font. A new kind of instrument needs a new convention object, with no instrument-name lookup.
 
 ### Typing and stepping
 
-Each text edit calls `onValueChange` with the parsed number, or `null` for blank or invalid text. Keep that value in parent state. Blur formats valid text (`99.75` becomes `99-24` for 32nds) or marks invalid text with `aria-invalid` and a message below the field. Blur does not call `onValueChange`.
+Each text edit calls `onValueChange` with the parsed number, or `null` for blank or invalid text. Keep that value in parent state. Blur formats valid text (`99.75` becomes `99-24` for 32nds) or marks invalid text with `aria-invalid` and a message below the field. Blur does not call `onValueChange`; it does not need to, since parsing already snapped the value to the printable grid — for a decimal convention that holds when its places can show the step.
 
 The default message is `Not a <lowercase label> in this instrument's notation.` Typing clears the field's own error; blank text is not marked invalid. A supplied `error` remains until the parent clears it. `error=""` suppresses the field's message and invalid mark, as does `invalidText=""` when `error` is unset.
 

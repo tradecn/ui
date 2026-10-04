@@ -148,15 +148,35 @@ export function parsePrice(s: string, c: PriceConvention): number | null {
         else return null
       }
       const value = Number(wholeText) + (ticks + subFraction) / c.denominator
-      return sign === "-" ? -value : value
+      // What cannot print back in the notation is refused: unit scaling must stay finite, the
+      // whole part must stay out of exponent form (1e21 up), and "-0" stays plain zero.
+      if (value >= 1e21 || !Number.isFinite(value * c.denominator * (c.eighths ? 8 : 2))) return null
+      return value === 0 ? 0 : sign === "-" ? -value : value
     }
   }
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) return null
   const n = Number(text)
   if (!Number.isFinite(n)) return null
-  if (c.kind === "tick") return roundToTick(n, c.tick)
-  if (c.kind === "decimal") return Number(n.toFixed(c.decimals))
-  return n
+  // Every convention keeps the promise the reference row makes: what parses can print back.
+  // Intl prints tick and decimal prices in full digits at any finite size, so only fraction
+  // notation carries the 1e21 bound; tick scaling must stay finite, and zero stays plain zero.
+  if (c.kind === "tick") {
+    const rounded = roundToTick(n, c.tick)
+    return Number.isFinite(rounded) ? (rounded === 0 ? 0 : rounded) : null
+  }
+  if (c.kind === "decimal") {
+    const fixed = Number(n.toFixed(c.decimals))
+    return fixed === 0 ? 0 : fixed
+  }
+  // A decimal typed into a fraction convention snaps to the printable grid, so the value a field
+  // reports is the price its formatted text shows. The magnitude rounds, as the formatter rounds,
+  // so a negative tie snaps away from zero the way it prints.
+  const unitsPerWhole = c.denominator * (c.eighths ? 8 : 2)
+  const units = Math.round(Math.abs(n) * unitsPerWhole)
+  // Scaling can overflow a finite input, a magnitude from 1e21 up prints in exponent form the
+  // notation cannot parse back, and a sub-half-unit negative would make negative zero.
+  if (!Number.isFinite(units) || units / unitsPerWhole >= 1e21) return null
+  return units === 0 ? 0 : (n < 0 ? -units : units) / unitsPerWhole
 }
 
 /** 4.2531 as "4.253%". */
