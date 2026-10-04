@@ -1384,6 +1384,35 @@ test("grid reset shares chooser defaults and restores keyboard focus when its op
   await expect(grid.locator("[data-row-id='a']")).toHaveAttribute("data-focused", "true")
 })
 
+test("the column chooser holds one tab stop and runs every command from the focused item", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='column-chooser']")
+  const panel = scene.locator("[data-slot='tradecn-column-chooser']")
+  const state = async () => JSON.parse(await scene.locator("[data-chooser-state]").getAttribute("data-chooser-state") ?? "{}")
+  await expect(panel.locator("[data-slot='tradecn-column-chooser-item']")).toHaveCount(5)
+  await expect(panel.locator("[data-slot='tradecn-column-chooser-item'][tabindex='0']")).toHaveCount(1)
+  await expect(panel.getByRole("checkbox", { name: "Show Price" })).toHaveAttribute("tabindex", "-1")
+  await expect(panel.getByRole("button", { name: "Move down: Client" })).toHaveAttribute("tabindex", "-1")
+  await panel.locator("[data-column='id']").focus()
+  await page.keyboard.press("ArrowDown")
+  await expect(panel.locator("[data-column='client']")).toBeFocused()
+  await expect(panel.locator("[data-column='client']")).toHaveAttribute("tabindex", "0")
+  await expect(panel.locator("[data-column='id']")).toHaveAttribute("tabindex", "-1")
+  await page.keyboard.press("End")
+  await expect(panel.locator("[data-column='status']")).toBeFocused()
+  await page.keyboard.press("Space")
+  await expect(panel.locator("[data-column='status']")).toHaveAttribute("data-visible", "false")
+  await page.keyboard.press("Space")
+  await expect(panel.locator("[data-column='status']")).toHaveAttribute("data-visible", "true")
+  await page.keyboard.press("Alt+Home")
+  await expect.poll(async () => (await state()).order).toEqual(["id", "status", "client", "px", "size"])
+  await expect(panel.locator("[data-column='status']")).toBeFocused()
+  await panel.locator("[data-column='px']").focus()
+  await page.keyboard.press("Delete")
+  await expect.poll(async () => (await state()).widths).toEqual({ px: 100 })
+  await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("100 px")
+})
+
 for (const dark of [false, true]) {
   test(`grid resizing preserves current settings and ends its pointer gesture (${dark ? "dark" : "light"})`, async ({ page }) => {
     const errors: string[] = []

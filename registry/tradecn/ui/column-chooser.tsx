@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type DragEvent, type ReactNode, type Ref } from "react"
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type DragEvent, type ReactNode, type Ref } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -18,7 +18,7 @@ export interface ColumnChooserLabels {
   /** Prefix of a checkbox's name: "Show Price". */
   show: string
   frozen: string
-  /** After a count: "2 hidden". */
+  /** After a count, "2 hidden", and alone as a hidden item's spoken state. */
   hidden: string
   width: string
   resetWidth: string
@@ -49,7 +49,7 @@ export const DEFAULT_COLUMN_CHOOSER_LABELS: Required<ColumnChooserLabels> = {
   moveDown: "Move down",
   resetAll: "Reset all",
   empty: "No column matches.",
-  dragHint: "Drag a column, or hold Alt with an arrow key, to reorder. Frozen columns stay first.",
+  dragHint: "Up and Down move between columns, and Home and End jump to the ends. Drag a column, or hold Alt with an arrow key, to reorder; Alt+Home and Alt+End move to the edge. Space shows or hides a focused column, and Delete resets its width. Frozen columns stay first.",
   announceMove: "{name} moved to {n} of {m}.",
   announceReorder: "{name} reordered.",
   announceShow: "{name} shown.",
@@ -184,10 +184,34 @@ interface ChooserContextValue extends ColumnChooserState {
   drop: (key: string, event: DragEvent<HTMLDivElement>) => void
   endDrag: (key?: string) => void
   focusFallback: () => void
+  /** Each item subscribes for its own ownership, so focus moves re-render two items, not the list. */
+  registrations: ChooserRegistrations
+  registerItem: (key: string, node: HTMLElement | null, optedOut?: boolean, keylessItem?: boolean) => void
+  focusStep: (from: string, step: -1 | 1 | "first" | "last") => void
+}
+
+interface ChooserRegistrations {
+  nodes: Map<string, HTMLElement>
+  optedOut: Set<string>
+  /** Items that keep every native key: no roving stop, no arrow visits — they own a Tab stop. */
+  keyless: Set<string>
+  subscribe: (listener: () => void) => () => void
+  /** The one presented, registered, coordinated key currently in the tab order. */
+  owner: () => string | null
+  set: (key: string, node: HTMLElement | null, opted: boolean, keylessItem: boolean) => void
+  present: (keys: readonly string[]) => void
+  focus: (key: string) => void
+  /** Re-resolves against live availability; publishes only when the owner moves. */
+  refresh: () => void
+  /** The collection's root, the boundary for judging an item's own availability. */
+  setRoot: (node: HTMLElement | null) => void
 }
 
 const ChooserContext = createContext<ChooserContextValue | null>(null)
 const ItemContext = createContext<ColumnChooserItemState | null>(null)
+const ControlsContext = createContext<((kind: "visibility" | "resetWidth", element: () => HTMLElement | null) => () => void) | null>(null)
+
+const NO_CONTROL_ELEMENT = () => null
 
 function useChooserContext() {
   const value = useContext(ChooserContext)
@@ -206,6 +230,8 @@ export interface ColumnChooserItemState {
   dragging: boolean
   setVisible: (visible: boolean) => void
   move: (delta: -1 | 1) => void
+  /** Move to the first or last presented place on the column's side of the frozen line. */
+  moveToEdge: (edge: "start" | "end") => void
   resetWidth: () => void
 }
 
@@ -232,8 +258,58 @@ function useChooserRef<T>(localRef: { current: T | null }, forwarded: Ref<T> | u
   }, [localRef, forwarded])
 }
 
+/**
+ * Unavailable for reasons of its own, judged no higher than the collection's root: a shared
+ * ancestor mask hides every item equally and is not the item's fault. Display does not inherit,
+ * so each step's own computed display is positional; visibility does inherit, so the item is
+ * self-hidden only when the root itself still reads visible.
+ */
+function unavailableWithin(node: HTMLElement, root: HTMLElement | null) {
+  if (!root || !root.contains(node)) return unavailable(node)
+  if (node.matches(":disabled") || (node.matches("[aria-disabled=true]") && node.tabIndex < 0)) return true
+  const mask = node.closest("[hidden], [aria-hidden=true], [inert]")
+  if (mask && mask !== root && root.contains(mask)) return true
+  const view = node.ownerDocument.defaultView
+  const visibility = view?.getComputedStyle(node).visibility
+  const rootVisibility = view?.getComputedStyle(root).visibility
+  if ((visibility === "hidden" || visibility === "collapse") && rootVisibility !== visibility) return true
+  for (let ancestor: HTMLElement | null = node; ancestor && ancestor !== root; ancestor = ancestor.parentElement) {
+    const style = view?.getComputedStyle(ancestor)
+    if (style?.display === "none" || style?.contentVisibility === "hidden") return true
+  }
+  // A closed details hides through the browser's own slotting, which no light ancestor's
+  // attribute or style carries, so it is checked by element: content below the root inside a
+  // closed details is the item's own fault, except the details' first summary, which stays
+  // rendered.
+  if (insideClosedDetails(node, root)) return true
+  return false
+}
+
+/**
+ * A disabled fieldset suspends a control unless the control lives in that fieldset's first
+ * legend, which HTML leaves enabled; an outer disabled fieldset can still suspend it.
+ */
+function fieldsetSuspended(el: HTMLElement) {
+  for (let fieldset = el.closest("fieldset[disabled]"); fieldset; fieldset = fieldset.parentElement ? fieldset.parentElement.closest("fieldset[disabled]") : null) {
+    const legend = Array.prototype.find.call(fieldset.children, (child: Element) => child.tagName === "LEGEND") as Element | undefined
+    if (!legend || !legend.contains(el)) return true
+  }
+  return false
+}
+
+function insideClosedDetails(node: HTMLElement, boundary: HTMLElement | null) {
+  for (let details = node.closest("details:not([open])"); details && details !== boundary && (!boundary || boundary.contains(details)); details = details.parentElement ? details.parentElement.closest("details:not([open])") : null) {
+    const summary = Array.prototype.find.call(details.children, (child: Element) => child.tagName === "SUMMARY") as Element | undefined
+    if (!summary || !summary.contains(node)) return true
+  }
+  return false
+}
+
 function unavailable(node: HTMLElement) {
   if (!node.isConnected || node.matches(":disabled") || (node.matches("[aria-disabled=true]") && node.tabIndex < 0) || node.closest("[hidden], [aria-hidden=true], [inert]")) return true
+  // Where the platform has it, checkVisibility also sees hiding no ancestor attribute carries,
+  // a closed details element's slotted content among it.
+  if (typeof node.checkVisibility === "function" && !node.checkVisibility()) return true
   const view = node.ownerDocument.defaultView
   const visibility = view?.getComputedStyle(node).visibility
   if (visibility === "hidden" || visibility === "collapse") return true
@@ -335,6 +411,140 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
   }
   const hiddenCount = rows.filter((row) => !row.visible).length
   const isDefault = sameSettings(stateRows, baseRows)
+  // One presented item carries the tab stop; arrows move between items (roving focus). Items
+  // register their nodes, and whether an explicit tabIndex opted them out, through a store each
+  // item subscribes to for its own ownership alone, so registration, search, and focus moves
+  // re-render the items they touch instead of the collection.
+  const [registrations] = useState<ChooserRegistrations>(() => {
+    const nodes = new Map<string, HTMLElement>()
+    const optedOut = new Set<string>()
+    const keyless = new Set<string>()
+    const listeners = new Set<() => void>()
+    let presented: readonly string[] = []
+    let active: string | null = null
+    let owner: string | null = null
+    let rootEl: HTMLElement | null = null
+    // The stop stays on the focused coordinated item while it is presented and registered, else
+    // it falls to the first presented key with a usable registered item.
+    const resolve = () => {
+      const usable = (key: string) => {
+        const node = nodes.get(key)
+        return node !== undefined && !optedOut.has(key) && !unavailable(node)
+      }
+      // When nothing is usable — an ancestor masks every item — the stop falls back to an item
+      // that is clean by its own fault, judged no higher than the collection's root: a standing
+      // owner first, so a shared mask never moves the stop, then the focused item, then the
+      // first presented one. Unreachable while hidden, tabbable the moment the mask lifts.
+      const clean = (key: string) => {
+        const node = nodes.get(key)
+        return node !== undefined && !optedOut.has(key) && !unavailableWithin(node, rootEl)
+      }
+      // A registered coordinated item always leaves one stop standing: usable first, then clean
+      // by its own fault, then — when a mask inside the root hides everything — any registered
+      // item at all, the standing owner preferred at every tier.
+      const registered = (key: string) => nodes.has(key) && !optedOut.has(key)
+      const next = (active !== null && presented.includes(active) && usable(active) ? active : presented.find(usable))
+        ?? (owner !== null && presented.includes(owner) && clean(owner) ? owner : undefined)
+        ?? (active !== null && presented.includes(active) && clean(active) ? active : presented.find(clean))
+        ?? (owner !== null && presented.includes(owner) && registered(owner) ? owner : undefined)
+        ?? presented.find(registered)
+        ?? null
+      if (next === owner) return false
+      owner = next
+      return true
+    }
+    const publish = () => {
+      for (const listener of listeners) listener()
+    }
+    return {
+      nodes,
+      optedOut,
+      keyless,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener)
+        return () => void listeners.delete(listener)
+      },
+      owner: () => owner,
+      set(key, node, opted, keylessItem) {
+        if (node) {
+          if (nodes.get(key) === node && optedOut.has(key) === opted && keyless.has(key) === keylessItem) return
+          nodes.set(key, node)
+          if (opted) optedOut.add(key)
+          else optedOut.delete(key)
+          if (keylessItem) keyless.add(key)
+          else keyless.delete(key)
+        } else {
+          if (!nodes.has(key)) return
+          nodes.delete(key)
+          optedOut.delete(key)
+          keyless.delete(key)
+        }
+        if (resolve()) publish()
+      },
+      present(keys) {
+        presented = keys
+        if (resolve()) publish()
+      },
+      focus(key) {
+        active = key
+        if (resolve()) publish()
+      },
+      refresh() {
+        if (resolve()) publish()
+      },
+      setRoot(node) {
+        rootEl = node
+        if (resolve()) publish()
+      },
+    }
+  })
+  // The root is the boundary for judging an item's own availability.
+  useLayoutEffect(() => {
+    registrations.setRoot(root.current)
+    return () => registrations.setRoot(null)
+  }, [registrations])
+  // A change inside the root can hide the owner without any commit — a collapsible kept
+  // mounted, a class toggle, a details element. The root watches its own subtree and asks the
+  // store to re-resolve; publish-on-change keeps it from looping, and the cost is scoped to
+  // this collection's markup.
+  useEffect(() => {
+    const node = root.current
+    if (!node) return
+    const observer = new MutationObserver(() => registrations.refresh())
+    observer.observe(node, { attributes: true, subtree: true, attributeFilter: ["hidden", "inert", "aria-hidden", "open", "class", "style"] })
+    return () => observer.disconnect()
+  }, [registrations])
+  // Presentation order reaches the store after each commit; the owner moves only when it must.
+  useLayoutEffect(() => {
+    registrations.present(presentedRows.map((row) => row.key))
+  })
+  // Again after paint: a modal elsewhere can hold the page aria-hidden through the mount commit,
+  // which reads every item as unusable; by now the transient is gone and the items subscribe.
+  useEffect(() => {
+    registrations.present(presentedRows.map((row) => row.key))
+  })
+  const registerItem = useCallback((key: string, node: HTMLElement | null, optedOut = false, keylessItem = false) => registrations.set(key, node, optedOut, keylessItem), [registrations])
+  const focusStep = (from: string, step: -1 | 1 | "first" | "last") => {
+    const keys = presentedRows.map((row) => row.key)
+    const index = keys.indexOf(from)
+    // Scan past unregistered or unavailable items: a hidden column between two live ones must
+    // not wall off arrows, and Home and End walk inward from their edge to the first usable item.
+    const usable = (key: string | undefined) => {
+      if (key === undefined || registrations.keyless.has(key)) return null
+      const node = registrations.nodes.get(key)
+      return node && !unavailable(node) ? { key, node } : null
+    }
+    let found: { key: string; node: HTMLElement } | null = null
+    if (step === "first" || step === "last") {
+      for (const key of step === "first" ? keys : [...keys].reverse()) if ((found = usable(key))) break
+    } else if (index >= 0) {
+      for (let i = index + step; i >= 0 && i < keys.length; i += step) if ((found = usable(keys[i]))) break
+    }
+    if (!found || found.key === from) return
+    // Navigation can visit an opted-out item, but the roving stop stays with a coordinated one.
+    if (!registrations.optedOut.has(found.key)) registrations.focus(found.key)
+    found.node.focus()
+  }
   const [announcements] = useState(createAnnouncements)
   const committed = useRef({ state: columnState, rows: stateRows })
   const pending = useRef<{ state: ColumnState; before: ChooserRow<T>[]; rows: ChooserRow<T>[]; edit: ChooserEdit } | null>(null)
@@ -387,6 +597,12 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
       const target = neighbors.get(row.key)?.[delta === -1 ? "up" : "down"]
       if (target !== undefined) change(moveColumnTo(stateRows, columnState, row.key, target), { kind: "move", key: row.key })
     },
+    moveToEdge: (edge) => {
+      if (!presentedRows.some((presentedRow) => presentedRow.key === row.key)) return
+      const side = presentedRows.filter((presentedRow) => presentedRow.frozen === row.frozen)
+      const target = edge === "start" ? side[0] : side[side.length - 1]
+      if (target && target.key !== row.key) change(moveColumnTo(stateRows, columnState, row.key, target.key), { kind: "move", key: row.key })
+    },
     resetWidth: () => {
       const width = baseState.widths[row.key]
       change(width === undefined ? resetColumnWidth(columnState, row.key) : { ...columnState, widths: { ...columnState.widths, [row.key]: width } }, { kind: "width", key: row.key })
@@ -400,6 +616,7 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
   }
   return <ChooserContext value={{
     rows, shown, presented: presentedRows, query, setQuery, labels, hiddenCount, isDefault, byKey, focusFallback, endDrag, announcements,
+    registrations, registerItem, focusStep,
     reset: () => change(baseState, { kind: "reset" }),
     startDrag: (key, event) => {
       const row = byKey.get(key)?.row
@@ -484,11 +701,76 @@ function ownsItemEvent(event: { target: EventTarget; currentTarget: HTMLDivEleme
   return isElement(event.target) && event.currentTarget.contains(event.target) && event.target.closest("[data-slot=tradecn-column-chooser-item]") === event.currentTarget && event.target.closest("[data-slot=tradecn-column-chooser]") === event.currentTarget.closest("[data-slot=tradecn-column-chooser]")
 }
 
-function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, draggable = true, "aria-label": ariaLabel, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
-  const { row, dragging, move } = item
-  const { focusFallback, startDrag, dragOver, drop, endDrag } = useChooserContext()
+// Widget roles whose keyboard model uses the arrows, per the ARIA authoring practices. A separator
+// only receives keys when it is focusable, and a focusable separator is a splitter that owns them.
+const ARROW_OWNING_ROLES = new Set("application columnheader combobox grid gridcell listbox menu menubar menuitem menuitemcheckbox menuitemradio option radio radiogroup row rowheader scrollbar searchbox separator slider spinbutton tab tablist textbox toolbar tree treegrid treeitem".split(" "))
+
+// Controls whose own keys matter: carets, selects, radios, sliders, and ARIA widgets built on
+// generic elements. Any recognized arrow-owning token counts, a conservative reading of fallback
+// role lists. A checkbox or plain button owns no arrows. The walk checks the item itself last and
+// stays inside it, so an editable item, or one given an arrow-owning role, keeps its own keys.
+function arrowOwningTarget(target: EventTarget, item: HTMLElement) {
+  if (!isElement(target)) return false
+  for (let node: Element | null = target; node; node = node.parentElement) {
+    if (node.matches('input:not([type="checkbox"]):not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"])')) return true
+    const role = node.getAttribute("role")
+    if (role && role.toLowerCase().split(/[\t\n\f\r ]+/).some((token) => ARROW_OWNING_ROLES.has(token))) return true
+    if (node === item) break
+  }
+  return false
+}
+
+function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable = true, "aria-label": ariaLabel, onKeyDown, onDragStart, onDragOver, onDrop, onDragEnd, onFocusCapture, onBlurCapture, ...props }: ComponentProps<"div"> & { item: ColumnChooserItemState }) {
+  const { row, dragging, move, moveToEdge, setVisible, resetWidth } = item
+  const { labels, focusFallback, startDrag, dragOver, drop, endDrag, registrations, registerItem, focusStep } = useChooserContext()
+  const isOwner = useSyncExternalStore(registrations.subscribe, () => registrations.owner() === row.key, () => false)
+  // An item made editable, or given an arrow-owning role of its own, keeps every native key:
+  // the handler bows out, the metadata advertises nothing, the roving model opts it out, and
+  // it owns a Tab stop of its own, since no arrow can reach it.
+  const itemKeyless = (props.contentEditable !== undefined && props.contentEditable !== false && props.contentEditable !== "false") || (role ?? "").toLowerCase().split(/[\t\n\f\r ]+/).some((token) => ARROW_OWNING_ROLES.has(token))
+  const [controls, setControls] = useState<{ visibility: { element: () => HTMLElement | null }[]; resetWidth: { element: () => HTMLElement | null }[] }>({ visibility: [], resetWidth: [] })
+  const registerControl = useCallback((kind: "visibility" | "resetWidth", element: () => HTMLElement | null) => {
+    // Each registration is its own token: two getter-less declarations share one element
+    // function, and removing one must never remove the other.
+    const token = { element }
+    setControls((current) => ({ ...current, [kind]: [...current[kind], token] }))
+    return () => setControls((current) => ({ ...current, [kind]: current[kind].filter((entry) => entry !== token) }))
+  }, [])
+  // Effectively enabled at press time: a declared control can still sit in a disabled fieldset,
+  // where HTML leaves the first legend's controls enabled; a getter-less declaration counts as
+  // live.
+  const liveControl = (kind: "visibility" | "resetWidth") => controls[kind].some((entry) => {
+    const el = entry.element()
+    return !el || !(el.matches(":disabled") || fieldsetSuspended(el))
+  })
+  // The command runs through the live control itself when one is in the DOM: a click carries
+  // every veto — onClick preventDefault, a checkbox's cancel, readOnly — exactly as a pointer
+  // does. Only a getter-less public declaration falls back to the direct call.
+  const runControl = (kind: "visibility" | "resetWidth", direct: () => void) => {
+    for (const entry of controls[kind]) {
+      const el = entry.element()
+      if (el && !(el.matches(":disabled") || fieldsetSuspended(el))) {
+        el.click()
+        return
+      }
+    }
+    direct()
+  }
   const root = useRef<HTMLDivElement>(null)
   const rootRef = useChooserRef(root, ref)
+  // Registration is a layout effect, not part of the ref: an inline caller ref changes identity
+  // every render, and re-registering on each change would invalidate the provider's subscription
+  // in a loop.
+  useLayoutEffect(() => {
+    registerItem(row.key, root.current, tabIndex !== undefined || itemKeyless, itemKeyless)
+    return () => registerItem(row.key, null)
+  }, [row.key, registerItem, tabIndex, itemKeyless])
+  // Any commit of an item can change its availability — hidden, inert, aria-hidden, a class or
+  // style that removes it — so every one re-resolves; the store publishes only when the owner
+  // actually moves, which keeps re-renders from looping.
+  useLayoutEffect(() => {
+    registrations.refresh()
+  })
   const focused = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
     const node = root.current
@@ -509,18 +791,50 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, dragg
       }
     }
   }, [row.key, endDrag, focusFallback])
-  return <ItemContext value={item}><div role={role} tabIndex={tabIndex} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
+  return <ItemContext value={item}><ControlsContext value={registerControl}><div role={role} tabIndex={tabIndex ?? (itemKeyless || isOwner ? 0 : -1)} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-description={row.visible ? undefined : labels.hidden} aria-keyshortcuts={itemKeyless ? undefined : `${controls.visibility.length ? "Space " : ""}Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End${controls.resetWidth.length ? " Delete Backspace" : ""}`} data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
     onFocusCapture?.(event)
-    if (ownsItemEvent(event)) focused.current = event.target
+    if (ownsItemEvent(event)) {
+      focused.current = event.target
+      // An explicitly opted-out item never takes the roving stop, even by pointer focus.
+      if (tabIndex === undefined && !itemKeyless) registrations.focus(row.key)
+    }
   }} onBlurCapture={(event) => {
     onBlurCapture?.(event)
     if (!event.currentTarget.contains(event.relatedTarget) && (event.relatedTarget || !unavailable(event.target))) focused.current = null
   }} onKeyDown={(event) => {
     onKeyDown?.(event)
-    if (!ownsItemEvent(event) || event.defaultPrevented || event.nativeEvent.isComposing || !event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return
-    event.preventDefault()
-    event.stopPropagation()
-    move(event.key === "ArrowUp" ? -1 : 1)
+    if (!ownsItemEvent(event) || event.defaultPrevented || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey) return
+    // A control that owns its arrows keeps every arrow chord: word movement, combobox opening, slider steps.
+    if (arrowOwningTarget(event.target, event.currentTarget)) return
+    if (event.altKey) {
+      if (event.shiftKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "Home" && event.key !== "End")) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") move(event.key === "ArrowUp" ? -1 : 1)
+      else moveToEdge(event.key === "Home" ? "start" : "end")
+      return
+    }
+    if (event.shiftKey) return
+    if (event.key === "ArrowUp" || event.key === "ArrowDown" || event.key === "Home" || event.key === "End") {
+      event.preventDefault()
+      event.stopPropagation()
+      focusStep(row.key, event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : event.key === "Home" ? "first" : "last")
+      return
+    }
+    if (event.target !== event.currentTarget) return
+    // Space and Delete run only where the layout renders the matching control, so a visible-only
+    // list cannot hide a column it offers no way to bring back, and a held key toggles once.
+    if (event.key === " " && controls.visibility.length && liveControl("visibility")) {
+      // Every handled Space cancels, or held repeats scroll the page; the toggle runs once.
+      // A control that is effectively disabled where it stands never claims the key at all.
+      event.preventDefault()
+      event.stopPropagation()
+      if (!event.repeat) runControl("visibility", () => setVisible(!row.visible))
+    } else if ((event.key === "Delete" || event.key === "Backspace") && controls.resetWidth.length && !event.repeat && row.resized && liveControl("resetWidth")) {
+      event.preventDefault()
+      event.stopPropagation()
+      runControl("resetWidth", resetWidth)
+    }
   }} onDragStart={(event) => {
     onDragStart?.(event)
     if (ownsItemEvent(event) && !event.defaultPrevented) startDrag(row.key, event)
@@ -535,13 +849,32 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex = 0, dragg
   }} onDragEnd={(event) => {
     onDragEnd?.(event)
     if (ownsItemEvent(event)) endDrag(row.key)
-  }} /></ItemContext>
+  }} /></ControlsContext></ItemContext>
 }
 
-export function ColumnChooserVisibility({ onClick, onCheckedChange, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<typeof Checkbox>, "checked" | "defaultChecked" | "indeterminate">) {
+/**
+ * Declares that this item renders a control for one of the item-level keys, so Space or Delete
+ * stays live where a caller-owned control covers the command. A disabled control declares
+ * nothing. Pass `element` so a state only the DOM knows — a disabled enclosing fieldset —
+ * suspends the key while the declaration stands; without one the command counts as enabled.
+ */
+export function useColumnChooserCommand(kind: "visibility" | "resetWidth", enabled = true, element?: () => HTMLElement | null) {
+  const registerControl = useContext(ControlsContext)
+  useLayoutEffect(() => (enabled ? registerControl?.(kind, element ?? NO_CONTROL_ELEMENT) : undefined), [registerControl, kind, enabled, element])
+}
+
+export function ColumnChooserVisibility({ onClick, onCheckedChange, tabIndex = -1, ref, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<typeof Checkbox>, "checked" | "defaultChecked" | "indeterminate">) {
   const { row, setVisible } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <Checkbox aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.show} ${row.name}`)} {...props} checked={row.visible} onClick={(event) => {
+  const local = useRef<HTMLElement | null>(null)
+  const mergedRef = useChooserRef(local, ref)
+  const element = useCallback(() => local.current, [])
+  // Presence tells the item Space has a rendered counterpart, so the key runs only here — a
+  // read-only checkbox rejects changes from everywhere, the keyboard included. Read untyped:
+  // one base's checkbox types carry readOnly and the other's do not.
+  const readOnly = "readOnly" in props && Boolean((props as { readOnly?: unknown }).readOnly)
+  useColumnChooserCommand("visibility", !props.disabled && !readOnly, element)
+  return <Checkbox ref={mergedRef} tabIndex={tabIndex} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.show} ${row.name}`)} {...props} checked={row.visible} onClick={(event) => {
     onClick?.(event)
     // Some built-ins separate browser cancellation from their own click handler.
     if (event.defaultPrevented && "preventBaseUIHandler" in event && typeof event.preventBaseUIHandler === "function") event.preventBaseUIHandler()
@@ -578,19 +911,25 @@ export function ColumnChooserWidth({ className, "aria-label": ariaLabel, ...prop
   return <span aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.width} ${row.width}`)} data-column-width={row.width} className={cn("w-14 shrink-0 text-right text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{row.width} px</span>
 }
 
-export function ColumnChooserResetWidth({ type = "button", variant = "ghost", size, disabled, onClick, className, "aria-label": ariaLabel, ...props }: ActionProps) {
+export function ColumnChooserResetWidth({ type = "button", variant = "ghost", size, disabled, onClick, className, tabIndex = -1, ref, "aria-label": ariaLabel, ...props }: ActionProps) {
   const { row, resetWidth } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.resetWidth}: ${row.name}`)} aria-hidden={!row.resized || undefined} tabIndex={row.resized ? undefined : -1} className={cn(size === undefined && "h-6 px-1.5 text-xs", !row.resized && "invisible", className)} {...props} disabled={disabled || !row.resized} onClick={(event) => {
+  const local = useRef<HTMLElement | null>(null)
+  const mergedRef = useChooserRef(local, ref)
+  const element = useCallback(() => local.current, [])
+  // Presence tells the item Delete has a rendered counterpart, so the key runs only here — and
+  // the control renders disabled for an unresized column, so the declaration follows both.
+  useColumnChooserCommand("resetWidth", !disabled && row.resized, element)
+  return <Button ref={mergedRef} type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.resetWidth}: ${row.name}`)} aria-hidden={!row.resized || undefined} tabIndex={tabIndex} className={cn(size === undefined && "h-6 px-1.5 text-xs", !row.resized && "invisible", className)} {...props} disabled={disabled || !row.resized} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) resetWidth()
   }} />
 }
 
-export function ColumnChooserMove({ direction, type = "button", variant = "ghost", size, disabled, onClick, className, "aria-label": ariaLabel, ...props }: ActionProps & { direction: "up" | "down" }) {
+export function ColumnChooserMove({ direction, type = "button", variant = "ghost", size, disabled, onClick, className, tabIndex = -1, "aria-label": ariaLabel, ...props }: ActionProps & { direction: "up" | "down" }) {
   const { row, canMoveUp, canMoveDown, move } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${direction === "up" ? labels.moveUp : labels.moveDown}: ${row.name}`)} className={cn(size === undefined && "h-6 px-1.5 text-xs", className)} {...props} disabled={disabled || !(direction === "up" ? canMoveUp : canMoveDown)} onClick={(event) => {
+  return <Button type={type} variant={variant} size={size === undefined ? "sm" : size} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${direction === "up" ? labels.moveUp : labels.moveDown}: ${row.name}`)} tabIndex={tabIndex} className={cn(size === undefined && "h-6 px-1.5 text-xs", className)} {...props} disabled={disabled || !(direction === "up" ? canMoveUp : canMoveDown)} onClick={(event) => {
     onClick?.(event)
     if (!event.defaultPrevented) move(direction === "up" ? -1 : 1)
   }} />

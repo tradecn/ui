@@ -170,7 +170,7 @@ Use cards to place descriptions beside column settings and move actions below ea
 
 ### Public parts
 
-`ColumnChooserItem` renders a focusable, draggable `div` with `role="group"` and `tabIndex={0}`, named by its column. Place it inside your `li` or card. Keep collection keys tied to the column key. A missing or definition-hidden key renders nothing.
+`ColumnChooserItem` renders a focusable, draggable `div` with `role="group"`, named by its column. One presented item holds the collection's tab stop — the first usable one, or while an ancestor masks every item, the standing owner or the first item clean by its own fault below the collection's root, unreachable until the mask lifts and tabbable the moment it does; the rest take `tabIndex={-1}` until focus or the arrow keys reach them. The root watches its own subtree, so hiding the owner without a render — a collapsible kept mounted, a class toggle, a closed `details` — hands the stop to a visible item. A hidden column's item carries `aria-description` with `labels.hidden`, so the state is spoken where the checkbox no longer sits in the Tab order. An explicit `tabIndex` opts an item out of that coordination, and the collection's tab stop stays with a coordinated item. Server-rendered markup carries no stop; it settles in the first commit after items register at hydration, where the key handlers attach too, so the collection turns interactive with the stop in place. Place the item inside your `li` or card. Keep collection keys tied to the column key. A missing or definition-hidden key renders nothing.
 
 | Part | Inputs | Description |
 |---|---|---|
@@ -178,13 +178,13 @@ Use cards to place descriptions beside column settings and move actions below ea
 | `ColumnChooserSearch` | Installed Input props except `value` and `defaultValue` | Reads and writes the root's query. |
 | `ColumnChooserAnnouncer` | Native `span` props except `children` | Announces accepted edits through a polite status region. Mount once per chooser. |
 | `ColumnChooserHiddenCount` | Native `span` props except `children` | Prints the hidden count and its label. |
-| `ColumnChooserVisibility` | Installed Checkbox props except `checked`, `defaultChecked`, and `indeterminate` | Reads and writes the item's visibility. |
+| `ColumnChooserVisibility` | Installed Checkbox props except `checked`, `defaultChecked`, and `indeterminate` | Reads and writes the item's visibility. Outside the tab order by default; Space on the item toggles. |
 | `ColumnChooserName` | Native `span` props except `children` | Prints the column name, with the full name as its title. |
 | `ColumnChooserFrozen` | Installed Badge props except `children` | Prints the frozen label for frozen columns. |
 | `ColumnChooserRule` | Required `ruleIndex: number`; installed Badge props except `children` | Prints the rule at this index in the item’s rule readings. Missing rules render nothing. |
 | `ColumnChooserWidth` | Native `span` props except `children` | Prints the width in pixels with numeric typography. |
-| `ColumnChooserResetWidth` | Required `children`; installed Button props | Restores the item's baseline width. Invisible, disabled, and outside the tab order when it already matches. |
-| `ColumnChooserMove` | Required `direction: "up" \| "down"`, `children`; installed Button props | Moves within the column's frozen group. Disabled at its boundary. |
+| `ColumnChooserResetWidth` | Required `children`; installed Button props | Restores the item's baseline width. Outside the tab order by default; Delete on the item is the key command. Invisible and disabled when it already matches. |
+| `ColumnChooserMove` | Required `direction: "up" \| "down"`, `children`; installed Button props | Moves within the column's frozen group. Disabled at its boundary. Outside the tab order by default; Alt with an arrow key is the key command. |
 | `ColumnChooserResetAll` | Required `children`; installed Button props | Restores the default column state. Disabled when already at the default. |
 
 Actions default to `type="button"`. Reset all uses `variant="outline"`; move and reset-width actions use `variant="ghost"`. Omitted or undefined `size` uses `sm` with compact classes. An explicit size, including `null`, passes through without those classes.
@@ -199,7 +199,24 @@ Search, click, keyboard, and drag handlers run before the corresponding chooser 
 
 `useColumnChooser()` returns `ColumnChooserState`: full `rows`, filtered `shown`, normalized `presented`, `query`, `setQuery`, `labels`, `hiddenCount`, `isDefault`, and `reset`. Each `ColumnChooserEntry` has `key`, `name`, `visible`, `frozen`, `width`, `resized`, and `rules`. `resized` compares the width with `baseState`; each rule reading contains its source `rule` and computed `description`.
 
-`useColumnChooserItem()` returns `ColumnChooserItemState`: `row`, `canMoveUp`, `canMoveDown`, `dragging`, `setVisible(visible)`, `move(-1 | 1)`, and `resetWidth()`. Both hooks require their named owner. The item coordinates drag and focus even when you replace its controls.
+`useColumnChooserItem()` returns `ColumnChooserItemState`: `row`, `canMoveUp`, `canMoveDown`, `dragging`, `setVisible(visible)`, `move(-1 | 1)`, `moveToEdge("start" | "end")`, and `resetWidth()`. Both hooks require their named owner. The item coordinates drag and focus even when you replace its controls.
+
+`useColumnChooserCommand(kind, enabled = true, element?)` declares, from inside an item, that a rendered control covers `"visibility"` or `"resetWidth"`; outside an item it does nothing. Pass `enabled: false` while the control is disabled or read-only, and hand a stable `element` getter so the key runs through the control's own click with every veto and lets a disabled fieldset suspend it — without a getter the declaration always counts as live and the key falls back to calling `setVisible` or `resetWidth` directly, bypassing the control's handlers.
+
+### Keyboard
+
+The collection takes one Tab stop, however many columns it lists. Keys act on the focused item; its controls stay pointer targets with the same commands.
+
+| Key | Action |
+|---|---|
+| Arrow Up or Arrow Down | Move focus between presented columns. |
+| Home or End | Move focus to the first or last presented column. |
+| Alt+Arrow Up or Alt+Arrow Down | Move the column one presented place on its side. |
+| Alt+Home or Alt+End | Move the column to the edge of its side. |
+| Space | Show or hide the focused column, when its item renders a visibility control. Repeats are ignored. |
+| Delete or Backspace | Reset the focused column's width override, when its item renders a reset control. |
+
+A caller-owned control joins the model the same way: give it `tabIndex={-1}` and declare the command it covers with `useColumnChooserCommand`, handing its element as the inline example's native checkbox does, so the item's key stays live and runs through the control — without the declaration the key passes through, and without `tabIndex={-1}` it adds a Tab stop per column again. A disabled or read-only control declares nothing, so its key passes through too, and handing the hook the control's element lets a state only the DOM knows — a disabled enclosing fieldset — suspend the key while the declaration stands, with the fieldset's first legend left enabled, as HTML leaves it. Render the hint where sighted keyboard users can read it. Navigation also runs from a pointer-focused control inside an item. A control that owns its arrows keeps every arrow chord, Alt moves included: text fields, selects, radios, sliders, and ARIA widgets such as a combobox, listbox, menu, toolbar, tree, grid, or spinbutton, recognized by any arrow-owning token in their `role` or an ancestor's within the item, the item itself included. An item made editable, or given an arrow-owning role of its own such as `option` or `row`, keeps every key, Space and Delete too — the whole model turns off for that item: it owns a Tab stop of its own, since no arrow can reach it, and navigation skips it. Ctrl, Meta, and Shift combinations pass through untouched. Space and Delete otherwise act only from the item itself, so a focused control keeps its own keys, and they run through the rendered control — a click, with every veto a pointer's click carries. Your `onKeyDown` runs first; `event.preventDefault()` cancels the chooser's handling.
 
 ### The grid's state is the only state
 
@@ -221,7 +238,7 @@ An emitted edit removes retired keys and normalizes settings that match the base
 
 ### Reorder
 
-Drag an item onto another to take its place, shifting the items between them. Alt+Up/Down and move buttons use the next presented column on the same side of the frozen boundary. By default, those neighbors are the current search results, so moving a matching column changes the displayed order. Each root owns its drag session and rejects drops from another chooser or external text.
+Drag an item onto another to take its place, shifting the items between them. Alt+Up/Down and move buttons use the next presented column on the same side of the frozen boundary. Alt+Home and Alt+End, or the item's `moveToEdge` command, take the first or last presented place on that side in one step. By default, those neighbors are the current search results, so moving a matching column changes the displayed order. Each root owns its drag session and rejects drops from another chooser or external text.
 
 Moves take the target's place in the full order, including columns omitted from your collection. A move and its reverse can leave an intervening omitted column in a different position, even when the presented order looks restored. Reset uses the full baseline comparison.
 
@@ -253,7 +270,7 @@ Moves preserve excluded columns in the complete known-column order. A refused mo
 
 Mount `ColumnChooserAnnouncer` once to announce accepted show, hide, move, width-reset and reset-all edits. It is initially empty and stays silent for rejected edits, no-ops, searches and unrelated external updates. A later state matching an outstanding edit is treated as acceptance. Move positions count the committed presented collection. Announcement updates stay in this leaf; they do not trigger another collection render.
 
-Focus recovery runs when chooser or item state updates. Focus stays with a reordered item. If its focused action becomes disabled, hidden, or inert, focus moves to the item. Controls that remain in the tab order while `aria-disabled` keep focus. If the focused item disappears, focus moves to the search field or root. Keep the item's focusability when customizing its markup. A custom control that hides through private state or external DOM changes owns its focus handoff.
+Focus recovery runs when chooser or item state updates. Focus stays with a reordered item. If its focused action becomes disabled, hidden, or inert, focus moves to the item. Controls that remain in the tab order while `aria-disabled` keep focus. If the focused item disappears, focus moves to the search field or root. The tab stop follows focus: the last focused presented item keeps it, and when that column leaves the presented collection the first presented item takes it without stealing focus. Keep the item's focusability when customizing its markup. A custom control that hides through private state or external DOM changes owns its focus handoff.
 
 ### Widths
 
