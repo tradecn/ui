@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
+import { useLayoutEffect } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { RFQ_TICKET_BINDINGS, RfqTicket, checkQuote, describeQuote, formatSize, quoteDistance, quotedSides, type RfqAction, type RfqInquiry, type RfqQuoteDraft, type RfqTicketProps } from "@/registry/tradecn/blocks/rfq-ticket/rfq-ticket"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
@@ -302,9 +303,75 @@ describe("RfqTicket keys", () => {
     fireEvent.keyDown(fields[1]!, { key: "Enter", ctrlKey: true })
     expect(a).not.toHaveBeenCalled()
     expect(b).toHaveBeenCalledTimes(1)
-    expect(registry.list().filter((e) => e.id === "rfq.send")).toHaveLength(1)
+    expect(registry.list().find((e) => e.id === "rfq.send")?.keys).toBe("ctrl+enter")
     view.unmount()
     expect(registry.list().some((e) => e.id === "rfq.send")).toBe(false)
+  })
+
+  it("reads crossing in the instrument's quote basis", () => {
+    const bill = inquiry({ instrument: { symbol: "B912", convention: BILL }, side: "two-way", market: { bid: 4.255, ask: 4.25 } })
+    // A normal discount market quotes the bid above the offer; crossing runs the other way.
+    expect(checkQuote(draftOf({ bid: 4.255, ask: 4.25 }), bill).ask).toBeUndefined()
+    expect(checkQuote(draftOf({ bid: 4.25, ask: 4.255 }), bill).ask).toBeTruthy()
+    const note = inquiry({ side: "two-way" })
+    expect(checkQuote(draftOf({ bid: 99.5, ask: 99.515625 }), note).ask).toBeUndefined()
+    expect(checkQuote(draftOf({ bid: 99.515625, ask: 99.5 }), note).ask).toBeTruthy()
+  })
+
+  it("steps the side the key came from, step buttons included", () => {
+    const { onDraftChange } = mount({ inquiry: inquiry({ side: "two-way" }) })
+    const offer = screen.getByLabelText("Offer")
+    const offerField = offer.closest("[data-slot='tradecn-quote-field']") as HTMLElement
+    const up = within(offerField).getByRole("button", { name: /up one tick/ })
+    act(() => up.focus())
+    fireEvent.keyDown(up, { key: "ArrowUp", ctrlKey: true })
+    // The offer moves from the market's own side; the bid stands untouched.
+    const last = onDraftChange.mock.calls.at(-1)?.[0]
+    expect(last.ask).not.toBeNull()
+    expect(last.bid).toBeNull()
+  })
+
+  it("treats a non-finite level as no level", () => {
+    const { onDraftChange } = mount({ inquiry: inquiry({ side: "two-way", market: { bid: Number.NaN, ask: Number.NaN }, suggested: { bid: Number.NaN } }), defaultDraft: { bid: Number.NaN } })
+    expect((screen.getByLabelText("Bid") as HTMLInputElement).value).toBe("")
+    expect(screen.queryByRole("button", { name: /Auto/ })).toBeNull()
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    act(() => group.focus())
+    fireEvent.keyDown(screen.getByLabelText("Bid"), { key: "ArrowUp", ctrlKey: true })
+    expect(onDraftChange).not.toHaveBeenCalled()
+  })
+
+  it("checks a send against the commit the dealer sees", () => {
+    const quote = vi.fn()
+    const registry = createHotkeyRegistry({ platform: "other" })
+    function Probe({ fire }: { fire: boolean }) {
+      // Fires in the layout phase of the same commit that withdrew the action: the moment a
+      // real keydown can land before passive effects run.
+      useLayoutEffect(() => {
+        if (fire) screen.getByLabelText("Offer").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true }))
+      }, [fire])
+      return null
+    }
+    const actions: RfqAction[] = [{ id: "quote", label: "Quote", run: quote, primary: true }]
+    const ui = (allowed: string[], fire: boolean) => (
+      <HotkeysProvider registry={registry}>
+        <RfqTicket inquiry={inquiry({ allowedActions: allowed })} actions={actions} defaultDraft={{ ask: 99.515625 }} />
+        <Probe fire={fire} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(["quote"], false))
+    view.rerender(ui([], true))
+    expect(quote).not.toHaveBeenCalled()
+  })
+
+  it("keeps focus in the ticket when the focused action leaves", () => {
+    const { rerender } = mount({ defaultDraft: { ask: 99.515625 } })
+    const button = screen.getByRole("button", { name: "Quote" })
+    act(() => button.focus())
+    rerender({ inquiry: inquiry({ allowedActions: ["pass"] }) })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    expect(document.activeElement).not.toBe(document.body)
+    expect(group.contains(document.activeElement)).toBe(true)
   })
 
   it("cedes to a nested provider that declares while tickets come and go", () => {
