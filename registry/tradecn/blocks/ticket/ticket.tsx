@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
@@ -8,7 +8,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
-import { NUMERIC_CLASS, formatNotional, formatPrice, formatQuantity, numericFontClass, stepByTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, formatNotional, formatQuantity, formatQuote, numericFontClass, stepQuote, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
@@ -173,11 +173,11 @@ export interface TicketProps {
 
 const isPriced = (types: readonly TicketOption[], id: string) => types.find((t) => t.id === id)?.priced !== false
 
-/** "Buy 5 ZN @ 99-16+", or "Buy 5 ZN at market" for a type that takes no price. */
+/** "Buy 5 ZN @ 99-16+", or "Buy 5 ZN at market" for a type that takes no price. The level prints in the instrument's quote basis, as the field shows it. */
 export function describeDraft(draft: TicketDraft, instrument: TicketInstrument, orderTypes: readonly TicketOption[] = DEFAULT_ORDER_TYPES, labels: Pick<TicketLabels, "buy" | "sell"> = DEFAULT_TICKET_LABELS): string {
   const side = draft.side === "buy" ? labels.buy : labels.sell
   const quantity = draft.quantity === null ? "" : ` ${formatQuantity(draft.quantity)}`
-  const price = !isPriced(orderTypes, draft.type) ? " at market" : draft.price === null ? "" : ` @ ${formatPrice(draft.price, instrument.convention.price)}`
+  const price = !isPriced(orderTypes, draft.type) ? " at market" : draft.price === null ? "" : ` @ ${formatQuote(draft.price, instrument.convention)}`
   return `${side}${quantity} ${instrument.symbol}${price}`
 }
 
@@ -190,8 +190,13 @@ export interface TicketProblems {
 export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption[], labels: TicketLabels = DEFAULT_TICKET_LABELS): TicketProblems {
   const problems: TicketProblems = {}
   if (draft.quantity === null || !(draft.quantity > 0)) problems.quantity = labels.quantityInvalid
-  if (isPriced(orderTypes, draft.type) && draft.price === null) problems.price = labels.priceRequired
+  if (isPriced(orderTypes, draft.type) && (draft.price === null || !Number.isFinite(draft.price))) problems.price = labels.priceRequired
   return problems
+}
+
+/** The send shortcut's target: the first allowed action that checks the draft, preferring the primary one. An unchecked action sends nothing of the draft, so a shortcut named send never runs one. */
+function sendTarget(allowed: readonly TicketAction[]): TicketAction | null {
+  return allowed.find((action) => action.primary && action.checked !== false) ?? allowed.find((action) => action.checked !== false) ?? null
 }
 
 // Every ticket declares the bindings as registry defaults: the registry refcounts them, a
@@ -270,7 +275,9 @@ export function Ticket({
   const box = useRef<HTMLDivElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
   const latest = useRef({ onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming, quickSizes })
-  useEffect(() => {
+  // Layout phase, not passive: a keydown can land between the commit that removed a button
+  // and the passive effects, and the check at run time must see what the trader sees.
+  useLayoutEffect(() => {
     latest.current = { onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming, quickSizes }
   })
 
@@ -285,6 +292,19 @@ export function Ticket({
   // The acknowledgement: a ring in primary, once, when the server says so. No direction, because it has none.
   useFlash(box, acknowledged, { variant: "ring", color: "var(--primary)" })
 
+  // When the control under focus leaves — a sent action's button unmounts or disables with
+  // the acknowledgement — focus falls to body, outside every fence, and the shortcuts go
+  // dead. The ticket's root takes it instead.
+  const focusedInside = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const node = box.current
+    const previous = focusedInside.current
+    if (!node || !previous) return
+    const doc = node.ownerDocument
+    const gone = !previous.isConnected || previous.matches(":disabled")
+    if (gone && (doc.activeElement === previous || doc.activeElement === doc.body)) node.focus()
+  })
+
   function update(patch: Partial<TicketDraft>) {
     setDraft((d) => ({ ...d, ...patch }))
     setProblems((p) => (patch.quantity !== undefined && p.quantity ? { ...p, quantity: undefined } : patch.price !== undefined && p.price ? { ...p, price: undefined } : p))
@@ -296,19 +316,22 @@ export function Ticket({
     update({ price: value })
   }
 
-  /** Where a step starts when the field is blank: the last, then the mid, then whichever side there is. */
+  /** Where a step starts when the field is blank: the last, then the mid, then whichever side there is. A warming feed's NaN is no reference at all. */
   function priceToStepFrom(): number | null {
-    if (draft.price !== null) return draft.price
+    if (draft.price !== null && Number.isFinite(draft.price)) return draft.price
     const { bid, ask, last } = reference ?? {}
-    if (typeof last === "number") return last
-    if (typeof bid === "number" && typeof ask === "number") return stepByTick((bid + ask) / 2, convention.tick, 0)
-    return typeof bid === "number" ? bid : typeof ask === "number" ? ask : null
+    if (Number.isFinite(last)) return last as number
+    if (Number.isFinite(bid) && Number.isFinite(ask)) return stepQuote(((bid as number) + (ask as number)) / 2, convention, 0)
+    return Number.isFinite(bid) ? (bid as number) : Number.isFinite(ask) ? (ask as number) : null
   }
 
   function stepPrice(steps: number) {
     const from = priceToStepFrom()
     if (from === null) return
-    setPrice(stepByTick(from, convention.tick, steps))
+    // The field steps in the instrument's quote basis, so the shortcut steps the same way,
+    // or the price sent would differ from the price shown on a discount, yield, or spread
+    // instrument.
+    setPrice(stepQuote(from, convention, steps))
   }
 
   function stepQuantity(steps: number) {
@@ -346,6 +369,7 @@ export function Ticket({
 
   const allowed = actions.filter((action) => allowedActions?.includes(action.id))
   const primary = allowed.find((action) => action.primary) ?? allowed[0]
+  const sendAction = sendTarget(allowed)
 
   function run(action: TicketAction) {
     // Checked as the click lands, against the props as they are now: an action can stop being allowed.
@@ -376,12 +400,12 @@ export function Ticket({
   const handlers = useRef({ send: () => {}, flip: () => {}, up: () => {}, down: () => {}, quick: (n: number) => {
       void n
     } })
-  useEffect(() => {
+  useLayoutEffect(() => {
     handlers.current = {
       send: () => {
         const { actions: list, allowedActions: allowedNow } = latest.current
         const now = list.filter((action) => allowedNow?.includes(action.id))
-        const first = now.find((action) => action.primary) ?? now[0]
+        const first = sendTarget(now)
         if (first) run(first)
       },
       flip: () => {
@@ -444,11 +468,14 @@ export function Ticket({
 
   const referencePrice = (name: keyof TicketReference, label: string) => {
     const value = reference?.[name]
-    if (typeof value !== "number") return null
+    if (typeof value !== "number" || !Number.isFinite(value)) return null
+    // Snapped to the quote grid and printed in the quote basis: what the click stores is what
+    // the field will show.
+    const quote = stepQuote(value, convention, 0)
     return (
-      <Button key={name} type="button" variant="ghost" size="sm" className={cn("h-5 gap-1 px-1 text-xs", numericFontClass(convention.price))} disabled={disabled || !priced} aria-label={`${label} ${formatPrice(value, convention.price)}, use it`} data-reference={name} onClick={() => setPrice(value)}>
+      <Button key={name} type="button" variant="ghost" size="sm" className={cn("h-5 gap-1 px-1 text-xs", numericFontClass(convention.price))} disabled={disabled || !priced} aria-label={`${label} ${formatQuote(quote, convention)}, use it`} data-reference={name} onClick={() => setPrice(quote)}>
         <span className="text-muted-foreground">{label}</span>
-        {formatPrice(value, convention.price)}
+        {formatQuote(quote, convention)}
       </Button>
     )
   }
@@ -474,7 +501,7 @@ export function Ticket({
 
   return (
     <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block outline-none lining-nums tabular-nums", className)}>
-      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground">
+      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }}>
         <div className="flex items-center gap-2">
           <span className="font-(family-name:--tradecn-font-mono) text-sm font-semibold" data-ticket-symbol>
             {instrument.symbol}
@@ -570,7 +597,7 @@ export function Ticket({
                 onClick={() => run(action)}
               >
                 {confirming === action.id ? labels.anyway.replace("{action}", typeof action.label === "function" ? action.label(draft) : action.label) : typeof action.label === "function" ? action.label(draft) : action.label}
-                {action === primary && sendKeys && (
+                {action === sendAction && sendKeys && (
                   <KbdGroup aria-hidden>
                     {formatKeys(sendKeys)[0]?.map((cap) => (
                       <Kbd key={cap} className="text-xs">{cap}</Kbd>

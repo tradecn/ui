@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
+import { useLayoutEffect } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatQuickSize, checkDraft, describeDraft, parseQuantity, Ticket, TICKET_BINDINGS, type TicketDraft, type TicketInstrument, type TicketProps } from "@/registry/tradecn/blocks/ticket/ticket"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
@@ -267,7 +268,8 @@ describe("Ticket keys", () => {
     fireEvent.keyDown(fields[1]!, { key: "Enter", ctrlKey: true })
     expect(a).not.toHaveBeenCalled()
     expect(b).toHaveBeenCalledTimes(1)
-    expect(registry.list().filter((e) => e.id === "ticket.send")).toHaveLength(1)
+    const sendEntry = registry.list().find((e) => e.id === "ticket.send")
+    expect(sendEntry?.keys).toBe("ctrl+enter")
     view.rerender(
       <HotkeysProvider registry={registry}>
         <Ticket instrument={ZN} actions={[{ id: "send", label: "Send A", run: a }]} allowedActions={["send"]} defaultDraft={{ quantity: 1, price: 99.5 }} />
@@ -383,7 +385,7 @@ describe("Ticket keys", () => {
     expect(onDraftChange).not.toHaveBeenCalled()
   })
 
-  it("binds only the quick sizes that exist, absent ones falling through", () => {
+  it("declares only the quick sizes that exist, absent ones falling through", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     const { onDraftChange } = mount({ quickSizes: [1, 5], defaultDraft: { price: 99.5 } }, registry)
     const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
@@ -393,6 +395,83 @@ describe("Ticket keys", () => {
     expect(onDraftChange).not.toHaveBeenCalled()
     expect(fireEvent.keyDown(group, { key: "2", ctrlKey: true })).toBe(false)
     expect(onDraftChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("sends nothing when only unchecked actions remain", () => {
+    const send = vi.fn()
+    const cancel = vi.fn()
+    mount({
+      actions: [
+        { id: "send", label: "Send", primary: true, run: send },
+        { id: "cancel", label: "Cancel order", checked: false, destructive: true, run: cancel },
+      ],
+      allowedActions: ["cancel"],
+      defaultDraft: { quantity: 1, price: 99.5 },
+    })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    act(() => group.focus())
+    // Cancel sends nothing of the draft, so the shortcut named send never runs it, and the
+    // send caps stay off its button.
+    fireEvent.keyDown(quantity(), { key: "Enter", ctrlKey: true })
+    expect(cancel).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Cancel order" }).querySelector("kbd")).toBeNull()
+  })
+
+  it("ignores a warming feed's non-finite reference", () => {
+    const { onDraftChange } = mount({ reference: { last: Number.NaN } })
+    expect(screen.queryByRole("button", { name: /^Last/ })).toBeNull()
+    fireEvent.keyDown(quantity(), { key: "ArrowUp", ctrlKey: true })
+    expect(onDraftChange).not.toHaveBeenCalled()
+    expect(checkDraft({ side: "buy", quantity: 1, price: Number.NaN, type: "limit", tif: "day", account: null }, [{ id: "limit", label: "Limit" }]).price).toBeTruthy()
+  })
+
+  it("checks a send against the commit the trader sees", () => {
+    const run = vi.fn()
+    const registry = createHotkeyRegistry({ platform: "other" })
+    function Probe({ fire }: { fire: boolean }) {
+      // Fires in the layout phase of the same commit that revoked the action: the moment a
+      // real keydown can land before passive effects run.
+      useLayoutEffect(() => {
+        if (fire) screen.getByLabelText("Quantity").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true }))
+      }, [fire])
+      return null
+    }
+    const ui = (allowed: string[], fire: boolean) => (
+      <HotkeysProvider registry={registry}>
+        <Ticket instrument={ZN} actions={[{ id: "send", label: "Send", primary: true, run }]} allowedActions={allowed} defaultDraft={{ quantity: 1, price: 99.5 }} />
+        <Probe fire={fire} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(["send"], false))
+    view.rerender(ui([], true))
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it("keeps focus in the ticket when the focused action leaves", () => {
+    const { rerender } = mount({ defaultDraft: { quantity: 1, price: 99.5 } })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    const button = screen.getByRole("button", { name: "Send" })
+    act(() => button.focus())
+    rerender({ allowedActions: [] })
+    expect(document.activeElement).not.toBe(document.body)
+    expect(group.contains(document.activeElement)).toBe(true)
+  })
+
+  it("steps, references, and describes in the instrument's quote basis", () => {
+    const BILL: TicketInstrument = { symbol: "B912", convention: { price: { kind: "decimal", decimals: 3 }, tick: 0.0005, quoteBasis: "discount" } }
+    const { onDraftChange } = mount({ instrument: BILL, reference: { last: 4.25 } })
+    fireEvent.keyDown(quantity(), { key: "ArrowUp", ctrlKey: true })
+    // The field shows the quote grid, so the stored price moves on it too: one step of the
+    // discount step, never a price tick the display would round away.
+    expect(onDraftChange.mock.calls.at(-1)?.[0].price).toBe(4.251)
+    expect(price().value).toBe("4.251")
+    // A fraction-priced instrument quoted on yield prints its references and description in
+    // the quote basis the field shows.
+    const NOTE_ON_YIELD: TicketInstrument = { symbol: "T30", convention: { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64, quoteBasis: "yield" } }
+    const second = mount({ instrument: NOTE_ON_YIELD, reference: { last: 4.25 } })
+    expect(within(second.view.container).getByRole("button", { name: "Last 4.250, use it" })).toBeInTheDocument()
+    expect(describeDraft({ side: "buy", quantity: 5, price: 4.253, type: "limit", tif: "day", account: null }, NOTE_ON_YIELD)).toContain("@ 4.253")
   })
 
   it("brings the default back when the consumer unregisters their replacement", () => {
