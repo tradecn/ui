@@ -48,7 +48,7 @@ export interface AuditTrailLabels {
   diffTitle: string
   /** Two events that leave every field where it was. */
   same: string
-  /** The changes column: `{n}` fields. */
+  /** The changes column's text, with `{n}` as the count. Default: `Fields: {n}`. */
   fields: string
 }
 
@@ -67,7 +67,7 @@ export const DEFAULT_AUDIT_TRAIL_LABELS: AuditTrailLabels = {
   eventTitle: "{event} at {time}",
   diffTitle: "{a} to {b}",
   same: "Nothing differs between these two events.",
-  fields: "{n} fields",
+  fields: "Fields: {n}",
 }
 
 let clockFormat: Intl.DateTimeFormat | null = null

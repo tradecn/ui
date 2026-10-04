@@ -2126,7 +2126,7 @@ test("an audit trail lists the events, shows one event's changes and the differe
   await expect(grid).toHaveAttribute("aria-rowcount", "5")
   await expect(row("e2")).toContainText("t1200")
   await expect(row("e2")).toContainText("Acknowledged")
-  await expect(row("e1").locator("[data-col='changes']")).toHaveText("3 fields")
+  await expect(row("e1").locator("[data-col='changes']")).toHaveText("Fields: 3")
   await expect(pane).toHaveAttribute("data-audit-pane", "none")
   await row("e3").locator("[role='gridcell']").first().click()
   await expect(pane).toHaveAttribute("data-audit-pane", "event")
@@ -2151,7 +2151,7 @@ test("an audit trail lists the events, shows one event's changes and the differe
   await scene.getByRole("button", { name: "Export CSV" }).click()
   const csv = (await scene.locator("[data-audit-csv]").getAttribute("data-audit-csv")) ?? ""
   expect(csv.split("\r\n")[0]).toBe("Time,Event,By,Message,Changes")
-  expect(csv).toContain("t12000,Filled,venue,,2 fields")
+  expect(csv).toContain("t12000,Filled,venue,,Fields: 2")
   expect(csv.trim().split("\r\n")).toHaveLength(6)
 })
 

@@ -77,6 +77,15 @@ describe("prices and ticks", () => {
 })
 
 describe("the ladder", () => {
+  it("prints the price cell in the notation's font on any quote basis", () => {
+    const onYield = { ...ZN, quoteBasis: "yield" } as const
+    render(<Ladder store={seed()} convention={onYield} mid={MID} label="Yield ladder" depth={4} initialRect={RECT} />)
+    const cell = document.querySelector("[data-col='price']")!
+    // The cell prints convention.price — a fraction — so it keeps the monospace font even
+    // though the instrument quotes on yield.
+    expect(cell.className).toContain("--tradecn-font-mono")
+  })
+
   it("builds the rungs around the mid, high to low, prints each price in the convention, and marks the mid", () => {
     render(<Ladder store={seed()} convention={ZN} mid={MID} label="ZN ladder" depth={4} initialRect={RECT} />)
     const grid = screen.getByRole("grid", { name: "ZN ladder" })

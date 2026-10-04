@@ -232,7 +232,7 @@ Omit both the `overlays` prop and legend when you have no overlays. See the [Pri
 | Automatic canvas and keyboard crosshair | Mount one `PriceChartPlot` inside the root. It retains the accessible summary even without visible readings. |
 | Automatic "No data" placeholder | Place `PriceChartEmpty` inside the plot. It defaults to `labels.noData`. Children replace only the visible text. Use `labels.noData` for the plot's accessible name. |
 | Automatic legend rows in overlay order | Compose `PriceChartLegend` with your rows and labels. Use `PriceChartOverlaySwatch overlayId={overlay.id}` to retain the plotted color when changing legend order. Hide an empty legend yourself. |
-| Header-specific numeric font inheritance | Each public numeric reading supplies its own convention's font and numeric variant wherever placed. |
+| Header-specific numeric font inheritance | Each public numeric reading supplies its own font and numeric variant wherever placed, following the price notation: on a yield-, discount-, or spread-quoted instrument with a fraction price, readings v1 set in the numeric family render mono. |
 | Root native handlers | Retained. Plot handlers are also public and run before built-in behavior. `preventDefault()` cancels that behavior. |
 | `data-chart-*` markers | Retained on their public parts. The empty placeholder is now a `div`. Replace element-specific `p[data-chart-empty]` selectors. Swatches add `data-chart-swatch`. |
 
@@ -396,6 +396,8 @@ Watchlist removal keys and opt-in Blotter action keys now require focus on their
 ## DepthLadder
 
 Replace the self-closing `DepthLadder` with an explicit composition.
+
+The price cell's font follows the price notation now: on a yield-, discount-, or spread-quoted instrument with a fraction price, a cell v1 set in the numeric family renders mono.
 
 The root keeps the book, formatting, virtualization, following, and keyboard inputs. Your JSX supplies the header, viewport, rows, and controls.
 
@@ -639,7 +641,7 @@ When omitting the changes section from the side-by-side recipe, remove its two-c
 
 Use the responsive layout in [Usage](audit-trail.md#usage) to stack the pane below the grid on narrow screens.
 
-Selection, default columns, time/value formatting and cumulative calculations are retained. `foldChanges`, `diffEvents`, `formatAuditValue`, `auditTrailColumns` and `DEFAULT_AUDIT_TRAIL_LABELS` remain available.
+Selection, default columns, time/value formatting and cumulative calculations are retained, with one wording change: the changes column reads `Fields: {n}`, where v1 printed `{n} fields` in the grid, to screen readers, and in the CSV. Pass `labels={{ fields: "{n} fields" }}` to keep the old text, or hand the same `labels` to `auditTrailColumns` when you supply `columns` — root `labels` reach only the default columns. `foldChanges`, `diffEvents`, `formatAuditValue`, `auditTrailColumns` and `DEFAULT_AUDIT_TRAIL_LABELS` remain available.
 
 Changes and CSV still use the supplied view or raw store order, independent of grid-local sorting and filtering. Keep selected ids within that view and retain the preceding history needed for comparisons. Column-state hiding and reordering do not affect CSV.
 
