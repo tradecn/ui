@@ -414,9 +414,29 @@ describe("RfqTicket keys", () => {
     fireEvent.keyDown(group, { key: "a", ctrlKey: true, shiftKey: true })
     fireEvent.keyDown(group, { key: "1", ctrlKey: true })
     expect(onDraftChange).not.toHaveBeenCalled()
-    // The send key runs only quote-sending actions, so it cannot fall back to a pass.
+    // The send key runs only quote-sending actions, so it cannot fall back to a pass — and the
+    // hint follows the key: no quote-sending action, no key caps on any button.
     fireEvent.keyDown(group, { key: "Enter", ctrlKey: true })
     expect(pass).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Pass" }).querySelectorAll("kbd")).toHaveLength(0)
+  })
+
+  it("shows the send caps on the action the key runs, not the primary", () => {
+    const auto = vi.fn()
+    const quote = vi.fn()
+    const registry = createHotkeyRegistry({ platform: "other" })
+    mount({
+      inquiry: inquiry({ allowedActions: ["auto", "quote"] }),
+      actions: [{ id: "auto", label: "Quote auto", needsQuote: false, primary: true, run: auto }, { id: "quote", label: "Quote", run: quote }],
+      defaultDraft: draftOf({ ask: 99.515625 }),
+    }, registry)
+    expect(screen.getByRole("button", { name: /Quote auto/ }).querySelectorAll("kbd")).toHaveLength(0)
+    expect(screen.getByRole("button", { name: "Quote" }).querySelectorAll("kbd").length).toBeGreaterThan(0)
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "Enter", ctrlKey: true })
+    expect(quote).toHaveBeenCalledTimes(1)
+    expect(auto).not.toHaveBeenCalled()
   })
 
   it("declares only the sizes passed in the registry's list", () => {

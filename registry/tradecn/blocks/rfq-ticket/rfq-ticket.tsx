@@ -233,6 +233,11 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
 }
 
 const noop = () => () => {}
+/** The one action the send key runs: it sends the quote, so a pass never rides mod+enter. */
+function sendTarget(allowed: readonly RfqAction[]): RfqAction | undefined {
+  const sending = allowed.filter((action) => action.needsQuote !== false)
+  return sending.find((action) => action.primary) ?? sending[0]
+}
 const RFQ_CORE_BINDINGS = RFQ_TICKET_BINDINGS.filter((binding) => !binding.id.startsWith("rfq.size-"))
 const RFQ_SIZE_BINDINGS = RFQ_TICKET_BINDINGS.filter((binding) => binding.id.startsWith("rfq.size-"))
 const level = (v: number | null | undefined) => (typeof v === "number" ? v : null)
@@ -274,6 +279,8 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const inputs = { bid: useRef<HTMLInputElement>(null), ask: useRef<HTMLInputElement>(null) }
   const allowed = actions.filter((action) => inquiry.allowedActions?.includes(action.id))
   const primary = allowed.find((action) => action.primary) ?? allowed.find((action) => action.needsQuote !== false) ?? allowed[0]
+  // The key hint rides the action the send key actually runs, which can differ from primary.
+  const sendAction = sendTarget(allowed)
   // The fields are live while some allowed action would send what is in them.
   const quoting = !disabled && allowed.some((action) => action.needsQuote !== false)
 
@@ -390,10 +397,9 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       send: () => {
         const { actions: list, inquiry: now, disabled: locked } = latest.current
         if (locked) return
-        // The send key runs only an action that sends the quote: with the whole ticket armed,
-        // falling back to a destructive pass from a heading click would be too wide a reach.
-        const open = list.filter((action) => now.allowedActions?.includes(action.id) && action.needsQuote !== false)
-        const first = open.find((action) => action.primary) ?? open[0]
+        // The send key runs only an action that sends the quote — the same selection the key
+        // hint renders — so a heading click and mod+enter can never fall back to a pass.
+        const first = sendTarget(list.filter((action) => now.allowedActions?.includes(action.id)))
         if (first) run(first)
       },
       // The draft moves only while the fields are live: the same quoting condition that
@@ -596,7 +602,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
                   onClick={() => run(action)}
                 >
                   {confirming === action.id ? labels.anyway.replace("{action}", typeof action.label === "function" ? action.label(draft) : action.label) : typeof action.label === "function" ? action.label(draft) : action.label}
-                  {action === primary && sendKeys && (
+                  {action === sendAction && sendKeys && (
                     <KbdGroup aria-hidden>
                       {formatKeys(sendKeys)[0]?.map((cap) => (
                         <Kbd key={cap} className="text-xs">{cap}</Kbd>
