@@ -312,9 +312,10 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
     const gone = !previous.isConnected || previous.matches(":disabled")
     if (gone && (doc.activeElement === previous || doc.activeElement === doc.body)) {
       // Once parked, the record is spent: a later commit must not take focus again, and a
-      // sibling ticket's stale record must not outrank the one the user was in.
+      // sibling ticket's stale record must not outrank the one the user was in. Never
+      // scroll: the park can fire while the dealer reads elsewhere.
       focusedInside.current = null
-      node.focus()
+      node.focus({ preventScroll: true })
     }
   })
 

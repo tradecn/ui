@@ -426,6 +426,18 @@ describe("RfqTicket keys", () => {
     expect(document.activeElement).not.toBe(document.body)
   })
 
+  it("parks without scrolling when the ticket disables under focus", () => {
+    const { rerender } = mount({ defaultDraft: { ask: 99.515625 } })
+    const button = screen.getByRole("button", { name: "Quote" })
+    act(() => button.focus())
+    const focusSpy = vi.spyOn(HTMLElement.prototype, "focus")
+    rerender({ disabled: true })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    expect(document.activeElement).toBe(group)
+    expect(focusSpy.mock.calls.at(-1)?.[0]).toMatchObject({ preventScroll: true })
+    focusSpy.mockRestore()
+  })
+
   it("keeps focus in the ticket when the focused action leaves", () => {
     const { rerender } = mount({ defaultDraft: { ask: 99.515625 } })
     const button = screen.getByRole("button", { name: "Quote" })
