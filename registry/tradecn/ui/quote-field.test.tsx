@@ -149,6 +149,26 @@ describe("QuoteField", () => {
     expect(last(spread)).toBe(10)
   })
 
+  it("treats a non-finite value as no value", () => {
+    // NaN never equals itself, so a raw compare would follow it every render until React
+    // stops the loop and unmounts the tree; a warming feed hands exactly that out.
+    const changes = vi.fn()
+    render(<QuoteField convention={NOTE} value={Number.NaN} onValueChange={changes} />)
+    expect(input().value).toBe("")
+    fireEvent.keyDown(input(), { key: "ArrowUp" })
+    expect(changes).not.toHaveBeenCalled()
+    render(<QuoteField convention={NOTE} value={Number.POSITIVE_INFINITY} onValueChange={vi.fn()} />)
+    expect(screen.getAllByRole("textbox").at(-1)).toHaveValue("")
+  })
+
+  it("steps nowhere from a non-finite stepFrom", () => {
+    const { changes } = mount({ value: null, stepFrom: Number.NaN })
+    fireEvent.keyDown(input(), { key: "ArrowUp" })
+    fireEvent.click(screen.getByRole("button", { name: "Price up one tick" }))
+    expect(changes).not.toHaveBeenCalled()
+    expect(input().value).toBe("")
+  })
+
   it("prints the parent's problem under the field over its own, and is disabled as a whole", () => {
     mount({ error: "This order type needs a price.", disabled: true })
     expect(screen.getByText("This order type needs a price.")).toBeInTheDocument()
