@@ -102,7 +102,7 @@ You own the feed and call `applyDeltas` once per frame. `useRow(store, id)` subs
 | `order` | The authoritative order for an ordered lane. Ids not listed keep their previous relative order, after the listed ones. |
 | `meta` | Producer readings: `dropped` accumulates across batches, `gap` flags a replay in progress, and `lane`, `seq`, and `producedAt` carry the last value given. Fields omitted keep their previous values. |
 
-`createRowStore({ getRowId, lane?, now? })` names how a row yields its id, the store's default lane, and the clock its metadata timestamps read.
+`createRowStore({ getRowId, lane?, now? })` names how a row yields its id, the store's default lane, and the clock that stamps `lastBatchAt` on each batch and clear — `producedAt` always comes from the batch itself.
 
 Choose the path that matches your feed:
 

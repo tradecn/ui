@@ -82,12 +82,13 @@ it("replaces the local collection with its empty state and restores the notices,
 it("hands focus to a receive button when the actions demo empties, and to the next notice before that", async () => {
   render(<AlertsActionsDemo />)
   const notices = within(screen.getByRole("group", { name: "Notices" }))
-  const dismisses = notices.getAllByRole("button", { name: /^Dismiss:/ })
-  act(() => dismisses[0]!.focus())
-  fireEvent.click(dismisses[0]!)
+  // An action removes its notice too: focus lands exactly on the remaining notice's first
+  // control, the Reconnect button, never merely somewhere in the group.
+  const acknowledge = notices.getAllByRole("button", { name: "Acknowledge" })
+  act(() => acknowledge[0]!.focus())
+  fireEvent.click(acknowledge[0]!)
   await act(async () => {})
-  expect(notices.getAllByRole("button", { name: /^Dismiss:/ }).length).toBeGreaterThan(0)
-  expect(document.activeElement?.closest("[data-slot='tradecn-alerts']")).not.toBeNull()
+  expect(notices.getAllByRole("button", { name: "Reconnect" })[0]).toHaveFocus()
   fireEvent.click(notices.getAllByRole("button", { name: /^Dismiss:/ })[0]!)
   await act(async () => {})
   expect(screen.getByRole("button", { name: "Receive slow feed" })).toHaveFocus()
@@ -118,8 +119,8 @@ it("hands focus to the next notice or the History trigger when the history demo 
   act(() => dismisses[0]!.focus())
   fireEvent.click(dismisses[0]!)
   await act(async () => {})
-  // The next notice's dismiss takes focus while one remains in the shown slice.
-  expect(document.activeElement?.closest("[data-slot='tradecn-alerts']")).not.toBeNull()
+  // The remaining shown notice's dismiss takes focus, exactly.
+  expect(notices.getAllByRole("button", { name: /^Dismiss:/ })[0]).toHaveFocus()
   const clear = screen.getByRole("button", { name: "Clear all" })
   act(() => clear.focus())
   fireEvent.click(clear)
