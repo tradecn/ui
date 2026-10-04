@@ -93,15 +93,39 @@ it("hands focus to a receive button when the actions demo empties, and to the ne
   expect(screen.getByRole("button", { name: "Receive slow feed" })).toHaveFocus()
 })
 
-it("hands focus to the receive control when the bridge demo clears", async () => {
+it("hands focus to the receive control when the bridge demo clears, and to the next dismiss before that", async () => {
   render(<AlertsBridgeDemo />)
   const notices = within(screen.getByRole("group", { name: "Notices" }))
+  fireEvent.click(screen.getByRole("button", { name: "Receive slow notice" }))
+  const dismisses = notices.getAllByRole("button", { name: /^Dismiss:/ })
+  expect(dismisses).toHaveLength(2)
+  act(() => dismisses[0]!.focus())
+  fireEvent.click(dismisses[0]!)
+  await act(async () => {})
+  expect(notices.getAllByRole("button", { name: /^Dismiss:/ })[0]).toHaveFocus()
   const clear = screen.getByRole("button", { name: "Clear all" })
   act(() => clear.focus())
   fireEvent.click(clear)
   await act(async () => {})
   expect(notices.getByText("No notices.")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Receive slow notice" })).toHaveFocus()
+})
+
+it("hands focus to the next notice or the History trigger when the history demo removes", async () => {
+  render(<AlertsHistoryDemo />)
+  const notices = within(screen.getByRole("group", { name: "Notices" }))
+  const dismisses = notices.getAllByRole("button", { name: /^Dismiss:/ })
+  act(() => dismisses[0]!.focus())
+  fireEvent.click(dismisses[0]!)
+  await act(async () => {})
+  // The next notice's dismiss takes focus while one remains in the shown slice.
+  expect(document.activeElement?.closest("[data-slot='tradecn-alerts']")).not.toBeNull()
+  const clear = screen.getByRole("button", { name: "Clear all" })
+  act(() => clear.focus())
+  fireEvent.click(clear)
+  await act(async () => {})
+  // Clear all unmounts itself; the always-rendered History trigger takes the focus.
+  expect(screen.getByRole("button", { name: "History" })).toHaveFocus()
 })
 
 it.each([AlertsActionsDemo, AlertsHistoryDemo, AlertsBridgeDemo])("omits the store-backed list when notices are cleared in %s", (Demo) => {
