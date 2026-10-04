@@ -470,6 +470,29 @@ describe("Ticket keys", () => {
     expect(document.activeElement).toBe(group)
   })
 
+  it("parks without scrolling when the focused action disables, and a deliberate blur is leaving", () => {
+    const { rerender } = mount({ defaultDraft: { quantity: 1, price: 99.5 } })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    const button = screen.getByRole("button", { name: "Send" })
+    act(() => button.focus())
+    const focusSpy = vi.spyOn(HTMLElement.prototype, "focus")
+    // Disabling the focused control parks like a removal, and the park never scrolls.
+    rerender({ disabled: true })
+    expect(document.activeElement).toBe(group)
+    const parked = focusSpy.mock.calls.at(-1)
+    expect(parked?.[0]).toMatchObject({ preventScroll: true })
+    focusSpy.mockRestore()
+    rerender({ disabled: false })
+    const again = screen.getByRole("button", { name: "Send" })
+    act(() => again.focus())
+    // A deliberate blur to nowhere while the window keeps focus is leaving: a later
+    // withdrawal must not pull focus back into the ticket, whose fenced bindings would
+    // outrank the desk's.
+    fireEvent.blur(again, { relatedTarget: null })
+    rerender({ allowedActions: [] })
+    expect(document.activeElement).toBe(document.body)
+  })
+
   it("keeps focus in the ticket when the focused action leaves", () => {
     const { rerender } = mount({ defaultDraft: { quantity: 1, price: 99.5 } })
     const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!

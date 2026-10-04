@@ -305,7 +305,9 @@ export function Ticket({
     const gone = !previous.isConnected || previous.matches(":disabled")
     if (gone && (doc.activeElement === previous || doc.activeElement === doc.body)) {
       focusedInside.current = null
-      node.focus()
+      // Never scroll: the park can fire while the trader reads elsewhere, and a focus move
+      // is what the page promises.
+      node.focus({ preventScroll: true })
     }
   })
 
