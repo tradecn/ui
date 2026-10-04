@@ -48,7 +48,7 @@ export interface AuditTrailLabels {
   diffTitle: string
   /** Two events that leave every field where it was. */
   same: string
-  /** The changes column: `{n}` fields. */
+  /** The changes column's text, with `{n}` as the count. Default: `Fields: {n}`. */
   fields: string
 }
 
