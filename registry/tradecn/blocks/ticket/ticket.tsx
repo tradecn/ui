@@ -507,9 +507,12 @@ export function Ticket({
     <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/30 lining-nums tabular-nums", className)}>
       <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }} onBlurCapture={(event) => {
         // Focus moving somewhere outside the ticket on purpose: the leaving control is still
-        // in the document and enabled, so there is nothing to recover from.
+        // in the document and enabled, so there is nothing to recover from. A window switch
+        // also blurs with no destination, but the document loses focus with it — the record
+        // stays, so a control withdrawn while the trader is away still parks on return.
         const leaving = event.target as HTMLElement
         const next = event.relatedTarget as HTMLElement | null
+        if (!next && !event.currentTarget.ownerDocument.hasFocus()) return
         if (focusedInside.current === leaving && leaving.isConnected && !leaving.matches(":disabled") && (!next || !event.currentTarget.contains(next))) focusedInside.current = null
       }}>
         <div className="flex items-center gap-2">

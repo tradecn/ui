@@ -105,7 +105,7 @@ The ticket makes no network request and infers no order state from `run`. As wit
 
 Only actions named in `allowedActions` render, in `actions` order. A missing or empty allowlist shows `labels.nothingAllowed`. Permission and `disabled` are checked again when an action runs. `status` and `message` print as supplied; clicking a button never sets “Sent.”
 
-Change `acknowledged` when the server acknowledges, using an order id or timestamp. After mount, each change under `Object.is` triggers a 900 ms `useFlash` ring in `primary`, without direction coloring. The initial value does not flash. When the control under focus leaves for any reason — a sent action's button unmounts or disables, with or without an acknowledgement — focus moves to the ticket itself, so the shortcuts stay live. Under `prefers-reduced-motion`, the ticket does not ring.
+Change `acknowledged` when the server acknowledges, using an order id or timestamp. After mount, each change under `Object.is` triggers a 900 ms `useFlash` ring in `primary`, without direction coloring. The initial value does not flash. When the control under focus leaves — a sent action's button unmounts or disables, with or without an acknowledgement, a window switch in between included — focus moves to the ticket itself, so the shortcuts stay live. A deliberate click elsewhere is remembered as leaving, and a re-keyed ticket starts fresh, owning no focus until the trader returns to it. Under `prefers-reduced-motion`, the ticket does not ring.
 
 ### Keys
 

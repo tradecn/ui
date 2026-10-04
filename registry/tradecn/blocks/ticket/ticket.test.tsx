@@ -448,6 +448,28 @@ describe("Ticket keys", () => {
     expect(run).not.toHaveBeenCalled()
   })
 
+  it("stores the snapped value a reference button shows", () => {
+    const { onDraftChange } = mount({ reference: { last: 99.5078125 } })
+    // The label reads 99-16+ — the snapped value — and the click must store exactly that,
+    // never the raw off-grid feed value behind it.
+    fireEvent.click(screen.getByRole("button", { name: "Last 99-16+, use it" }))
+    expect(onDraftChange.mock.calls.at(-1)?.[0].price).toBe(99.515625)
+  })
+
+  it("keeps the record through a window switch, and parks on return", () => {
+    const { rerender } = mount({ defaultDraft: { quantity: 1, price: 99.5 } })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    const button = screen.getByRole("button", { name: "Send" })
+    act(() => button.focus())
+    // A window switch blurs with no destination while the document loses focus: the record
+    // stays, so a control withdrawn while the trader is away still parks on return.
+    const away = vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    fireEvent.blur(button, { relatedTarget: null })
+    away.mockRestore()
+    rerender({ allowedActions: [] })
+    expect(document.activeElement).toBe(group)
+  })
+
   it("keeps focus in the ticket when the focused action leaves", () => {
     const { rerender } = mount({ defaultDraft: { quantity: 1, price: 99.5 } })
     const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
