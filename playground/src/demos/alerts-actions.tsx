@@ -38,9 +38,10 @@ export default function AlertsActionsDemo() {
   const ids = useRowIds(useAlertView(alerts))
   const [acted, setActed] = useState("No action yet")
   // Removal never moves focus, so the demo restores it: the next notice's first control,
-  // or the receive buttons when the list empties.
+  // or a receive button when the list empties — the controls row is the column's previous
+  // sibling.
   const region = useRef<HTMLDivElement>(null)
-  const refocus = () => queueMicrotask(() => (region.current?.querySelector<HTMLElement>("[data-slot='tradecn-alerts'] button") ?? region.current?.querySelector<HTMLElement>("[data-demo-acted]"))?.focus())
+  const refocus = () => queueMicrotask(() => (region.current?.querySelector<HTMLElement>("[data-slot='tradecn-alerts'] button") ?? region.current?.previousElementSibling?.querySelector<HTMLElement>("button"))?.focus())
   const onAction = (action: string, alert: Alert) => {
     setActed(`${action}: ${alert.title}`)
     alerts.dismiss(alert.id)
@@ -58,7 +59,7 @@ export default function AlertsActionsDemo() {
           {ids.length > 0 && <AlertsList>{ids.map((id) => <Notice key={id} alerts={alerts} id={id} onAction={onAction} onDismiss={(noticeId) => { alerts.dismiss(noticeId); refocus() }} />)}</AlertsList>}
           {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
         </Alerts>
-        <p role="status" tabIndex={-1} data-demo-acted>{acted}</p>
+        <p role="status">{acted}</p>
       </div>
     </>
   )
