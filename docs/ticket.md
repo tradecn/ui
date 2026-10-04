@@ -51,7 +51,7 @@ Every state stays visible until you choose the next event. Reset server restores
 
 ## API Reference
 
-This is the registry's first block: `ticket.tsx` installs into your `components` alias, not `components/ui`. Its shared files use the same source as `quote-field`, `format`, `flash-cell`, `limits`, and `use-hotkeys`.
+This is the registry's first block: `ticket.tsx` installs into your `components` alias, not `components/ui`. Its shared files use the same source as `quote-field`, `format`, `flash-cell`, `limits`, and `use-hotkeys`. Editing the installed file is the intended way to change its layout. Everything in `ticket.tsx` is then yours — the markup, the draft state, the handlers and keys, and the exported `checkDraft`, `describeDraft`, `parseQuantity`, and `formatQuickSize` — while the shared files it installs beside it, `quote-field`, `format`, `limits`, `use-flash`, and the hotkey files, keep taking updates from any item that installs them. Take later fixes to `ticket.tsx` itself by hand: read an update with `--diff` before taking it.
 
 ### Props
 
