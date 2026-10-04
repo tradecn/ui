@@ -63,7 +63,7 @@ export interface TicketAction {
   /** The draft, checked: a positive quantity, and a price when the order type takes one. */
   run: (draft: TicketDraft, instrument: TicketInstrument) => void
   destructive?: boolean
-  /** What `ticket.send` runs. The first allowed action by default. */
+  /** The prominent action. `ticket.send` prefers it while it checks the draft; an action with `checked: false` never takes the send key. */
   primary?: boolean
   /** The draft is checked, and held by a limit, before this runs. Default true; false for an action that sends nothing of the draft. */
   checked?: boolean
@@ -294,15 +294,19 @@ export function Ticket({
 
   // When the control under focus leaves — a sent action's button unmounts or disables with
   // the acknowledgement — focus falls to body, outside every fence, and the shortcuts go
-  // dead. The ticket's root takes it instead.
+  // dead. The scope root, which carries the fence's tabIndex, takes it instead. A deliberate
+  // blur clears the record, or a later removal of that button would steal focus back in.
   const focusedInside = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
-    const node = box.current
+    const node = box.current ? box.current.parentElement ?? box.current : null
     const previous = focusedInside.current
     if (!node || !previous) return
     const doc = node.ownerDocument
     const gone = !previous.isConnected || previous.matches(":disabled")
-    if (gone && (doc.activeElement === previous || doc.activeElement === doc.body)) node.focus()
+    if (gone && (doc.activeElement === previous || doc.activeElement === doc.body)) {
+      focusedInside.current = null
+      node.focus()
+    }
   })
 
   function update(patch: Partial<TicketDraft>) {
@@ -473,7 +477,7 @@ export function Ticket({
     // the field will show.
     const quote = stepQuote(value, convention, 0)
     return (
-      <Button key={name} type="button" variant="ghost" size="sm" className={cn("h-5 gap-1 px-1 text-xs", numericFontClass(convention.price))} disabled={disabled || !priced} aria-label={`${label} ${formatQuote(quote, convention)}, use it`} data-reference={name} onClick={() => setPrice(quote)}>
+      <Button key={name} type="button" variant="ghost" size="sm" className={cn("h-5 gap-1 px-1 text-xs", numericFontClass(convention))} disabled={disabled || !priced} aria-label={`${label} ${formatQuote(quote, convention)}, use it`} data-reference={name} onClick={() => setPrice(quote)}>
         <span className="text-muted-foreground">{label}</span>
         {formatQuote(quote, convention)}
       </Button>
@@ -501,7 +505,13 @@ export function Ticket({
 
   return (
     <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block outline-none lining-nums tabular-nums", className)}>
-      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }}>
+      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }} onBlurCapture={(event) => {
+        // Focus moving somewhere outside the ticket on purpose: the leaving control is still
+        // in the document and enabled, so there is nothing to recover from.
+        const leaving = event.target as HTMLElement
+        const next = event.relatedTarget as HTMLElement | null
+        if (focusedInside.current === leaving && leaving.isConnected && !leaving.matches(":disabled") && (!next || !event.currentTarget.contains(next))) focusedInside.current = null
+      }}>
         <div className="flex items-center gap-2">
           <span className="font-(family-name:--tradecn-font-mono) text-sm font-semibold" data-ticket-symbol>
             {instrument.symbol}
