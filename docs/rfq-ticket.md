@@ -69,7 +69,7 @@ Let the timer reach zero to see that it leaves actions unchanged, then use Expir
 
 ## API Reference
 
-This block installs `rfq-ticket.tsx` in your `components` alias. It shares source files with `quote-field`, `countdown`, `format`, `flash-cell`, `limits`, and `use-hotkeys` at a given registry version. Locally edited or older installed files may differ.
+This block installs `rfq-ticket.tsx` in your `components` alias. It shares source files with `quote-field`, `countdown`, `format`, `flash-cell`, `limits`, and `use-hotkeys` at a given registry version. Editing the installed file is the intended way to change its layout — the exported helpers carry the behavior — and an edited file takes later registry fixes by hand, so read an update with `--diff` before taking it.
 
 ### Props
 

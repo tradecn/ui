@@ -51,7 +51,7 @@ Every state stays visible until you choose the next event. Reset server restores
 
 ## API Reference
 
-This is the registry's first block: `ticket.tsx` installs into your `components` alias, not `components/ui`. Its shared files use the same source as `quote-field`, `format`, `flash-cell`, `limits`, and `use-hotkeys`.
+This is the registry's first block: `ticket.tsx` installs into your `components` alias, not `components/ui`. Its shared files use the same source as `quote-field`, `format`, `flash-cell`, `limits`, and `use-hotkeys`. Editing the installed file is the intended way to change its layout — the exported helpers carry the behavior — and an edited file takes later registry fixes by hand, so read an update with `--diff` before taking it.
 
 ### Props
 
