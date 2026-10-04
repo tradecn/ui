@@ -35,11 +35,12 @@ export interface HotkeyBinding {
 }
 
 export interface HotkeyEntry extends HotkeyBinding {
-  /** The keys in force: the override when there is one, else the binding's own. */
+  /** The keys in force: the override when there is a readable one, else the binding's own. */
   keys: string
   defaultKeys: string
   /** The keys exactly as the binding declared them, before normalization: `"mod+k"` stays `"mod+k"`. */
   declaredKeys: string
+  /** True while an override is stored for the id, one that fails to parse or matches the defaults included. */
   remapped: boolean
 }
 
@@ -639,7 +640,7 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
         const defaultKeys = normalizeKeys(rec.binding.keys, platform)
         // Remapped means an override is stored, not that the resolved keys differ: a corrupt
         // override falls back to the default keys, and Reset must still be able to clear it.
-        return { ...rec.binding, keys, defaultKeys, declaredKeys: rec.binding.keys, remapped: keys !== defaultKeys || overrides.has(rec.binding.id) }
+        return { ...rec.binding, keys, defaultKeys, declaredKeys: rec.binding.keys, remapped: overrides.has(rec.binding.id) }
       }))
     },
     conflicts() {

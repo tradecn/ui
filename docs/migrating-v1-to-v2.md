@@ -319,7 +319,7 @@ The `HotkeyEditorLabels` type and `DEFAULT_HOTKEY_EDITOR_LABELS` remain with the
 
 Keys remain visible while editing in the new recipes. v1 replaced them with the field.
 
-Reset is now a public button that stays rendered when disabled. Render it only when `entry.remapped` to preserve v1 visibility. Reset all still disables when no registered entry is remapped and clears all overrides, including hidden and unknown ids.
+Reset is now a public button that stays rendered when disabled. `entry.remapped` is also wider than v1's: it reads true while an override is stored, where v1 compared the effective keys with the defaults — so a corrupt or default-equal stored override now shows a changed badge and an enabled Reset that v1 hid. Reset all still disables when no registered entry is remapped and clears all overrides, including hidden and unknown ids.
 
 Editing is shared within each item. Key, declaration-field, or registry changes cancel an open draft. Unrelated registry updates preserve it.
 
@@ -333,7 +333,7 @@ Capture's default accessible name changes from `Press the new shortcut, Escape c
 
 Validation now has an alert role and a linked field description. Its message clears on blur, where v1 kept it. `data-hotkey-capture`, `data-hotkey-problem`, and `data-hotkey-conflicts` retain their `"true"` values.
 
-Use the public capture and input parts with custom controls to retain their event handling. The hooks expose editing state and operations without duplicating registry subscriptions. The registry now reads the canonical plus spellings back: a bare `+` and modifier steps ending in `++`, such as `ctrl++` and `meta++`. Version 1 stored those overrides — from typing the text `ctrl+plus` into the editor's field, or calling `remap(id, "ctrl+plus")` — and silently fell back to the default when reading them, wherever your application persisted the map; after upgrading they take effect, so reset a binding that was unintended. Malformed spellings such as `ctrl+++` still fail instead of becoming live bindings.
+Use the public capture and input parts with custom controls to retain their event handling. The hooks expose editing state and operations without duplicating registry subscriptions. The registry now reads the canonical plus spellings back: a bare `+` and modifier steps ending in `++`, such as `ctrl++` and `meta++`. Version 1 stored those overrides — from typing the text `ctrl+plus` into the editor's field, or calling `remap(id, "ctrl+plus")` — and silently fell back to the default when reading them, wherever your application persisted the map; after upgrading they take effect, so reset a binding that was unintended. Malformed spellings such as `ctrl+++` still fail instead of becoming live bindings; they stay stored, read as remapped, and Reset clears them.
 
 ## LayoutManager
 

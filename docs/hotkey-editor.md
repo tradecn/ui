@@ -179,7 +179,7 @@ These readings supply their own content and omit `children` from their props. Us
 | `entries` | `readonly HotkeyEntry[]` | All registered bindings in registry order. |
 | `groups` | `readonly HotkeyEditorGroup[]` | Filtered and sorted groups. Each has `name: string` and `entries: readonly HotkeyEntry[]`. |
 | `conflicts` | `readonly HotkeyConflict[]` | Conflicts across all bindings. |
-| `remapped` | `number` | Count of registered entries whose effective keys differ from defaults. |
+| `remapped` | `number` | Count of registered entries with a stored override, one that fails to parse or matches the defaults included. |
 | `query`, `setQuery` | `string`, `(query: string) => void` | Shared search state. |
 | `labels` | `HotkeyEditorLabels` | Merged labels. |
 
@@ -249,7 +249,7 @@ Conflicts do not block remapping or decide which shortcut runs. See the registry
 
 Use the hook's `registry.overrides()` in your own export button. `HotkeyOverrides` is `Record<string, string>`, keyed by binding id. Import with `registry.load(overrides)` after reading and validating your file.
 
-`load` replaces all overrides and refreshes the list, but does not call `onChange`. An override that fails to parse remains stored while the binding falls back to its defaults, so exported values can differ from the effective keys shown.
+`load` replaces all overrides and refreshes the list, but does not call `onChange`. An override that fails to parse remains stored while the binding falls back to its defaults, so exported values can differ from the effective keys shown; such an entry reads as remapped, so Reset can clear it.
 
 For persistence, create a registry with `createHotkeyRegistry` and pass it to the provider.
 

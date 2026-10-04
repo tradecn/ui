@@ -167,6 +167,19 @@ describe("HotkeyEditor", () => {
     b.remove()
   })
 
+  it("enables Reset for a stored override that does not parse, and clears it", () => {
+    const { registry } = mount()
+    act(() => registry.load({ "go.blotter": "ctrl+++" }))
+    // The binding falls back to its default keys, but the entry is remapped — the stored
+    // corruption must be clearable from the editor.
+    expect(row("go.blotter").dataset.remapped).toBe("true")
+    const reset = screen.getByRole("button", { name: "Reset: Go to the blotter" })
+    expect(reset).toBeEnabled()
+    fireEvent.click(reset)
+    expect(registry.overrides()).toEqual({})
+    expect(row("go.blotter").dataset.remapped).toBeUndefined()
+  })
+
   it("resets everything, exports the overrides, asks you to import, and hides what you say", () => {
     const onExport = vi.fn()
     const onImport = vi.fn()

@@ -275,7 +275,7 @@ Saved popouts are reopened during restoration, often without a user gesture. If 
 
 ### One window per JavaScript context
 
-For a desktop shell with separate webviews, mount one `Workspace` per window, each with its own stores and layout saved under its record's `layoutId` — several windows can share one layout; see [Desktop shells](shells.md) and [`window-set`](window-set.md), which provides the window tracking. The shell opens new windows itself; omit workspace `popout` actions.
+For a desktop shell with separate webviews, mount one `Workspace` per window, each with its own stores and layout saved under its record's `layoutId` — several windows can share one layout, which then needs coordinated writes; see [Desktop shells](shells.md) and [`window-set`](window-set.md), which provides the window tracking. The shell opens new windows itself; omit workspace `popout` actions.
 
 Connect link groups through a `LinkTransport` built with `createCallbackTransport` and the shell's events (see [`panel`](panel.md)). Mount a `HotkeysProvider` in each window.
 
