@@ -29,6 +29,19 @@ describe("the dockview theme class", () => {
     expect(Object.keys(theme).filter((name) => !known.has(name)).sort()).toEqual([])
   })
 
+  it("keeps every font size it sets at the contract's floor", () => {
+    // The typography sweep reads classes, not this item's css block, so the floor is held
+    // here: no --dv-* font size below 12px.
+    for (const [name, value] of Object.entries(theme)) {
+      if (!/font-size/.test(name)) continue
+      if (value === "inherit") continue
+      const m = /^([\d.]+)(rem|px)$/.exec(value)
+      expect(m, `${name} is a plain size`).toBeTruthy()
+      const px = m![2] === "rem" ? Number(m![1]) * 16 : Number(m![1])
+      expect(px, `${name} at or above the floor`).toBeGreaterThanOrEqual(12)
+    }
+  })
+
   it("draws only from variables every locked style defines", () => {
     const wanted = new Set([...Object.values(theme).join(" ").matchAll(/var\((--[\w-]+)\)/g)].map((m) => m[1]!))
     expect(wanted.size).toBeGreaterThan(5)
