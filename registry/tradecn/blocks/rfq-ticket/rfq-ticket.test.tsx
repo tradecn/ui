@@ -329,6 +329,14 @@ describe("RfqTicket keys", () => {
     const last = onDraftChange.mock.calls.at(-1)?.[0]
     expect(last.ask).not.toBeNull()
     expect(last.bid).toBeNull()
+    // The event's own target outranks whatever holds focus: with the Bid focused, a key
+    // dispatched on the Offer still steps the offer — dropping the target preference would
+    // step the bid here.
+    act(() => screen.getByLabelText("Bid").focus())
+    fireEvent.keyDown(offer, { key: "ArrowUp", ctrlKey: true })
+    const after = onDraftChange.mock.calls.at(-1)?.[0]
+    expect(after.ask).not.toBeNull()
+    expect(after.bid).toBeNull()
   })
 
   it("treats a non-finite level as no level", () => {

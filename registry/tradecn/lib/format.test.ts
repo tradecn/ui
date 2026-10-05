@@ -23,6 +23,7 @@ import {
   numberFormat,
   parsePrice,
   parseQuote,
+  quoteInvertedOf,
   quoteStepOf,
   roundToTick,
   stepByTick,
@@ -258,6 +259,18 @@ describe("the quote basis", () => {
     expect(quoteStepOf(credit)).toBe(0.1)
     expect(Object.keys(QUOTE_BASIS_LABELS).sort()).toEqual(["discount", "price", "spread", "yield"])
   })
+  it("reads the quote direction: declared for any basis, else yield and discount invert", () => {
+    expect(quoteInvertedOf(onYield)).toBe(true)
+    expect(quoteInvertedOf(bill)).toBe(true)
+    expect(quoteInvertedOf(credit)).toBe(false)
+    expect(quoteInvertedOf(note)).toBe(false)
+    // A declared value decides for any basis — explicit false on yield is the rates desks'
+    // escape hatch, and truthiness alone would ignore it.
+    expect(quoteInvertedOf({ ...onYield, quoteInverted: false })).toBe(false)
+    expect(quoteInvertedOf({ ...credit, quoteInverted: true })).toBe(true)
+    expect(quoteInvertedOf({ ...note, quoteInverted: true })).toBe(true)
+  })
+
   it("prints and reads a quote in its basis, with no unit", () => {
     expect(formatQuote(99.515625, note)).toBe("99-16+")
     expect(parseQuote("99-16+", note)).toBe(99.515625)
