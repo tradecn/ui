@@ -98,6 +98,11 @@ describe("FeedHealth", () => {
     tick(1000)
     expect(item().dataset.tier).toBe("aging")
     expect(live()).toHaveTextContent("Market data aging, 2s")
+    // The aging tier reads at full token strength: an opacity modifier on text-stale
+    // fell under AA contrast on light backgrounds the full token passes.
+    const trigger = item().querySelector<HTMLElement>("button")!
+    expect(trigger.className).toContain("text-stale")
+    expect(trigger.className).not.toMatch(/text-stale\//)
     tick(3000)
     expect(item()).toHaveTextContent("5s")
     expect(live()).toHaveTextContent("Market data aging, 2s")

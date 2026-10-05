@@ -2,7 +2,7 @@ import { DeskTab } from "./workspace"
 import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "cn"
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -1718,17 +1718,24 @@ const noticeTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute:
 
 type NoticeAction = { id: string; label: string; onAction: (alert: Alert) => void }
 
-function Notice({ alerts, id, actions, ttlMs }: { alerts: AlertStore; id: string; actions: NoticeAction[]; ttlMs?: number }) {
-  const alert = useAlert(alerts, id, { ttlMs })
+function Notice({ alerts, id, actions, onDismiss, onDisplaced }: { alerts: AlertStore; id: string; actions: NoticeAction[]; onDismiss: (id: string) => void; onDisplaced: () => void }) {
+  const alert = useAlert(alerts, id)
+  const box = useRef<HTMLLIElement>(null)
+  // An arrival replaces the single shown notice. When the outgoing notice held focus,
+  // hand it to the recovery; the cleanup's microtask runs after the replacement mounts.
+  useLayoutEffect(() => {
+    const node = box.current
+    return () => { if (node?.contains(document.activeElement)) onDisplaced() }
+  }, [onDisplaced])
   if (!alert) return null
   return (
-    <AlertItem tone={alert.tone} data-alert-id={id} data-severity={alert.severity}>
+    <AlertItem ref={box} tone={alert.tone} data-alert-id={id} data-severity={alert.severity}>
       <AlertHeader>
         <AlertSeverity tone={alert.tone}>{alert.severity}</AlertSeverity>
         <AlertTitle>{alert.title}</AlertTitle>
         {alert.count > 1 && <span className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)} data-alert-count={alert.count}>×{alert.count}</span>}
         <time dateTime={new Date(alert.at).toISOString()} className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)}>{noticeTime.format(alert.at)}</time>
-        <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)} />
+        <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => onDismiss(id)} />
       </AlertHeader>
       {alert.message && <AlertBody>{alert.message}</AlertBody>}
       <AlertActions>{actions.map((action) => <AlertActionButton key={action.id} alert={alert} action={action.id} onAction={action.onAction}>{action.label}</AlertActionButton>)}</AlertActions>
@@ -1738,16 +1745,25 @@ function Notice({ alerts, id, actions, ttlMs }: { alerts: AlertStore; id: string
 
 export function DeskAlerts({ alerts, actions }: { alerts: AlertStore; actions: NoticeAction[] }) {
   const ids = useRowIds(useAlertView(alerts))
-  // Notices can expire while history is open; keep its trigger mounted for focus on close.
+  // Removal never moves focus, so the desk does: the remaining notice's dismiss, else the
+  // always-mounted History trigger. Only when focus actually fell to body — an action that
+  // leaves its notice up keeps focus where it is. No TTL — the page advises against timers
+  // on notices whose controls hold focus, and these carry dismiss and action buttons.
+  const region = useRef<HTMLDivElement>(null)
+  const refocus = () => queueMicrotask(() => {
+    if (document.activeElement && document.activeElement !== document.body) return
+    ;(region.current?.querySelector<HTMLElement>("[data-slot='tradecn-alert-dismiss']") ?? region.current?.querySelector<HTMLElement>("button"))?.focus()
+  })
+  // The server can remove notices while history is open; keep its trigger mounted for focus on close.
   return (
     <Dialog>
-      <Alerts className="border-b border-border px-2 py-1">
+      <Alerts ref={region} className="border-b border-border px-2 py-1">
         <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
-        {ids.length > 0 && <AlertsList>{ids.slice(0, 1).map((id) => <Notice key={id} alerts={alerts} id={id} actions={actions} ttlMs={12_000} />)}</AlertsList>}
+        {ids.length > 0 && <AlertsList>{ids.slice(0, 1).map((id) => <Notice key={id} alerts={alerts} id={id} actions={actions.map((action) => ({ ...action, onAction: (alert) => { action.onAction(alert); refocus() } }))} onDismiss={(noticeId) => { alerts.dismiss(noticeId); refocus() }} onDisplaced={refocus} />)}</AlertsList>}
         {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
         <div className="flex gap-2">
           <DialogTrigger className={buttonVariants({ variant: "ghost", size: "sm" })}>{ids.length > 1 ? `${ids.length - 1} more` : "History"}</DialogTrigger>
-          {ids.length > 0 && <Button variant="ghost" size="sm" onClick={() => alerts.clear()}>Clear all</Button>}
+          {ids.length > 0 && <Button variant="ghost" size="sm" onClick={() => { alerts.clear(); refocus() }}>Clear all</Button>}
         </div>
       </Alerts>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col sm:max-w-3xl">

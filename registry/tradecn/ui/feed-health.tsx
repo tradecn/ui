@@ -98,7 +98,7 @@ export type { Clock }
 
 const TIER_CLASS: Record<Tier, string> = {
   live: "text-foreground",
-  aging: "text-stale/80",
+  aging: "text-stale",
   stale: "bg-stale-soft text-stale",
   offline: "text-destructive",
   closed: "text-muted-foreground",
