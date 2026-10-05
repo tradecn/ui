@@ -130,7 +130,7 @@ export function checkLimits(draft: LimitsDraft, limits: Limits | undefined, cont
   const quantity = draft.quantity
   // A fractional size prints exactly, or the prompt would round the trader's own number and
   // the limit into a lie such as "10 is above the size limit of 10".
-  const size = (v: number) => (Number.isInteger(v) ? formatQuantity(v) : String(v).replace("-", "−"))
+  const size = (v: number) => (Number.isInteger(v) ? formatQuantity(v) : String(v).replace(/-/g, "−"))
   if (typeof quantity === "number" && Number.isFinite(quantity)) {
     const max = thresholds(limits.maxQuantity)
     if (max.block !== undefined && quantity > max.block) problems.push({ field: "quantity", level: "block", rule: "maxQuantity", message: fill(labels.quantityAbove, { n: size(quantity), max: size(max.block) }) })

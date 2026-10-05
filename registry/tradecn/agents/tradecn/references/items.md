@@ -168,7 +168,7 @@ Exports: `StatusBar`, `StatusBarEnvironmentBadge`, `StatusBarClocks`, `StatusBar
 
 ### Ticket (`ticket`)
 
-An order ticket that types a price the way the instrument quotes it (99-16+), steps it by the tick with the arrows and the buttons, and hands a checked draft to the action you named. Buttons are the actions the server allowed and nothing else; the status is the server word, printed as it is; an acknowledgement rings the ticket once in primary. Quick sizes as buttons under the quantity and on mod+1 to mod+9. Its keys work while you type in it, and inside a dialog.
+An order ticket that types a price the way the instrument quotes it (99-16+), steps it by the quote step with the arrows and the buttons, and hands a checked draft to the action you named. Buttons are the actions the server allowed and nothing else; the status is the server word, printed as it is; an acknowledgement rings the ticket once in primary. Quick sizes as buttons under the quantity and on mod+1 to mod+9. Its keys work while you type in it, and inside a dialog.
 
 Exports: `Ticket`, `TICKET_BINDINGS`, `describeDraft`, `checkDraft`, `parseQuantity`, `DEFAULT_TICKET_LABELS`, `DEFAULT_ORDER_TYPES`, `DEFAULT_TIME_IN_FORCES`, `QUICK_SIZE_KEYS`, `formatQuickSize`.
 

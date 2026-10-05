@@ -60,7 +60,7 @@ In Bid size, `60000000` asks for confirmation above 50 million; `150000000` is b
 
 ## API Reference
 
-`QuotePanel` uses [`data-grid`](data-grid.md) in its `parameters` preset with generated quote columns and an optional Pull all button. Shared files are byte-identical to the ones `data-grid` and `parameter-grid` install.
+`QuotePanel` uses [`data-grid`](data-grid.md) in its `parameters` preset with generated quote columns and an optional Pull all button. Shared files are byte-identical to the ones `data-grid` and `parameter-grid` install. Though it installs as a block in your `components` alias, compose it through `quotePanelColumns` and its options rather than editing the file: unlike the ticket blocks, its behavior lives in the generated columns, and an edited file takes later registry fixes by hand. A two-way edit is refused when it crosses the desk's other side, read through the instrument's quote direction — where a declared `quoteInverted` says a higher quote means a lower price, the bid sits above the offer in a normal market and the refusals flip.
 
 ### Props
 

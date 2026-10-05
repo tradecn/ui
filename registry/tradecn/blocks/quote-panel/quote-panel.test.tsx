@@ -84,6 +84,12 @@ describe("quotePanelColumns and quoteEdit", () => {
     expect(quoteEdit<QuoteRow>("ask", { convention: T32 }).validate?.(100.21875, row)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.askCrosses })
     expect(edit.canEdit?.(row)).toBe(true)
     expect(edit.canEdit?.(ROWS[2]!)).toBe(false)
+    // Crossing follows the quote direction: a declared inverted instrument — cash credit —
+    // quotes the bid above the offer, so the refusals flip.
+    const CASH = { price: { kind: "decimal" as const, decimals: 3 }, tick: 0.001, quoteBasis: "spread" as const, quoteInverted: true }
+    const cashBid = quoteEdit<QuoteRow>("bid", { convention: CASH })
+    expect(cashBid.validate?.(row.ask! - 0.5, row)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.bidCrosses })
+    expect(cashBid.validate?.(row.ask! + 0.5, row)).toBeNull()
   })
 
   it("reads a size as a whole number, zero or more, and a skew or width as a number of steps", () => {

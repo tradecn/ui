@@ -1,8 +1,8 @@
 import { cn } from "cn"
-import { useCallback, useRef, type HTMLAttributes, type ReactNode, type Ref } from "react"
+import { useCallback, useRef, type ComponentProps, type ReactNode } from "react"
 import { useFlash, type FlashOptions } from "@/registry/tradecn/hooks/use-flash"
 
-export interface FlashCellProps extends Omit<HTMLAttributes<HTMLDivElement>, "children">, FlashOptions {
+export interface FlashCellProps extends Omit<ComponentProps<"div">, "children">, FlashOptions {
   /** The value to watch. A change flashes the cell, colored by direction. */
   value: unknown
   children?: ReactNode
@@ -28,7 +28,7 @@ export function FlashCell({
   revision,
   ref: forwardedRef,
   ...rest
-}: FlashCellProps & { ref?: Ref<HTMLDivElement> }) {
+}: FlashCellProps) {
   const ref = useRef<HTMLDivElement>(null)
   useFlash(ref, value, { windowMs, variant, compare, flashOnEqual, memory, cellKey, disabled, now, revision })
   // A trigger's asChild, a render prop, or a spreading wrapper injects a ref of its own; it

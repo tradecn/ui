@@ -466,11 +466,11 @@ function Item({ template, className, ref, onFocusCapture, onBlurCapture, ...prop
     if (renaming && !wasRenaming.current) node.querySelector<HTMLElement>("[data-layout-rename-field]")?.focus()
     if (!renaming && wasRenaming.current && restoreFocus.current && (active === node.ownerDocument.body || node.contains(active))) {
       const target = origin.current
-      if (target?.isConnected && !target.matches(":disabled, [aria-disabled=true]")) target.focus()
-      else node.focus()
+      if (target?.isConnected && !target.matches(":disabled, [aria-disabled=true]")) target.focus({ preventScroll: true })
+      else node.focus({ preventScroll: true })
     }
     const focused = lastFocused.current
-    if (focused && (!focused.isConnected || focused.matches(":disabled")) && (node.ownerDocument.activeElement === node.ownerDocument.body || node.ownerDocument.activeElement === focused)) node.focus()
+    if (focused && (!focused.isConnected || focused.matches(":disabled")) && (node.ownerDocument.activeElement === node.ownerDocument.body || node.ownerDocument.activeElement === focused)) node.focus({ preventScroll: true })
     wasRenaming.current = renaming
   })
   useLayoutEffect(() => {
