@@ -459,7 +459,7 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   const offered: PaletteAction[] = []
   for (const a of list) {
     if (a.scope && !active.has(a.scope)) continue
-    const key = `${a.scope ?? ""}\u0000${a.id}`
+    const key = JSON.stringify([a.scope ?? null, a.id])
     if (seen.has(key)) continue
     seen.add(key)
     const resolved = instanceOf(a)
