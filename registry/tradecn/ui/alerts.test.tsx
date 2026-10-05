@@ -242,6 +242,21 @@ describe("useAlert", () => {
 })
 
 describe("AlertsAnnouncer", () => {
+  it("announces a new notice whose words repeat the previous one's", () => {
+    // A second identical rejection must not be silent: the inner node is keyed by the
+    // notice's identity, so the live region receives an addition either way.
+    const alerts = seeded(clock().now)
+    const { rerender } = render(<AlertsAnnouncer alerts={alerts} id="n4" assertive={["critical"]} />)
+    const region = document.querySelector("[data-alerts-assertive]")!
+    const firstNode = region.firstElementChild
+    expect(firstNode?.textContent).toContain("Order rejected")
+    act(() => void alerts.push({ severity: "critical", title: "Order rejected", message: "Price away from market", tone: "destructive", allowedActions: ["ack"] }))
+    rerender(<AlertsAnnouncer alerts={alerts} id="n5" assertive={["critical"]} />)
+    const secondNode = region.firstElementChild
+    expect(secondNode?.textContent).toContain("Order rejected")
+    expect(secondNode).not.toBe(firstNode)
+  })
+
   it("announces only the chosen notice, switches urgency, and permits an empty selection", () => {
     const alerts = seeded(clock().now)
     const { rerender } = render(<AlertsAnnouncer alerts={alerts} id="n4" assertive={["critical"]} />)

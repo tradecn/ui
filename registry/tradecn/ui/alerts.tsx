@@ -108,9 +108,14 @@ export function AlertsAnnouncer({ alerts, id, assertive = [] }: AlertsAnnouncerP
   const alert = useSyncExternalStore(subscribe, get, get)
   const text = alert ? `${alert.severity}: ${alert.title}${alert.message ? `. ${alert.message}` : ""}${alert.count > 1 ? ` (${alert.count})` : ""}` : ""
   const urgent = alert !== undefined && assertive.includes(alert.severity)
+  // A new notice can carry the previous one's exact words — a second identical rejection —
+  // and an unchanged text write never reaches the live region. The inner node is keyed by
+  // the notice's identity, so the region receives an addition either way, the feed-health
+  // announcer's pattern.
+  const revision = alert ? `${alert.id}:${alert.seq}` : ""
   return <>
-    <div role="status" aria-live="polite" aria-atomic="true" className="sr-only" data-alerts-polite>{urgent ? "" : text}</div>
-    <div role="alert" aria-live="assertive" aria-atomic="true" className="sr-only" data-alerts-assertive>{urgent ? text : ""}</div>
+    <div role="status" aria-live="polite" aria-atomic="true" className="sr-only" data-alerts-polite>{!urgent && text ? <span key={revision}>{text}</span> : ""}</div>
+    <div role="alert" aria-live="assertive" aria-atomic="true" className="sr-only" data-alerts-assertive>{urgent && text ? <span key={revision}>{text}</span> : ""}</div>
   </>
 }
 

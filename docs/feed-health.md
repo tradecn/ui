@@ -87,7 +87,7 @@ Toggle Include market data to switch between no feeds and an offline feed. `Feed
 
 ## Lanes and compact display
 
-Install `separator` for this layout. This example shows coalesced drops and an ordered gap, with a fixed clock for the gap age. Close RFQ gap removes the report. Compact hides the tier badge with `sr-only`, keeping its word available to assistive technology.
+Install `separator` for this layout. This example shows coalesced drops and an ordered gap, with a fixed clock for the gap age. Close RFQ gap removes the report. Compact hides the tier badge with `sr-only`, keeping its word available to assistive technology — the visible cue is then color alone, so keep a visible tier word or age nearby for sighted users where the tier matters.
 
 <!-- demo: feed-health-lanes -->
 
@@ -175,7 +175,7 @@ A span containing the dot and a screen-reader connection-state word. Children re
 
 #### `<FeedHealthTier />`
 
-A badge containing the tier word. Use `className="sr-only"` for compact display.
+A badge containing the tier word. Use `className="sr-only"` for compact display, leaving color the only visible cue — pair it with a visible word or age where the tier matters.
 
 #### `<FeedHealthLane />`
 
@@ -204,7 +204,7 @@ A span that also works outside an item. It defaults to `aria-hidden` so age tick
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `feed` | `FeedDescriptor` | Required | Last-message timestamp. |
-| `clock` | `Clock` | Group, then shared clock | Time source. |
+| `clock` | `Clock` | Group, then shared clock | Time source. | Render feed health on the client: the shared clock advances only while something in a browser subscribes, so server-rendered ages, tiers, and `data-tier` go stale and mismatch on hydration.
 | `children` | `ReactNode` | Formatted age | Replacement content. |
 
 <details class="api-details" id="feedage-formatting">
@@ -251,7 +251,7 @@ Optional third argument. Omit it to use the defaults below.
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `pendingMs` | `number` | `5000` | Timeout in milliseconds; changes affect future presses. |
+| `pendingMs` | `number` | `5000` | Timeout in milliseconds, within the platform's timer range — about twenty-four days — or the clamp fires it immediately; changes affect future presses. |
 | `clock` | `Clock` | Group, then shared clock | Press timestamp. Timeout uses `setTimeout`. |
 
 #### Returns

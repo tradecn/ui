@@ -12,11 +12,11 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-it.each(["expiry", "clear"])("returns focus from terminal history after %s removes the overflow", async (change) => {
+it.each(["dismiss", "clear"])("returns focus from terminal history after a server %s removes the overflow", async (change) => {
   vi.useFakeTimers()
   const alerts = alertStore.createAlertStore()
   alerts.push({ severity: "warning", title: "Retained", allowedActions: ["ack"] })
-  alerts.push({ severity: "info", title: "Temporary" })
+  const shown = alerts.push({ severity: "info", title: "Temporary" })
   render(<DeskAlerts alerts={alerts} actions={[]} />)
   const trigger = screen.getByRole("button", { name: "1 more" })
   trigger.focus()
@@ -24,11 +24,11 @@ it.each(["expiry", "clear"])("returns focus from terminal history after %s remov
   await act(async () => { await vi.advanceTimersByTimeAsync(100) })
   const dialog = screen.getByRole("dialog", { name: "All notices" })
   await act(async () => {
-    if (change === "expiry") await vi.advanceTimersByTimeAsync(12_000)
+    if (change === "dismiss") alerts.dismiss(shown.id)
     else alerts.clear()
   })
-  expect(alerts.size()).toBe(change === "expiry" ? 1 : 0)
-  if (change === "expiry") fireEvent.keyDown(dialog, { key: "Escape", code: "Escape" })
+  expect(alerts.size()).toBe(change === "dismiss" ? 1 : 0)
+  if (change === "dismiss") fireEvent.keyDown(dialog, { key: "Escape", code: "Escape" })
   else fireEvent.click(within(dialog).getByRole("button", { name: "Close" }))
   await act(async () => { await vi.advanceTimersByTimeAsync(100) })
   expect(screen.queryByRole("dialog")).toBeNull()
@@ -83,13 +83,13 @@ it("replaces the local collection with its empty state and restores the notices,
 it("hands focus to a receive button when the actions demo empties, and to the next notice before that", async () => {
   render(<AlertsActionsDemo />)
   const notices = within(screen.getByRole("group", { name: "Notices" }))
-  // An action removes its notice too: focus lands exactly on the remaining notice's first
-  // control, the Reconnect button, never merely somewhere in the group.
+  // An action removes its notice too: focus lands exactly on the remaining notice's
+  // dismiss — never a server-action button, which a held Enter would fire.
   const acknowledge = notices.getAllByRole("button", { name: "Acknowledge" })
   act(() => acknowledge[0]!.focus())
   fireEvent.click(acknowledge[0]!)
   await act(async () => {})
-  expect(notices.getAllByRole("button", { name: "Reconnect" })[0]).toHaveFocus()
+  expect(notices.getAllByRole("button", { name: /^Dismiss:/ })[0]).toHaveFocus()
   fireEvent.click(notices.getAllByRole("button", { name: /^Dismiss:/ })[0]!)
   await act(async () => {})
   expect(screen.getByRole("button", { name: "Receive slow feed" })).toHaveFocus()

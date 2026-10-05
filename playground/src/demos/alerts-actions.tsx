@@ -38,10 +38,10 @@ export default function AlertsActionsDemo() {
   const ids = useRowIds(useAlertView(alerts))
   const [acted, setActed] = useState("No action yet")
   // Removal never moves focus, so the demo restores it: the first remaining notice's
-  // control, or a receive button when the list empties — the controls row is the column's
-  // previous sibling.
+  // dismiss — never a server-action button, which a held Enter would fire — or a receive
+  // button when the list empties; the controls row is the column's previous sibling.
   const region = useRef<HTMLDivElement>(null)
-  const refocus = () => queueMicrotask(() => (region.current?.querySelector<HTMLElement>("[data-slot='tradecn-alerts'] button") ?? region.current?.previousElementSibling?.querySelector<HTMLElement>("button"))?.focus())
+  const refocus = () => queueMicrotask(() => (region.current?.querySelector<HTMLElement>("[data-slot='tradecn-alert-dismiss']") ?? region.current?.previousElementSibling?.querySelector<HTMLElement>("button"))?.focus())
   const onAction = (action: string, alert: Alert) => {
     setActed(`${action}: ${alert.title}`)
     alerts.dismiss(alert.id)
