@@ -351,7 +351,37 @@ describe("frame batcher", () => {
     }
   }
 
-  it("coalesces one frame of messages into one batch, last write wins", () => {
+  it("keeps a recorded gap when later frames never mention one", () => {
+    // Omitted fields keep their previous values all the way through: a frame that
+    // carries only a seq must not silence the store's gap mid-replay.
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    const { raf, frame } = fakeRaf()
+    const batcher = createFrameBatcher<Quote>((b) => store.applyDeltas(b), { getRowId: (r) => r.id, raf })
+    batcher.push({ meta: { gap: true, seq: 10 } })
+    frame()
+    expect(store.getMeta().gap).toBe(true)
+    batcher.push({ patch: [{ id: "a", fields: { px: 1 } }], meta: { seq: 11 } })
+    frame()
+    expect(store.getMeta().gap).toBe(true)
+    batcher.push({ meta: { gap: false, seq: 12 } })
+    frame()
+    expect(store.getMeta().gap).toBe(false)
+  })
+
+  it("publishes id snapshots that never alias the live array", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    const before = store.getIds()
+    store.applyDeltas({ upsert: [q("a", 1)] })
+    expect(before).toHaveLength(0)
+    const first = store.getIds()
+    store.clear()
+    const empty = store.getIds()
+    store.applyDeltas({ upsert: [q("b", 1)] })
+    expect(empty).toHaveLength(0)
+    expect(first.map(String)).toEqual(["a"])
+  })
+
+    it("coalesces one frame of messages into one batch, last write wins", () => {
     const apply = vi.fn<(b: DeltaBatch<Quote>) => void>()
     const { raf, frame } = fakeRaf()
     const batcher = createFrameBatcher<Quote>(apply, { getRowId: (r) => r.id, raf })

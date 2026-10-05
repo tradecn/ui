@@ -38,6 +38,14 @@ afterEach(() => {
 })
 
 describe("the pure parts", () => {
+  it("prints whole milliseconds for a fractional timestamp", () => {
+    // A server timestamp of 1700000000123.4 must read .123, never .123.4000000953.
+    const columns = auditTrailColumns()
+    const at = columns.find(column => column.key === "at")!
+    const printed = at.format!(1_700_000_000_123.4, { id: "e", at: 1_700_000_000_123.4, kind: "fill", message: "x" } as never)
+    expect(printed).toMatch(/\.123$/)
+  })
+
   it("folds the changes up to an event into the state at that moment", () => {
     expect(Object.fromEntries(foldChanges(EVENTS, "e1"))).toEqual({ quantity: 5000, price: "99-16+", status: "New" })
     expect(Object.fromEntries(foldChanges(EVENTS, "e3"))).toEqual({ quantity: 5000, price: "99-16+", status: "PartiallyFilled", filled: 2000 })

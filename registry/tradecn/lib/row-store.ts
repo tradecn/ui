@@ -116,7 +116,8 @@ export function createRowStore<T>(options: RowStoreOptions<T>): RowStore<T> {
   const now = options.now ?? Date.now
   const rows = new Map<RowId, T>()
   let ids: RowId[] = []
-  let idsSnapshot: readonly RowId[] = ids
+  // Snapshots never alias the live array: the first batch appends to ids in place.
+  let idsSnapshot: readonly RowId[] = ids.slice()
   let meta: StoreMeta = { version: 0, size: 0, lane: options.lane ?? "coalesced", dropped: 0, seq: null, gap: false, lastBatchAt: null, producedAt: null }
   const rowListeners = new Map<RowId, Set<Listener>>()
   const orderListeners = new Set<Listener>()
@@ -237,7 +238,7 @@ export function createRowStore<T>(options: RowStoreOptions<T>): RowStore<T> {
       const all = ids
       rows.clear()
       ids = []
-      idsSnapshot = ids
+      idsSnapshot = []
       meta = { ...meta, version: meta.version + 1, size: 0, lastBatchAt: now() }
       for (const view of views) view.onBatch(new Set(all), new Set(all), true, meta.version)
       for (const id of all) notifyRow(id)
@@ -504,12 +505,17 @@ export function createFrameBatcher<T>(
       }
       if (delta.order) order = delta.order
       if (delta.meta) {
+        // Omitted fields keep their previous values all the way through: a frame that
+        // never mentions gap must not write one, or a replay's recorded gap is
+        // silenced mid-flight. Within one batch a mentioned gap stays sticky-true.
+        const gapMentioned = delta.meta.gap !== undefined || meta?.gap !== undefined
         meta = {
           ...meta,
           ...delta.meta,
           dropped: (meta?.dropped ?? 0) + (delta.meta.dropped ?? 0),
-          gap: Boolean(meta?.gap) || Boolean(delta.meta.gap),
+          ...(gapMentioned ? { gap: Boolean(meta?.gap) || Boolean(delta.meta.gap) } : {}),
         }
+        if (!gapMentioned) delete (meta as { gap?: boolean }).gap
       }
       if (handle === null) {
         handle = raf(() => {

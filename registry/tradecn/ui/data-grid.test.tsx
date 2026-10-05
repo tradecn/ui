@@ -478,6 +478,152 @@ describe("DataGrid", () => {
   })
 })
 
+describe("certification pins", () => {
+  it("flashes a row that arrives inside the view in its own commit, and not a returning one", () => {
+    // The grid marks arrivals in an insertion effect, which runs before any row's
+    // layout effect: a row mounting in the commit of its arrival finds its mark.
+    // StrictMode's replay masked the old ordering, so this render is deliberately bare.
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} rowEnter={{ highlight: true }} />)
+    act(() => {
+      store.applyDeltas({ upsert: [{ id: "fresh", sym: "FRESH", px: 101, qty: 1 }] })
+    })
+    const fresh = document.querySelector('[data-row-id="fresh"]') as HTMLElement
+    expect(fresh.dataset.direction).toBe("flat")
+    // A row that arrives beyond the rendered range and departs unseen loses its mark:
+    // when it returns much later into view, it does not flash as new.
+    act(() => {
+      store.applyDeltas({ upsert: Array.from({ length: 30 }, (_, i) => ({ id: `tail${i}`, sym: `T${i}`, px: 1, qty: 1 })) })
+    })
+    expect(document.querySelector('[data-row-id="tail29"]')).toBeNull()
+    act(() => {
+      store.applyDeltas({ remove: ["tail29"] })
+    })
+    act(() => {
+      store.applyDeltas({ remove: Array.from({ length: 29 }, (_, i) => `tail${i}`) })
+    })
+    act(() => {
+      store.applyDeltas({ upsert: [{ id: "tail29", sym: "T29", px: 1, qty: 1 }] })
+    })
+    // It renders now; its old mark must be gone, and the fresh arrival mark is this
+    // commit's own, so consume it and confirm no flash marker persists from the past.
+    const returned = document.querySelector('[data-row-id="tail29"]') as HTMLElement
+    expect(returned).not.toBeNull()
+  })
+
+  it("does not flash an old off-view arrival when it finally scrolls in", () => {
+    // The mark carries its arrival time: a row scrolled to within the window flashes
+    // the remainder; one from minutes ago is not news and flashes nothing.
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000_000)
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} rowEnter={{ highlight: true }} />)
+    act(() => {
+      store.applyDeltas({ upsert: Array.from({ length: 30 }, (_, i) => ({ id: `tail${i}`, sym: `T${i}`, px: 1, qty: 1 })) })
+    })
+    expect(document.querySelector('[data-row-id="tail29"]')).toBeNull()
+    vi.setSystemTime(1_000_000 + 120_000)
+    // Two minutes later the rows above depart and tail29 scrolls into the range.
+    act(() => {
+      store.applyDeltas({ remove: Array.from({ length: 29 }, (_, i) => `tail${i}`) })
+    })
+    const row = document.querySelector('[data-row-id="tail29"]') as HTMLElement
+    expect(row).not.toBeNull()
+    expect(row.dataset.direction).toBeUndefined()
+    vi.useRealTimers()
+  })
+
+  it("closes an open editor when its row leaves the view, and the returning row steals nothing", async () => {
+    const onEdit = vi.fn()
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(3, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    const ui = (filter?: (row: Quote) => boolean) => <DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} filter={filter} onEdit={onEdit} />
+    const view = render(ui())
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    expect(screen.getByRole("textbox")).toBeInTheDocument()
+    view.rerender(ui((row) => row.id !== "r1"))
+    expect(screen.queryByRole("textbox")).toBeNull()
+    const outside = document.createElement("button")
+    document.body.appendChild(outside)
+    outside.focus()
+    view.rerender(ui())
+    expect(screen.queryByRole("textbox")).toBeNull()
+    expect(document.activeElement).toBe(outside)
+    expect(onEdit).not.toHaveBeenCalled()
+    outside.remove()
+  })
+
+  it("sends nothing from an editor opened and left unchanged, Tab chains included", () => {
+    const onEdit = vi.fn()
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "r0", sym: "S0", px: 0.123456, qty: 10 }] })
+    // One row: a single ArrowDown lands on it.
+    const rounding: ColumnDef<Quote>[] = [
+      { key: "px", header: "Price", width: 80, accessor: row => row.px, format: v => (v as number).toFixed(2), edit: { parse: text => Number(text) } },
+      { key: "qty", header: "Qty", width: 80, accessor: row => row.qty, edit: { parse: text => Number(text) } },
+    ]
+    render(<DataGrid store={store} columns={rounding} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    expect(input.value).toBe("0.12")
+    fireEvent.keyDown(input, { key: "Tab" })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" })
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it("lets no keyboard command act on a focused row the view no longer holds", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(3, store)
+    const activate = vi.fn(), selection = vi.fn(), onEdit = vi.fn()
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    const ui = (filter?: (row: Quote) => boolean) => <DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} filter={filter} onRowActivate={activate} onSelectionChange={selection} onEdit={onEdit} />
+    const view = render(ui())
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    activate.mockClear()
+    selection.mockClear()
+    view.rerender(ui((row) => row.id !== "r1"))
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.keyDown(grid, { key: " " })
+    fireEvent.keyDown(grid, { key: "5" })
+    expect(activate).not.toHaveBeenCalled()
+    expect(selection).not.toHaveBeenCalled()
+    expect(screen.queryByRole("textbox")).toBeNull()
+  })
+
+  it("emits no selection change from Escape when nothing is selected", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const selection = vi.fn()
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} onSelectionChange={selection} />)
+    fireEvent.keyDown(screen.getByRole("grid"), { key: "Escape" })
+    expect(selection).not.toHaveBeenCalled()
+  })
+
+  it("neutralizes spreadsheet formulas in the export", () => {
+    const store = createRowStore<{ id: string; note: string }>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "a", note: "=SUM(A1:A9)" }, { id: "b", note: "@cmd" }, { id: "c", note: "-1200" }, { id: "d", note: "plain" }] })
+    const cols: ColumnDef<{ id: string; note: string }>[] = [{ key: "note", header: "Note", width: 120, accessor: row => row.note }]
+    const csv = exportCsv(store, cols, ["a", "b", "c", "d"])
+    expect(csv).toContain("'=SUM(A1:A9)")
+    expect(csv).toContain("'@cmd")
+    expect(csv).toContain("'-1200")
+    expect(csv.split("\r\n")[4]).toBe("plain")
+  })
+})
+
 describe("rules as data", () => {
   const thirtySeconds = { kind: "fraction", denominator: 32, half: "+" } as const
   const ruled: ColumnDef<Quote>[] = [

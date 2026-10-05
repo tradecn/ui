@@ -472,6 +472,31 @@ test("a watchlist grid remains virtual inside a plain bounded container", async 
   await expect.poll(() => grid.locator("[data-row-id]").count()).toBeLessThan(50)
 })
 
+test("keyboard walking keeps the focused row clear of the sticky header and footer edges", async ({ page }) => {
+  // The virtualizer is told about the sticky header: without scroll padding,
+  // align auto stops a row short, ArrowDown walks focus just below the fold,
+  // and End never reveals the last row.
+  await page.goto("/")
+  await page.getByRole("button", { name: "Load 500 quotes" }).click()
+  const grid = page.locator("[data-slot='tradecn-watchlist']").getByRole("grid")
+  const viewport = grid.locator(".overflow-auto")
+  await grid.focus()
+  await grid.press("Home")
+  for (let step = 0; step < 14; step++) await grid.press("ArrowDown")
+  const inView = async () => {
+    const active = await grid.getAttribute("aria-activedescendant")
+    const row = grid.locator(`[id="${active}"]`)
+    const rowBox = (await row.boundingBox())!
+    const viewBox = (await viewport.boundingBox())!
+    expect(rowBox.y).toBeGreaterThanOrEqual(viewBox.y)
+    expect(rowBox.y + rowBox.height).toBeLessThanOrEqual(viewBox.y + viewBox.height + 0.5)
+  }
+  await inView()
+  await grid.press("End")
+  await expect(grid.locator('[data-row-id="SYM499"]')).toBeVisible()
+  await inView()
+})
+
 for (const dark of [false, true]) for (const key of ["Delete", "Backspace"]) test(`blotter owns ${key} only on its grid root (${dark ? "dark" : "light"})`, async ({ page }) => {
   const errors: string[] = []
   page.on("console", message => message.type() === "error" && errors.push(message.text()))
