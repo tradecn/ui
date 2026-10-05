@@ -104,7 +104,8 @@ describe("HotkeyEditor", () => {
     // nothing commits, and the event keeps its default, so the browser's own Tab
     // navigation proceeds (the real move is browser behavior, exercised in the smoke
     // spec). Bare Enter and Space are refused the same way; Shift, Ctrl, Meta, or Alt
-    // makes them recordable, while Tab leaves under Shift too.
+    // makes them recordable, while Tab leaves under Shift and Option too — only Ctrl
+    // or Meta records a Tab.
     const { registry } = mount()
     fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
     let capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
@@ -116,6 +117,12 @@ describe("HotkeyEditor", () => {
     capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
     fireEvent.keyDown(capture, { key: "Shift", code: "ShiftLeft", shiftKey: true })
     fireEvent.keyDown(capture, { key: "Tab", code: "Tab", shiftKey: true })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(keysOf("book.cancel")).toBe("x")
+    // Option+Tab is Safari's tab-to-all-controls move: it leaves too.
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Tab", code: "Tab", altKey: true })
     expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
     expect(keysOf("book.cancel")).toBe("x")
     fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))

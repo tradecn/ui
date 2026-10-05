@@ -575,6 +575,28 @@ describe("CommandPalette", () => {
     expect(ranB).not.toHaveBeenCalled()
   })
 
+  it("reads an empty scope string as unscoped", () => {
+    // Registering with scope: "" and with no scope is one unscoped action: one row,
+    // the usual key spelling, and the latest registration answers.
+    const actions = createActionRegistry()
+    const first = vi.fn()
+    const second = vi.fn()
+    actions.register([
+      { id: "refresh", title: "Refresh all", scope: "", run: first },
+      { id: "refresh", title: "Refresh all", run: second },
+    ])
+    render(
+      <HotkeysProvider>
+        <ComposedPalette actions={actions} open />
+      </HotkeysProvider>,
+    )
+    const matches = rows().filter((row) => row?.includes("refresh"))
+    expect(matches).toEqual(["action:refresh"])
+    fireEvent.click(document.querySelector('[data-row="action:refresh"]')!)
+    expect(second).toHaveBeenCalledTimes(1)
+    expect(first).not.toHaveBeenCalled()
+  })
+
   it("unregisters one copy per call, idempotently, when one object registered twice", () => {
     const actions = createActionRegistry()
     const shared: PaletteAction = { id: "a", title: "A", run: () => {} }

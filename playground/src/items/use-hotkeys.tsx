@@ -85,9 +85,10 @@ function Bindings() {
     if (!capturing) return
     // Ahead of the registry's listener, so the key being captured does not also fire.
     const onKey = (event: KeyboardEvent) => {
-      // The editor item's rules: Tab leaves, bare Enter and Space are refused.
+      // The editor item's rules: Tab leaves unless Ctrl or Meta records it, and bare
+      // Enter and Space are refused.
       const bare = !event.ctrlKey && !event.metaKey && !event.altKey
-      if (event.key === "Tab" && bare) {
+      if (event.key === "Tab" && !event.ctrlKey && !event.metaKey) {
         event.stopPropagation()
         setCapturing(null)
         return

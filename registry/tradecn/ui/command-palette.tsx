@@ -60,7 +60,7 @@ export interface ActionRegistry {
   subscribe(cb: () => void): () => void
 }
 
-const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${JSON.stringify([r.scope ?? null, r.id])}` : `symbol:${JSON.stringify([r.symbol.symbol, r.symbol.exchange ?? null])}`)
+const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${JSON.stringify([r.scope || null, r.id])}` : `symbol:${JSON.stringify([r.symbol.symbol, r.symbol.exchange ?? null])}`)
 
 export function createActionRegistry(options: { maxRecents?: number } = {}): ActionRegistry {
   const maxRecents = options.maxRecents ?? 8
@@ -108,7 +108,7 @@ export function createActionRegistry(options: { maxRecents?: number } = {}): Act
       // Running a scoped action retires the scope-less entry old versions persisted
       // for the same id — but only while no live unscoped registration owns that id,
       // since a current global action's entry is not a leftover.
-      const leftover = recent.kind === "action" && recent.scope !== undefined && !(actions.get(recent.id) ?? []).some((a) => !a.scope)
+      const leftover = recent.kind === "action" && !!recent.scope && !(actions.get(recent.id) ?? []).some((a) => !a.scope)
       const stale = (r: PaletteRecent) => recentKey(r) === key || (leftover && r.kind === "action" && r.id === recent.id && r.scope === undefined)
       recents = [recent, ...recents.filter((r) => !stale(r))].slice(0, maxRecents)
       for (const cb of listeners) cb()
@@ -423,8 +423,10 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   // fenced registration never answers outside its element; registrations without within
   // fall back latest-first. The whole row is built from the resolved instance, so its
   // label, keys, and secondary never belong to another panel.
+  // An empty scope string means unscoped wherever scopes are compared or keyed.
+  const scopeOf = (a: { scope?: string }) => a.scope || undefined
   const instanceOf = (action: PaletteAction): PaletteAction | null => {
-    const instances = list.filter((a) => a.id === action.id && a.scope === action.scope)
+    const instances = list.filter((a) => a.id === action.id && scopeOf(a) === scopeOf(action))
     if (capturedEl?.isConnected) for (let i = instances.length - 1; i >= 0; i--) {
       const root = instances[i]!.within?.()
       if (root?.contains(capturedEl)) return instances[i]!
@@ -459,7 +461,7 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   const offered: PaletteAction[] = []
   for (const a of list) {
     if (a.scope && !active.has(a.scope)) continue
-    const key = JSON.stringify([a.scope ?? null, a.id])
+    const key = JSON.stringify([scopeOf(a) ?? null, a.id])
     if (seen.has(key)) continue
     seen.add(key)
     const resolved = instanceOf(a)
@@ -472,11 +474,11 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     for (const recent of recents) {
       if (recent.kind === "symbol") rows.push(symbolRow(recent.symbol, "recent-symbol"))
       else {
-        const action = offered.find((a) => a.id === recent.id && a.scope === recent.scope) ?? (recent.scope === undefined && !list.some((a) => a.id === recent.id && !a.scope) ? offered.find((a) => a.id === recent.id) : undefined)
+        const action = offered.find((a) => a.id === recent.id && scopeOf(a) === scopeOf(recent)) ?? (scopeOf(recent) === undefined && !list.some((a) => a.id === recent.id && !a.scope) ? offered.find((a) => a.id === recent.id) : undefined)
         if (action) {
           // The row's identity is the resolved action's, so running a v1 scope-less
           // entry saves the scope it ran in and retires the old spelling.
-          const row = actionRow(action, "recent", { kind: "action", id: action.id, scope: action.scope })
+          const row = actionRow(action, "recent", { kind: "action", id: action.id, scope: scopeOf(action) })
           if (!emittedRecents.has(row.key)) {
             emittedRecents.add(row.key)
             rows.push(row)
@@ -485,13 +487,13 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
       }
     }
     if (rows.length) sections.push({ id: "recent", heading: labels.recent, rows })
-    for (const action of offered) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id, scope: action.scope }))
+    for (const action of offered) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id, scope: scopeOf(action) }))
   } else {
     const commands = goBarGrammar?.(query) ?? []
     if (commands.length) sections.push({ id: "commands", heading: labels.commands, rows: commands.map((c) => actionRow(c, "command", null)) })
     const scored = offered.map((action) => ({ action, score: scorePaletteAction(action, query) })).filter((s) => s.score >= 0)
     scored.sort((a, b) => b.score - a.score)
-    for (const { action } of scored) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id, scope: action.scope }))
+    for (const { action } of scored) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id, scope: scopeOf(action) }))
     if (search.results.length) sections.push({ id: "symbols", heading: labels.symbols, rows: search.results.map((s) => symbolRow(s, "symbol")) })
   }
   const rowsByKey = new Map(sections.flatMap((s) => s.rows).map((r) => [r.key, r]))

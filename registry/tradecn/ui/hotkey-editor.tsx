@@ -349,11 +349,12 @@ export function HotkeyEditorCapture({ onKeyDown, onBlur, className, children, "a
   return <><Button type="button" variant="outline" size="sm" aria-pressed aria-invalid={problem ? true : undefined} aria-describedby={[describedBy, hintId, problem ? problemId : null].filter(Boolean).join(" ")} data-hotkey-capture="true" className={cn("h-auto min-h-7 self-start whitespace-normal px-2 text-start text-xs", className)} {...props} onKeyDown={(event) => {
     onKeyDown?.(event)
     if (event.defaultPrevented) return
-    // Tab and Shift+Tab are someone leaving, not a binding: capture cancels and the
-    // move proceeds. Bare Enter and Space are refused too — they would turn the next
-    // activation of whatever holds the binding's action into the action itself —
-    // while Shift, Ctrl, Meta, or Alt makes them recordable.
-    if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    // A Tab with any move-on modifier is someone leaving, not a binding: Shift reverses
+    // and Option is how Safari tabs to all controls, so only Ctrl or Meta records a Tab.
+    // Bare Enter and Space are refused too — they would turn the next activation of
+    // whatever holds the binding's action into the action itself — while Shift, Ctrl,
+    // Meta, or Alt makes them recordable.
+    if (event.key === "Tab" && !event.ctrlKey && !event.metaKey) {
       // The move proceeds natively, but application tab bindings stay out of it.
       event.stopPropagation()
       return cancel()
