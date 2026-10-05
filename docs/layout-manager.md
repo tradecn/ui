@@ -289,7 +289,7 @@ All `LayoutTemplate` fields are required. Keep ids unique when supplying your ow
 | `id` | `string` | Row identity for actions and `activeId`. Generated ids use the lowest available `t-1`, `t-2`, and so on. |
 | `name` | `string` | Display name and save/import replacement key. |
 | `layout` | `WorkspaceLayout` | Workspace arrangement and panel records. |
-| `savedAt` | `number` | Milliseconds since the epoch. `LayoutManagerSavedAt` displays positive values in the browser's locale and time zone. |
+| `savedAt` | `number` | Milliseconds since the epoch, within the Date range. `LayoutManagerSavedAt` displays positive values in the browser's locale and time zone; a stored value that is missing, nonnumeric, non-finite, or beyond the range reads as never saved. |
 
 ### The list is yours
 

@@ -232,7 +232,7 @@ Omit both the `overlays` prop and legend when you have no overlays. See the [Pri
 | Automatic canvas and keyboard crosshair | Mount one `PriceChartPlot` inside the root. It retains the accessible summary even without visible readings. |
 | Automatic "No data" placeholder | Place `PriceChartEmpty` inside the plot. It defaults to `labels.noData`. Children replace only the visible text. Use `labels.noData` for the plot's accessible name. |
 | Automatic legend rows in overlay order | Compose `PriceChartLegend` with your rows and labels. Use `PriceChartOverlaySwatch overlayId={overlay.id}` to retain the plotted color when changing legend order. Hide an empty legend yourself. |
-| Header-specific numeric font inheritance | Each public numeric reading supplies its own convention's font and numeric variant wherever placed. |
+| Header-specific numeric font inheritance | Each public numeric reading supplies its own font and numeric variant wherever placed, following the price notation: on a yield-, discount-, or spread-quoted instrument with a fraction price, readings v1 set in the numeric family render mono. |
 | Root native handlers | Retained. Plot handlers are also public and run before built-in behavior. `preventDefault()` cancels that behavior. |
 | `data-chart-*` markers | Retained on their public parts. The empty placeholder is now a `div`. Replace element-specific `p[data-chart-empty]` selectors. Swatches add `data-chart-swatch`. |
 
@@ -319,7 +319,7 @@ The `HotkeyEditorLabels` type and `DEFAULT_HOTKEY_EDITOR_LABELS` remain with the
 
 Keys remain visible while editing in the new recipes. v1 replaced them with the field.
 
-Reset is now a public button that stays rendered when disabled. Render it only when `entry.remapped` to preserve v1 visibility. Reset all still disables when no registered entry is remapped and clears all overrides, including hidden and unknown ids.
+Reset is now a public button that stays rendered when disabled. `entry.remapped` is also wider than v1's: it reads true while an override is stored, where v1 compared the effective keys with the defaults — so a corrupt or default-equal stored override now shows a changed badge and an enabled Reset that v1 hid. Reset all still disables when no registered entry is remapped and clears all overrides, including hidden and unknown ids.
 
 Editing is shared within each item. Key, declaration-field, or registry changes cancel an open draft. Unrelated registry updates preserve it.
 
@@ -333,7 +333,7 @@ Capture's default accessible name changes from `Press the new shortcut, Escape c
 
 Validation now has an alert role and a linked field description. Its message clears on blur, where v1 kept it. `data-hotkey-capture`, `data-hotkey-problem`, and `data-hotkey-conflicts` retain their `"true"` values.
 
-Use the public capture and input parts with custom controls to retain their event handling. The hooks expose editing state and operations without duplicating registry subscriptions. The registry now reads the canonical plus spellings back: a bare `+` and modifier steps ending in `++`, such as `ctrl++` and `meta++`. Version 1 stored those overrides — from typing the text `ctrl+plus` into the editor's field, or calling `remap(id, "ctrl+plus")` — and silently fell back to the default when reading them, wherever your application persisted the map; after upgrading they take effect, so reset a binding that was unintended. Malformed spellings such as `ctrl+++` still fail instead of becoming live bindings.
+Use the public capture and input parts with custom controls to retain their event handling. The hooks expose editing state and operations without duplicating registry subscriptions. The registry now reads the canonical plus spellings back: a bare `+` and modifier steps ending in `++`, such as `ctrl++` and `meta++`. Version 1 stored those overrides — from typing the text `ctrl+plus` into the editor's field, or calling `remap(id, "ctrl+plus")` — and silently fell back to the default when reading them, wherever your application persisted the map; after upgrading they take effect, so reset a binding that was unintended. Malformed spellings such as `ctrl+++` still fail instead of becoming live bindings; they stay stored, read as remapped, and Reset clears them.
 
 ## LayoutManager
 
@@ -396,6 +396,8 @@ Watchlist removal keys and opt-in Blotter action keys now require focus on their
 ## DepthLadder
 
 Replace the self-closing `DepthLadder` with an explicit composition.
+
+The price cell's font follows the price notation now: on a yield-, discount-, or spread-quoted instrument with a fraction price, a cell v1 set in the numeric family renders mono.
 
 The root keeps the book, formatting, virtualization, following, and keyboard inputs. Your JSX supplies the header, viewport, rows, and controls.
 
@@ -643,7 +645,7 @@ When omitting the changes section from the side-by-side recipe, remove its two-c
 
 Use the responsive layout in [Usage](audit-trail.md#usage) to stack the pane below the grid on narrow screens.
 
-Selection, default columns, time/value formatting and cumulative calculations are retained. `foldChanges`, `diffEvents`, `formatAuditValue`, `auditTrailColumns` and `DEFAULT_AUDIT_TRAIL_LABELS` remain available.
+Selection, default columns, time/value formatting and cumulative calculations are retained, with one wording change: the changes column reads `Fields: {n}`, where v1 printed `{n} fields` in the grid, to screen readers, and in the CSV. Pass `labels={{ fields: "{n} fields" }}` to keep the old text, or hand the same `labels` to `auditTrailColumns` when you supply `columns` — root `labels` reach only the default columns. `foldChanges`, `diffEvents`, `formatAuditValue`, `auditTrailColumns` and `DEFAULT_AUDIT_TRAIL_LABELS` remain available.
 
 Changes and CSV still use the supplied view or raw store order, independent of grid-local sorting and filtering. Keep selected ids within that view and retain the preceding history needed for comparisons. Column-state hiding and reordering do not affect CSV.
 
@@ -764,10 +766,13 @@ Copy the complete [Usage example](column-chooser.md#usage) into `column-chooser.
 | Reset and move controls | `ColumnChooserResetAll`, `ColumnChooserResetWidth`, and `ColumnChooserMove`, with required action content. |
 | Labels for surrounding content | Read `useColumnChooser().labels` for the description, empty state, action content, and hint. |
 | Full-order keyboard and button moves | Neighbors follow the search results by default. Pass `presented` for a custom collection. Pure move helpers retain full-order semantics. |
+| A Tab stop on every item and control | One Tab stop for the collection. Up and Down move focus between columns, Home and End reach its edges, Space toggles visibility and Delete resets a width where the item renders the matching control, and Alt+Home or Alt+End moves a column to the edge of its side. Pass `tabIndex={0}` to a part or item to restore its own Tab stop. |
 | Reset to empty state | Pass shared defaults as `baseState`. Root reset, width reset and `isDefault` use that baseline; omission retains the empty baseline. |
 | Silent edits | Mount `ColumnChooserAnnouncer` once to announce accepted changes. The shared recipes include it. |
 
 The `data-column`, `data-visible`, `data-frozen`, and `data-dragging` markers now belong to `ColumnChooserItem`, not its caller-owned `li`. Update selectors such as `li[data-column]` to `[data-column]`.
+
+The keyboard model scales to wide grids: visibility, move, and width-reset controls default to `tabIndex={-1}`, so a hundred columns tab past as one stop instead of four hundred. The controls remain pointer targets, the same commands run on the focused item, and `useColumnChooserItem` adds `moveToEdge`. A test that tabbed to a checkbox or move button now focuses the item and sends the key instead. The default `dragHint` text names the new keys; a custom `labels.dragHint` keeps your wording.
 
 For a minimal inline replacement, install ColumnChooser and copy the shared file first:
 

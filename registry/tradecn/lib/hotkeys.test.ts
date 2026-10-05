@@ -502,6 +502,29 @@ describe("remapping", () => {
     expect(registry.overrides()).toEqual({})
   })
 
+  it("reads a stored default-equal override as remapped", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register(binding("a", "mod+k"))
+    registry.load({ a: "mod+k" })
+    // Stored is stored: the editor's badge and Reset follow the override's existence, not a
+    // comparison of effective keys.
+    expect(registry.list()[0]).toMatchObject({ keys: "ctrl+k", remapped: true })
+    registry.reset("a")
+    expect(registry.list()[0]).toMatchObject({ remapped: false })
+  })
+
+  it("lets Reset clear an override that does not parse", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register(binding("a", "mod+k"))
+    registry.load({ a: "ctrl+++" })
+    // The corrupt override falls back to the default keys, but it is stored — remapped says
+    // so, or no Reset could ever clear it while overrides() still exports it.
+    expect(registry.list()[0]).toMatchObject({ keys: "ctrl+k", remapped: true })
+    registry.reset("a")
+    expect(registry.overrides()).toEqual({})
+    expect(registry.list()[0]).toMatchObject({ remapped: false })
+  })
+
   it("unbinds with an empty string", () => {
     const registry = attached()
     const run = vi.fn()

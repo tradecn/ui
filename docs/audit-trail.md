@@ -218,7 +218,7 @@ CSV comes from `exportCsv(store, columns, ids)` using these inputs:
 
 ### Labels
 
-`labels` overrides the default column headers, Field/From/To headings, export button, selection prompt, empty-change messages, and pane titles. `fields` uses `{n}`; `eventTitle` uses `{event}` and `{time}`; `diffTitle` uses `{a}` and `{b}` for the event names with their formatted times. The grid's accessible name is the separate `AuditTrailGrid.label` prop.
+`labels` overrides the default column headers, Field/From/To headings, export button, selection prompt, empty-change messages, and pane titles. `fields` uses `{n}` and defaults to `Fields: {n}`, neutral wording a single template can keep grammatical at any count; `eventTitle` uses `{event}` and `{time}`; `diffTitle` uses `{a}` and `{b}` for the event names with their formatted times. The grid's accessible name is the separate `AuditTrailGrid.label` prop.
 
 ### What it does not do
 

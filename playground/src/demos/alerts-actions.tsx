@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { createAlertStore, type Alert, type AlertInput, type AlertStore } from "@/registry/tradecn/lib/alert-store"
 import { useRowIds } from "@/registry/tradecn/hooks/use-row-store"
 import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertActionButton, AlertDismiss, useAlert, useAlertView } from "@/registry/tradecn/ui/alerts"
@@ -6,7 +6,7 @@ import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeade
 const slow: AlertInput = { key: "feed:slow", severity: "warning", tone: "stale", title: "Feed slow", message: "Market data is 1.2 seconds behind. Reconnect to request a fresh subscription.", allowedActions: ["reconnect"] }
 const rejected: AlertInput = { key: "order:rejected", severity: "critical", tone: "destructive", title: "Order rejected", message: "Price away from market. Review the order before submitting again.", allowedActions: ["ack"] }
 
-function Notice({ alerts, id, onAction }: { alerts: AlertStore; id: string; onAction: (action: string, alert: Alert) => void }) {
+function Notice({ alerts, id, onAction, onDismiss }: { alerts: AlertStore; id: string; onAction: (action: string, alert: Alert) => void; onDismiss: (id: string) => void }) {
   const alert = useAlert(alerts, id)
   if (!alert) return null
   return (
@@ -22,7 +22,7 @@ function Notice({ alerts, id, onAction }: { alerts: AlertStore; id: string; onAc
       <AlertActions>
         <AlertActionButton alert={alert} action="reconnect" onAction={(row) => onAction("Reconnect requested", row)}>Reconnect</AlertActionButton>
         <AlertActionButton alert={alert} action="ack" onAction={(row) => onAction("Acknowledged", row)}>Acknowledge</AlertActionButton>
-        <AlertDismiss className="ml-auto" aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)}>Dismiss</AlertDismiss>
+        <AlertDismiss className="ml-auto" aria-label={`Dismiss: ${alert.title}`} onClick={() => onDismiss(id)}>Dismiss</AlertDismiss>
       </AlertActions>
     </AlertItem>
   )
@@ -37,9 +37,15 @@ export default function AlertsActionsDemo() {
   })
   const ids = useRowIds(useAlertView(alerts))
   const [acted, setActed] = useState("No action yet")
+  // Removal never moves focus, so the demo restores it: the first remaining notice's
+  // control, or a receive button when the list empties — the controls row is the column's
+  // previous sibling.
+  const region = useRef<HTMLDivElement>(null)
+  const refocus = () => queueMicrotask(() => (region.current?.querySelector<HTMLElement>("[data-slot='tradecn-alerts'] button") ?? region.current?.previousElementSibling?.querySelector<HTMLElement>("button"))?.focus())
   const onAction = (action: string, alert: Alert) => {
     setActed(`${action}: ${alert.title}`)
     alerts.dismiss(alert.id)
+    refocus()
   }
   return (
     <>
@@ -47,10 +53,10 @@ export default function AlertsActionsDemo() {
         <button type="button" className="rounded border border-border px-2 py-1" onClick={() => alerts.push(slow)}>Receive slow feed</button>
         <button type="button" className="rounded border border-border px-2 py-1" onClick={() => alerts.push(rejected)}>Receive rejection</button>
       </div>
-      <div className="flex w-lg max-w-full flex-col gap-3 text-xs">
+      <div ref={region} className="flex w-lg max-w-full flex-col gap-3 text-xs">
         <Alerts>
           <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
-          {ids.length > 0 && <AlertsList>{ids.map((id) => <Notice key={id} alerts={alerts} id={id} onAction={onAction} />)}</AlertsList>}
+          {ids.length > 0 && <AlertsList>{ids.map((id) => <Notice key={id} alerts={alerts} id={id} onAction={onAction} onDismiss={(noticeId) => { alerts.dismiss(noticeId); refocus() }} />)}</AlertsList>}
           {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
         </Alerts>
         <p role="status">{acted}</p>

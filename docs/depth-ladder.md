@@ -256,7 +256,7 @@ Aggregate each price before feeding the [row store](row-store.md). Upserting the
 
 ### The center
 
-Prices run high to low by default. `order="ascending"` reverses them. While following, the ladder centers `tickIndexOf(mid, convention.tick)` when that tick changes, within the scrollable bounds.
+Prices run high to low by default. `order="ascending"` reverses them. While following, the ladder centers `tickIndexOf(mid, convention.tick)` when that tick changes, within the scrollable bounds. Remount with a `key` per instrument: a new `store` or `convention` keeps the range, the selection, and the flash history.
 
 The mid rung carries `data-mid` and is described as `Mid`. The root always carries `data-following`, as `"true"` or `"false"`.
 
@@ -344,4 +344,4 @@ Feed the aggregated book and market mid from your application. Handle `onStage` 
 
 ### Tokens
 
-The install adds `up`, `down`, and `flat` with their soft variants if you do not have them. The bid and ask columns use the first two, and the flashes use all three.
+The install adds `up`, `down`, and `flat` with their soft variants if you do not have them, plus the shared font tokens and the hyperlegible remap. The bid and ask columns use the first two, and the flashes use all three.

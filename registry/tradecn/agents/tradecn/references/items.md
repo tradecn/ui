@@ -26,7 +26,7 @@ Exports: `Blotter`, `BlotterGrid`, `BlotterActionScope`, `BlotterNewButton`, `Bl
 
 Compose column visibility, order, width readings, and reset controls over a grid’s controlled column state.
 
-Exports: `ColumnChooser`, `ColumnChooserItem`, `ColumnChooserSearch`, `ColumnChooserAnnouncer`, `ColumnChooserHiddenCount`, `ColumnChooserVisibility`, `ColumnChooserName`, `ColumnChooserFrozen`, `ColumnChooserRule`, `ColumnChooserWidth`, `ColumnChooserResetWidth`, `ColumnChooserMove`, `ColumnChooserResetAll`, `useColumnChooser`, `useColumnChooserItem`, `DEFAULT_COLUMN_CHOOSER_LABELS`, `chooserRows`, `moveColumnTo`, `moveColumnBy`, `setColumnVisible`, `resetColumnWidth`, `isDefaultColumnState`.
+Exports: `ColumnChooser`, `ColumnChooserItem`, `ColumnChooserSearch`, `ColumnChooserAnnouncer`, `ColumnChooserHiddenCount`, `ColumnChooserVisibility`, `ColumnChooserName`, `ColumnChooserFrozen`, `ColumnChooserRule`, `ColumnChooserWidth`, `ColumnChooserResetWidth`, `ColumnChooserMove`, `ColumnChooserResetAll`, `useColumnChooser`, `useColumnChooserItem`, `DEFAULT_COLUMN_CHOOSER_LABELS`, `chooserRows`, `moveColumnTo`, `moveColumnBy`, `setColumnVisible`, `resetColumnWidth`, `isDefaultColumnState`, `useColumnChooserCommand`.
 
 ### Command Palette (`command-palette`)
 

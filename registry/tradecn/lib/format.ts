@@ -366,7 +366,11 @@ export function parseQuote(s: string, c: InstrumentConvention): number | null {
   const text = s.trim().replace(/−/g, "-").replace(/,/g, "")
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) return null
   const n = Number(text)
-  return Number.isFinite(n) ? roundToTick(n, quoteStepOf(c)) : null
+  if (!Number.isFinite(n)) return null
+  // Snapping divides by the step, which can overflow where the raw number does not; what
+  // cannot print back is not a quote.
+  const snapped = roundToTick(n, quoteStepOf(c))
+  return Number.isFinite(snapped) ? snapped : null
 }
 
 /** Move a quote by `steps` of its step, from the nearest grid value. */

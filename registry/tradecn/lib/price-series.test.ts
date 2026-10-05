@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { barId, barStart, columnsOf, dayFormatter, directionBetween, foldTick, foldTicks, formatChange, priceDecimals, priceIncrements, priceStep, summarize, timeFormatter, type Bar } from "@/registry/tradecn/lib/price-series"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
@@ -177,6 +177,22 @@ describe("the clock reading", () => {
     expect(() => timeFormatter("Mars/Olympus")(noon)).not.toThrow()
     expect(timeFormatter("Mars/Olympus")(noon)).toMatch(/^\d\d:\d\d:\d\d$/)
     expect(dayFormatter("Mars/Olympus")(noon)).toMatch(/^\d\d\/\d\d$/)
+  })
+
+  it("drops a malformed locale onto the en-US default, keeping the zone", () => {
+    // A malformed tag throws the same RangeError a wrong zone does; the fallback lands on
+    // exactly en-US, never the runtime's locale — asserted on the constructor itself, since
+    // an en-US machine could not tell the two apart by output — and the zone survives.
+    const spy = vi.spyOn(Intl, "DateTimeFormat")
+    const kept = timeFormatter("Asia/Tokyo", "en_US")
+    expect(kept(Date.UTC(2026, 0, 15, 0, 0, 0))).toBe("09:00:00")
+    const succeeded = spy.mock.calls.at(-1)!
+    expect(succeeded[0]).toBe("en-US")
+    expect((succeeded[1] as Intl.DateTimeFormatOptions).timeZone).toBe("Asia/Tokyo")
+    // An empty locale shares the omitted-locale cache key; it must land on en-US too.
+    timeFormatter("Europe/Paris", "")(Date.UTC(2026, 0, 15, 0, 0, 0))
+    expect(spy.mock.calls.at(-1)![0]).toBe("en-US")
+    spy.mockRestore()
   })
 
   it("prints the day in the zone for an axis that runs past one", () => {

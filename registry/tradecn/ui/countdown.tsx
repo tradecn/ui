@@ -83,7 +83,9 @@ export function Countdown({ expiresAt, startsAt, thresholds = PROVISIONAL_COUNTD
   const tier = countdownTier(remaining, thresholds)
 
   // The bar's full width is `startsAt` to `expiresAt`; without `startsAt`, from first sight to the end.
-  const [firstSeen] = useState(now)
+  // First sight samples the time source directly: the shared clock's last tick can be
+  // arbitrarily old when nothing subscribed while this countdown was away.
+  const [firstSeen] = useState(() => c.sample?.() ?? now)
   const total = Math.max(1, expiresAt - (startsAt ?? firstSeen))
   const fraction = Math.max(0, Math.min(1, remaining / total))
   const [reduced] = useState(prefersReducedMotion)
@@ -97,10 +99,12 @@ export function Countdown({ expiresAt, startsAt, thresholds = PROVISIONAL_COUNTD
   useLayoutEffect(() => {
     const el = bar.current
     if (!el || staticBar || typeof el.animate !== "function") return
-    const left = expiresAt - c.now()
-    if (left <= 0) return
+    const left = Math.max(0, expiresAt - (c.sample?.() ?? c.now()))
     const from = Math.max(0, Math.min(1, left / total))
-    // One animation for exactly the time left, linear, held at zero when it ends. The compositor runs it.
+    // One animation for exactly the time left, linear, held at zero when it ends. The
+    // compositor runs it. When the fresh sample says time is already up while the last tick
+    // has not caught up — the second right after a deadline — the zero-length run holds the
+    // bar empty instead of leaving it full until the tick.
     const animation = el.animate([{ transform: `scaleX(${from})` }, { transform: "scaleX(0)" }], { duration: left, easing: "linear", fill: "forwards" })
     return () => animation.cancel()
   }, [expiresAt, total, c, staticBar])

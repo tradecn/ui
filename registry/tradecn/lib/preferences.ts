@@ -20,8 +20,9 @@ export interface PreferenceSlot {
 
 /**
  * Where a slot may go. `template`: shareable as a desk template, handed to a colleague, restored next
- * quarter. `user`: belongs to the person, whichever desk they sit at. `session`: never leaves a
- * session, so an export drops it whatever else it keeps.
+ * quarter. `user`: belongs to the person, whichever desk they sit at. `session`: never exported, and
+ * an import skips slots the incoming envelope marks session — though an import can replace and
+ * reclassify the receiving desk's own session slot, since boundaries are read from the envelope.
  */
 export type PreferenceBoundary = "template" | "user" | "session"
 

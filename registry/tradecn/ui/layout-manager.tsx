@@ -106,7 +106,10 @@ export function parseLayoutTemplates(value: unknown): LayoutTemplate[] {
     const t = entry as Record<string, unknown>
     const layout = parseWorkspaceLayout(t.layout)
     if (!layout || typeof t.id !== "string" || !t.id || typeof t.name !== "string" || !t.name) continue
-    out.push({ id: t.id, name: t.name, layout, savedAt: typeof t.savedAt === "number" ? t.savedAt : 0 })
+    // A stored timestamp beyond the Date range would throw in toISOString and the formatter
+    // the moment it renders; such a value reads as never saved.
+    const savedAt = typeof t.savedAt === "number" && Number.isFinite(t.savedAt) && Math.abs(t.savedAt) <= 8.64e15 ? t.savedAt : 0
+    out.push({ id: t.id, name: t.name, layout, savedAt })
   }
   return out
 }

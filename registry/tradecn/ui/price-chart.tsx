@@ -433,7 +433,7 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const direction = summary.direction
   const word = labels[direction]
   const last = summary.last
-  const readout = at ? `${time(at.time)} ${kind === "candles" ? `${labels.open} ${formatPrice(at.open, price)} ${labels.high} ${formatPrice(at.high, price)} ${labels.low} ${formatPrice(at.low, price)} ${labels.close} ${formatPrice(at.close, price)}` : formatPrice(at.close, price)}${typeof at.volume === "number" ? ` ${labels.volume} ${formatQuantity(at.volume)}` : ""}` : ""
+  const readout = at ? `${time(at.time)} ${kind === "candles" ? `${labels.open} ${formatPrice(at.open, price)} ${labels.high} ${formatPrice(at.high, price)} ${labels.low} ${formatPrice(at.low, price)} ${labels.close} ${formatPrice(at.close, price)}` : formatPrice(at.close, price)}${typeof at.volume === "number" && Number.isFinite(at.volume) ? ` ${labels.volume} ${formatQuantity(at.volume)}` : ""}` : ""
   const sentence = last ? `${label}: ${word}, last ${formatPrice(last.close, price)}, ${formatChange(summary.change, convention)} (${formatPercent(summary.changePct, { signed: true })}), low ${formatPrice(summary.low, price)}, high ${formatPrice(summary.high, price)}, ${count} ${labels.bars}` : `${label}: ${labels.noData}`
 
   const context: ChartContext = { bars: columns.bars, columns, summary, cursor, bar: at, readout, overlays: overlayList, convention, labels, label, sentence, kind, baseline: ref, zone, crosshair, lastLine, select }
@@ -463,18 +463,18 @@ export function PriceChartHeader({ className, ...props }: ComponentProps<"div">)
 
 export function PriceChartLast({ className, children, ...props }: ComponentProps<"span">) {
   const { summary, convention, labels } = usePriceChart()
-  return <span {...props} data-chart-last="" data-direction={summary.direction} className={cn("text-sm font-semibold", numericFontClass(convention), directionClass(summary.direction), className)}>{children === undefined ? summary.last ? formatPrice(summary.last.close, priceOf(convention)) : labels.noData : children}</span>
+  return <span {...props} data-chart-last="" data-direction={summary.direction} className={cn("text-sm font-semibold", numericFontClass(priceOf(convention)), directionClass(summary.direction), className)}>{children === undefined ? summary.last ? formatPrice(summary.last.close, priceOf(convention)) : labels.noData : children}</span>
 }
 
 export function PriceChartChange({ className, children, ...props }: ComponentProps<"span">) {
   const { summary, convention } = usePriceChart()
   if (!summary.last) return null
-  return <span {...props} data-chart-change="" data-direction={summary.direction} className={cn(numericFontClass(convention), directionClass(summary.direction), className)}>{children === undefined ? <>{formatChange(summary.change, convention)} <span className={NUMERIC_CLASS}>({formatPercent(summary.changePct, { signed: true })})</span></> : children}</span>
+  return <span {...props} data-chart-change="" data-direction={summary.direction} className={cn(numericFontClass(priceOf(convention)), directionClass(summary.direction), className)}>{children === undefined ? <>{formatChange(summary.change, convention)} <span className={NUMERIC_CLASS}>({formatPercent(summary.changePct, { signed: true })})</span></> : children}</span>
 }
 
 export function PriceChartReadout({ className, children, ...props }: ComponentProps<"span">) {
   const { readout, convention } = usePriceChart()
-  return <span {...props} data-chart-readout="" className={cn("ml-auto text-muted-foreground", numericFontClass(convention), className)}>{children === undefined ? readout : children}</span>
+  return <span {...props} data-chart-readout="" className={cn("ml-auto text-muted-foreground", numericFontClass(priceOf(convention)), className)}>{children === undefined ? readout : children}</span>
 }
 
 export function PriceChartEmpty({ className, children, ...props }: ComponentProps<"div">) {

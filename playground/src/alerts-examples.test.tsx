@@ -59,15 +59,75 @@ it.each(["dismiss", "clear"])("returns focus from the history example after %s r
   expect(trigger).toHaveAccessibleName("History")
 })
 
-it("replaces the local collection with its empty state and restores the notices", () => {
+it("replaces the local collection with its empty state and restores the notices, focus riding along", async () => {
   render(<AlertsCollectionDemo />)
   const notices = within(screen.getByRole("group", { name: "Notices" }))
-  for (const button of notices.getAllByRole("button", { name: /^Dismiss:/ })) fireEvent.click(button)
+  const buttons = notices.getAllByRole("button", { name: /^Dismiss:/ })
+  // Dismissing a focused notice hands focus to the first remaining notice's dismiss — here
+  // the one BEFORE the dismissed notice, which is what distinguishes first from next — then
+  // to Restore notices when the list empties. Removal itself never moves focus.
+  act(() => buttons[1]!.focus())
+  fireEvent.click(buttons[1]!)
+  await act(async () => {})
+  expect(notices.getByRole("button", { name: "Dismiss: Order filled" })).toHaveFocus()
+  fireEvent.click(notices.getAllByRole("button", { name: /^Dismiss:/ })[0]!)
+  await act(async () => {})
+  expect(screen.getByRole("button", { name: "Restore notices" })).toHaveFocus()
   expect(notices.queryByRole("list")).toBeNull()
   expect(notices.getByText("No notices.")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Restore notices" }))
   expect(notices.getAllByRole("listitem")).toHaveLength(2)
   expect(notices.queryByText("No notices.")).toBeNull()
+})
+
+it("hands focus to a receive button when the actions demo empties, and to the next notice before that", async () => {
+  render(<AlertsActionsDemo />)
+  const notices = within(screen.getByRole("group", { name: "Notices" }))
+  // An action removes its notice too: focus lands exactly on the remaining notice's first
+  // control, the Reconnect button, never merely somewhere in the group.
+  const acknowledge = notices.getAllByRole("button", { name: "Acknowledge" })
+  act(() => acknowledge[0]!.focus())
+  fireEvent.click(acknowledge[0]!)
+  await act(async () => {})
+  expect(notices.getAllByRole("button", { name: "Reconnect" })[0]).toHaveFocus()
+  fireEvent.click(notices.getAllByRole("button", { name: /^Dismiss:/ })[0]!)
+  await act(async () => {})
+  expect(screen.getByRole("button", { name: "Receive slow feed" })).toHaveFocus()
+})
+
+it("hands focus to the receive control when the bridge demo clears, and to the next dismiss before that", async () => {
+  render(<AlertsBridgeDemo />)
+  const notices = within(screen.getByRole("group", { name: "Notices" }))
+  fireEvent.click(screen.getByRole("button", { name: "Receive slow notice" }))
+  const dismisses = notices.getAllByRole("button", { name: /^Dismiss:/ })
+  expect(dismisses).toHaveLength(2)
+  act(() => dismisses[0]!.focus())
+  fireEvent.click(dismisses[0]!)
+  await act(async () => {})
+  expect(notices.getAllByRole("button", { name: /^Dismiss:/ })[0]).toHaveFocus()
+  const clear = screen.getByRole("button", { name: "Clear all" })
+  act(() => clear.focus())
+  fireEvent.click(clear)
+  await act(async () => {})
+  expect(notices.getByText("No notices.")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Receive slow notice" })).toHaveFocus()
+})
+
+it("hands focus to the next notice or the History trigger when the history demo removes", async () => {
+  render(<AlertsHistoryDemo />)
+  const notices = within(screen.getByRole("group", { name: "Notices" }))
+  const dismisses = notices.getAllByRole("button", { name: /^Dismiss:/ })
+  act(() => dismisses[0]!.focus())
+  fireEvent.click(dismisses[0]!)
+  await act(async () => {})
+  // The remaining shown notice's dismiss takes focus, exactly.
+  expect(notices.getAllByRole("button", { name: /^Dismiss:/ })[0]).toHaveFocus()
+  const clear = screen.getByRole("button", { name: "Clear all" })
+  act(() => clear.focus())
+  fireEvent.click(clear)
+  await act(async () => {})
+  // Clear all unmounts itself; the always-rendered History trigger takes the focus.
+  expect(screen.getByRole("button", { name: "History" })).toHaveFocus()
 })
 
 it.each([AlertsActionsDemo, AlertsHistoryDemo, AlertsBridgeDemo])("omits the store-backed list when notices are cleared in %s", (Demo) => {

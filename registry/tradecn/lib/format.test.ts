@@ -271,6 +271,18 @@ describe("the quote basis", () => {
     expect(quoteInvertedOf({ ...note, quoteInverted: true })).toBe(true)
   })
 
+  it("refuses a quote whose snap overflows, and keeps the largest that does not", () => {
+    // The raw number is finite; dividing by the step overflows to Infinity, and what cannot
+    // print back is not a quote. The acceptance boundary stays exact: a value whose snap is
+    // still finite parses and round-trips.
+    expect(parseQuote("1" + "0".repeat(308), onYield)).toBeNull()
+    expect(parseQuote("-1" + "0".repeat(308), onYield)).toBeNull()
+    expect(parseQuote("9" + "0".repeat(304), onYield)).toBeNull()
+    const kept = parseQuote("8" + "0".repeat(304), onYield)
+    expect(kept).not.toBeNull()
+    expect(parseQuote(formatQuote(kept, onYield), onYield)).toBe(kept)
+  })
+
   it("prints and reads a quote in its basis, with no unit", () => {
     expect(formatQuote(99.515625, note)).toBe("99-16+")
     expect(parseQuote("99-16+", note)).toBe(99.515625)
