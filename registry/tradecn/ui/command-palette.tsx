@@ -43,7 +43,7 @@ export interface SymbolSearchAdapter {
   debounceMs?: number
 }
 
-export type PaletteRecent = { kind: "action"; id: string } | { kind: "symbol"; symbol: SymbolResult }
+export type PaletteRecent = { kind: "action"; id: string; scope?: string } | { kind: "symbol"; symbol: SymbolResult }
 
 export interface ActionRegistry {
   /** Returns the unregister, which removes one copy of each action this call added. Same-id registrations stack; rows show the instance that answers. */
@@ -60,7 +60,7 @@ export interface ActionRegistry {
   subscribe(cb: () => void): () => void
 }
 
-const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${r.id}` : `symbol:${r.symbol.symbol}:${r.symbol.exchange ?? ""}`)
+const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${r.scope ?? ""}:${r.id}` : `symbol:${r.symbol.symbol}:${r.symbol.exchange ?? ""}`)
 
 export function createActionRegistry(options: { maxRecents?: number } = {}): ActionRegistry {
   const maxRecents = options.maxRecents ?? 8
@@ -80,8 +80,12 @@ export function createActionRegistry(options: { maxRecents?: number } = {}): Act
       const added = Array.isArray(input) ? (input as readonly PaletteAction[]) : [input as PaletteAction]
       for (const action of added) actions.set(action.id, [...(actions.get(action.id) ?? []), action])
       emit()
+      let undone = false
       return () => {
-        // Only what this call registered: another instance's registration under the same id stays.
+        // Only what this call registered, once: another instance's registration under the
+        // same id stays, and a second call is a no-op.
+        if (undone) return
+        undone = true
         let changed = false
         for (const action of added) {
           const instances = actions.get(action.id)
@@ -416,7 +420,6 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   // label, keys, and secondary never belong to another panel.
   const instanceOf = (action: PaletteAction): PaletteAction | null => {
     const instances = list.filter((a) => a.id === action.id && a.scope === action.scope)
-    if (instances.length < 2) return instances[0] ?? null
     if (capturedEl?.isConnected) for (let i = instances.length - 1; i >= 0; i--) {
       const root = instances[i]!.within?.()
       if (root?.contains(capturedEl)) return instances[i]!
@@ -462,18 +465,18 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     for (const recent of recents) {
       if (recent.kind === "symbol") rows.push(symbolRow(recent.symbol, "recent-symbol"))
       else {
-        const action = offered.find((a) => a.id === recent.id)
+        const action = offered.find((a) => a.id === recent.id && (recent.scope === undefined || a.scope === recent.scope))
         if (action) rows.push(actionRow(action, "recent", recent))
       }
     }
     if (rows.length) sections.push({ id: "recent", heading: labels.recent, rows })
-    for (const action of offered) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id }))
+    for (const action of offered) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id, scope: action.scope }))
   } else {
     const commands = goBarGrammar?.(query) ?? []
     if (commands.length) sections.push({ id: "commands", heading: labels.commands, rows: commands.map((c) => actionRow(c, "command", null)) })
     const scored = offered.map((action) => ({ action, score: scorePaletteAction(action, query) })).filter((s) => s.score >= 0)
     scored.sort((a, b) => b.score - a.score)
-    for (const { action } of scored) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id }))
+    for (const { action } of scored) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id, scope: action.scope }))
     if (search.results.length) sections.push({ id: "symbols", heading: labels.symbols, rows: search.results.map((s) => symbolRow(s, "symbol")) })
   }
   const rowsByKey = new Map(sections.flatMap((s) => s.rows).map((r) => [r.key, r]))

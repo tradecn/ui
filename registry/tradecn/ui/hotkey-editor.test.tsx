@@ -100,9 +100,11 @@ describe("HotkeyEditor", () => {
 
   it("refuses Tab, Enter, and Space as bindings: Tab leaves capture, the others wait", () => {
     // A Tab-away must never become a live binding on a destructive action: the next
-    // Tab on the focused Change button would run it. Bare Enter and Space are refused
-    // the same way; Shift, Ctrl, Meta, or Alt makes them recordable, while Tab leaves
-    // under Shift too.
+    // Tab on the focused Change button would run it. This pins that capture closes,
+    // nothing commits, and the event keeps its default, so the browser's own Tab
+    // navigation proceeds (the real move is browser behavior, exercised in the smoke
+    // spec). Bare Enter and Space are refused the same way; Shift, Ctrl, Meta, or Alt
+    // makes them recordable, while Tab leaves under Shift too.
     const { registry } = mount()
     fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
     let capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!

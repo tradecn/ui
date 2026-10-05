@@ -1197,6 +1197,21 @@ test("a hotkey editor changes a shortcut by pressing it, by typing it, and reset
   await expect(saved).toHaveAttribute("data-hotkey-saved", "{}")
 })
 
+// The browser's own Tab navigation after a canceled capture. happy-dom has no default
+// focus action, so the move itself is proven here: Tab out of capture binds nothing,
+// capture closes, and focus proceeds past the restored Change button.
+test("a hotkey editor lets a capture Tab-away move on without binding", async ({ page }) => {
+  await page.goto("/")
+  const editor = page.locator("section[data-scene='hotkey-editor']").getByRole("region", { name: "Keyboard shortcuts" })
+  const row = editor.locator("[data-hotkey-row='edit.go']")
+  await row.getByRole("button", { name: "Change: Go to the blotter" }).click()
+  await row.locator("[data-hotkey-capture]").press("Tab")
+  await expect(row.locator("[data-hotkey-capture]")).toHaveCount(0)
+  await expect(row.locator("[data-hotkey-keys]")).toHaveAttribute("data-hotkey-keys", "g b")
+  await expect(row.getByRole("button", { name: "Change: Go to the blotter" })).not.toBeFocused()
+  await expect(page.locator("body")).not.toBeFocused()
+})
+
 // These native focus transitions commit during blur. happy-dom and act() do not reproduce them.
 test("a hotkey editor leaves focus at the destination when editing blurs", async ({ page }) => {
   await page.goto("/")
