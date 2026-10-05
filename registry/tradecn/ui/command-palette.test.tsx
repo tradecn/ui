@@ -526,6 +526,28 @@ describe("CommandPalette", () => {
     expect(document.querySelectorAll('[data-row^="recent"]')).toHaveLength(1)
   })
 
+  it("saves the scope a v1 recent ran in when its Recent row is clicked", () => {
+    // The legacy entry resolves through the fallback; the row's identity is the
+    // resolved action's, so touching it persists the scope and retires the old
+    // spelling — a global action registered later cannot claim this recent.
+    const actions = createActionRegistry()
+    const scoped = vi.fn()
+    actions.register({ id: "book.cancel", title: "Cancel selected order", scope: "panel:book", run: scoped })
+    actions.loadRecents([{ kind: "action", id: "book.cancel" }])
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector(`[data-row='recent!["panel:book","book.cancel"]']`)!)
+    expect(scoped).toHaveBeenCalledTimes(1)
+    expect(actions.recents()).toEqual([{ kind: "action", id: "book.cancel", scope: "panel:book" }])
+  })
+
   it("answers the panel whose scope element itself holds the capture, wired by useHotkeyScope", () => {
     // Clicking a panel focuses the HotkeyScope div (tabIndex -1), the PARENT of
     // anything the panel renders. The documented wiring hands the scope element to

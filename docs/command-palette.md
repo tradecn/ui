@@ -269,7 +269,7 @@ Query or adapter changes, closure and unmount cancel the pending debounce and ab
 
 An empty query supplies eligible recents before the registered actions. Callers choose how many to render; the examples use `group.rows.slice(0, 5)` for the recent group. Missing or out-of-scope actions are skipped. Registered actions still appear in their usual groups too.
 
-`PaletteRecent` is `{ kind: "action"; id: string; scope?: string }` or `{ kind: "symbol"; symbol: SymbolResult }`. `touch` deduplicates actions by ID and scope, and symbols by symbol plus exchange. Touching a scoped action entry also removes any scope-less entry with its ID while no unscoped registration is live for that ID, which retires what earlier versions persisted without deleting a current global action's entry and symbols by symbol plus exchange. Grammar rows do not enter recents.
+`PaletteRecent` is `{ kind: "action"; id: string; scope?: string }` or `{ kind: "symbol"; symbol: SymbolResult }`. `touch` deduplicates actions by ID and scope, and symbols by symbol plus exchange. Touching a scoped action entry also removes any scope-less entry with the same ID while no unscoped registration is live for it, which retires what earlier versions persisted; a live global action keeps its entry. Grammar rows do not enter recents.
 
 Selecting a row clears the input and requests closure, then updates recents when applicable, then invokes the action callback. This applies to primary and secondary actions. Persistence is yours: save through `onRecentsChange` and restore with `loadRecents`.
 

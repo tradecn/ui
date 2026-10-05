@@ -104,8 +104,9 @@ Join modifiers and one key with `+`; separate chord steps with spaces: `"mod+k"`
 | `useHotkeyList()` | Live `readonly HotkeyEntry[]`, including normalized `keys`, normalized `defaultKeys`, the declaration's own spelling as `declaredKeys`, and `remapped` while an override is stored for the id, one that fails to parse or matches the defaults included. |
 | `usePendingChord()` | Normalized steps typed so far, or `null`, for a status-bar hint. |
 | `useDeclaredHotkeyIds(registry?)` | Ids the surrounding providers declare through `bindings` for one registry — the nearest provider's unless given — visible during render before any effect registers them. |
+| `useHotkeyScope()` | The nearest `HotkeyScope`'s element getter, or `null` outside one — hand it to a scoped palette action's `within`. |
 
-All hooks except `useMaybeHotkeys` and `useDeclaredHotkeyIds`, which returns an empty set, require a provider.
+All hooks require a provider except `useMaybeHotkeys`, `useDeclaredHotkeyIds`, which returns an empty set, and `useHotkeyScope`, which reads only the surrounding scope.
 
 ### Scopes
 

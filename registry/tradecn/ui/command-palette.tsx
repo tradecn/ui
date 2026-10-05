@@ -474,7 +474,9 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
       else {
         const action = offered.find((a) => a.id === recent.id && a.scope === recent.scope) ?? (recent.scope === undefined && !list.some((a) => a.id === recent.id && !a.scope) ? offered.find((a) => a.id === recent.id) : undefined)
         if (action) {
-          const row = actionRow(action, "recent", recent)
+          // The row's identity is the resolved action's, so running a v1 scope-less
+          // entry saves the scope it ran in and retires the old spelling.
+          const row = actionRow(action, "recent", { kind: "action", id: action.id, scope: action.scope })
           if (!emittedRecents.has(row.key)) {
             emittedRecents.add(row.key)
             rows.push(row)
