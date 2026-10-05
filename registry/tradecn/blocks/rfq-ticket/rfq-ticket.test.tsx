@@ -396,11 +396,16 @@ describe("RfqTicket keys", () => {
     const buttons = screen.getAllByRole("button", { name: "Quote" })
     const elsewhere = screen.getByRole("button", { name: "Elsewhere" })
     // A deliberate leave clears the record: withdrawing the action later must not steal
-    // focus from the page.
+    // focus from the page. The leave lands on BODY — a focusable destination would block
+    // the park by itself, proving nothing about the clear.
     act(() => buttons[0]!.focus())
-    act(() => elsewhere.focus())
+    act(() => {
+      buttons[0]!.blur()
+    })
+    expect(document.activeElement).toBe(document.body)
     view.rerender(ui([]))
-    expect(document.activeElement).toBe(elsewhere)
+    expect(document.activeElement).toBe(document.body)
+    void elsewhere
     // The ticket the user was last in takes the park; a sibling's stale record cannot,
     // since focusing the second ticket's control blurred the first's record away.
     view.rerender(ui(["quote"]))
@@ -436,6 +441,21 @@ describe("RfqTicket keys", () => {
     expect(document.activeElement).toBe(group)
     expect(focusSpy.mock.calls.at(-1)?.[0]).toMatchObject({ preventScroll: true })
     focusSpy.mockRestore()
+  })
+
+  it("spends the record when it parks, at feed frequency", () => {
+    const { rerender } = mount({ defaultDraft: { ask: 99.515625 } })
+    const button = screen.getByRole("button", { name: "Quote" })
+    act(() => button.focus())
+    rerender({ inquiry: inquiry({ allowedActions: ["pass"] }) })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    expect(group.contains(document.activeElement)).toBe(true)
+    // The dealer clicks the page background; the root's blur never crosses the box's
+    // capture, so only the spent record keeps the next market tick from parking again.
+    act(() => (document.activeElement as HTMLElement).blur())
+    expect(document.activeElement).toBe(document.body)
+    rerender({ inquiry: inquiry({ allowedActions: ["pass"], market: { label: "Composite", bid: 99.5, ask: 99.53125 } }) })
+    expect(document.activeElement).toBe(document.body)
   })
 
   it("keeps focus in the ticket when the focused action leaves", () => {

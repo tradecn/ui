@@ -45,7 +45,7 @@ Keep `key={inquiry.id}` so a new inquiry starts with its own draft. The countdow
 
 The client's side determines your fields: an offer for a buyer, a bid for a seller, or both for a two-way inquiry. Change the client side to load a different keyed inquiry and clear the previous draft. The market stays the same so the field choice is easy to compare.
 
-Both sides are required for a two-way quote. Enter a crossed pair to see the crossed-quote check — a bid above the offer normally, below it where a higher quote means a lower price: yield and discount always, spread only when the instrument declares `quoteInverted`, since CDS quotes bid below offer while cash credit quotes the other way; the request caption changes only after a valid Quote action.
+Both sides are required for a two-way quote. Enter a crossed pair to see the crossed-quote check — a bid above the offer normally, below it where a higher quote means a lower price. A declared `quoteInverted` decides for any basis; the defaults are yield and discount inverted, price and spread not, since CDS quotes bid below offer while cash credit quotes the other way. The request caption changes only after a valid Quote action.
 
 <!-- demo: rfq-ticket-sides -->
 
@@ -142,10 +142,10 @@ These helpers are exported for confirmations, palette rows, and tests:
 | `quotedSides(side)` | Requested dealer sides as `readonly QuoteSide[]`, where `QuoteSide` is `"bid" \| "ask"`. |
 | `formatSize(quantity, convention)` | Millions of notional (`5_000_000` → `5mm`) or a contract count. |
 | `quoteDistance(level, market, convention)` | `{ value, text }`, or `null` for a missing or nonfinite input. Both levels accept `number \| null \| undefined`. |
-| `checkQuote(draft, inquiry, labels?)` | `RfqQuoteProblems`: optional `bid` and `ask` messages for required `null` levels or a crossed pair in the quote basis. |
+| `checkQuote(draft, inquiry, labels?)` | `RfqQuoteProblems`: optional `bid` and `ask` messages for a required level that is null or non-finite, or a crossed pair read through the quote direction. |
 | `describeQuote(draft, inquiry, labels?)` | Text such as `Offer 5mm T 4 1/8 05/15/34 @ 99-16+`; uses `draft.quantity ?? inquiry.quantity`. |
 
-The last two helpers default to `DEFAULT_RFQ_TICKET_LABELS` and accept a full `RfqTicketLabels` object. `checkQuote` does not check limits or quantity; it rejects crossed levels through the instrument's quote direction whenever both are non-null — bid above offer normally, bid below offer where `quoteInvertedOf` reads the instrument as inverted — including an unused side supplied through `defaultDraft`.
+The last two helpers default to `DEFAULT_RFQ_TICKET_LABELS` and accept a full `RfqTicketLabels` object. `checkQuote` does not check limits or quantity; it rejects crossed levels through the instrument's quote direction whenever both are finite — bid above offer normally, bid below offer where `quoteInvertedOf` reads the instrument as inverted — including an unused side supplied through `defaultDraft`, and a required side that is null or non-finite gets its needed message instead.
 
 ### The actions are the server's
 
