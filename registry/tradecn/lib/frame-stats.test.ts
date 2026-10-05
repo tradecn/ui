@@ -85,17 +85,27 @@ describe("createFrameSampler", () => {
     expect(sampler.report()).toBe(report)
   })
 
-  it("dies on the next tick when cancel cannot reach its frame", () => {
-    // A popout's frame id cancelled through the opener does nothing: the loop must still
-    // end itself, or every restart stacks another loop reading half gaps.
+  it("dies on the next tick when cancel cannot reach its frame, through a restart too", () => {
+    // A popout's frame id cancelled through the opener does nothing: the stale callback
+    // must die on arrival, and a stop-start replay — StrictMode's — must not revive it, or
+    // every restart stacks another loop reading half gaps.
     const ticks: FrameRequestCallback[] = []
     const raf = vi.fn((cb: FrameRequestCallback) => ticks.push(cb))
     const sampler = createFrameSampler({ raf: raf as unknown as (cb: FrameRequestCallback) => number, caf: () => {}, setTimer: () => 0, clearTimer: () => {} })
     sampler.start()
-    const scheduled = raf.mock.calls.length
+    const stale = ticks.at(-1)!
     sampler.stop()
-    ticks.at(-1)!(16)
-    expect(raf.mock.calls.length).toBe(scheduled)
+    stale(16)
+    expect(raf.mock.calls.length).toBe(1)
+    sampler.start()
+    expect(raf.mock.calls.length).toBe(2)
+    // The first chain's callback arrives after the replay: it stays dead while the new
+    // chain keeps scheduling.
+    stale(32)
+    expect(raf.mock.calls.length).toBe(2)
+    ticks.at(-1)!(48)
+    expect(raf.mock.calls.length).toBe(3)
+    sampler.stop()
   })
 
   it("keeps only the last frames of the window, forgets on reset, and stops cleanly", () => {
