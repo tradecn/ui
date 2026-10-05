@@ -44,7 +44,7 @@ The preview compares a note on price, a bill on discount, and credit on spread. 
 
 ### The basis
 
-`convention.quoteBasis` defaults to `"price"`. Yield and discount values use percentage points; spreads use basis points. The root carries the basis as `data-basis` and the slot `data-slot="tradecn-quote-field"`.
+`convention.quoteBasis` defaults to `"price"`. Yield and discount values use percentage points; spreads use basis points, with no direction of their own — a CDS spread quotes bid below offer, cash credit the other way, and `convention.quoteInverted` declares which, for readers such as the RFQ ticket's crossed check. The root carries the basis as `data-basis` and the slot `data-slot="tradecn-quote-field"`.
 
 | Basis | Default label | Default step | Display precision |
 |---|---|---|---|

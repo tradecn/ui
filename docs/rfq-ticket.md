@@ -39,13 +39,13 @@ function InquiryTicket() {
 
 A buyer needs your offer. Enter `99-16+` or step from the market with the arrow keys, then choose Quote. The ticket checks the required level before calling the action. This example prints the request; connect `run` to your transport to send it.
 
-Keep `key={inquiry.id}` so a new inquiry starts with its own draft. The countdown stops at zero, but status and permissions remain as supplied. Your app updates them from the venue. Shortcuts require a [`HotkeysProvider`](use-hotkeys.md), shown below.
+Keep `key={inquiry.id}` so a new inquiry starts with its own draft. The countdown stops at zero, but status and permissions remain as supplied. Your app updates them from the venue. Render the ticket on the client: the countdown reads a shared clock that advances only while something in a browser subscribes, so server-rendered digits go stale and mismatch on hydration. Shortcuts require a [`HotkeysProvider`](use-hotkeys.md), shown below.
 
 ## Buyer, seller, and two-way inquiries
 
 The client's side determines your fields: an offer for a buyer, a bid for a seller, or both for a two-way inquiry. Change the client side to load a different keyed inquiry and clear the previous draft. The market stays the same so the field choice is easy to compare.
 
-Both sides are required for a two-way quote. Enter a bid above the offer to see the crossed-quote check; the request caption changes only after a valid Quote action.
+Both sides are required for a two-way quote. Enter a crossed pair to see the crossed-quote check — a bid above the offer normally, below it where a higher quote means a lower price. A declared `quoteInverted` decides for any basis; the defaults are yield and discount inverted, price and spread not, since CDS quotes bid below offer while cash credit quotes the other way. The request caption changes only after a valid Quote action.
 
 <!-- demo: rfq-ticket-sides -->
 
@@ -142,10 +142,10 @@ These helpers are exported for confirmations, palette rows, and tests:
 | `quotedSides(side)` | Requested dealer sides as `readonly QuoteSide[]`, where `QuoteSide` is `"bid" \| "ask"`. |
 | `formatSize(quantity, convention)` | Millions of notional (`5_000_000` → `5mm`) or a contract count. |
 | `quoteDistance(level, market, convention)` | `{ value, text }`, or `null` for a missing or nonfinite input. Both levels accept `number \| null \| undefined`. |
-| `checkQuote(draft, inquiry, labels?)` | `RfqQuoteProblems`: optional `bid` and `ask` messages for required `null` levels or a bid above the ask. |
+| `checkQuote(draft, inquiry, labels?)` | `RfqQuoteProblems`: optional `bid` and `ask` messages for a required level that is null or non-finite, or a crossed pair read through the quote direction. |
 | `describeQuote(draft, inquiry, labels?)` | Text such as `Offer 5mm T 4 1/8 05/15/34 @ 99-16+`; uses `draft.quantity ?? inquiry.quantity`. |
 
-The last two helpers default to `DEFAULT_RFQ_TICKET_LABELS` and accept a full `RfqTicketLabels` object. `checkQuote` does not check limits, quantity, or finiteness; it rejects crossed levels whenever both are non-null, including an unused side supplied through `defaultDraft`.
+The last two helpers default to `DEFAULT_RFQ_TICKET_LABELS` and accept a full `RfqTicketLabels` object. `checkQuote` does not check limits or quantity; it rejects crossed levels through the instrument's quote direction whenever both are finite — bid above offer normally, bid below offer where `quoteInvertedOf` reads the instrument as inverted — including an unused side supplied through `defaultDraft`, and a required side that is null or non-finite gets its needed message instead.
 
 ### The actions are the server's
 
@@ -162,7 +162,7 @@ Only matching actions render, in your `actions` order. No matches produces the n
 
 On execution, the ticket rechecks `disabled`, permission, and any required quote and limit checks against current props. Quote errors appear under their fields. Set `needsQuote: false` for pass, stop, or server-priced actions; these receive the current draft without quote or limit validation.
 
-Fields, size buttons, and the suggestion button are disabled unless an allowed action needs a quote and `disabled` is false. Removing allowed actions preserves the displayed draft. `status` alone does not disable anything, and countdown expiry does not remove actions.
+Fields, size buttons, and the suggestion button are disabled unless an allowed action needs a quote and `disabled` is false. Removing allowed actions preserves the displayed draft, and when the control under focus leaves with the change — a sent action's button unmounts — focus moves to the ticket itself, so the shortcuts stay live; this park is the one exception to the parent owning focus, it fires only while focus was in this ticket, a deliberate click elsewhere is remembered as leaving, and a window switch is not — a control withdrawn while the dealer is away still parks on return. A non-finite market, suggested, or default level — a feed still warming up — counts as absent everywhere: fields, steps, the suggestion button, and the market row's readout. `status` alone does not disable anything, and countdown expiry does not remove actions.
 
 Changing `acknowledged` triggers the `primary` ring flash; the first render and equal values do not. Changes use `Object.is` equality. The flash follows [`useFlash`](flash-cell.md) motion behavior and never changes the inquiry's status. Under reduced motion the hook only marks `data-direction`, and the box styles nothing by it, so nothing visible happens.
 
@@ -179,7 +179,7 @@ Inside a `HotkeysProvider`, the ticket declares these `editing` bindings as regi
 | Binding | Default key | Action |
 |---|---|---|
 | `rfq.send` | `mod+enter` | Runs the first allowed quote-sending action, preferring the primary; its key caps render on that action's button. |
-| `rfq.tick-up`, `rfq.tick-down` | `mod+up`, `mod+down` | Steps the focused quote field, or the first field. |
+| `rfq.tick-up`, `rfq.tick-down` | `mod+up`, `mod+down` | Steps the side the key came from — its field or step buttons — else the first field. |
 | `rfq.suggested` | `mod+shift+a` | Copies suggested levels. |
 | `rfq.size-1` … `rfq.size-N` | `mod+1` … `mod+N` | Selects an entry from `quickSizes`, in supplied order; declared through `N = quickSizes.length`, at most nine. |
 

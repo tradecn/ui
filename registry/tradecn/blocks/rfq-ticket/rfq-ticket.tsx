@@ -1,11 +1,11 @@
 import { cn } from "cn"
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
-import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, quoteInvertedOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
@@ -157,7 +157,7 @@ export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
   settlement: "Settles",
   bidNeeded: "A bid is needed.",
   askNeeded: "An offer is needed.",
-  crossed: "The bid is above the offer.",
+  crossed: "The quote is crossed.",
   nothingAllowed: "Nothing can be done with this inquiry right now.",
   for: "for",
   anyway: "{action} anyway?",
@@ -190,13 +190,22 @@ export interface RfqQuoteProblems {
   ask?: string
 }
 
-/** What stops a quote from being sent: a needed side that is blank, or a market whose bid is above its offer. Empty when nothing does. */
+/** What stops a quote from being sent: a needed side that is blank or non-finite, or a crossed pair of finite levels read through the instrument's quote direction — bid above offer normally, bid below offer where a higher quote means a lower price, as `quoteInvertedOf` reads it. Empty when nothing does. */
 export function checkQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: RfqTicketLabels = DEFAULT_RFQ_TICKET_LABELS): RfqQuoteProblems {
   const problems: RfqQuoteProblems = {}
   const sides = quotedSides(inquiry.side)
-  if (sides.includes("bid") && draft.bid === null) problems.bid = labels.bidNeeded
-  if (sides.includes("ask") && draft.ask === null) problems.ask = labels.askNeeded
-  if (draft.bid !== null && draft.ask !== null && draft.bid > draft.ask) problems.ask = labels.crossed
+  // Levels read through level(): a non-finite value counts as absent here too, as the page
+  // promises for every reader of a level.
+  const bid = level(draft.bid)
+  const ask = level(draft.ask)
+  if (sides.includes("bid") && bid === null) problems.bid = labels.bidNeeded
+  if (sides.includes("ask") && ask === null) problems.ask = labels.askNeeded
+  // A crossed quote bids above its offer, unless a higher quote means a lower price. A
+  // declared quoteInverted decides for any basis; the defaults are yield and discount
+  // inverted, price and spread not, since CDS quotes bid below offer while cash credit
+  // quotes the other way.
+  const inverted = quoteInvertedOf(inquiry.instrument.convention)
+  if (bid !== null && ask !== null && (inverted ? bid < ask : bid > ask)) problems.ask = labels.crossed
   return problems
 }
 
@@ -240,7 +249,7 @@ function sendTarget(allowed: readonly RfqAction[]): RfqAction | undefined {
 }
 const RFQ_CORE_BINDINGS = RFQ_TICKET_BINDINGS.filter((binding) => !binding.id.startsWith("rfq.size-"))
 const RFQ_SIZE_BINDINGS = RFQ_TICKET_BINDINGS.filter((binding) => binding.id.startsWith("rfq.size-"))
-const level = (v: number | null | undefined) => (typeof v === "number" ? v : null)
+const level = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) ? v : null)
 
 export interface RfqTicketProps {
   inquiry: RfqInquiry
@@ -285,8 +294,29 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const quoting = !disabled && allowed.some((action) => action.needsQuote !== false)
 
   const latest = useRef({ onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes, quoting })
-  useEffect(() => {
+  // Layout phase, not passive: a keydown can land between the commit that withdrew an action
+  // and the passive effects, and the check at run time must see what the dealer sees.
+  useLayoutEffect(() => {
     latest.current = { onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes, quoting }
+  })
+
+  // When the control under focus leaves — quoting stops and both fields disable, a sent
+  // action's button unmounts — focus falls to body, outside every fence, and the shortcuts go
+  // dead. The scope root takes it instead.
+  const focusedInside = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const node = box.current ? box.current.parentElement ?? box.current : null
+    const previous = focusedInside.current
+    if (!node || !previous) return
+    const doc = node.ownerDocument
+    const gone = !previous.isConnected || previous.matches(":disabled")
+    if (gone && (doc.activeElement === previous || doc.activeElement === doc.body)) {
+      // Once parked, the record is spent: a later commit must not take focus again, and a
+      // sibling ticket's stale record must not outrank the one the user was in. Never
+      // scroll: the park can fire while the dealer reads elsewhere.
+      focusedInside.current = null
+      node.focus({ preventScroll: true })
+    }
   })
 
   // The draft is told after it changed, never on the first render.
@@ -344,15 +374,22 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   }
 
   function step(side: QuoteSide, steps: number) {
-    const from = latest.current.draft[side] ?? stepFrom(side)
+    const from = level(latest.current.draft[side]) ?? stepFrom(side)
     if (from === null) return
     setLevel(side, stepQuote(from, convention, steps))
   }
 
-  /** The field the keyboard is in, else the first side the client asked for. */
-  function focusedSide(): QuoteSide {
-    const active = typeof document === "undefined" ? null : document.activeElement
-    for (const side of sides) if (inputs[side].current && inputs[side].current === active) return side
+  /** The side the key came from: the event's target, else focus in this ticket's own document — a popout runs in the opener's JavaScript, so the global document never holds its fields — a side's step buttons counting as the side; else the first side the client asked for. */
+  function focusedSide(target?: EventTarget | null): QuoteSide {
+    // A popout's nodes come from another realm, where instanceof Element fails; nodeType is
+    // realm-proof.
+    const isElement = (node: EventTarget | null | undefined): node is Element => typeof node === "object" && node !== null && (node as Node).nodeType === 1
+    const from = isElement(target) ? target : (box.current?.ownerDocument ?? (typeof document === "undefined" ? null : document))?.activeElement ?? null
+    for (const side of sides) {
+      const input = inputs[side].current
+      if (!input) continue
+      if (from === input || (isElement(from) && input.closest("[data-slot='tradecn-quote-field']")?.contains(from))) return side
+    }
     return sides[0]!
   }
 
@@ -389,10 +426,14 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   // Keys: defaults declared per ticket, handlers fenced to this ticket so another's keys stay its own.
   const registry = useMaybeHotkeys()
-  const handlers = useRef({ send: () => {}, up: () => {}, down: () => {}, suggested: () => {}, quick: (n: number) => {
+  const handlers = useRef({ send: () => {}, up: (target?: EventTarget | null) => {
+      void target
+    }, down: (target?: EventTarget | null) => {
+      void target
+    }, suggested: () => {}, quick: (n: number) => {
       void n
     } })
-  useEffect(() => {
+  useLayoutEffect(() => {
     handlers.current = {
       send: () => {
         const { actions: list, inquiry: now, disabled: locked } = latest.current
@@ -404,11 +445,11 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       },
       // The draft moves only while the fields are live: the same quoting condition that
       // enables the controls, so a pass-only inquiry's keys change nothing either.
-      up: () => {
-        if (latest.current.quoting) step(focusedSide(), 1)
+      up: (target?: EventTarget | null) => {
+        if (latest.current.quoting) step(focusedSide(target), 1)
       },
-      down: () => {
-        if (latest.current.quoting) step(focusedSide(), -1)
+      down: (target?: EventTarget | null) => {
+        if (latest.current.quoting) step(focusedSide(target), -1)
       },
       suggested: () => {
         if (latest.current.quoting) takeSuggested()
@@ -422,14 +463,14 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
     const release = declareHotkeys ? declareBindings(registry, RFQ_CORE_BINDINGS) : noop()
     // Fenced to the scope root, so the shortcuts run from the heading, the market, and the padding too.
     const within = { scope: "editing", element: () => (box.current ? box.current.parentElement ?? box.current : null) }
-    const guard = (fn: () => void) => (event: KeyboardEvent) => {
+    const guard = (fn: (event: KeyboardEvent) => void) => (event: KeyboardEvent) => {
       event.preventDefault()
-      fn()
+      fn(event)
     }
     const unbind = [
       registry.bind("rfq.send", guard(() => handlers.current.send()), within),
-      registry.bind("rfq.tick-up", guard(() => handlers.current.up()), within),
-      registry.bind("rfq.tick-down", guard(() => handlers.current.down()), within),
+      registry.bind("rfq.tick-up", guard((event) => handlers.current.up(event.target)), within),
+      registry.bind("rfq.tick-down", guard((event) => handlers.current.down(event.target)), within),
       registry.bind("rfq.suggested", guard(() => handlers.current.suggested()), within),
       // Fenced handlers for all nine, acting only on a present size: an id anyone declares in
       // the editing scope meets this fence, and an undeclared absent size's event passes
@@ -469,8 +510,17 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const hasSuggested = Boolean(inquiry.suggested && sides.some((side) => level(inquiry.suggested![side]) !== null))
 
   return (
-    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${inquiry.id}`} data-slot="tradecn-rfq-ticket" data-inquiry={inquiry.id} data-side={inquiry.side} data-status={inquiry.status} className={cn("block outline-none lining-nums tabular-nums", className)}>
-      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground">
+    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${inquiry.id}`} data-slot="tradecn-rfq-ticket" data-inquiry={inquiry.id} data-side={inquiry.side} data-status={inquiry.status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/30 lining-nums tabular-nums", className)}>
+      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }} onBlurCapture={(event) => {
+        // Focus moving somewhere outside the ticket on purpose: the leaving control is still
+        // in the document and enabled, so there is nothing to recover from. A window switch
+        // also blurs with no destination, but the document loses focus with it — the record
+        // stays, so a control withdrawn while the dealer is away still parks on return.
+        const leaving = event.target as HTMLElement
+        const next = event.relatedTarget as HTMLElement | null
+        if (!next && !event.currentTarget.ownerDocument.hasFocus()) return
+        if (focusedInside.current === leaving && leaving.isConnected && !leaving.matches(":disabled") && (!next || !event.currentTarget.contains(next))) focusedInside.current = null
+      }}>
         <div className="flex items-start gap-2">
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <div className="flex flex-wrap items-baseline gap-x-1.5" data-rfq-headline>

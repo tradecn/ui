@@ -38,6 +38,8 @@ export interface InstrumentConvention {
   quoteStep?: number
   /** Decimals for a yield, discount, or spread quote. Default 3, 3, and 1. Price quotes follow their convention. */
   quoteDecimals?: number
+  /** Whether a higher quote means a lower price, so a normal market quotes the bid above the offer. Defaults by basis: yield and discount invert; price and spread do not, since a CDS spread quotes bid below offer while cash credit quotes the other way — declare it for the instrument when the default reads wrong. */
+  quoteInverted?: boolean
 }
 
 function isNil(v: Nullable): v is null | undefined {
@@ -331,6 +333,13 @@ const QUOTE_DEFAULTS: Record<Exclude<QuoteBasis, "price">, { step: number; decim
 
 export function quoteBasisOf(c: InstrumentConvention): QuoteBasis {
   return c.quoteBasis ?? "price"
+}
+
+/** Whether a higher quote means a lower price for this instrument: declared, else by basis — yield and discount invert, price and spread do not. */
+export function quoteInvertedOf(c: InstrumentConvention): boolean {
+  if (c.quoteInverted !== undefined) return c.quoteInverted
+  const basis = quoteBasisOf(c)
+  return basis === "yield" || basis === "discount"
 }
 
 /** What a quote steps by in its basis: the tick for a price, else `quoteStep` or the basis default. */
