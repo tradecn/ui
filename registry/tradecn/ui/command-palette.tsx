@@ -60,7 +60,7 @@ export interface ActionRegistry {
   subscribe(cb: () => void): () => void
 }
 
-const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${JSON.stringify([r.scope || null, r.id])}` : `symbol:${JSON.stringify([r.symbol.symbol, r.symbol.exchange ?? null])}`)
+const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${JSON.stringify([r.scope || null, r.id])}` : `symbol:${JSON.stringify([r.symbol.symbol, r.symbol.exchange || null])}`)
 
 export function createActionRegistry(options: { maxRecents?: number } = {}): ActionRegistry {
   const maxRecents = options.maxRecents ?? 8
@@ -109,7 +109,7 @@ export function createActionRegistry(options: { maxRecents?: number } = {}): Act
       // for the same id — but only while no live unscoped registration owns that id,
       // since a current global action's entry is not a leftover.
       const leftover = recent.kind === "action" && !!recent.scope && !(actions.get(recent.id) ?? []).some((a) => !a.scope)
-      const stale = (r: PaletteRecent) => recentKey(r) === key || (leftover && r.kind === "action" && r.id === recent.id && r.scope === undefined)
+      const stale = (r: PaletteRecent) => recentKey(r) === key || (leftover && r.kind === "action" && r.id === recent.id && !r.scope)
       recents = [recent, ...recents.filter((r) => !stale(r))].slice(0, maxRecents)
       for (const cb of listeners) cb()
       for (const cb of recentListeners) cb(recents)
@@ -446,7 +446,9 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     recent,
   })
   const symbolRow = (symbol: SymbolResult, prefix: string): PaletteRow => ({
-    key: `${prefix}:${symbol.symbol}:${symbol.exchange ?? ""}`,
+    // The same marked JSON spelling as scoped action rows: colons in a symbol or an
+    // empty exchange cannot collide two instruments onto one key.
+    key: `${prefix}!${JSON.stringify([symbol.symbol, symbol.exchange || null])}`,
     title: symbol.symbol,
     subtitle: [symbol.name, symbol.exchange].filter(Boolean).join(" · ") || undefined,
     badge: symbol.kind,
@@ -472,7 +474,13 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     const rows: PaletteRow[] = []
     const emittedRecents = new Set<string>()
     for (const recent of recents) {
-      if (recent.kind === "symbol") rows.push(symbolRow(recent.symbol, "recent-symbol"))
+      if (recent.kind === "symbol") {
+        const row = symbolRow(recent.symbol, "recent-symbol")
+        if (!emittedRecents.has(row.key)) {
+          emittedRecents.add(row.key)
+          rows.push(row)
+        }
+      }
       else {
         const action = offered.find((a) => a.id === recent.id && scopeOf(a) === scopeOf(recent)) ?? (scopeOf(recent) === undefined && !list.some((a) => a.id === recent.id && !a.scope) ? offered.find((a) => a.id === recent.id) : undefined)
         if (action) {

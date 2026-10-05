@@ -153,7 +153,7 @@ describe("CommandPalette", () => {
       { kind: "action", id: "gone" },
     ])
     render(<ComposedPalette actions={actions} hotkeys={null} open />)
-    expect(rows()).toEqual(["recent-symbol:AAPL:", "recent:ticket.new", "action:go.blotter", "action:ticket.new"])
+    expect(rows()).toEqual(['recent-symbol!["AAPL",null]', "recent:ticket.new", "action:go.blotter", "action:ticket.new"])
   })
 
   it("offers a scoped action when opened from inside its scope", () => {
@@ -597,7 +597,30 @@ describe("CommandPalette", () => {
     expect(first).not.toHaveBeenCalled()
   })
 
-  it("unregisters one copy per call, idempotently, when one object registered twice", () => {
+  it("keeps one symbol recent across empty and missing exchange, and splits colon twins", () => {
+    // An empty exchange reads as missing, so persistence round-trips keep one entry
+    // and one row; symbols whose fields rearrange around a colon stay two rows with
+    // two keys, each click running its own instrument.
+    const actions = createActionRegistry()
+    actions.touch({ kind: "symbol", symbol: { symbol: "AAPL", exchange: "" } })
+    actions.touch({ kind: "symbol", symbol: { symbol: "AAPL" } })
+    expect(actions.recents()).toHaveLength(1)
+    actions.touch({ kind: "symbol", symbol: { symbol: "A:B", exchange: "C" } })
+    actions.touch({ kind: "symbol", symbol: { symbol: "A", exchange: "B:C" } })
+    expect(actions.recents()).toHaveLength(3)
+    const selected: string[] = []
+    render(
+      <HotkeysProvider>
+        <ComposedPalette actions={actions} open onSymbolSelect={(symbol) => selected.push(`${symbol.symbol}/${symbol.exchange ?? ""}`)} />
+      </HotkeysProvider>,
+    )
+    const keys = rows().filter((row) => row?.startsWith("recent-symbol"))
+    expect(new Set(keys).size).toBe(3)
+    fireEvent.click(document.querySelector(`[data-row='recent-symbol!["A:B","C"]']`)!)
+    expect(selected).toEqual(["A:B/C"])
+  })
+
+    it("unregisters one copy per call, idempotently, when one object registered twice", () => {
     const actions = createActionRegistry()
     const shared: PaletteAction = { id: "a", title: "A", run: () => {} }
     const offFirst = actions.register(shared)
@@ -687,7 +710,7 @@ describe("symbol search", () => {
     expect(rows()).toEqual([])
     await act(() => vi.advanceTimersByTimeAsync(200))
     expect(symbols.calls).toEqual(["aa", "aap"])
-    expect(rows()).toEqual(["symbol:AAPL:NASDAQ"])
+    expect(rows()).toEqual(['symbol!["AAPL","NASDAQ"]'])
     expect(screen.getByText("Apple Inc · NASDAQ")).toBeInTheDocument()
     expect(screen.getByText("equity")).toBeInTheDocument()
     fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
@@ -1060,7 +1083,7 @@ describe("public composition", () => {
     const view = render(<ComposedPalette actions={actions} variant="go-bar" hotkeys={null} open symbols={first} />)
     type("a")
     await act(() => vi.advanceTimersByTimeAsync(1))
-    expect(rows()).toEqual(["symbol:OLD:"])
+    expect(rows()).toEqual(['symbol!["OLD",null]'])
     view.rerender(<ComposedPalette actions={actions} variant="go-bar" hotkeys={null} open symbols={second} />)
     expect(rows()).toEqual([])
     expect(screen.getByText("Searching…")).toBeInTheDocument()
