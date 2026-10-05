@@ -493,6 +493,21 @@ describe("Ticket keys", () => {
     expect(document.activeElement).toBe(document.body)
   })
 
+  it("spends the record when it parks, at acknowledgement frequency", () => {
+    const { rerender } = mount({ defaultDraft: { quantity: 1, price: 99.5 } })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!
+    const button = screen.getByRole("button", { name: "Send" })
+    act(() => button.focus())
+    rerender({ allowedActions: [] })
+    expect(document.activeElement).toBe(group)
+    // The trader clicks the page background; only the spent record keeps the next server
+    // update from pulling focus back into the ticket.
+    act(() => (document.activeElement as HTMLElement).blur())
+    expect(document.activeElement).toBe(document.body)
+    rerender({ allowedActions: [], reference: { last: 99.53125 } })
+    expect(document.activeElement).toBe(document.body)
+  })
+
   it("keeps focus in the ticket when the focused action leaves", () => {
     const { rerender } = mount({ defaultDraft: { quantity: 1, price: 99.5 } })
     const group = document.querySelector<HTMLElement>("[data-slot='tradecn-ticket']")!

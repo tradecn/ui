@@ -14,7 +14,7 @@ import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
 
 // An order ticket. Its price field is a quote-field, so it types a price the way the instrument
-// quotes it and steps it by the tick, and it hands a draft to whatever you named as an action. Two things it never does: work out a status, and
+// quotes it and steps it by the quote step, and it hands a draft to whatever you named as an action. Two things it never does: work out a status, and
 // offer an action the server did not allow. The status is a string the server said, printed as is.
 // The buttons are the actions whose ids are in `allowedActions`, and no list means no buttons.
 //
@@ -506,7 +506,7 @@ export function Ticket({
   )
 
   return (
-    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/30 lining-nums tabular-nums", className)}>
+    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", className)}>
       <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }} onBlurCapture={(event) => {
         // Focus moving somewhere outside the ticket on purpose: the leaving control is still
         // in the document and enabled, so there is nothing to recover from. A window switch

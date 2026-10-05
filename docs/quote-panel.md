@@ -60,7 +60,7 @@ In Bid size, `60000000` asks for confirmation above 50 million; `150000000` is b
 
 ## API Reference
 
-`QuotePanel` uses [`data-grid`](data-grid.md) in its `parameters` preset with generated quote columns and an optional Pull all button. Shared files are byte-identical to the ones `data-grid` and `parameter-grid` install.
+`QuotePanel` uses [`data-grid`](data-grid.md) in its `parameters` preset with generated quote columns and an optional Pull all button. Shared files are byte-identical to the ones `data-grid` and `parameter-grid` install. Though it installs as a block in your `components` alias, compose it through `quotePanelColumns` and its options rather than editing the file: unlike the ticket blocks, its behavior lives in the generated columns, and an edited file takes later registry fixes by hand. A two-way edit is refused when it crosses the desk's other side, read through the instrument's quote direction — a bid at or above the ask normally, the reverse where a higher quote means a lower price: yield and discount by default, any basis the convention declares with `quoteInverted`, and `quoteInverted: false` keeps the plain reading on a desk that quotes bid below offer in those bases.
 
 ### Props
 
@@ -117,7 +117,7 @@ The cell shows the committed value as pending until the store matches it (`Objec
 | `skew`, `width` | A number of quote steps, including fractional steps | One step, ten with Shift; from zero when empty | Null |
 | `bidSize`, `askSize` | A whole number, zero or more | One, ten with Shift; from zero when empty, never below zero | Null |
 
-A bid at or above the desk's ask, or an ask at or below its bid, is refused in the editor before it is sent.
+A crossed edit is refused in the editor before it is sent, read through the instrument's quote direction: a bid at or above the desk's ask, or an ask at or below its bid, normally — the reverse where the direction inverts.
 
 ### Limits
 

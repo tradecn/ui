@@ -259,7 +259,7 @@ export function LayoutManager({ templates, onTemplatesChange, current = null, on
     const node = root.current
     if (!node?.isConnected) return
     const target = node.querySelector<HTMLElement>("[data-layout-save-name]:not(:disabled)") ?? node
-    target.focus()
+    target.focus({ preventScroll: true })
   }, [])
   // Preferences readers may copy the list on every render. Compare the target's content, not its identity.
   const target = asking ? templates.find((template) => template.id === asking.id) : null
@@ -276,7 +276,7 @@ export function LayoutManager({ templates, onTemplatesChange, current = null, on
       const active = node.ownerDocument.activeElement
       if (active === node.ownerDocument.body || node.querySelector("[data-layout-import-content]")?.contains(active)) {
         const trigger = importOrigin.current
-        if (trigger?.isConnected && !trigger.matches(":disabled, [aria-disabled=true]")) trigger.focus()
+        if (trigger?.isConnected && !trigger.matches(":disabled, [aria-disabled=true]")) trigger.focus({ preventScroll: true })
         else focusFallback()
       }
     }
@@ -466,11 +466,11 @@ function Item({ template, className, ref, onFocusCapture, onBlurCapture, ...prop
     if (renaming && !wasRenaming.current) node.querySelector<HTMLElement>("[data-layout-rename-field]")?.focus()
     if (!renaming && wasRenaming.current && restoreFocus.current && (active === node.ownerDocument.body || node.contains(active))) {
       const target = origin.current
-      if (target?.isConnected && !target.matches(":disabled, [aria-disabled=true]")) target.focus()
-      else node.focus()
+      if (target?.isConnected && !target.matches(":disabled, [aria-disabled=true]")) target.focus({ preventScroll: true })
+      else node.focus({ preventScroll: true })
     }
     const focused = lastFocused.current
-    if (focused && (!focused.isConnected || focused.matches(":disabled")) && (node.ownerDocument.activeElement === node.ownerDocument.body || node.ownerDocument.activeElement === focused)) node.focus()
+    if (focused && (!focused.isConnected || focused.matches(":disabled")) && (node.ownerDocument.activeElement === node.ownerDocument.body || node.ownerDocument.activeElement === focused)) node.focus({ preventScroll: true })
     wasRenaming.current = renaming
   })
   useLayoutEffect(() => {

@@ -115,7 +115,7 @@ export function HotkeyEditor({ hide, labels: labelsProp, className, children, re
     if (!node?.isConnected) return
     const search = node.querySelector<HTMLInputElement>("[data-hotkey-search]:not(:disabled)")
     const target = search ?? node
-    target.focus()
+    target.focus({ preventScroll: true })
   }, [])
   // The list's identity changes exactly when the registry emits, and the conflicts change with it.
   const conflicts = useMemo(() => {
@@ -234,11 +234,11 @@ function Item({ entry, className, ref, onFocusCapture, onBlurCapture, ...props }
       node.querySelector<HTMLElement>(mode === "capture" ? "[data-hotkey-capture]" : "[data-hotkey-input]")?.focus()
     } else if (mode === "idle" && previousMode.current !== "idle" && restoreFocus.current && (active === node.ownerDocument.body || node.contains(active))) {
       const target = origin.current
-      if (target?.isConnected && !target.matches(":disabled, [aria-disabled=true]")) target.focus()
-      else node.focus()
+      if (target?.isConnected && !target.matches(":disabled, [aria-disabled=true]")) target.focus({ preventScroll: true })
+      else node.focus({ preventScroll: true })
     }
     const focused = lastFocused.current
-    if (focused && (!focused.isConnected || focused.matches(":disabled")) && (node.ownerDocument.activeElement === node.ownerDocument.body || node.ownerDocument.activeElement === focused)) node.focus()
+    if (focused && (!focused.isConnected || focused.matches(":disabled")) && (node.ownerDocument.activeElement === node.ownerDocument.body || node.ownerDocument.activeElement === focused)) node.focus({ preventScroll: true })
     previousMode.current = mode
   })
   useLayoutEffect(() => {

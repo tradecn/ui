@@ -2,7 +2,7 @@ import { cn } from "cn"
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
-import { NULL_TOKEN, NUMERIC_CLASS, formatQuantity, formatQuote, formatTicks, numericFontClass, parseQuote, stepQuote, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NULL_TOKEN, NUMERIC_CLASS, formatQuantity, formatQuote, quoteInvertedOf, formatTicks, numericFontClass, parseQuote, stepQuote, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { blocks, checkLimits, confirms, type Limits, type LimitsDraft } from "@/registry/tradecn/lib/limits"
 import { DataGrid, editProblem, type CellEdit, type ColumnDef, type DataGridProps, type EditChange, type EditProblem } from "@/registry/tradecn/ui/data-grid"
 
@@ -177,8 +177,11 @@ export function quoteEdit<T extends QuoteRow>(field: QuoteField, options: QuoteC
       format: (value, row) => (isNumber(value) ? formatQuote(value, conventionOf(options.convention, row)) : ""),
       validate: (value, row) => {
         if (!isNumber(value)) return null
-        if (field === "bid" && isNumber(row.ask) && value >= row.ask) return editProblem(labels.bidCrosses)
-        if (field === "ask" && isNumber(row.bid) && value <= row.bid) return editProblem(labels.askCrosses)
+        // Crossing reads the instrument's quote direction, as the RFQ ticket does: where a
+        // higher quote means a lower price, the bid sits above the offer in a normal market.
+        const inverted = quoteInvertedOf(conventionOf(options.convention, row))
+        if (field === "bid" && isNumber(row.ask) && (inverted ? value <= row.ask : value >= row.ask)) return editProblem(labels.bidCrosses)
+        if (field === "ask" && isNumber(row.bid) && (inverted ? value >= row.bid : value <= row.bid)) return editProblem(labels.askCrosses)
         return limitProblem(field === "bid" ? { bid: value } : { ask: value }, row, field, value, options, labels)
       },
       // A step from an empty side starts at the market's same side.
