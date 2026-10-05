@@ -1,5 +1,5 @@
 import { act, render, screen } from "@testing-library/react"
-import React, { Activity, StrictMode, useEffect, useState } from "react"
+import React, { Activity, StrictMode, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { usePopout, type Popout, type PopoutOptions } from "@/registry/tradecn/hooks/use-popout"
@@ -257,6 +257,47 @@ describe("usePopout", () => {
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId("open")).toHaveTextContent("false")
     expect(win.close).toHaveBeenCalled()
+  })
+
+  it("reports each window once through a close, open, close chain ahead of the reconcile", () => {
+    // Both windows report through finish before the reconcile ever runs; neither may
+    // be reported again when it fires on the stale state.
+    const first = fakeWindow()
+    const second = fakeWindow()
+    const windows = [first, second]
+    const openWindow = vi.fn(() => windows.shift() as unknown as Window | null)
+    const onClose = vi.fn()
+    function Chain({ popout }: { popout: Popout }) {
+      const { isOpen, open, close } = popout
+      const ran = useRef(false)
+      useEffect(() => {
+        if (isOpen && !ran.current) {
+          ran.current = true
+          close()
+          open()
+          close()
+        }
+      }, [isOpen, open, close])
+      return null
+    }
+    function Rig2(options: PopoutOptions) {
+      const popout = usePopout(options)
+      useEffect(() => {
+        handle = popout
+      })
+      return (
+        <section>
+          <output data-testid="open">{String(popout.isOpen)}</output>
+          <Chain popout={popout} />
+        </section>
+      )
+    }
+    render(<Rig2 openWindow={openWindow} onClose={onClose} />)
+    act(() => {
+      handle.open()
+    })
+    expect(onClose).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId("open")).toHaveTextContent("false")
   })
 
   it("focuses the window it already has instead of opening a second", () => {

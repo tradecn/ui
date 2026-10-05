@@ -93,13 +93,14 @@ export function usePopout(options: PopoutOptions = {}): Popout {
     if (host) place(host, slot, popout)
   }, [host, slot, popout])
 
-  const closeReported = useRef<Window | null>(null)
+  // Every window whose close has been reported, so no path reports one twice —
+  // a close in the opening commit, or a close-open-close chain ahead of the
+  // reconcile, included.
+  const closeReported = useRef<WeakSet<Window>>(new WeakSet())
   const finish = useCallback((target: Window) => {
     if (live.current !== target) return
     live.current = null
-    // Every path that reports a close marks the window, so the reconcile never
-    // reports the same one again — close() in the very commit that opened it included.
-    closeReported.current = target
+    closeReported.current.add(target)
     setPopout(null)
     latest.current.onClose?.()
   }, [])
@@ -148,15 +149,15 @@ export function usePopout(options: PopoutOptions = {}): Popout {
       // The hide's cleanup closed the window without the close listener firing:
       // complete the lifecycle so every onOpen still meets its onClose.
       setPopout(null)
-      if (closeReported.current !== popout) {
-        closeReported.current = popout
+      if (!closeReported.current.has(popout)) {
+        closeReported.current.add(popout)
         latest.current.onClose?.()
       }
     } else if (live.current === popout && popout.closed) finish(popout)
-    else if (live.current !== popout && popout.closed && closeReported.current !== popout) {
+    else if (live.current !== popout && popout.closed && !closeReported.current.has(popout)) {
       // A newer window took over during the reveal — a child's effect or a keypress in
       // the gap — and state will settle on it. Complete the dead one's pair here, once.
-      closeReported.current = popout
+      closeReported.current.add(popout)
       latest.current.onClose?.()
     }
   }, [popout, finish])
