@@ -238,7 +238,7 @@ function RowActions<T extends QuoteRow>({ row, actions }: RowActionsProps<T>) {
     }
   }
   return (
-    <span className="flex items-center gap-1" data-quote-actions={allowed.length}>
+    <span className="flex items-center gap-1" data-quote-actions={allowed.length} data-grid-interaction="control">
       {allowed.map((action) => (
         <Button key={action.id} type="button" size="sm" variant={action.destructive ? "destructive" : "ghost"} className="h-5 px-1.5 text-xs" tabIndex={-1} disabled={pending !== null} data-action={action.id} data-pending={pending === action.id || undefined} onClick={press(action)}>
           {action.label}

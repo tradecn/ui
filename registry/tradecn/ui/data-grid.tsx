@@ -18,6 +18,7 @@ import {
   type PointerEvent,
   type ReactNode,
   type RefObject,
+  type SyntheticEvent,
   type UIEvent,
 } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -239,6 +240,70 @@ type Resolved<T> = ColumnDef<T> & { width: number; minWidth: number }
 const EMPTY_SET: ReadonlySet<RowId> = new Set()
 const SELECT_WIDTH = 32
 const ENTER_WINDOW_MS = 1500
+
+// Native controls and focus targets own interaction regardless of an authored role.
+const ROW_CONTROLS = 'a[href], button, input, select, textarea, label, summary, audio[controls], video[controls], iframe, object, embed, [contenteditable]:not([contenteditable="false"]), [tabindex], [data-grid-interaction="control"]'
+const CONTROL_ROLES = new Set("button link checkbox radio switch combobox listbox option textbox searchbox slider spinbutton scrollbar tab tablist toolbar menu menubar menuitem menuitemcheckbox menuitemradio tree treeitem radiogroup doc-backlink doc-biblioref doc-glossref doc-noteref".split(" "))
+// Include noninteractive roles: in "status button", status wins. Abstract roles cannot win a fallback list.
+const ARIA_ROLES = new Set([
+  ..."alert alertdialog application article banner blockquote button caption cell checkbox code columnheader combobox comment complementary contentinfo definition deletion dialog directory document emphasis feed figure form generic grid gridcell group heading image img insertion link list listbox listitem log main mark marquee math menu menubar menuitem menuitemcheckbox menuitemradio meter navigation none note option paragraph presentation progressbar radio radiogroup region row rowgroup rowheader scrollbar search searchbox sectionfooter sectionheader separator slider spinbutton status strong subscript suggestion superscript switch tab table tablist tabpanel term textbox time timer toolbar tooltip tree treegrid treeitem".split(" "),
+  ..."document object symbol".split(" ").map(role => `graphics-${role}`),
+  ..."abstract acknowledgments afterword appendix backlink biblioentry bibliography biblioref chapter colophon conclusion cover credit credits dedication endnote endnotes epigraph epilogue errata example footnote foreword glossary glossref index introduction noteref notice pagebreak pagefooter pageheader pagelist part preface prologue pullquote qna subtitle tip toc".split(" ").map(role => `doc-${role}`),
+])
+
+function roleOf(element: Element): string | undefined {
+  const value = element.getAttribute("role")
+  if (!value) return
+  for (const token of value.split(/[\t\n\f\r ]+/)) {
+    if (!/^[A-Za-z-]+$/.test(token)) continue
+    const role = token.toLowerCase()
+    if (ARIA_ROLES.has(role)) return role
+  }
+}
+
+function independentGrid(element: Element): boolean {
+  const role = roleOf(element)
+  return role === "grid" || role === "treegrid" || element.getAttribute("data-grid-interaction") === "independent"
+}
+
+function gridTarget(root: HTMLElement | null, target: EventTarget, path?: EventTarget[]): Element | undefined {
+  const element = target as Element
+  // Portals can dispatch both an inner-target pass and a host-retargeted pass.
+  if (!root?.contains(element)) return undefined
+  if (path) {
+    for (const entry of path) {
+      if (entry === root) return element
+      if ((entry as Node).nodeType === 1 && independentGrid(entry as Element)) return undefined
+    }
+  } else {
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      if (node === root) return element
+      if (independentGrid(node)) return undefined
+    }
+  }
+  return undefined
+}
+
+function pathMatches(root: HTMLElement | null, path: EventTarget[], matches: (element: Element) => boolean): boolean {
+  for (const entry of path) {
+    if (entry === root) return false
+    if ((entry as Node).nodeType === 1 && matches(entry as Element)) return true
+  }
+  return false
+}
+
+function rejectMenuStart(root: HTMLElement | null, event: SyntheticEvent) {
+  const native = event.nativeEvent
+  if (event.type === "contextmenu" && root && native.composedPath().includes(root)) {
+    // Base's document listener also claims contained context menus, including at a hydrated document root.
+    event.stopPropagation()
+    if (native.currentTarget === root.ownerDocument) native.stopImmediatePropagation()
+    return
+  }
+  // React's dispatcher checks this query before visiting an ancestor. This compatibility shim
+  // skips the menu trigger without blocking native listeners used by dialog dismissal and touch tracking.
+  event.isPropagationStopped = () => true
+}
 
 function useControllable<V>(value: V | undefined, onChange: ((v: V) => void) | undefined, initial: V): [V, (v: V) => void] {
   const [internal, setInternal] = useState(initial)
@@ -1069,13 +1134,16 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       } else {
         const to = targets[targets.length - 1]!
         const from = anchorRef.current ?? to
-        const a = indexOf.get(from) ?? 0
-        const b = indexOf.get(to) ?? 0
-        for (let i = Math.min(a, b); i <= Math.max(a, b); i++) next.add(ids[i]!)
+        // Capture and focus callbacks can publish a new order before this render commits.
+        const currentIds = view.getIds()
+        const a = currentIds === ids ? indexOf.get(from) ?? 0 : Math.max(0, currentIds.indexOf(from))
+        const b = currentIds === ids ? indexOf.get(to) ?? -1 : currentIds.indexOf(to)
+        if (b < 0) return
+        for (let i = Math.min(a, b); i <= Math.max(a, b); i++) next.add(currentIds[i]!)
       }
       setSelection(next)
     },
-    [ids, indexOf, selection, selectionMode, setSelection],
+    [ids, indexOf, selection, selectionMode, setSelection, view],
   )
 
   const focusIndex = useCallback(
@@ -1136,10 +1204,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    // Portaled menus own their keys even though React bubbles them through the grid.
-    if (!e.currentTarget.contains(e.target as Node)) return
+    // Nested grids and portals own their keys, including reorder holds and following.
+    const path = e.nativeEvent.composedPath()
+    if (!gridTarget(e.currentTarget, e.target, path)) return
     // The editor owns its keys; what it lets through (a modifier-held arrow) is for the listeners above the grid.
-    if ((e.target as HTMLElement).closest?.("[data-cell-editor]")) return
+    if (pathMatches(e.currentTarget, path, element => element.hasAttribute("data-cell-editor"))) return
     view.touch()
     stopFollowing()
     // Focused controls own their keys; application handlers can also claim a grid key in capture.
@@ -1257,28 +1326,59 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   const openContextMenuAtFocus = () => {
     if (focusedRowId === null) return
-    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-row-id="${cssEscape(focusedRowId)}"]`)
-    if (!el) return
+    const root = rootRef.current
+    const id = domId(focusedRowId)
+    const el = Array.from(root?.querySelectorAll<HTMLElement>('[role="row"][data-row-id]') ?? []).find(row => row.id === id)
+    const ownerWindow = el?.ownerDocument.defaultView
+    if (!el || !ownerWindow || !gridTarget(root, el)) return
     const r = el.getBoundingClientRect()
-    el.dispatchEvent(new window.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 8, clientY: r.top + r.height / 2, button: 2 }))
+    el.dispatchEvent(new ownerWindow.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 8, clientY: r.top + r.height / 2, button: 2 }))
+  }
+
+  const rowTarget = (event: { target: EventTarget; nativeEvent: Event }, includeShadowTarget = false) => {
+    const path = event.nativeEvent.composedPath()
+    const root = rootRef.current
+    // Menu starts can reach the primitive before a shadow portal's host-targeted pass.
+    const target = includeShadowTarget && !root?.contains(event.target as Node)
+      ? path.find(entry => (entry as Node).nodeType === 1 && root?.contains(entry as Node)) ?? event.target
+      : event.target
+    const element = gridTarget(root, target, path)
+    if (!element || pathMatches(root, path, element => element.matches(ROW_CONTROLS) || CONTROL_ROLES.has(roleOf(element) ?? ""))) return undefined
+    const row = element.closest<HTMLElement>('[role="row"][data-row-id]')
+    const id = row?.dataset.rowId
+    if (id === undefined || row?.id !== domId(id) || !indexOf.has(id) || store.getRow(id) === undefined) return undefined
+    // A capture handler may change membership before React commits the new rows.
+    const currentIds = view.getIds()
+    if (currentIds !== ids && !currentIds.includes(id)) return undefined
+    return { element, id }
   }
 
   // Right-click targets the row under the pointer: focus it, and make it the selection unless it is already selected.
-  const onContextMenuCapture = (e: MouseEvent<HTMLDivElement>) => {
-    const rowEl = (e.target as HTMLElement).closest<HTMLElement>("[data-row-id]")
-    const id = rowEl?.dataset.rowId
-    if (!id) return
+  const onContextMenu = (e: MouseEvent<HTMLDivElement>) => {
+    const target = rowTarget(e, true)
+    if (e.defaultPrevented || !target) {
+      rejectMenuStart(rootRef.current, e)
+      return
+    }
+    const { id } = target
     setFocusedRowId(id)
     if (!selection.has(id)) select([id], "replace")
   }
 
-  const onRowPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+  const onPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
+    if (!gridTarget(rootRef.current, e.target, e.nativeEvent.composedPath())) return
     view.touch()
     stopFollowing()
-    const rowEl = (e.target as HTMLElement).closest<HTMLElement>("[data-row-id]")
-    const id = rowEl?.dataset.rowId
-    if (!id) return
-    if ((e.target as HTMLElement).closest('[data-slot="checkbox"]')) return
+  }
+
+  const onRowPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    const target = rowTarget(e)
+    if (e.defaultPrevented || !target) {
+      // Radix starts long-press menus from pointerdown; Base UI uses touchstart below.
+      if (renderContextMenu && e.pointerType !== "mouse" && (e.defaultPrevented || !rowTarget(e, true))) rejectMenuStart(rootRef.current, e)
+      return
+    }
+    const { id } = target
     setFocusedRowId(id)
     if (e.button !== 0) return
     if (e.shiftKey) select([id], "range")
@@ -1288,11 +1388,13 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   // A double click on an editable cell opens it; anywhere else on the row it activates the row.
   const onRowDoubleClick = (e: MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement
-    const id = target.closest<HTMLElement>("[data-row-id]")?.dataset.rowId
-    const row = id !== undefined ? store.getRow(id) : undefined
-    if (id === undefined || row === undefined) return
-    const key = target.closest<HTMLElement>("[data-col]")?.dataset.col
+    if (e.defaultPrevented) return
+    const target = rowTarget(e)
+    if (!target) return
+    const { element, id } = target
+    const row = store.getRow(id)
+    if (row === undefined) return
+    const key = element.closest<HTMLElement>("[data-col]")?.dataset.col
     const col = key !== undefined ? resolved.find((c) => c.key === key) : undefined
     if (edits && canEditCell(col, row) && !col.edit.toggle) {
       setFocusedRowId(id)
@@ -1316,9 +1418,14 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     <div
       ref={scrollRef}
       className="relative h-full min-h-0 flex-1 overflow-auto"
-      onPointerDownCapture={onRowPointerDown}
+      onPointerDownCapture={onPointerDownCapture}
+      onPointerDown={onRowPointerDown}
       onDoubleClick={onRowDoubleClick}
-      onContextMenuCapture={renderContextMenu ? onContextMenuCapture : undefined}
+      onContextMenu={renderContextMenu ? onContextMenu : undefined}
+      onTouchStart={renderContextMenu ? event => {
+        // Multiple touches must reach the primitive so it can cancel a pending long press.
+        if (event.touches.length === 1 && (event.defaultPrevented || !rowTarget(event, true))) rejectMenuStart(rootRef.current, event)
+      } : undefined}
       onScroll={onScroll}
     >
       {/* At least the viewport tall, so a footer sits at the bottom edge when the rows do not reach it. */}
@@ -1591,8 +1698,4 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
       />
     </div>
   )
-}
-
-function cssEscape(s: string): string {
-  return typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(s) : s.replace(/["\\]/g, "\\$&")
 }

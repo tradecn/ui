@@ -1,5 +1,6 @@
-import { useState } from "react"
-import { QuotePanel, type QuoteAction, type QuoteRow } from "@/components/quote-panel"
+import { useMemo, useRef, useState } from "react"
+import { QuotePanel, quotePanelColumns, type QuoteAction, type QuoteRow } from "@/components/quote-panel"
+import { ContextMenuItem } from "@/components/ui/context-menu"
 import type { EditChange } from "@/components/ui/data-grid"
 import type { InstrumentConvention } from "@/lib/format"
 import type { Limits } from "@/lib/limits"
@@ -78,6 +79,31 @@ export function QuotePanelScene() {
         <QuotePanel store={store} convention={T32} actions={actions} limits={LIMITS} onEdit={server.edit} onPullAll={server.pullAll} />
       </div>
       <output data-quote-log="">{log}</output>
+      <PendingQuoteActions />
     </div>
   )
+}
+
+function PendingQuoteActions() {
+  const [store] = useState(() => {
+    const store = createRowStore<QuoteRow>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: ROWS.slice(0, 2) })
+    return store
+  })
+  const finish = useRef<(() => void) | null>(null)
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["10Y"]))
+  const [requests, setRequests] = useState(0)
+  const [activations, setActivations] = useState(0)
+  const [actions] = useState<QuoteAction[]>(() => [
+    { id: "pause", label: "Pause", run: () => {
+      setRequests(count => count + 1)
+      return new Promise<void>(resolve => { finish.current = resolve })
+    } },
+    { id: "pull", label: "Pull", run: () => { setRequests(count => count + 1) } },
+  ])
+  const columns = useMemo(() => quotePanelColumns({ convention: T32, actions }).filter(column => column.key === "instrument" || column.key === "actions"), [actions])
+  return <div data-pending-quote-actions data-selection={[...selection].join(",")} data-requests={requests} data-activations={activations}>
+    <div className="h-36 max-w-lg"><QuotePanel store={store} convention={T32} actions={actions} columns={columns} label="Pending actions" onEdit={() => {}} selectionMode="multi" selection={selection} onSelectionChange={setSelection} onRowActivate={() => setActivations(count => count + 1)} renderContextMenu={(_rows, ids) => <ContextMenuItem>Pending quote action: {ids.join(",")}</ContextMenuItem>} /></div>
+    <button type="button" onClick={() => { finish.current?.(); finish.current = null }}>Finish pending quote action</button>
+  </div>
 }

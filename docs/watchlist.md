@@ -54,7 +54,7 @@ export default function WatchlistDemo() {
 }
 ```
 
-The example accepts ES, CL and GC. Add a symbol with Enter or the Add button. With the grid focused, press Delete to remove the selection or Enter to activate a row. Use a row's hover button or context menu to remove it, or double-click to activate it.
+The example accepts ES, CL and GC. Add a symbol with Enter or the Add button. With the grid focused, press Delete to remove the selection or Enter to activate a row. Use a row's hover button or context menu to remove it, or double-click plain cell content to activate it. Custom controls retain their own [pointer interactions](data-grid.md#pointer-interactions).
 
 `WatchlistAddControls` and `RemovableWatchlistGrid` are application recipes built from the public parts. Save Usage as `watchlist.tsx` beside examples that import these recipes, outside `components/ui` so the installed component keeps its own file.
 
@@ -203,7 +203,7 @@ Focus the grid itself, then press Delete or Backspace to request removal of the 
 
 `watchlistRemoveColumn` adds a `×` that shows on hover and requests removal of only that row. Buttons, menu items and grid deletion keys call `onRemove` with symbols; none changes the store.
 
-The grid passes the current selection, falling back to the focused row, to your menu renderer. Right-click requests focus for the targeted row and, when selection is enabled, replaces the selection if that row was not already selected. Apply these requests when controlling selection or focus; until then, the menu uses the existing values.
+The grid passes the current selection, falling back to the focused row, to your menu renderer. Right-clicking plain row content requests focus for that row and, when selection is enabled, replaces the selection if that row was not already selected. Apply these requests when controlling selection or focus; until then, the menu uses the existing values.
 
 The `×` is out of the tab order on purpose. The grid itself and its header controls have separate tab stops.
 

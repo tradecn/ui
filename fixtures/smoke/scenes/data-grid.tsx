@@ -1,7 +1,11 @@
-import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
-import { flushSync } from "react-dom"
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
+import { createPortal, flushSync } from "react-dom"
+import { useView } from "@/hooks/use-row-store"
+import { Button } from "@/components/ui/button"
+import { ContextMenuItem } from "@/components/ui/context-menu"
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DataGrid, EMPTY_COLUMN_STATE, type CellEditHandle, type ColumnDef, type ColumnState, type EditChange, type SortState } from "@/components/ui/data-grid"
-import { createRowStore } from "@/lib/row-store"
+import { createRowStore, type RowView } from "@/lib/row-store"
 import DataGridDefaultsDemo from "./recipes/data-grid-defaults"
 import DataGridSharedDefaultsDemo from "./recipes/data-grid-shared-defaults"
 
@@ -36,12 +40,228 @@ export function DataGridScene() {
       <div data-grid-recipe="defaults"><DataGridDefaultsDemo /></div>
       <div data-grid-recipe="shared-defaults"><DataGridSharedDefaultsDemo /></div>
       <GridKeyboardScene />
+      <GridPointerScene />
+      <GridRoleScene />
+      <GridRangeScene />
+      <GridNestedPointerScene />
+      <GridShadowPointerScene />
+      <GridDialogScene />
+      <GridDisabledControlScene />
+      <GridDisabledControlScene tall />
       <GridResizeScene />
       <GridEditorScene />
       <GridDelayedEditorScene />
       <GridLayoutEditorScene />
     </div>
   )
+}
+
+function QuoteDetails() {
+  return <Dialog>
+    <DialogTrigger>Quote details for Alpha</DialogTrigger>
+    <DialogContent>
+      <DialogTitle>Quote details</DialogTitle>
+      <DialogDescription>Review the quote before responding.</DialogDescription>
+      <p data-dialog-hold className="min-h-24">Alpha requested a quote.</p>
+      <label>Dialog note<input aria-label="Dialog note" /></label>
+    </DialogContent>
+  </Dialog>
+}
+
+const dialogColumns: ColumnDef<Row>[] = [
+  { key: "id", header: "Quote", width: 120, accessor: row => row.id },
+  { key: "detail", header: "Details", width: 240, accessor: () => "", cell: ({ rowId }) => rowId === "Alpha" ? <QuoteDetails /> : null },
+]
+const dialogControlColumns: ColumnDef<Row>[] = [
+  { key: "id", header: "Quote", width: 120, accessor: row => row.id },
+  { key: "note", header: "Note", width: 200, accessor: () => "", cell: ({ rowId }) => <input aria-label={`Contained note for ${rowId}`} className="w-full min-w-0" /> },
+]
+
+function GridDialogScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Beta"]))
+  return <div data-grid-dialog data-selection={[...selection].join(",")}>
+    <div className="h-40"><DataGrid store={store} columns={dialogColumns} label="Quotes with dialogs" selection={selection} onSelectionChange={setSelection} renderContextMenu={(_rows, ids) => <ContextMenuItem>Dialog quote action: {ids.join(",")}</ContextMenuItem>} /></div>
+    <Dialog>
+      <DialogTrigger>Open quote grid dialog</DialogTrigger>
+      <DialogContent>
+        <DialogTitle>Quote grid</DialogTitle>
+        <DialogDescription>Add notes to the selected quotes.</DialogDescription>
+        <div className="h-40"><DataGrid store={store} columns={dialogControlColumns} label="Contained quotes" renderContextMenu={(_rows, ids) => <ContextMenuItem>Contained quote action: {ids.join(",")}</ContextMenuItem>} /></div>
+      </DialogContent>
+    </Dialog>
+  </div>
+}
+
+function CellControl({ children }: { children: ReactNode }) {
+  return <span className="inline-flex leading-normal" data-grid-interaction="control">{children}</span>
+}
+
+function GridDisabledControlScene({ tall = false }: { tall?: boolean }) {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Beta"]))
+  const [focused, setFocused] = useState<string | null>("Beta")
+  const [activated, setActivated] = useState(0)
+  const columns = useMemo<ColumnDef<Row>[]>(() => [
+    { key: "id", header: "Quote", width: 100, accessor: row => row.id },
+    { key: "native", header: "Native action", width: 120, accessor: () => "", cell: () => <CellControl><button type="button" disabled className="pointer-events-none">Inspect</button></CellControl> },
+    { key: "installed", header: "Installed action", width: 160, accessor: () => "", cell: () => <CellControl><Button disabled size="sm" className={tall ? "h-16" : undefined}>Review</Button></CellControl> },
+  ], [tall])
+  return <div data-grid-disabled-controls={tall ? "tall" : "ordinary"} data-selection={[...selection].join(",")} data-focused-row={focused} data-activated={activated}>
+    <div className={tall ? "h-96" : "h-40"}><DataGrid store={store} columns={columns} label={tall ? "Tall disabled controls" : "Disabled controls"} rowHeight={tall ? 96 : 32} selection={selection} onSelectionChange={setSelection} focusedRowId={focused} onFocusedRowChange={setFocused} onRowActivate={() => setActivated(count => count + 1)} renderContextMenu={(_rows, ids) => <ContextMenuItem>Wrapped action: {ids.join(",")}</ContextMenuItem>} /></div>
+  </div>
+}
+
+function GridPointerScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Beta"]))
+  const [focused, setFocused] = useState<string | null>("Beta")
+  const [activated, setActivated] = useState(0)
+  const [inspected, setInspected] = useState(0)
+  const [nativeMenu, setNativeMenu] = useState("none")
+  const [handled, setHandled] = useState(false)
+  const columns = useMemo<ColumnDef<Row>[]>(() => [...editorColumns, {
+    key: "note", header: "Note", width: 140, accessor: () => "",
+    cell: ({ rowId }) => <input aria-label={`Pointer note for ${rowId}`} className="w-full min-w-0" onContextMenu={event => { const native = event.nativeEvent; queueMicrotask(() => setNativeMenu(native.defaultPrevented ? "prevented" : "available")) }} />,
+  }, {
+    key: "inspect", header: "Action", width: 120, accessor: () => "",
+    cell: ({ rowId }) => <button type="button" aria-label={`Inspect pointer ${rowId}`} onClick={() => setInspected(count => count + 1)}>Inspect</button>,
+  }], [])
+  return <div data-grid-pointer data-selection={[...selection].join(",")} data-focused-row={focused} data-activated={activated} data-inspected={inspected} data-native-menu={nativeMenu} className="flex flex-col gap-1" onPointerDownCapture={event => { if (handled && (event.target as Element).closest('[data-col="id"]')) event.preventDefault() }}>
+    <div className="h-40"><DataGrid store={store} columns={columns} label="Pointer quotes" selectionColumn selection={selection} onSelectionChange={setSelection} focusedRowId={focused} onFocusedRowChange={setFocused} onRowActivate={() => setActivated(count => count + 1)} onEdit={() => {}} renderContextMenu={(_rows, ids) => <ContextMenuItem>Pointer action: {ids.join(",")}</ContextMenuItem>} /></div>
+    <label><input type="checkbox" checked={handled} onChange={event => setHandled(event.target.checked)} /> Handle pointer in capture</label>
+  </div>
+}
+
+function GridRoleScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Beta"]))
+  const [focused, setFocused] = useState<string | null>("Beta")
+  const [activated, setActivated] = useState(0)
+  const columns: ColumnDef<Row>[] = [
+    { key: "id", header: "Quote", width: 100, accessor: row => row.id },
+    { key: "actions", header: "Actions", width: 160, accessor: () => "", cell: () => <div role="unsupported toolbar" aria-label="Quote actions"><span data-role-target="control">Actions</span><button type="button">Inspect</button></div> },
+    { key: "reading", header: "Reading", width: 160, accessor: () => "", cell: () => <span role="status button" data-role-target="reading">Available</span> },
+    { key: "divider", header: "Divider", width: 100, accessor: () => "", cell: () => <span role="separator" data-role-target="divider" className="block h-4 w-16 border-t" /> },
+    { key: "nested", header: "Detail", width: 160, accessor: () => "", cell: () => <div role="unsupported grid" aria-label="Detail quotes"><div role="row"><span role="gridcell" data-role-target="grid">Detail quote</span></div></div> },
+  ]
+  return <div data-grid-roles data-selection={[...selection].join(",")} data-focused-row={focused} data-activated={activated} className="h-40">
+    <DataGrid store={store} columns={columns} label="Fallback roles" selection={selection} onSelectionChange={setSelection} focusedRowId={focused} onFocusedRowChange={setFocused} onRowActivate={() => setActivated(count => count + 1)} renderContextMenu={(_rows, ids) => <ContextMenuItem>Role action: {ids.join(",")}</ContextMenuItem>} />
+  </div>
+}
+
+function GridRangeScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }, { id: "Gamma", px: 102 }] })
+    return store
+  })
+  const options = useMemo(() => ({ filter: (row: Row) => row.px >= 0 }), [])
+  const view = useView(store, options)!
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set())
+  const columns: ColumnDef<Row>[] = [{ key: "id", header: "Quote", width: 160, accessor: row => row.id }]
+  return <div data-grid-current-range data-selection={[...selection].join(",")} className="h-40">
+    <DataGrid store={store} view={view} columns={columns} label="Current quote range" selection={selection} onSelectionChange={setSelection} onFocusedRowChange={id => { if (id === "Gamma") store.applyDeltas({ patch: [{ id: "Beta", fields: { px: -1 } }] }) }} />
+  </div>
+}
+
+function GridNestedPointerScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [innerStore] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Beta", px: 9 }] })
+    return store
+  })
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Alpha"]))
+  const [activated, setActivated] = useState(0)
+  const [innerActivated, setInnerActivated] = useState(0)
+  const columns = useMemo<ColumnDef<Row>[]>(() => [editorColumns[0]!, {
+    key: "detail", header: "Related", width: 280, accessor: () => "",
+    cell: ({ rowId }) => rowId === "Alpha" ? <>
+      <div className="h-24 w-64"><DataGrid store={innerStore} columns={editorColumns} label="Nested pointer quotes" onRowActivate={() => setInnerActivated(count => count + 1)} /></div>
+      {host && createPortal(<div className="h-24 w-64"><DataGrid store={innerStore} columns={editorColumns} label="Portaled pointer quotes" onRowActivate={() => setInnerActivated(count => count + 1)} /></div>, host)}
+    </> : rowId,
+  }], [innerStore, host])
+  return <div data-grid-nested-pointer data-selection={[...selection].join(",")} data-activated={activated} data-inner-activated={innerActivated} className="flex flex-col gap-1">
+    <div className="h-96"><DataGrid store={store} columns={columns} rowHeight={128} label="Outer pointer quotes" focusedRowId="Beta" selection={selection} onSelectionChange={setSelection} onRowActivate={() => setActivated(count => count + 1)} renderContextMenu={(_rows, ids) => <ContextMenuItem>Outer pointer action: {ids.join(",")}</ContextMenuItem>} /></div>
+    <div ref={setHost} />
+  </div>
+}
+
+function ShadowCell({ children }: { children: ReactNode }) {
+  const host = useRef<HTMLDivElement>(null)
+  const [shadow, setShadow] = useState<ShadowRoot | null>(null)
+  useLayoutEffect(() => {
+    const root = host.current!.shadowRoot ?? host.current!.attachShadow({ mode: "open" })
+    const styles = Array.from(host.current!.ownerDocument.querySelectorAll('link[rel="stylesheet"]'), link => link.cloneNode(true))
+    root.append(...styles)
+    setShadow(root)
+    return () => styles.forEach(style => root.removeChild(style))
+  }, [])
+  return <div ref={host}>{shadow && createPortal(children, shadow)}</div>
+}
+
+const shadowViewOptions = {}
+
+function GridShadowPointerScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Alpha", px: 100 }, { id: "Beta", px: 101 }] })
+    return store
+  })
+  const [innerStore] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "Beta", px: 9 }] })
+    return store
+  })
+  const view = useView(store, shadowViewOptions)!
+  const [touches, setTouches] = useState(0)
+  const observedView = useMemo<RowView<Row>>(() => ({
+    store: view.store,
+    getIds: () => view.getIds(),
+    subscribe: listener => view.subscribe(listener),
+    touch: () => { view.touch(); setTouches(count => count + 1) },
+    isHeld: () => view.isHeld(),
+    isDisposed: () => view.isDisposed(),
+    dispose: () => view.dispose(),
+  }), [view])
+  const [selection, setSelection] = useState<ReadonlySet<string>>(new Set(["Beta"]))
+  const [selected, setSelected] = useState(0)
+  const [activated, setActivated] = useState(0)
+  const [inspected, setInspected] = useState(0)
+  const [innerActivated, setInnerActivated] = useState(0)
+  const columns = useMemo<ColumnDef<Row>[]>(() => [editorColumns[0]!, {
+    key: "shadow", header: "Shadow content", width: 320, accessor: () => "",
+    cell: ({ rowId }) => rowId === "Alpha" ? <ShadowCell>
+      <button type="button" onClick={() => setInspected(count => count + 1)}>Inspect shadow quote</button>
+      <div data-shadow-plain className="h-12">Plain shadow quote</div>
+      <div className="h-24"><DataGrid store={innerStore} columns={editorColumns} label="Shadow related quotes" onRowActivate={() => setInnerActivated(count => count + 1)} /></div>
+    </ShadowCell> : rowId,
+  }], [innerStore])
+  return <div data-grid-shadow-pointer data-selection={[...selection].join(",")} data-selected={selected} data-activated={activated} data-inspected={inspected} data-inner-activated={innerActivated} data-touches={touches}>
+    <div className="h-96"><DataGrid store={store} view={observedView} columns={columns} rowHeight={192} label="Shadow outer quotes" selection={selection} onSelectionChange={next => { setSelection(next); setSelected(count => count + 1) }} onRowActivate={() => setActivated(count => count + 1)} renderContextMenu={(_rows, ids) => <ContextMenuItem>Shadow outer action: {ids.join(",")}</ContextMenuItem>} /></div>
+  </div>
 }
 
 function GridResizeScene() {

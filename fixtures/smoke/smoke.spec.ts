@@ -1537,6 +1537,341 @@ for (const dark of [false, true]) {
     await expect(scene).toHaveAttribute("data-sort", "px:desc")
   })
 
+  test(`grid controls retain pointer actions and native editing (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("section[data-scene='data-grid'] [data-grid-pointer]")
+    const grid = scene.getByRole("grid", { name: "Pointer quotes" })
+    const note = grid.getByRole("textbox", { name: "Pointer note for Alpha" })
+    await note.fill("draft")
+    await note.dblclick()
+    await expect(note).toHaveValue("draft")
+    await expect(scene).toHaveAttribute("data-selection", "Beta")
+    await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+    await expect(scene).toHaveAttribute("data-activated", "0")
+    await note.click({ button: "right" })
+    await expect(scene).toHaveAttribute("data-native-menu", "available")
+    await expect(page.getByRole("menu")).toHaveCount(0)
+    await grid.getByRole("button", { name: "Inspect pointer Alpha" }).dblclick()
+    await expect(scene).toHaveAttribute("data-inspected", "2")
+    await expect(scene).toHaveAttribute("data-activated", "0")
+    await expect(scene).toHaveAttribute("data-selection", "Beta")
+    const price = grid.locator('[data-row-id="Alpha"] [data-col="px"]')
+    await price.dblclick()
+    const editor = price.getByRole("textbox", { name: "Price" })
+    await editor.fill("123")
+    await editor.dblclick()
+    await expect(editor).toHaveValue("123")
+    await editor.press("Escape")
+    await expect(grid).toBeFocused()
+    const quote = grid.locator('[data-row-id="Beta"] [data-col="id"]')
+    await quote.click()
+    await scene.getByRole("checkbox", { name: "Handle pointer in capture" }).check()
+    await grid.locator('[data-row-id="Alpha"] [data-col="id"]').click()
+    await expect(scene).toHaveAttribute("data-selection", "Beta")
+    await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+    await scene.getByRole("checkbox", { name: "Handle pointer in capture" }).uncheck()
+    await grid.locator('[data-row-id="Alpha"]').getByRole("checkbox", { name: "Select row", exact: true }).click()
+    await expect(scene).toHaveAttribute("data-selection", "Beta,Alpha")
+    await quote.click({ button: "right" })
+    await expect(page.getByRole("menuitem", { name: "Pointer action: Beta,Alpha", exact: true })).toBeVisible()
+    await page.keyboard.press("Escape")
+  })
+
+  test(`fallback roles preserve control and nested grid ownership (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-grid-roles]")
+    const row = scene.locator('[data-row-id="Alpha"]')
+    for (const kind of ["control", "grid"]) {
+      const target = row.locator(`[data-role-target="${kind}"]`)
+      await target.dblclick()
+      await expect(scene).toHaveAttribute("data-selection", "Beta")
+      await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+      await expect(scene).toHaveAttribute("data-activated", "0")
+      await target.click({ button: "right" })
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())))
+      await expect(page.getByRole("menu")).toHaveCount(0)
+    }
+    await row.locator('[data-role-target="reading"]').dblclick()
+    await expect(scene).toHaveAttribute("data-selection", "Alpha")
+    await expect(scene).toHaveAttribute("data-activated", "1")
+    await row.locator('[data-role-target="reading"]').click({ button: "right" })
+    await expect(page.getByRole("menuitem", { name: "Role action: Alpha", exact: true })).toBeVisible()
+  })
+
+  test(`static separators retain row actions (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-grid-roles]")
+    const divider = scene.locator('[data-row-id="Alpha"] [data-role-target="divider"]')
+    await divider.dblclick()
+    await expect(scene).toHaveAttribute("data-selection", "Alpha")
+    await expect(scene).toHaveAttribute("data-focused-row", "Alpha")
+    await expect(scene).toHaveAttribute("data-activated", "1")
+    await divider.click({ button: "right" })
+    await expect(page.getByRole("menuitem", { name: "Role action: Alpha", exact: true })).toBeVisible()
+  })
+
+  test(`range selection includes focus callback view changes (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-grid-current-range]")
+    await scene.locator('[data-row-id="Alpha"] [data-col="id"]').click()
+    await expect(scene).toHaveAttribute("data-selection", "Alpha")
+    await scene.locator('[data-row-id="Gamma"] [data-col="id"]').click({ modifiers: ["Shift"] })
+    await expect(scene.locator('[data-row-id="Beta"]')).toHaveCount(0)
+    await expect(scene).toHaveAttribute("data-selection", "Alpha,Gamma")
+  })
+
+  test(`nested and portaled grids own their row actions (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("section[data-scene='data-grid'] [data-grid-nested-pointer]")
+    const outer = scene.getByRole("grid", { name: "Outer pointer quotes" })
+    for (const [name, activations] of [["Nested pointer quotes", "1"], ["Portaled pointer quotes", "2"]]) {
+      const inner = scene.getByRole("grid", { name })
+      const cell = inner.locator('[data-row-id="Beta"] [data-col="id"]')
+      await cell.dblclick()
+      await expect(scene).toHaveAttribute("data-inner-activated", activations!)
+      await expect(scene).toHaveAttribute("data-selection", "Alpha")
+      await expect(scene).toHaveAttribute("data-activated", "0")
+      await cell.click({ button: "right" })
+      await expect(page.getByRole("menu")).toHaveCount(0)
+    }
+    await outer.focus()
+    await page.keyboard.press("Shift+F10")
+    await expect(page.getByRole("menuitem", { name: "Outer pointer action: Beta", exact: true })).toBeVisible()
+    await expect(scene).toHaveAttribute("data-selection", "Beta")
+    await page.keyboard.press("Escape")
+  })
+
+  test(`shadow cell controls, grids and plain content retain their owners (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("section[data-scene='data-grid'] [data-grid-shadow-pointer]")
+    const button = scene.getByRole("button", { name: "Inspect shadow quote" })
+    await button.click()
+    await button.dblclick()
+    await expect(scene).toHaveAttribute("data-inspected", "3")
+    await button.click({ button: "right" })
+    await expect(page.getByRole("menu")).toHaveCount(0)
+    await expect(scene).toHaveAttribute("data-touches", "4")
+    await expect(scene).toHaveAttribute("data-selection", "Beta")
+    await expect(scene).toHaveAttribute("data-selected", "0")
+    const inner = scene.getByRole("grid", { name: "Shadow related quotes" })
+    const cell = inner.locator('[data-row-id="Beta"] [data-col="id"]')
+    await cell.dblclick()
+    await expect(scene).toHaveAttribute("data-inner-activated", "1")
+    await inner.focus()
+    await page.keyboard.press("Home")
+    await cell.click({ button: "right" })
+    await expect(page.getByRole("menu")).toHaveCount(0)
+    await expect(scene).toHaveAttribute("data-touches", "4")
+    await expect(scene).toHaveAttribute("data-selection", "Beta")
+    await expect(scene).toHaveAttribute("data-activated", "0")
+    const plain = scene.locator("[data-shadow-plain]")
+    await plain.click({ button: "right" })
+    await expect(page.getByRole("menuitem", { name: "Shadow outer action: Alpha", exact: true })).toBeVisible()
+    await expect(scene).toHaveAttribute("data-selection", "Alpha")
+    await expect(scene).toHaveAttribute("data-selected", "1")
+    await page.keyboard.press("Escape")
+    await expect(page.getByRole("menu")).toHaveCount(0)
+    await plain.dblclick()
+    await expect(scene).toHaveAttribute("data-selected", "3")
+    await expect(scene).toHaveAttribute("data-activated", "1")
+    await expect(scene).toHaveAttribute("data-touches", "7")
+  })
+
+  test(`copied control wrappers contain disabled button edges (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    for (const layout of ["ordinary", "tall"]) {
+      const scene = page.locator(`[data-grid-disabled-controls="${layout}"]`)
+      const grid = scene.getByRole("grid")
+      await grid.locator('[data-row-id="Beta"] [data-col="id"]').click()
+      await expect(grid).toBeFocused()
+      await page.keyboard.press("ArrowUp")
+      await expect(scene).toHaveAttribute("data-focused-row", "Alpha")
+      await page.keyboard.press("ArrowDown")
+      await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+      for (const name of ["Inspect", "Review"]) {
+        const button = grid.locator('[data-row-id="Alpha"]').getByRole("button", { name, exact: true })
+        await expect(button).toBeDisabled()
+        await button.scrollIntoViewIfNeeded()
+        const bounds = await button.evaluate(element => {
+          const button = element.getBoundingClientRect()
+          const cell = element.closest('[role="gridcell"]')!.getBoundingClientRect()
+          return { left: Math.max(button.left, cell.left), right: Math.min(button.right, cell.right), top: Math.max(button.top, cell.top), bottom: Math.min(button.bottom, cell.bottom) }
+        })
+        expect(bounds.right - bounds.left).toBeGreaterThan(2)
+        expect(bounds.bottom - bounds.top).toBeGreaterThan(2)
+        const x = (bounds.left + bounds.right) / 2, y = (bounds.top + bounds.bottom) / 2
+        // Probe visible edges; a bare inline span covers the text baseline but misses these points.
+        for (const point of [{ x, y: bounds.top + 1 }, { x, y: bounds.bottom - 1 }, { x: bounds.left + 1, y }, { x: bounds.right - 1, y }]) {
+          const ownsHit = await button.evaluate((element, point) => document.elementFromPoint(point.x, point.y)?.closest('[data-grid-interaction="control"]') === element.parentElement, point)
+          await page.mouse.click(point.x, point.y)
+          await expect(scene).toHaveAttribute("data-selection", "Beta")
+          await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+          await page.mouse.dblclick(point.x, point.y)
+          await expect(scene).toHaveAttribute("data-activated", "0")
+          await page.mouse.click(point.x, point.y, { button: "right" })
+          await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())))
+          await expect(page.getByRole("menu")).toHaveCount(0)
+          await expect(scene).toHaveAttribute("data-selection", "Beta")
+          await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+          expect(ownsHit).toBe(true)
+        }
+      }
+      await grid.locator('[data-row-id="Alpha"] [data-col="id"]').click({ button: "right" })
+      await expect(page.getByRole("menuitem", { name: "Wrapped action: Alpha", exact: true })).toBeVisible()
+      await page.keyboard.press("Escape")
+      await expect(page.locator('[role="menu"]')).toHaveCount(0)
+      await expect(grid).toBeFocused()
+    }
+  })
+
+  test(`document-root grids preserve rejected native context menus (${dark ? "dark" : "light"})`, async ({ page }) => {
+    const errors: string[] = []
+    page.on("pageerror", error => errors.push(error.message))
+    await page.goto("/?document-root")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-grid-pointer]")
+    const grid = scene.getByRole("grid", { name: "Pointer quotes" })
+    await expect(grid).toBeVisible()
+    await page.evaluate(() => {
+      document.addEventListener("contextmenu", event => {
+        Reflect.set(window, "lastGridContextMenu", event)
+      }, true)
+    })
+    for (const target of [grid.getByRole("textbox", { name: "Pointer note for Alpha" }), grid.getByRole("button", { name: "Price column menu" })]) {
+      await target.click({ button: "right" })
+      // Read the captured native event after dispatch, including all document listeners.
+      expect(await page.evaluate(() => (Reflect.get(window, "lastGridContextMenu") as Event).defaultPrevented)).toBe(false)
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(scene).toHaveAttribute("data-selection", "Beta")
+    }
+    await grid.locator('[data-row-id="Alpha"] [data-col="id"]').click({ button: "right" })
+    await expect(page.getByRole("menuitem", { name: "Pointer action: Alpha", exact: true })).toBeVisible()
+    expect(await page.evaluate(() => (Reflect.get(window, "lastGridContextMenu") as Event).defaultPrevented)).toBe(true)
+    await page.keyboard.press("Escape")
+    expect(errors).toEqual([])
+  })
+
+  test(`grid menus preserve portaled and enclosing dialog touch behavior (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-grid-dialog]")
+    const session = await page.context().newCDPSession(page)
+    let touching = false
+    async function press(x: number, y: number, duration: number) {
+      await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
+      touching = true
+      await page.waitForTimeout(duration)
+      await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      touching = false
+    }
+    try {
+      for (const [triggerName, dialogName, target] of [
+        ["Quote details for Alpha", "Quote details", "[data-dialog-hold]"],
+        ["Open quote grid dialog", "Quote grid", 'input[aria-label="Contained note for Alpha"]'],
+      ]) {
+        const trigger = scene.getByRole("button", { name: triggerName, exact: true })
+        await trigger.click()
+        const dialog = page.getByRole("dialog", { name: dialogName, exact: true })
+        await expect(dialog).toBeVisible()
+        const control = dialog.locator(target!)
+        const box = await control.boundingBox()
+        expect(box).not.toBeNull()
+        // A held portal/control press must not start the outer primitive's row menu.
+        await press(box!.x + box!.width / 2, box!.y + box!.height / 2, 850)
+        await expect(dialog).toBeVisible()
+        await expect(page.getByRole("menu")).toHaveCount(0)
+        const bounds = await dialog.boundingBox()
+        expect(bounds).not.toBeNull()
+        expect(bounds!.x > 8 || bounds!.y > 8).toBe(true)
+        // The first outside touch must dismiss; a second attempt would hide lost document delivery.
+        await press(8, 8, 50)
+        await expect(dialog).toHaveCount(0)
+        await expect(page.getByRole("menu")).toHaveCount(0)
+        await expect(scene).toHaveAttribute("data-selection", "Beta")
+        await trigger.click()
+        await expect(dialog).toBeVisible()
+        await page.keyboard.press("Escape")
+        await expect(dialog).toHaveCount(0)
+        await expect(trigger).toBeFocused()
+      }
+    } finally {
+      try {
+        if (touching) await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] })
+      } finally {
+        await session.detach()
+      }
+    }
+  })
+
+  test(`grid long presses distinguish controls from rows (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("section[data-scene='data-grid'] [data-grid-pointer]")
+    const grid = scene.getByRole("grid", { name: "Pointer quotes" })
+    const session = await page.context().newCDPSession(page)
+    let touching = false
+    async function longPress(target: Locator) {
+      await target.scrollIntoViewIfNeeded()
+      const box = await target.boundingBox()
+      expect(box).not.toBeNull()
+      await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }] })
+      touching = true
+      // Hold past both installed primitives' long-press thresholds (500 and 700 ms).
+      await page.waitForTimeout(850)
+      await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      touching = false
+    }
+    try {
+      await longPress(grid.getByRole("textbox", { name: "Pointer note for Alpha" }))
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(scene).toHaveAttribute("data-selection", "Beta")
+      await expect(scene).toHaveAttribute("data-focused-row", "Beta")
+      if (JSON.parse(readFileSync("components.json", "utf8")).style.startsWith("base-")) {
+        const row = grid.locator('[data-row-id="Alpha"] [data-col="id"]')
+        const input = grid.getByRole("textbox", { name: "Pointer note for Alpha" })
+        await row.scrollIntoViewIfNeeded()
+        const first = await row.boundingBox(), second = await input.boundingBox()
+        expect(first).not.toBeNull()
+        expect(second).not.toBeNull()
+        const touch = { id: 1, x: first!.x + first!.width / 2, y: first!.y + first!.height / 2 }
+        await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [touch] })
+        touching = true
+        await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [touch, { id: 2, x: second!.x + second!.width / 2, y: second!.y + second!.height / 2 }] })
+        // Base UI cancels a pending long press when a second touch arrives.
+        await page.waitForTimeout(850)
+        await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+        touching = false
+        await expect(page.getByRole("menu")).toHaveCount(0)
+      }
+      await longPress(grid.locator('[data-row-id="Alpha"] [data-col="id"]'))
+      await expect(page.getByRole("menuitem", { name: "Pointer action: Alpha", exact: true })).toBeVisible()
+      await page.keyboard.press("Escape")
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      const shadow = page.locator("section[data-scene='data-grid'] [data-grid-shadow-pointer]")
+      await longPress(shadow.getByRole("button", { name: "Inspect shadow quote" }))
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(shadow).toHaveAttribute("data-selection", "Beta")
+      await longPress(shadow.locator("[data-shadow-plain]"))
+      await expect(page.getByRole("menuitem", { name: "Shadow outer action: Alpha", exact: true })).toBeVisible()
+      await expect(shadow).toHaveAttribute("data-selected", "1")
+      await expect(shadow).toHaveAttribute("data-touches", "2")
+      await page.keyboard.press("Escape")
+    } finally {
+      try {
+        if (touching) await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] })
+      } finally {
+        await session.detach()
+      }
+    }
+  })
+
   test(`copied grid defaults preserve local settings and agree with the inline chooser (${dark ? "dark" : "light"})`, async ({ page }) => {
     await page.goto("/")
     await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
@@ -2538,6 +2873,53 @@ test("a spread matrix prints signed spreads in the row's ticks, flashes the cell
   await expect(cell("10Y", "2Y")).toHaveText("+13.5")
   await expect(cell("5Y", "2Y")).toHaveText("−12.5")
 })
+
+for (const dark of [false, true]) {
+  test(`pending quote actions keep disabled hit targets and gaps out of row actions (${dark ? "dark" : "light"})`, async ({ page }) => {
+    await page.goto("/")
+    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark)
+    const scene = page.locator("[data-pending-quote-actions]")
+    const grid = scene.getByRole("grid", { name: "Pending actions" })
+    const actions = grid.locator('[data-row-id="2Y"] [data-quote-actions]')
+    const pause = actions.getByRole("button", { name: "Pause", exact: true })
+    const pull = actions.getByRole("button", { name: "Pull", exact: true })
+    const selected = grid.locator('[data-row-id="10Y"]')
+    await selected.locator('[data-col="instrument"]').click()
+    const focusedRow = await selected.getAttribute("id")
+    expect(focusedRow).not.toBeNull()
+    await pause.click()
+    await expect(scene).toHaveAttribute("data-selection", "10Y")
+    await expect(grid).toHaveAttribute("aria-activedescendant", focusedRow!)
+    await expect(pause).toBeDisabled()
+    await expect(pull).toBeDisabled()
+    await grid.locator('[data-row-id="10Y"] [data-col="instrument"]').click()
+    await pause.scrollIntoViewIfNeeded()
+    const first = await pause.boundingBox(), second = await pull.boundingBox()
+    expect(first).not.toBeNull()
+    expect(second).not.toBeNull()
+    const y = first!.y + first!.height / 2
+    for (const x of [first!.x + first!.width / 2, (first!.x + first!.width + second!.x) / 2]) {
+      // Trusted input must hit the disabled button's wrapper, not dispatch directly to the button.
+      expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.hasAttribute("data-quote-actions"), { x, y })).toBe(true)
+      await page.mouse.click(x, y)
+      await expect(scene).toHaveAttribute("data-selection", "10Y")
+      await page.mouse.dblclick(x, y)
+      await expect(scene).toHaveAttribute("data-activations", "0")
+      await page.mouse.click(x, y, { button: "right" })
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(scene).toHaveAttribute("data-selection", "10Y")
+      await expect(grid).toHaveAttribute("aria-activedescendant", focusedRow!)
+      await expect(scene).toHaveAttribute("data-requests", "1")
+    }
+    await grid.locator('[data-row-id="10Y"] [data-col="instrument"]').click({ button: "right" })
+    await expect(page.getByRole("menuitem", { name: "Pending quote action: 10Y", exact: true })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await scene.getByRole("button", { name: "Finish pending quote action" }).click()
+    await expect(pause).toBeEnabled()
+    await expect(pull).toBeEnabled()
+    await expect(scene).toHaveAttribute("data-requests", "1")
+  })
+}
 
 // The installed quote panel over three notes: the market's and the desk's two-way in 32nds, the server's status
 // word and the buttons it allows per row, a level typed in place and written back by the server, a level too far
