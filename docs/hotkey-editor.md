@@ -243,7 +243,7 @@ Reports compare declarations regardless of `when()`.
 
 Unbound bindings and different panel scope names are excluded. A pair is also excluded when all its handlers are fenced to elements that do not contain one another. That pair is reported until both sides have such handlers.
 
-Conflicts do not block remapping or decide which shortcut runs. See the registry's [conflict rules](use-hotkeys.md).
+Conflicts do not block remapping or decide which shortcut runs. See the registry's [conflict rules](use-hotkeys.md#conflicts). Updating from v1? The [HotkeyEditor migration entry](migrating-v1-to-v2.md#hotkeyeditor) carries the capture and plus-key changes.
 
 ### Export and import
 
@@ -294,4 +294,4 @@ The editor declares no bindings or handlers, persists no overrides, reads or wri
 
 ### Tokens
 
-Installation adds `stale` for conflict text when absent. The input fields use the consumer's `--tradecn-font-mono` token.
+Installation adds `stale` for conflict text, the mono and accessible font tokens, and the hyperlegible remap, each when absent. The input fields use the consumer's `--tradecn-font-mono` token.
