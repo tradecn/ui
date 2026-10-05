@@ -25,7 +25,7 @@ export interface PopoutOptions {
   /** Instead of `window.open`, for a shell that makes its own windows. It must hand back a same-origin window synchronously. */
   openWindow?: (features: string) => Window | null
   onOpen?: (popout: Window) => void
-  /** Closed from either side: `close()`, the window's own close button, or the opener going away. */
+  /** Closed from either side: `close()`, the window's own close button, the opener going away, or the reveal after an `Activity` hide closed the window. */
   onClose?: () => void
   /** The browser refused the window. `open()` has to run inside a click or a key press. */
   onBlocked?: () => void
