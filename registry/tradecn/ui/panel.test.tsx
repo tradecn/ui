@@ -17,13 +17,13 @@ describe("Panel", () => {
   it("runs the focused book's palette action when two books share the kind, per the page's recipe", () => {
     // The documented wiring: useHotkeyScope() in a child of Panel, handed to the
     // registration's within. The book that held focus answers; the other does not.
-    Element.prototype.scrollIntoView = vi.fn()
+    vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {})
     const actions = createActionRegistry()
     const ranA = vi.fn()
     const ranB = vi.fn()
     function BookBody({ run }: { run: () => void }) {
       const within = useHotkeyScope()
-      useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run, within: within ?? undefined }), [run, within])
+      useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run, within }), [run, within])
       return <p>rows</p>
     }
     const ui = (open: boolean) => (

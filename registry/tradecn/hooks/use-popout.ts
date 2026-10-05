@@ -69,9 +69,12 @@ function copyStyles(from: Document, to: Document) {
 
 // In the page the host takes no box of its own; in the popout it is the page.
 function place(host: HTMLElement, slot: HTMLElement | null, popout: Window | null) {
-  host.dataset.popout = popout ? "open" : "closed"
-  host.style.cssText = popout ? "display:block;height:100vh" : "display:contents"
-  if (popout) popout.document.body.appendChild(host)
+  // A window that died between renders reads as closed: the host goes back to the
+  // slot instead of into a dead document.
+  const target = popout && !popout.closed ? popout : null
+  host.dataset.popout = target ? "open" : "closed"
+  host.style.cssText = target ? "display:block;height:100vh" : "display:contents"
+  if (target) target.document.body.appendChild(host)
   else if (slot) slot.appendChild(host)
   else host.remove()
 }
@@ -130,13 +133,19 @@ export function usePopout(options: PopoutOptions = {}): Popout {
 
   // Effect cleanup is not unmount: an Activity hide (or Fast Refresh) runs the cleanup
   // above and closes the window while this hook's state survives. Reconcile on revival,
-  // so isOpen tells the truth and open() works again instead of returning early.
+  // so isOpen tells the truth and close() stops returning early on a null handle. Only a
+  // null live handle reconciles — an open() that ran earlier in the same revival, from a
+  // child effect or a keypress in the transition gap, already owns live and must not be
+  // clobbered — and a dead window that is still the live one goes through finish, the
+  // same path its close listener would take.
   useEffect(() => {
-    if (popout && (live.current === null || popout.closed)) {
-      live.current = null
+    if (popout && live.current === null) {
+      // The hide's cleanup closed the window without the close listener firing:
+      // complete the lifecycle so every onOpen still meets its onClose.
       setPopout(null)
-    }
-  }, [popout])
+      latest.current.onClose?.()
+    } else if (popout && live.current === popout && popout.closed) finish(popout)
+  }, [popout, finish])
 
   const open = useCallback(() => {
     if (live.current && !live.current.closed) {

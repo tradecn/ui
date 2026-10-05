@@ -63,7 +63,7 @@ These controls set presentation props; they do not implement dragging or an erro
 
 Increment the counter, then pop it out. Its count survives the move, and `i` still increments it while focus is inside the panel. Bring it back from either window, or close the popout window itself. The panel fills the popout because it uses `h-full`.
 
-`PanelPopout` moves one portal host between documents, preserving React state and provider context. Here, `HotkeysProvider` supplies the shortcut in both windows. [Popout](#popout) covers styling, lifecycle, and portal limitations.
+`PanelPopout` moves one portal host between documents, preserving React state and provider context. Here, `HotkeysProvider` supplies the shortcut in both windows. Hiding the panel under an `Activity` boundary closes its window like an unmount, with `onClose` fired; on reveal the panel is back inline and can be popped out again. [Popout](#popout) covers styling, lifecycle, and portal limitations.
 
 <!-- demo: panel-popout -->
 

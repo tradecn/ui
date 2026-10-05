@@ -111,7 +111,7 @@ Serve an empty same-origin `/popout.html` page, such as `public/popout.html` in 
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
-| `panels` | [Panel components](#panels-by-kind) | Required | Components indexed by panel kind. |
+| `panels` | [Panel components](#panels-by-kind) | Required | Components indexed by panel kind, read as own keys — an inherited or proxied kind draws the unregistered placeholder. |
 | `tabComponent` | `ComponentType` | Title and close | Contents of each tab, including overflow entries. |
 | `defaultLayout` | `unknown` | None | Layout object or JSON text to restore at initialization. Use `api.load` for later changes. |
 | `seed` | `(api: WorkspaceApi) => void` | None | Builds the initial layout when none can be restored. |
@@ -181,7 +181,7 @@ An unregistered kind renders a placeholder and uses the same tab component, so o
 
 ### Adding panels
 
-`api.addPanel(options)` returns the panel id. If that id is already open, it focuses the existing panel and leaves its title and state unchanged.
+`api.addPanel(options)` returns the panel id. If that id is already open, it leaves its title and state unchanged and focuses the existing panel — unless `focus: false`, which leaves both the active panel and the keyboard alone, so an ensure-open call cannot steal from the panel the trader is in.
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
@@ -191,7 +191,7 @@ An unregistered kind renders a placeholder and uses the same tab component, so o
 | `state` | `WorkspacePanelState` | `{}` | Initial JSON state. |
 | `position` | `{ reference?: string; direction: "left" \| "right" \| "above" \| "below" \| "within" }` | Active group | Places the panel beside a reference panel, or tabs it with `within`. |
 | `floating` | `boolean \| WorkspaceBox` | `false` | Opens floating; takes precedence over `position`. |
-| `focus` | `boolean` | `true` | Moves keyboard focus into the new panel after rendering. |
+| `focus` | `boolean` | `true` | Moves keyboard focus into the new panel after rendering; the dock still makes a new panel active either way. On an id that is already open, `false` changes nothing at all. |
 
 `WorkspaceBox` has optional numeric `x`, `y`, `width`, and `height` fields in CSS pixels. Omitted fields use dockview's defaults: position `(100, 100)`, size `300 × 300` in 8.3.1.
 

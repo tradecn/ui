@@ -57,7 +57,7 @@ export interface WorkspaceBox {
 
 export interface WorkspaceAddPanelOptions {
   kind: string
-  /** `book-1`, `book-2` by default. An id that is already open is focused, not opened twice. */
+  /** `book-1`, `book-2` by default. An id that is already open is not opened twice: it is focused, unless `focus: false` leaves everything as it stands. */
   id?: string
   /** The kind by default. */
   title?: string
@@ -596,8 +596,9 @@ function WorkspacePanelHost({ api: panelApi }: IDockviewPanelProps) {
   )
   if (!handle) return null
   // Own keys only: a layout naming "constructor" or "__proto__" must hit the
-  // placeholder, not an Object.prototype member.
-  const Component = Object.hasOwn(kinds, handle.kind) ? kinds[handle.kind] : undefined
+  // placeholder, not an Object.prototype member. The long spelling keeps installed
+  // source compiling for consumers whose TypeScript lib predates ES2022.
+  const Component = Object.prototype.hasOwnProperty.call(kinds, handle.kind) ? kinds[handle.kind] : undefined
 
   return (
     <WorkspacePanelContext.Provider value={handle}>

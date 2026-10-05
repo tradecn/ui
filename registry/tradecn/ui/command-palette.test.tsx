@@ -557,7 +557,7 @@ describe("CommandPalette", () => {
     const ranB = vi.fn()
     function BookBody({ run: runBook }: { run: () => void }) {
       const within = useHotkeyScope()
-      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within: within ?? undefined }), [runBook, within])
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within }), [runBook, within])
       return <p>book body</p>
     }
     const ui = (open: boolean) => (
