@@ -61,8 +61,8 @@ The themes install the size, line-height, weight, and body-color tokens below, a
 | `--tradecn-font-weight-body` | `450` | Suggested body weight |
 | `--tradecn-font-weight-grid` | `500` | Suggested grid weight, in both modes |
 | `--tradecn-numeric-variant` | `lining-nums tabular-nums` | Required numeric variant |
-| `--tradecn-color-body-fg` | `oklch(0.96 0 0)` dark, `oklch(0.2 0 0)` light | Body foreground |
-| `--tradecn-color-body-bg` | `oklch(0.14 0 0)` dark, `oklch(0.98 0 0)` light | Body background |
+| `--tradecn-color-body-fg` | Set per theme | Body foreground |
+| `--tradecn-color-body-bg` | Set per theme | Body background |
 
 ## Accessibility mode
 
