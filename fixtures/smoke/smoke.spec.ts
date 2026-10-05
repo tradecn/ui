@@ -145,7 +145,7 @@ test("the command palette opens, runs both actions, and finds a symbol", async (
   await expect(palette).toHaveCount(0)
   await page.keyboard.press("ControlOrMeta+k")
   await page.keyboard.type("zn")
-  await expect(palette.locator("[data-row='symbol:ZN:CBOT']")).toBeVisible()
+  await expect(palette.locator(`[data-row='symbol!["ZN","CBOT"]']`)).toBeVisible()
   await page.keyboard.press("Enter")
   await expect(last).toHaveAttribute("data-palette-last", "symbol:ZN")
   await expect(palette).toHaveCount(0)
