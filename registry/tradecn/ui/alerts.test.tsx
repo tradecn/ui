@@ -244,17 +244,47 @@ describe("useAlert", () => {
 describe("AlertsAnnouncer", () => {
   it("announces a new notice whose words repeat the previous one's", () => {
     // A second identical rejection must not be silent: the inner node is keyed by the
-    // notice's identity, so the live region receives an addition either way.
+    // notice's identity, so the live region receives an addition even when the text is
+    // unchanged. The observer sees the children change; the region itself persists.
     const alerts = seeded(clock().now)
     const { rerender } = render(<AlertsAnnouncer alerts={alerts} id="n4" assertive={["critical"]} />)
     const region = document.querySelector("[data-alerts-assertive]")!
-    const firstNode = region.firstElementChild
-    expect(firstNode?.textContent).toContain("Order rejected")
+    expect(region.textContent).toContain("Order rejected")
+    const observer = new MutationObserver(() => {})
+    observer.observe(region, { childList: true })
     act(() => void alerts.push({ severity: "critical", title: "Order rejected", message: "Price away from market", tone: "destructive", allowedActions: ["ack"] }))
     rerender(<AlertsAnnouncer alerts={alerts} id="n5" assertive={["critical"]} />)
-    const secondNode = region.firstElementChild
-    expect(secondNode?.textContent).toContain("Order rejected")
-    expect(secondNode).not.toBe(firstNode)
+    expect(observer.takeRecords().some((record) => record.addedNodes.length > 0)).toBe(true)
+    expect(region.textContent).toContain("Order rejected")
+    expect(document.querySelector("[data-alerts-assertive]")).toBe(region)
+    observer.disconnect()
+  })
+
+  it("announces identical words again on a keyed repeat and in the polite region", () => {
+    // A folded repeat bumps seq, and the polite region carries the same keyed node.
+    const alerts = seeded(clock().now)
+    render(<AlertsAnnouncer alerts={alerts} id="n2" assertive={[]} />)
+    const region = document.querySelector("[data-alerts-polite]")!
+    expect(region.textContent).toContain("Feed slow")
+    const observer = new MutationObserver(() => {})
+    observer.observe(region, { childList: true })
+    act(() => void alerts.push({ key: "md:slow", severity: "warning", title: "Feed slow", message: "1.2 s behind", tone: "stale", allowedActions: ["reconnect", "mute"] }))
+    expect(observer.takeRecords().some((record) => record.addedNodes.length > 0)).toBe(true)
+    observer.disconnect()
+  })
+
+  it("announces across a store swap whose notice reuses id, seq, and words", () => {
+    // seq restarts per store, so the key carries a swap epoch; a replacement store's
+    // identical first notice must still reach the region as an addition.
+    const first = seeded(clock().now)
+    const { rerender } = render(<AlertsAnnouncer alerts={first} id="n4" assertive={["critical"]} />)
+    const region = document.querySelector("[data-alerts-assertive]")!
+    expect(region.textContent).toContain("Order rejected")
+    const observer = new MutationObserver(() => {})
+    observer.observe(region, { childList: true })
+    rerender(<AlertsAnnouncer alerts={seeded(clock().now)} id="n4" assertive={["critical"]} />)
+    expect(observer.takeRecords().some((record) => record.addedNodes.length > 0)).toBe(true)
+    observer.disconnect()
   })
 
   it("announces only the chosen notice, switches urgency, and permits an empty selection", () => {

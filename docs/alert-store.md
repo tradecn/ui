@@ -91,7 +91,7 @@ With unique ids, the newcomer is retained even when its timestamp is older than 
 
 `RowId` is a string. [`data-grid`](data-grid.md), views, and `useRowIds` can read `store` like any other [`row-store`](row-store.md). The underlying ids stay in insertion order; use `store.createView({ comparator: byNewest })` for a newest-first view and dispose it when finished. `list()` sorts its own array but does not clone the notice objects.
 
-Use the alert store's methods for writes. Direct row-store mutations or edits to returned notices bypass key tracking, sequence assignment, and cap handling. Patching non-key fields through `store.applyDeltas` — revoking `allowedActions` on a live notice, say — is safe and keeps the row in place; only the key, `at`, `count`, and `seq` belong to the store's own bookkeeping.
+Use the alert store's methods for writes. Direct row-store mutations or edits to returned notices bypass key tracking, sequence assignment, and cap handling. Patching non-key fields through `store.applyDeltas` — revoking `allowedActions` on a live notice, say — is safe and keeps the row in place; only `id`, the key, `at`, `count`, and `seq` belong to the store's own bookkeeping.
 
 Each push uses one synchronous `applyDeltas` batch, including any evictions. Metadata listeners run once per batch; each touched row's listeners run once, so an eviction can notify both the removed row and the newcomer. Order listeners run only when ids are added or removed; coalescing alone does not notify them. A sorted view can notify when a repeat changes its order. Keep subscriber callbacks nonthrowing: an exception interrupts the remaining notifications.
 

@@ -133,7 +133,7 @@ The button checks the supplied alert when it renders; it does not subscribe or r
 | `options.ttlMs` | `number` | Off | Automatic dismissal while this hook is mounted. |
 | `options.now` | `() => number` | `Date.now` | Clock in milliseconds since the epoch, on the same basis as the store. |
 
-Expiry waits `max(0, alert.at + ttlMs - now())` milliseconds, and `ttlMs` must stay within the platform's timer range — about twenty-four days — or the clamp dismisses immediately. A repeat with a new `at` reschedules it. Any nonempty `allowedActions` disables expiry, including action IDs for which you render no button. Removing those permissions enables the remaining timer, or schedules immediate dismissal if already overdue. Unmounting, changing stores or IDs, or disabling TTL cancels the old timer.
+Expiry waits `max(0, alert.at + ttlMs - now())` milliseconds, and the remaining delay must stay within the platform's timer range — about twenty-five days — or the timer misfires immediately. A repeat with a new `at` reschedules it. Any nonempty `allowedActions` disables expiry, including action IDs for which you render no button. Removing those permissions enables the remaining timer, or schedules immediate dismissal if already overdue. Unmounting, changing stores or IDs, or disabling TTL cancels the old timer.
 
 Timers belong to the hook invocation. Put TTL on the displayed notice row only. Hidden notices and history-only rows have no timer unless your application mounts another expiry-enabled hook for them — and expiry measures from the notice's `at`, not from when it was shown, so an already overdue notice is dismissed the moment it is promoted into view, each dismissal removing its row from history, and a backlog can cascade. When displaying one notice in several places, choose one owner for automatic dismissal; omit TTL from the other subscriptions.
 
@@ -151,7 +151,7 @@ Mount one announcer for the collection. It keeps two visually hidden regions: po
 | `id` | `RowId \| null` | Required | Notice to announce; usually the first displayed ID. Null leaves both regions empty. |
 | `assertive` | `readonly string[]` | `[]` | Severities announced assertively. |
 
-The announcer follows the selected row, including repeats; it is not a queue of every arrival. It announces whatever becomes first — a removal promotes an older notice and announces it as if it were new, assertively when critical — and a keyed notice repeating in a burst announces on every push, with no debounce. Its region markers are `data-alerts-polite` and `data-alerts-assertive`. Avoid duplicate announcements when a toast adapter already announces the same notices.
+The announcer follows the selected row, including repeats; it is not a queue of every arrival. It announces whatever becomes first — a removal promotes an older notice and announces it as if it were new, assertively when its severity is listed in `assertive` — and a keyed notice repeating across tasks announces each time, with no debounce; pushes within one task render once. Its region markers are `data-alerts-polite` and `data-alerts-assertive`. Avoid duplicate announcements when a toast adapter already announces the same notices.
 
 ### The whole list
 

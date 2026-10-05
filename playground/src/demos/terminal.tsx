@@ -1739,16 +1739,20 @@ function Notice({ alerts, id, actions, onDismiss }: { alerts: AlertStore; id: st
 export function DeskAlerts({ alerts, actions }: { alerts: AlertStore; actions: NoticeAction[] }) {
   const ids = useRowIds(useAlertView(alerts))
   // Removal never moves focus, so the desk does: the remaining notice's dismiss, else the
-  // always-mounted History trigger. No TTL — the page advises against timers on notices
-  // whose controls hold focus, and these carry dismiss and action buttons.
+  // always-mounted History trigger. Only when focus actually fell to body — an action that
+  // leaves its notice up keeps focus where it is. No TTL — the page advises against timers
+  // on notices whose controls hold focus, and these carry dismiss and action buttons.
   const region = useRef<HTMLDivElement>(null)
-  const refocus = () => queueMicrotask(() => (region.current?.querySelector<HTMLElement>("[data-slot='tradecn-alert-dismiss']") ?? region.current?.querySelector<HTMLElement>("button"))?.focus())
+  const refocus = () => queueMicrotask(() => {
+    if (document.activeElement && document.activeElement !== document.body) return
+    ;(region.current?.querySelector<HTMLElement>("[data-slot='tradecn-alert-dismiss']") ?? region.current?.querySelector<HTMLElement>("button"))?.focus()
+  })
   // The server can remove notices while history is open; keep its trigger mounted for focus on close.
   return (
     <Dialog>
       <Alerts ref={region} className="border-b border-border px-2 py-1">
         <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
-        {ids.length > 0 && <AlertsList>{ids.slice(0, 1).map((id) => <Notice key={id} alerts={alerts} id={id} actions={actions} onDismiss={(noticeId) => { alerts.dismiss(noticeId); refocus() }} />)}</AlertsList>}
+        {ids.length > 0 && <AlertsList>{ids.slice(0, 1).map((id) => <Notice key={id} alerts={alerts} id={id} actions={actions.map((action) => ({ ...action, onAction: (alert) => { action.onAction(alert); refocus() } }))} onDismiss={(noticeId) => { alerts.dismiss(noticeId); refocus() }} />)}</AlertsList>}
         {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
         <div className="flex gap-2">
           <DialogTrigger className={buttonVariants({ variant: "ghost", size: "sm" })}>{ids.length > 1 ? `${ids.length - 1} more` : "History"}</DialogTrigger>

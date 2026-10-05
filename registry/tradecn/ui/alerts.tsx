@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type ComponentProps, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useRow, useView } from "@/registry/tradecn/hooks/use-row-store"
@@ -111,8 +111,12 @@ export function AlertsAnnouncer({ alerts, id, assertive = [] }: AlertsAnnouncerP
   // A new notice can carry the previous one's exact words — a second identical rejection —
   // and an unchanged text write never reaches the live region. The inner node is keyed by
   // the notice's identity, so the region receives an addition either way, the feed-health
-  // announcer's pattern.
-  const revision = alert ? `${alert.id}:${alert.seq}` : ""
+  // announcer's pattern. Sequence numbers restart per store, so a store swap bumps a local
+  // epoch to keep the key fresh across replacement.
+  const [tracked, setTracked] = useState({ alerts, epoch: 0 })
+  if (tracked.alerts !== alerts) setTracked({ alerts, epoch: tracked.epoch + 1 })
+  const epoch = tracked.alerts === alerts ? tracked.epoch : tracked.epoch + 1
+  const revision = alert ? `${epoch}:${alert.id}:${alert.seq}` : ""
   return <>
     <div role="status" aria-live="polite" aria-atomic="true" className="sr-only" data-alerts-polite>{!urgent && text ? <span key={revision}>{text}</span> : ""}</div>
     <div role="alert" aria-live="assertive" aria-atomic="true" className="sr-only" data-alerts-assertive>{urgent && text ? <span key={revision}>{text}</span> : ""}</div>
