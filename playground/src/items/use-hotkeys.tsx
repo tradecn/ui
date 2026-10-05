@@ -113,7 +113,7 @@ function Bindings() {
               <td className="py-1 pr-3 text-muted-foreground">{entry.group}</td>
               <td className="py-1 pr-3">{entry.description}</td>
               <td className="py-1 pr-3 text-muted-foreground">{entry.scope}</td>
-              <td className="py-1 pr-3">{capturing === entry.id ? <span className="text-muted-foreground">press a key, Esc to keep</span> : <Keys keys={entry.keys} />}</td>
+              <td className="py-1 pr-3">{capturing === entry.id ? <span className="text-muted-foreground">press a key, Esc to keep, Tab moves on, bare Enter and Space wait</span> : <Keys keys={entry.keys} />}</td>
               <td className="py-1 text-right">
                 <button className="rounded border border-border px-2" onClick={() => setCapturing(entry.id)}>
                   remap
