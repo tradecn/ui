@@ -139,6 +139,15 @@ describe("HotkeyEditor", () => {
     fireEvent.keyDown(capture, { key: "Enter", code: "Enter", ctrlKey: true })
     expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
     expect(keysOf("book.cancel")).toBe("ctrl+enter")
+    // Ctrl or Meta records a Tab: the leaving exception must not swallow these.
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Tab", code: "Tab", ctrlKey: true })
+    expect(keysOf("book.cancel")).toBe("ctrl+tab")
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Tab", code: "Tab", metaKey: true })
+    expect(keysOf("book.cancel")).toBe("meta+tab")
     fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
     capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
     fireEvent.keyDown(capture, { key: "Delete", code: "Delete" })
