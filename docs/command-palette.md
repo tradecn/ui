@@ -79,7 +79,7 @@ The grammar accepts `AAPL`, `MSFT`, or `ZN`, followed by `DES` or `GP`. It repor
 
 ## Symbol search
 
-Supply a `SymbolSearchAdapter` for asynchronous lookup, created once and kept stable — an adapter rebuilt on every parent render restarts its search each time and never settles. Here, two or more letters search three local symbols after a short delay, making the searching state visible. Try `AA`, `MS`, or `ZN`. Changing the query cancels the pending lookup; the adapter clears its timer when aborted.
+Supply a `SymbolSearchAdapter` for asynchronous lookup, created once and kept stable — an adapter rebuilt on every parent render restarts its search each time. Here, two or more letters search three local symbols after a short delay, making the searching state visible. Try `AA`, `MS`, or `ZN`. Changing the query cancels the pending lookup; the adapter clears its timer when aborted.
 
 Enter selects the highlighted symbol. Shift+Enter, or clicking its Watch hint, requests watching it instead. The caption shows which callback ran. Replace the delayed local lookup with your symbol service and pass the supplied abort signal to the request.
 
@@ -236,7 +236,7 @@ Matching is case-insensitive, and every query word must match. Each word scores 
 
 | Method | Input → output | Behavior |
 |---|---|---|
-| `register` | `PaletteAction \| readonly PaletteAction[]` → `() => void` | Adds or replaces actions by ID. Cleanup removes only the objects this call registered, leaving later replacements intact. |
+| `register` | `PaletteAction \| readonly PaletteAction[]` → `() => void` | Adds actions; same-ID registrations stack. Cleanup removes one copy of each action this call added and nothing else. |
 | `list` | No input → `readonly PaletteAction[]` | Returns the action snapshot. Its reference stays stable between registry changes. |
 | `recents` | No input → `readonly PaletteRecent[]` | Returns the recent snapshot, newest first; stable until recents change. |
 | `touch` | `PaletteRecent` → `void` | Moves an entry to the front, deduplicates it, caps the list, and notifies both kinds of listener. |
@@ -244,7 +244,7 @@ Matching is case-insensitive, and every query word must match. Each word scores 
 | `onRecentsChange` | `(recents: readonly PaletteRecent[]) => void` → `() => void` | Subscribes to `touch` updates; returns cleanup. |
 | `subscribe` | `() => void` → `() => void` | Subscribes to action and recent changes; returns cleanup. |
 
-Palettes sharing a registry share its actions and recents. Each filters its own rows by query and captured scope. The opening shortcut belongs to whichever same-variant palette mounted its binding last, and unmounting that palette retires the shortcut until another registers it — one palette per variant per registry is the supported shape.
+Palettes sharing a registry share its actions and recents. Each filters its own rows by query and captured scope. The opening shortcut contends per hotkey registry: the first same-variant palette declares the binding, the last-mounted one answers while mounted, unmounting it hands the shortcut back, and unmounting the declaring palette retires the binding even while another is mounted — one palette per variant per hotkey registry is the supported shape.
 
 ### Symbols
 

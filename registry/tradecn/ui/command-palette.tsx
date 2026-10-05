@@ -46,7 +46,7 @@ export interface SymbolSearchAdapter {
 export type PaletteRecent = { kind: "action"; id: string } | { kind: "symbol"; symbol: SymbolResult }
 
 export interface ActionRegistry {
-  /** Returns the unregister. An action with an id already present replaces it. */
+  /** Returns the unregister, which removes one copy of each action this call added. Same-id registrations stack; rows show the instance that answers. */
   register(actions: PaletteAction | readonly PaletteAction[]): () => void
   /** Stable array reference until something changes. */
   list(): readonly PaletteAction[]
@@ -86,8 +86,10 @@ export function createActionRegistry(options: { maxRecents?: number } = {}): Act
         for (const action of added) {
           const instances = actions.get(action.id)
           if (!instances) continue
-          const rest = instances.filter((instance) => instance !== action)
-          if (rest.length === instances.length) continue
+          // One copy per call: a shared action object registered twice keeps its other copy.
+          const at = instances.lastIndexOf(action)
+          if (at < 0) continue
+          const rest = [...instances.slice(0, at), ...instances.slice(at + 1)]
           if (rest.length) actions.set(action.id, rest)
           else actions.delete(action.id)
           changed = true
@@ -298,6 +300,7 @@ interface PaletteRootState {
   hotkeys: HotkeyRegistry | null
   ownBindingId: string | null
   scopes: string
+  capturedEl: Element | null
   open: boolean
   setOpen: (open: boolean) => void
   inputRef: { current: HTMLInputElement | null }
@@ -354,7 +357,7 @@ function usePaletteRef<T>(localRef: { current: T | null }, forwardedRef: Ref<T> 
 export type CommandPaletteContentProps = Omit<ComponentProps<typeof Command>, "children" | "shouldFilter"> & { children: ReactNode }
 
 export function CommandPaletteContent({ children, ref, className, onKeyDown: onKeyDownProp, onBlur, ...props }: CommandPaletteContentProps) {
-  const { options, labels, hotkeys, ownBindingId, scopes, open, setOpen, inputRef } = usePaletteRoot()
+  const { options, labels, hotkeys, ownBindingId, scopes, capturedEl, open, setOpen, inputRef } = usePaletteRoot()
   const { actions, symbols, onSymbolSelect, symbolSecondary, goBarGrammar, variant = "palette" } = options
   const root = useRef<HTMLDivElement>(null)
   const contentRef = usePaletteRef(root, ref)
@@ -406,26 +409,29 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   const keysOf = new Map(entries.map((e) => [e.id, e.keys]))
   const scopeLabel = (scope: string) => scope.replace(/^panel:/, "")
 
-  // With several panel instances sharing a scope, the one containing the captured focus
-  // answers — the fence rule, applied to actions. Fallback: the latest registration.
-  const instanceOf = (action: PaletteAction) => {
+  // With several panel instances sharing a scope, the one whose within() contains the
+  // element focus froze on at opening answers — the fence rule, applied to actions. A
+  // fenced registration never answers outside its element; registrations without within
+  // fall back latest-first. The whole row is built from the resolved instance, so its
+  // label, keys, and secondary never belong to another panel.
+  const instanceOf = (action: PaletteAction): PaletteAction | null => {
     const instances = list.filter((a) => a.id === action.id && a.scope === action.scope)
-    if (instances.length < 2) return action
-    const el = getFocusElement()
-    if (el?.isConnected) for (let i = instances.length - 1; i >= 0; i--) {
+    if (instances.length < 2) return instances[0] ?? null
+    if (capturedEl?.isConnected) for (let i = instances.length - 1; i >= 0; i--) {
       const root = instances[i]!.within?.()
-      if (root?.contains(el)) return instances[i]!
+      if (root?.contains(capturedEl)) return instances[i]!
     }
-    return instances[instances.length - 1]!
+    for (let i = instances.length - 1; i >= 0; i--) if (!instances[i]!.within) return instances[i]!
+    return null
   }
   const actionRow = (action: PaletteAction, prefix: string, recent: PaletteRecent | null): PaletteRow => ({
-    key: `${prefix}:${action.id}`,
+    key: action.scope ? `${prefix}:${action.scope}:${action.id}` : `${prefix}:${action.id}`,
     title: action.title,
     subtitle: action.subtitle,
     badge: action.scope ? scopeLabel(action.scope) : undefined,
     keys: (action.bindingId && keysOf.get(action.bindingId)) || undefined,
-    run: () => instanceOf(action).run(),
-    secondary: action.secondary && { title: action.secondary.title, run: () => (instanceOf(action).secondary ?? action.secondary)!.run() },
+    run: action.run,
+    secondary: action.secondary,
     recent,
   })
   const symbolRow = (symbol: SymbolResult, prefix: string): PaletteRow => ({
@@ -438,15 +444,18 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     recent: { kind: "symbol", symbol },
   })
 
-  const offeredAll = list.filter((a) => !a.scope || active.has(a.scope))
-  // One row per action id and scope, whichever instance answers.
+  // One row per action id and scope: the instance that answers, resolved once against
+  // the frozen capture. An action fenced to panels that never contained it stays off.
   const seen = new Set<string>()
-  const offered = offeredAll.filter((a) => {
+  const offered: PaletteAction[] = []
+  for (const a of list) {
+    if (a.scope && !active.has(a.scope)) continue
     const key = `${a.scope ?? ""}\u0000${a.id}`
-    if (seen.has(key)) return false
+    if (seen.has(key)) continue
     seen.add(key)
-    return true
-  })
+    const resolved = instanceOf(a)
+    if (resolved) offered.push(resolved)
+  }
   const sections: MutablePaletteGroup[] = []
   if (!query) {
     const rows: PaletteRow[] = []
@@ -566,13 +575,23 @@ export function CommandPalette(options: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Freeze where focus was at the moment of opening: a render later the palette itself has it.
+  // The element itself freezes too, so a detour over the dialog's close button cannot change
+  // which panel instance answers. A palette mounted already open reads the live document,
+  // since the shared trackers only learn about focus once something subscribes.
   const liveScopes = useSyncExternalStore(subscribeFocusScopes, getFocusScopes, getServerFocusScopes)
   const [wasOpen, setWasOpen] = useState(open)
-  const [scopes, setScopes] = useState(liveScopes)
+  const [frozen, setFrozen] = useState<{ scopes: string; el: Element | null }>(() => {
+    if (!open || typeof document === "undefined") return { scopes: liveScopes, el: null }
+    const focused = document.activeElement
+    const outside = focused?.closest(`[data-slot="${SLOT}"]`) ? null : focused
+    return { scopes: outside ? scopeChain(outside).join(" ") : AMBIENT_SCOPES, el: outside }
+  })
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (open) setScopes(liveScopes)
+    if (open) setFrozen({ scopes: liveScopes, el: getFocusElement() })
   }
+  const scopes = frozen.scopes
+  const capturedEl = frozen.el
 
   const setOpen = (next: boolean) => {
     if (openProp === undefined) setUncontrolled(next)
@@ -615,7 +634,7 @@ export function CommandPalette(options: CommandPaletteProps) {
     }
   }, [hotkeys, keys, bindingId, variant, description, group, declaredByProvider])
 
-  return <RootContext value={{ options, labels, hotkeys, ownBindingId: keys === null ? null : bindingId, scopes, open, setOpen, inputRef }}>{children}</RootContext>
+  return <RootContext value={{ options, labels, hotkeys, ownBindingId: keys === null ? null : bindingId, scopes, capturedEl, open, setOpen, inputRef }}>{children}</RootContext>
 }
 
 export type CommandPaletteDialogProps = Omit<ComponentProps<typeof CommandDialog>, "open" | "defaultOpen" | "onOpenChange" | "children"> & { children: ReactNode }

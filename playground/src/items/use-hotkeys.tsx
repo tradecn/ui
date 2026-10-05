@@ -85,10 +85,18 @@ function Bindings() {
     if (!capturing) return
     // Ahead of the registry's listener, so the key being captured does not also fire.
     const onKey = (event: KeyboardEvent) => {
+      // The editor item's rules: Tab leaves, bare Enter and Space are refused.
+      const bare = !event.ctrlKey && !event.metaKey && !event.altKey
+      if (event.key === "Tab" && bare) {
+        event.stopPropagation()
+        setCapturing(null)
+        return
+      }
       const keys = keysFromEvent(event)
       if (!keys) return
       event.preventDefault()
       event.stopPropagation()
+      if ((event.key === "Enter" || event.key === " ") && bare && !event.shiftKey) return
       if (keys !== "escape") hotkeys.remap(capturing, keys)
       setCapturing(null)
     }

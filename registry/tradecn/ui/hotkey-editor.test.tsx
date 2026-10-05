@@ -101,7 +101,8 @@ describe("HotkeyEditor", () => {
   it("refuses Tab, Enter, and Space as bindings: Tab leaves capture, the others wait", () => {
     // A Tab-away must never become a live binding on a destructive action: the next
     // Tab on the focused Change button would run it. Bare Enter and Space are refused
-    // the same way; with a modifier they commit as usual.
+    // the same way; Shift, Ctrl, Meta, or Alt makes them recordable, while Tab leaves
+    // under Shift too.
     const { registry } = mount()
     fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
     let capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
@@ -121,6 +122,11 @@ describe("HotkeyEditor", () => {
     fireEvent.keyDown(capture, { key: " ", code: "Space" })
     expect(row("book.cancel").querySelector("[data-hotkey-capture]")).not.toBeNull()
     expect(keysOf("book.cancel")).toBe("x")
+    fireEvent.keyDown(capture, { key: "Enter", code: "Enter", shiftKey: true })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(keysOf("book.cancel")).toBe("shift+enter")
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
     fireEvent.keyDown(capture, { key: "Enter", code: "Enter", ctrlKey: true })
     expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
     expect(keysOf("book.cancel")).toBe("ctrl+enter")
@@ -465,7 +471,7 @@ describe("composition and migration", () => {
     render(<HotkeysProvider registry={registry}><HotkeyEditor><p id="help">Choose a shortcut</p><HotkeyEditorItem bindingId="palette.open"><HotkeyEditorChange>Change</HotkeyEditorChange><HotkeyEditorCapture aria-describedby="help" /><HotkeyEditorKeys /><HotkeyEditorProblem /></HotkeyEditorItem></HotkeyEditor></HotkeysProvider>)
     fireEvent.click(screen.getByRole("button", { name: "Change: Open the command palette" }))
     const capture = document.querySelector<HTMLElement>("[data-hotkey-capture]")!
-    expect(capture).toHaveAccessibleDescription("Choose a shortcut Escape cancels, Backspace unbinds")
+    expect(capture).toHaveAccessibleDescription("Choose a shortcut Escape cancels, Tab moves on, Backspace unbinds")
     // A lone modifier still cannot commit: the capture stays, with the problem linked to the field.
     fireEvent.keyDown(capture, { key: "Super" })
     expect(document.querySelector("[data-hotkey-capture]")).toBe(capture)

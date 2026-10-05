@@ -169,8 +169,190 @@ describe("CommandPalette", () => {
     const view = render(ui(false))
     act(() => screen.getByText("in the book").focus())
     view.rerender(ui(true))
-    expect(rows()).toContain("action:book.cancel")
+    expect(rows()).toContain("action:panel:book:book.cancel")
     expect(screen.getByText("book")).toBeInTheDocument()
+  })
+
+  it("keeps a global and a scoped action with one id apart, each row running its own", () => {
+    // Deduplication is per id AND scope, and the row key carries the scope, so the two
+    // rows never collapse onto each other in the selection map.
+    const actions = createActionRegistry()
+    const global = vi.fn()
+    const scoped = vi.fn()
+    actions.register([
+      { id: "refresh", title: "Refresh all", run: global },
+      { id: "refresh", title: "Refresh book", scope: "panel:book", run: scoped },
+    ])
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    expect(rows()).toContain("action:refresh")
+    expect(rows()).toContain("action:panel:book:refresh")
+    fireEvent.click(document.querySelector('[data-row="action:refresh"]')!)
+    expect(global).toHaveBeenCalledTimes(1)
+    expect(scoped).not.toHaveBeenCalled()
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector('[data-row="action:panel:book:refresh"]')!)
+    expect(scoped).toHaveBeenCalledTimes(1)
+    expect(global).toHaveBeenCalledTimes(1)
+  })
+
+  it("holds the capture through a detour and offers no fenced action it cannot place", () => {
+    // The element freezes at open: focus wandering over the dialog's own controls can
+    // not hand the action to another panel. And when every registration is fenced to a
+    // panel that never contained the capture, the action stays off the list.
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    function Book({ name, run: runBook }: { name: string; run: () => void }) {
+      const root = React.useRef<HTMLDivElement>(null)
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within: () => root.current }), [runBook])
+      return <div ref={root}><HotkeyScope scope="panel:book"><button>{name}</button></HotkeyScope></div>
+    }
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        <Book name="book B" run={ranB} />
+        <HotkeyScope scope="panel:book"><button>bare book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("book A").focus())
+    view.rerender(ui(true))
+    // A detour: focus moves to a control outside every book while the palette is open.
+    act(() => screen.getByText("bare book").focus())
+    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
+    expect(ranA).toHaveBeenCalledTimes(1)
+    expect(ranB).not.toHaveBeenCalled()
+    // Opened from a same-scope region no registration is fenced to: the scope is
+    // active, but a fenced registration never answers outside its element, so the
+    // action is not offered at all.
+    view.rerender(ui(false))
+    act(() => screen.getByText("bare book").focus())
+    view.rerender(ui(true))
+    expect(rows()).not.toContain("action:panel:book:book.refresh")
+  })
+
+  it("builds the whole row from the answering instance, secondary included", () => {
+    // A row must never label one panel and act on another: when the answering instance
+    // has no secondary, Shift+Enter falls back to its own primary, not to the other
+    // panel's secondary.
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranASecondary = vi.fn()
+    const ranB = vi.fn()
+    function Book({ name, action }: { name: string; action: PaletteAction }) {
+      const root = React.useRef<HTMLDivElement>(null)
+      React.useEffect(() => actions.register({ ...action, within: () => root.current }), [action])
+      return <div ref={root}><HotkeyScope scope="panel:book"><button>{name}</button></HotkeyScope></div>
+    }
+    const a: PaletteAction = { id: "book.refresh", title: "Refresh A", scope: "panel:book", run: ranA, secondary: { title: "Reset A", run: ranASecondary } }
+    const b: PaletteAction = { id: "book.refresh", title: "Refresh B", scope: "panel:book", run: ranB }
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <Book name="book A" action={a} />
+        <Book name="book B" action={b} />
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("book B").focus())
+    view.rerender(ui(true))
+    expect(screen.getByText("Refresh B")).toBeInTheDocument()
+    expect(screen.queryByText("Refresh A")).toBeNull()
+    fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
+    expect(ranB).toHaveBeenCalledTimes(1)
+    expect(ranASecondary).not.toHaveBeenCalled()
+    expect(ranA).not.toHaveBeenCalled()
+  })
+
+  it("falls back past a disconnected capture and reads pre-mount focus on first subscribe", () => {
+    // The captured element can be gone by the time the palette opens; a disconnected
+    // capture resolves like no capture. And the first subscriber reads where focus
+    // already is, so a palette mounted after focus settled still resolves the panel.
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    function Book({ name, run: runBook, gone }: { name: string; run: () => void; gone?: boolean }) {
+      const root = React.useRef<HTMLDivElement>(null)
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within: () => root.current }), [runBook])
+      return <div ref={root}><HotkeyScope scope="panel:book">{!gone && <button>{name}</button>}</HotkeyScope></div>
+    }
+    const ui = (open: boolean, aGone: boolean) => (
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} gone={aGone} />
+        <Book name="book B" run={ranB} />
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false, false))
+    act(() => screen.getByText("book A").focus())
+    // The focused button is removed before the palette opens: the capture is
+    // disconnected, both registrations are fenced, so nothing answers.
+    view.rerender(ui(false, true))
+    view.rerender(ui(true, true))
+    expect(rows()).not.toContain("action:panel:book:book.refresh")
+    view.unmount()
+    // No palette mounted while focus settles on book B: the first subscriber reads
+    // where focus already is, so the late-mounted palette still resolves the panel.
+    const bare = render(
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        <Book name="book B" run={ranB} />
+      </HotkeysProvider>,
+    )
+    act(() => screen.getByText("book B").focus())
+    bare.rerender(
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        <Book name="book B" run={ranB} />
+        <ComposedPalette actions={actions} open />
+      </HotkeysProvider>,
+    )
+    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
+    expect(ranB).toHaveBeenCalledTimes(1)
+    expect(ranA).not.toHaveBeenCalled()
+    bare.unmount()
+    // A palette mounted closed after focus settled: its first subscribe snapshots the
+    // element, and the later flip to open freezes that snapshot without any focus
+    // event in between.
+    const closedFirst = render(
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        <Book name="book B" run={ranB} />
+      </HotkeysProvider>,
+    )
+    act(() => screen.getByText("book B").focus())
+    const withPalette = (open: boolean) => (
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        <Book name="book B" run={ranB} />
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    closedFirst.rerender(withPalette(false))
+    closedFirst.rerender(withPalette(true))
+    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
+    expect(ranB).toHaveBeenCalledTimes(2)
+    expect(ranA).not.toHaveBeenCalled()
+  })
+
+  it("unregisters one copy per call when one object registered twice", () => {
+    const actions = createActionRegistry()
+    const shared: PaletteAction = { id: "a", title: "A", run: () => {} }
+    const offFirst = actions.register(shared)
+    actions.register(shared)
+    offFirst()
+    expect(actions.list()).toEqual([shared])
   })
 
   it("runs the instance whose panel held focus when two share a scope, and survives the other's unmount", () => {
@@ -195,21 +377,21 @@ describe("CommandPalette", () => {
     const view = render(ui(false, true))
     act(() => screen.getByText("book A").focus())
     view.rerender(ui(true, true))
-    expect(rows().filter((row) => row === "action:book.refresh")).toHaveLength(1)
-    fireEvent.click(document.querySelector('[data-row="action:book.refresh"]')!)
+    expect(rows().filter((row) => row === "action:panel:book:book.refresh")).toHaveLength(1)
+    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
     expect(ranA).toHaveBeenCalledTimes(1)
     expect(ranB).not.toHaveBeenCalled()
     view.rerender(ui(false, true))
     act(() => screen.getByText("book B").focus())
     view.rerender(ui(true, true))
-    fireEvent.click(document.querySelector('[data-row="action:book.refresh"]')!)
+    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
     expect(ranB).toHaveBeenCalledTimes(1)
     expect(ranA).toHaveBeenCalledTimes(1)
     view.rerender(ui(false, false))
     act(() => screen.getByText("book A").focus())
     view.rerender(ui(true, false))
-    expect(rows()).toContain("action:book.refresh")
-    fireEvent.click(document.querySelector('[data-row="action:book.refresh"]')!)
+    expect(rows()).toContain("action:panel:book:book.refresh")
+    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
     expect(ranA).toHaveBeenCalledTimes(2)
   })
 })
