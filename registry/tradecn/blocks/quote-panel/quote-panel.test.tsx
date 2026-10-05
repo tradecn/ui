@@ -90,6 +90,14 @@ describe("quotePanelColumns and quoteEdit", () => {
     const cashBid = quoteEdit<QuoteRow>("bid", { convention: CASH })
     expect(cashBid.validate?.(row.ask! - 0.5, row)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.bidCrosses })
     expect(cashBid.validate?.(row.ask! + 0.5, row)).toBeNull()
+    // An undeclared yield basis inverts by default — the migration names the flip — and
+    // quoteInverted: false keeps the plain reading.
+    const YIELDED = { price: { kind: "decimal" as const, decimals: 3 }, tick: 0.001, quoteBasis: "yield" as const }
+    const yieldBid = quoteEdit<QuoteRow>("bid", { convention: YIELDED })
+    expect(yieldBid.validate?.(row.ask! - 0.5, row)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.bidCrosses })
+    const plain = quoteEdit<QuoteRow>("bid", { convention: { ...YIELDED, quoteInverted: false } })
+    expect(plain.validate?.(row.ask! + 0.5, row)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.bidCrosses })
+    expect(plain.validate?.(row.ask! - 0.5, row)).toBeNull()
   })
 
   it("reads a size as a whole number, zero or more, and a skew or width as a number of steps", () => {

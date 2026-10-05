@@ -521,6 +521,10 @@ Both tickets declare their bindings as registry defaults through [`declareDefaul
 - `checkQuote` treats a non-finite level as absent: a required `NaN` gets the needed message where v1.4.13's page said finiteness went unchecked, and a non-finite pair is never compared.
 - When the control under focus unmounts or disables, focus parks on the ticket root without scrolling, so the fenced shortcuts stay live; v1 left focus on the body. A parent that watched for `body` to run its own recovery no longer sees it, a deliberate click elsewhere is remembered as leaving, and a window switch is not.
 
+## QuotePanel
+
+The two-way crossing check reads the instrument's quote direction. On an undeclared yield or discount convention the refusals flip from v1: a bid below the ask is now the crossed one, since those bases quote inverted by default. A desk that quotes bid at or below ask on yield or discount declares `quoteInverted: false` on the convention to keep v1's reading; price and spread keep it without declaring anything.
+
 ## PerfMonitor
 
 `PerfMonitor` now requires children. Replace self-closing calls with the complete [Usage composition](perf-monitor.md#usage), which retains the histogram and six frame readings. The sampler and frame-statistics exports are unchanged.
