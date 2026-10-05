@@ -173,7 +173,7 @@
           },
           {
             "title": "exportCsv",
-            "description": "CSV of given rows through the column formatters."
+            "description": "CSV of given rows through the column formatters, formula-shaped text neutralized with the apostrophe convention."
           },
           {
             "title": "editProblem",

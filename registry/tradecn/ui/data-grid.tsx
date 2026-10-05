@@ -118,7 +118,7 @@ export interface EditChange<T> {
  * rejects, with the server's message and the value that stands.
  */
 export type EditStatus =
-  | { kind: "editing"; text: string; problem: string | null; selectAll: boolean; initial: string | null; focused: boolean }
+  | { kind: "editing"; text: string; problem: string | null; selectAll: boolean; initial?: string | null; focused?: boolean; prior?: EditStatus }
   | { kind: "pending"; value: unknown; text: string }
   | { kind: "rejected"; value: unknown; message: string }
 
@@ -369,7 +369,8 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
   // Spreadsheets execute cells led by = + - @ or a tab or carriage return: free-text
   // fields — a message, an author — must not run as formulas when the file is opened.
   // The apostrophe prefix is the spreadsheet convention for "this is text".
-  const neutral = (s: string) => (/^[=+\-@\t\r]/.test(s) ? `'${s}` : s)
+  // Signed numbers are data, not formulas: only non-numeric text gets the prefix.
+  const neutral = (s: string) => (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !/^[+-][0-9.]/.test(s)) ? `'${s}` : s)
   const esc = (s: string) => {
     const t = neutral(s)
     return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
@@ -516,19 +517,21 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
     const input = ref.current
     return () => { if (input) edits.unmountEditor(colKey, input) }
   }, [edits, colKey])
+  const focused = status.focused ?? false
   useEffect(() => {
     const el = ref.current
     if (!el) return
     // Once per OPEN, not per mount: a row scrolled away and back remounts its editor,
-    // and that remount must not steal focus from wherever the user went.
-    if (status.focused) return
+    // and that remount must not steal focus — while a fresh open() of a mounted cell
+    // resets the flag and focuses again.
+    if (focused) return
     edits.markFocused(rowId, colKey)
     el.focus({ preventScroll: true })
     if (selectAll) el.select()
     else el.setSelectionRange(el.value.length, el.value.length)
-    // On mount only: a keystroke must not reselect the text under the hand.
+    // A keystroke must not reselect the text under the hand.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [focused])
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     const mod = e.metaKey || e.ctrlKey || e.altKey
     switch (e.key) {
@@ -881,9 +884,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
-  const editLatest = useRef({ columns, resolved, onEdit })
+  const editLatest = useRef({ columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId) })
   useInsertionEffect(() => {
-    editLatest.current = { columns, resolved, onEdit }
+    editLatest.current = { columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId) }
   })
   const editable = Boolean(onEdit)
   const edits = useMemo<EditController | null>(() => {
@@ -937,6 +940,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     }
     function open(rowId: RowId, key: string, typed?: string) {
       if (!visibleEditColumns.current.has(key)) return
+      // A retained handle must not open an editor on a row the view no longer holds:
+      // it would mount and take focus whenever the row next returned.
+      if (!editLatest.current.inView(rowId)) return
       cellsByKey.set(cellKey(rowId, key), rowId)
       const col = column(key)
       const row = store.getRow(rowId)
@@ -948,7 +954,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const now = tracker.get(k)
       const text = now?.kind === "pending" ? now.text : editText(col, col.accessor(row!), row!)
       activeColumn = key
-      tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false })
+      // The status this editor replaced comes back if it closes untouched: reopening a
+      // pending cell and leaving must not erase the pending mark or a later rejection.
+      tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false, prior: now?.kind === "editing" ? now.prior : now })
     }
     const controller: EditController = {
       tracker,
@@ -994,8 +1002,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         }
         // Opened and left unchanged: a format that rounds must not turn looking into
         // an edit, so the untouched text sends nothing — Tab chains pass clean through.
-        if (now.initial !== null && now.text === now.initial) {
-          tracker.set(k, undefined)
+        if (now.initial != null && now.text === now.initial) {
+          tracker.set(k, now.prior)
           moveOn(rowId, key, move)
           return
         }
@@ -1021,6 +1029,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       },
       cancel(rowId, key) {
         const k = cellKey(rowId, key)
+        cellsByKey.delete(k)
         if (tracker.get(k)?.kind === "editing") tracker.set(k, undefined)
         focusGrid()
       },
@@ -1039,7 +1048,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const k = cellKey(rowId, key)
         const now = tracker.get(k)
         if (now?.kind !== "editing") return
-        if (now.initial !== null && now.text === now.initial) return tracker.set(k, undefined)
+        if (now.initial != null && now.text === now.initial) return tracker.set(k, now.prior)
         const col = column(key)
         const row = store.getRow(rowId)
         if (!canEditCell(col, row)) return tracker.set(k, undefined)
@@ -1065,13 +1074,18 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     edits?.reconcileColumns(visibleEditColumns.current)
   }, [edits, resolved])
   // A row that a filter, re-sort, or removal takes out of the view takes its open
-  // editor with it; the editor cannot then grab focus back when the row returns.
+  // editor with it; the editor cannot then grab focus back when the row returns, and
+  // focus the unmount dropped on body comes home to the grid.
   useLayoutEffect(() => {
     if (!edits) return
     const k = edits.tracker.editing()
     if (k === null) return
     const rowId = edits.rowOf(k)
-    if (rowId !== undefined && !indexOf.has(rowId)) edits.tracker.set(k, undefined)
+    if (rowId !== undefined && !indexOf.has(rowId)) {
+      edits.tracker.set(k, undefined)
+      const doc = rootRef.current?.ownerDocument
+      if (doc && doc.activeElement === doc.body) rootRef.current?.focus({ preventScroll: true })
+    }
   }, [edits, indexOf])
   const virtualizer = useVirtualizer({
     count: ids.length,
@@ -1080,8 +1094,12 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     overscan,
     getItemKey: (i) => ids[i]!,
     initialRect,
-    // The sticky header and footer cover the scroll container's edges: without these,
-    // align: "auto" stops one row short and ArrowDown walks the focus off-screen.
+    // The sticky header sits in normal flow above the rows, so row i really starts at
+    // (i+1) x rowHeight inside the scroller: scrollMargin tells the virtualizer so, and
+    // the paddings keep an aligned row clear of the sticky header above and the sticky
+    // footer below. Rows keep rendering at v.start - scrollMargin inside the rowgroup,
+    // which itself sits after the header, so nothing moves visually.
+    scrollMargin: rowHeight,
     scrollPaddingStart: rowHeight,
     scrollPaddingEnd: footer ? rowHeight : 0,
   })
@@ -1101,14 +1119,29 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     if (followTail && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [followTail])
 
-  // Rows arriving: highlight, pin the viewport or follow the tail, announce. Rows leaving: forget
-  // their flashes and their arrival marks. This runs in an insertion effect: all insertion effects
-  // for a commit run before any layout effect, so a row mounting in the same commit as its arrival
-  // finds its mark — a mount-only layout effect in the row checks after this has written.
+  // Arrival marks, in the insertion phase: all insertion effects for a commit run
+  // before any layout effect, so a row mounting in the commit of its arrival finds
+  // its mark — a mount-only layout effect in the row checks after this has written.
+  // Marks carry their arrival time and are pruned when stale or departed.
   const entered = useRef(new Map<RowId, number>()).current
   const prevIdsRef = useRef<readonly RowId[]>(ids)
+  const markIdsRef = useRef<readonly RowId[]>(ids)
   const newSinceAnnounce = useRef(0)
   useInsertionEffect(() => {
+    const prev = markIdsRef.current
+    if (prev === ids) return
+    markIdsRef.current = ids
+    if (!rowEnter.highlight) return
+    const prevSet = new Set(prev)
+    const at = Date.now()
+    for (const id of ids) if (!prevSet.has(id)) entered.set(id, at)
+    const nowSet = new Set(ids)
+    for (const [id, stamp] of entered) if (!nowSet.has(id) || at - stamp >= ENTER_WINDOW_MS) entered.delete(id)
+  }, [ids, rowEnter.highlight, entered])
+
+  // The scroll work stays in the layout phase, where refs belong to this commit:
+  // pin the viewport, follow the tail, count arrivals, forget departed flashes.
+  useLayoutEffect(() => {
     const prev = prevIdsRef.current
     if (prev === ids) return
     const prevSet = new Set(prev)
@@ -1119,7 +1152,6 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     for (const id of prev) {
       if (!nowSet.has(id)) {
         departed++
-        entered.delete(id)
         memory.forget(`${id}\u0000`)
       }
     }
@@ -1131,10 +1163,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       if (nextIndex !== undefined && nextIndex !== firstIndex) el.scrollTop += (nextIndex - firstIndex) * rowHeight
     }
     if (arrived.length && followTail && following && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    if (arrived.length && rowEnter.highlight) { const at = Date.now(); for (const id of arrived) entered.set(id, at) }
     newSinceAnnounce.current += arrived.length
     prevIdsRef.current = ids
-  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, rowEnter.highlight, followTail, following, entered, memory])
+  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, followTail, following, memory])
 
   const stopFollowing = () => {
     if (!followTail || !following) return
@@ -1533,7 +1564,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
                 lefts={lefts}
                 width={totalWidth}
                 height={rowHeight}
-                start={v.start}
+                start={v.start - rowHeight}
                 selected={selection.has(id)}
                 focused={focusedRowId === id}
                 focusedColKey={focusedColKey}

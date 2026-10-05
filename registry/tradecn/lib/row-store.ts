@@ -507,13 +507,14 @@ export function createFrameBatcher<T>(
       if (delta.meta) {
         // Omitted fields keep their previous values all the way through: a frame that
         // never mentions gap must not write one, or a replay's recorded gap is
-        // silenced mid-flight. Within one batch a mentioned gap stays sticky-true.
+        // silenced mid-flight. Mentions apply in order, so a gap that opens and
+        // closes inside one frame ends closed, exactly as two frames would.
         const gapMentioned = delta.meta.gap !== undefined || meta?.gap !== undefined
         meta = {
           ...meta,
           ...delta.meta,
           dropped: (meta?.dropped ?? 0) + (delta.meta.dropped ?? 0),
-          ...(gapMentioned ? { gap: Boolean(meta?.gap) || Boolean(delta.meta.gap) } : {}),
+          ...(gapMentioned ? { gap: delta.meta.gap ?? meta?.gap } : {}),
         }
         if (!gapMentioned) delete (meta as { gap?: boolean }).gap
       }

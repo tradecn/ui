@@ -248,9 +248,9 @@ Give the grid `onEdit` and the column a `CellEdit<T>`:
 
 Use `big` to implement a larger step, such as ten ticks with Shift; the grid does not multiply it. A cell refused by `canEdit` carries `aria-readonly="true"`. [`parameter-grid`](parameter-grid.md) builds a parameter sheet on this API.
 
-Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid input. A value equal to the store's current value sends nothing.
+Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid changes. An editor opened and left unchanged sends nothing, whatever rounding its format applies, and closing it untouched restores the pending or rejected state it covered. A value equal to the store's current value sends nothing.
 
-Hiding or removing a column while its text editor is still open discards the draft without calling `onEdit`. Removing its `edit` configuration or switching to `toggle` also discards it.
+Hiding or removing a column while its text editor is still open discards the draft without calling `onEdit`. A row that a filter, re-sort, or removal takes out of the view does the same: its open editor closes, the draft is discarded, and the returning row does not reopen it or take focus. Removing its `edit` configuration or switching to `toggle` also discards it.
 
 Restoring the column does not reopen the draft. These column changes preserve pending and rejected edits.
 
@@ -330,10 +330,10 @@ To handle a grid shortcut in a parent, call `preventDefault()` from `onKeyDownCa
 | Home / End | Focus the first / last row. |
 | Shift + a row navigation key | Extend selection in multi-select mode. |
 | Left / Right | Move column focus. |
-| Space | Toggle selection in multi mode; select in single mode. On an editable toggle cell, commit its toggle instead. |
-| Enter | Edit the focused editable cell, including toggles; otherwise activate the row. |
-| F2 | Edit the focused editable cell, including toggles. |
-| Type a character other than Space | Open an editable text cell with that character. Toggle cells and Ctrl, Cmd, or Alt combinations do not open an editor. |
+| Space | Toggle selection in multi mode; select in single mode. On an editable toggle cell, commit its toggle instead. Does nothing while the focused row is outside the view. |
+| Enter | Edit the focused editable cell, including toggles; otherwise activate the row. Does nothing while the focused row is outside the view. |
+| F2 | Edit the focused editable cell, including toggles. Does nothing while the focused row is outside the view. |
+| Type a character other than Space | Open an editable text cell with that character. Toggle cells and Ctrl, Cmd, or Alt combinations do not open an editor, and nothing opens while the focused row is outside the view. |
 | Escape | Clear selection. |
 | Ctrl or Cmd+A | Select all rows in the view in multi mode. |
 | Alt+Left / Right | Move the focused column. |

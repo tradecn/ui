@@ -581,6 +581,70 @@ describe("certification pins", () => {
     expect(onEdit).not.toHaveBeenCalled()
   })
 
+  it("keeps a pending edit and its later rejection through an untouched reopen", async () => {
+    // Reopening a pending cell shows the committed text; closing it untouched must
+    // restore the pending mark, so the server's later rejection still lands.
+    let reject!: (reason: unknown) => void
+    const onEdit = vi.fn(() => new Promise((_, rej) => { reject = rej }))
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    const cell = () => document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    fireEvent.keyDown(grid, { key: "F2" })
+    const reopened = screen.getByRole("textbox") as HTMLInputElement
+    expect(reopened.value).toBe("105")
+    fireEvent.keyDown(reopened, { key: "Enter" })
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    await act(async () => {
+      reject(new Error("too far"))
+    })
+    expect(cell().textContent).toContain("too far")
+  })
+
+  it("closes an untouched editor on blur without sending", () => {
+    const onEdit = vi.fn()
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "r0", sym: "S0", px: 0.123456, qty: 10 }] })
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, format: v => (v as number).toFixed(2), edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.blur(input)
+    expect(onEdit).not.toHaveBeenCalled()
+    expect(screen.queryByRole("textbox")).toBeNull()
+  })
+
+  it("does not activate a hidden focused row through Enter on a non-editable grid", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(3, store)
+    const activate = vi.fn()
+    const ui = (filter?: (row: Quote) => boolean) => <DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} filter={filter} onRowActivate={activate} />
+    const view = render(ui())
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    view.rerender(ui((row) => row.id !== "r1"))
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(activate).not.toHaveBeenCalled()
+    view.rerender(ui())
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(activate).toHaveBeenCalledTimes(1)
+  })
+
   it("lets no keyboard command act on a focused row the view no longer holds", () => {
     const store = createRowStore<Quote>({ getRowId: row => row.id })
     seed(3, store)
@@ -603,6 +667,35 @@ describe("certification pins", () => {
     expect(screen.queryByRole("textbox")).toBeNull()
   })
 
+  it("ignores a retained open for a row the view no longer holds", async () => {
+    // The delayed-open pattern, aimed at a filtered-out row: without the gate, the
+    // editor state mounts and takes focus whenever the row next returns.
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    let handle: CellEditHandle | undefined
+    const onEdit = vi.fn()
+    const custom: ColumnDef<Quote>[] = [
+      { key: "sym", header: "Symbol", width: 80, accessor: row => row.sym },
+      { key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) }, cell: ({ edit, value }) => { handle = edit; return String(value) } },
+    ]
+    const layout = (filter?: (row: Quote) => boolean) => <>
+      <input aria-label="Outside" />
+      <DataGrid store={store} columns={custom} label="Sheet" initialRect={RECT} filter={filter} onEdit={onEdit} />
+    </>
+    const { rerender } = render(layout())
+    const retained = handle!
+    // The custom cell runs per row; the retained handle is the last-rendered row's, r1.
+    rerender(layout(row => row.id !== "r1"))
+    act(() => retained.open())
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    const outside = screen.getByRole("textbox", { name: "Outside" })
+    outside.focus()
+    rerender(layout())
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    expect(outside).toHaveFocus()
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
   it("emits no selection change from Escape when nothing is selected", () => {
     const store = createRowStore<Quote>({ getRowId: row => row.id })
     seed(2, store)
@@ -614,13 +707,15 @@ describe("certification pins", () => {
 
   it("neutralizes spreadsheet formulas in the export", () => {
     const store = createRowStore<{ id: string; note: string }>({ getRowId: row => row.id })
-    store.applyDeltas({ upsert: [{ id: "a", note: "=SUM(A1:A9)" }, { id: "b", note: "@cmd" }, { id: "c", note: "-1200" }, { id: "d", note: "plain" }] })
+    store.applyDeltas({ upsert: [{ id: "a", note: "=SUM(A1:A9)" }, { id: "b", note: "@cmd" }, { id: "c", note: "-1200" }, { id: "d", note: "plain" }, { id: "e", note: "-cmd" }] })
     const cols: ColumnDef<{ id: string; note: string }>[] = [{ key: "note", header: "Note", width: 120, accessor: row => row.note }]
-    const csv = exportCsv(store, cols, ["a", "b", "c", "d"])
+    const csv = exportCsv(store, cols, ["a", "b", "c", "d", "e"])
     expect(csv).toContain("'=SUM(A1:A9)")
     expect(csv).toContain("'@cmd")
-    expect(csv).toContain("'-1200")
+    // Signed numbers are data: no prefix, so numeric exports stay parseable.
+    expect(csv.split("\r\n")[3]).toBe("-1200")
     expect(csv.split("\r\n")[4]).toBe("plain")
+    expect(csv.split("\r\n")[5]).toBe("'-cmd")
   })
 })
 

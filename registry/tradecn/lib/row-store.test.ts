@@ -366,6 +366,15 @@ describe("frame batcher", () => {
     batcher.push({ meta: { gap: false, seq: 12 } })
     frame()
     expect(store.getMeta().gap).toBe(false)
+    // A gap that opens and closes inside one frame ends closed, as two frames would.
+    batcher.push({ meta: { gap: true, seq: 13 } })
+    batcher.push({ meta: { gap: false, seq: 14 } })
+    frame()
+    expect(store.getMeta().gap).toBe(false)
+    batcher.push({ meta: { gap: false, seq: 15 } })
+    batcher.push({ meta: { gap: true, seq: 16 } })
+    frame()
+    expect(store.getMeta().gap).toBe(true)
   })
 
   it("publishes id snapshots that never alias the live array", () => {

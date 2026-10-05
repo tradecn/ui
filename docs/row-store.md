@@ -72,7 +72,7 @@ Messages received counts every queued message; Batches applied excludes the seed
 
 Queue then cancel discards the queued batch without changing the store. The next burst continues the sample feed's prices, so canceled values are skipped.
 
-The demo's own cleanup effect calls `cancel()` on unmount — the batcher has no lifecycle of its own. `pending()` says whether a batch is queued, and `flush()` applies queued work immediately; an already-batched feed should call `applyDeltas` directly. The batcher merges queued metadata by summing `dropped`, OR-ing `gap`, and letting the last value win for the rest, and it takes `raf`/`caf` options for environments without animation frames.
+The demo's own cleanup effect calls `cancel()` on unmount — the batcher has no lifecycle of its own. `pending()` says whether a batch is queued, and `flush()` applies queued work immediately; an already-batched feed should call `applyDeltas` directly. The batcher merges queued metadata by summing `dropped` and letting the last mention win for the rest, `gap` included — a frame that never mentions `gap` writes nothing, so a recorded gap survives a replay's quiet frames — and it takes `raf`/`caf` options for environments without animation frames.
 
 <!-- demo: row-store-batching -->
 

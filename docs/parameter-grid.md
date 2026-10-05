@@ -140,7 +140,7 @@ Enter, F2, a double click, or typing a non-space character opens an editable par
 
 Double-click plain cell content to open its editor. Controls and open editors keep their own [pointer interactions](data-grid.md#pointer-interactions); double-clicking an editor selects text without reopening its draft.
 
-A parse or validation failure on commit keeps the editor open with an accessible error and sends nothing. Leaving the editor commits valid input and discards invalid input. Only one text editor opens at a time.
+A parse or validation failure on commit keeps the editor open with an accessible error and sends nothing. Leaving the editor commits valid changes and discards invalid input; opened and left unchanged, it sends nothing, whatever rounding the format applies, so Tab can walk a row without writing it. Only one text editor opens at a time.
 
 Up and Down step when configured. Ctrl, Cmd, or Alt with those arrows passes through to listeners above the grid. See the [data-grid keyboard reference](data-grid.md) for navigation and column controls.
 
