@@ -413,6 +413,63 @@ describe("CommandPalette", () => {
     expect(document.querySelector('[data-row^="recent:"]')).not.toBeNull()
   })
 
+  it("retires a v1 scope-less recent when its scoped twin is touched, emitting one row", () => {
+    // The upgrade path: an id-only entry persisted by v1 plus a fresh scoped run must
+    // not produce two Recent rows with one key, and touching the scoped row drops the
+    // stale twin from persistence.
+    const actions = createActionRegistry()
+    const scoped = vi.fn()
+    actions.register({ id: "book.cancel", title: "Cancel selected order", scope: "panel:book", run: scoped })
+    actions.loadRecents([{ kind: "action", id: "book.cancel" }])
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.cancel"]')!)
+    expect(scoped).toHaveBeenCalledTimes(1)
+    expect(actions.recents().filter((r) => r.kind === "action" && r.id === "book.cancel")).toHaveLength(1)
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    expect([...document.querySelectorAll('[data-row="recent:panel:book:book.cancel"]')]).toHaveLength(1)
+  })
+
+  it("stores and resolves a scope-less recent to the unscoped action, whatever registered first", () => {
+    // Registration order must not decide: the scoped action registers first here, and
+    // a recent recorded from the global row still reads and runs the global action.
+    const actions = createActionRegistry()
+    const global = vi.fn()
+    const scoped = vi.fn()
+    actions.register([
+      { id: "refresh", title: "Refresh book", scope: "panel:book", run: scoped },
+      { id: "refresh", title: "Refresh all", run: global },
+    ])
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector('[data-row="action:refresh"]')!)
+    expect(global).toHaveBeenCalledTimes(1)
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    const recent = document.querySelector('[data-row="recent:refresh"]')!
+    expect(recent.textContent).toContain("Refresh all")
+    fireEvent.click(recent)
+    expect(global).toHaveBeenCalledTimes(2)
+    expect(scoped).not.toHaveBeenCalled()
+  })
+
   it("unregisters one copy per call, idempotently, when one object registered twice", () => {
     const actions = createActionRegistry()
     const shared: PaletteAction = { id: "a", title: "A", run: () => {} }

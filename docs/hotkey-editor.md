@@ -217,7 +217,7 @@ Blur cancels an unfinished edit and clears its validation message.
 
 Capture consumes every keydown except a leaving Tab. Text editing stops keydown propagation to application handlers and prevents default behavior for Enter and Escape.
 
-Use text to enter chords or bindings capture refuses: Escape, Backspace, Delete, bare Enter and Space, and every Tab.
+Use text to enter chords or bindings capture refuses: Escape, Backspace, Delete, bare Enter and Space, and leaving Tabs — Ctrl, Meta, or Alt records a Tab too.
 
 Commit and Escape return focus to the initiating control, or the item if that control is unavailable. Blur preserves the destination's focus.
 
@@ -266,7 +266,7 @@ Persist imports separately because `load` does not call `onChange`.
 | `title`, `search` | `Keyboard shortcuts`, `Find a shortcut` |
 | `change`, `edit`, `reset` | `Change`, `Type it`, `Reset` |
 | `pressKeys`, `unbound`, `keysFor` | `Press the new shortcut`, `unbound`, `Keys for` |
-| `cancelHint` | `Escape cancels, Backspace unbinds` |
+| `cancelHint` | `Escape cancels, Tab moves on, Backspace unbinds` |
 | `notKeys` | `Not a shortcut. Write keys joined by +, steps of a chord separated by a space: mod+k, g b.` |
 | `duplicate`, `prefix`, `shadow` | See Conflicts. |
 

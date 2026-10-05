@@ -60,7 +60,7 @@ export interface ActionRegistry {
   subscribe(cb: () => void): () => void
 }
 
-const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${r.scope ?? ""}:${r.id}` : `symbol:${r.symbol.symbol}:${r.symbol.exchange ?? ""}`)
+const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${JSON.stringify([r.scope ?? null, r.id])}` : `symbol:${JSON.stringify([r.symbol.symbol, r.symbol.exchange ?? null])}`)
 
 export function createActionRegistry(options: { maxRecents?: number } = {}): ActionRegistry {
   const maxRecents = options.maxRecents ?? 8
@@ -105,7 +105,10 @@ export function createActionRegistry(options: { maxRecents?: number } = {}): Act
     recents: () => recents,
     touch(recent) {
       const key = recentKey(recent)
-      recents = [recent, ...recents.filter((r) => recentKey(r) !== key)].slice(0, maxRecents)
+      // Running a scoped action retires the scope-less entry old versions persisted
+      // for the same id: the fresh entry is the precise one.
+      const stale = (r: PaletteRecent) => recentKey(r) === key || (recent.kind === "action" && recent.scope !== undefined && r.kind === "action" && r.id === recent.id && r.scope === undefined)
+      recents = [recent, ...recents.filter((r) => !stale(r))].slice(0, maxRecents)
       for (const cb of listeners) cb()
       for (const cb of recentListeners) cb(recents)
     },
@@ -465,7 +468,7 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     for (const recent of recents) {
       if (recent.kind === "symbol") rows.push(symbolRow(recent.symbol, "recent-symbol"))
       else {
-        const action = offered.find((a) => a.id === recent.id && (recent.scope === undefined || a.scope === recent.scope))
+        const action = offered.find((a) => a.id === recent.id && a.scope === recent.scope) ?? (recent.scope === undefined ? offered.find((a) => a.id === recent.id) : undefined)
         if (action) rows.push(actionRow(action, "recent", recent))
       }
     }
