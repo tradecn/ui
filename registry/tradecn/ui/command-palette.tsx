@@ -106,8 +106,10 @@ export function createActionRegistry(options: { maxRecents?: number } = {}): Act
     touch(recent) {
       const key = recentKey(recent)
       // Running a scoped action retires the scope-less entry old versions persisted
-      // for the same id: the fresh entry is the precise one.
-      const stale = (r: PaletteRecent) => recentKey(r) === key || (recent.kind === "action" && recent.scope !== undefined && r.kind === "action" && r.id === recent.id && r.scope === undefined)
+      // for the same id — but only while no live unscoped registration owns that id,
+      // since a current global action's entry is not a leftover.
+      const leftover = recent.kind === "action" && recent.scope !== undefined && !(actions.get(recent.id) ?? []).some((a) => !a.scope)
+      const stale = (r: PaletteRecent) => recentKey(r) === key || (leftover && r.kind === "action" && r.id === recent.id && r.scope === undefined)
       recents = [recent, ...recents.filter((r) => !stale(r))].slice(0, maxRecents)
       for (const cb of listeners) cb()
       for (const cb of recentListeners) cb(recents)
@@ -431,7 +433,8 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     return null
   }
   const actionRow = (action: PaletteAction, prefix: string, recent: PaletteRecent | null): PaletteRow => ({
-    key: action.scope ? `${prefix}:${action.scope}:${action.id}` : `${prefix}:${action.id}`,
+    // A scoped key is a JSON tuple behind its own marker, so no unscoped id can spell it.
+    key: action.scope ? `${prefix}!${JSON.stringify([action.scope, action.id])}` : `${prefix}:${action.id}`,
     title: action.title,
     subtitle: action.subtitle,
     badge: action.scope ? scopeLabel(action.scope) : undefined,
@@ -465,11 +468,18 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   const sections: MutablePaletteGroup[] = []
   if (!query) {
     const rows: PaletteRow[] = []
+    const emittedRecents = new Set<string>()
     for (const recent of recents) {
       if (recent.kind === "symbol") rows.push(symbolRow(recent.symbol, "recent-symbol"))
       else {
-        const action = offered.find((a) => a.id === recent.id && a.scope === recent.scope) ?? (recent.scope === undefined ? offered.find((a) => a.id === recent.id) : undefined)
-        if (action) rows.push(actionRow(action, "recent", recent))
+        const action = offered.find((a) => a.id === recent.id && a.scope === recent.scope) ?? (recent.scope === undefined && !list.some((a) => a.id === recent.id && !a.scope) ? offered.find((a) => a.id === recent.id) : undefined)
+        if (action) {
+          const row = actionRow(action, "recent", recent)
+          if (!emittedRecents.has(row.key)) {
+            emittedRecents.add(row.key)
+            rows.push(row)
+          }
+        }
       }
     }
     if (rows.length) sections.push({ id: "recent", heading: labels.recent, rows })

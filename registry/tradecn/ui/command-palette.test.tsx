@@ -169,7 +169,7 @@ describe("CommandPalette", () => {
     const view = render(ui(false))
     act(() => screen.getByText("in the book").focus())
     view.rerender(ui(true))
-    expect(rows()).toContain("action:panel:book:book.cancel")
+    expect(rows()).toContain('action!["panel:book","book.cancel"]')
     expect(screen.getByText("book")).toBeInTheDocument()
   })
 
@@ -193,14 +193,14 @@ describe("CommandPalette", () => {
     act(() => screen.getByText("in the book").focus())
     view.rerender(ui(true))
     expect(rows()).toContain("action:refresh")
-    expect(rows()).toContain("action:panel:book:refresh")
+    expect(rows()).toContain('action!["panel:book","refresh"]')
     fireEvent.click(document.querySelector('[data-row="action:refresh"]')!)
     expect(global).toHaveBeenCalledTimes(1)
     expect(scoped).not.toHaveBeenCalled()
     view.rerender(ui(false))
     act(() => screen.getByText("in the book").focus())
     view.rerender(ui(true))
-    fireEvent.click(document.querySelector('[data-row="action:panel:book:refresh"]')!)
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","refresh"]']`)!)
     expect(scoped).toHaveBeenCalledTimes(1)
     expect(global).toHaveBeenCalledTimes(1)
   })
@@ -230,7 +230,7 @@ describe("CommandPalette", () => {
     view.rerender(ui(true))
     // A detour: focus moves to a control outside every book while the palette is open.
     act(() => screen.getByText("bare book").focus())
-    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
     expect(ranA).toHaveBeenCalledTimes(1)
     expect(ranB).not.toHaveBeenCalled()
     // Opened from a same-scope region no registration is fenced to: the scope is
@@ -239,7 +239,7 @@ describe("CommandPalette", () => {
     view.rerender(ui(false))
     act(() => screen.getByText("bare book").focus())
     view.rerender(ui(true))
-    expect(rows()).not.toContain("action:panel:book:book.refresh")
+    expect(rows()).not.toContain('action!["panel:book","book.refresh"]')
   })
 
   it("builds the whole row from the answering instance, secondary included", () => {
@@ -300,7 +300,7 @@ describe("CommandPalette", () => {
     // disconnected, both registrations are fenced, so nothing answers.
     view.rerender(ui(false, true))
     view.rerender(ui(true, true))
-    expect(rows()).not.toContain("action:panel:book:book.refresh")
+    expect(rows()).not.toContain('action!["panel:book","book.refresh"]')
     view.unmount()
     // No palette mounted while focus settles on book B: the first subscriber reads
     // where focus already is, so the late-mounted palette still resolves the panel.
@@ -318,7 +318,7 @@ describe("CommandPalette", () => {
         <ComposedPalette actions={actions} open />
       </HotkeysProvider>,
     )
-    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
     expect(ranB).toHaveBeenCalledTimes(1)
     expect(ranA).not.toHaveBeenCalled()
     bare.unmount()
@@ -341,7 +341,7 @@ describe("CommandPalette", () => {
     )
     closedFirst.rerender(withPalette(false))
     closedFirst.rerender(withPalette(true))
-    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
     expect(ranB).toHaveBeenCalledTimes(2)
     expect(ranA).not.toHaveBeenCalled()
   })
@@ -367,11 +367,11 @@ describe("CommandPalette", () => {
     const view = render(ui(false))
     act(() => screen.getByText("bare book").focus())
     view.rerender(ui(true))
-    expect(rows()).not.toContain("action:panel:book:book.refresh")
+    expect(rows()).not.toContain('action!["panel:book","book.refresh"]')
     view.rerender(ui(false))
     act(() => screen.getByText("book A").focus())
     view.rerender(ui(true))
-    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
     expect(ranA).toHaveBeenCalledTimes(1)
   })
 
@@ -395,13 +395,13 @@ describe("CommandPalette", () => {
     const view = render(ui(false))
     act(() => screen.getByText("in the book").focus())
     view.rerender(ui(true))
-    fireEvent.click(document.querySelector('[data-row="action:panel:book:refresh"]')!)
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","refresh"]']`)!)
     expect(scoped).toHaveBeenCalledTimes(1)
     view.rerender(ui(false))
     act(() => screen.getByText("in the book").focus())
     view.rerender(ui(true))
-    const recent = document.querySelector('[data-row^="recent:"]')!
-    expect(recent.getAttribute("data-row")).toBe("recent:panel:book:refresh")
+    const recent = document.querySelector('[data-row^="recent"]')!
+    expect(recent.getAttribute("data-row")).toBe('recent!["panel:book","refresh"]')
     fireEvent.click(recent)
     expect(scoped).toHaveBeenCalledTimes(2)
     expect(global).not.toHaveBeenCalled()
@@ -410,7 +410,7 @@ describe("CommandPalette", () => {
     view.rerender(ui(false))
     act(() => screen.getByText("in the book").focus())
     view.rerender(ui(true))
-    expect(document.querySelector('[data-row^="recent:"]')).not.toBeNull()
+    expect(document.querySelector('[data-row^="recent"]')).not.toBeNull()
   })
 
   it("retires a v1 scope-less recent when its scoped twin is touched, emitting one row", () => {
@@ -430,13 +430,13 @@ describe("CommandPalette", () => {
     const view = render(ui(false))
     act(() => screen.getByText("in the book").focus())
     view.rerender(ui(true))
-    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.cancel"]')!)
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.cancel"]']`)!)
     expect(scoped).toHaveBeenCalledTimes(1)
     expect(actions.recents().filter((r) => r.kind === "action" && r.id === "book.cancel")).toHaveLength(1)
     view.rerender(ui(false))
     act(() => screen.getByText("in the book").focus())
     view.rerender(ui(true))
-    expect([...document.querySelectorAll('[data-row="recent:panel:book:book.cancel"]')]).toHaveLength(1)
+    expect([...document.querySelectorAll(`[data-row='recent!["panel:book","book.cancel"]']`)]).toHaveLength(1)
   })
 
   it("stores and resolves a scope-less recent to the unscoped action, whatever registered first", () => {
@@ -468,6 +468,62 @@ describe("CommandPalette", () => {
     fireEvent.click(recent)
     expect(global).toHaveBeenCalledTimes(2)
     expect(scoped).not.toHaveBeenCalled()
+  })
+
+  it("keeps a live global action's recent beside its scoped sibling, both orders, one row each", () => {
+    // A scope-less entry is a v1 leftover only while no live unscoped registration
+    // owns the id. With the global registered, running the scoped action must not
+    // retire the global's own entry — and the reverse order must not double a row.
+    const actions = createActionRegistry()
+    const global = vi.fn()
+    const scoped = vi.fn()
+    actions.register([
+      { id: "refresh", title: "Refresh all", run: global },
+      { id: "refresh", title: "Refresh book", scope: "panel:book", run: scoped },
+    ])
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    // Global first, then scoped: both entries survive, one row each.
+    fireEvent.click(document.querySelector('[data-row="action:refresh"]')!)
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","refresh"]']`)!)
+    expect(actions.recents()).toHaveLength(2)
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    expect(document.querySelectorAll('[data-row^="recent"]')).toHaveLength(2)
+    const keys = [...document.querySelectorAll('[data-row^="recent"]')].map((el) => el.getAttribute("data-row"))
+    expect(new Set(keys).size).toBe(2)
+    // The global goes away: its scope-less entry now falls back to the scoped action,
+    // landing on the same row as the scoped entry — emitted once, not twice.
+    const lone = createActionRegistry()
+    const scopedOnly = vi.fn()
+    lone.register({ id: "refresh", title: "Refresh book", scope: "panel:book", run: scopedOnly })
+    lone.loadRecents([
+      { kind: "action", id: "refresh" },
+      { kind: "action", id: "refresh", scope: "panel:book" },
+    ])
+    const ui2 = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book 2</button></HotkeyScope>
+        <ComposedPalette actions={lone} open={open} />
+      </HotkeysProvider>
+    )
+    view.unmount()
+    const second = render(ui2(false))
+    act(() => screen.getByText("in the book 2").focus())
+    second.rerender(ui2(true))
+    expect(document.querySelectorAll(`[data-row='recent!["panel:book","refresh"]']`)).toHaveLength(1)
+    expect(document.querySelectorAll('[data-row^="recent"]')).toHaveLength(1)
   })
 
   it("unregisters one copy per call, idempotently, when one object registered twice", () => {
@@ -502,21 +558,21 @@ describe("CommandPalette", () => {
     const view = render(ui(false, true))
     act(() => screen.getByText("book A").focus())
     view.rerender(ui(true, true))
-    expect(rows().filter((row) => row === "action:panel:book:book.refresh")).toHaveLength(1)
-    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
+    expect(rows().filter((row) => row === 'action!["panel:book","book.refresh"]')).toHaveLength(1)
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
     expect(ranA).toHaveBeenCalledTimes(1)
     expect(ranB).not.toHaveBeenCalled()
     view.rerender(ui(false, true))
     act(() => screen.getByText("book B").focus())
     view.rerender(ui(true, true))
-    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
     expect(ranB).toHaveBeenCalledTimes(1)
     expect(ranA).toHaveBeenCalledTimes(1)
     view.rerender(ui(false, false))
     act(() => screen.getByText("book A").focus())
     view.rerender(ui(true, false))
-    expect(rows()).toContain("action:panel:book:book.refresh")
-    fireEvent.click(document.querySelector('[data-row="action:panel:book:book.refresh"]')!)
+    expect(rows()).toContain('action!["panel:book","book.refresh"]')
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
     expect(ranA).toHaveBeenCalledTimes(2)
   })
 })
