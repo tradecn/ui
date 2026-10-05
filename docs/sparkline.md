@@ -60,7 +60,7 @@ In image mode, the accessible name includes the label, direction, last reading, 
 
 ### Gaps
 
-`null`, `undefined`, `NaN`, and infinities break the line. Each reading keeps the x position of its original array index; gaps do not pull later readings left. Indices are evenly spaced, so supply samples at the intervals you want to show. A run containing one reading is a dot, with no area fill. A one-element array places its dot at the horizontal center.
+`null`, `undefined`, `NaN`, and infinities break the line. Each reading keeps the x position of its original array index; gaps do not pull later readings left. Indices are evenly spaced, so supply samples at the intervals you want to show. A run containing one reading is a dot, with no area fill; longer connected runs each get their own fill. A one-element array places its dot at the horizontal center.
 
 The scale spans the finite readings and a finite `baseline`, when present. A constant series sits at the vertical center only when the baseline is absent or equal to that value. Otherwise the baseline expands the range. The dashed baseline stays within that range when there is data; the area fill closes to the plot's bottom, not to the baseline.
 
@@ -70,7 +70,7 @@ An empty array or an array of only gaps draws no series or baseline, sets `data-
 
 Supply both `width` and `height` for a fixed size with no observer. This suits grid columns whose dimensions are already known. If either is omitted, both dimensions come from the measured box; a lone dimension prop does not size it.
 
-Responsive mode defaults to `h-6 w-24`; use `className` or `style` to size the box. Instances share one `ResizeObserver`. The SVG appears after the first size notification, not on a guaranteed frame. Until then, the root is an image, automatic direction is `flat`, and the summary still reports the finite values. Without `ResizeObserver`, a newly mounted responsive sparkline never gets geometry; supply both dimensions in that environment or for server-rendered SVG.
+Responsive mode defaults to `h-6 w-24`; use `className` or `style` to size the box. Instances share one `ResizeObserver`. The SVG appears after the first size notification, not on a guaranteed frame. Until then, the root is an image; automatic direction and the summary read the data itself, so the words are right before the first measurement and in server output. Without `ResizeObserver`, a newly mounted responsive sparkline never gets geometry; supply both dimensions in that environment or for server-rendered SVG.
 
 ### Crosshair
 
@@ -87,7 +87,7 @@ By default the root is an image with no tab stop or built-in keyboard navigation
 | Pointer leave | Hide the crosshair unless the root has focus. |
 | Blur | Hide the crosshair. |
 
-Navigation skips gaps and stops at the ends. If the series shrinks, a selection beyond its end displays the last remaining point. The readout uses `format`, prefixed by `pointLabel(index)` when supplied. The slider's numeric range is `0` through `points.length - 1`, counting only finite readings; `aria-valuetext` contains the readout while a point is active and the full summary otherwise.
+Navigation skips gaps and stops at the ends. The crosshair holds a position, not a reading: under a live sliding window, a parked crosshair names whichever reading occupies its index on each tick. If the series shrinks, a selection beyond its end displays the last remaining point. The readout uses `format`, prefixed by `pointLabel(index)` when supplied. It draws in the 16 px above the chart, so reserve that headroom — the demo uses `pt-5` — or an ancestor that clips overflow, a panel or a grid cell among them, cuts it off. The slider's numeric range is `0` through `points.length - 1`, counting only finite readings; `aria-valuetext` contains the readout while a point is active and the full summary otherwise. The spoken words — up, down, flat, last, low, high, no data — are fixed English. In image mode, override `aria-label` with your own summary and supply `format` and `pointLabel` for localized readings; the slider keeps the English summary as its resting `aria-valuetext` whenever no point is active.
 
 Caller handlers run first. Calling `preventDefault()` in `onKeyDown` cancels built-in keyboard navigation; focus, blur, and pointer handling do not check that flag. The component prevents default for its navigation keys and Escape, with or without Shift; it leaves Ctrl, Cmd, and Alt chords and other keys alone, and does not stop propagation. Outer grids and hotkey dispatchers should respect `defaultPrevented`.
 

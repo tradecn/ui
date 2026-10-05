@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useRef, type HTMLAttributes, type ReactNode } from "react"
+import { useCallback, useRef, type HTMLAttributes, type ReactNode, type Ref } from "react"
 import { useFlash, type FlashOptions } from "@/registry/tradecn/hooks/use-flash"
 
 export interface FlashCellProps extends Omit<HTMLAttributes<HTMLDivElement>, "children">, FlashOptions {
@@ -26,13 +26,30 @@ export function FlashCell({
   disabled,
   now,
   revision,
+  ref: forwardedRef,
   ...rest
-}: FlashCellProps) {
+}: FlashCellProps & { ref?: Ref<HTMLDivElement> }) {
   const ref = useRef<HTMLDivElement>(null)
   useFlash(ref, value, { windowMs, variant, compare, flashOnEqual, memory, cellKey, disabled, now, revision })
+  // A trigger's asChild, a render prop, or a spreading wrapper injects a ref of its own; it
+  // merges with the flash target instead of silently replacing it.
+  const rootRef = useCallback((node: HTMLDivElement | null) => {
+    ref.current = node
+    if (typeof forwardedRef === "function") {
+      const cleanup = forwardedRef(node)
+      return () => {
+        if (typeof cleanup === "function") cleanup()
+        else forwardedRef(null)
+      }
+    }
+    if (forwardedRef) forwardedRef.current = node
+    return () => {
+      if (forwardedRef && typeof forwardedRef !== "function") forwardedRef.current = null
+    }
+  }, [forwardedRef])
   return (
     <div
-      ref={ref}
+      ref={rootRef}
       data-slot="tradecn-flash-cell"
       data-variant={variant}
       data-numeric=""

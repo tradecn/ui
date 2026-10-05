@@ -151,14 +151,23 @@ export function createFrameSampler(options: FrameSamplerOptions = {}): FrameSamp
     for (const cb of listeners) cb()
   }
 
-  const tick = (t: number) => {
-    if (last >= 0) {
-      ring[head] = t - last
-      head = (head + 1) % size
-      if (count < size) count++
+  // Each start owns a generation: when caf cannot reach a frame the raf issued — a
+  // popout's frame cancelled through the opener — the stale callback must die on arrival,
+  // and a stop-start replay (StrictMode's, among others) must not revive it, or every
+  // restart would stack another loop reading half gaps.
+  let generation = 0
+  const tickFor = (mine: number) => {
+    const tick = (t: number) => {
+      if (mine !== generation || !running) return
+      if (last >= 0) {
+        ring[head] = t - last
+        head = (head + 1) % size
+        if (count < size) count++
+      }
+      last = t
+      frame = raf(tick)
     }
-    last = t
-    frame = raf(tick)
+    return tick
   }
 
   return {
@@ -170,9 +179,12 @@ export function createFrameSampler(options: FrameSamplerOptions = {}): FrameSamp
       running = true
       last = -1
       since = now()
-      frame = raf(tick)
+      frame = raf(tickFor(++generation))
       timer = setTimer(refresh, refreshMs)
-      if (observe && typeof PerformanceObserver !== "undefined") {
+      // The spec ignores an unsupported entry type with a console warning, not an exception,
+      // so observe() returning says nothing: ask the support list, or a browser without long
+      // tasks would report a measured zero.
+      if (observe && typeof PerformanceObserver !== "undefined" && PerformanceObserver.supportedEntryTypes?.includes("longtask")) {
         try {
           observer = new PerformanceObserver((list) => {
             longTasks += list.getEntries().length
@@ -188,6 +200,7 @@ export function createFrameSampler(options: FrameSamplerOptions = {}): FrameSamp
     stop() {
       if (!running) return
       running = false
+      generation++
       caf(frame)
       if (timer !== null) clearTimer(timer)
       timer = null

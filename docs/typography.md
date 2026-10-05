@@ -66,7 +66,7 @@ The themes install the size, line-height, weight, and body-color tokens below, a
 
 ## Accessibility mode
 
-Load Atkinson Hyperlegible Next and Mono, then put `data-accessibility="hyperlegible"` on `<html>`:
+Load Atkinson Hyperlegible Next and Mono, then put `data-accessibility="hyperlegible"` on `<html>`. Installs write the font tokens into `.dark` as well as `:root`, so an element carrying the `dark` class inside a hyperlegible page resets the fonts to the defaults within it; switch modes on `<html>` rather than nesting a `dark` wrapper when accessibility mode matters:
 
 ```html
 <html data-accessibility="hyperlegible">

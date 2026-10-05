@@ -128,13 +128,16 @@ export function checkLimits(draft: LimitsDraft, limits: Limits | undefined, cont
   const labels = { ...DEFAULT_LIMITS_LABELS, ...context.labels }
   const problems: Problem[] = []
   const quantity = draft.quantity
+  // A fractional size prints exactly, or the prompt would round the trader's own number and
+  // the limit into a lie such as "10 is above the size limit of 10".
+  const size = (v: number) => (Number.isInteger(v) ? formatQuantity(v) : String(v).replace("-", "−"))
   if (typeof quantity === "number" && Number.isFinite(quantity)) {
     const max = thresholds(limits.maxQuantity)
-    if (max.block !== undefined && quantity > max.block) problems.push({ field: "quantity", level: "block", rule: "maxQuantity", message: fill(labels.quantityAbove, { n: formatQuantity(quantity), max: formatQuantity(max.block) }) })
-    else if (max.confirm !== undefined && quantity > max.confirm) problems.push({ field: "quantity", level: "confirm", rule: "maxQuantity", message: fill(labels.quantityAboveConfirm, { n: formatQuantity(quantity), max: formatQuantity(max.confirm) }) })
+    if (max.block !== undefined && quantity > max.block) problems.push({ field: "quantity", level: "block", rule: "maxQuantity", message: fill(labels.quantityAbove, { n: size(quantity), max: size(max.block) }) })
+    else if (max.confirm !== undefined && quantity > max.confirm) problems.push({ field: "quantity", level: "confirm", rule: "maxQuantity", message: fill(labels.quantityAboveConfirm, { n: size(quantity), max: size(max.confirm) }) })
     const min = thresholds(limits.minQuantity)
-    if (min.block !== undefined && quantity < min.block) problems.push({ field: "quantity", level: "block", rule: "minQuantity", message: fill(labels.quantityBelow, { n: formatQuantity(quantity), min: formatQuantity(min.block) }) })
-    else if (min.confirm !== undefined && quantity < min.confirm) problems.push({ field: "quantity", level: "confirm", rule: "minQuantity", message: fill(labels.quantityBelowConfirm, { n: formatQuantity(quantity), min: formatQuantity(min.confirm) }) })
+    if (min.block !== undefined && quantity < min.block) problems.push({ field: "quantity", level: "block", rule: "minQuantity", message: fill(labels.quantityBelow, { n: size(quantity), min: size(min.block) }) })
+    else if (min.confirm !== undefined && quantity < min.confirm) problems.push({ field: "quantity", level: "confirm", rule: "minQuantity", message: fill(labels.quantityBelowConfirm, { n: size(quantity), min: size(min.confirm) }) })
   }
   if (limits.maxDistance) {
     const rule = limits.maxDistance

@@ -120,7 +120,7 @@ Keep one `createFlashMemory()` outside the virtualized cells and give each row/c
 
 ### The hook
 
-`useFlash<E extends HTMLElement>(ref: RefObject<E | null>, value: unknown, options?: FlashOptions): void` from `@/hooks/use-flash` flashes your own element. It takes `value` as its second argument and the flash options from the prop table as its third, including `color`. `children` and div attributes belong to the component.
+`useFlash<E extends HTMLElement>(ref: RefObject<E | null>, value: unknown, options?: FlashOptions): void` from `@/hooks/use-flash` flashes your own element. It takes `value` as its second argument and the flash options from the prop table as its third, including `color`. `children` and div attributes belong to the component. A caller `ref` — your own, or one a wrapping trigger injects — merges with the flash target instead of replacing it.
 
 Give your element CSS for its `data-direction` states to make the static fallback visible. In reduced motion or without Web Animations, the hook sets only the attribute; it does not apply inline color. A custom `color`, such as `var(--primary)`, changes animated keyframes only, so supply matching fallback styles yourself.
 

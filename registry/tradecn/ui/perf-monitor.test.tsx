@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react"
+import { act, render, screen, within } from "@testing-library/react"
 import { createRef, StrictMode, type ComponentProps } from "react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
@@ -343,10 +343,41 @@ describe("PerfMonitor composition", () => {
     expect(sampler.started).toBe(sampler.stopped)
   })
 
+  it("prints n/a where the browser cannot observe long tasks", () => {
+    // The spec ignores an unsupported entry type without throwing, so a browser without
+    // longtask support would otherwise report a measured zero forever.
+    vi.stubGlobal("PerformanceObserver", class {
+      static supportedEntryTypes = ["mark", "measure"]
+      disconnect = vi.fn()
+      observe = vi.fn()
+    })
+
+    const timers = new Set<() => void>()
+    const sampler = createFrameSampler({ raf: () => 42, caf: vi.fn(), setTimer: (cb) => { timers.add(cb); return cb }, clearTimer: (id) => { timers.delete(id as () => void) } })
+    render(<PerfMonitor sampler={sampler}><PerfMonitorValue metric="long" /></PerfMonitor>)
+    // Refreshed: the report now carries whether long tasks were ever observable.
+    act(() => timers.forEach((tick) => tick()))
+    expect(screen.getByText("n/a")).toBeInTheDocument()
+    expect(screen.queryByText("0")).toBeNull()
+    vi.unstubAllGlobals()
+    // An observer lacking the support list entirely reads n/a the same way.
+    vi.stubGlobal("PerformanceObserver", class {
+      disconnect = vi.fn()
+      observe = vi.fn()
+    })
+    const timers2 = new Set<() => void>()
+    const sampler2 = createFrameSampler({ raf: () => 43, caf: vi.fn(), setTimer: (cb) => { timers2.add(cb); return cb }, clearTimer: (id) => { timers2.delete(id as () => void) } })
+    const second = render(<PerfMonitor sampler={sampler2}><PerfMonitorValue metric="long" /></PerfMonitor>)
+    act(() => timers2.forEach((tick) => tick()))
+    expect(within(second.container).getByText("n/a")).toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
+
   it("disconnects real sampler observers and cancels timers through effect replay and unmount", () => {
     const observers: { receive: (list: { getEntries(): unknown[] }) => void; disconnect: ReturnType<typeof vi.fn> }[] = []
     const observe = vi.fn()
     vi.stubGlobal("PerformanceObserver", class {
+      static supportedEntryTypes = ["longtask"]
       disconnect = vi.fn()
       observe = observe
       constructor(receive: (list: { getEntries(): unknown[] }) => void) { observers.push({ receive, disconnect: this.disconnect }) }

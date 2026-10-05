@@ -107,3 +107,16 @@ describe("the market side and the distance", () => {
     expect(distanceFromMarket(101, 100, undefined)).toEqual({ value: 1, unit: "ticks" })
   })
 })
+
+it("prints a negative fractional size exactly, minus sign typographic", () => {
+  const problems = checkLimits({ side: "sell", quantity: -2.5, price: null }, { minQuantity: { block: 0 } }, {})
+  expect(problems[0]?.message).toContain("−2.5")
+})
+
+it("prints a fractional size exactly", () => {
+  // The decision was always right; the prompt was not: a 2.5 against a confirm of 2 must
+  // not read as 3 above 2.
+  const problems = checkLimits({ side: "buy", quantity: 2.5, price: null }, { maxQuantity: { confirm: 2 } }, {})
+  expect(problems[0]?.message).toContain("2.5")
+  expect(problems[0]?.message).not.toContain("3")
+})
