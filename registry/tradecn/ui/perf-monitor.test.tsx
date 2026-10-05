@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react"
+import { act, render, screen, within } from "@testing-library/react"
 import { createRef, StrictMode, type ComponentProps } from "react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
@@ -351,6 +351,7 @@ describe("PerfMonitor composition", () => {
       disconnect = vi.fn()
       observe = vi.fn()
     })
+
     const timers = new Set<() => void>()
     const sampler = createFrameSampler({ raf: () => 42, caf: vi.fn(), setTimer: (cb) => { timers.add(cb); return cb }, clearTimer: (id) => { timers.delete(id as () => void) } })
     render(<PerfMonitor sampler={sampler}><PerfMonitorValue metric="long" /></PerfMonitor>)
@@ -358,6 +359,17 @@ describe("PerfMonitor composition", () => {
     act(() => timers.forEach((tick) => tick()))
     expect(screen.getByText("n/a")).toBeInTheDocument()
     expect(screen.queryByText("0")).toBeNull()
+    vi.unstubAllGlobals()
+    // An observer lacking the support list entirely reads n/a the same way.
+    vi.stubGlobal("PerformanceObserver", class {
+      disconnect = vi.fn()
+      observe = vi.fn()
+    })
+    const timers2 = new Set<() => void>()
+    const sampler2 = createFrameSampler({ raf: () => 43, caf: vi.fn(), setTimer: (cb) => { timers2.add(cb); return cb }, clearTimer: (id) => { timers2.delete(id as () => void) } })
+    const second = render(<PerfMonitor sampler={sampler2}><PerfMonitorValue metric="long" /></PerfMonitor>)
+    act(() => timers2.forEach((tick) => tick()))
+    expect(within(second.container).getByText("n/a")).toBeInTheDocument()
     vi.unstubAllGlobals()
   })
 

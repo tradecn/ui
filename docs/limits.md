@@ -146,7 +146,7 @@ Pass `context.labels` to `checkLimits` to override any string in `DEFAULT_LIMITS
 | `buy`, `sell` | `buy`, `sell` |
 | `ticks`, `bps` | `ticks`, `bp` |
 
-Quantity templates receive `{n}` and `{max}` or `{min}`, formatted by `formatQuantity`. Distance templates receive the raw field name (`price`, `bid`, or `ask`), plus `{distance}` and `{max}` formatted by `formatTicks` without a positive sign and with the translated unit appended. `{side}` uses the `buy` or `sell` label. RfqTicket's Offer field therefore reads as `ask` in the default English messages, and only a direct `checkLimits` caller can supply templates — shared by every distance field, so renaming one side means dropping `{field}`, checking each side in its own call, or rewriting messages by `problem.field`.
+Quantity templates receive `{n}` and `{max}` or `{min}` — whole sizes print with digit grouping through `formatQuantity`, fractional sizes exactly. Distance templates receive the raw field name (`price`, `bid`, or `ask`), plus `{distance}` and `{max}` formatted by `formatTicks` without a positive sign and with the translated unit appended. `{side}` uses the `buy` or `sell` label. RfqTicket's Offer field therefore reads as `ask` in the default English messages, and only a direct `checkLimits` caller can supply templates — shared by every distance field, so renaming one side means dropping `{field}`, checking each side in its own call, or rewriting messages by `problem.field`.
 
 Custom messages are returned unchanged. Ticket and RfqTicket do not pass labels into `checkLimits`; their own `labels` props control ticket text, not these templates.
 

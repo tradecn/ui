@@ -85,6 +85,19 @@ describe("createFrameSampler", () => {
     expect(sampler.report()).toBe(report)
   })
 
+  it("dies on the next tick when cancel cannot reach its frame", () => {
+    // A popout's frame id cancelled through the opener does nothing: the loop must still
+    // end itself, or every restart stacks another loop reading half gaps.
+    const ticks: FrameRequestCallback[] = []
+    const raf = vi.fn((cb: FrameRequestCallback) => ticks.push(cb))
+    const sampler = createFrameSampler({ raf: raf as unknown as (cb: FrameRequestCallback) => number, caf: () => {}, setTimer: () => 0, clearTimer: () => {} })
+    sampler.start()
+    const scheduled = raf.mock.calls.length
+    sampler.stop()
+    ticks.at(-1)!(16)
+    expect(raf.mock.calls.length).toBe(scheduled)
+  })
+
   it("keeps only the last frames of the window, forgets on reset, and stops cleanly", () => {
     const { sampler, frame, refresh, cleared } = rig({ window: 3 })
     sampler.start()

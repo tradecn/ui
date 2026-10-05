@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
+import { createPortal } from "react-dom"
 import { createRef } from "react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -15,6 +16,32 @@ const fixed = { width: 104, height: 24 }
 const slot = () => document.querySelector<HTMLElement>("[data-slot='tradecn-sparkline']")!
 
 describe("Sparkline", () => {
+  it("keeps the crosshair on pointer leave while its own document holds focus", () => {
+    // A popout's chart lives in another document: the opener's activeElement never holds
+    // it, so the check must read the chart's own document, as the data-grid does.
+    const frame = document.createElement("iframe")
+    document.body.append(frame)
+    const body = frame.contentDocument!.body
+    const view = render(createPortal(<Sparkline values={[100, 99, 101.5]} label="Away" interactive {...fixed} />, body))
+    const chart = body.querySelector<HTMLElement>("[data-slot='tradecn-sparkline']")!
+    act(() => chart.focus())
+    fireEvent.pointerMove(chart, { clientX: 50, clientY: 10 })
+    fireEvent.pointerLeave(chart)
+    // Focused in its own document: the crosshair stays, and the slider still names a point.
+    expect(chart.getAttribute("aria-valuetext")).not.toContain("up, last")
+    view.unmount()
+    frame.remove()
+  })
+
+  it("keeps the crosshair on pointer leave while focused in one document", () => {
+    render(<Sparkline values={[100, 99, 101.5]} label="Here" interactive {...fixed} />)
+    const chart = document.querySelector<HTMLElement>("[data-slot='tradecn-sparkline']")!
+    act(() => chart.focus())
+    fireEvent.pointerMove(chart, { clientX: 50, clientY: 10 })
+    fireEvent.pointerLeave(chart)
+    expect(chart.getAttribute("aria-valuetext")).not.toContain("up, last")
+  })
+
   it("speaks the real direction before the first measurement", () => {
     // No size yet: the geometry is empty, but the data is not, and the words come from the
     // data — server output and the pre-measurement frame say up for a rising series.

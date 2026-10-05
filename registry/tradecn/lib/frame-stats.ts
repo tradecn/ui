@@ -152,6 +152,10 @@ export function createFrameSampler(options: FrameSamplerOptions = {}): FrameSamp
   }
 
   const tick = (t: number) => {
+    // A stopped sampler schedules nothing more: when caf cannot reach a frame the raf
+    // issued — a popout's frame cancelled through the opener — the loop must still die
+    // here, or every restart would stack another loop and halve the gaps.
+    if (!running) return
     if (last >= 0) {
       ring[head] = t - last
       head = (head + 1) % size

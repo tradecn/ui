@@ -34,7 +34,7 @@ export default function PerfMonitorDemo() {
 }
 ```
 
-Mount the monitor in the view you want to measure. It starts sampling after mount and reports four times a second, so an initial empty reading fills in as frames arrive. Animation frames pause while the tab is hidden, and the first frame back records the whole pause as one gap: it counts as dropped and skews the percentiles and max until it leaves the window, so stop the sampler around a deliberate hide when that matters. In a popout, the default sampler ticks on the opener's frames; pass a sampler created with the popout window's own `requestAnimationFrame` to measure the popout.
+Mount the monitor in the view you want to measure. It starts sampling after mount and reports four times a second, so an initial empty reading fills in as frames arrive. Animation frames pause while the tab is hidden, and the first frame back records the whole pause as one gap: it counts as dropped and skews the percentiles and max until it leaves the window, so stop the sampler around a deliberate hide when that matters. In a popout, the default sampler ticks on the opener's frames; pass a sampler created with the popout window's own `requestAnimationFrame` and `cancelAnimationFrame` — and its timers through `setTimer` and `clearTimer` — to measure the popout, or stop cancels through the wrong window and the report throttles while the opener hides.
 
 The histogram and numbers show measurements from your browser. The width here lets the readouts wrap on narrow screens.
 
