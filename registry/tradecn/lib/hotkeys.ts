@@ -8,8 +8,9 @@
 // Scope is where the key came from. The chain runs from the event target outward through every
 // `[data-hotkey-scope]` ancestor, then `editing`, then `global`, and the innermost match wins.
 // Typing is protected: inside an input only `editing` bindings run. Menus and listboxes own every
-// key while they have focus. A dialog is a wall: only scopes declared inside it are active, so a
-// single-key binding cannot fire under a modal confirmation.
+// key while they have focus. A dialog is a wall while focus is inside it: only scopes declared
+// inside it are active. Keys typed in the gap before a dialog takes focus land on the page,
+// where single-key bindings still run — the command palette's early capture shows the fix.
 
 export type Platform = "mac" | "other"
 

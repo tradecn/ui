@@ -209,15 +209,15 @@ Search trims the query and matches case-insensitive substrings of the descriptio
 
 | Control | Behavior |
 |---|---|
-| Capture | Records one key with its modifiers through `keysFromEvent`. Bare modifiers and other ignored keys leave capture open. Escape cancels. Backspace or Delete unbinds, even with modifiers held. |
+| Capture | Records one key with its modifiers through `keysFromEvent`. Bare modifiers and other ignored keys leave capture open. Escape cancels, and a Tab cancels and moves on unless Ctrl or Meta is held — Shift reverses and Option is Safari's tab-to-all-controls move, so a Tab-away must never become a live binding. Bare Enter and Space are refused too; Shift, Ctrl, Meta, or Alt makes them recordable. Backspace or Delete unbinds, even with modifiers held. |
 | Text | Join modifiers and a key with `+` (`mod+k`). Separate chord steps with spaces (`g b`). Enter commits, Escape cancels, and an empty field unbinds. Parse errors leave the binding unchanged. |
 | Reset | Removes the binding's override. Reset all also removes hidden and unregistered overrides. |
 
 Blur cancels an unfinished edit and clears its validation message.
 
-Capture consumes every keydown. Text editing stops keydown propagation to application handlers and prevents default behavior for Enter and Escape.
+Capture consumes every keydown except a leaving Tab. Text editing stops keydown propagation to application handlers and prevents default behavior for Enter and Escape.
 
-Use text to enter chords or Escape, Backspace, and Delete bindings.
+Use text to enter chords or bindings capture refuses: Escape, Backspace, Delete, bare Enter and Space, and leaving Tabs — Ctrl or Meta records a Tab too.
 
 Commit and Escape return focus to the initiating control, or the item if that control is unavailable. Blur preserves the destination's focus.
 
@@ -266,7 +266,7 @@ Persist imports separately because `load` does not call `onChange`.
 | `title`, `search` | `Keyboard shortcuts`, `Find a shortcut` |
 | `change`, `edit`, `reset` | `Change`, `Type it`, `Reset` |
 | `pressKeys`, `unbound`, `keysFor` | `Press the new shortcut`, `unbound`, `Keys for` |
-| `cancelHint` | `Escape cancels, Backspace unbinds` |
+| `cancelHint` | `Escape cancels, Tab moves on, Backspace unbinds` |
 | `notKeys` | `Not a shortcut. Write keys joined by +, steps of a chord separated by a space: mod+k, g b.` |
 | `duplicate`, `prefix`, `shadow` | See Conflicts. |
 

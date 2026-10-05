@@ -98,6 +98,62 @@ describe("HotkeyEditor", () => {
     expect(row("go.blotter").dataset.remapped).toBeUndefined()
   })
 
+  it("refuses Tab, Enter, and Space as bindings: Tab leaves capture, the others wait", () => {
+    // A Tab-away must never become a live binding on a destructive action: the next
+    // Tab on the focused Change button would run it. This pins that capture closes,
+    // nothing commits, and the event keeps its default, so the browser's own Tab
+    // navigation proceeds (the real move is browser behavior, exercised in the smoke
+    // spec). Bare Enter and Space are refused the same way; Shift, Ctrl, Meta, or Alt
+    // makes them recordable, while Tab leaves under Shift and Option too — only Ctrl
+    // or Meta records a Tab.
+    const { registry } = mount()
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    let capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    const tab = fireEvent.keyDown(capture, { key: "Tab", code: "Tab" })
+    expect(tab).toBe(true)
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(keysOf("book.cancel")).toBe("x")
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Shift", code: "ShiftLeft", shiftKey: true })
+    fireEvent.keyDown(capture, { key: "Tab", code: "Tab", shiftKey: true })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(keysOf("book.cancel")).toBe("x")
+    // Option+Tab is Safari's tab-to-all-controls move: it leaves too.
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Tab", code: "Tab", altKey: true })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(keysOf("book.cancel")).toBe("x")
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Enter", code: "Enter" })
+    fireEvent.keyDown(capture, { key: " ", code: "Space" })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).not.toBeNull()
+    expect(keysOf("book.cancel")).toBe("x")
+    fireEvent.keyDown(capture, { key: "Enter", code: "Enter", shiftKey: true })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(keysOf("book.cancel")).toBe("shift+enter")
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Enter", code: "Enter", ctrlKey: true })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(keysOf("book.cancel")).toBe("ctrl+enter")
+    // Ctrl or Meta records a Tab: the leaving exception must not swallow these.
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Tab", code: "Tab", ctrlKey: true })
+    expect(keysOf("book.cancel")).toBe("ctrl+tab")
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Tab", code: "Tab", metaKey: true })
+    expect(keysOf("book.cancel")).toBe("meta+tab")
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Delete", code: "Delete" })
+    expect(registry.list().find((e) => e.id === "book.cancel")?.keys).toBe("")
+  })
+
   it("Escape cancels a capture, a bare modifier is not a shortcut, and Backspace unbinds", () => {
     const { registry } = mount()
     fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
@@ -433,7 +489,7 @@ describe("composition and migration", () => {
     render(<HotkeysProvider registry={registry}><HotkeyEditor><p id="help">Choose a shortcut</p><HotkeyEditorItem bindingId="palette.open"><HotkeyEditorChange>Change</HotkeyEditorChange><HotkeyEditorCapture aria-describedby="help" /><HotkeyEditorKeys /><HotkeyEditorProblem /></HotkeyEditorItem></HotkeyEditor></HotkeysProvider>)
     fireEvent.click(screen.getByRole("button", { name: "Change: Open the command palette" }))
     const capture = document.querySelector<HTMLElement>("[data-hotkey-capture]")!
-    expect(capture).toHaveAccessibleDescription("Choose a shortcut Escape cancels, Backspace unbinds")
+    expect(capture).toHaveAccessibleDescription("Choose a shortcut Escape cancels, Tab moves on, Backspace unbinds")
     // A lone modifier still cannot commit: the capture stays, with the problem linked to the field.
     fireEvent.keyDown(capture, { key: "Super" })
     expect(document.querySelector("[data-hotkey-capture]")).toBe(capture)

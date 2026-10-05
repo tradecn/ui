@@ -14,6 +14,8 @@ export interface PaletteAction {
   subtitle?: string
   /** A hotkey scope, `panel:book`. The action is offered only when the palette is opened from inside that scope. Omit for everywhere. */
   scope?: string
+  /** The panel instance that owns a scoped action: a getter for an element that CONTAINS wherever focus rests in that panel, the HotkeyScope element itself — `useHotkeyScope()` hands it over. A root inside the scope misses clicks that focus the scope div. With several panels sharing one scope, the containing instance runs; registrations without it fall back to the latest. */
+  within?: () => Element | null
   keywords?: readonly string[]
   /** The heading the row sits under. */
   group?: string
@@ -41,10 +43,10 @@ export interface SymbolSearchAdapter {
   debounceMs?: number
 }
 
-export type PaletteRecent = { kind: "action"; id: string } | { kind: "symbol"; symbol: SymbolResult }
+export type PaletteRecent = { kind: "action"; id: string; scope?: string } | { kind: "symbol"; symbol: SymbolResult }
 
 export interface ActionRegistry {
-  /** Returns the unregister. An action with an id already present replaces it. */
+  /** Returns the unregister, which removes one copy of each action this call added. Same-id registrations stack; rows show the instance that answers. */
   register(actions: PaletteAction | readonly PaletteAction[]): () => void
   /** Stable array reference until something changes. */
   list(): readonly PaletteAction[]
@@ -58,11 +60,11 @@ export interface ActionRegistry {
   subscribe(cb: () => void): () => void
 }
 
-const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${r.id}` : `symbol:${r.symbol.symbol}:${r.symbol.exchange ?? ""}`)
+const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${JSON.stringify([r.scope || null, r.id])}` : `symbol:${JSON.stringify([r.symbol.symbol, r.symbol.exchange || null])}`)
 
 export function createActionRegistry(options: { maxRecents?: number } = {}): ActionRegistry {
   const maxRecents = options.maxRecents ?? 8
-  const actions = new Map<string, PaletteAction>()
+  const actions = new Map<string, PaletteAction[]>()
   const listeners = new Set<() => void>()
   const recentListeners = new Set<(recents: readonly PaletteRecent[]) => void>()
   let snapshot: readonly PaletteAction[] | null = null
@@ -76,20 +78,39 @@ export function createActionRegistry(options: { maxRecents?: number } = {}): Act
   return {
     register(input) {
       const added = Array.isArray(input) ? (input as readonly PaletteAction[]) : [input as PaletteAction]
-      for (const action of added) actions.set(action.id, action)
+      for (const action of added) actions.set(action.id, [...(actions.get(action.id) ?? []), action])
       emit()
+      let undone = false
       return () => {
-        // Only what this call registered: a later registration under the same id is someone else's.
+        // Only what this call registered, once: another instance's registration under the
+        // same id stays, and a second call is a no-op.
+        if (undone) return
+        undone = true
         let changed = false
-        for (const action of added) if (actions.get(action.id) === action) changed = actions.delete(action.id) || changed
+        for (const action of added) {
+          const instances = actions.get(action.id)
+          if (!instances) continue
+          // One copy per call: a shared action object registered twice keeps its other copy.
+          const at = instances.lastIndexOf(action)
+          if (at < 0) continue
+          const rest = [...instances.slice(0, at), ...instances.slice(at + 1)]
+          if (rest.length) actions.set(action.id, rest)
+          else actions.delete(action.id)
+          changed = true
+        }
         if (changed) emit()
       }
     },
-    list: () => (snapshot ??= [...actions.values()]),
+    list: () => (snapshot ??= [...actions.values()].flat()),
     recents: () => recents,
     touch(recent) {
       const key = recentKey(recent)
-      recents = [recent, ...recents.filter((r) => recentKey(r) !== key)].slice(0, maxRecents)
+      // Running a scoped action retires the scope-less entry old versions persisted
+      // for the same id — but only while no live unscoped registration owns that id,
+      // since a current global action's entry is not a leftover.
+      const leftover = recent.kind === "action" && !!recent.scope && !(actions.get(recent.id) ?? []).some((a) => !a.scope)
+      const stale = (r: PaletteRecent) => recentKey(r) === key || (leftover && r.kind === "action" && r.id === recent.id && !r.scope)
+      recents = [recent, ...recents.filter((r) => !stale(r))].slice(0, maxRecents)
       for (const cb of listeners) cb()
       for (const cb of recentListeners) cb(recents)
     },
@@ -219,11 +240,15 @@ const SLOT = "tradecn-command-palette"
 // Where focus last was outside any palette, as a scope chain. It decides which scoped actions are
 // on offer, and it has to be read before the palette takes focus for itself.
 let focusScopes = AMBIENT_SCOPES
+// The focused element itself, for telling apart panel instances that share a scope name.
+// Read when a row runs, never subscribed to.
+let focusElement: Element | null = null
 const focusListeners = new Set<() => void>()
 
 function onFocusIn(event: globalThis.FocusEvent) {
   const target = event.target as Element | null
   if (target && typeof target.closest === "function" && target.closest(`[data-slot="${SLOT}"]`)) return
+  focusElement = target
   const next = scopeChain(target).join(" ")
   if (next === focusScopes) return
   focusScopes = next
@@ -234,7 +259,9 @@ function subscribeFocusScopes(cb: () => void) {
   if (!focusListeners.size) {
     // Nobody was listening, so whatever was remembered is stale. Start from where focus is now.
     const focused = document.activeElement
-    focusScopes = focused?.closest(`[data-slot="${SLOT}"]`) ? AMBIENT_SCOPES : scopeChain(focused).join(" ")
+    const outside = focused?.closest(`[data-slot="${SLOT}"]`) ? null : focused
+    focusElement = outside
+    focusScopes = outside ? scopeChain(outside).join(" ") : AMBIENT_SCOPES
     document.addEventListener("focusin", onFocusIn)
   }
   focusListeners.add(cb)
@@ -243,6 +270,8 @@ function subscribeFocusScopes(cb: () => void) {
     if (!focusListeners.size) document.removeEventListener("focusin", onFocusIn)
   }
 }
+
+const getFocusElement = () => focusElement
 
 const getFocusScopes = () => focusScopes
 const getServerFocusScopes = () => AMBIENT_SCOPES
@@ -280,6 +309,7 @@ interface PaletteRootState {
   hotkeys: HotkeyRegistry | null
   ownBindingId: string | null
   scopes: string
+  capturedEl: Element | null
   open: boolean
   setOpen: (open: boolean) => void
   inputRef: { current: HTMLInputElement | null }
@@ -336,7 +366,7 @@ function usePaletteRef<T>(localRef: { current: T | null }, forwardedRef: Ref<T> 
 export type CommandPaletteContentProps = Omit<ComponentProps<typeof Command>, "children" | "shouldFilter"> & { children: ReactNode }
 
 export function CommandPaletteContent({ children, ref, className, onKeyDown: onKeyDownProp, onBlur, ...props }: CommandPaletteContentProps) {
-  const { options, labels, hotkeys, ownBindingId, scopes, open, setOpen, inputRef } = usePaletteRoot()
+  const { options, labels, hotkeys, ownBindingId, scopes, capturedEl, open, setOpen, inputRef } = usePaletteRoot()
   const { actions, symbols, onSymbolSelect, symbolSecondary, goBarGrammar, variant = "palette" } = options
   const root = useRef<HTMLDivElement>(null)
   const contentRef = usePaletteRef(root, ref)
@@ -388,8 +418,25 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   const keysOf = new Map(entries.map((e) => [e.id, e.keys]))
   const scopeLabel = (scope: string) => scope.replace(/^panel:/, "")
 
+  // With several panel instances sharing a scope, the one whose within() contains the
+  // element focus froze on at opening answers — the fence rule, applied to actions. A
+  // fenced registration never answers outside its element; registrations without within
+  // fall back latest-first. The whole row is built from the resolved instance, so its
+  // label, keys, and secondary never belong to another panel.
+  // An empty scope string means unscoped wherever scopes are compared or keyed.
+  const scopeOf = (a: { scope?: string }) => a.scope || undefined
+  const instanceOf = (action: PaletteAction): PaletteAction | null => {
+    const instances = list.filter((a) => a.id === action.id && scopeOf(a) === scopeOf(action))
+    if (capturedEl?.isConnected) for (let i = instances.length - 1; i >= 0; i--) {
+      const root = instances[i]!.within?.()
+      if (root?.contains(capturedEl)) return instances[i]!
+    }
+    for (let i = instances.length - 1; i >= 0; i--) if (!instances[i]!.within) return instances[i]!
+    return null
+  }
   const actionRow = (action: PaletteAction, prefix: string, recent: PaletteRecent | null): PaletteRow => ({
-    key: `${prefix}:${action.id}`,
+    // A scoped key is a JSON tuple behind its own marker, so no unscoped id can spell it.
+    key: action.scope ? `${prefix}!${JSON.stringify([action.scope, action.id])}` : `${prefix}:${action.id}`,
     title: action.title,
     subtitle: action.subtitle,
     badge: action.scope ? scopeLabel(action.scope) : undefined,
@@ -399,7 +446,9 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     recent,
   })
   const symbolRow = (symbol: SymbolResult, prefix: string): PaletteRow => ({
-    key: `${prefix}:${symbol.symbol}:${symbol.exchange ?? ""}`,
+    // The same marked JSON spelling as scoped action rows: colons in a symbol or an
+    // empty exchange cannot collide two instruments onto one key.
+    key: `${prefix}!${JSON.stringify([symbol.symbol, symbol.exchange || null])}`,
     title: symbol.symbol,
     subtitle: [symbol.name, symbol.exchange].filter(Boolean).join(" · ") || undefined,
     badge: symbol.kind,
@@ -408,25 +457,51 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     recent: { kind: "symbol", symbol },
   })
 
-  const offered = list.filter((a) => !a.scope || active.has(a.scope))
+  // One row per action id and scope: the instance that answers, resolved once against
+  // the frozen capture. An action fenced to panels that never contained it stays off.
+  const seen = new Set<string>()
+  const offered: PaletteAction[] = []
+  for (const a of list) {
+    if (a.scope && !active.has(a.scope)) continue
+    const key = JSON.stringify([scopeOf(a) ?? null, a.id])
+    if (seen.has(key)) continue
+    seen.add(key)
+    const resolved = instanceOf(a)
+    if (resolved) offered.push(resolved)
+  }
   const sections: MutablePaletteGroup[] = []
   if (!query) {
     const rows: PaletteRow[] = []
+    const emittedRecents = new Set<string>()
     for (const recent of recents) {
-      if (recent.kind === "symbol") rows.push(symbolRow(recent.symbol, "recent-symbol"))
+      if (recent.kind === "symbol") {
+        const row = symbolRow(recent.symbol, "recent-symbol")
+        if (!emittedRecents.has(row.key)) {
+          emittedRecents.add(row.key)
+          rows.push(row)
+        }
+      }
       else {
-        const action = offered.find((a) => a.id === recent.id)
-        if (action) rows.push(actionRow(action, "recent", recent))
+        const action = offered.find((a) => a.id === recent.id && scopeOf(a) === scopeOf(recent)) ?? (scopeOf(recent) === undefined && !list.some((a) => a.id === recent.id && !a.scope) ? offered.find((a) => a.id === recent.id) : undefined)
+        if (action) {
+          // The row's identity is the resolved action's, so running a v1 scope-less
+          // entry saves the scope it ran in and retires the old spelling.
+          const row = actionRow(action, "recent", { kind: "action", id: action.id, scope: scopeOf(action) })
+          if (!emittedRecents.has(row.key)) {
+            emittedRecents.add(row.key)
+            rows.push(row)
+          }
+        }
       }
     }
     if (rows.length) sections.push({ id: "recent", heading: labels.recent, rows })
-    for (const action of offered) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id }))
+    for (const action of offered) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id, scope: scopeOf(action) }))
   } else {
     const commands = goBarGrammar?.(query) ?? []
     if (commands.length) sections.push({ id: "commands", heading: labels.commands, rows: commands.map((c) => actionRow(c, "command", null)) })
     const scored = offered.map((action) => ({ action, score: scorePaletteAction(action, query) })).filter((s) => s.score >= 0)
     scored.sort((a, b) => b.score - a.score)
-    for (const { action } of scored) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id }))
+    for (const { action } of scored) pushRow(sections, action.group ?? labels.actions, actionRow(action, "action", { kind: "action", id: action.id, scope: scopeOf(action) }))
     if (search.results.length) sections.push({ id: "symbols", heading: labels.symbols, rows: search.results.map((s) => symbolRow(s, "symbol")) })
   }
   const rowsByKey = new Map(sections.flatMap((s) => s.rows).map((r) => [r.key, r]))
@@ -528,13 +603,23 @@ export function CommandPalette(options: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Freeze where focus was at the moment of opening: a render later the palette itself has it.
+  // The element itself freezes too, so a detour over the dialog's close button cannot change
+  // which panel instance answers. A palette mounted already open reads the live document,
+  // since the shared trackers only learn about focus once something subscribes.
   const liveScopes = useSyncExternalStore(subscribeFocusScopes, getFocusScopes, getServerFocusScopes)
   const [wasOpen, setWasOpen] = useState(open)
-  const [scopes, setScopes] = useState(liveScopes)
+  const [frozen, setFrozen] = useState<{ scopes: string; el: Element | null }>(() => {
+    if (!open || typeof document === "undefined") return { scopes: liveScopes, el: null }
+    const focused = document.activeElement
+    const outside = focused?.closest(`[data-slot="${SLOT}"]`) ? null : focused
+    return { scopes: outside ? scopeChain(outside).join(" ") : AMBIENT_SCOPES, el: outside }
+  })
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (open) setScopes(liveScopes)
+    if (open) setFrozen({ scopes: liveScopes, el: getFocusElement() })
   }
+  const scopes = frozen.scopes
+  const capturedEl = frozen.el
 
   const setOpen = (next: boolean) => {
     if (openProp === undefined) setUncontrolled(next)
@@ -577,7 +662,7 @@ export function CommandPalette(options: CommandPaletteProps) {
     }
   }, [hotkeys, keys, bindingId, variant, description, group, declaredByProvider])
 
-  return <RootContext value={{ options, labels, hotkeys, ownBindingId: keys === null ? null : bindingId, scopes, open, setOpen, inputRef }}>{children}</RootContext>
+  return <RootContext value={{ options, labels, hotkeys, ownBindingId: keys === null ? null : bindingId, scopes, capturedEl, open, setOpen, inputRef }}>{children}</RootContext>
 }
 
 export type CommandPaletteDialogProps = Omit<ComponentProps<typeof CommandDialog>, "open" | "defaultOpen" | "onOpenChange" | "children"> & { children: ReactNode }

@@ -2,7 +2,7 @@ import * as React from "react"
 import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { HotkeyScope, HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
+import { HotkeyScope, HotkeysProvider, useHotkeyScope } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, type CommandPaletteProps, createActionRegistry, scorePaletteAction, type ActionRegistry, type PaletteAction, type SymbolResult, type SymbolSearchAdapter } from "@/registry/tradecn/ui/command-palette"
 
@@ -32,7 +32,7 @@ afterEach(() => {
 })
 
 describe("createActionRegistry", () => {
-  it("lists, replaces by id, and unregisters only what a call added", () => {
+  it("lists, stacks same-id registrations, and unregisters only what a call added", () => {
     const actions = createActionRegistry()
     const woke = vi.fn()
     actions.subscribe(woke)
@@ -41,11 +41,14 @@ describe("createActionRegistry", () => {
     const first = actions.list()
     expect(first).toEqual([a])
     expect(actions.list()).toBe(first)
-    const replacement: PaletteAction = { id: "a", title: "A2", run: () => {} }
-    actions.register(replacement)
+    const second: PaletteAction = { id: "a", title: "A2", run: () => {} }
+    actions.register(second)
+    // Both instances stand: a second panel registering the same id no longer erases
+    // the first one's action.
+    expect(actions.list()).toEqual([a, second])
     off()
-    expect(actions.list()).toEqual([replacement])
-    expect(woke).toHaveBeenCalledTimes(2)
+    expect(actions.list()).toEqual([second])
+    expect(woke).toHaveBeenCalledTimes(3)
   })
 
   it("keeps recents most recent first, deduplicated, capped, and tells persistence", () => {
@@ -150,7 +153,7 @@ describe("CommandPalette", () => {
       { kind: "action", id: "gone" },
     ])
     render(<ComposedPalette actions={actions} hotkeys={null} open />)
-    expect(rows()).toEqual(["recent-symbol:AAPL:", "recent:ticket.new", "action:go.blotter", "action:ticket.new"])
+    expect(rows()).toEqual(['recent-symbol!["AAPL",null]', "recent:ticket.new", "action:go.blotter", "action:ticket.new"])
   })
 
   it("offers a scoped action when opened from inside its scope", () => {
@@ -166,8 +169,505 @@ describe("CommandPalette", () => {
     const view = render(ui(false))
     act(() => screen.getByText("in the book").focus())
     view.rerender(ui(true))
-    expect(rows()).toContain("action:book.cancel")
+    expect(rows()).toContain('action!["panel:book","book.cancel"]')
     expect(screen.getByText("book")).toBeInTheDocument()
+  })
+
+  it("keeps a global and a scoped action with one id apart, each row running its own", () => {
+    // Deduplication is per id AND scope, and the row key carries the scope, so the two
+    // rows never collapse onto each other in the selection map.
+    const actions = createActionRegistry()
+    const global = vi.fn()
+    const scoped = vi.fn()
+    actions.register([
+      { id: "refresh", title: "Refresh all", run: global },
+      { id: "refresh", title: "Refresh book", scope: "panel:book", run: scoped },
+    ])
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    expect(rows()).toContain("action:refresh")
+    expect(rows()).toContain('action!["panel:book","refresh"]')
+    fireEvent.click(document.querySelector('[data-row="action:refresh"]')!)
+    expect(global).toHaveBeenCalledTimes(1)
+    expect(scoped).not.toHaveBeenCalled()
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","refresh"]']`)!)
+    expect(scoped).toHaveBeenCalledTimes(1)
+    expect(global).toHaveBeenCalledTimes(1)
+  })
+
+  it("holds the capture through a detour and offers no fenced action it cannot place", () => {
+    // The element freezes at open: focus wandering over the dialog's own controls can
+    // not hand the action to another panel. And when every registration is fenced to a
+    // panel that never contained the capture, the action stays off the list.
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    function Book({ name, run: runBook }: { name: string; run: () => void }) {
+      const root = React.useRef<HTMLDivElement>(null)
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within: () => root.current }), [runBook])
+      return <div ref={root}><HotkeyScope scope="panel:book"><button>{name}</button></HotkeyScope></div>
+    }
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        <Book name="book B" run={ranB} />
+        <HotkeyScope scope="panel:book"><button>bare book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("book A").focus())
+    view.rerender(ui(true))
+    // A detour: focus moves to a control outside every book while the palette is open.
+    act(() => screen.getByText("bare book").focus())
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranA).toHaveBeenCalledTimes(1)
+    expect(ranB).not.toHaveBeenCalled()
+    // Opened from a same-scope region no registration is fenced to: the scope is
+    // active, but a fenced registration never answers outside its element, so the
+    // action is not offered at all.
+    view.rerender(ui(false))
+    act(() => screen.getByText("bare book").focus())
+    view.rerender(ui(true))
+    expect(rows()).not.toContain('action!["panel:book","book.refresh"]')
+  })
+
+  it("builds the whole row from the answering instance, secondary included", () => {
+    // A row must never label one panel and act on another: when the answering instance
+    // has no secondary, Shift+Enter falls back to its own primary, not to the other
+    // panel's secondary.
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranASecondary = vi.fn()
+    const ranB = vi.fn()
+    function Book({ name, action }: { name: string; action: PaletteAction }) {
+      const root = React.useRef<HTMLDivElement>(null)
+      React.useEffect(() => actions.register({ ...action, within: () => root.current }), [action])
+      return <div ref={root}><HotkeyScope scope="panel:book"><button>{name}</button></HotkeyScope></div>
+    }
+    const a: PaletteAction = { id: "book.refresh", title: "Refresh A", scope: "panel:book", run: ranA, secondary: { title: "Reset A", run: ranASecondary } }
+    const b: PaletteAction = { id: "book.refresh", title: "Refresh B", scope: "panel:book", run: ranB }
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <Book name="book A" action={a} />
+        <Book name="book B" action={b} />
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("book B").focus())
+    view.rerender(ui(true))
+    expect(screen.getByText("Refresh B")).toBeInTheDocument()
+    expect(screen.queryByText("Refresh A")).toBeNull()
+    fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
+    expect(ranB).toHaveBeenCalledTimes(1)
+    expect(ranASecondary).not.toHaveBeenCalled()
+    expect(ranA).not.toHaveBeenCalled()
+  })
+
+  it("falls back past a disconnected capture and reads pre-mount focus on first subscribe", () => {
+    // The captured element can be gone by the time the palette opens; a disconnected
+    // capture resolves like no capture. And the first subscriber reads where focus
+    // already is, so a palette mounted after focus settled still resolves the panel.
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    function Book({ name, run: runBook, gone }: { name: string; run: () => void; gone?: boolean }) {
+      const root = React.useRef<HTMLDivElement>(null)
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within: () => root.current }), [runBook])
+      return <div ref={root}><HotkeyScope scope="panel:book">{!gone && <button>{name}</button>}</HotkeyScope></div>
+    }
+    const ui = (open: boolean, aGone: boolean) => (
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} gone={aGone} />
+        <Book name="book B" run={ranB} />
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false, false))
+    act(() => screen.getByText("book A").focus())
+    // The focused button is removed before the palette opens: the capture is
+    // disconnected, both registrations are fenced, so nothing answers.
+    view.rerender(ui(false, true))
+    view.rerender(ui(true, true))
+    expect(rows()).not.toContain('action!["panel:book","book.refresh"]')
+    view.unmount()
+    // No palette mounted while focus settles on book B: the first subscriber reads
+    // where focus already is, so the late-mounted palette still resolves the panel.
+    const bare = render(
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        <Book name="book B" run={ranB} />
+      </HotkeysProvider>,
+    )
+    act(() => screen.getByText("book B").focus())
+    bare.rerender(
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        <Book name="book B" run={ranB} />
+        <ComposedPalette actions={actions} open />
+      </HotkeysProvider>,
+    )
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranB).toHaveBeenCalledTimes(1)
+    expect(ranA).not.toHaveBeenCalled()
+    bare.unmount()
+    // A palette mounted closed after focus settled: its first subscribe snapshots the
+    // element, and the later flip to open freezes that snapshot without any focus
+    // event in between.
+    const closedFirst = render(
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        <Book name="book B" run={ranB} />
+      </HotkeysProvider>,
+    )
+    act(() => screen.getByText("book B").focus())
+    const withPalette = (open: boolean) => (
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        <Book name="book B" run={ranB} />
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    closedFirst.rerender(withPalette(false))
+    closedFirst.rerender(withPalette(true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranB).toHaveBeenCalledTimes(2)
+    expect(ranA).not.toHaveBeenCalled()
+  })
+
+  it("holds a lone fenced registration to its fence", () => {
+    // One fenced book and a bare same-scope region: the fence rule has no instance
+    // count. Opened from the bare region, the lone registration answers nothing;
+    // opened from the book, it answers.
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    function Book() {
+      const root = React.useRef<HTMLDivElement>(null)
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: ranA, within: () => root.current }), [])
+      return <div ref={root}><HotkeyScope scope="panel:book"><button>book A</button></HotkeyScope></div>
+    }
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <Book />
+        <HotkeyScope scope="panel:book"><button>bare book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("bare book").focus())
+    view.rerender(ui(true))
+    expect(rows()).not.toContain('action!["panel:book","book.refresh"]')
+    view.rerender(ui(false))
+    act(() => screen.getByText("book A").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranA).toHaveBeenCalledTimes(1)
+  })
+
+  it("resolves a recent to the scope it ran in", () => {
+    // Recents carry the scope, so after running the scoped refresh, the recent row is
+    // the scoped action, not the global one sharing its id. An old persisted entry
+    // without a scope still matches by id.
+    const actions = createActionRegistry()
+    const global = vi.fn()
+    const scoped = vi.fn()
+    actions.register([
+      { id: "refresh", title: "Refresh all", run: global },
+      { id: "refresh", title: "Refresh book", scope: "panel:book", run: scoped },
+    ])
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","refresh"]']`)!)
+    expect(scoped).toHaveBeenCalledTimes(1)
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    const recent = document.querySelector('[data-row^="recent"]')!
+    expect(recent.getAttribute("data-row")).toBe('recent!["panel:book","refresh"]')
+    fireEvent.click(recent)
+    expect(scoped).toHaveBeenCalledTimes(2)
+    expect(global).not.toHaveBeenCalled()
+    // An old persisted entry has no scope: it matches by id alone.
+    actions.loadRecents([{ kind: "action", id: "refresh" }])
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    expect(document.querySelector('[data-row^="recent"]')).not.toBeNull()
+  })
+
+  it("retires a v1 scope-less recent when its scoped twin is touched, emitting one row", () => {
+    // The upgrade path: an id-only entry persisted by v1 plus a fresh scoped run must
+    // not produce two Recent rows with one key, and touching the scoped row drops the
+    // stale twin from persistence.
+    const actions = createActionRegistry()
+    const scoped = vi.fn()
+    actions.register({ id: "book.cancel", title: "Cancel selected order", scope: "panel:book", run: scoped })
+    actions.loadRecents([{ kind: "action", id: "book.cancel" }])
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.cancel"]']`)!)
+    expect(scoped).toHaveBeenCalledTimes(1)
+    expect(actions.recents().filter((r) => r.kind === "action" && r.id === "book.cancel")).toHaveLength(1)
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    expect([...document.querySelectorAll(`[data-row='recent!["panel:book","book.cancel"]']`)]).toHaveLength(1)
+  })
+
+  it("stores and resolves a scope-less recent to the unscoped action, whatever registered first", () => {
+    // Registration order must not decide: the scoped action registers first here, and
+    // a recent recorded from the global row still reads and runs the global action.
+    const actions = createActionRegistry()
+    const global = vi.fn()
+    const scoped = vi.fn()
+    actions.register([
+      { id: "refresh", title: "Refresh book", scope: "panel:book", run: scoped },
+      { id: "refresh", title: "Refresh all", run: global },
+    ])
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector('[data-row="action:refresh"]')!)
+    expect(global).toHaveBeenCalledTimes(1)
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    const recent = document.querySelector('[data-row="recent:refresh"]')!
+    expect(recent.textContent).toContain("Refresh all")
+    fireEvent.click(recent)
+    expect(global).toHaveBeenCalledTimes(2)
+    expect(scoped).not.toHaveBeenCalled()
+  })
+
+  it("keeps a live global action's recent beside its scoped sibling, both orders, one row each", () => {
+    // A scope-less entry is a v1 leftover only while no live unscoped registration
+    // owns the id. With the global registered, running the scoped action must not
+    // retire the global's own entry — and the reverse order must not double a row.
+    const actions = createActionRegistry()
+    const global = vi.fn()
+    const scoped = vi.fn()
+    actions.register([
+      { id: "refresh", title: "Refresh all", run: global },
+      { id: "refresh", title: "Refresh book", scope: "panel:book", run: scoped },
+    ])
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    // Global first, then scoped: both entries survive, one row each.
+    fireEvent.click(document.querySelector('[data-row="action:refresh"]')!)
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","refresh"]']`)!)
+    expect(actions.recents()).toHaveLength(2)
+    view.rerender(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    expect(document.querySelectorAll('[data-row^="recent"]')).toHaveLength(2)
+    const keys = [...document.querySelectorAll('[data-row^="recent"]')].map((el) => el.getAttribute("data-row"))
+    expect(new Set(keys).size).toBe(2)
+    // The global goes away: its scope-less entry now falls back to the scoped action,
+    // landing on the same row as the scoped entry — emitted once, not twice.
+    const lone = createActionRegistry()
+    const scopedOnly = vi.fn()
+    lone.register({ id: "refresh", title: "Refresh book", scope: "panel:book", run: scopedOnly })
+    lone.loadRecents([
+      { kind: "action", id: "refresh" },
+      { kind: "action", id: "refresh", scope: "panel:book" },
+    ])
+    const ui2 = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book 2</button></HotkeyScope>
+        <ComposedPalette actions={lone} open={open} />
+      </HotkeysProvider>
+    )
+    view.unmount()
+    const second = render(ui2(false))
+    act(() => screen.getByText("in the book 2").focus())
+    second.rerender(ui2(true))
+    expect(document.querySelectorAll(`[data-row='recent!["panel:book","refresh"]']`)).toHaveLength(1)
+    expect(document.querySelectorAll('[data-row^="recent"]')).toHaveLength(1)
+  })
+
+  it("saves the scope a v1 recent ran in when its Recent row is clicked", () => {
+    // The legacy entry resolves through the fallback; the row's identity is the
+    // resolved action's, so touching it persists the scope and retires the old
+    // spelling — a global action registered later cannot claim this recent.
+    const actions = createActionRegistry()
+    const scoped = vi.fn()
+    actions.register({ id: "book.cancel", title: "Cancel selected order", scope: "panel:book", run: scoped })
+    actions.loadRecents([{ kind: "action", id: "book.cancel" }])
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book"><button>in the book</button></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByText("in the book").focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector(`[data-row='recent!["panel:book","book.cancel"]']`)!)
+    expect(scoped).toHaveBeenCalledTimes(1)
+    expect(actions.recents()).toEqual([{ kind: "action", id: "book.cancel", scope: "panel:book" }])
+  })
+
+  it("answers the panel whose scope element itself holds the capture, wired by useHotkeyScope", () => {
+    // Clicking a panel focuses the HotkeyScope div (tabIndex -1), the PARENT of
+    // anything the panel renders. The documented wiring hands the scope element to
+    // within, so that focus still resolves the right book.
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    function BookBody({ run: runBook }: { run: () => void }) {
+      const within = useHotkeyScope()
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within: within ?? undefined }), [runBook, within])
+      return <p>book body</p>
+    }
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book" data-testid="scope-a"><BookBody run={ranA} /></HotkeyScope>
+        <HotkeyScope scope="panel:book" data-testid="scope-b"><BookBody run={ranB} /></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => (screen.getByTestId("scope-a") as HTMLElement).focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranA).toHaveBeenCalledTimes(1)
+    expect(ranB).not.toHaveBeenCalled()
+  })
+
+  it("reads an empty scope string as unscoped", () => {
+    // Registering with scope: "" and with no scope is one unscoped action: one row,
+    // the usual key spelling, and the latest registration answers.
+    const actions = createActionRegistry()
+    const first = vi.fn()
+    const second = vi.fn()
+    actions.register([
+      { id: "refresh", title: "Refresh all", scope: "", run: first },
+      { id: "refresh", title: "Refresh all", run: second },
+    ])
+    render(
+      <HotkeysProvider>
+        <ComposedPalette actions={actions} open />
+      </HotkeysProvider>,
+    )
+    const matches = rows().filter((row) => row?.includes("refresh"))
+    expect(matches).toEqual(["action:refresh"])
+    fireEvent.click(document.querySelector('[data-row="action:refresh"]')!)
+    expect(second).toHaveBeenCalledTimes(1)
+    expect(first).not.toHaveBeenCalled()
+  })
+
+  it("keeps one symbol recent across empty and missing exchange, and splits colon twins", () => {
+    // An empty exchange reads as missing, so persistence round-trips keep one entry
+    // and one row; symbols whose fields rearrange around a colon stay two rows with
+    // two keys, each click running its own instrument.
+    const actions = createActionRegistry()
+    actions.touch({ kind: "symbol", symbol: { symbol: "AAPL", exchange: "" } })
+    actions.touch({ kind: "symbol", symbol: { symbol: "AAPL" } })
+    expect(actions.recents()).toHaveLength(1)
+    actions.touch({ kind: "symbol", symbol: { symbol: "A:B", exchange: "C" } })
+    actions.touch({ kind: "symbol", symbol: { symbol: "A", exchange: "B:C" } })
+    expect(actions.recents()).toHaveLength(3)
+    const selected: string[] = []
+    render(
+      <HotkeysProvider>
+        <ComposedPalette actions={actions} open onSymbolSelect={(symbol) => selected.push(`${symbol.symbol}/${symbol.exchange ?? ""}`)} />
+      </HotkeysProvider>,
+    )
+    const keys = rows().filter((row) => row?.startsWith("recent-symbol"))
+    expect(new Set(keys).size).toBe(3)
+    fireEvent.click(document.querySelector(`[data-row='recent-symbol!["A:B","C"]']`)!)
+    expect(selected).toEqual(["A:B/C"])
+  })
+
+    it("unregisters one copy per call, idempotently, when one object registered twice", () => {
+    const actions = createActionRegistry()
+    const shared: PaletteAction = { id: "a", title: "A", run: () => {} }
+    const offFirst = actions.register(shared)
+    actions.register(shared)
+    offFirst()
+    offFirst()
+    expect(actions.list()).toEqual([shared])
+  })
+
+  it("runs the instance whose panel held focus when two share a scope, and survives the other's unmount", () => {
+    // Two books, one scope name, one action id: the palette resolves the instance the
+    // fence way, by which panel contained the captured focus, and an unmount removes
+    // only its own registration.
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    function Book({ name, run: runBook }: { name: string; run: () => void }) {
+      const root = React.useRef<HTMLDivElement>(null)
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within: () => root.current }), [runBook])
+      return <div ref={root}><HotkeyScope scope="panel:book"><button>{name}</button></HotkeyScope></div>
+    }
+    const ui = (open: boolean, both: boolean) => (
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        {both && <Book name="book B" run={ranB} />}
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false, true))
+    act(() => screen.getByText("book A").focus())
+    view.rerender(ui(true, true))
+    expect(rows().filter((row) => row === 'action!["panel:book","book.refresh"]')).toHaveLength(1)
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranA).toHaveBeenCalledTimes(1)
+    expect(ranB).not.toHaveBeenCalled()
+    view.rerender(ui(false, true))
+    act(() => screen.getByText("book B").focus())
+    view.rerender(ui(true, true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranB).toHaveBeenCalledTimes(1)
+    expect(ranA).toHaveBeenCalledTimes(1)
+    view.rerender(ui(false, false))
+    act(() => screen.getByText("book A").focus())
+    view.rerender(ui(true, false))
+    expect(rows()).toContain('action!["panel:book","book.refresh"]')
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranA).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -210,7 +710,7 @@ describe("symbol search", () => {
     expect(rows()).toEqual([])
     await act(() => vi.advanceTimersByTimeAsync(200))
     expect(symbols.calls).toEqual(["aa", "aap"])
-    expect(rows()).toEqual(["symbol:AAPL:NASDAQ"])
+    expect(rows()).toEqual(['symbol!["AAPL","NASDAQ"]'])
     expect(screen.getByText("Apple Inc · NASDAQ")).toBeInTheDocument()
     expect(screen.getByText("equity")).toBeInTheDocument()
     fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
@@ -583,7 +1083,7 @@ describe("public composition", () => {
     const view = render(<ComposedPalette actions={actions} variant="go-bar" hotkeys={null} open symbols={first} />)
     type("a")
     await act(() => vi.advanceTimersByTimeAsync(1))
-    expect(rows()).toEqual(["symbol:OLD:"])
+    expect(rows()).toEqual(['symbol!["OLD",null]'])
     view.rerender(<ComposedPalette actions={actions} variant="go-bar" hotkeys={null} open symbols={second} />)
     expect(rows()).toEqual([])
     expect(screen.getByText("Searching…")).toBeInTheDocument()

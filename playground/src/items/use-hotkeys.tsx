@@ -39,6 +39,17 @@ function Keys({ keys }: { keys: string }) {
 }
 
 function Book({ name, log }: { name: string; log: (line: string) => void }) {
+  // The hooks live INSIDE the scope: a hook called beside its HotkeyScope binds with
+  // no restriction, and the latest unrestricted handler wins everywhere — pressing x
+  // in one book would cancel the other book's order.
+  return (
+    <HotkeyScope scope="panel:book" className="rounded border border-border p-3 outline-none focus-within:border-ring">
+      <BookBody name={name} log={log} />
+    </HotkeyScope>
+  )
+}
+
+function BookBody({ name, log }: { name: string; log: (line: string) => void }) {
   const [selected, setSelected] = useState(0)
   const [orders, setOrders] = useState(["BUY 5mm 99-16+", "SELL 2mm 99-17", "BUY 10mm 99-15+", "SELL 1mm 99-18"])
   useHotkey("book.next", () => setSelected((i) => (orders.length ? (i + 1) % orders.length : 0)))
@@ -50,7 +61,7 @@ function Book({ name, log }: { name: string; log: (line: string) => void }) {
     setSelected((i) => Math.max(0, Math.min(i, orders.length - 2)))
   })
   return (
-    <HotkeyScope scope="panel:book" className="rounded border border-border p-3 outline-none focus-within:border-ring">
+    <>
       <h2 className="mb-2 font-semibold">{name}</h2>
       <ul>
         {orders.map((order, i) => (
@@ -60,7 +71,7 @@ function Book({ name, log }: { name: string; log: (line: string) => void }) {
         ))}
         {!orders.length && <li className="text-muted-foreground">empty</li>}
       </ul>
-    </HotkeyScope>
+    </>
   )
 }
 
@@ -74,10 +85,19 @@ function Bindings() {
     if (!capturing) return
     // Ahead of the registry's listener, so the key being captured does not also fire.
     const onKey = (event: KeyboardEvent) => {
+      // The editor item's rules: Tab leaves unless Ctrl or Meta records it, and bare
+      // Enter and Space are refused.
+      const bare = !event.ctrlKey && !event.metaKey && !event.altKey
+      if (event.key === "Tab" && !event.ctrlKey && !event.metaKey) {
+        event.stopPropagation()
+        setCapturing(null)
+        return
+      }
       const keys = keysFromEvent(event)
       if (!keys) return
       event.preventDefault()
       event.stopPropagation()
+      if ((event.key === "Enter" || event.key === " ") && bare && !event.shiftKey) return
       if (keys !== "escape") hotkeys.remap(capturing, keys)
       setCapturing(null)
     }
@@ -93,7 +113,7 @@ function Bindings() {
               <td className="py-1 pr-3 text-muted-foreground">{entry.group}</td>
               <td className="py-1 pr-3">{entry.description}</td>
               <td className="py-1 pr-3 text-muted-foreground">{entry.scope}</td>
-              <td className="py-1 pr-3">{capturing === entry.id ? <span className="text-muted-foreground">press a key, Esc to keep</span> : <Keys keys={entry.keys} />}</td>
+              <td className="py-1 pr-3">{capturing === entry.id ? <span className="text-muted-foreground">press a key, Esc to keep, Tab moves on, bare Enter and Space wait</span> : <Keys keys={entry.keys} />}</td>
               <td className="py-1 text-right">
                 <button className="rounded border border-border px-2" onClick={() => setCapturing(entry.id)}>
                   remap
