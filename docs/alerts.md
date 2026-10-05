@@ -139,7 +139,7 @@ Timers belong to the hook invocation. Put TTL on the displayed notice row only. 
 
 <div id="it-never-takes-focus"></div>
 
-Removal never moves focus: dismissal, TTL expiry, the cap, and `clear()` unmount the notice's controls where they stand, and focus falls to the body when one of them held it. Restore focus yourself when you remove the notice under the user — the dismiss handler knows where to send it — and keep TTL off notices whose controls expect to hold focus.
+Removal never moves focus: dismissal, TTL expiry, the cap, `clear()`, and an arrival displacing a shown notice in a sliced list unmount the notice's controls where they stand, and focus falls to the body when one of them held it. Restore focus yourself when you remove the notice under the user — the dismiss handler knows where to send it — and keep TTL off notices whose controls expect to hold focus.
 
 ### AlertsAnnouncer
 

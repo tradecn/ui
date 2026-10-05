@@ -2,7 +2,7 @@ import { DeskTab } from "./workspace"
 import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "cn"
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -1718,11 +1718,18 @@ const noticeTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute:
 
 type NoticeAction = { id: string; label: string; onAction: (alert: Alert) => void }
 
-function Notice({ alerts, id, actions, onDismiss }: { alerts: AlertStore; id: string; actions: NoticeAction[]; onDismiss: (id: string) => void }) {
+function Notice({ alerts, id, actions, onDismiss, onDisplaced }: { alerts: AlertStore; id: string; actions: NoticeAction[]; onDismiss: (id: string) => void; onDisplaced: () => void }) {
   const alert = useAlert(alerts, id)
+  const box = useRef<HTMLLIElement>(null)
+  // An arrival replaces the single shown notice. When the outgoing notice held focus,
+  // hand it to the recovery; the cleanup's microtask runs after the replacement mounts.
+  useLayoutEffect(() => {
+    const node = box.current
+    return () => { if (node?.contains(document.activeElement)) onDisplaced() }
+  }, [onDisplaced])
   if (!alert) return null
   return (
-    <AlertItem tone={alert.tone} data-alert-id={id} data-severity={alert.severity}>
+    <AlertItem ref={box} tone={alert.tone} data-alert-id={id} data-severity={alert.severity}>
       <AlertHeader>
         <AlertSeverity tone={alert.tone}>{alert.severity}</AlertSeverity>
         <AlertTitle>{alert.title}</AlertTitle>
@@ -1752,7 +1759,7 @@ export function DeskAlerts({ alerts, actions }: { alerts: AlertStore; actions: N
     <Dialog>
       <Alerts ref={region} className="border-b border-border px-2 py-1">
         <AlertsAnnouncer alerts={alerts} id={ids[0] ?? null} assertive={["critical"]} />
-        {ids.length > 0 && <AlertsList>{ids.slice(0, 1).map((id) => <Notice key={id} alerts={alerts} id={id} actions={actions.map((action) => ({ ...action, onAction: (alert) => { action.onAction(alert); refocus() } }))} onDismiss={(noticeId) => { alerts.dismiss(noticeId); refocus() }} />)}</AlertsList>}
+        {ids.length > 0 && <AlertsList>{ids.slice(0, 1).map((id) => <Notice key={id} alerts={alerts} id={id} actions={actions.map((action) => ({ ...action, onAction: (alert) => { action.onAction(alert); refocus() } }))} onDismiss={(noticeId) => { alerts.dismiss(noticeId); refocus() }} onDisplaced={refocus} />)}</AlertsList>}
         {ids.length === 0 && <AlertsEmpty>No notices.</AlertsEmpty>}
         <div className="flex gap-2">
           <DialogTrigger className={buttonVariants({ variant: "ghost", size: "sm" })}>{ids.length > 1 ? `${ids.length - 1} more` : "History"}</DialogTrigger>

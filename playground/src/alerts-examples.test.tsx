@@ -35,6 +35,24 @@ it("restores focus when a desk action removes its notice, and never expires one"
   expect(screen.getByRole("button", { name: "History" })).toHaveFocus()
 })
 
+it("recovers focus when an arrival displaces the shown notice", async () => {
+  // Reconnect's follow-up push lands 800 ms after the refocus and replaces the keyed
+  // notice whose dismiss now holds focus; the outgoing notice hands focus back.
+  vi.useFakeTimers()
+  const alerts = alertStore.createAlertStore()
+  alerts.push({ severity: "critical", title: "Rejected" })
+  alerts.push({ severity: "warning", title: "Slow", allowedActions: ["reconnect"] })
+  render(<DeskAlerts alerts={alerts} actions={[{ id: "reconnect", label: "Reconnect", onAction: (alert) => { alerts.dismiss(alert.id); setTimeout(() => void alerts.push({ severity: "info", title: "Reconnected" }), 800) } }]} />)
+  const reconnect = screen.getByRole("button", { name: "Reconnect" })
+  act(() => reconnect.focus())
+  fireEvent.click(reconnect)
+  await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+  expect(screen.getByRole("button", { name: "Dismiss: Rejected" })).toHaveFocus()
+  await act(async () => { await vi.advanceTimersByTimeAsync(800) })
+  expect(screen.getByRole("button", { name: "Dismiss: Reconnected" })).toHaveFocus()
+  expect(document.activeElement).not.toBe(document.body)
+})
+
 it.each(["dismiss", "clear"])("returns focus from terminal history after a server %s removes the overflow", async (change) => {
   vi.useFakeTimers()
   const alerts = alertStore.createAlertStore()
