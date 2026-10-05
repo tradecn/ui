@@ -369,8 +369,10 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
   // Spreadsheets execute cells led by = + - @ or a tab or carriage return: free-text
   // fields — a message, an author — must not run as formulas when the file is opened.
   // The apostrophe prefix is the spreadsheet convention for "this is text".
-  // Signed numbers are data, not formulas: only non-numeric text gets the prefix.
-  const neutral = (s: string) => (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !/^[+-][0-9.]/.test(s)) ? `'${s}` : s)
+  // A sign-led field is data only when the WHOLE field is a number: a leading digit
+  // does not stop a spreadsheet from evaluating what follows it.
+  const wholeNumber = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i
+  const neutral = (s: string) => (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !wholeNumber.test(s)) ? `'${s}` : s)
   const esc = (s: string) => {
     const t = neutral(s)
     return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
@@ -917,10 +919,15 @@ export function DataGrid<T>(props: DataGridProps<T>) {
           () => {
             const now = tracker.get(k)
             if (now?.kind === "pending" && Object.is(now.value, value)) tracker.set(k, undefined)
+            // A reopened untouched editor covers the pending status as prior: the
+            // settle rewrites it there, or the close would restore a pending with
+            // no live promise behind it.
+            else if (now?.kind === "editing" && now.prior?.kind === "pending" && Object.is(now.prior.value, value)) tracker.set(k, { ...now, prior: undefined })
           },
           (error: unknown) => {
             const now = tracker.get(k)
             if (now?.kind === "pending" && Object.is(now.value, value)) tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error) })
+            else if (now?.kind === "editing" && now.prior?.kind === "pending" && Object.is(now.prior.value, value)) tracker.set(k, { ...now, prior: { kind: "rejected", value: previous, message: messageOf(error) } })
           },
         )
       }
@@ -944,13 +951,17 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       // A retained handle must not open an editor on a row the view no longer holds:
       // it would mount and take focus whenever the row next returned.
       if (!editLatest.current.inView(rowId)) return
-      cellsByKey.set(cellKey(rowId, key), rowId)
       const col = column(key)
       const row = store.getRow(rowId)
       if (!canEditCell(col, row) || col.edit.toggle) return
+      cellsByKey.set(cellKey(rowId, key), rowId)
       const k = cellKey(rowId, key)
       const before = tracker.editing()
-      if (before && before !== k) tracker.set(before, undefined)
+      if (before && before !== k) {
+        const covered = tracker.get(before)
+        cellsByKey.delete(before)
+        tracker.set(before, covered?.kind === "editing" ? covered.prior : undefined)
+      }
       // A pending cell reopens on what it shows, the committed value, not on the value the store still holds.
       const now = tracker.get(k)
       const text = now?.kind === "pending" ? now.text : editText(col, col.accessor(row!), row!)
@@ -963,7 +974,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       tracker,
       reconcileColumns(keys) {
         const active = tracker.editing()
-        if (active !== null && activeColumn !== null && !keys.has(activeColumn)) tracker.set(active, undefined)
+        if (active !== null && activeColumn !== null && !keys.has(activeColumn)) {
+          const covered = tracker.get(active)
+          cellsByKey.delete(active)
+          tracker.set(active, covered?.kind === "editing" ? covered.prior : undefined)
+        }
       },
       unmountEditor(key, input) {
         const doc = input.ownerDocument
@@ -1034,7 +1049,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       cancel(rowId, key) {
         const k = cellKey(rowId, key)
         cellsByKey.delete(k)
-        if (tracker.get(k)?.kind === "editing") tracker.set(k, undefined)
+        const now = tracker.get(k)
+        if (now?.kind === "editing") tracker.set(k, now.prior)
         focusGrid()
       },
       step(rowId, key, dir, big) {
@@ -1087,8 +1103,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     if (k === null) return
     const rowId = edits.rowOf(k)
     if (rowId !== undefined && !indexOf.has(rowId)) {
+      const covered = edits.tracker.get(k)
       edits.forget(k)
-      edits.tracker.set(k, undefined)
+      edits.tracker.set(k, covered?.kind === "editing" ? covered.prior : undefined)
       const doc = rootRef.current?.ownerDocument
       if (doc && doc.activeElement === doc.body) rootRef.current?.focus({ preventScroll: true })
     }

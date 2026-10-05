@@ -606,6 +606,10 @@ describe("certification pins", () => {
     fireEvent.keyDown(reopened, { key: "Enter" })
     expect(onEdit).toHaveBeenCalledTimes(1)
     expect(cell().hasAttribute("data-pending")).toBe(true)
+    // Escape restores the covered state the same way the untouched close does.
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" })
+    expect(cell().hasAttribute("data-pending")).toBe(true)
     await act(async () => {
       reject(new Error("too far"))
     })
@@ -667,6 +671,33 @@ describe("certification pins", () => {
     expect(screen.queryByRole("textbox")).toBeNull()
   })
 
+  it("rewrites a covered pending when its promise settles under the reopened editor", async () => {
+    // Reject while the untouched reopen is still up: the close must show the refusal,
+    // never restore a pending with no live promise behind it.
+    let reject!: (reason: unknown) => void
+    const onEdit = vi.fn(() => new Promise((_, rej) => { reject = rej }))
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    await act(async () => {
+      reject(new Error("too far"))
+    })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" })
+    const cell = document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell.hasAttribute("data-pending")).toBe(false)
+    expect(cell.textContent).toContain("too far")
+    expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
   it("ignores a retained open for a row the view no longer holds", async () => {
     // The delayed-open pattern, aimed at a filtered-out row: without the gate, the
     // editor state mounts and takes focus whenever the row next returns.
@@ -707,15 +738,19 @@ describe("certification pins", () => {
 
   it("neutralizes spreadsheet formulas in the export", () => {
     const store = createRowStore<{ id: string; note: string }>({ getRowId: row => row.id })
-    store.applyDeltas({ upsert: [{ id: "a", note: "=SUM(A1:A9)" }, { id: "b", note: "@cmd" }, { id: "c", note: "-1200" }, { id: "d", note: "plain" }, { id: "e", note: "-cmd" }] })
+    store.applyDeltas({ upsert: [{ id: "a", note: "=SUM(A1:A9)" }, { id: "b", note: "@cmd" }, { id: "c", note: "-1200" }, { id: "d", note: "plain" }, { id: "e", note: "-cmd" }, { id: "f", note: "+1+SUM(A1:A9)" }, { id: "g", note: "-1.5e3" }] })
     const cols: ColumnDef<{ id: string; note: string }>[] = [{ key: "note", header: "Note", width: 120, accessor: row => row.note }]
-    const csv = exportCsv(store, cols, ["a", "b", "c", "d", "e"])
+    const csv = exportCsv(store, cols, ["a", "b", "c", "d", "e", "f", "g"])
     expect(csv).toContain("'=SUM(A1:A9)")
     expect(csv).toContain("'@cmd")
     // Signed numbers are data: no prefix, so numeric exports stay parseable.
     expect(csv.split("\r\n")[3]).toBe("-1200")
     expect(csv.split("\r\n")[4]).toBe("plain")
     expect(csv.split("\r\n")[5]).toBe("'-cmd")
+    // A leading number does not stop a spreadsheet evaluating the rest: only a field
+    // that is entirely a number stays raw.
+    expect(csv.split("\r\n")[6]).toBe("'+1+SUM(A1:A9)")
+    expect(csv.split("\r\n")[7]).toBe("-1.5e3")
   })
 })
 

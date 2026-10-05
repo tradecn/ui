@@ -248,7 +248,7 @@ Give the grid `onEdit` and the column a `CellEdit<T>`:
 
 Use `big` to implement a larger step, such as ten ticks with Shift; the grid does not multiply it. A cell refused by `canEdit` carries `aria-readonly="true"`. [`parameter-grid`](parameter-grid.md) builds a parameter sheet on this API.
 
-Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid changes. An editor opened and left unchanged sends nothing, whatever rounding its format applies, and closing it untouched restores the pending or rejected state it covered. A value equal to the store's current value sends nothing.
+Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid changes. An editor opened and left unchanged sends nothing, whatever rounding its format applies, and every close of an untouched editor — Enter, Tab, blur, Escape, or the teardowns below — restores the pending or rejected state it covered, with a promise that settled meanwhile applied to it. A value equal to the store's current value sends nothing.
 
 Hiding or removing a column while its text editor is still open discards the draft without calling `onEdit`. A row that a filter, re-sort, or removal takes out of the view does the same: its open editor closes, the draft is discarded, and the returning row does not reopen it or take focus. Removing its `edit` configuration or switching to `toggle` also discards it.
 
@@ -256,7 +256,7 @@ Restoring the column does not reopen the draft. These column changes preserve pe
 
 A commit calls `onEdit` with `{ rowId, key, value, previous, row }`. The grid never writes the store. Its default renderer shows the committed text muted with `data-pending` until the store value matches it or the returned promise resolves. Resolution clears pending state and displays the current store value, which may still be the old value. Returning nothing leaves the edit pending until the store matches.
 
-A thrown error or rejection of a still-pending promise displays the store value with the error message, `data-rejected`, and destructive styling. Reopening the editor clears the error. A pending cell can also be reopened, starting from its committed text.
+A thrown error or rejection of a still-pending promise displays the store value with the error message, `data-rejected`, and destructive styling. Reopening the editor clears the error while it is open; closing it untouched brings the error back, and committing a change replaces it. A pending cell can also be reopened, starting from its committed text.
 
 A custom `cell` receives `edit: { status, commit(value), open() }` when editing is enabled for its column. It sees `status` as absent or an object whose `kind` is `pending` or `rejected`. While a text editor is open, the grid renders its built-in editor instead of calling `cell`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text.
 

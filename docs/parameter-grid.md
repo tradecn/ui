@@ -47,7 +47,7 @@ The preview alignment controls keep an edge fixed while resizing columns and sav
 
 Commit a Width edit with Enter, or toggle ZN, then choose **Receive reply**. Until then, numeric edits stay pending and the checkbox keeps the store's value. This example handles one request at a time: it removes the row's allowed actions while a reply is pending and restores them after acceptance or refusal. You can inspect the pending state without a timer, then edit again once the reply arrives.
 
-A Width over 8 is refused: the cell returns to the stored value and shows **Over 8**. Reopen it to clear the error and try again. Accepted requests update the row, its timestamp and author, and the as-of time. The changed-since marker identifies rows accepted during this session. The status reports whether a reply is pending, accepted, or refused.
+A Width over 8 is refused: the cell returns to the stored value and shows **Over 8**. Reopen it and commit a change to replace the error. Accepted requests update the row, its timestamp and author, and the as-of time. The changed-since marker identifies rows accepted during this session. The status reports whether a reply is pending, accepted, or refused.
 
 <!-- demo: parameter-grid-server -->
 
@@ -106,7 +106,7 @@ The grid reads your store and never writes it. A valid commit calls `onEdit` wit
 
 A parameter cell shows the committed text muted and italic while pending. Pending clears when the store's accessor value matches the committed value (`Object.is`), or when the returned promise resolves. Resolution displays the current store value, which may still be the old value. Returning nothing leaves the cell pending until the store matches.
 
-A thrown error or rejection of a still-pending promise displays the current store value with the error message in the cell and its `aria-description`. Reopening clears the error. A pending parameter cell can also reopen, starting from its committed text.
+A thrown error or rejection of a still-pending promise displays the current store value with the error message in the cell and its `aria-description`. Reopening clears the error while the editor is open; closing it untouched brings the error back, and committing a change replaces it. A pending parameter cell can also reopen, starting from its committed text.
 
 ### Parameters
 
