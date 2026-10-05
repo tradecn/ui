@@ -80,7 +80,7 @@ Increment the counter, then pop it out. Its count survives the move, and `i` sti
 | `className` | `string` | None | Styles and sizes the panel. |
 | Other div props | `Omit<ComponentProps<"div">, "ref">` | None | Includes `children`, event handlers, and accessible labels. |
 
-Declare a binding once for `panel:book`; the handler under the focused book answers it. Clicking the panel aims the keyboard at it. Palette actions with that scope appear when opened from inside a book. `Panel` renders without `HotkeysProvider`, but hotkeys need the provider. See [`use-hotkeys`](use-hotkeys.md) for binding options.
+Declare a binding once for `panel:book`; the handler under the focused book answers it. Clicking the panel aims the keyboard at it. Palette actions with that scope appear when opened from inside a book — and with several books on the screen, register each book's action with `within: useHotkeyScope()`, called in a child of `Panel` the way `useHotkey` is, so the book that held focus is the one that runs; without it, the latest registration answers. `Panel` renders without `HotkeysProvider`, but hotkeys need the provider. See [`use-hotkeys`](use-hotkeys.md) for binding options.
 
 `Panel` renders a `region` named by `PanelTitle`, or by an explicit `aria-label`. Border priority is `error`, then `dragTarget`, then active. `data-state` is `error`, `drag-target`, `active`, `inactive`, or `auto`; `auto` uses CSS focus-within.
 

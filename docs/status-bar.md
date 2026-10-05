@@ -38,7 +38,7 @@ StatusBar
 └── StatusBarUser
 ```
 
-Arrange or omit the parts as needed. Each reading also works outside the bar. Only `StatusBarClockReadout` subscribes to time updates.
+Arrange or omit the parts as needed. Each reading also works outside the bar. Only `StatusBarClockReadout` subscribes to time updates. Render the clocks on the client: the shared clock advances only while something in a browser subscribes, so a server-rendered reading prints a stale time in the runtime's own locale and mismatches on hydration.
 
 ## Account Card
 

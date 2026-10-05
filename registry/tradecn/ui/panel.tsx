@@ -8,9 +8,11 @@ import { cycleLinkGroup, type LinkGroup, type LinkGroupId } from "@/registry/tra
 
 // The frame around one thing on a trading screen: a book, a chart, a blotter.
 //
-// A panel is a hotkey scope, so its keys and its palette actions come with it: `kind="book"` is the
-// scope `panel:book`, shared by every book on the screen, and the book with focus is the one that
-// answers. The header is a drag handle for whatever lays panels out, and the things in it that take
+// A panel is a hotkey scope, so its keys come with it: `kind="book"` is the scope `panel:book`,
+// shared by every book on the screen, and the book with focus is the one that answers a key.
+// Palette actions registered with that scope are offered when the palette opens from inside a
+// book; with several books, register them with `within: useHotkeyScope()` so the book that held
+// focus is the one that runs. The header is a drag handle for whatever lays panels out, and the things in it that take
 // a click keep that click from starting a drag.
 
 interface PanelContextValue {

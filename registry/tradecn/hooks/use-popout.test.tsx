@@ -1,5 +1,5 @@
 import { act, render, screen } from "@testing-library/react"
-import { StrictMode, useEffect, useState } from "react"
+import { Activity, StrictMode, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { usePopout, type Popout, type PopoutOptions } from "@/registry/tradecn/hooks/use-popout"
@@ -140,7 +140,40 @@ describe("usePopout", () => {
     expect(handle.isOpen).toBe(false)
   })
 
-  it("focuses the window it already has instead of opening a second", () => {
+  it("tells the truth after an Activity hide closes its window", async () => {
+    // Hiding destroys effects and keeps state: the unmount cleanup closes the window
+    // while popout state survives. On reveal the hook reconciles — isOpen reads false
+    // and open() opens a fresh window instead of returning early into a closed one.
+    const first = fakeWindow()
+    const second = fakeWindow()
+    const windows = [first, second]
+    const openWindow = vi.fn(() => windows.shift() as unknown as Window | null)
+    function Shell({ mode }: { mode: "visible" | "hidden" }) {
+      return (
+        <Activity mode={mode}>
+          <Harness openWindow={openWindow} />
+        </Activity>
+      )
+    }
+    const view = render(<Shell mode="visible" />)
+    act(() => {
+      handle.open()
+    })
+    expect(screen.getByTestId("open")).toHaveTextContent("true")
+    view.rerender(<Shell mode="hidden" />)
+    expect(first.close).toHaveBeenCalled()
+    view.rerender(<Shell mode="visible" />)
+    expect(screen.getByTestId("open")).toHaveTextContent("false")
+    let reopened = false
+    act(() => {
+      reopened = handle.open()
+    })
+    expect(reopened).toBe(true)
+    expect(openWindow).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId("open")).toHaveTextContent("true")
+  })
+
+    it("focuses the window it already has instead of opening a second", () => {
     const win = fakeWindow()
     const openWindow = opening(win)
     render(<Harness openWindow={openWindow} />)

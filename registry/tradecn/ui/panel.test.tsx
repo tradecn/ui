@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { HotkeysProvider, useHotkey } from "@/registry/tradecn/hooks/use-hotkeys"
 import { LinkGroupProvider, useLinkGroup } from "@/registry/tradecn/hooks/use-link-group"
@@ -8,10 +8,50 @@ import type { Popout } from "@/registry/tradecn/hooks/use-popout"
 import { createHotkeyRegistry, type HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
 import type { LinkGroup } from "@/registry/tradecn/lib/link-group"
 import { LinkGroupDot, Panel, PanelActions, PanelContent, PanelHeader, PanelPopout, PanelTitle, SymbolTag, type SymbolTagProps } from "@/registry/tradecn/ui/panel"
+import { useHotkeyScope } from "@/registry/tradecn/hooks/use-hotkeys"
+import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteList, CommandPaletteResults, createActionRegistry } from "@/registry/tradecn/ui/command-palette"
 
 afterEach(() => vi.restoreAllMocks())
 
 describe("Panel", () => {
+  it("runs the focused book's palette action when two books share the kind, per the page's recipe", () => {
+    // The documented wiring: useHotkeyScope() in a child of Panel, handed to the
+    // registration's within. The book that held focus answers; the other does not.
+    Element.prototype.scrollIntoView = vi.fn()
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    function BookBody({ run }: { run: () => void }) {
+      const within = useHotkeyScope()
+      useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run, within: within ?? undefined }), [run, within])
+      return <p>rows</p>
+    }
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <Panel kind="book"><PanelHeader><PanelTitle>Book A</PanelTitle></PanelHeader><PanelContent><BookBody run={ranA} /></PanelContent></Panel>
+        <Panel kind="book"><PanelHeader><PanelTitle>Book B</PanelTitle></PanelHeader><PanelContent><BookBody run={ranB} /></PanelContent></Panel>
+        <CommandPalette actions={actions} open={open} onOpenChange={() => {}}>
+          <CommandPaletteDialog>
+            <CommandPaletteContent>
+              <CommandPaletteInput />
+              <CommandPaletteList>
+                <CommandPaletteEmpty>none</CommandPaletteEmpty>
+                <CommandPaletteResults>{(group) => group.rows.map((row) => <CommandPaletteItem key={row.key} row={row}>{row.title}</CommandPaletteItem>)}</CommandPaletteResults>
+              </CommandPaletteList>
+            </CommandPaletteContent>
+          </CommandPaletteDialog>
+        </CommandPalette>
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => screen.getByRole("region", { name: "Book A" }).focus())
+    view.rerender(ui(true))
+    fireEvent.click(screen.getByText("Refresh book"))
+    expect(ranA).toHaveBeenCalledTimes(1)
+    expect(ranB).not.toHaveBeenCalled()
+  })
+
+
   it("is a region named by its title, and the hotkey scope of its kind", () => {
     render(
       <Panel kind="book">

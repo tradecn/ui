@@ -314,7 +314,9 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
     addPanel({ kind, id: wanted, title, state, position, floating, focus = true }) {
       const id = wanted ?? nextPanelId(kind, dv.panels.map((panel) => panel.id))
       if (dv.getPanel(id)) {
-        api.focusPanel(id)
+        // An ensure-open call with focus: false must not steal the keyboard from
+        // the panel the trader is in.
+        if (focus) api.focusPanel(id)
         return id
       }
       const record = { kind, title: title ?? kind, state: state ?? {} }
@@ -593,7 +595,9 @@ function WorkspacePanelHost({ api: panelApi }: IDockviewPanelProps) {
     [api, record, id, active, location],
   )
   if (!handle) return null
-  const Component = kinds[handle.kind]
+  // Own keys only: a layout naming "constructor" or "__proto__" must hit the
+  // placeholder, not an Object.prototype member.
+  const Component = Object.hasOwn(kinds, handle.kind) ? kinds[handle.kind] : undefined
 
   return (
     <WorkspacePanelContext.Provider value={handle}>

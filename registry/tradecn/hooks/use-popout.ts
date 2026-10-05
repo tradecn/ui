@@ -128,6 +128,16 @@ export function usePopout(options: PopoutOptions = {}): Popout {
     [],
   )
 
+  // Effect cleanup is not unmount: an Activity hide (or Fast Refresh) runs the cleanup
+  // above and closes the window while this hook's state survives. Reconcile on revival,
+  // so isOpen tells the truth and open() works again instead of returning early.
+  useEffect(() => {
+    if (popout && (live.current === null || popout.closed)) {
+      live.current = null
+      setPopout(null)
+    }
+  }, [popout])
+
   const open = useCallback(() => {
     if (live.current && !live.current.closed) {
       live.current.focus()
