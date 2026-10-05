@@ -184,6 +184,8 @@ describe("usePopout", () => {
     const second = fakeWindow()
     const windows = [first, second]
     const openWindow = vi.fn(() => windows.shift() as unknown as Window | null)
+    const onOpen = vi.fn()
+    const onClose = vi.fn()
     function Reopener({ on }: { on: boolean }) {
       useEffect(() => {
         if (on) handle.open()
@@ -193,7 +195,7 @@ describe("usePopout", () => {
     function Shell({ mode, reopen }: { mode: "visible" | "hidden"; reopen: boolean }) {
       return (
         <Activity mode={mode}>
-          <Harness openWindow={openWindow}>
+          <Harness openWindow={openWindow} onOpen={onOpen} onClose={onClose}>
             <Reopener on={reopen} />
           </Harness>
         </Activity>
@@ -210,11 +212,17 @@ describe("usePopout", () => {
     expect(openWindow).toHaveBeenCalledTimes(2)
     expect(screen.getByTestId("open")).toHaveTextContent("true")
     expect(second.close).not.toHaveBeenCalled()
+    // Every onOpen meets its onClose: the dead first window's pair completes on the
+    // reveal even though a newer window took over.
+    expect(onOpen).toHaveBeenCalledTimes(2)
+    expect(onClose).toHaveBeenCalledTimes(1)
     act(() => {
       handle.close()
     })
     expect(second.close).toHaveBeenCalled()
     expect(screen.getByTestId("open")).toHaveTextContent("false")
+    expect(onOpen).toHaveBeenCalledTimes(2)
+    expect(onClose).toHaveBeenCalledTimes(2)
   })
 
   it("focuses the window it already has instead of opening a second", () => {

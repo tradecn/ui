@@ -138,13 +138,24 @@ export function usePopout(options: PopoutOptions = {}): Popout {
   // child effect or a keypress in the transition gap, already owns live and must not be
   // clobbered — and a dead window that is still the live one goes through finish, the
   // same path its close listener would take.
+  const closeReported = useRef<Window | null>(null)
   useEffect(() => {
-    if (popout && live.current === null) {
+    if (!popout) return
+    if (live.current === null) {
       // The hide's cleanup closed the window without the close listener firing:
       // complete the lifecycle so every onOpen still meets its onClose.
       setPopout(null)
+      if (closeReported.current !== popout) {
+        closeReported.current = popout
+        latest.current.onClose?.()
+      }
+    } else if (live.current === popout && popout.closed) finish(popout)
+    else if (live.current !== popout && popout.closed && closeReported.current !== popout) {
+      // A newer window took over during the reveal — a child's effect or a keypress in
+      // the gap — and state will settle on it. Complete the dead one's pair here, once.
+      closeReported.current = popout
       latest.current.onClose?.()
-    } else if (popout && live.current === popout && popout.closed) finish(popout)
+    }
   }, [popout, finish])
 
   const open = useCallback(() => {
