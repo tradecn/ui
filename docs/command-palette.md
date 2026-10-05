@@ -286,7 +286,7 @@ If the binding ID already exists — declared on the registry before render, or 
 
 Row shortcuts follow the current keys for `bindingId`, including remaps. The dispatcher stops at dialogs. A single-step opening shortcut also closes the palette from inside; use Escape for a multi-step binding.
 
-Dialog focus can arrive after opening. For up to one second, or until focus reaches the palette, it captures keys outside itself: text without Ctrl, Meta, or Alt enters the query; Enter runs the highlighted row under any modifiers, with Shift picking the secondary action; and Escape requests closure under any modifiers. Every other key outside the palette stops there as well: the palette ignores it and page handlers never see it, though the browser's own default, such as Tab moving focus, still runs. Those events do not reach the hotkey dispatcher. Composition events are left alone.
+Dialog focus can arrive after opening. For up to one second, or until focus reaches the palette, it captures keys outside itself: text without Ctrl, Meta, or Alt enters the query; Enter runs the highlighted row under any modifiers, with Shift picking the secondary action; and Escape requests closure under any modifiers. Every other key outside the palette stops there as well: the palette ignores it, bubbling listeners and the hotkey dispatcher never see it, though capture-phase listeners ahead of the palette's still run, as does the browser's own default, such as Tab moving focus. Those events do not reach the hotkey dispatcher. Composition events are left alone.
 
 ### Go-bar
 
