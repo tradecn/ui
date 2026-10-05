@@ -38,7 +38,7 @@ export default function QuotePanelDemo() {
 
 ## Pending and rejected edits
 
-Return a promise from `onEdit` when the server can reject a command. This example waits one second before writing the accepted value and resolving. Set Width to `5` to see it pending, then to `9` to see a rejection: the cell returns to the stored value and shows the error. Reopen the cell to clear the error and try again. The delay is sample server behavior; outstanding timers are cleared on unmount.
+Return a promise from `onEdit` when the server can reject a command. This example waits one second before writing the accepted value and resolving. Set Width to `5` to see it pending, then to `9` to see a rejection: the cell returns to the stored value and shows the error. Reopen it and commit a change to replace the error. The delay is sample server behavior; outstanding timers are cleared on unmount.
 
 <!-- demo: quote-panel-pending -->
 
@@ -109,7 +109,7 @@ With the generated columns, Enter, F2, a double click, or typing opens a cell wh
 
 A valid change calls `onEdit` with `{ rowId, key, value, previous, row }`. The generated keys are `bid`, `ask`, `skew`, `width`, `bidSize`, and `askSize`; `previous` and `row` come from the current store. Committing the same value sends nothing. The panel never writes the store.
 
-The cell shows the committed value as pending until the store matches it (`Object.is`) or your promise resolves. Resolution displays the current store value, which may still be the old value. Returning nothing leaves the cell pending until the store matches or the editor reopens. Reopening starts from the committed text and replaces the pending state; Escape then discards the draft. Promise completion affects only a matching value that is still pending. A thrown error or rejection of a still-pending promise displays the current store value and the error message; reopening clears the error.
+The cell shows the committed value as pending until the store matches it (`Object.is`) or your promise resolves. Resolution displays the current store value, which may still be the old value. Returning nothing leaves the cell pending until the store matches. Reopening starts from the committed text and covers the pending state: every close of the untouched editor — Enter, Tab, blur, or Escape — restores it, a promise that settled meanwhile applied, and committing a change replaces it. A thrown error or rejection of a still-pending promise displays the current store value and the error message; reopening clears the error while the editor is open, and closing it untouched brings the error back.
 
 | Field | Typed as | Steps by | Blank means |
 |---|---|---|---|

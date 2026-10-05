@@ -373,8 +373,10 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
   // does not stop a spreadsheet from evaluating what follows it.
   const wholeNumber = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i
   const neutral = (s: string) => (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !wholeNumber.test(s)) ? `'${s}` : s)
-  const esc = (s: string) => {
-    const t = neutral(s)
+  // A finite numeric accessor's text is data by construction — +1,234.50 from a signed
+  // formatter included — so only non-numeric fields go through neutralization.
+  const esc = (s: string, numeric = false) => {
+    const t = numeric ? s : neutral(s)
     return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
   }
   const header = cols.map((c) => esc(typeof c.header === "string" ? c.header : c.key)).join(",")
@@ -386,7 +388,8 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
       cols
         .map((c) => {
           const v = c.accessor(row)
-          return esc(c.format ? c.format(v, row) : v === null || v === undefined ? "" : String(v))
+          const numeric = typeof v === "number" && Number.isFinite(v)
+          return esc(c.format ? c.format(v, row) : v === null || v === undefined ? "" : String(v), numeric)
         })
         .join(","),
     )
@@ -1011,19 +1014,22 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const k = cellKey(rowId, key)
         const now = tracker.get(k)
         if (now?.kind !== "editing") return
-        const col = column(key)
-        const row = store.getRow(rowId)
-        if (!canEditCell(col, row)) {
-          tracker.set(k, undefined)
-          return focusGrid()
-        }
         // Opened and left unchanged: a format that rounds must not turn looking into
-        // an edit, so the untouched text sends nothing — Tab chains pass clean through.
+        // an edit, so the untouched text sends nothing and the covered state comes
+        // back — ahead of the permission check, so a revocation mid-look cannot
+        // erase a pending or rejected state the way it refuses a real change.
         if (now.initial != null && now.text === now.initial) {
           cellsByKey.delete(k)
           tracker.set(k, now.prior)
           moveOn(rowId, key, move)
           return
+        }
+        const col = column(key)
+        const row = store.getRow(rowId)
+        if (!canEditCell(col, row)) {
+          cellsByKey.delete(k)
+          tracker.set(k, now.prior)
+          return focusGrid()
         }
         const parsed = col.edit.parse(now.text, row!)
         const problem = isEditProblem(parsed) ? parsed : col.edit.validate?.(parsed, row!)
@@ -1072,7 +1078,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         if (now.initial != null && now.text === now.initial) return tracker.set(k, now.prior)
         const col = column(key)
         const row = store.getRow(rowId)
-        if (!canEditCell(col, row)) return tracker.set(k, undefined)
+        if (!canEditCell(col, row)) return tracker.set(k, now.prior)
         const parsed = col.edit.parse(now.text, row!)
         if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!)) return tracker.set(k, undefined)
         send(rowId, col, row!, parsed)

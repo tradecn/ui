@@ -204,7 +204,7 @@ The pane reads IDs from `view` when supplied, otherwise from `store`. Grid-only 
 
 Compose `AuditTrailExportButton` where you need it. Downloading, copying, or sending its CSV is yours; omit the control when export is unavailable.
 
-CSV comes from `exportCsv(store, columns, ids)` using these inputs. Text that a spreadsheet would run as a formula — a leading `=`, `@`, tab, carriage return, or a sign not starting a number — is prefixed with an apostrophe, the spreadsheet convention for literal text; signed numbers export unprefixed.
+CSV comes from `exportCsv(store, columns, ids)` using these inputs. Text that a spreadsheet would run as a formula is prefixed with an apostrophe, the spreadsheet convention for literal text: a leading `=`, `@`, tab, or carriage return always, and a leading sign unless the whole field is one plain number. Fields whose accessor value is a finite number skip neutralization entirely — their formatted text, signs and grouping included, is data by construction.
 
 | Input | Export behavior |
 |---|---|

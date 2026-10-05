@@ -671,6 +671,32 @@ describe("certification pins", () => {
     expect(screen.queryByRole("textbox")).toBeNull()
   })
 
+  it("keeps the covered state when permission is revoked under an untouched reopen", () => {
+    // A revocation mid-look refuses a real change; it must not erase the pending
+    // state a merely-opened editor was covering.
+    const onEdit = vi.fn(() => new Promise(() => {}))
+    const store = createRowStore<{ id: string; px: number; locked: boolean }>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "r0", px: 101, locked: false }, { id: "r1", px: 102, locked: false }] })
+    const cols: ColumnDef<{ id: string; px: number; locked: boolean }>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text), canEdit: row => !row.locked } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    const cell = () => document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    fireEvent.keyDown(grid, { key: "F2" })
+    act(() => {
+      store.applyDeltas({ patch: [{ id: "r0", fields: { locked: true } }] })
+    })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" })
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
   it("rewrites a covered pending when its promise settles under the reopened editor", async () => {
     // Reject while the untouched reopen is still up: the close must show the refusal,
     // never restore a pending with no live promise behind it.
@@ -751,6 +777,12 @@ describe("certification pins", () => {
     // that is entirely a number stays raw.
     expect(csv.split("\r\n")[6]).toBe("'+1+SUM(A1:A9)")
     expect(csv.split("\r\n")[7]).toBe("-1.5e3")
+    // A finite numeric accessor skips neutralization: its formatted text is data,
+    // signs and grouping included.
+    const pnl = createRowStore<{ id: string; v: number }>({ getRowId: row => row.id })
+    pnl.applyDeltas({ upsert: [{ id: "a", v: 1234.5 }] })
+    const signed: ColumnDef<{ id: string; v: number }>[] = [{ key: "v", header: "P&L", width: 80, accessor: row => row.v, format: value => `+${(value as number).toLocaleString("en-US", { minimumFractionDigits: 2 })}` }]
+    expect(exportCsv(pnl, signed, ["a"]).split("\r\n")[1]).toBe('"+1,234.50"')
   })
 })
 
