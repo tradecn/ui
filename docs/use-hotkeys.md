@@ -62,7 +62,7 @@ The buttons provide the same actions without a shortcut. This example changes a 
 
 Choose `U`, then focus Increment and press `u`. The old `i` binding no longer runs. Unbound disables the shortcut while leaving the button usable; Reset shortcut restores `I` without resetting the counter.
 
-`useHotkeyList` supplies the current keys, and `formatKeys` turns them into display labels. Remapping changes the existing declaration, so the display and handler stay in sync. This preview keeps overrides in memory; [Remapping](#remapping) covers persistence and the settings editor.
+`useHotkeyList` supplies the current keys, and `formatKeys` turns them into display labels. Remapping overrides the keys in force for that binding id, so the display and handler stay in sync while the declaration keeps its defaults. This preview keeps overrides in memory; [Remapping](#remapping) covers persistence and the settings editor.
 
 <!-- demo: use-hotkeys-remapping -->
 
@@ -143,7 +143,7 @@ A key that does not continue the chord clears it and is tried on its own, so `g`
 | `prefix` | One sequence starts another in the same scope, or between `global` and `editing`. |
 | `shadow` | A panel and a global or editing binding share keys or a chord prefix. |
 
-Handlers can settle a duplicate. While every handler on both sides is fenced to elements that do not hold one another, the pair is not reported: an order ticket and an RFQ ticket on one desk share `mod+enter` with no line under either. A handler is fenced when it is bound with `within` in the binding's own scope, which `useHotkey` does inside a `HotkeyScope` of that scope. A binding with no handler yet, or with a handler that runs anywhere, is compared by its declaration alone, and the report returns when such a handler binds. `conflicts()` reads the document as it is when asked, and `subscribe` wakes when a handler comes or goes, as it does for a declaration.
+Handlers can settle a conflict. While every handler on both sides is fenced to elements that do not hold one another, the pair is not reported: an order ticket and an RFQ ticket on one desk share `mod+enter` with no line under either. A handler is fenced when it is bound with `within` in the binding's own scope, which `useHotkey` does inside a `HotkeyScope` of that scope. A binding with no handler yet, or with a handler that runs anywhere, is compared by its declaration alone, and the report returns when such a handler binds. `conflicts()` reads the document as it is when asked, and `subscribe` wakes when a handler comes or goes, as it does for a declaration.
 
 Beyond that, these reports compare declarations, regardless of `when()`. They do not reject a binding or guarantee which one will run. A shadow may be intentional. Unbound bindings and pairs with different panel scope names are excluded, even when those panels are nested.
 
@@ -151,7 +151,7 @@ Beyond that, these reports compare declarations, regardless of `when()`. They do
 
 Persistence is yours. `onChange` receives the full override map after `remap` or `reset`; `load` restores it without calling `onChange`. Overrides can load before or after their bindings. An override that fails to parse falls back to the binding's default keys.
 
-For the plus key, `remap(id, "ctrl+plus")` stores the canonical `"ctrl++"`, which parses back and prints as `Ctrl` `+` (`⌃` `+` on a Mac).
+For the plus key, `remap(id, "ctrl+plus")` stores the canonical `"ctrl++"`, which parses back and prints as `Ctrl` `+` (`⌃` `+` on a Mac). Overrides saved under v1 as `ctrl++` were unreadable there and fell back to the default; after upgrading they read back and take effect, so reset one that was unintended — see [Updating from v1](migrating-v1-to-v2.md#hotkeyeditor).
 
 For persistence, create a registry once, restore saved overrides with `load`, and pass it to `HotkeysProvider`. Subscribe to `onChange` to save the override map, for example as JSON in `localStorage`; unsubscribe when the owner unmounts. Handle missing or invalid stored data in the application. The [live shortcut list](#live-shortcut-list) shows `remap` and `reset` without storage.
 
@@ -163,7 +163,7 @@ For persistence, create a registry once, restore saved overrides with `load`, an
 | `overrides()` | Return the current override map. |
 | `onChange(callback)` | Subscribe with `(overrides: HotkeyOverrides) => void`; returns an unsubscribe function. |
 
-`keysFromEvent(event: KeyboardEvent)` captures one step for a shortcut field, or returns `null` for ignored keys such as bare modifiers. The playground includes a capture field; [HotkeyEditor](hotkey-editor.md) provides a settings screen.
+`keysFromEvent(event: KeyboardEvent)` captures one step for a shortcut field, or returns `null` for ignored keys such as bare modifiers. The repository's playground includes a capture field; [HotkeyEditor](hotkey-editor.md) provides a settings screen.
 
 ### The rest
 

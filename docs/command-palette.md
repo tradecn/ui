@@ -73,7 +73,7 @@ Keep the action registry stable for the lifetime of the view. This example creat
 
 Use `variant="go-bar"` for an always-visible command line. Focus it, or press `/` while focus is in this preview and outside a text field. Type `AAPL` to see its functions, then `AAPL G` to narrow to the price chart command. Enter selects it; Escape clears and blurs the input.
 
-The grammar accepts `AAPL`, `MSFT`, or `ZN`, followed by `DES` or `GP`. It reports the selected command below the input. These rows come from `goBarGrammar`, so they do not require asynchronous symbol search or enter recents. This layout reads groups with `useCommandPalette()`, puts each description below its title, and adds application help beneath the input. It uses the same input, selection and focus behavior as the dialog.
+The grammar accepts `AAPL`, `MSFT`, or `ZN`, followed by `DES` or `GP`. It reports the selected command below the input. These rows come from `goBarGrammar`, so they do not require asynchronous symbol search or enter recents. This layout reads groups with `useCommandPalette()`, puts each description below its title, and adds application help beneath the input. It uses the same input and item parts as the dialog; focus, opening, and closing follow the [Go-bar](#go-bar) rules.
 
 <!-- demo: command-palette-go-bar -->
 
@@ -204,7 +204,7 @@ Reads the nearest Content without starting subscriptions, timers or requests. Mu
 | `input`, `setInput` | `string`, `(input: string) => void` | Raw query and setter; matching uses trimmed input. |
 | `loading` | `boolean` | A qualifying symbol query has no current answer. |
 | `open`, `setOpen` | `boolean`, `(open: boolean) => void` | Root state and a request to change it. |
-| `platform` | `Platform \| undefined` | The registry's hotkey platform: its configured value, else the detected one. |
+| `platform` | `Platform \| undefined` | The registry's hotkey platform: its configured value, else the detected one. `undefined` without a hotkey registry. |
 | `select` | `(row: PaletteRow, secondary?: boolean) => void` | Clears input, requests close, touches recents and invokes the current callback. Secondary defaults to false and falls back to primary if absent. |
 
 Use `CommandPaletteItem` for result selection and `CommandPaletteSecondary` for its alternate control; they also handle disabled state and events. Calling `select` yourself requires guarding your own control's disabled state. It does nothing while closed.
@@ -244,7 +244,7 @@ Matching is case-insensitive, and every query word must match. Each word scores 
 | `onRecentsChange` | `(recents: readonly PaletteRecent[]) => void` → `() => void` | Subscribes to `touch` updates; returns cleanup. |
 | `subscribe` | `() => void` → `() => void` | Subscribes to action and recent changes; returns cleanup. |
 
-Palettes sharing a registry share its actions and recents. Each filters its own rows by query and captured scope. The opening shortcut contends per hotkey registry: the first same-variant palette declares the binding, the last-mounted one answers while mounted, unmounting it hands the shortcut back, and unmounting the declaring palette retires the binding even while another is mounted — one palette per variant per hotkey registry is the supported shape.
+Previous call shapes and the registry changes are mapped in [Migrating to v2](migrating-v1-to-v2.md#commandpalette). Palettes sharing a registry share its actions and recents. Each filters its own rows by query and captured scope. The opening shortcut contends per hotkey registry: the first same-variant palette declares the binding, the last-mounted one answers while mounted, unmounting it hands the shortcut back, and unmounting the declaring palette retires the binding even while another is mounted — one palette per variant per hotkey registry is the supported shape.
 
 ### Symbols
 
@@ -286,7 +286,7 @@ If the binding ID already exists — declared on the registry before render, or 
 
 Row shortcuts follow the current keys for `bindingId`, including remaps. The dispatcher stops at dialogs. A single-step opening shortcut also closes the palette from inside; use Escape for a multi-step binding.
 
-Dialog focus can arrive after opening. For up to one second, or until focus reaches the palette, it captures keys outside itself: text without Ctrl, Meta, or Alt enters the query, Enter and Shift+Enter run the highlighted row, and Escape requests closure. Those events do not reach the hotkey dispatcher. Composition events are left alone.
+Dialog focus can arrive after opening. For up to one second, or until focus reaches the palette, it captures keys outside itself: text without Ctrl, Meta, or Alt enters the query, Enter and Shift+Enter run the highlighted row, and Escape requests closure. Every other key outside the palette is also held back, without effect, until focus arrives. Those events do not reach the hotkey dispatcher. Composition events are left alone.
 
 ### Go-bar
 
