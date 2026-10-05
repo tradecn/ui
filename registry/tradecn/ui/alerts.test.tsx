@@ -260,8 +260,9 @@ describe("AlertsAnnouncer", () => {
     observer.disconnect()
   })
 
-  it("announces identical words again on a keyed repeat and in the polite region", () => {
-    // A folded repeat bumps seq, and the polite region carries the same keyed node.
+  it("replaces the polite region's node on a folded repeat", () => {
+    // A folded repeat bumps seq, so the keyed node is replaced — the count suffix also
+    // changes the words, so the pin asserts the mechanism: an addition, not a text write.
     const alerts = seeded(clock().now)
     render(<AlertsAnnouncer alerts={alerts} id="n2" assertive={[]} />)
     const region = document.querySelector("[data-alerts-polite]")!
@@ -270,6 +271,20 @@ describe("AlertsAnnouncer", () => {
     observer.observe(region, { childList: true })
     act(() => void alerts.push({ key: "md:slow", severity: "warning", title: "Feed slow", message: "1.2 s behind", tone: "stale", allowedActions: ["reconnect", "mute"] }))
     expect(observer.takeRecords().some((record) => record.addedNodes.length > 0)).toBe(true)
+    observer.disconnect()
+  })
+
+  it("stays silent when a fresh wrapper carries the same store", () => {
+    // Unmemoized context values hand the announcer a new alerts object every render;
+    // the epoch keys on the subscribed store, so nothing is re-announced.
+    const alerts = seeded(clock().now)
+    const { rerender } = render(<AlertsAnnouncer alerts={alerts} id="n4" assertive={["critical"]} />)
+    const region = document.querySelector("[data-alerts-assertive]")!
+    const observer = new MutationObserver(() => {})
+    observer.observe(region, { childList: true })
+    rerender(<AlertsAnnouncer alerts={{ ...alerts }} id="n4" assertive={["critical"]} />)
+    expect(observer.takeRecords()).toEqual([])
+    expect(region.textContent).toContain("Order rejected")
     observer.disconnect()
   })
 

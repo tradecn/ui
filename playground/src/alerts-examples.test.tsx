@@ -16,17 +16,23 @@ it("restores focus when a desk action removes its notice, and never expires one"
   vi.useFakeTimers()
   const alerts = alertStore.createAlertStore()
   alerts.push({ severity: "warning", title: "Stays", allowedActions: ["ack"] })
-  alerts.push({ severity: "critical", title: "Rejected", allowedActions: ["ack"] })
+  alerts.push({ severity: "info", title: "Plain" })
   render(<DeskAlerts alerts={alerts} actions={[{ id: "ack", label: "Acknowledge", onAction: (alert) => alerts.dismiss(alert.id) }]} />)
-  // No TTL: the focusable notice outlives the demo's old twelve-second timer.
+  // No TTL: the displayed notice carries no actions, exactly the kind the demo's old
+  // twelve-second timer expired.
   await act(async () => { await vi.advanceTimersByTimeAsync(13_000) })
   expect(alerts.size()).toBe(2)
+  const dismiss = screen.getByRole("button", { name: "Dismiss: Plain" })
+  act(() => dismiss.focus())
+  fireEvent.click(dismiss)
+  await act(async () => { await vi.advanceTimersByTimeAsync(0) })
   const acknowledge = screen.getByRole("button", { name: "Acknowledge" })
+  expect(screen.getByRole("button", { name: "Dismiss: Stays" })).toHaveFocus()
   act(() => acknowledge.focus())
   fireEvent.click(acknowledge)
   await act(async () => { await vi.advanceTimersByTimeAsync(0) })
-  expect(alerts.size()).toBe(1)
-  expect(screen.getByRole("button", { name: /^Dismiss:/ })).toHaveFocus()
+  expect(alerts.size()).toBe(0)
+  expect(screen.getByRole("button", { name: "History" })).toHaveFocus()
 })
 
 it.each(["dismiss", "clear"])("returns focus from terminal history after a server %s removes the overflow", async (change) => {

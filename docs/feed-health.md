@@ -207,7 +207,7 @@ A span that also works outside an item. It defaults to `aria-hidden` so age tick
 | `clock` | `Clock` | Group, then shared clock | Time source. |
 | `children` | `ReactNode` | Formatted age | Replacement content. |
 
-Render feed health on the client. The shared clock advances only while something in a browser subscribes, so server-rendered ages, tiers, and `data-tier` go stale and mismatch on hydration — for items and the announcer as much as for this span.
+Render feed health on the client. The shared clock advances only while something in a browser subscribes, so server-rendered ages, tiers, and `data-tier` go stale and mismatch on hydration — for items as much as for this span.
 
 <details class="api-details" id="feedage-formatting">
 <summary>Age formatting</summary>
@@ -253,7 +253,7 @@ Optional third argument. Omit it to use the defaults below.
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `pendingMs` | `number` | `5000` | Timeout in milliseconds, within the platform's timer range — about twenty-five days — or the timer misfires immediately; changes affect future presses. |
+| `pendingMs` | `number` | `5000` | Timeout in milliseconds, within the platform's timer range — about twenty-five days — or the timer fires early; changes affect future presses. |
 | `clock` | `Clock` | Group, then shared clock | Press timestamp. Timeout uses `setTimeout`. |
 
 #### Returns

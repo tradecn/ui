@@ -112,10 +112,11 @@ export function AlertsAnnouncer({ alerts, id, assertive = [] }: AlertsAnnouncerP
   // and an unchanged text write never reaches the live region. The inner node is keyed by
   // the notice's identity, so the region receives an addition either way, the feed-health
   // announcer's pattern. Sequence numbers restart per store, so a store swap bumps a local
-  // epoch to keep the key fresh across replacement.
-  const [tracked, setTracked] = useState({ alerts, epoch: 0 })
-  if (tracked.alerts !== alerts) setTracked({ alerts, epoch: tracked.epoch + 1 })
-  const epoch = tracked.alerts === alerts ? tracked.epoch : tracked.epoch + 1
+  // epoch to keep the key fresh across replacement — keyed on the subscribed store itself,
+  // so a fresh wrapper around the same store re-announces nothing.
+  const [tracked, setTracked] = useState({ store: alerts.store, epoch: 0 })
+  if (tracked.store !== alerts.store) setTracked({ store: alerts.store, epoch: tracked.epoch + 1 })
+  const epoch = tracked.store === alerts.store ? tracked.epoch : tracked.epoch + 1
   const revision = alert ? `${epoch}:${alert.id}:${alert.seq}` : ""
   return <>
     <div role="status" aria-live="polite" aria-atomic="true" className="sr-only" data-alerts-polite>{!urgent && text ? <span key={revision}>{text}</span> : ""}</div>
