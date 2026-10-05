@@ -220,7 +220,7 @@ Use `CommandPaletteItem` for result selection and `CommandPaletteSecondary` for 
 | `run` | `() => void` | Required | Primary action. |
 | `subtitle` | `string` | — | Secondary text exposed as `row.subtitle` for your markup; also searchable. |
 | `scope` | `string` | Everywhere | Hotkey scope required to offer a registered action. Exposed as `row.badge`, with `panel:` removed. |
-| `within` | `() => Element \| null` | Latest registration | The panel instance that owns a scoped action. With several panels sharing one scope, the instance containing the captured focus runs. |
+| `within` | `() => Element \| null` | Latest registration | The panel instance that owns a scoped action: a getter for an element containing wherever focus rests in that panel — pass `useHotkeyScope()`, since clicking a panel focuses the scope element itself. With several panels sharing one scope, the containing instance runs. |
 | `keywords` | `readonly string[]` | — | Additional search terms. |
 | `group` | `string` | `labels.actions` | Heading for registered actions. An explicitly supplied group is also searchable. |
 | `bindingId` | `string` | — | Hotkey binding whose current keys appear in `row.keys`. |
@@ -228,7 +228,7 @@ Use `CommandPaletteItem` for result selection and `CommandPaletteSecondary` for 
 
 Enter or a row click runs the primary action. Shift+Enter runs `secondary` when present, otherwise the primary action. `CommandPaletteSecondary` supplies a clickable hint on the highlighted row; callers choose its content and placement. Secondary actions replace the primary callback; repeat any shared work yourself.
 
-A registered action with `scope: "panel:book"` is offered only when the palette opens from inside `<HotkeyScope scope="panel:book">`. It captures the scope before taking focus and keeps it for that opening; the capture tracks focus moves, so after focus falls to the body the last panel's offer stands for scope-matched actions, while a registration fenced by `within` answers only while the capture is inside its element. When several panels share a scope name and register the same action ID, supply `within` so the panel containing the captured focus answers, the way fenced hotkey handlers do. Grammar rows are not scope-filtered.
+A registered action with `scope: "panel:book"` is offered only when the palette opens from inside `<HotkeyScope scope="panel:book">`. It captures the scope before taking focus and keeps it for that opening; the capture tracks focus moves, so after focus falls to the body the last panel's offer stands for scope-matched actions, while a registration fenced by `within` answers only while the capture is inside its element. When several panels share a scope name and register the same action ID, supply `within` — `useHotkeyScope()` from inside the scope — so the panel containing the captured focus answers; the scope element counts as inside, which matters because `HotkeyScope` takes focus on click. Grammar rows are not scope-filtered.
 
 Matching is case-insensitive, and every query word must match. Each word scores highest for an exact title, followed by a title prefix, title word start, other title substring, metadata match, or letters in order within the title. Metadata includes the subtitle, group, ID, and keywords. `scorePaletteAction(action, query)` returns the combined score, `-1` for a miss, or `0` for an empty query. Registered actions are ranked, then collected under their group headings.
 
@@ -269,7 +269,7 @@ Query or adapter changes, closure and unmount cancel the pending debounce and ab
 
 An empty query supplies eligible recents before the registered actions. Callers choose how many to render; the examples use `group.rows.slice(0, 5)` for the recent group. Missing or out-of-scope actions are skipped. Registered actions still appear in their usual groups too.
 
-`PaletteRecent` is `{ kind: "action"; id: string; scope?: string }` or `{ kind: "symbol"; symbol: SymbolResult }`. `touch` deduplicates actions by ID and scope — running a scoped action retires the scope-less entry persisted for the same ID by earlier versions and symbols by symbol plus exchange. Grammar rows do not enter recents.
+`PaletteRecent` is `{ kind: "action"; id: string; scope?: string }` or `{ kind: "symbol"; symbol: SymbolResult }`. `touch` deduplicates actions by ID and scope, and symbols by symbol plus exchange. Touching a scoped action entry also removes any scope-less entry with its ID while no unscoped registration is live for that ID, which retires what earlier versions persisted without deleting a current global action's entry and symbols by symbol plus exchange. Grammar rows do not enter recents.
 
 Selecting a row clears the input and requests closure, then updates recents when applicable, then invokes the action callback. This applies to primary and secondary actions. Persistence is yours: save through `onRecentsChange` and restore with `loadRecents`.
 

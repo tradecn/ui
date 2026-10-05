@@ -329,7 +329,7 @@ Removing a focused item falls back to search or the root. Reset moves focus to t
 
 Each item is now a named `role="group"` with `tabIndex={-1}`. The root also has `tabIndex={-1}` for focus recovery.
 
-Capture's default accessible name changes from `Press the new shortcut, Escape cancels, Backspace unbinds` to `Press the new shortcut`. The hint is now a linked accessible description. Update role/name locators that include the hint.
+Capture's default accessible name changes from `Press the new shortcut, Escape cancels, Backspace unbinds` to `Press the new shortcut`. The hint is now a linked accessible description reading `Escape cancels, Tab moves on, Backspace unbinds`. Update role/name locators that include the hint. Capture also stops recording bare Tab, Enter, and Space: v1 committed them as bindings on the first press, while v2 lets Tab and Shift+Tab leave capture and refuses bare Enter and Space — Shift, Ctrl, Meta, or Alt still records Enter and Space, and Ctrl, Meta, or Alt records a Tab. A v1 end-to-end test that pressed one of these during capture now binds nothing.
 
 Validation now has an alert role and a linked field description. Its message clears on blur, where v1 kept it. `data-hotkey-capture`, `data-hotkey-problem`, and `data-hotkey-conflicts` retain their `"true"` values.
 

@@ -14,7 +14,7 @@ export interface PaletteAction {
   subtitle?: string
   /** A hotkey scope, `panel:book`. The action is offered only when the palette is opened from inside that scope. Omit for everywhere. */
   scope?: string
-  /** The panel instance that owns a scoped action. With several panels sharing one scope, the instance containing the captured focus runs; registrations without it fall back to the latest. */
+  /** The panel instance that owns a scoped action: a getter for an element that CONTAINS wherever focus rests in that panel, the HotkeyScope element itself — `useHotkeyScope()` hands it over. A root inside the scope misses clicks that focus the scope div. With several panels sharing one scope, the containing instance runs; registrations without it fall back to the latest. */
   within?: () => Element | null
   keywords?: readonly string[]
   /** The heading the row sits under. */

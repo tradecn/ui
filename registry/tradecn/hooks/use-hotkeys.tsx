@@ -105,6 +105,16 @@ export function usePendingChord(): string | null {
   return useSyncExternalStore(registry.subscribe, registry.pending, registry.pending)
 }
 
+/**
+ * The nearest HotkeyScope's element getter, or null outside one. Hand it to a scoped
+ * palette action's `within`, so the panel that answers is the one containing the
+ * captured focus — the scope element itself included, since clicking a panel focuses it.
+ */
+export function useHotkeyScope(): (() => Element | null) | null {
+  const scope = useContext(ScopeContext)
+  return scope ? scope.element : null
+}
+
 export interface HotkeyScopeProps extends Omit<ComponentProps<"div">, "ref"> {
   scope: HotkeyScopeName
 }

@@ -1,6 +1,6 @@
 import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { useCallback, useEffect, useState } from "react"
-import { HotkeyScope, HotkeysProvider, useHotkey } from "@/registry/tradecn/hooks/use-hotkeys"
+import { HotkeyScope, HotkeysProvider, useHotkey, useHotkeyScope } from "@/registry/tradecn/hooks/use-hotkeys"
 import type { HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
 import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, createActionRegistry, type ActionRegistry } from "@/registry/tradecn/ui/command-palette"
 
@@ -11,15 +11,19 @@ const BINDINGS: HotkeyBinding[] = [
 function Book({ actions, onOpen }: { actions: ActionRegistry; onOpen: () => void }) {
   const [requests, setRequests] = useState(0)
   const refresh = useCallback(() => setRequests((count) => count + 1), [])
+  // The scope element is the instance fence: with several books sharing this scope,
+  // the palette runs the one that contained the captured focus.
+  const within = useHotkeyScope()
   useHotkey("book.refresh", refresh)
   useEffect(() => actions.register({
     id: "book.refresh",
     title: "Refresh book",
     scope: "panel:book",
     bindingId: "book.refresh",
+    within: within ?? undefined,
     run: refresh,
     secondary: { title: "Reset", run: () => setRequests(0) },
-  }), [actions, refresh])
+  }), [actions, refresh, within])
   return (
     <div className="space-y-3 rounded border border-border p-3">
       <p className="font-medium">Order book</p>

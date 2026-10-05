@@ -2,7 +2,7 @@ import * as React from "react"
 import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { HotkeyScope, HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
+import { HotkeyScope, HotkeysProvider, useHotkeyScope } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { CommandPalette, CommandPaletteContent, CommandPaletteDialog, CommandPaletteEmpty, CommandPaletteInput, CommandPaletteItem, CommandPaletteKeys, CommandPaletteList, CommandPaletteResults, CommandPaletteSecondary, useCommandPalette, type CommandPaletteProps, createActionRegistry, scorePaletteAction, type ActionRegistry, type PaletteAction, type SymbolResult, type SymbolSearchAdapter } from "@/registry/tradecn/ui/command-palette"
 
@@ -524,6 +524,33 @@ describe("CommandPalette", () => {
     second.rerender(ui2(true))
     expect(document.querySelectorAll(`[data-row='recent!["panel:book","refresh"]']`)).toHaveLength(1)
     expect(document.querySelectorAll('[data-row^="recent"]')).toHaveLength(1)
+  })
+
+  it("answers the panel whose scope element itself holds the capture, wired by useHotkeyScope", () => {
+    // Clicking a panel focuses the HotkeyScope div (tabIndex -1), the PARENT of
+    // anything the panel renders. The documented wiring hands the scope element to
+    // within, so that focus still resolves the right book.
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    function BookBody({ run: runBook }: { run: () => void }) {
+      const within = useHotkeyScope()
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within: within ?? undefined }), [runBook, within])
+      return <p>book body</p>
+    }
+    const ui = (open: boolean) => (
+      <HotkeysProvider>
+        <HotkeyScope scope="panel:book" data-testid="scope-a"><BookBody run={ranA} /></HotkeyScope>
+        <HotkeyScope scope="panel:book" data-testid="scope-b"><BookBody run={ranB} /></HotkeyScope>
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false))
+    act(() => (screen.getByTestId("scope-a") as HTMLElement).focus())
+    view.rerender(ui(true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranA).toHaveBeenCalledTimes(1)
+    expect(ranB).not.toHaveBeenCalled()
   })
 
   it("unregisters one copy per call, idempotently, when one object registered twice", () => {
