@@ -93,9 +93,13 @@ export function usePopout(options: PopoutOptions = {}): Popout {
     if (host) place(host, slot, popout)
   }, [host, slot, popout])
 
+  const closeReported = useRef<Window | null>(null)
   const finish = useCallback((target: Window) => {
     if (live.current !== target) return
     live.current = null
+    // Every path that reports a close marks the window, so the reconcile never
+    // reports the same one again — close() in the very commit that opened it included.
+    closeReported.current = target
     setPopout(null)
     latest.current.onClose?.()
   }, [])
@@ -138,7 +142,6 @@ export function usePopout(options: PopoutOptions = {}): Popout {
   // child effect or a keypress in the transition gap, already owns live and must not be
   // clobbered — and a dead window that is still the live one goes through finish, the
   // same path its close listener would take.
-  const closeReported = useRef<Window | null>(null)
   useEffect(() => {
     if (!popout) return
     if (live.current === null) {

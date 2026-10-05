@@ -225,6 +225,31 @@ describe("usePopout", () => {
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
+  it("says so once when the window closes in the commit that opened it", () => {
+    // A child's passive effect runs before the hook's own: close() there clears the
+    // live handle ahead of the reconcile, which must not report the window again.
+    const win = fakeWindow()
+    const onClose = vi.fn()
+    function CloseOnMount({ when }: { when: boolean }) {
+      useEffect(() => {
+        if (when) handle.close()
+      }, [when])
+      return null
+    }
+    const ui = (closing: boolean) => (
+      <Harness openWindow={opening(win)} onClose={onClose}>
+        <CloseOnMount when={closing} />
+      </Harness>
+    )
+    const view = render(ui(false))
+    act(() => {
+      handle.open()
+    })
+    view.rerender(ui(true))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId("open")).toHaveTextContent("false")
+  })
+
   it("focuses the window it already has instead of opening a second", () => {
     const win = fakeWindow()
     const openWindow = opening(win)
