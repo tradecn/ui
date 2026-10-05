@@ -439,6 +439,7 @@ interface EditController {
   unmountEditor(key: string, input: HTMLInputElement): void
   markFocused(rowId: RowId, key: string): void
   rowOf(k: string): RowId | undefined
+  forget(k: string): void
   open(rowId: RowId, key: string, typed?: string): void
   type(rowId: RowId, key: string, text: string): void
   /** Parse, check, and send. `move` opens the next (1) or previous (-1) editable cell of the row after. */
@@ -980,6 +981,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       },
       open,
       rowOf: (k: string) => cellsByKey.get(k),
+      forget: (k: string) => void cellsByKey.delete(k),
       markFocused(rowId, key) {
         const k = cellKey(rowId, key)
         const now = tracker.get(k)
@@ -1003,6 +1005,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         // Opened and left unchanged: a format that rounds must not turn looking into
         // an edit, so the untouched text sends nothing — Tab chains pass clean through.
         if (now.initial != null && now.text === now.initial) {
+          cellsByKey.delete(k)
           tracker.set(k, now.prior)
           moveOn(rowId, key, move)
           return
@@ -1013,6 +1016,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
           tracker.set(k, { ...now, problem: problem.problem })
           return
         }
+        cellsByKey.delete(k)
         send(rowId, col, row!, parsed)
         moveOn(rowId, key, move)
       },
@@ -1046,6 +1050,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       },
       blur(rowId, key) {
         const k = cellKey(rowId, key)
+        cellsByKey.delete(k)
         const now = tracker.get(k)
         if (now?.kind !== "editing") return
         if (now.initial != null && now.text === now.initial) return tracker.set(k, now.prior)
@@ -1082,6 +1087,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     if (k === null) return
     const rowId = edits.rowOf(k)
     if (rowId !== undefined && !indexOf.has(rowId)) {
+      edits.forget(k)
       edits.tracker.set(k, undefined)
       const doc = rootRef.current?.ownerDocument
       if (doc && doc.activeElement === doc.body) rootRef.current?.focus({ preventScroll: true })
