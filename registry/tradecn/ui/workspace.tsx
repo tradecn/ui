@@ -57,7 +57,7 @@ export interface WorkspaceBox {
 
 export interface WorkspaceAddPanelOptions {
   kind: string
-  /** `book-1`, `book-2` by default. An id that is already open is focused, not opened twice. */
+  /** `book-1`, `book-2` by default. An id that is already open is not opened twice: it is focused, unless `focus: false` leaves everything as it stands. */
   id?: string
   /** The kind by default. */
   title?: string
@@ -314,7 +314,9 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
     addPanel({ kind, id: wanted, title, state, position, floating, focus = true }) {
       const id = wanted ?? nextPanelId(kind, dv.panels.map((panel) => panel.id))
       if (dv.getPanel(id)) {
-        api.focusPanel(id)
+        // An ensure-open call with focus: false must not steal the keyboard from
+        // the panel the trader is in.
+        if (focus) api.focusPanel(id)
         return id
       }
       const record = { kind, title: title ?? kind, state: state ?? {} }
@@ -593,7 +595,10 @@ function WorkspacePanelHost({ api: panelApi }: IDockviewPanelProps) {
     [api, record, id, active, location],
   )
   if (!handle) return null
-  const Component = kinds[handle.kind]
+  // Own keys only: a layout naming "constructor" or "__proto__" must hit the
+  // placeholder, not an Object.prototype member. The long spelling keeps installed
+  // source compiling for consumers whose TypeScript lib predates ES2022.
+  const Component = Object.prototype.hasOwnProperty.call(kinds, handle.kind) ? kinds[handle.kind] : undefined
 
   return (
     <WorkspacePanelContext.Provider value={handle}>

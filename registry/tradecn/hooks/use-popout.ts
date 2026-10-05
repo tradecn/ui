@@ -25,7 +25,7 @@ export interface PopoutOptions {
   /** Instead of `window.open`, for a shell that makes its own windows. It must hand back a same-origin window synchronously. */
   openWindow?: (features: string) => Window | null
   onOpen?: (popout: Window) => void
-  /** Closed from either side: `close()`, the window's own close button, or the opener going away. */
+  /** Closed from either side: `close()`, the window's own close button, the opener going away, or the reveal after an `Activity` hide closed the window. */
   onClose?: () => void
   /** The browser refused the window. `open()` has to run inside a click or a key press. */
   onBlocked?: () => void
@@ -69,9 +69,12 @@ function copyStyles(from: Document, to: Document) {
 
 // In the page the host takes no box of its own; in the popout it is the page.
 function place(host: HTMLElement, slot: HTMLElement | null, popout: Window | null) {
-  host.dataset.popout = popout ? "open" : "closed"
-  host.style.cssText = popout ? "display:block;height:100vh" : "display:contents"
-  if (popout) popout.document.body.appendChild(host)
+  // A window that died between renders reads as closed: the host goes back to the
+  // slot instead of into a dead document.
+  const target = popout && !popout.closed ? popout : null
+  host.dataset.popout = target ? "open" : "closed"
+  host.style.cssText = target ? "display:block;height:100vh" : "display:contents"
+  if (target) target.document.body.appendChild(host)
   else if (slot) slot.appendChild(host)
   else host.remove()
 }
@@ -90,9 +93,14 @@ export function usePopout(options: PopoutOptions = {}): Popout {
     if (host) place(host, slot, popout)
   }, [host, slot, popout])
 
+  // Every window whose close has been reported, so no path reports one twice —
+  // a close in the opening commit, or a close-open-close chain ahead of the
+  // reconcile, included.
+  const closeReported = useRef<WeakSet<Window>>(new WeakSet())
   const finish = useCallback((target: Window) => {
     if (live.current !== target) return
     live.current = null
+    closeReported.current.add(target)
     setPopout(null)
     latest.current.onClose?.()
   }, [])
@@ -127,6 +135,32 @@ export function usePopout(options: PopoutOptions = {}): Popout {
     },
     [],
   )
+
+  // Effect cleanup is not unmount: an Activity hide (or Fast Refresh) runs the cleanup
+  // above and closes the window while this hook's state survives. Reconcile on revival,
+  // so isOpen tells the truth and close() stops returning early on a null handle. Only a
+  // null live handle reconciles — an open() that ran earlier in the same revival, from a
+  // child effect or a keypress in the transition gap, already owns live and must not be
+  // clobbered — and a dead window that is still the live one goes through finish, the
+  // same path its close listener would take.
+  useEffect(() => {
+    if (!popout) return
+    if (live.current === null) {
+      // The hide's cleanup closed the window without the close listener firing:
+      // complete the lifecycle so every onOpen still meets its onClose.
+      setPopout(null)
+      if (!closeReported.current.has(popout)) {
+        closeReported.current.add(popout)
+        latest.current.onClose?.()
+      }
+    } else if (live.current === popout && popout.closed) finish(popout)
+    else if (live.current !== popout && popout.closed && !closeReported.current.has(popout)) {
+      // A newer window took over during the reveal — a child's effect or a keypress in
+      // the gap — and state will settle on it. Complete the dead one's pair here, once.
+      closeReported.current.add(popout)
+      latest.current.onClose?.()
+    }
+  }, [popout, finish])
 
   const open = useCallback(() => {
     if (live.current && !live.current.closed) {

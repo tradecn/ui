@@ -653,6 +653,54 @@ describe("Workspace", () => {
     expect(screen.getByRole("button", { name: "Close Wire" })).toBeInTheDocument()
   })
 
+  it.each(["constructor", "__proto__", "valueOf", "hasOwnProperty"])("draws the placeholder for the inherited kind %s instead of crashing", async (kind) => {
+    // A shared layout can name any kind; an Object.prototype member must hit the
+    // placeholder, never resolve to an inherited function.
+    const { api } = await mount()
+    act(() => {
+      api.addPanel({ kind, title: "Strange" })
+    })
+    expect(screen.getByText(`No panel is registered for the kind “${kind}”.`)).toBeInTheDocument()
+  })
+
+  it("draws the placeholder for an inherited kind arriving through a shared layout", async () => {
+    // The claim is about load(): a layout built elsewhere names "constructor" and the
+    // workspace must place it, not crash to the nearest boundary.
+    const { api } = await mount()
+    act(() => {
+      api.addPanel({ kind: "constructor", title: "Strange" })
+    })
+    const saved = api.toLayout()
+    act(() => {
+      api.closePanel("constructor-1")
+    })
+    act(() => {
+      api.load(saved)
+    })
+    expect(screen.getByText("No panel is registered for the kind “constructor”.")).toBeInTheDocument()
+  })
+
+  it("keeps the keyboard where it is when an ensure-open call repeats an id with focus false", async () => {
+    const { api } = await mount()
+    act(() => {
+      api.addPanel({ kind: "book", id: "book-1" })
+    })
+    act(() => {
+      api.addPanel({ kind: "ticket", id: "ticket-1" })
+    })
+    expect(api.activePanel()).toBe("ticket-1")
+    const keyboardHome = document.activeElement
+    act(() => {
+      api.addPanel({ kind: "book", id: "book-1", focus: false })
+    })
+    expect(api.activePanel()).toBe("ticket-1")
+    expect(document.activeElement).toBe(keyboardHome)
+    act(() => {
+      api.addPanel({ kind: "book", id: "book-1" })
+    })
+    expect(api.activePanel()).toBe("book-1")
+  })
+
   it("opens an id once: asking again focuses what is there", async () => {
     const { api } = await mount()
     let id = ""

@@ -20,7 +20,7 @@ function Book({ actions, onOpen }: { actions: ActionRegistry; onOpen: () => void
     title: "Refresh book",
     scope: "panel:book",
     bindingId: "book.refresh",
-    within: within ?? undefined,
+    within,
     run: refresh,
     secondary: { title: "Reset", run: () => setRequests(0) },
   }), [actions, refresh, within])

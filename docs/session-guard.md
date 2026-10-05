@@ -112,7 +112,7 @@ Keep the action pending until the simulated service accepts or refuses the reque
 
 ## Session status readouts
 
-Use `SessionStatus` independently of a provider. This comparison supplies a fixed clock; live readouts use the shared clock by default. Install [`StatusBar`](status-bar.md) separately to place a readout in its children.
+Use `SessionStatus` independently of a provider. This comparison supplies a fixed clock; live readouts use the shared clock by default. Render the guard on the client: the shared clock advances only while something in a browser subscribes, so a server can render one phase while the client computes another, a structural hydration mismatch. Install [`StatusBar`](status-bar.md) separately to place a readout in its children.
 
 <!-- demo: session-guard-status -->
 

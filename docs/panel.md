@@ -63,7 +63,7 @@ These controls set presentation props; they do not implement dragging or an erro
 
 Increment the counter, then pop it out. Its count survives the move, and `i` still increments it while focus is inside the panel. Bring it back from either window, or close the popout window itself. The panel fills the popout because it uses `h-full`.
 
-`PanelPopout` moves one portal host between documents, preserving React state and provider context. Here, `HotkeysProvider` supplies the shortcut in both windows. [Popout](#popout) covers styling, lifecycle, and portal limitations.
+`PanelPopout` moves one portal host between documents, preserving React state and provider context. Here, `HotkeysProvider` supplies the shortcut in both windows. Hiding the panel under an `Activity` boundary closes its window the way unmounting does, without `onClose`, and `isOpen` stays stale while hidden. On reveal the panel is back inline, `isOpen` reads false, `onClose` runs once, and it can be popped out again. [Popout](#popout) covers styling, lifecycle, and portal limitations.
 
 <!-- demo: panel-popout -->
 
@@ -80,7 +80,7 @@ Increment the counter, then pop it out. Its count survives the move, and `i` sti
 | `className` | `string` | None | Styles and sizes the panel. |
 | Other div props | `Omit<ComponentProps<"div">, "ref">` | None | Includes `children`, event handlers, and accessible labels. |
 
-Declare a binding once for `panel:book`; the handler under the focused book answers it. Clicking the panel aims the keyboard at it. Palette actions with that scope appear when opened from inside a book. `Panel` renders without `HotkeysProvider`, but hotkeys need the provider. See [`use-hotkeys`](use-hotkeys.md) for binding options.
+Declare a binding once for `panel:book`; the handler under the focused book answers it. Clicking the panel aims the keyboard at it. Palette actions with that scope appear when opened from inside a book — and with several books on the screen, register each book's action with `within: useHotkeyScope()`, called in a child of `Panel` the way `useHotkey` is, so the book that held focus is the one that runs; without it, the latest registration answers. `Panel` renders without `HotkeysProvider`, but hotkeys need the provider. See [`use-hotkeys`](use-hotkeys.md) for binding options.
 
 `Panel` renders a `region` named by `PanelTitle`, or by an explicit `aria-label`. Border priority is `error`, then `dragTarget`, then active. `data-state` is `error`, `drag-target`, `active`, `inactive`, or `auto`; `auto` uses CSS focus-within.
 
@@ -190,7 +190,7 @@ See [Popout panel](#popout-panel) for a complete example. Call `usePopout` insid
 | `copyStyles` | `boolean` | `true` | Copies styles and mirrors root attributes. |
 | `openWindow` | `(features: string) => Window \| null` | `window.open` | Shell adapter; must return a same-origin window synchronously. |
 | `onOpen` | `(popout: Window) => void` | None | Runs after obtaining the window, before React moves the host. |
-| `onClose` | `() => void` | None | Runs from `close()` or the popout's `pagehide`; unmount cleanup does not call it. |
+| `onClose` | `() => void` | None | Runs from `close()`, the popout's `pagehide`, or the reveal after an `Activity` hide closed the window; unmount cleanup does not call it. |
 | `onBlocked` | `() => void` | None | Runs when the opener returns `null`. |
 
 The handle exposes `isOpen`, `window`, `host`, `slotRef`, `open()`, and `close()`. `PanelPopout` handles the host and slot for you; without a host, as on the server, it renders no children.

@@ -84,7 +84,7 @@ Exports: `LayoutManager`, `useLayoutManager`, `LayoutManagerItem`, `useLayoutMan
 
 ### Panel (`panel`)
 
-The frame around a book, a chart, or a blotter. A panel is a hotkey scope, so its keys and its palette actions come with it. A header that is a drag handle, a symbol tag you click to retype, link groups that carry a symbol between panels and between windows, and a popout that moves the panel to its own window without remounting it.
+The frame around a book, a chart, or a blotter. A panel is a hotkey scope, so its keys come with it, and palette actions registered with the scope and within answer from the focused panel. A header that is a drag handle, a symbol tag you click to retype, link groups that carry a symbol between panels and between windows, and a popout that moves the panel to its own window without remounting it.
 
 Exports: `Panel`, `PanelHeader`, `PanelTitle`, `PanelActions`, `PanelContent`, `SymbolTag`, `LinkGroupDot`, `PanelPopout`.
 

@@ -1,5 +1,5 @@
 import { act, render, screen } from "@testing-library/react"
-import { StrictMode, useEffect, useState } from "react"
+import React, { Activity, StrictMode, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { usePopout, type Popout, type PopoutOptions } from "@/registry/tradecn/hooks/use-popout"
@@ -41,7 +41,7 @@ function Counter() {
   )
 }
 
-function Harness(options: PopoutOptions) {
+function Harness({ children, ...options }: PopoutOptions & { children?: React.ReactNode }) {
   const popout = usePopout(options)
   // Handed to the test from an effect: render() and act() have flushed effects by the time they return.
   useEffect(() => {
@@ -53,6 +53,7 @@ function Harness(options: PopoutOptions) {
       <div ref={slotRef} data-testid="slot" />
       <output data-testid="open">{String(isOpen)}</output>
       {host ? createPortal(<Counter />, host) : null}
+      {children}
     </section>
   )
 }
@@ -138,6 +139,165 @@ describe("usePopout", () => {
     })
     expect(onBlocked).toHaveBeenCalledTimes(1)
     expect(handle.isOpen).toBe(false)
+  })
+
+  it("tells the truth after an Activity hide closes its window", async () => {
+    // Hiding destroys effects and keeps state: the unmount cleanup closes the window
+    // while popout state survives. On reveal the hook reconciles — isOpen reads false,
+    // close() stops returning early, and open() opens a fresh window.
+    const first = fakeWindow()
+    const second = fakeWindow()
+    const windows = [first, second]
+    const openWindow = vi.fn(() => windows.shift() as unknown as Window | null)
+    const onClose = vi.fn()
+    function Shell({ mode }: { mode: "visible" | "hidden" }) {
+      return (
+        <Activity mode={mode}>
+          <Harness openWindow={openWindow} onClose={onClose} />
+        </Activity>
+      )
+    }
+    const view = render(<Shell mode="visible" />)
+    act(() => {
+      handle.open()
+    })
+    expect(screen.getByTestId("open")).toHaveTextContent("true")
+    view.rerender(<Shell mode="hidden" />)
+    expect(first.close).toHaveBeenCalled()
+    view.rerender(<Shell mode="visible" />)
+    expect(screen.getByTestId("open")).toHaveTextContent("false")
+    // The hide's cleanup closed the window silently; the reveal completes the pair.
+    expect(onClose).toHaveBeenCalledTimes(1)
+    let reopened = false
+    act(() => {
+      reopened = handle.open()
+    })
+    expect(reopened).toBe(true)
+    expect(openWindow).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId("open")).toHaveTextContent("true")
+  })
+
+    it("keeps a window opened by a child's reveal effect through the parent's reconcile", async () => {
+    // Children's effects run before the parent's on an Activity reveal: a child that
+    // reopens immediately owns the live handle, and the reconcile must not clobber it.
+    const first = fakeWindow()
+    const second = fakeWindow()
+    const windows = [first, second]
+    const openWindow = vi.fn(() => windows.shift() as unknown as Window | null)
+    const onOpen = vi.fn()
+    const onClose = vi.fn()
+    function Reopener({ on }: { on: boolean }) {
+      useEffect(() => {
+        if (on) handle.open()
+      }, [on])
+      return null
+    }
+    function Shell({ mode, reopen }: { mode: "visible" | "hidden"; reopen: boolean }) {
+      return (
+        <Activity mode={mode}>
+          <Harness openWindow={openWindow} onOpen={onOpen} onClose={onClose}>
+            <Reopener on={reopen} />
+          </Harness>
+        </Activity>
+      )
+    }
+    const view = render(<Shell mode="visible" reopen={false} />)
+    act(() => {
+      handle.open()
+    })
+    expect(screen.getByTestId("open")).toHaveTextContent("true")
+    view.rerender(<Shell mode="hidden" reopen={false} />)
+    expect(first.close).toHaveBeenCalled()
+    view.rerender(<Shell mode="visible" reopen />)
+    expect(openWindow).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId("open")).toHaveTextContent("true")
+    expect(second.close).not.toHaveBeenCalled()
+    // Every onOpen meets its onClose: the dead first window's pair completes on the
+    // reveal even though a newer window took over.
+    expect(onOpen).toHaveBeenCalledTimes(2)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    act(() => {
+      handle.close()
+    })
+    expect(second.close).toHaveBeenCalled()
+    expect(screen.getByTestId("open")).toHaveTextContent("false")
+    expect(onOpen).toHaveBeenCalledTimes(2)
+    expect(onClose).toHaveBeenCalledTimes(2)
+  })
+
+  it("says so once when the window closes in the commit that opened it", () => {
+    // A child's passive effect runs before the hook's own: close() there, in the very
+    // commit that first renders the window, clears the live handle ahead of the
+    // reconcile, which must not report the window again.
+    const win = fakeWindow()
+    const onClose = vi.fn()
+    function Closer({ popout }: { popout: Popout }) {
+      const { isOpen, close } = popout
+      useEffect(() => {
+        if (isOpen) close()
+      }, [isOpen, close])
+      return null
+    }
+    function Rig(options: PopoutOptions) {
+      const popout = usePopout(options)
+      useEffect(() => {
+        handle = popout
+      })
+      return (
+        <section>
+          <output data-testid="open">{String(popout.isOpen)}</output>
+          <Closer popout={popout} />
+        </section>
+      )
+    }
+    render(<Rig openWindow={opening(win)} onClose={onClose} />)
+    act(() => {
+      handle.open()
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId("open")).toHaveTextContent("false")
+    expect(win.close).toHaveBeenCalled()
+  })
+
+  it("reports each window once through a close, open, close chain ahead of the reconcile", () => {
+    // Both windows report through finish before the reconcile ever runs; neither may
+    // be reported again when it fires on the stale state.
+    const first = fakeWindow()
+    const second = fakeWindow()
+    const windows = [first, second]
+    const openWindow = vi.fn(() => windows.shift() as unknown as Window | null)
+    const onClose = vi.fn()
+    function Chain({ popout }: { popout: Popout }) {
+      const { isOpen, open, close } = popout
+      const ran = useRef(false)
+      useEffect(() => {
+        if (isOpen && !ran.current) {
+          ran.current = true
+          close()
+          open()
+          close()
+        }
+      }, [isOpen, open, close])
+      return null
+    }
+    function Rig2(options: PopoutOptions) {
+      const popout = usePopout(options)
+      useEffect(() => {
+        handle = popout
+      })
+      return (
+        <section>
+          <output data-testid="open">{String(popout.isOpen)}</output>
+          <Chain popout={popout} />
+        </section>
+      )
+    }
+    render(<Rig2 openWindow={openWindow} onClose={onClose} />)
+    act(() => {
+      handle.open()
+    })
+    expect(onClose).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId("open")).toHaveTextContent("false")
   })
 
   it("focuses the window it already has instead of opening a second", () => {
