@@ -98,6 +98,12 @@ describe("quotePanelColumns and quoteEdit", () => {
     const plain = quoteEdit<QuoteRow>("bid", { convention: { ...YIELDED, quoteInverted: false } })
     expect(plain.validate?.(row.ask! + 0.5, row)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.bidCrosses })
     expect(plain.validate?.(row.ask! - 0.5, row)).toBeNull()
+    // The ask side flips with the bid, and an equal pair is refused in both directions.
+    const cashAsk = quoteEdit<QuoteRow>("ask", { convention: CASH })
+    expect(cashAsk.validate?.(row.bid! + 0.5, row)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.askCrosses })
+    expect(cashAsk.validate?.(row.bid! - 0.5, row)).toBeNull()
+    expect(cashBid.validate?.(row.ask!, row)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.bidCrosses })
+    expect(cashAsk.validate?.(row.bid!, row)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.askCrosses })
   })
 
   it("reads a size as a whole number, zero or more, and a skew or width as a number of steps", () => {

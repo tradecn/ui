@@ -115,7 +115,7 @@ export function HotkeyEditor({ hide, labels: labelsProp, className, children, re
     if (!node?.isConnected) return
     const search = node.querySelector<HTMLInputElement>("[data-hotkey-search]:not(:disabled)")
     const target = search ?? node
-    target.focus()
+    target.focus({ preventScroll: true })
   }, [])
   // The list's identity changes exactly when the registry emits, and the conflicts change with it.
   const conflicts = useMemo(() => {
