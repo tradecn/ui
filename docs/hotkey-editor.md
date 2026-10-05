@@ -47,7 +47,7 @@ function Shortcut() {
   )
 }
 
-function ShortcutSettings() {
+export default function ShortcutSettings() {
   return (
     <HotkeysProvider bindings={BINDINGS}>
       <HotkeyEditor className="w-sm max-w-full">
@@ -179,7 +179,7 @@ These readings supply their own content and omit `children` from their props. Us
 | `entries` | `readonly HotkeyEntry[]` | All registered bindings in registry order. |
 | `groups` | `readonly HotkeyEditorGroup[]` | Filtered and sorted groups. Each has `name: string` and `entries: readonly HotkeyEntry[]`. |
 | `conflicts` | `readonly HotkeyConflict[]` | Conflicts across all bindings. |
-| `remapped` | `number` | Count of registered entries whose effective keys differ from defaults. |
+| `remapped` | `number` | Count of registered entries with a stored override, one that fails to parse or matches the defaults included. |
 | `query`, `setQuery` | `string`, `(query: string) => void` | Shared search state. |
 | `labels` | `HotkeyEditorLabels` | Merged labels. |
 
@@ -203,7 +203,7 @@ Groups use the binding's `group`, falling back to its scope: `global`, `editing`
 
 Search trims the query and matches case-insensitive substrings of the description, group, id, normalized keys, or displayed keycaps (`ctrl` finds `Ctrl K` on non-Mac platforms). `hide` and search only filter `groups`: hidden bindings stay registered, can appear in another row's conflict message, and remain included in export and Reset all.
 
-`HotkeyEntry` extends `HotkeyBinding` with normalized effective `keys`, normalized `defaultKeys`, and `remapped`. Registry types come from `@/lib/hotkeys`.
+`HotkeyEntry` extends `HotkeyBinding` with normalized effective `keys`, normalized `defaultKeys`, the declaration's own spelling as `declaredKeys`, and `remapped`. Registry types come from `@/lib/hotkeys`.
 
 ### Three ways to change a shortcut
 
@@ -225,9 +225,7 @@ Removing a focused item moves focus to the editor's search field, or its root wh
 
 Keep a public editing field mounted for every editing mode your triggers can start.
 
-The plus key retains a registry limitation: capture can produce `ctrl++`, which remapping rejects. Typing `ctrl+plus` for a binding whose default is `x` stores `ctrl++`, then falls back to `x` without an editor error. Declaring or loading `ctrl+plus` can produce effective keys the keycap formatter cannot display.
-
-Neither entry method reliably supports plus-key shortcuts. See [remapping](use-hotkeys.md).
+The plus key works through either entry method: capture and typed entry store `ctrl+plus` in its canonical form `ctrl++`, remapping accepts it, and the keycaps print `Ctrl` `+` (`⌃` `+` on a Mac). See [remapping](use-hotkeys.md#remapping).
 
 ### Conflicts
 
@@ -251,7 +249,7 @@ Conflicts do not block remapping or decide which shortcut runs. See the registry
 
 Use the hook's `registry.overrides()` in your own export button. `HotkeyOverrides` is `Record<string, string>`, keyed by binding id. Import with `registry.load(overrides)` after reading and validating your file.
 
-`load` replaces all overrides and refreshes the list, but does not call `onChange`. An override that fails to parse remains stored while the binding falls back to its defaults, so exported values can differ from the effective keys shown.
+`load` replaces all overrides and refreshes the list, but does not call `onChange`. An override that fails to parse remains stored while the binding falls back to its defaults, so exported values can differ from the effective keys shown; such an entry reads as remapped, so Reset can clear it.
 
 For persistence, create a registry with `createHotkeyRegistry` and pass it to the provider.
 

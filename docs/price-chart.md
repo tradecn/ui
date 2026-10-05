@@ -150,7 +150,7 @@ Place the parts and `usePriceChart` inside `PriceChart`. `PriceChartHeader` can 
 | Part | Element | Content and behavior |
 |---|---|---|
 | `PriceChartHeader` | `div` | Your children in a wrapping row. No store or cursor subscription. |
-| `PriceChartLast` | `span` | Last close, or `labels.noData`. Direction color and numeric font follow the convention. |
+| `PriceChartLast` | `span` | Last close, or `labels.noData`. Direction color follows the move; the font follows the price notation (`convention.price`) — mono for a fraction, whatever the quote basis. |
 | `PriceChartChange` | `span` | Signed price and percentage change. Renders nothing with no bars. |
 | `PriceChartReadout` | `span` | Selected bar's formatted time, prices and optional volume. Blank with no selection. Defaults to `ml-auto` for a header row. Use `ml-0` in other layouts. |
 | `PriceChartPlot` | `div` | Canvas, resize/theme observers and keyboard crosshair. Accepts children for an empty state. |
@@ -160,7 +160,7 @@ Place the parts and `usePriceChart` inside `PriceChart`. `PriceChartHeader` can 
 
 Pass children to `PriceChartLast`, `PriceChartChange`, `PriceChartReadout`, or `PriceChartEmpty` to replace the default text. Use `undefined` for the default or `null` for no content.
 
-Numeric readings keep their convention's font outside the header. Each part keeps its `data-chart-*` markers.
+Numeric readings keep the price notation's font outside the header — mono for a fraction, whatever the quote basis, since the readings print `convention.price`. Each part keeps its `data-chart-*` markers.
 
 `PriceChartPlot` sets its role, accessible name, tab stop, and value attributes.
 
@@ -195,8 +195,8 @@ Update data through the store and move the cursor through the plot.
 | `kind`, `crosshair`, `lastLine`, `zone`, or serialized `convention` | Recreates the plot. |
 | Overlay ids, colors, widths, or order | Recreates the plot. |
 | `baseline` alone | Updates the readings without recalculating the price scale. An out-of-range reference can stay offscreen until data updates or the plot is recreated. |
-| Theme or mode | Repaints the colors. |
-| `--tradecn-font-mono` stack | Recreates the plot to update its axis font. |
+| Theme or mode | Repaints the colors on an `<html>` class, style, `data-theme`, or `data-accessibility` change, and on a system color-scheme flip. A theme switched on a container alone keeps the painted colors until one of those changes. |
+| `--tradecn-font-mono` stack | Recreates the plot to update its axis font, on the same triggers. |
 | Empty store or unmount | Destroys the plot. |
 
 ### Bars
@@ -358,7 +358,7 @@ Use `locale` to change the readout's clock format. It does not change the axis l
 
 ### Tokens
 
-The install adds missing `up`, `down`, and `flat` tokens with their soft variants, plus `chart-1` through `chart-8`.
+The install adds missing `up`, `down`, and `flat` tokens with their soft variants, plus `chart-1` through `chart-8`, plus the shared font tokens and the hyperlegible remap.
 
 The item palette adapts [Okabe and Ito's palette](https://jfly.uni-koeln.de/color/) with lightness adjusted for each mode. It uses orange, sky blue, bluish green, yellow, blue, vermilion, reddish purple, and your foreground for black.
 
@@ -366,7 +366,7 @@ Existing shadcn chart tokens are preserved during installation. Each tradecn the
 
 Overlays use your palette's value at their assigned slot. Use legend labels to name the lines.
 
-Set `--tradecn-font-mono` to change the axis and last-price tag's tabular canvas font.
+Set `--tradecn-font-mono` to change the axis and last-price tag's tabular canvas font. The canvas re-reads its palette on `<html>` attribute changes and system scheme flips, the triggers the lifecycle table names.
 
 ### What it does not do
 

@@ -113,7 +113,7 @@ The cell shows the committed value as pending until the store matches it (`Objec
 
 | Field | Typed as | Steps by | Blank means |
 |---|---|---|---|
-| `bid`, `ask` | The instrument's notation (`99-16+`, `4.125`) through `parseQuote` | One quote step, ten with Shift; from the market's same side when the side is empty | No level on that side |
+| `bid`, `ask` | The instrument's notation (`99-16+`, `4.125`) through `parseQuote`; a typed decimal snaps to the printable grid | One quote step, ten with Shift; from the market's same side when the side is empty | No level on that side |
 | `skew`, `width` | A number of quote steps, including fractional steps | One step, ten with Shift; from zero when empty | Null |
 | `bidSize`, `askSize` | A whole number, zero or more | One, ten with Shift; from zero when empty, never below zero | Null |
 

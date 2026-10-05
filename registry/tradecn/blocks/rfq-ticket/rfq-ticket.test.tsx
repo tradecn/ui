@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, within } from "@testing-library/react"
+import { useLayoutEffect } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { RFQ_TICKET_BINDINGS, RfqTicket, checkQuote, describeQuote, formatSize, quoteDistance, quotedSides, type RfqAction, type RfqInquiry, type RfqQuoteDraft, type RfqTicketProps } from "@/registry/tradecn/blocks/rfq-ticket/rfq-ticket"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
-import { createHotkeyRegistry, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
+import { type HotkeyBinding, createHotkeyRegistry, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 
 const T32: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
@@ -69,7 +70,7 @@ describe("the pure parts", () => {
     expect(checkQuote(draftOf(), inquiry())).toEqual({ ask: "An offer is needed." })
     expect(checkQuote(draftOf(), inquiry({ side: "sell" }))).toEqual({ bid: "A bid is needed." })
     expect(checkQuote(draftOf({ bid: 99.5 }), inquiry({ side: "two-way" }))).toEqual({ ask: "An offer is needed." })
-    expect(checkQuote(draftOf({ bid: 99.53125, ask: 99.5 }), inquiry({ side: "two-way" }))).toEqual({ ask: "The bid is above the offer." })
+    expect(checkQuote(draftOf({ bid: 99.53125, ask: 99.5 }), inquiry({ side: "two-way" }))).toEqual({ ask: "The quote is crossed." })
     expect(checkQuote(draftOf({ bid: 99.5, ask: 99.5 }), inquiry({ side: "two-way" }))).toEqual({})
   })
   it("says a quote in words", () => {
@@ -165,7 +166,7 @@ describe("RfqTicket", () => {
     expect(document.querySelector("[data-rfq-distance='ask']")?.textContent?.trim()).toBe("")
   })
 
-  it("steps a blank level from the market's same side, then the suggested level, then the mid", () => {
+  it("steps a blank level from the same side, the suggestion, the other side, then the mid", () => {
     const { onDraftChange, rerender } = mount()
     fireEvent.keyDown(field("Offer"), { key: "ArrowUp" })
     expect(lastDraft(onDraftChange).ask).toBe(99.53125)
@@ -174,6 +175,16 @@ describe("RfqTicket", () => {
     fireEvent.keyDown(field("Offer"), { key: "ArrowDown" })
     expect(lastDraft(onDraftChange).ask).toBe(99.484375)
     rerender({ inquiry: inquiry({ market: { bid: 99.5, ask: 99.53125 }, side: "sell" }) })
+    type(field("Bid"), "")
+    fireEvent.keyDown(field("Bid"), { key: "ArrowUp" })
+    expect(lastDraft(onDraftChange).bid).toBe(99.515625)
+    // Only the other side quoted: the bid starts from the ask.
+    rerender({ inquiry: inquiry({ market: { ask: 99.53125 }, side: "sell" }) })
+    type(field("Bid"), "")
+    fireEvent.keyDown(field("Bid"), { key: "ArrowUp" })
+    expect(lastDraft(onDraftChange).bid).toBe(99.546875)
+    // Only a mid: it is the last fallback.
+    rerender({ inquiry: inquiry({ market: { mid: 99.5 }, side: "sell" }) })
     type(field("Bid"), "")
     fireEvent.keyDown(field("Bid"), { key: "ArrowUp" })
     expect(lastDraft(onDraftChange).bid).toBe(99.515625)
@@ -252,7 +263,7 @@ describe("RfqTicket", () => {
 
 describe("RfqTicket keys", () => {
   it("sends, steps the field the keyboard is in, and takes the suggested levels, all from inside the fields", () => {
-    const { quote, registry, onDraftChange } = mount({ inquiry: inquiry({ side: "two-way", suggested: { bid: 99.5, ask: 99.515625 } }) })
+    const { quote, registry, onDraftChange } = mount({ inquiry: inquiry({ side: "two-way", suggested: { bid: 99.5, ask: 99.515625 } }), quickSizes: [1, 2, 3, 4, 5, 6, 7, 8, 9] })
     expect(registry!.list().map((e) => e.id)).toEqual(expect.arrayContaining(RFQ_TICKET_BINDINGS.map((b) => b.id)))
     expect(registry!.list().find((e) => e.id === "rfq.send")?.scope).toBe("editing")
     field("Offer").focus()
@@ -292,9 +303,356 @@ describe("RfqTicket keys", () => {
     fireEvent.keyDown(fields[1]!, { key: "Enter", ctrlKey: true })
     expect(a).not.toHaveBeenCalled()
     expect(b).toHaveBeenCalledTimes(1)
-    expect(registry.list().filter((e) => e.id === "rfq.send")).toHaveLength(1)
+    expect(registry.list().find((e) => e.id === "rfq.send")?.keys).toBe("ctrl+enter")
     view.unmount()
     expect(registry.list().some((e) => e.id === "rfq.send")).toBe(false)
+  })
+
+  it("reads crossing in the instrument's quote basis", () => {
+    const bill = inquiry({ instrument: { symbol: "B912", convention: BILL }, side: "two-way", market: { bid: 4.255, ask: 4.25 } })
+    // A normal discount market quotes the bid above the offer; crossing runs the other way.
+    expect(checkQuote(draftOf({ bid: 4.255, ask: 4.25 }), bill).ask).toBeUndefined()
+    expect(checkQuote(draftOf({ bid: 4.25, ask: 4.255 }), bill).ask).toBe("The quote is crossed.")
+    const note = inquiry({ side: "two-way" })
+    expect(checkQuote(draftOf({ bid: 99.5, ask: 99.515625 }), note).ask).toBeUndefined()
+    expect(checkQuote(draftOf({ bid: 99.515625, ask: 99.5 }), note).ask).toBeTruthy()
+  })
+
+  it("steps the side the key came from, step buttons included", () => {
+    const { onDraftChange } = mount({ inquiry: inquiry({ side: "two-way" }) })
+    const offer = screen.getByLabelText("Offer")
+    const offerField = offer.closest("[data-slot='tradecn-quote-field']") as HTMLElement
+    const up = within(offerField).getByRole("button", { name: /up one tick/ })
+    act(() => up.focus())
+    fireEvent.keyDown(up, { key: "ArrowUp", ctrlKey: true })
+    // The offer moves from the market's own side; the bid stands untouched.
+    const last = onDraftChange.mock.calls.at(-1)?.[0]
+    expect(last.ask).not.toBeNull()
+    expect(last.bid).toBeNull()
+    // The event's own target outranks whatever holds focus: with the Bid focused, a key
+    // dispatched on the Offer still steps the offer — dropping the target preference would
+    // step the bid here.
+    act(() => screen.getByLabelText("Bid").focus())
+    fireEvent.keyDown(offer, { key: "ArrowUp", ctrlKey: true })
+    const after = onDraftChange.mock.calls.at(-1)?.[0]
+    expect(after.ask).not.toBeNull()
+    expect(after.bid).toBeNull()
+  })
+
+  it("treats a non-finite level as no level", () => {
+    const { onDraftChange } = mount({ inquiry: inquiry({ side: "two-way", market: { bid: Number.NaN, ask: Number.NaN }, suggested: { bid: Number.NaN } }), defaultDraft: { bid: Number.NaN } })
+    expect((screen.getByLabelText("Bid") as HTMLInputElement).value).toBe("")
+    expect(screen.queryByRole("button", { name: /Auto/ })).toBeNull()
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    act(() => group.focus())
+    fireEvent.keyDown(screen.getByLabelText("Bid"), { key: "ArrowUp", ctrlKey: true })
+    expect(onDraftChange).not.toHaveBeenCalled()
+  })
+
+  it("checks a send against the commit the dealer sees", () => {
+    const quote = vi.fn()
+    const registry = createHotkeyRegistry({ platform: "other" })
+    function Probe({ fire }: { fire: boolean }) {
+      // Fires in the layout phase of the same commit that withdrew the action: the moment a
+      // real keydown can land before passive effects run.
+      useLayoutEffect(() => {
+        if (fire) screen.getByLabelText("Offer").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true }))
+      }, [fire])
+      return null
+    }
+    const actions: RfqAction[] = [{ id: "quote", label: "Quote", run: quote, primary: true }]
+    const ui = (allowed: string[], fire: boolean) => (
+      <HotkeysProvider registry={registry}>
+        <RfqTicket inquiry={inquiry({ allowedActions: allowed })} actions={actions} defaultDraft={{ ask: 99.515625 }} />
+        <Probe fire={fire} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(["quote"], false))
+    view.rerender(ui([], true))
+    expect(quote).not.toHaveBeenCalled()
+  })
+
+  it("reads crossing and need through finiteness, in any basis", () => {
+    const sell = inquiry({ side: "sell" })
+    // A non-finite level is absent to the helper too: a needed NaN is a missing side, and a
+    // NaN pair cannot cross.
+    expect(checkQuote(draftOf({ bid: Number.NaN }), sell).bid).toBeTruthy()
+    expect(checkQuote(draftOf({ bid: Number.NaN, ask: Number.NaN }), inquiry({ side: "two-way" })).ask).toBeTruthy()
+    // A CDS index quotes the bid below the offer — the spread default — while cash credit
+    // declares quoteInverted and reads the other way.
+    const cdx = inquiry({ instrument: { symbol: "CDX", convention: CREDIT }, side: "two-way" })
+    expect(checkQuote(draftOf({ bid: 52.5, ask: 53 }), cdx).ask).toBeUndefined()
+    expect(checkQuote(draftOf({ bid: 53, ask: 52.5 }), cdx).ask).toBe("The quote is crossed.")
+    const cash = inquiry({ instrument: { symbol: "GE 4.25 2034", convention: { ...CREDIT, quoteInverted: true } }, side: "two-way" })
+    expect(checkQuote(draftOf({ bid: 105.5, ask: 103 }), cash).ask).toBeUndefined()
+    expect(checkQuote(draftOf({ bid: 103, ask: 105.5 }), cash).ask).toBe("The quote is crossed.")
+  })
+
+  it("forgets a deliberate leave, and parks the ticket the user was in", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const actions: RfqAction[] = [{ id: "quote", label: "Quote", run: vi.fn(), primary: true }]
+    const ui = (allowed: string[]) => (
+      <>
+        <button type="button">Elsewhere</button>
+        <HotkeysProvider registry={registry}>
+          <RfqTicket inquiry={inquiry({ id: "Q-1", allowedActions: allowed })} actions={actions} defaultDraft={{ ask: 99.515625 }} />
+          <RfqTicket inquiry={inquiry({ id: "Q-2", allowedActions: allowed })} actions={actions} defaultDraft={{ ask: 99.515625 }} />
+        </HotkeysProvider>
+      </>
+    )
+    const view = render(ui(["quote"]))
+    const buttons = screen.getAllByRole("button", { name: "Quote" })
+    const elsewhere = screen.getByRole("button", { name: "Elsewhere" })
+    // A deliberate leave clears the record: withdrawing the action later must not steal
+    // focus from the page. The leave lands on BODY — a focusable destination would block
+    // the park by itself, proving nothing about the clear.
+    act(() => buttons[0]!.focus())
+    act(() => {
+      buttons[0]!.blur()
+    })
+    expect(document.activeElement).toBe(document.body)
+    view.rerender(ui([]))
+    expect(document.activeElement).toBe(document.body)
+    void elsewhere
+    // The ticket the user was last in takes the park; a sibling's stale record cannot,
+    // since focusing the second ticket's control blurred the first's record away.
+    view.rerender(ui(["quote"]))
+    const again = screen.getAllByRole("button", { name: "Quote" })
+    act(() => again[0]!.focus())
+    act(() => again[1]!.focus())
+    view.rerender(ui([]))
+    const groups = document.querySelectorAll<HTMLElement>("[data-slot='tradecn-rfq-ticket']")
+    expect(groups[1]!.contains(document.activeElement)).toBe(true)
+    expect(groups[0]!.contains(document.activeElement)).toBe(false)
+  })
+
+  it("keeps the record through a window switch, and parks on return", () => {
+    const { rerender } = mount({ defaultDraft: { ask: 99.515625 } })
+    const button = screen.getByRole("button", { name: "Quote" })
+    act(() => button.focus())
+    const away = vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    fireEvent.blur(button, { relatedTarget: null })
+    away.mockRestore()
+    rerender({ inquiry: inquiry({ allowedActions: ["pass"] }) })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    expect(group.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
+  it("parks without scrolling when the ticket disables under focus", () => {
+    const { rerender } = mount({ defaultDraft: { ask: 99.515625 } })
+    const button = screen.getByRole("button", { name: "Quote" })
+    act(() => button.focus())
+    const focusSpy = vi.spyOn(HTMLElement.prototype, "focus")
+    rerender({ disabled: true })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    expect(document.activeElement).toBe(group)
+    expect(focusSpy.mock.calls.at(-1)?.[0]).toMatchObject({ preventScroll: true })
+    focusSpy.mockRestore()
+  })
+
+  it("spends the record when it parks, at feed frequency", () => {
+    const { rerender } = mount({ defaultDraft: { ask: 99.515625 } })
+    const button = screen.getByRole("button", { name: "Quote" })
+    act(() => button.focus())
+    rerender({ inquiry: inquiry({ allowedActions: ["pass"] }) })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    expect(group.contains(document.activeElement)).toBe(true)
+    // The dealer clicks the page background; the root's blur never crosses the box's
+    // capture, so only the spent record keeps the next market tick from parking again.
+    act(() => (document.activeElement as HTMLElement).blur())
+    expect(document.activeElement).toBe(document.body)
+    rerender({ inquiry: inquiry({ allowedActions: ["pass"], market: { label: "Composite", bid: 99.5, ask: 99.53125 } }) })
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it("keeps focus in the ticket when the focused action leaves", () => {
+    const { rerender } = mount({ defaultDraft: { ask: 99.515625 } })
+    const button = screen.getByRole("button", { name: "Quote" })
+    act(() => button.focus())
+    rerender({ inquiry: inquiry({ allowedActions: ["pass"] }) })
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    expect(document.activeElement).not.toBe(document.body)
+    expect(group.contains(document.activeElement)).toBe(true)
+  })
+
+  it("cedes to a nested provider that declares while tickets come and go", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const one = <RfqTicket inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn() }]} defaultDraft={{ ask: 99.5 }} />
+    const ui = (tickets: boolean) => (
+      <HotkeysProvider registry={registry}>
+        {tickets && one}
+        <HotkeysProvider registry={registry} bindings={RFQ_TICKET_BINDINGS}>{tickets && one}</HotkeysProvider>
+      </HotkeysProvider>
+    )
+    const view = render(ui(true))
+    // Both tickets leave; the nested provider stays, and its declaration must survive.
+    view.rerender(ui(false))
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(true)
+    view.unmount()
+  })
+
+  it("leaves a replacement that changed only a behavior field", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { view } = mount({}, registry)
+    const own = registry.list().find((e) => e.id === "rfq.send")!
+    // Same keys and wording, a `when` guard added: a real replacement the cleanup must keep.
+    act(() => void registry.register({ id: "rfq.send", keys: own.declaredKeys, scope: own.scope, description: own.description, group: own.group, when: () => false }))
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(true)
+  })
+
+  it("installs its defaults again when the provider stops declaring them", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const consumers: HotkeyBinding[] = [{ id: "rfq.send", keys: "mod+s", scope: "editing", description: "Ship the quote" }]
+    const ui = (bindings: readonly HotkeyBinding[]) => (
+      <HotkeysProvider registry={registry} bindings={bindings}>
+        <RfqTicket inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn() }]} defaultDraft={{ ask: 99.5 }} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(consumers))
+    expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Ship the quote")
+    view.rerender(ui([]))
+    expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Send the quote")
+  })
+
+  it("keeps a remaining ticket's declarations when a nested declaring provider leaves", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const one = <RfqTicket inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn() }]} defaultDraft={{ ask: 99.5 }} />
+    const ui = (nested: boolean) => (
+      <HotkeysProvider registry={registry}>
+        {one}
+        {nested && <HotkeysProvider registry={registry} bindings={RFQ_TICKET_BINDINGS}>{one}</HotkeysProvider>}
+      </HotkeysProvider>
+    )
+    const view = render(ui(true))
+    // The nested provider and its ticket leave together; the outer ticket still needs its keys.
+    view.rerender(ui(false))
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(true)
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(false)
+  })
+
+  it("leaves a pre-mount consumer binding alone, shows its keys, and runs it from the group", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register({ id: "rfq.send", keys: "mod+s", scope: "editing", description: "Ship it" })
+    const quote = vi.fn()
+    mount({ actions: [{ id: "quote", label: "Quote", run: quote, primary: true }], defaultDraft: draftOf({ ask: 99.515625 }) }, registry)
+    expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Ship it")
+    const button = screen.getByRole("button", { name: /Quote/ })
+    expect(button.textContent).toContain("S")
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "s", ctrlKey: true })
+    expect(quote).toHaveBeenCalledTimes(1)
+  })
+
+  it("holds its default against unregister while a ticket stands", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { view } = mount({}, registry)
+    registry.unregister("rfq.send")
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(true)
+    view.unmount()
+    expect(registry.list().some((e) => e.id === "rfq.send")).toBe(false)
+  })
+
+  it("keeps the defaults when a ticketless declaring provider leaves", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const one = <RfqTicket inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn() }]} defaultDraft={{ ask: 99.5 }} />
+    const ui = (nested: boolean) => (
+      <HotkeysProvider registry={registry}>
+        {one}
+        {nested && <HotkeysProvider registry={registry} bindings={RFQ_TICKET_BINDINGS}>{null}</HotkeysProvider>}
+      </HotkeysProvider>
+    )
+    const view = render(ui(true))
+    view.rerender(ui(false))
+    expect(registry.list().find((e) => e.id === "rfq.send")?.declaredKeys).toBe("mod+enter")
+    view.unmount()
+  })
+
+  it("moves no draft and sends nothing while no allowed action needs a quote", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const pass = vi.fn()
+    // A buy inquiry quotes the ask, so the suggestion targets the quoted side: removing the
+    // quoting gate would move the draft from mod+shift+a here.
+    const { onDraftChange } = mount({ inquiry: inquiry({ side: "buy", allowedActions: ["pass"], suggested: { ask: 99.53125 } }), actions: [{ id: "pass", label: "Pass", run: pass, needsQuote: false }], quickSizes: [1, 5] }, registry)
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "ArrowUp", ctrlKey: true })
+    fireEvent.keyDown(group, { key: "a", ctrlKey: true, shiftKey: true })
+    fireEvent.keyDown(group, { key: "1", ctrlKey: true })
+    expect(onDraftChange).not.toHaveBeenCalled()
+    // The send key runs only quote-sending actions, so it cannot fall back to a pass — and the
+    // hint follows the key: no quote-sending action, no key caps on any button.
+    fireEvent.keyDown(group, { key: "Enter", ctrlKey: true })
+    expect(pass).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Pass" }).querySelectorAll("kbd")).toHaveLength(0)
+  })
+
+  it("shows the send caps on the action the key runs, not the primary", () => {
+    const auto = vi.fn()
+    const quote = vi.fn()
+    const registry = createHotkeyRegistry({ platform: "other" })
+    mount({
+      inquiry: inquiry({ allowedActions: ["auto", "quote"] }),
+      actions: [{ id: "auto", label: "Quote auto", needsQuote: false, primary: true, run: auto }, { id: "quote", label: "Quote", run: quote }],
+      defaultDraft: draftOf({ ask: 99.515625 }),
+    }, registry)
+    expect(screen.getByRole("button", { name: /Quote auto/ }).querySelectorAll("kbd")).toHaveLength(0)
+    expect(screen.getByRole("button", { name: "Quote" }).querySelectorAll("kbd").length).toBeGreaterThan(0)
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "Enter", ctrlKey: true })
+    expect(quote).toHaveBeenCalledTimes(1)
+    expect(auto).not.toHaveBeenCalled()
+  })
+
+  it("declares only the sizes passed in the registry's list", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    mount({ quickSizes: [1, 5] }, registry)
+    expect(registry.list().some((e) => e.id === "rfq.size-2")).toBe(true)
+    expect(registry.list().some((e) => e.id === "rfq.size-9")).toBe(false)
+  })
+
+  it("locks every shortcut while disabled", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const quote = vi.fn()
+    const { onDraftChange } = mount({ disabled: true, actions: [{ id: "quote", label: "Quote", run: quote, primary: true }], inquiry: inquiry({ suggested: { bid: 99.5 } }), quickSizes: [1, 5] }, registry)
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "Enter", ctrlKey: true })
+    fireEvent.keyDown(group, { key: "ArrowUp", ctrlKey: true })
+    fireEvent.keyDown(group, { key: "a", ctrlKey: true, shiftKey: true })
+    fireEvent.keyDown(group, { key: "1", ctrlKey: true })
+    expect(quote).not.toHaveBeenCalled()
+    expect(onDraftChange).not.toHaveBeenCalled()
+  })
+
+  it("turns a binding off the documented way", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const quote = vi.fn()
+    mount({ actions: [{ id: "quote", label: "Quote", run: quote, primary: true }], defaultDraft: draftOf({ ask: 99.515625 }) }, registry)
+    act(() => void registry.register({ id: "rfq.send", keys: "", scope: "editing", description: "Send the quote" }))
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "Enter", ctrlKey: true })
+    expect(quote).not.toHaveBeenCalled()
+  })
+
+  it("keeps a desk conflict-free when the consumer spreads all nine size bindings", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    render(
+      <HotkeysProvider registry={registry} bindings={RFQ_TICKET_BINDINGS}>
+        <RfqTicket inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn() }]} defaultDraft={{ ask: 99.5 }} quickSizes={[1, 5]} />
+      </HotkeysProvider>,
+    )
+    const el = document.body.appendChild(document.createElement("div"))
+    const detach = registry.bind("desk.nine", () => {}, { scope: "editing", element: () => el })
+    act(() => void registry.register({ id: "desk.nine", keys: "mod+9", scope: "editing", description: "Ninth desk thing" }))
+    expect(registry.conflicts()).toEqual([])
+    detach()
+    el.remove()
   })
 
   it("renders without a HotkeysProvider and shows no keys", () => {
@@ -391,3 +749,37 @@ describe("quick sizes", () => {
     expect(lastDraft(onDraftChange).quantity).toBe(5_000_000)
   })
 })
+
+describe("binding ownership and the fence", () => {
+  it("cedes a provider-declared binding across inquiry remounts", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const bindings = [{ id: "rfq.send", keys: "mod+s", scope: "editing" as const, description: "Ship the quote" }]
+    const ui = (key: string) => (
+      <HotkeysProvider registry={registry} bindings={bindings}>
+        <RfqTicket key={key} inquiry={inquiry()} actions={[{ id: "quote", label: "Quote", run: vi.fn(), primary: true }]} onDraftChange={() => {}} defaultDraft={draftOf({ ask: 99.515625 })} />
+      </HotkeysProvider>
+    )
+    const { rerender } = render(ui("a"))
+    expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Ship the quote")
+    rerender(ui("b"))
+    expect(registry.list().find((e) => e.id === "rfq.send")?.description).toBe("Ship the quote")
+  })
+
+  it("runs shortcuts from the ticket's own group, where clicks land", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const quote = vi.fn()
+    mount({ actions: [{ id: "quote", label: "Quote", run: quote, primary: true }], defaultDraft: draftOf({ ask: 99.515625 }) }, registry)
+    const group = document.querySelector<HTMLElement>("[data-slot='tradecn-rfq-ticket']")!
+    group.focus()
+    fireEvent.keyDown(group, { key: "Enter", ctrlKey: true })
+    expect(quote).toHaveBeenCalledTimes(1)
+  })
+
+  it("says a level is not a level in the field's own words", () => {
+    mount()
+    type(field("Offer"), "banana")
+    fireEvent.blur(field("Offer"))
+    expect(screen.getByText("Not a level in this instrument's notation.")).toBeInTheDocument()
+  })
+})
+

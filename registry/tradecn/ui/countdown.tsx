@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useNow } from "@/registry/tradecn/hooks/use-clock"
 import { sharedClock, type Clock } from "@/registry/tradecn/lib/clock"
 
@@ -71,6 +71,11 @@ export interface CountdownProps {
   className?: string
 }
 
+// The capability never changes within a session, so the store is three constants.
+const subscribeToNothing = () => () => {}
+const hasWebAnimations = () => typeof Element !== "undefined" && typeof Element.prototype.animate === "function"
+const optimistic = () => true
+
 export function Countdown({ expiresAt, startsAt, thresholds = PROVISIONAL_COUNTDOWN_THRESHOLDS, clock, label = "Time left", compact = false, announce = true, onExpire, className }: CountdownProps) {
   const c = clock ?? sharedClock()
   const now = useNow(c)
@@ -78,21 +83,28 @@ export function Countdown({ expiresAt, startsAt, thresholds = PROVISIONAL_COUNTD
   const tier = countdownTier(remaining, thresholds)
 
   // The bar's full width is `startsAt` to `expiresAt`; without `startsAt`, from first sight to the end.
-  const [firstSeen] = useState(now)
+  // First sight samples the time source directly: the shared clock's last tick can be
+  // arbitrarily old when nothing subscribed while this countdown was away.
+  const [firstSeen] = useState(() => c.sample?.() ?? now)
   const total = Math.max(1, expiresAt - (startsAt ?? firstSeen))
   const fraction = Math.max(0, Math.min(1, remaining / total))
   const [reduced] = useState(prefersReducedMotion)
-  // Drawn from the digits' tick when it cannot animate: reduced motion, or nothing left to animate.
-  const staticBar = reduced || tier === "expired"
+  // A browser without Web Animations draws the bar from the digits' tick too, instead of holding it
+  // full. The server snapshot is optimistic so hydration agrees, and the client reads the real API.
+  const canAnimate = useSyncExternalStore(subscribeToNothing, hasWebAnimations, optimistic)
+  // Drawn from the digits' tick when it cannot animate: reduced motion, no API, or nothing left to animate.
+  const staticBar = reduced || !canAnimate || tier === "expired"
 
   const bar = useRef<HTMLSpanElement>(null)
   useLayoutEffect(() => {
     const el = bar.current
     if (!el || staticBar || typeof el.animate !== "function") return
-    const left = expiresAt - c.now()
-    if (left <= 0) return
+    const left = Math.max(0, expiresAt - (c.sample?.() ?? c.now()))
     const from = Math.max(0, Math.min(1, left / total))
-    // One animation for exactly the time left, linear, held at zero when it ends. The compositor runs it.
+    // One animation for exactly the time left, linear, held at zero when it ends. The
+    // compositor runs it. When the fresh sample says time is already up while the last tick
+    // has not caught up — the second right after a deadline — the zero-length run holds the
+    // bar empty instead of leaving it full until the tick.
     const animation = el.animate([{ transform: `scaleX(${from})` }, { transform: "scaleX(0)" }], { duration: left, easing: "linear", fill: "forwards" })
     return () => animation.cancel()
   }, [expiresAt, total, c, staticBar])

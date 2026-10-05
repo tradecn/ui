@@ -178,7 +178,7 @@ Drafts belong to the root or item hook. Change, click, blur, and key handlers ru
 | `LayoutManagerImportTrigger` | Button | Toggles import content and exposes its expanded state. |
 | `LayoutManagerImportContent` | `div` | Requires children. Renders them while import is open. Its id is managed internally. |
 | `LayoutManagerImportText` | `textarea` | Edits JSON and links to the import error. Pair with `LayoutManagerImportProblem`. |
-| `LayoutManagerImportName` | Input | Edits the optional import name. |
+| `LayoutManagerImportName` | Input | Edits the optional import name, named by `labels.importName`. |
 | `LayoutManagerImportSubmit` | Button | Parses nonblank JSON and adds or replaces a template. |
 | `LayoutManagerRenameField` | Input | Renders while renaming. Enter or blur commits. Escape cancels. |
 | `LayoutManagerLoad` | Button | Loads, with confirmation for unknown kinds. |
@@ -289,7 +289,7 @@ All `LayoutTemplate` fields are required. Keep ids unique when supplying your ow
 | `id` | `string` | Row identity for actions and `activeId`. Generated ids use the lowest available `t-1`, `t-2`, and so on. |
 | `name` | `string` | Display name and save/import replacement key. |
 | `layout` | `WorkspaceLayout` | Workspace arrangement and panel records. |
-| `savedAt` | `number` | Milliseconds since the epoch. `LayoutManagerSavedAt` displays positive values in the browser's locale and time zone. |
+| `savedAt` | `number` | Milliseconds since the epoch, within the Date range. `LayoutManagerSavedAt` displays positive values in the browser's locale and time zone; a stored value that is missing, nonnumeric, non-finite, or beyond the range reads as never saved. |
 
 ### The list is yours
 
@@ -377,7 +377,7 @@ List-editing helpers return new arrays, retaining unchanged entries. Custom menu
 
 ### Labels
 
-`labels` overrides the region title and public parts. All v1 keys remain available through `useLayoutManager().labels`, including `empty`, `export`, and `reset` for caller-owned content.
+`labels` overrides the region title and public parts. The import form's name field has its own key, `importName`, defaulting to `Imported layout name`, so the two name fields are distinct by default; matching values you supply, or `aria-label` overrides, are yours. All v1 keys remain available through `useLayoutManager().labels`, including `empty`, `export`, and `reset` for caller-owned content.
 
 `taken` and `copyOf` interpolate `{name}`, `panels` uses `{n}`, and `unknownKinds` uses `{kinds}`. The generated `Imported` prefix and date/time formatting are not label overrides.
 

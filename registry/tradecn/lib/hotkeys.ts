@@ -35,9 +35,12 @@ export interface HotkeyBinding {
 }
 
 export interface HotkeyEntry extends HotkeyBinding {
-  /** The keys in force: the override when there is one, else the binding's own. */
+  /** The keys in force: the override when there is a readable one, else the binding's own. */
   keys: string
   defaultKeys: string
+  /** The keys exactly as the binding declared them, before normalization: `"mod+k"` stays `"mod+k"`. */
+  declaredKeys: string
+  /** True while an override is stored for the id, one that fails to parse or matches the defaults included. */
   remapped: boolean
 }
 
@@ -71,6 +74,12 @@ export interface HotkeyRegistry {
   /** Declare a binding, or replace the one with the same id. Returns the conflicts it takes part in. */
   register(binding: HotkeyBinding, handler?: HotkeyHandler): HotkeyConflict[]
   unregister(id: string): void
+  /**
+   * Declare a component's built-in binding. It lists and dispatches like a registration until a
+   * consumer registers the id — the registration shadows it, and unregistering brings it back —
+   * and it stands while any declarer holds it. Returns the release.
+   */
+  declareDefault(binding: HotkeyBinding): () => void
   /** Attach a handler to a declared (or not yet declared) binding. Returns the detach. A fenced handler can settle a conflict, so attaching and detaching wake `subscribe` as a declaration does. */
   bind(id: string, handler: HotkeyHandler, within?: HandlerScope | null): () => void
   /** Override a binding's keys; `""` unbinds it. Notifies `onChange`. Returns the conflicts the new keys take part in. */
@@ -167,7 +176,19 @@ export function detectPlatform(): Platform {
 
 function parseStep(part: string, platform: Platform): Step {
   const step: Step = { ctrl: false, alt: false, shift: false, meta: false, key: "" }
-  for (const token of part.toLowerCase().split("+")) {
+  // The canonical form writes the + key as itself, so "ctrl++" and a bare "+" must read back.
+  // Only the canonical shape qualifies: a malformed "ctrl+++" still fails instead of quietly
+  // becoming a live binding from a corrupted stored override.
+  let rest = part
+  let plusKey = false
+  if (rest === "+") {
+    plusKey = true
+    rest = ""
+  } else if (rest.endsWith("++") && rest.length > 2 && rest.slice(0, -2).split("+").every(Boolean)) {
+    plusKey = true
+    rest = rest.slice(0, -2)
+  }
+  for (const token of rest ? rest.toLowerCase().split("+") : []) {
     if (token === "mod") step[platform === "mac" ? "meta" : "ctrl"] = true
     else if (token === "ctrl" || token === "control") step.ctrl = true
     else if (token === "alt" || token === "option" || token === "opt") step.alt = true
@@ -175,6 +196,10 @@ function parseStep(part: string, platform: Platform): Step {
     else if (token === "meta" || token === "cmd" || token === "command" || token === "win" || token === "super") step.meta = true
     else if (step.key) throw new Error(`hotkeys: "${part}" names two keys; separate the steps of a chord with a space`)
     else step.key = KEY_ALIASES[token] ?? token
+  }
+  if (plusKey) {
+    if (step.key) throw new Error(`hotkeys: "${part}" names two keys; separate the steps of a chord with a space`)
+    step.key = "+"
   }
   if (!step.key) throw new Error(`hotkeys: "${part}" has no key (write the + key as "plus")`)
   return step
@@ -318,6 +343,12 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
   const platform = options.platform ?? detectPlatform()
   const chordTimeoutMs = options.chordTimeoutMs ?? 1000
   const recs = new Map<string, Rec>()
+  // Component defaults: each declaration is held individually beside the live records, installed
+  // only while no consumer registration shadows the id — the earliest held declaration is the
+  // one in force. Tokens, not the bindings, carry identity: two declarers may pass one shared
+  // module constant. `defaultIds` marks the ids whose live record is the default.
+  const defaults = new Map<string, { binding: HotkeyBinding }[]>()
+  const defaultIds = new Set<string>()
   const overrides = new Map<string, string>()
   const bound = new Map<string, Bound[]>()
   const listeners = new Set<() => void>()
@@ -349,15 +380,15 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
   }
 
   function build(binding: HotkeyBinding, handler?: HotkeyHandler): Rec {
-    const defaults = parseKeys(binding.keys, platform)
-    let steps = defaults
+    const declaredSteps = parseKeys(binding.keys, platform)
+    let steps = declaredSteps
     const override = overrides.get(binding.id)
     if (override !== undefined) {
       // A stale override from storage must not take the app down: fall back to the default.
       try {
         steps = parseKeys(override, platform)
       } catch {
-        steps = defaults
+        steps = declaredSteps
       }
     }
     return { binding, steps, sequence: steps.map(stepToString), handler }
@@ -491,17 +522,74 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
     register(binding, handler) {
       if (!binding.id) throw new Error("hotkeys: a binding needs an id")
       const previous = recs.get(binding.id)
-      // Declaring the same thing again (a remount, a hot reload) is not a change.
-      if (previous && !handler && sameBinding(previous.binding, binding)) return conflictsFor(binding.id)
-      recs.set(binding.id, build(binding, handler ?? previous?.handler))
+      // Declaring the same thing again (a remount, a hot reload) is not a change — though a
+      // consumer registering over a default claims the id either way.
+      if (previous && !handler && sameBinding(previous.binding, binding)) {
+        defaultIds.delete(binding.id)
+        return conflictsFor(binding.id)
+      }
+      // Built before any marker moves: a throw on malformed keys must leave ownership untouched.
+      const next = build(binding, handler ?? previous?.handler)
+      defaultIds.delete(binding.id)
+      recs.set(binding.id, next)
       clearPending()
       emit()
       return conflictsFor(binding.id)
     },
     unregister(id) {
-      if (!recs.delete(id)) return
+      // A default is not removable here — only shadowed or released; `remap(id, "")` unbinds
+      // its keys. Removing-and-reinstalling would wake subscribers with an unchanged list, and
+      // a subscriber that unregisters whatever it sees listed would recurse forever.
+      if (!recs.has(id) || defaultIds.has(id)) return
+      // The earliest held default resurfaces when the consumer registration leaves — replaced
+      // in place, since the record's position carries conflict resolution and list order.
+      const held = defaults.get(id)
+      if (held?.[0]) {
+        recs.set(id, build(held[0].binding))
+        defaultIds.add(id)
+      } else {
+        recs.delete(id)
+      }
       clearPending()
       emit()
+    },
+    declareDefault(binding) {
+      if (!binding.id) throw new Error("hotkeys: a binding needs an id")
+      // Built before the declaration is held — shadowed or not — so malformed keys throw here
+      // and never wait inside the held list to break a later resurface.
+      const rec = build(binding)
+      const installing = !recs.has(binding.id)
+      const token = { binding }
+      const held = defaults.get(binding.id)
+      if (held) held.push(token)
+      else defaults.set(binding.id, [token])
+      if (installing) {
+        recs.set(binding.id, rec)
+        defaultIds.add(binding.id)
+        clearPending()
+        emit()
+      }
+      return () => {
+        const current = defaults.get(binding.id)
+        if (!current) return
+        const at = current.indexOf(token)
+        if (at < 0) return
+        current.splice(at, 1)
+        if (current.length === 0) defaults.delete(binding.id)
+        if (!defaultIds.has(binding.id)) return
+        const next = current[0]
+        if (next === undefined) {
+          defaultIds.delete(binding.id)
+          recs.delete(binding.id)
+          clearPending()
+          emit()
+        } else if (!sameBinding(recs.get(binding.id)!.binding, next.binding)) {
+          // A remaining declarer's own binding takes over from the released one's.
+          recs.set(binding.id, build(next.binding))
+          clearPending()
+          emit()
+        }
+      }
     },
     bind(id, handler, within = null) {
       const entry: Bound = { handler, within }
@@ -550,7 +638,9 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
       return (snapshot ??= [...recs.values()].map((rec) => {
         const keys = rec.sequence.join(" ")
         const defaultKeys = normalizeKeys(rec.binding.keys, platform)
-        return { ...rec.binding, keys, defaultKeys, remapped: keys !== defaultKeys }
+        // Remapped means an override is stored, not that the resolved keys differ: a corrupt
+        // override falls back to the default keys, and Reset must still be able to clear it.
+        return { ...rec.binding, keys, defaultKeys, declaredKeys: rec.binding.keys, remapped: overrides.has(rec.binding.id) }
       }))
     },
     conflicts() {

@@ -26,7 +26,7 @@ Exports: `Blotter`, `BlotterGrid`, `BlotterActionScope`, `BlotterNewButton`, `Bl
 
 Compose column visibility, order, width readings, and reset controls over a grid’s controlled column state.
 
-Exports: `ColumnChooser`, `ColumnChooserItem`, `ColumnChooserSearch`, `ColumnChooserAnnouncer`, `ColumnChooserHiddenCount`, `ColumnChooserVisibility`, `ColumnChooserName`, `ColumnChooserFrozen`, `ColumnChooserRule`, `ColumnChooserWidth`, `ColumnChooserResetWidth`, `ColumnChooserMove`, `ColumnChooserResetAll`, `useColumnChooser`, `useColumnChooserItem`, `DEFAULT_COLUMN_CHOOSER_LABELS`, `chooserRows`, `moveColumnTo`, `moveColumnBy`, `setColumnVisible`, `resetColumnWidth`, `isDefaultColumnState`.
+Exports: `ColumnChooser`, `ColumnChooserItem`, `ColumnChooserSearch`, `ColumnChooserAnnouncer`, `ColumnChooserHiddenCount`, `ColumnChooserVisibility`, `ColumnChooserName`, `ColumnChooserFrozen`, `ColumnChooserRule`, `ColumnChooserWidth`, `ColumnChooserResetWidth`, `ColumnChooserMove`, `ColumnChooserResetAll`, `useColumnChooser`, `useColumnChooserItem`, `DEFAULT_COLUMN_CHOOSER_LABELS`, `chooserRows`, `moveColumnTo`, `moveColumnBy`, `setColumnVisible`, `resetColumnWidth`, `isDefaultColumnState`, `useColumnChooserCommand`.
 
 ### Command Palette (`command-palette`)
 
@@ -190,7 +190,7 @@ Exports: `Workspace`, `useWorkspacePanel`, `WorkspaceTab`, `WorkspaceTabTitle`, 
 
 A hotkey registry: bindings declared as data with an id, keys, a scope, and a description; one keydown listener; scopes read from the DOM so a panel's keys beat global ones; chords with a timeout; conflict detection; remapping with the consumer's persistence. Typing is protected, menus are left alone, and a dialog is a wall.
 
-Exports: `HotkeysProvider`, `HotkeyScope`, `useHotkey`, `useHotkeys`, `useHotkeyList`, `usePendingChord`, `useMaybeHotkeys`.
+Exports: `HotkeysProvider`, `HotkeyScope`, `useHotkey`, `useHotkeys`, `useHotkeyList`, `usePendingChord`, `useMaybeHotkeys`, `useDeclaredHotkeyIds`.
 
 ## Utilities
 
@@ -210,7 +210,7 @@ Exports: `byNewest`, `createAlertStore`.
 
 Number formatting for trading screens: tick-derived precision, 32nds and 64ths with + halves, yields, basis points, DV01, compact notional and millions, coupons in eighths, maturities, ticks between two prices, a quote basis per instrument (price, yield, discount, spread) with its own step, signed values, one null sentinel.
 
-Exports: `NULL_TOKEN`, `numberFormat`, `decimalsFromTick`, `roundToTick`, `stepByTick`, `formatFraction`, `formatPrice`, `parsePrice`, `formatYield`, `formatBps`, `formatDv01`, `formatNotional`, `formatSigned`, `formatPercent`, `formatQuantity`, `formatCoupon`, `formatMaturity`, `daysToMaturity`, `ticksBetween`, `formatTicks`, `NUMERIC_CLASS`, `MONO_NUMERIC_CLASS`, `numericFontClass`, `QUOTE_BASIS_LABELS`, `quoteBasisOf`, `quoteStepOf`, `formatQuote`, `parseQuote`, `stepQuote`, `createInstrumentFormatter`.
+Exports: `NULL_TOKEN`, `numberFormat`, `decimalsFromTick`, `roundToTick`, `stepByTick`, `formatFraction`, `formatPrice`, `parsePrice`, `formatYield`, `formatBps`, `formatDv01`, `formatNotional`, `formatSigned`, `formatPercent`, `formatQuantity`, `formatCoupon`, `formatMaturity`, `daysToMaturity`, `ticksBetween`, `formatTicks`, `NUMERIC_CLASS`, `MONO_NUMERIC_CLASS`, `numericFontClass`, `QUOTE_BASIS_LABELS`, `quoteBasisOf`, `quoteInvertedOf`, `quoteStepOf`, `formatQuote`, `parseQuote`, `stepQuote`, `createInstrumentFormatter`.
 
 ### Grid Rules (`grid-rules`)
 

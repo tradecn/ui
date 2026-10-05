@@ -1,11 +1,11 @@
 import { cn } from "cn"
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
-import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, quoteInvertedOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
@@ -108,7 +108,7 @@ export interface RfqAction {
   /** The action sends the levels in the fields, so the check wants them. Default true; a pass, a stop, or a quote the server prices itself wants none. */
   needsQuote?: boolean
   destructive?: boolean
-  /** What `rfq.send` runs. The first allowed action that needs a quote by default, else the first allowed. */
+  /** Preferred by `rfq.send` among quote-sending actions; a `needsQuote: false` action never runs on the key. */
   primary?: boolean
 }
 
@@ -123,6 +123,8 @@ export interface RfqTicketLabels {
   bid: string
   ask: string
   market: string
+  /** The invalid-text both level fields show. */
+  invalidLevel?: string
   quoted: string
   suggested: string
   takeSuggested: string
@@ -147,6 +149,7 @@ export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
   bid: "Bid",
   ask: "Offer",
   market: "Market",
+  invalidLevel: "Not a level in this instrument's notation.",
   quoted: "Quoted",
   suggested: "Auto",
   takeSuggested: "Take the suggested levels",
@@ -154,7 +157,7 @@ export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
   settlement: "Settles",
   bidNeeded: "A bid is needed.",
   askNeeded: "An offer is needed.",
-  crossed: "The bid is above the offer.",
+  crossed: "The quote is crossed.",
   nothingAllowed: "Nothing can be done with this inquiry right now.",
   for: "for",
   anyway: "{action} anyway?",
@@ -163,7 +166,7 @@ export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
 /** `mod+1` to `mod+9`: the quick sizes, in order. */
 export const QUICK_SIZE_KEYS: readonly string[] = ["mod+1", "mod+2", "mod+3", "mod+4", "mod+5", "mod+6", "mod+7", "mod+8", "mod+9"]
 
-/** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket when you have not. */
+/** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket as registry defaults your own registration shadows. */
 export const RFQ_TICKET_BINDINGS: readonly HotkeyBinding[] = [
   { id: "rfq.send", keys: "mod+enter", scope: "editing", description: "Send the quote", group: "Inquiry" },
   { id: "rfq.tick-up", keys: "mod+up", scope: "editing", description: "Level up one tick", group: "Inquiry" },
@@ -187,13 +190,22 @@ export interface RfqQuoteProblems {
   ask?: string
 }
 
-/** What stops a quote from being sent: a needed side that is blank, or a market whose bid is above its offer. Empty when nothing does. */
+/** What stops a quote from being sent: a needed side that is blank or non-finite, or a crossed pair of finite levels read through the instrument's quote direction — bid above offer normally, bid below offer where a higher quote means a lower price, as `quoteInvertedOf` reads it. Empty when nothing does. */
 export function checkQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: RfqTicketLabels = DEFAULT_RFQ_TICKET_LABELS): RfqQuoteProblems {
   const problems: RfqQuoteProblems = {}
   const sides = quotedSides(inquiry.side)
-  if (sides.includes("bid") && draft.bid === null) problems.bid = labels.bidNeeded
-  if (sides.includes("ask") && draft.ask === null) problems.ask = labels.askNeeded
-  if (draft.bid !== null && draft.ask !== null && draft.bid > draft.ask) problems.ask = labels.crossed
+  // Levels read through level(): a non-finite value counts as absent here too, as the page
+  // promises for every reader of a level.
+  const bid = level(draft.bid)
+  const ask = level(draft.ask)
+  if (sides.includes("bid") && bid === null) problems.bid = labels.bidNeeded
+  if (sides.includes("ask") && ask === null) problems.ask = labels.askNeeded
+  // A crossed quote bids above its offer, unless a higher quote means a lower price. A
+  // declared quoteInverted decides for any basis; the defaults are yield and discount
+  // inverted, price and spread not, since CDS quotes bid below offer while cash credit
+  // quotes the other way.
+  const inverted = quoteInvertedOf(inquiry.instrument.convention)
+  if (bid !== null && ask !== null && (inverted ? bid < ask : bid > ask)) problems.ask = labels.crossed
   return problems
 }
 
@@ -219,37 +231,25 @@ export function quoteDistance(level: number | null | undefined, market: number |
   return { value, text: formatBps(value, { signed: true }) }
 }
 
-// Several tickets can be up at once, so the bindings are declared once per registry and taken
-// back when the last ticket that leaned on them leaves. A consumer that declared an id owns it.
-const declared = new WeakMap<HotkeyRegistry, Map<string, { count: number; ours: boolean }>>()
-
+// Every ticket declares the bindings as registry defaults: the registry refcounts them, a
+// consumer registration of an id shadows its default, and unregistering surfaces it again, so
+// no mount order can delete a consumer's declaration or strand a remaining ticket without one.
 function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBinding[]): () => void {
-  let table = declared.get(registry)
-  if (!table) declared.set(registry, (table = new Map()))
-  const have = new Set(registry.list().map((entry) => entry.id))
-  for (const binding of bindings) {
-    const entry = table.get(binding.id)
-    if (entry) entry.count += 1
-    else {
-      const ours = !have.has(binding.id)
-      if (ours) registry.register(binding)
-      table.set(binding.id, { count: 1, ours })
-    }
-  }
+  const releases = bindings.map((binding) => registry.declareDefault(binding))
   return () => {
-    for (const binding of bindings) {
-      const entry = table.get(binding.id)
-      if (!entry) continue
-      entry.count -= 1
-      if (entry.count > 0) continue
-      table.delete(binding.id)
-      if (entry.ours) registry.unregister(binding.id)
-    }
+    for (const release of releases) release()
   }
 }
 
 const noop = () => () => {}
-const level = (v: number | null | undefined) => (typeof v === "number" ? v : null)
+/** The one action the send key runs: it sends the quote, so a pass never rides mod+enter. */
+function sendTarget(allowed: readonly RfqAction[]): RfqAction | undefined {
+  const sending = allowed.filter((action) => action.needsQuote !== false)
+  return sending.find((action) => action.primary) ?? sending[0]
+}
+const RFQ_CORE_BINDINGS = RFQ_TICKET_BINDINGS.filter((binding) => !binding.id.startsWith("rfq.size-"))
+const RFQ_SIZE_BINDINGS = RFQ_TICKET_BINDINGS.filter((binding) => binding.id.startsWith("rfq.size-"))
+const level = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) ? v : null)
 
 export interface RfqTicketProps {
   inquiry: RfqInquiry
@@ -262,7 +262,7 @@ export interface RfqTicketProps {
   /** Put the keyboard in the first quote field on mount. Off by default: the parent decides where focus goes when an inquiry becomes active. */
   autoFocus?: boolean
   disabled?: boolean
-  /** Declare `RFQ_TICKET_BINDINGS` in the hotkey registry when they are not. Default true. */
+  /** Declare `RFQ_TICKET_BINDINGS` as registry defaults. Default true. */
   hotkeys?: boolean
   /** The desk's lines, from `limits`: a block shows under its field and holds the actions that send a quote; a confirm makes the action ask again. Each level is checked against the inquiry's market. */
   limits?: Limits
@@ -286,9 +286,37 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   const box = useRef<HTMLDivElement>(null)
   const inputs = { bid: useRef<HTMLInputElement>(null), ask: useRef<HTMLInputElement>(null) }
-  const latest = useRef({ onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes })
-  useEffect(() => {
-    latest.current = { onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes }
+  const allowed = actions.filter((action) => inquiry.allowedActions?.includes(action.id))
+  const primary = allowed.find((action) => action.primary) ?? allowed.find((action) => action.needsQuote !== false) ?? allowed[0]
+  // The key hint rides the action the send key actually runs, which can differ from primary.
+  const sendAction = sendTarget(allowed)
+  // The fields are live while some allowed action would send what is in them.
+  const quoting = !disabled && allowed.some((action) => action.needsQuote !== false)
+
+  const latest = useRef({ onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes, quoting })
+  // Layout phase, not passive: a keydown can land between the commit that withdrew an action
+  // and the passive effects, and the check at run time must see what the dealer sees.
+  useLayoutEffect(() => {
+    latest.current = { onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes, quoting }
+  })
+
+  // When the control under focus leaves — quoting stops and both fields disable, a sent
+  // action's button unmounts — focus falls to body, outside every fence, and the shortcuts go
+  // dead. The scope root takes it instead.
+  const focusedInside = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const node = box.current ? box.current.parentElement ?? box.current : null
+    const previous = focusedInside.current
+    if (!node || !previous) return
+    const doc = node.ownerDocument
+    const gone = !previous.isConnected || previous.matches(":disabled")
+    if (gone && (doc.activeElement === previous || doc.activeElement === doc.body)) {
+      // Once parked, the record is spent: a later commit must not take focus again, and a
+      // sibling ticket's stale record must not outrank the one the user was in. Never
+      // scroll: the park can fire while the dealer reads elsewhere.
+      focusedInside.current = null
+      node.focus({ preventScroll: true })
+    }
   })
 
   // The draft is told after it changed, never on the first render.
@@ -307,11 +335,6 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   // The acknowledgement: a ring in primary, once, when the server says so. No direction, because it has none.
   useFlash(box, acknowledged, { variant: "ring", color: "var(--primary)" })
 
-  const allowed = actions.filter((action) => inquiry.allowedActions?.includes(action.id))
-  const primary = allowed.find((action) => action.primary) ?? allowed.find((action) => action.needsQuote !== false) ?? allowed[0]
-  // The fields are live while some allowed action would send what is in them.
-  const quoting = !disabled && allowed.some((action) => action.needsQuote !== false)
-
   /** The size the quote is for: the inquiry's own, or the n-th quick size (from 1). */
   function setQuantity(quantity: number) {
     setDraft((d) => (d.quantity === quantity ? d : { ...d, quantity }))
@@ -319,7 +342,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   }
   function quick(n: number) {
     const size = latest.current.quickSizes?.[n - 1]
-    if (size !== undefined && !latest.current.disabled) setQuantity(size)
+    if (size !== undefined && latest.current.quoting) setQuantity(size)
   }
 
   function setLevel(side: QuoteSide, value: number | null) {
@@ -338,7 +361,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const otherBlocks = blocking.filter((p) => p.field !== "bid" && p.field !== "ask")
   const asking = confirming !== null ? confirms(limitProblems) : []
 
-  /** Where a step starts when a field is blank: the market's same side, the suggested level, the market's mid, then its other side. */
+  /** Where a step starts when a field is blank: the market's same side, the suggested level, the market's other side, then its mid. */
   function stepFrom(side: QuoteSide): number | null {
     const market = inquiry.market ?? {}
     const suggested = inquiry.suggested ?? {}
@@ -346,22 +369,27 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
     if (own !== null) return own
     const hint = level(suggested[side])
     if (hint !== null) return hint
-    const bid = level(market.bid)
-    const ask = level(market.ask)
-    if (bid !== null && ask !== null) return stepQuote((bid + ask) / 2, convention, 0)
-    return bid ?? ask ?? level(market.mid)
+    // The same side is blank here, so at most one market side remains.
+    return level(market.bid) ?? level(market.ask) ?? level(market.mid)
   }
 
   function step(side: QuoteSide, steps: number) {
-    const from = latest.current.draft[side] ?? stepFrom(side)
+    const from = level(latest.current.draft[side]) ?? stepFrom(side)
     if (from === null) return
     setLevel(side, stepQuote(from, convention, steps))
   }
 
-  /** The field the keyboard is in, else the first side the client asked for. */
-  function focusedSide(): QuoteSide {
-    const active = typeof document === "undefined" ? null : document.activeElement
-    for (const side of sides) if (inputs[side].current && inputs[side].current === active) return side
+  /** The side the key came from: the event's target, else focus in this ticket's own document — a popout runs in the opener's JavaScript, so the global document never holds its fields — a side's step buttons counting as the side; else the first side the client asked for. */
+  function focusedSide(target?: EventTarget | null): QuoteSide {
+    // A popout's nodes come from another realm, where instanceof Element fails; nodeType is
+    // realm-proof.
+    const isElement = (node: EventTarget | null | undefined): node is Element => typeof node === "object" && node !== null && (node as Node).nodeType === 1
+    const from = isElement(target) ? target : (box.current?.ownerDocument ?? (typeof document === "undefined" ? null : document))?.activeElement ?? null
+    for (const side of sides) {
+      const input = inputs[side].current
+      if (!input) continue
+      if (from === input || (isElement(from) && input.closest("[data-slot='tradecn-quote-field']")?.contains(from))) return side
+    }
     return sides[0]!
   }
 
@@ -396,45 +424,75 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
     action.run(current, now)
   }
 
-  // Keys: declared once per registry, bound to this ticket's box so another ticket's keys stay its own.
+  // Keys: defaults declared per ticket, handlers fenced to this ticket so another's keys stay its own.
   const registry = useMaybeHotkeys()
-  const handlers = useRef({ send: () => {}, up: () => {}, down: () => {}, suggested: () => {}, quick: (n: number) => {
+  const handlers = useRef({ send: () => {}, up: (target?: EventTarget | null) => {
+      void target
+    }, down: (target?: EventTarget | null) => {
+      void target
+    }, suggested: () => {}, quick: (n: number) => {
       void n
     } })
-  useEffect(() => {
+  useLayoutEffect(() => {
     handlers.current = {
       send: () => {
-        const { actions: list, inquiry: now } = latest.current
-        const open = list.filter((action) => now.allowedActions?.includes(action.id))
-        const first = open.find((action) => action.primary) ?? open.find((action) => action.needsQuote !== false) ?? open[0]
+        const { actions: list, inquiry: now, disabled: locked } = latest.current
+        if (locked) return
+        // The send key runs only an action that sends the quote — the same selection the key
+        // hint renders — so a heading click and mod+enter can never fall back to a pass.
+        const first = sendTarget(list.filter((action) => now.allowedActions?.includes(action.id)))
         if (first) run(first)
       },
-      up: () => step(focusedSide(), 1),
-      down: () => step(focusedSide(), -1),
-      suggested: takeSuggested,
+      // The draft moves only while the fields are live: the same quoting condition that
+      // enables the controls, so a pass-only inquiry's keys change nothing either.
+      up: (target?: EventTarget | null) => {
+        if (latest.current.quoting) step(focusedSide(target), 1)
+      },
+      down: (target?: EventTarget | null) => {
+        if (latest.current.quoting) step(focusedSide(target), -1)
+      },
+      suggested: () => {
+        if (latest.current.quoting) takeSuggested()
+      },
       quick,
     }
   })
+  const quickCount = quickSizes?.length ?? 0
   useEffect(() => {
     if (!registry) return
-    const release = declareHotkeys ? declareBindings(registry, RFQ_TICKET_BINDINGS) : noop()
-    const within = { scope: "editing", element: () => box.current }
-    const guard = (fn: () => void) => (event: KeyboardEvent) => {
+    const release = declareHotkeys ? declareBindings(registry, RFQ_CORE_BINDINGS) : noop()
+    // Fenced to the scope root, so the shortcuts run from the heading, the market, and the padding too.
+    const within = { scope: "editing", element: () => (box.current ? box.current.parentElement ?? box.current : null) }
+    const guard = (fn: (event: KeyboardEvent) => void) => (event: KeyboardEvent) => {
       event.preventDefault()
-      fn()
+      fn(event)
     }
     const unbind = [
       registry.bind("rfq.send", guard(() => handlers.current.send()), within),
-      registry.bind("rfq.tick-up", guard(() => handlers.current.up()), within),
-      registry.bind("rfq.tick-down", guard(() => handlers.current.down()), within),
+      registry.bind("rfq.tick-up", guard((event) => handlers.current.up(event.target)), within),
+      registry.bind("rfq.tick-down", guard((event) => handlers.current.down(event.target)), within),
       registry.bind("rfq.suggested", guard(() => handlers.current.suggested()), within),
-      ...QUICK_SIZE_KEYS.map((_, i) => registry.bind(`rfq.size-${i + 1}`, guard(() => handlers.current.quick(i + 1)), within)),
+      // Fenced handlers for all nine, acting only on a present size: an id anyone declares in
+      // the editing scope meets this fence, and an undeclared absent size's event passes
+      // through untouched.
+      ...RFQ_SIZE_BINDINGS.map((binding, i) => registry.bind(binding.id, (event) => {
+        if (i >= (latest.current.quickSizes?.length ?? 0)) return
+        event.preventDefault()
+        handlers.current.quick(i + 1)
+      }, within)),
     ]
     return () => {
       for (const u of unbind) u()
       release()
     }
   }, [registry, declareHotkeys])
+  // The sizes declare only for the quick sizes passed, in their own effect, so a size-count
+  // change never re-declares the core bindings and an absent id never stands fenceless.
+  useEffect(() => {
+    if (!registry || quickCount === 0) return
+    const release = declareHotkeys ? declareBindings(registry, RFQ_SIZE_BINDINGS.slice(0, quickCount)) : noop()
+    return release
+  }, [registry, declareHotkeys, quickCount])
   const sendKeys = useSyncExternalStore(
     registry?.subscribe ?? noop,
     () => registry?.list().find((entry) => entry.id === "rfq.send")?.keys ?? null,
@@ -452,8 +510,17 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const hasSuggested = Boolean(inquiry.suggested && sides.some((side) => level(inquiry.suggested![side]) !== null))
 
   return (
-    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${inquiry.id}`} data-slot="tradecn-rfq-ticket" data-inquiry={inquiry.id} data-side={inquiry.side} data-status={inquiry.status} className={cn("block outline-none lining-nums tabular-nums", className)}>
-      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground">
+    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${inquiry.id}`} data-slot="tradecn-rfq-ticket" data-inquiry={inquiry.id} data-side={inquiry.side} data-status={inquiry.status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/30 lining-nums tabular-nums", className)}>
+      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }} onBlurCapture={(event) => {
+        // Focus moving somewhere outside the ticket on purpose: the leaving control is still
+        // in the document and enabled, so there is nothing to recover from. A window switch
+        // also blurs with no destination, but the document loses focus with it — the record
+        // stays, so a control withdrawn while the dealer is away still parks on return.
+        const leaving = event.target as HTMLElement
+        const next = event.relatedTarget as HTMLElement | null
+        if (!next && !event.currentTarget.ownerDocument.hasFocus()) return
+        if (focusedInside.current === leaving && leaving.isConnected && !leaving.matches(":disabled") && (!next || !event.currentTarget.contains(next))) focusedInside.current = null
+      }}>
         <div className="flex items-start gap-2">
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <div className="flex flex-wrap items-baseline gap-x-1.5" data-rfq-headline>
@@ -541,7 +608,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             const distance = quoteDistance(draft[side], level(market?.[side]), convention)
             return (
               <div key={side} className="flex flex-col gap-0.5">
-                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} disabled={!quoting} error={shownProblems[side]} inputRef={inputs[side]} />
+                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} invalidText={labels.invalidLevel} disabled={!quoting} error={shownProblems[side]} inputRef={inputs[side]} />
                 <span className="h-4 text-right text-muted-foreground lining-nums tabular-nums" data-rfq-distance={side} data-numeric="" aria-live="off">
                   {distance ? `${distance.text} ${labels.vsMarket}` : " "}
                 </span>
@@ -585,7 +652,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
                   onClick={() => run(action)}
                 >
                   {confirming === action.id ? labels.anyway.replace("{action}", typeof action.label === "function" ? action.label(draft) : action.label) : typeof action.label === "function" ? action.label(draft) : action.label}
-                  {action === primary && sendKeys && (
+                  {action === sendAction && sendKeys && (
                     <KbdGroup aria-hidden>
                       {formatKeys(sendKeys)[0]?.map((cap) => (
                         <Kbd key={cap} className="text-xs">{cap}</Kbd>

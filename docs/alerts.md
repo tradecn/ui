@@ -45,6 +45,8 @@ Alerts
 
 Map your collection into `AlertItem` children. Place, omit, or reorder the other parts as needed. `AlertBody` supports rich content and wraps by default. Use an accessible link or button for interactive content, and pair tone with a severity word or another non-color cue.
 
+<div id="a-store-not-a-toast-each"></div>
+
 For a live store, use `useRowIds(useAlertView(alerts))` to read newest-first IDs, then map them into your own row component. Call `useAlert(alerts, id)` inside that row so a notice update rerenders its subscriber. The store coalesces repeated keys and enforces its cap; see [alert-store](alert-store.md).
 
 ## Local collection
@@ -63,7 +65,7 @@ Choose **Receive slow feed** or **Receive rejection** to restore or repeat a not
 
 ## History in your own dialog
 
-This example displays two notices and places the rest in a caller-owned dialog. You decide the slice, history button, clear control, and history height. The button uses `DialogTrigger` and stays mounted so closing the dialog returns focus to it even if notices expire or are cleared. It reads "History" when nothing overflows. Install shadcn's `dialog` component separately before copying this example. `AlertHistory` also works in an always-open panel with a height.
+This example displays two notices and puts the full history in a caller-owned dialog. You decide the slice, history button, clear control, and history height. The button uses `DialogTrigger` and stays mounted so closing the dialog returns focus to it even if notices expire or are cleared. It reads "History" when nothing overflows. The history passes `announceRowCount="off"`, keeping the announcer the one announcement path while the dialog is open. Install shadcn's `dialog` component separately before copying this example. `AlertHistory` also works in an always-open panel with a height.
 
 <!-- demo: alerts-history -->
 
@@ -76,6 +78,12 @@ The readout is a polite live region that announces the callback count and last t
 <!-- demo: alerts-bridge -->
 
 ## API Reference
+
+<div id="alerts-props"></div>
+
+Previous call shapes and every removed prop are mapped in [Migrating to v2](migrating-v1-to-v2.md#alerts).
+
+<div id="the-words-are-yours"></div>
 
 ### Presentation parts
 
@@ -96,6 +104,8 @@ All presentation parts accept their underlying element's props, including `child
 
 Each piece has a `data-slot` matching its kebab-case name with the `tradecn-` prefix, such as `tradecn-alert-header`.
 
+<div id="actions-are-the-server-s"></div>
+
 ### AlertActionButton
 
 `AlertActionButton` accepts Button props, including children and a ref, except `onClick`. It renders only when `alert.allowedActions` contains `action`. Missing or empty permissions render nothing. It defaults to `type="button"`, `variant="outline"`, and `size="sm"`, with `data-alert-action` set to the action ID.
@@ -109,6 +119,8 @@ Each piece has a `data-slot` matching its kebab-case name with the `tradecn-` pr
 | Button props | `ComponentProps<typeof Button>` excluding `onClick` | See above | Styling, disabled state, accessible naming, and other native behavior. |
 
 The button checks the supplied alert when it renders; it does not subscribe or re-read the store on click. Use the current row from `useAlert` for changing permissions. The callback does not dismiss the notice. Send requests and call `alerts.dismiss(id)` explicitly when appropriate. UI permissions do not replace server authorization.
+
+<div id="dismissal"></div>
 
 ### useAlert
 
@@ -124,6 +136,10 @@ The button checks the supplied alert when it renders; it does not subscribe or r
 Expiry waits `max(0, alert.at + ttlMs - now())` milliseconds. A repeat with a new `at` reschedules it. Any nonempty `allowedActions` disables expiry, including action IDs for which you render no button. Removing those permissions enables the remaining timer, or schedules immediate dismissal if already overdue. Unmounting, changing stores or IDs, or disabling TTL cancels the old timer.
 
 Timers belong to the hook invocation. Put TTL on the displayed notice row only. Hidden notices and history-only rows have no timer unless your application mounts another expiry-enabled hook for them. When displaying one notice in several places, choose one owner for automatic dismissal; omit TTL from the other subscriptions.
+
+<div id="it-never-takes-focus"></div>
+
+Removal never moves focus: dismissal, TTL expiry, the cap, and `clear()` unmount the notice's controls where they stand, and focus falls to the body when one of them held it. Restore focus yourself when you remove the notice under the user — the dismiss handler knows where to send it — and keep TTL off notices whose controls expect to hold focus.
 
 ### AlertsAnnouncer
 
@@ -141,19 +157,28 @@ The announcer follows the selected row, including repeats; it is not a queue of 
 
 `AlertHistory` is an optional DataGrid presentation, ordered newest first by `at`, then `seq`. Give its container a height. It does not supply action or dismiss controls, create a dialog, or start TTL timers. Its default `blotter` preset adjusts scroll position when notices arrive above the first visible row.
 
+The history's view owns its order, so the grid renders without sort affordances, whatever the column definitions say. Under the default `blotter` preset the grid also announces its row count politely, about a second after the count stops changing, including on mount; folded repeats and arrivals into a full store leave the count unchanged and announce nothing. Pass `announceRowCount="off"` to silence it, and keep one announcement path when the history sits beside an `AlertsAnnouncer` or a toast adapter.
+
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `alerts` | `AlertStore` | Required | Shared store. |
 | `columns` | `ColumnDef<Alert>[]` | `alertColumns({ labels })` | Add, remove, reorder, or replace grid columns. |
 | `preset` | `DataGridPreset` | `"blotter"` | Grid behavior and presentation. |
+| `announceRowCount` | `"off" \| "debounced"` | Preset's setting | The embedded grid's row-count announcements. |
 | `label` | `string` | `labels.title` | Accessible grid name. |
 | `labels` | `Partial<AlertHistoryLabels>` | `DEFAULT_ALERT_HISTORY_LABELS` | Empty state, grid name, and default column labels. |
 | `renderContextMenu` | `(rows: Alert[], ids: RowId[]) => ReactNode` | Unset | Caller-composed context menu. |
 | `className` | `string` | Unset | History wrapper classes. |
 
-`alertColumns({ time?, labels? })` returns time, severity, title, message, and count columns. `time` accepts `(ms: number) => string` and defaults to local 24-hour time with seconds. Pass labels explicitly when constructing custom columns.
+Keep `labels` referentially stable when the grid builds its default columns, since they rebuild whenever it changes, and keep a custom `columns` array stable for the same reason; with custom columns, a `labels` change deliberately rebuilds nothing.
+
+`alertColumns({ time?, labels? })` returns time, severity, title, message, and count columns, imported from `@/components/ui/alerts` with `Alert` and `AlertTone` coming from the installed `@/lib/alert-store`. `time` accepts `(ms: number) => string` and defaults to local 24-hour time with seconds. Pass labels explicitly when constructing custom columns. Its time, severity, title, and count columns are marked sortable for grids that build their own view: omit `view` and the grid orders rows from its `sort`. A supplied view owns its order and ignores `sort`, so derive the view you supply from your controlled sort state. `useAlertView`'s is fixed newest-first, and the history removes those affordances.
 
 `useAlertView(alerts)` returns a `RowView<Alert>` and replaces it synchronously when the store changes. It owns the view's connection: cleanup stops feed work, and effect replay reconnects the same handle. Read it through `useRowIds` from the installed `use-row-store` hooks. Do not dispose it yourself; see [view ownership](row-store.md#views).
+
+<div id="labels"></div>
+
+Seven v1 labels moved or fell away; [Migrating to v2](migrating-v1-to-v2.md#labels) maps each, and v1's `title` named the whole strip where the history's `title` names its grid.
 
 | History label | Default |
 |---|---|
@@ -178,4 +203,4 @@ Existing IDs are skipped on subscription. Newly observed IDs are forwarded oldes
 
 ### Tokens
 
-`AlertTone` accepts `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`. `ALERT_TONE_BAR` supplies background classes for custom bars or decoration; `ALERT_TONE_TEXT` supplies text classes. Item tone colors its start border; severity tone colors its text independently, so pass the tone to both when desired. Include a non-color cue in custom compositions. The install adds the five trading tokens and their soft variants if absent; `primary` and `destructive` come from your theme.
+`AlertTone` accepts `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`. `ALERT_TONE_BAR` supplies background classes for custom bars or decoration; `ALERT_TONE_TEXT` supplies text classes. Item tone colors its start border; severity tone colors its text independently, so pass the tone to both when desired. Include a non-color cue in custom compositions. The install adds the five trading tokens and their soft variants if absent, along with the shared font tokens and the hyperlegible remap the grid columns use; `primary` and `destructive` come from your theme.

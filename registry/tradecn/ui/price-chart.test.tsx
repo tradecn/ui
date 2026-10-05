@@ -12,6 +12,22 @@ import { CHART_TOKEN_CLASS, usePriceChart, PriceChart, PriceChartLegend, PriceCh
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
+
+// Behavior-preserving capture of every plot built, so a test can watch one instance's methods.
+const plots = vi.hoisted(() => [] as { redraw: (rebuildPaths?: boolean, recalcAxes?: boolean) => void }[])
+vi.mock("uplot", async (importOriginal) => {
+  const mod = await importOriginal<{ default: typeof import("uplot") }>()
+  const Real = mod.default
+  const Captured = function (this: unknown, ...args: ConstructorParameters<typeof Real>) {
+    const u = new Real(...args)
+    plots.push(u)
+    return u
+  }
+  Captured.prototype = Real.prototype
+  Object.assign(Captured, Real)
+  return { ...mod, default: Captured as unknown as typeof Real }
 })
 
 const ZN: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
@@ -41,6 +57,25 @@ describe("PriceChart", () => {
     expect(text("[data-chart-change]")).toBe("+0-02 (+0.06%)")
     expect(root().querySelector("[data-chart-last]")!.className).toContain("text-up")
     expect(root().querySelector("[data-chart-header]")!.className).toContain("tabular-nums")
+  })
+
+  it("prints its readings in the price notation's font, survives a malformed locale, and drops a non-finite volume", () => {
+    // The readings print convention.price whatever the quote basis, so the font follows the
+    // notation: a fraction price on a yield-quoted instrument stays monospace.
+    const onYield: InstrumentConvention = { ...ZN, quoteBasis: "yield" }
+    const store = seeded()
+    render(<PriceChart store={store} convention={onYield} label="Yield note" locale="en_US"><PriceChartHeader><PriceChartLast /><PriceChartChange /><PriceChartReadout /></PriceChartHeader><PriceChartPlot><PriceChartEmpty /></PriceChartPlot></PriceChart>)
+    expect(document.querySelector("[data-chart-last]")!.className).toContain("--tradecn-font-mono")
+    expect(document.querySelector("[data-chart-change]")!.className).toContain("--tradecn-font-mono")
+    expect(document.querySelector("[data-chart-readout]")!.className).toContain("--tradecn-font-mono")
+    // A malformed locale tag must not throw during render: the formatter drops it and renders.
+    expect(screen.getByRole("group", { name: "Yield note" })).toBeInTheDocument()
+    // A non-finite volume reads as absent: focusing the plot puts the cursor on the last bar,
+    // whose NaN volume must not print as a dash.
+    act(() => store.applyDeltas({ upsert: [{ ...bar(2, 110.5, 110.5625), volume: Number.NaN }] }))
+    act(() => screen.getByRole("slider").focus())
+    const readout = document.querySelector("[data-chart-readout]")!
+    expect(readout.textContent).not.toContain("V ")
   })
 
   it("is a slider over the bars whose name says the direction in a word, the range, and the count", () => {
@@ -256,6 +291,63 @@ describe("PriceChart composition", () => {
     act(() => refs.plot.current!.blur())
     expect(onFocus).toHaveBeenCalledOnce()
     expect(onBlur).toHaveBeenCalledOnce()
+  })
+
+  it("repaints on a system scheme flip and drops the listener with the plot", async () => {
+    // The plot mounts only with a measured box and a drawable canvas, so this test supplies both:
+    // a ResizeObserver that reports once, a 2D context of recording no-ops, and a sized box.
+    const bag: Record<string | symbol, unknown> = {}
+    const ctxStub = new Proxy(bag, {
+      get(target, key) {
+        if (key === "measureText") return () => ({ width: 10 })
+        if (key === "createLinearGradient" || key === "createRadialGradient" || key === "createPattern") return () => ({ addColorStop() {} })
+        if (!(key in target)) target[key] = vi.fn()
+        return target[key]
+      },
+      set(target, key, value) {
+        target[key] = value
+        return true
+      },
+    })
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctxStub as never)
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 600, height: 300, top: 0, left: 0, right: 600, bottom: 300, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+    vi.stubGlobal("Path2D", class {
+      addPath() {}
+      moveTo() {}
+      lineTo() {}
+      rect() {}
+      arc() {}
+      closePath() {}
+    })
+    vi.stubGlobal("ResizeObserver", class {
+      callback: ResizeObserverCallback
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback
+      }
+      observe(target: Element) {
+        this.callback([{ target, contentRect: { width: 600, height: 300 } } as ResizeObserverEntry], this as unknown as ResizeObserver)
+      }
+      unobserve() {}
+      disconnect() {}
+    })
+    const listeners = new Set<() => void>()
+    const mql = {
+      matches: false,
+      media: "(prefers-color-scheme: dark)",
+      addEventListener: (_: string, fn: () => void) => void listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => void listeners.delete(fn),
+    }
+    vi.spyOn(window, "matchMedia").mockReturnValue(mql as unknown as MediaQueryList)
+    const view = render(<PriceChart store={seeded()} convention={ZN} label="ZN"><PriceChartPlot /></PriceChart>)
+    // Drain the plot's queued first commit while the stubs are still in place.
+    await act(async () => {})
+    expect(listeners.size).toBe(1)
+    const redraw = vi.spyOn(plots.at(-1)!, "redraw").mockImplementation(() => {})
+    act(() => { for (const fn of [...listeners]) fn() })
+    expect(redraw).toHaveBeenCalled()
+    view.unmount()
+    await act(async () => {})
+    expect(listeners.size).toBe(0)
   })
 
   it("shares one subscription across repeated readings and cleans it up", () => {

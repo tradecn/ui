@@ -44,12 +44,36 @@ describe("normalizeKeys", () => {
     expect(normalizeKeys("option+control+ArrowUp", "mac")).toBe("ctrl+alt+up")
     expect(normalizeKeys("  g   h ", "other")).toBe("g h")
     expect(normalizeKeys("ctrl+plus", "other")).toBe("ctrl++")
+    expect(normalizeKeys("ctrl++", "other")).toBe("ctrl++")
+    expect(normalizeKeys("+", "other")).toBe("+")
+    expect(normalizeKeys(normalizeKeys("mod+plus", "mac"), "mac")).toBe("meta++")
+    expect(formatKeys("ctrl++", "other")).toEqual([["Ctrl", "+"]])
+    expect(formatKeys(normalizeKeys("mod+plus", "mac"), "mac")).toEqual([["\u2318", "+"]])
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register({ id: "zoom.in", keys: "x", scope: "global", description: "Zoom in" })
+    expect(registry.remap("zoom.in", "ctrl+plus")).toEqual([])
+    expect(registry.overrides()["zoom.in"]).toBe("ctrl++")
+    expect(registry.list()[0]).toMatchObject({ keys: "ctrl++", remapped: true })
+    expect(formatKeys("ctrl++", "other")).toEqual([["Ctrl", "+"]])
     expect(normalizeKeys("", "other")).toBe("")
   })
 
   it("rejects keys that do not parse", () => {
     expect(() => normalizeKeys("mod+", "other")).toThrow(/no key/)
     expect(() => normalizeKeys("g+h", "other")).toThrow(/two keys/)
+  })
+
+  it.each(["ctrl+++", "++", "+ctrl++", "ctrl++shift++", "shift+ +"])("rejects the malformed plus spelling %s", (keys) => {
+    expect(() => normalizeKeys(keys, "other")).toThrow("has no key")
+  })
+
+  it("fires a v1-stored plus override once loaded", () => {
+    const fired = vi.fn()
+    const registry = attached()
+    registry.register(binding("zoom.in", "x"), fired)
+    registry.load({ "zoom.in": "ctrl++" })
+    press("+", { ctrlKey: true })
+    expect(fired).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -478,6 +502,29 @@ describe("remapping", () => {
     expect(registry.overrides()).toEqual({})
   })
 
+  it("reads a stored default-equal override as remapped", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register(binding("a", "mod+k"))
+    registry.load({ a: "mod+k" })
+    // Stored is stored: the editor's badge and Reset follow the override's existence, not a
+    // comparison of effective keys.
+    expect(registry.list()[0]).toMatchObject({ keys: "ctrl+k", remapped: true })
+    registry.reset("a")
+    expect(registry.list()[0]).toMatchObject({ remapped: false })
+  })
+
+  it("lets Reset clear an override that does not parse", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register(binding("a", "mod+k"))
+    registry.load({ a: "ctrl+++" })
+    // The corrupt override falls back to the default keys, but it is stored — remapped says
+    // so, or no Reset could ever clear it while overrides() still exports it.
+    expect(registry.list()[0]).toMatchObject({ keys: "ctrl+k", remapped: true })
+    registry.reset("a")
+    expect(registry.overrides()).toEqual({})
+    expect(registry.list()[0]).toMatchObject({ remapped: false })
+  })
+
   it("unbinds with an empty string", () => {
     const registry = attached()
     const run = vi.fn()
@@ -534,6 +581,125 @@ describe("registering", () => {
     registry.unregister("a")
     press("x")
     expect(run).not.toHaveBeenCalled()
+    expect(registry.list()).toEqual([])
+  })
+})
+
+describe("defaults", () => {
+  it("lists and dispatches a default until a consumer shadows it, and brings it back", () => {
+    const registry = attached()
+    const run = vi.fn()
+    registry.bind("a", run)
+    const release = registry.declareDefault(binding("a", "x"))
+    expect(registry.list().map((e) => e.id)).toEqual(["a"])
+    press("x")
+    expect(run).toHaveBeenCalledTimes(1)
+    registry.register(binding("a", "y"))
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("y")
+    press("x")
+    expect(run).toHaveBeenCalledTimes(1)
+    press("y")
+    expect(run).toHaveBeenCalledTimes(2)
+    registry.unregister("a")
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+    press("x")
+    expect(run).toHaveBeenCalledTimes(3)
+    release()
+    expect(registry.list()).toEqual([])
+  })
+
+  it("holds a default while any declarer remains, and releases once with the last", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const first = registry.declareDefault(binding("a", "x"))
+    const second = registry.declareDefault(binding("a", "x"))
+    first()
+    first()
+    expect(registry.list().map((e) => e.id)).toEqual(["a"])
+    second()
+    expect(registry.list()).toEqual([])
+  })
+
+  it("keeps a consumer registration that matches the default exactly", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const release = registry.declareDefault(binding("a", "x"))
+    registry.register(binding("a", "x"))
+    release()
+    expect(registry.list().map((e) => e.id)).toEqual(["a"])
+    registry.unregister("a")
+    expect(registry.list()).toEqual([])
+  })
+
+  it("promotes a remaining declarer's binding when the one in force releases", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const first = registry.declareDefault(binding("a", "x"))
+    registry.declareDefault(binding("a", "y"))
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+    first()
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("y")
+  })
+
+  it("keeps ownership whole when a shadow attempt throws on malformed keys", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const release = registry.declareDefault(binding("a", "x"))
+    expect(() => registry.register(binding("a", "ctrl+"))).toThrow()
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+    release()
+    expect(registry.list()).toEqual([])
+  })
+
+  it("releases the caller's own declaration when declarers share one binding object", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const shared = binding("a", "x")
+    registry.declareDefault(shared)
+    registry.declareDefault(binding("a", "y"))
+    const third = registry.declareDefault(shared)
+    // Releasing the third declarer must not remove the first's entry: x stays in force.
+    third()
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+  })
+
+  it("leaves a default alone when unregister names it", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const woke = vi.fn()
+    registry.declareDefault(binding("a", "x"))
+    registry.subscribe(woke)
+    registry.unregister("a")
+    expect(woke).not.toHaveBeenCalled()
+    expect(registry.list().find((e) => e.id === "a")?.declaredKeys).toBe("x")
+    // The style the palette tests: a subscriber that unregisters whatever it sees listed must
+    // settle, not recurse, when the listed record is a default.
+    registry.subscribe(() => {
+      if (registry.list().some((e) => e.id === "a")) registry.unregister("a")
+    })
+    expect(() => registry.register(binding("b", "z"))).not.toThrow()
+    expect(registry.list().map((e) => e.id).sort()).toEqual(["a", "b"])
+  })
+
+  it("keeps a resurfaced default in its record's position", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.declareDefault(binding("a", "x"))
+    registry.register(binding("b", "z"))
+    registry.register(binding("a", "y"))
+    registry.unregister("a")
+    expect(registry.list().map((e) => e.id)).toEqual(["a", "b"])
+  })
+
+  it("rejects a malformed default even while the id is shadowed", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register(binding("a", "y"))
+    expect(() => registry.declareDefault(binding("a", "ctrl+"))).toThrow()
+    registry.unregister("a")
+    expect(registry.list()).toEqual([])
+  })
+
+  it("leaves a shadowing registration alone when the shadowed default releases", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const release = registry.declareDefault(binding("a", "x"))
+    registry.register({ ...binding("a", "y"), when: () => false })
+    release()
+    const entry = registry.list().find((e) => e.id === "a")
+    expect(entry?.declaredKeys).toBe("y")
+    registry.unregister("a")
     expect(registry.list()).toEqual([])
   })
 })

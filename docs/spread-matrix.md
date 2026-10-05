@@ -263,7 +263,7 @@ The standalone helper accepts any nonempty number of values when supplied matchi
 
 Supply finite weights and a positive finite tick for ticks mode.
 
-Helpers do not validate weight finiteness or guard every arithmetic overflow, so `NaN` or infinity can still reach a custom formatter. `formatSpread` prints `–` for those results.
+Helpers do not validate weight finiteness or guard every arithmetic overflow, so infinity can reach a custom formatter in either mode, and `NaN` in bps mode; ticks mode turns `NaN` and non-finite sums into `null` first. `formatSpread` prints `–` for those results.
 
 ### Marks and flashes
 
@@ -292,7 +292,7 @@ The default formatter keeps the spread's sign visible after the flash ends. That
 
 Write headings, captions and unit labels in your composition. Use `ticks` for price ticks and `bp` for basis points.
 
-The ordinary matrix caption is `Each cell is the row less the column. ticks.`. A structures caption is `Spread: bp.`. Translate these children and the table's `label` together.
+The Usage example writes its matrix caption as `Each cell is the row less the column. ticks.`, and the Curves and butterflies example writes `Spread: bp.`; `SpreadMatrixTable` renders no caption of its own. Write yours to say which value is subtracted from which and in what unit, and translate those children and the table's `label` together.
 
 ### What it does not do
 
@@ -302,4 +302,4 @@ Place actions in your own cells or surrounding controls. Native cell events are 
 
 ### Tokens
 
-The install adds `up`, `down`, and `flat` with their soft variants if you do not have them. The flashes use the soft ones.
+The install adds `up`, `down`, and `flat` with their soft variants if you do not have them, plus the shared font tokens and the hyperlegible remap. The flashes use the soft ones.

@@ -166,7 +166,7 @@ Each `ColumnDef<T>` describes one column. Frozen columns stay on the left, befor
 | `frozen` | `"left"` | None | Keep the column visible during horizontal scrolling. |
 | `sortable` | `boolean` | `false` | Enable header sort controls. |
 | `hidden` | `boolean` | `false` | Hide the column regardless of column state. |
-| `format` | `(value: unknown, row: T) => string` | `String(value)`; nullish values use `NULL_TOKEN` | Display text. |
+| `format` | `(value: unknown, row: T) => string` | `String(value)`; nullish values use `NULL_TOKEN` | Display text. Carries into rule descriptions on a column that also has `parse`, when it reads just the value. |
 | `cell` | `(ctx: { row: T; value: unknown; rowId: RowId; edit?: CellEditHandle }) => ReactNode` | Formatted text | Custom content; flashes still follow the accessor. |
 | `numeric` | `boolean` | `false` | Numeric typography, alignment, and default flashing. |
 | `font` | `"numeric" \| "mono"` | `"numeric"` | Font family for numeric cells. |
@@ -174,7 +174,7 @@ Each `ColumnDef<T>` describes one column. Frozen columns stay on the left, befor
 | `parse` | `(text: string) => unknown` | Number if numeric; otherwise text | Read values in grid rules. Separate from `edit.parse`. |
 | `edit` | `CellEdit<T>` | None | Editing behavior; also requires the grid's `onEdit`. |
 
-Numeric cells carry `data-numeric` and use lining, tabular figures in `--tradecn-font-numeric`. Use `font: "mono"` for fraction quotes such as `99-16+` so their punctuation aligns too. [`typography`](typography.md) explains the choice; `numericFontClass` in [`format`](format.md) selects it from an instrument convention.
+Numeric cells carry `data-numeric` and use lining, tabular figures in `--tradecn-font-numeric`. Use `font: "mono"` for fraction quotes such as `99-16+`, giving digits and dashes equal widths; quotes with and without a tail still differ in length, so a right-aligned column lines tails up only against padding you add. [`typography`](typography.md) explains the choice; `numericFontClass` in [`format`](format.md) selects it from an instrument convention.
 
 ### Presets
 
@@ -231,7 +231,7 @@ Totals calculate on mount and subscribe to store batches. Changes to the view's 
 
 A supplied view also ignores `sort` for ordering. Header controls can still report changes through `onSortChange` for you to apply.
 
-String rule values use the column's `parse` when provided, for example `parse: (text) => parsePrice(text, convention)`. Numeric and boolean values bypass it. Matched cells and rows carry `data-rule`, `data-tone`, and an accessible description. `getRowProps` takes precedence over row decorations; a cell's rejection message takes precedence over its rule description.
+String rule values use the column's `parse` when provided, for example `parse: (text) => parsePrice(text, convention)`, and a parsed decimal threshold snaps to the convention's grid, as a cell editor that parses with `parsePrice` does. The column's `format` carries into rule descriptions only when it reads just the value — descriptions call it without a row, so a row-reading format keeps the typed words while the threshold still snaps. Numeric and boolean values bypass it. Matched cells and rows carry `data-rule`, `data-tone`, and an accessible description. `getRowProps` takes precedence over row decorations; a cell's rejection message takes precedence over its rule description.
 
 ### Editing in place
 

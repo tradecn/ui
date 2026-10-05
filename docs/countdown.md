@@ -41,7 +41,7 @@ A countdown mounted past its deadline reads `0:00`, holds an empty bar, and call
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `expiresAt` | `number` | Required | Deadline timestamp. |
-| `startsAt` | `number` | First render | Start timestamp used to size the bar. |
+| `startsAt` | `number` | First render, freshly sampled | Start timestamp used to size the bar. |
 | `thresholds` | `CountdownThresholds` | `{ soonMs: 10_000 }` | When the `soon` tier begins. |
 | `clock` | `Clock` | `sharedClock()` | Clock for updates and test timing. |
 | `label` | `string` | `"Time left"` | Accessible timer name and announcement label. |
@@ -68,13 +68,13 @@ The default, `PROVISIONAL_COUNTDOWN_THRESHOLDS`, is a placeholder. Set `threshol
 
 Pass `startsAt` so the full bar represents the time from start to expiry. Without it, the bar starts full on first render if time remains, even for a countdown restored partway through.
 
-One linear Web Animation shrinks the bar to zero, with no JavaScript work per frame. Changing `expiresAt` cancels and restarts it. Under `prefers-reduced-motion`, the bar steps with the digits instead.
+One linear Web Animation shrinks the bar to zero, with no JavaScript work per frame. Changing `expiresAt` cancels and restarts it. Under `prefers-reduced-motion`, as read on mount, or in a browser without Web Animations, the bar steps with the digits instead.
 
 ### The clock
 
 Countdowns and [`feed-health`](feed-health.md) share one timer: `sharedClock()` from `@/lib/clock`, ticking once a second. Each countdown subscribes independently; ticks don't re-render its parents.
 
-The clock's `now()` returns its last tick, so a newly rendered countdown can initially read up to a second behind. Pass a faster `clock` for finer timing, or `createClock(1000, () => t)` for tests.
+The clock's `now()` returns its last tick, which refreshes while anything subscribes; the bar's start and length sample the time source directly, so a countdown mounted after the clock sat idle still sizes its animation from the real time. The digits' first reading can be up to a second behind once the clock is running. Pass a faster `clock` for finer timing, or `createClock(1000, () => t)` for tests.
 
 ### What it says
 

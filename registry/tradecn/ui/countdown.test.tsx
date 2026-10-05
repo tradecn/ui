@@ -108,6 +108,45 @@ describe("Countdown", () => {
     expect(parentRenders).toBe(1)
   })
 
+  it("sizes the bar from a fresh sample while the shared clock idles", () => {
+    let t = 0
+    const clock = createClock(1000, () => t)
+    // Start and stop the clock: its last tick stays 0 while ten minutes pass unsubscribed.
+    clock.subscribe(() => {})()
+    t = 600_000
+    render(<Countdown clock={clock} startsAt={600_000} expiresAt={630_000} />)
+    // The animation runs for the thirty seconds actually left, not the stale ten minutes.
+    const recorded = animations.at(-1)!
+    expect(recorded.options.duration).toBe(30_000)
+  })
+
+  it("holds the bar empty in the second after the deadline, while the tick lags the sample", () => {
+    let t = 0
+    const clock = createClock(1000, () => t)
+    const stop = clock.subscribe(() => {})
+    t = 500
+    // The last tick still reads 0, so the tier says soon; the fresh sample says expired. The
+    // zero-length run holds the bar at zero instead of leaving it full until the next tick.
+    render(<Countdown clock={clock} startsAt={-29_700} expiresAt={300} />)
+    const recorded = animations.at(-1)!
+    expect(recorded.options.duration).toBe(0)
+    expect(recorded.keyframes[0]?.transform).toBe("scaleX(0)")
+    stop()
+  })
+
+  it("sizes first sight from a fresh sample without startsAt", () => {
+    let t = 0
+    const clock = createClock(1000, () => t)
+    clock.subscribe(() => {})()
+    t = 600_000
+    // Without startsAt, first sight is the start: freshly sampled, the bar begins full for
+    // the thirty seconds left, not at a sliver of the stale ten-minute span.
+    render(<Countdown clock={clock} expiresAt={630_000} />)
+    const recorded = animations.at(-1)!
+    expect(recorded.options.duration).toBe(30_000)
+    expect(recorded.keyframes[0]?.transform).toBe("scaleX(1)")
+  })
+
   it("animates the bar once, linear, for exactly the time left, and starts over when the end moves", () => {
     t = 2000
     const clock = createClock(1000, () => t)
@@ -123,6 +162,28 @@ describe("Countdown", () => {
     expect(animations).toHaveLength(2)
     expect(animations[1]!.options.duration).toBe(15_000)
     expect(animations[1]!.keyframes[0]).toEqual({ transform: "scaleX(0.75)" })
+  })
+
+  it("draws the bar from the tick when the browser has no Web Animations", () => {
+    const animate = Element.prototype.animate
+    const spied = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "animate")
+    // A browser without the API has it nowhere on the chain; the suite's spy must vanish too.
+    Object.defineProperty(Element.prototype, "animate", { value: undefined, configurable: true, writable: true })
+    if (spied) Object.defineProperty(HTMLElement.prototype, "animate", { value: undefined, configurable: true, writable: true })
+    try {
+      t = 2000
+      const clock = createClock(1000, () => t)
+      render(<Countdown expiresAt={12_000} startsAt={0} clock={clock} />)
+      expect(animations).toHaveLength(0)
+      expect(bar().style.transform).toBe(`scaleX(${10_000 / 12_000})`)
+      tick(4000)
+      expect(bar().style.transform).toBe(`scaleX(${6_000 / 12_000})`)
+      tick(6000)
+      expect(bar().style.transform).toBe("scaleX(0)")
+    } finally {
+      Object.defineProperty(Element.prototype, "animate", { value: animate, configurable: true, writable: true })
+      if (spied) Object.defineProperty(HTMLElement.prototype, "animate", spied)
+    }
   })
 
   it("draws the bar at zero with no animation once it is over, and cancels a running one when it gets there", () => {

@@ -61,6 +61,15 @@ describe("QuoteField", () => {
     expect(input()).not.toHaveAttribute("aria-invalid")
   })
 
+  it("reports the price the text will show: a typed decimal snaps to the printable grid", () => {
+    const { changes, set } = mount()
+    type(input(), "99.7")
+    expect(last(changes)).toBe(99.703125)
+    set(99.703125)
+    fireEvent.blur(input())
+    expect(input().value).toBe("99-22+")
+  })
+
   it("names the basis in its own words when the text is not a quote, or says what it is told to", () => {
     render(<QuoteField convention={BILL} value={null} onValueChange={() => {}} />)
     type(input("Discount"), "4-16")
@@ -138,6 +147,26 @@ describe("QuoteField", () => {
     render(<QuoteField convention={{ ...CREDIT, quoteStep: 0.25 }} value={12.5} onValueChange={spread} />)
     fireEvent.keyDown(input("Spread"), { key: "ArrowDown", shiftKey: true })
     expect(last(spread)).toBe(10)
+  })
+
+  it("treats a non-finite value as no value", () => {
+    // NaN never equals itself, so a raw compare would follow it every render until React
+    // stops the loop and unmounts the tree; a warming feed hands exactly that out.
+    const changes = vi.fn()
+    render(<QuoteField convention={NOTE} value={Number.NaN} onValueChange={changes} />)
+    expect(input().value).toBe("")
+    fireEvent.keyDown(input(), { key: "ArrowUp" })
+    expect(changes).not.toHaveBeenCalled()
+    render(<QuoteField convention={NOTE} value={Number.POSITIVE_INFINITY} onValueChange={vi.fn()} />)
+    expect(screen.getAllByRole("textbox").at(-1)).toHaveValue("")
+  })
+
+  it("steps nowhere from a non-finite stepFrom", () => {
+    const { changes } = mount({ value: null, stepFrom: Number.NaN })
+    fireEvent.keyDown(input(), { key: "ArrowUp" })
+    fireEvent.click(screen.getByRole("button", { name: "Price up one tick" }))
+    expect(changes).not.toHaveBeenCalled()
+    expect(input().value).toBe("")
   })
 
   it("prints the parent's problem under the field over its own, and is disabled as a whole", () => {

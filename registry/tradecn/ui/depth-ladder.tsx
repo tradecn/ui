@@ -1,6 +1,6 @@
 import { defaultRangeExtractor, useVirtualizer, type Range, type VirtualItem } from "@tanstack/react-virtual"
 import { cn } from "cn"
-import { createContext, memo, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref, type RefObject, type UIEvent } from "react"
+import { createContext, memo, useCallback, useContext, useId, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref, type RefObject, type UIEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { useRow } from "@/registry/tradecn/hooks/use-row-store"
@@ -250,8 +250,10 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
     el.scrollTop = centeredTop(el, depth + (midTick - anchor) * direction, rowHeight)
   }, [following, midTick, anchor, depth, rowHeight, direction])
 
-  const latest = useRef({ onStage, store, tickSize })
-  useLayoutEffect(() => { latest.current = { onStage, store, tickSize } })
+  const latest = useRef({ onStage, store, tickSize, anchor, depth })
+  // Insertion-phase publish: descendants' layout effects already see the committed range, so a
+  // select retained by composed row content validates against the ladder as rendered.
+  useInsertionEffect(() => { latest.current = { onStage, store, tickSize, anchor, depth } })
   const hold = useCallback(() => setFollowing(false), [])
   const recenter = () => {
     if (midTick === null) return
@@ -260,7 +262,10 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
   }
   const stage = useCallback((tick: number, col: LadderColumn) => {
     if (col === "price") return
-    const { onStage, store, tickSize } = latest.current
+    const { onStage, store, tickSize, anchor, depth } = latest.current
+    // Only a price on the ladder stages, whichever path asked: a selection scrolled out of range
+    // stays a selection.
+    if (anchor === null || Math.abs(tick - anchor) > depth) return
     onStage?.({ price: priceAtTick(tick, tickSize), tick, side: col === "bid" ? "buy" : "sell", level: store.getRow(levelId(tick)) })
   }, [])
   const onCell = useCallback((tick: number, col: LadderColumn) => {
@@ -312,7 +317,7 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
   const selectedMounted = selected !== null && items.some((item) => item.index === selectedIndex)
   const state: LadderContextValue = { following, hasMarket: midTick !== null, hasRows: count > 0, labels, hold, recenter, focus, config, scrollRef, items, totalSize: virtualizer.getTotalSize(), tickAt, domId, midTick, selected, onScroll }
   return <LadderContext value={state}><ConfigurationContext value={config}>
-    <div {...props} role="grid" tabIndex={0} aria-label={label} data-slot="tradecn-depth-ladder" data-following={following ? "true" : "false"} aria-rowcount={count + headerRows} aria-colcount={columns.length} aria-activedescendant={selectedMounted ? domId(selected.tick) : undefined} className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", className)} style={{ lineHeight: `${rowHeight}px`, "--depth-ladder-columns": columns.map((col) => `minmax(0, ${col === "price" ? 1.2 : 1}fr)`).join(" "), ...style } as CSSProperties} ref={rootRef} onKeyDown={(event) => { onKeyDown?.(event); handleKey(event) }}>{children}</div>
+    <div {...props} role="grid" tabIndex={0} aria-label={label} data-slot="tradecn-depth-ladder" data-following={following ? "true" : "false"} aria-rowcount={count + headerRows} aria-colcount={columns.length} aria-activedescendant={selectedMounted ? `${domId(selected.tick)}-${selected.col}` : undefined} className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", className)} style={{ lineHeight: `${rowHeight}px`, "--depth-ladder-columns": columns.map((col) => `minmax(0, ${col === "price" ? 1.2 : 1}fr)`).join(" "), ...style } as CSSProperties} ref={rootRef} onKeyDown={(event) => { onKeyDown?.(event); handleKey(event) }}>{children}</div>
   </ConfigurationContext></LadderContext>
 }
 
@@ -428,19 +433,34 @@ function ownsCellClick(event: MouseEvent<HTMLDivElement>) {
   return !control || control === event.currentTarget || !event.currentTarget.contains(control)
 }
 
-export function DepthLadderSizeCell({ side, ref, className, children, onClick, ...props }: ComponentProps<"div"> & SideProps) {
+type CellOwnedProps = "id" | "aria-selected"
+
+// The rendered role, explicit undefined included; aria-selected is inherited into the header
+// roles from gridcell, and no other rendered role takes it.
+function cellRoleTakesSelected(props: { role?: ComponentProps<"div">["role"] }): boolean {
+  const role = "role" in props ? props.role : "gridcell"
+  return role === "gridcell" || role === "rowheader" || role === "columnheader"
+}
+
+export function DepthLadderSizeCell({ side, ref, className, children, onClick, ...props }: Omit<ComponentProps<"div">, CellOwnedProps> & Partial<Record<CellOwnedProps, never>> & SideProps) {
   const row = useRowContext()
   const local = useRef<HTMLDivElement>(null)
   const cellRef = useLadderRef(local, ref)
   const size = side === "bid" ? row.bidSize : row.askSize
   const mine = side === "bid" ? row.myBid : row.myAsk
+  const selectable = cellRoleTakesSelected(props)
   useFlash(local, size, { windowMs: row.config.flashWindowMs, variant: "fill" })
-  return <div role="gridcell" aria-colindex={row.config.columns.indexOf(side) + 1 || undefined} data-col={side} data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} data-focused-col={row.focusedColumn === side || undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && "bg-muted/50", className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
+  // Only the reserved pair lands after the spread: the generated id is what aria-activedescendant
+  // points at, and the selected state is what the keyboard contract rests on. Everything else
+  // stays overridable — and the selected state follows the rendered role, emitted only where
+  // ARIA takes it: gridcell, rowheader, or columnheader.
+  return <div role="gridcell" aria-colindex={row.config.columns.indexOf(side) + 1 || undefined} data-col={side} data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} data-focused-col={row.focusedColumn === side || undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && "bg-muted/50", className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }} id={`${row.domId}-${side}`} aria-selected={(selectable && row.focusedColumn === side) || undefined}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
 }
 
-export function DepthLadderPriceCell({ className, children, onClick, ...props }: ComponentProps<"div">) {
+export function DepthLadderPriceCell({ className, children, onClick, ...props }: Omit<ComponentProps<"div">, CellOwnedProps> & Partial<Record<CellOwnedProps, never>>) {
   const row = useRowContext()
-  return <div role="gridcell" aria-colindex={row.config.columns.indexOf("price") + 1 || undefined} data-col="price" data-numeric="" data-focused-col={row.focusedColumn === "price" || undefined} className={cn("flex h-full min-w-0 items-center justify-center truncate px-2 text-foreground", numericFontClass(row.config.convention), row.focusedColumn === "price" && "bg-muted/50", className)} {...props} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select("price") }}>{children === undefined ? row.priceText : children}</div>
+  const selectable = cellRoleTakesSelected(props)
+  return <div role="gridcell" aria-colindex={row.config.columns.indexOf("price") + 1 || undefined} data-col="price" data-numeric="" data-focused-col={row.focusedColumn === "price" || undefined} className={cn("flex h-full min-w-0 items-center justify-center truncate px-2 text-foreground", numericFontClass(row.config.convention.price), row.focusedColumn === "price" && "bg-muted/50", className)} {...props} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select("price") }} id={`${row.domId}-price`} aria-selected={(selectable && row.focusedColumn === "price") || undefined}>{children === undefined ? row.priceText : children}</div>
 }
 
 /** Hides while following or without a market; keep it mounted to retain focus recovery. */

@@ -44,7 +44,7 @@ The preview compares a note on price, a bill on discount, and credit on spread. 
 
 ### The basis
 
-`convention.quoteBasis` defaults to `"price"`. Yield and discount values use percentage points; spreads use basis points. The root carries the basis as `data-basis` and the slot `data-slot="tradecn-quote-field"`.
+`convention.quoteBasis` defaults to `"price"`. Yield and discount values use percentage points; spreads use basis points, with no direction of their own — a CDS spread quotes bid below offer, cash credit the other way, and `convention.quoteInverted` declares which, for readers such as the RFQ ticket's crossed check. The root carries the basis as `data-basis` and the slot `data-slot="tradecn-quote-field"`.
 
 | Basis | Default label | Default step | Display precision |
 |---|---|---|---|
@@ -55,13 +55,13 @@ The preview compares a note on price, a bill on discount, and credit on spread. 
 
 For non-price quotes, `quoteStep` overrides the default step. Price quotes ignore `quoteStep` and `quoteDecimals`. Set precision high enough to display the step; the bill above steps by `0.001` in discount, despite its price tick of `0.0005`.
 
-The field uses [`format`](format.md)'s `parseQuote`, `formatQuote`, and `stepQuote`. Price input accepts the instrument's notation (`99-16+`) or a decimal. Decimal price conventions round to their decimal places, tick conventions snap to their price tick, and fraction conventions accept decimal input without snapping. Other bases accept decimals, snap to the quote step, and print without a unit suffix.
+The field uses [`format`](format.md)'s `parseQuote`, `formatQuote`, and `stepQuote`. Price input accepts the instrument's notation (`99-16+`) or a decimal. Decimal price conventions round to their decimal places, tick conventions snap to their price tick, and fraction conventions snap decimal input to their printable grid, so the value reported is the price the formatted text shows. Other bases accept decimals, snap to the quote step, and print without a unit suffix.
 
 Parsing trims whitespace, removes commas, and accepts either minus sign; decimal input uses a point. Fraction prices use the mono font; other quotes use the numeric font. A new kind of instrument needs a new convention object, with no instrument-name lookup.
 
 ### Typing and stepping
 
-Each text edit calls `onValueChange` with the parsed number, or `null` for blank or invalid text. Keep that value in parent state. Blur formats valid text (`99.75` becomes `99-24` for 32nds) or marks invalid text with `aria-invalid` and a message below the field. Blur does not call `onValueChange`.
+Each text edit calls `onValueChange` with the parsed number, or `null` for blank or invalid text. Keep that value in parent state. Blur formats valid text (`99.75` becomes `99-24` for 32nds) or marks invalid text with `aria-invalid` and a message below the field. Blur does not call `onValueChange`; it does not need to, since parsing already snapped the value to the printable grid — for a decimal convention that holds when its places can show the step.
 
 The default message is `Not a <lowercase label> in this instrument's notation.` Typing clears the field's own error; blank text is not marked invalid. A supplied `error` remains until the parent clears it. `error=""` suppresses the field's message and invalid mark, as does `invalidText=""` when `error` is unset.
 
@@ -72,7 +72,7 @@ The default message is `Not a <lowercase label> in this instrument's notation.` 
 | Minus / plus buttons | Subtract or add one step, including when Shift is held |
 | Ctrl, Meta, or Alt + arrow | Leave the event to listeners above the field |
 
-The buttons are named `<label> down one tick` and `<label> up one tick`. A step uses `value ?? stepFrom`, snaps to the nearest quote grid value, then moves by the requested steps. Choose a last price, mid, or available side for `stepFrom`; it applies whenever `value` is null, including invalid text. Without either starting value, stepping does nothing, though bare and Shift arrows still prevent their default behavior.
+The buttons are named `<label> down one tick` and `<label> up one tick`. A step uses `value ?? stepFrom`, snaps to the nearest quote grid value, then moves by the requested steps. Choose a last price, mid, or available side for `stepFrom`; it applies whenever `value` is null, including invalid text. A non-finite `value` or `stepFrom` — a feed still warming up — counts as `null` on its own: a non-finite `value` leaves the field empty while a finite `stepFrom` still steps, and a non-finite `stepFrom` drops out while a finite `value` still shows and steps. Stepping waits only while neither supplies a finite start, and bare and Shift arrows still prevent their default behavior.
 
 When `value` changes and differs from the parsed text, the field replaces the text and clears its own error. If the text already parses to the new value, it stays as typed until blur. Passing the same value again does not reset the text: setting an already-null value to null leaves invalid text in place. Changing only `convention` does not reformat the current text either; remount the field when you need to reset that local state.
 

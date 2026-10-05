@@ -101,10 +101,11 @@ Join modifiers and one key with `+`; separate chord steps with spaces: `"mod+k"`
 | `useHotkeys()` | Nearest provider's `HotkeyRegistry`; throws without a provider. |
 | `useMaybeHotkeys()` | Same registry, or `null` without a provider. |
 | `useHotkey(id: string, handler: HotkeyHandler, options?)` | Attach the latest `(event: KeyboardEvent) => void` handler while mounted. `options.enabled` is a boolean, default `true`; `false` detaches the handler but keeps the binding listed. |
-| `useHotkeyList()` | Live `readonly HotkeyEntry[]`, including normalized `keys`, normalized `defaultKeys`, and `remapped` when they differ. |
+| `useHotkeyList()` | Live `readonly HotkeyEntry[]`, including normalized `keys`, normalized `defaultKeys`, the declaration's own spelling as `declaredKeys`, and `remapped` while an override is stored for the id, one that fails to parse or matches the defaults included. |
 | `usePendingChord()` | Normalized steps typed so far, or `null`, for a status-bar hint. |
+| `useDeclaredHotkeyIds(registry?)` | Ids the surrounding providers declare through `bindings` for one registry — the nearest provider's unless given — visible during render before any effect registers them. |
 
-All hooks except `useMaybeHotkeys` require a provider.
+All hooks except `useMaybeHotkeys` and `useDeclaredHotkeyIds`, which returns an empty set, require a provider.
 
 ### Scopes
 
@@ -149,7 +150,7 @@ Beyond that, these reports compare declarations, regardless of `when()`. They do
 
 Persistence is yours. `onChange` receives the full override map after `remap` or `reset`; `load` restores it without calling `onChange`. Overrides can load before or after their bindings. An override that fails to parse falls back to the binding's default keys.
 
-For the plus key, strings such as `"ctrl++"` returned by normalization or capture cannot be parsed again. If a binding defaults to `"x"`, `remap(id, "ctrl+plus")` stores that invalid form and falls back to `"x"`.
+For the plus key, `remap(id, "ctrl+plus")` stores the canonical `"ctrl++"`, which parses back and prints as `Ctrl` `+` (`⌃` `+` on a Mac).
 
 For persistence, create a registry once, restore saved overrides with `load`, and pass it to `HotkeysProvider`. Subscribe to `onChange` to save the override map, for example as JSON in `localStorage`; unsubscribe when the owner unmounts. Handle missing or invalid stored data in the application. The [live shortcut list](#live-shortcut-list) shows `remap` and `reset` without storage.
 
@@ -170,7 +171,8 @@ For persistence, create a registry once, restore saved overrides with `load`, an
 | Registry method | Result or behavior |
 |---|---|
 | `register(binding: HotkeyBinding, handler?: HotkeyHandler)` | Declare or replace a binding; return its `HotkeyConflict[]`. |
-| `unregister(id: string)` | Remove a declaration. |
+| `declareDefault(binding: HotkeyBinding)` | Declare a component's built-in binding; return the release. It lists and dispatches like a registration until a consumer `register` of the id shadows it, `unregister` brings it back, and it stands while any declarer holds it — the earliest declaration is the one in force when declarations differ, the next is promoted when it releases, and malformed keys throw at the declaring call even while the id is shadowed. |
+| `unregister(id: string)` | Remove a registration. A default is not removable, only shadowed or released; unbind its keys with `remap(id, "")`. |
 | `bind(id: string, handler: HotkeyHandler, within?: HandlerScope \| null)` | Attach a handler before or after declaration; return a detach function. `within` optionally supplies `{ scope: string, element: () => Element \| null }` for the element restriction described above. Attaching or detaching wakes `subscribe`, since a fenced handler can settle a conflict. |
 | `list()` | Current `readonly HotkeyEntry[]`, also read by `useHotkeyList`. |
 | `conflicts()` | All reported `HotkeyConflict[]`, read against the document as it is now. |

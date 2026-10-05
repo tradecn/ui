@@ -21,6 +21,8 @@ export interface LayoutManagerLabels {
   title: string
   /** The save field's placeholder and name. */
   saveName: string
+  /** The import form's name field. */
+  importName: string
   save: string
   /** Said under the field when a name is taken. `{name}`. */
   taken: string
@@ -52,6 +54,7 @@ export interface LayoutManagerLabels {
 export const DEFAULT_LAYOUT_MANAGER_LABELS: LayoutManagerLabels = {
   title: "Layouts",
   saveName: "Layout name",
+  importName: "Imported layout name",
   save: "Save current",
   taken: "A layout named {name} exists. Save replaces it.",
   load: "Load",
@@ -103,7 +106,10 @@ export function parseLayoutTemplates(value: unknown): LayoutTemplate[] {
     const t = entry as Record<string, unknown>
     const layout = parseWorkspaceLayout(t.layout)
     if (!layout || typeof t.id !== "string" || !t.id || typeof t.name !== "string" || !t.name) continue
-    out.push({ id: t.id, name: t.name, layout, savedAt: typeof t.savedAt === "number" ? t.savedAt : 0 })
+    // A stored timestamp beyond the Date range would throw in toISOString and the formatter
+    // the moment it renders; such a value reads as never saved.
+    const savedAt = typeof t.savedAt === "number" && Number.isFinite(t.savedAt) && Math.abs(t.savedAt) <= 8.64e15 ? t.savedAt : 0
+    out.push({ id: t.id, name: t.name, layout, savedAt })
   }
   return out
 }
@@ -371,7 +377,7 @@ export function LayoutManagerImportText({ className, onChange, "aria-describedby
 
 export function LayoutManagerImportName({ className, onChange, ...props }: InputProps) {
   const { labels, importName, setImportName } = useLayoutManager()
-  return <Input aria-label={labels.saveName} placeholder={labels.saveName} autoComplete="off" spellCheck={false} className={cn("h-7 min-w-0 rounded-sm px-2 py-0 text-xs md:text-xs", className)} {...props} value={importName} onChange={(event) => {
+  return <Input aria-label={labels.importName} placeholder={labels.importName} autoComplete="off" spellCheck={false} className={cn("h-7 min-w-0 rounded-sm px-2 py-0 text-xs md:text-xs", className)} {...props} value={importName} onChange={(event) => {
     onChange?.(event)
     if (!event.defaultPrevented) setImportName(event.target.value)
   }} />

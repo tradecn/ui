@@ -20,11 +20,11 @@ The snippets below are integration fragments. The application supplies layout st
 | Window set | One controller in the Tauri main webview or Electron main process | [`window-set`](window-set.md) |
 | Session | One guard per window, reading the same expiry | [`session-guard`](session-guard.md) |
 
-Every renderer loads the same app with `?window=<id>&layout=<layoutId>`. `defaultWindowUrl` produces the current document's path plus that query, not an absolute URL. Choose the shell's entry point explicitly when its loading API needs something else.
+Every secondary renderer loads the same app with `?window=<id>&layout=<layoutId>`; the initial `main` renderer receives its record at startup instead and mounts from that record's `layoutId`, never from a query it does not have (see [Launch and quit](#launch-and-quit)). `defaultWindowUrl` produces the current document's path plus that query, not an absolute URL. Choose the shell's entry point explicitly when its loading API needs something else. A secondary renderer reads its own:
 
 ```tsx
 const params = new URLSearchParams(location.search)
-const windowId = params.get("window") ?? "main"
+const windowId = params.get("window")!
 const layoutId = params.get("layout") ?? "desk"
 
 // Application-owned: BINDINGS, PANELS, layouts, and a ready transport.

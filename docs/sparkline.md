@@ -50,7 +50,7 @@ Move the pointer over the chart, or focus it and use the arrow keys, Home, End, 
 | `className` | `string` | Omitted | Merge classes with the root's defaults, including its responsive size. |
 | `style` | `CSSProperties` | Omitted | Style the root; fixed `width` and `height` take precedence over the same style properties. |
 
-Replace the `values` array when readings change so the memoized geometry recalculates. The root has `data-slot="tradecn-sparkline"`, `data-direction`, and `data-empty` when there are no finite readings. Caller-supplied `role`, `tabIndex`, and ARIA props can override the generated defaults; the component owns its root ref and those three data attributes.
+Replace the `values` array when readings change so the memoized geometry recalculates. The root has `data-slot="tradecn-sparkline"`, `data-direction`, and `data-empty` when there are no finite readings. Caller-supplied `role`, `tabIndex`, and ARIA props can override the generated defaults. A `ref` receives the root element; the component owns those three data attributes.
 
 ### What it says
 
@@ -78,17 +78,18 @@ By default the root is an image with no tab stop or built-in keyboard navigation
 
 | Input | Result |
 | --- | --- |
-| Left / Right | Move one finite reading backward / forward. |
+| Left / Right, Down / Up | Move one finite reading backward / forward. |
 | PageDown / PageUp | Move ten finite readings backward / forward. |
 | Home / End | Select the first / last finite reading. |
 | Escape | Hide the crosshair without moving focus. |
+| Ctrl, Cmd, or Alt with any key | Left to listeners above the sparkline, such as a hotkey registry. |
 | Pointer move | Select the nearest finite reading by x position. |
 | Pointer leave | Hide the crosshair unless the root has focus. |
 | Blur | Hide the crosshair. |
 
 Navigation skips gaps and stops at the ends. If the series shrinks, a selection beyond its end displays the last remaining point. The readout uses `format`, prefixed by `pointLabel(index)` when supplied. The slider's numeric range is `0` through `points.length - 1`, counting only finite readings; `aria-valuetext` contains the readout while a point is active and the full summary otherwise.
 
-Caller handlers run first. Calling `preventDefault()` in `onKeyDown` cancels built-in keyboard navigation; focus, blur, and pointer handling do not check that flag. The component prevents default for its navigation keys and Escape, leaves other keys alone, and does not stop propagation. Outer grids and hotkey dispatchers should respect `defaultPrevented`.
+Caller handlers run first. Calling `preventDefault()` in `onKeyDown` cancels built-in keyboard navigation; focus, blur, and pointer handling do not check that flag. The component prevents default for its navigation keys and Escape, with or without Shift; it leaves Ctrl, Cmd, and Alt chords and other keys alone, and does not stop propagation. Outer grids and hotkey dispatchers should respect `defaultPrevented`.
 
 ### The geometry, on its own
 

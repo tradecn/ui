@@ -71,7 +71,7 @@ function SessionNoticeContent({ children, className, fallbackFocusRef }: Pick<Se
 }
 ```
 
-Save this example as `session-guard.tsx` beside examples that import `SessionNotice`. It uses the Button, Dialog and `cn` dependencies included by the session-guard installation. Keep application drafts outside conditional warning and dialog content.
+Save this example as `session-guard.tsx`, outside `components/ui` so it cannot overwrite the installed component, beside examples that import `SessionNotice`. It uses the Button, Dialog and `cn` dependencies included by the session-guard installation. Keep application drafts outside conditional warning and dialog content.
 
 Your application owns authentication. Await your session service, update `expiresAt` on success, and return its boolean result from `onReauthenticate`. Returning `true` alone does not close the dialog.
 
@@ -130,7 +130,7 @@ Use `SessionStatus` independently of a provider. This comparison supplies a fixe
 | `warnMs` | `number` | `120_000` | Warning window in milliseconds, exported as `DEFAULT_WARN_MS`. |
 | `onExpire` | `() => void` | - | Effect notification on entering expired, including an expired mount. |
 | `labels` | `Partial<SessionGuardLabels>` | Default labels | Text used by readings and the supplied composition. |
-| `clock` | `Clock` | `sharedClock()` | Shared clock for phase and remaining-time readings. |
+| `clock` | `Clock` | `sharedClock()` from `@/lib/clock` | Shared clock for phase and remaining-time readings; `createClock` lives beside it. |
 
 Changing an expired timestamp to another expired timestamp, or replacing `onExpire` while still expired, does not notify again. Leaving and reentering expired does. Remounts and development Strict Mode effect replay can repeat the callback.
 
@@ -222,14 +222,14 @@ Starting another attempt clears failure. Entering `live` or `none` also clears a
 
 ### The status readout
 
-`SessionStatus` displays `Session` followed by the time left (`1:59:30` or `0:45`), `ended` at expiry, or `no session` without a finite expiry. Remaining time rounds up to the next second. It exposes the phase through `data-session-status` and words in its accessible name, such as `Session: ending soon, 1:30`. Warning uses `expiring`; expiry uses `destructive`.
+`SessionStatus` displays `Session` followed by the time left (`1:59:30` or `0:45`), `ended` at expiry, or `no session` without a finite expiry. Remaining time rounds up to the next second. It exposes the phase through `data-session-status` and speaks through visually hidden text, such as `Session: ending soon, 1:30`, since a generic element cannot carry an accessible name of its own. Warning uses `expiring`; expiry uses `destructive`.
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `expiresAt` | `number \| null \| undefined` | Required | Expiry time in epoch milliseconds; the same no-session values as the guard. |
 | `warnMs` | `number` | `120_000` | Warning window in milliseconds. |
 | `clock` | `Clock` | `sharedClock()` | Clock for the phase and remaining time. |
-| `labels` | `Partial<SessionGuardLabels>` | Default labels | Readout text and accessible phase names. |
+| `labels` | `Partial<SessionGuardLabels>` | Default labels | Readout text, visible and hidden. |
 | `className` | `string` | None | Classes on the readout's span. |
 
 ### Labels
@@ -244,8 +244,8 @@ The provider and standalone readout merge partial overrides into `DEFAULT_SESSIO
 | `reauthenticate` | `Sign in again` | Dialog button |
 | `pending` | `Signing in…` | Either button while pending |
 | `failed` | `That did not work. Try again.` | Alert beside either button |
-| `session` | `Session` | Readout prefix and countdown's accessible name |
-| `live` / `ending` | `signed in` / `ending soon` | Readout's accessible phase names |
+| `session` | `Session` | Readout prefix and hidden text; `SessionGuardRemaining`'s default accessible name |
+| `live` / `ending` | `signed in` / `ending soon` | Phase words in the hidden readout text |
 | `ended` / `noSession` | `ended` / `no session` | Visible and accessible readout text |
 
 ### What it does not do

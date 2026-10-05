@@ -43,12 +43,12 @@ In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `ei
 |---|---|
 | `formatPrice(value, convention, locale?)` | Format a `Nullable` price; the third argument is a `Locale` object |
 | `formatFraction(value, convention)` | Format a `Nullable` price with the fraction variant of `PriceConvention` |
-| `parsePrice(text, convention)` | Read a string in the convention's notation or as a plain decimal; return a number or `null` for unreadable text |
+| `parsePrice(text, convention)` | Read a string in the convention's notation or as a plain decimal; return a number, or `null` for unreadable text or a value too large to print back in the convention's notation |
 | `decimalsFromTick(tick, max = 8)` | Decimal places needed for a numeric tick, capped at `max`; `0.005` gives `3`, `1 / 32` gives `5`; nonpositive or nonfinite ticks give `0` |
 | `roundToTick(value, tick)` | Snap a number to the nearest tick and clean float noise; return `value` unchanged if it or the tick is nonfinite, or the tick is nonpositive |
 | `stepByTick(value, tick, steps)` | Snap to the grid, move by `steps` ticks, then snap again; all inputs are numbers and negative steps are allowed |
 
-`parsePrice` rounds decimal input to `decimals` for a decimal convention and snaps it to `tick` for a tick convention. For a fraction convention, plain decimal input is accepted without snapping. With the default locale, formatted prices read back on the convention's representable grid.
+`parsePrice` rounds decimal input to `decimals` for a decimal convention and snaps it to `tick` for a tick convention. For a fraction convention, plain decimal input snaps to the printable grid — half or eighth ticks — so the parsed value is the price its formatted text shows, with a negative tie snapping away from zero as it prints. With the default locale, formatted prices read back on the convention's representable grid.
 
 ### Instrument formatter
 
@@ -63,6 +63,7 @@ In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `ei
 | `quoteBasis` | `QuoteBasis` | `"price"` | Basis used by quote methods |
 | `quoteStep` | `number` | Basis default below | Step for yield, discount, or spread quotes; ignored for price quotes |
 | `quoteDecimals` | `number` | Basis default below | Decimal places for yield, discount, or spread quotes; ignored for price quotes |
+| `quoteInverted` | `boolean` | Yield and discount invert; price and spread do not | Whether a higher quote means a lower price, so a normal market quotes the bid above the offer. A CDS spread quotes bid below offer; cash credit quotes the other way, so declare it where the default reads wrong. `quoteInvertedOf(convention)` reads the effective direction |
 
 | Bound member | Equivalent |
 |---|---|
@@ -89,7 +90,7 @@ In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `ei
 | `quoteBasisOf(convention)` | Effective basis, defaulting to `"price"` |
 | `quoteStepOf(convention)` | Effective step from the table or an applicable `quoteStep` override |
 | `formatQuote(value, convention, locale?)` | Format a `Nullable` quote; optional third argument is `Locale` |
-| `parseQuote(text, convention)` | Parse a string as a price or a decimal in the selected basis; return a number or `null` for unreadable text |
+| `parseQuote(text, convention)` | Parse a string as a price or a decimal in the selected basis; return a number, or `null` for unreadable text or a value too large to print back in its basis |
 | `stepQuote(value, convention, steps)` | Move a numeric quote by `steps` from the nearest grid value; negative steps are allowed |
 
 Price quotes format and parse through `convention.price`. Other bases snap to `quoteStep` and print a fixed decimal with no unit; the field's label supplies the basis. Yield and discount values use percentage points; spread values use basis points. Set `quoteDecimals` high enough to display the chosen step without losing precision.
@@ -126,7 +127,9 @@ Formatters add no alignment spaces. tradecn components set lining, tabular figur
 | `MONO_NUMERIC_CLASS` | `font-(family-name:--tradecn-font-mono) lining-nums tabular-nums` |
 | `numericFontClass(convention?)` | Accepts `PriceConvention \| InstrumentConvention \| null`; selects mono for a fraction price and the numeric family otherwise, including non-price quote bases and no convention |
 
-The numeric family defaults to sans: letters stay proportional and digits have equal widths. Fraction prices use mono so dashes and tails align too. [`quote-field`](quote-field.md), [`ticket`](ticket.md), and [`rfq-ticket`](rfq-ticket.md) use `numericFontClass`; a [`data-grid`](data-grid.md) column uses `numeric: true` and `font: "mono"` for the same effect. [`typography.md`](typography.md) explains the tokens and choices.
+The numeric family defaults to sans: letters stay proportional and digits have equal widths. Fraction prices use mono for equal digit and dash widths; quotes with and without a tail still differ in length, so a right-aligned column lines tails up only against padding you add. [`quote-field`](quote-field.md), [`ticket`](ticket.md), and [`rfq-ticket`](rfq-ticket.md) use `numericFontClass`; a [`data-grid`](data-grid.md) column uses `numeric: true` and `font: "mono"` for the same effect. [`typography.md`](typography.md) explains the tokens and choices.
+
+The install adds the `--tradecn-font-sans`, `--tradecn-font-mono`, and `--tradecn-font-numeric` tokens, their accessible pair, and the hyperlegible remap alongside these helpers.
 
 ### The rest
 
@@ -142,6 +145,6 @@ These functions take a `Nullable` value and an optional options object. Every op
 | `formatPercent` | `decimals: number = 2`, `signed: boolean = false` | `1.234` → `1.23%`; signed → `+1.23%` |
 | `formatQuantity` | No options beyond `locale` | `1000000.6` → `1,000,001` |
 
-Yield and percent inputs are already percentage points: `1` means `1%`. DV01 rounds to whole currency units. Compact notional output uses `K`, `M`, `B`, or `T`; values below `1,000` round to a whole number. Signed formatters omit the sign when the displayed value rounds to zero.
+Yield and percent inputs are already percentage points: `1` means `1%`. DV01 rounds to whole currency units in its full form; the compact form keeps the compact decimals, as in `$1.23K`. Compact notional output uses `K`, `M`, `B`, or `T`; values below `1,000` round to a whole number. Signed formatters omit the sign when the displayed value rounds to zero.
 
 `numberFormat(locale, options)` returns a cached `Intl.NumberFormat` for a locale string (or `undefined` for `"en-US"`) and `Intl.NumberFormatOptions`. Numeric formatters share this cache by locale and option set.

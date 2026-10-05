@@ -2,7 +2,7 @@ import { cn } from "cn"
 import { createContext, Fragment, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from "react"
 import { Command, CommandDialog, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
-import { useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
+import { useDeclaredHotkeyIds, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { formatKeys, matchesKeys, scopeChain, type HotkeyEntry, type HotkeyRegistry, type Platform } from "@/registry/tradecn/lib/hotkeys"
 
 // Search and selection stay shared; callers own the dialog, groups and result markup.
@@ -552,17 +552,30 @@ export function CommandPalette(options: CommandPaletteProps) {
       else inputRef.current?.focus()
     }
   })
+  // Keyed to the registry this palette actually uses: an explicit `hotkeys` registry ignores a
+  // provider's declarations for its own, different registry.
+  const declaredByProvider = useDeclaredHotkeyIds(hotkeys)
   useEffect(() => {
     if (!hotkeys || keys === null) return
-    // A consumer that declared this id already owns its keys and its wording.
-    const declared = hotkeys.list().some((entry) => entry.id === bindingId)
-    if (!declared) hotkeys.register({ id: bindingId, keys, scope: variant === "palette" ? "editing" : "global", description, group })
+    // A consumer that declared this id already owns its keys and its wording, whether it declared
+    // on the registry before render or through the provider's bindings, whose effect runs after
+    // this one and must not be mistaken for ours.
+    const scope = variant === "palette" ? ("editing" as const) : ("global" as const)
+    const declared = declaredByProvider.has(bindingId) || hotkeys.list().some((entry) => entry.id === bindingId)
+    if (!declared) hotkeys.register({ id: bindingId, keys, scope, description, group })
     const unbind = hotkeys.bind(bindingId, () => onHotkey.current())
     return () => {
       unbind()
-      if (!declared) hotkeys.unregister(bindingId)
+      if (declared) return
+      // Ownership is the exact declaration this effect made: this spelling, wording, scope, and
+      // group, with no behavior fields. A replacement differing anywhere is the consumer's to
+      // keep, even one a subscriber registered during the register call above. A field-identical
+      // redeclaration stays indistinguishable without a registration handle; it is the one shape
+      // this cannot tell apart.
+      const current = hotkeys.list().find((entry) => entry.id === bindingId)
+      if (current && current.declaredKeys === keys && current.description === description && current.scope === scope && current.group === group && current.when === undefined && current.repeat === undefined && current.preventDefault === undefined) hotkeys.unregister(bindingId)
     }
-  }, [hotkeys, keys, bindingId, variant, description, group])
+  }, [hotkeys, keys, bindingId, variant, description, group, declaredByProvider])
 
   return <RootContext value={{ options, labels, hotkeys, ownBindingId: keys === null ? null : bindingId, scopes, open, setOpen, inputRef }}>{children}</RootContext>
 }

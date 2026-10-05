@@ -44,7 +44,7 @@ The CLI puts these at the project root, where `components.json` is. Copilot read
 |---|---|---|---|
 | `root` | `ParentNode \| string` | `document` | The subtree, as an element, a shadow root or a selector. |
 | `rules` | `readonly ContractRule[]` | All four | The rules to run. |
-| `floorPx` | `number` | `--tradecn-text-size-grid-min`, else 12 | The smallest text size, in px. |
+| `floorPx` | `number` | `--tradecn-text-size-grid-min`, else 12 | The smallest text size, in px. The install adds the token when it is missing, since the check reads it. |
 | `ignore` | `string` | `"[data-contract-ignore]"` | A selector for subtrees to leave out. An empty string leaves nothing out. |
 | `visibleCue` | `boolean` | `false` | Direction needs a leading sign, an arrow or a word a reader can see. |
 

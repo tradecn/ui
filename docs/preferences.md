@@ -10,7 +10,7 @@ import { createPreferences, diffPreferences, readSlot, setSlot } from "@/lib/pre
 
 const baseline = setSlot(createPreferences(), "threshold", 5_000_000)
 
-function ThresholdPreference() {
+export default function ThresholdPreference() {
   const [prefs, setPrefs] = useState(baseline)
   const threshold = readSlot<number>(prefs, "threshold") ?? 0
   const diff = diffPreferences(baseline, prefs)
@@ -90,7 +90,7 @@ Like [`workspace`](workspace.md)'s layout, the envelope records its persistence 
 |---|---|
 | `"template"` | Shared desk settings; keep personal and session data out. |
 | `"user"` | Personal settings that follow a trader between desks. |
-| `"session"` | Values excluded from import and export. |
+| `"session"` | Never exported. Import skips slots the incoming envelope marks `session`, but can replace and reclassify a receiving desk's own session slot: boundaries are read from the envelope. |
 
 Name each slot under one boundary. An unlisted slot uses `DEFAULT_BOUNDARY`, `"user"`. If lists overlap, the first match in `PREFERENCE_BOUNDARIES` wins: `template`, then `user`, then `session`.
 
@@ -117,7 +117,7 @@ The transfer boundary accepts `"template"` or `"user"`, defaulting to `"user"`:
 
 Export filters slot values, not the boundary lists: excluded slots' names can still appear in the JSON. Import checks the incoming envelope's boundaries. Each allowed slot replaces the target's same-named slot and takes the incoming boundary, even if the target classified it as `session`. Other target slots and their boundaries stay intact.
 
-Import returns the original target when no allowed values, versions, or boundary assignments change. Parsing and importing do not migrate slot versions; use a migrator when reading or updating older values.
+Import returns the original target when no allowed values, versions, or boundary assignments change; importing a slot the target does not list yet still returns a new object, since it adds the listing. Parsing and importing do not migrate slot versions; use a migrator when reading or updating older values.
 
 ### Versions and migrators
 

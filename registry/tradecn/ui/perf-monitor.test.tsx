@@ -140,6 +140,43 @@ describe("PerfMonitor", () => {
   })
 })
 
+describe("class-based sources", () => {
+  it("keeps a class sampler and a class meta source bound to their instances", () => {
+    class ClassSampler {
+      running = false
+      private current = at([], 0)
+      private listeners = new Set<() => void>()
+      start() { this.running = true }
+      stop() { this.running = false }
+      reset() {}
+      report() { return this.current }
+      subscribe(cb: () => void) {
+        this.listeners.add(cb)
+        return () => void this.listeners.delete(cb)
+      }
+      emit(report: FrameReport) {
+        this.current = report
+        for (const cb of this.listeners) cb()
+      }
+    }
+    class ClassMeta {
+      private store = createRowStore<{ id: string }>({ getRowId: (row) => row.id })
+      getMeta() { return this.store.getMeta() }
+      subscribeMeta(cb: () => void) { return this.store.subscribeMeta(cb) }
+      push(id: string) { this.store.applyDeltas({ upsert: [{ id }] }) }
+    }
+    const sampler = new ClassSampler()
+    const meta = new ClassMeta()
+    render(<PerfMonitor sampler={sampler}><FrameReadings /><PerfMonitorLane store={meta}><LaneReadings label="Quotes" /></PerfMonitorLane></PerfMonitor>)
+    const group = screen.getByRole("group", { name: "Frame health" })
+    expect(group).toBeInTheDocument()
+    act(() => sampler.emit(at([5, 5], 1000)))
+    act(() => meta.push("a"))
+    expect(group).toBeInTheDocument()
+    expect(sampler.running).toBe(true)
+  })
+})
+
 describe("PerfMonitor composition", () => {
   it("requires migration of every released call shape while allowing conditional children", () => {
     const sampler = fakeSampler(at([], 0))

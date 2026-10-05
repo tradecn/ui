@@ -990,12 +990,25 @@ function OrderPanel() {
   const [lastId, setLastId] = useState<string | null>(null)
   const last = useRow(desk.orders, lastId ?? "")
   const instrument = useMemo<TicketInstrument>(() => ({ symbol: future.symbol, convention: future.convention, quantityStep: 1 }), [future])
+  // A ladder restage re-keys the ticket, and the trader's own quantity, time in force, and
+  // account ride along — never the order type, whose Market would discard the staged price —
+  // and only the staged side and price are new. The carry belongs to one shown ticket: any
+  // remount without a stage shows fresh defaults, so the carry clears with it, or a later
+  // stage would resurrect a draft the trader just saw blank.
+  const [carried, setCarried] = useState<{ symbol: string; draft: Partial<TicketDraft> } | null>(null)
+  const ticketKey = stagedHere ? `${future.symbol}:${stagedHere.seq}` : future.symbol
+  const [shownKey, setShownKey] = useState(ticketKey)
+  if (shownKey !== ticketKey) {
+    setShownKey(ticketKey)
+    if (!stagedHere) setCarried(null)
+  }
   const actions = useMemo<TicketAction[]>(
     () => [
       { id: "send", label: (draft) => (draft.side === "buy" ? "Buy" : "Sell"), primary: true, run: (draft, inst) => setLastId(desk.send(draft, inst)) },
       {
         id: "cancel",
         label: "Cancel",
+        checked: false,
         destructive: true,
         run: () => {
           if (lastId) desk.cancel([lastId])
@@ -1019,8 +1032,9 @@ function OrderPanel() {
       </PanelHeader>
       <PanelContent className="p-2">
         <Ticket
-          key={stagedHere ? `${future.symbol}:${stagedHere.seq}` : future.symbol}
-          defaultDraft={stagedHere ? { side: stagedHere.side, price: stagedHere.price } : undefined}
+          key={ticketKey}
+          defaultDraft={stagedHere ? { ...(carried?.symbol === future.symbol ? carried.draft : undefined), side: stagedHere.side, price: stagedHere.price } : undefined}
+          onDraftChange={(draft) => setCarried({ symbol: future.symbol, draft: { quantity: draft.quantity, tif: draft.tif, account: draft.account } })}
           instrument={instrument}
           reference={{ bid: market?.bid, ask: market?.ask, last: market?.last }}
           quickSizes={[1, 5, 10, 25]}
@@ -1614,7 +1628,7 @@ function Session() {
     <span className="inline-flex items-baseline gap-1.5 text-muted-foreground">
       <span>
         Globex{" "}
-        <span className="text-foreground" data-session-status={status}>
+        <span className="text-foreground" data-market-session={status}>
           {status}
         </span>
       </span>
@@ -1738,7 +1752,7 @@ export function DeskAlerts({ alerts, actions }: { alerts: AlertStore; actions: N
       </Alerts>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col sm:max-w-3xl">
         <DialogHeader className="shrink-0"><DialogTitle>All notices</DialogTitle><DialogDescription>Every notice, newest first.</DialogDescription></DialogHeader>
-        <div className="h-80 min-h-0 min-w-0"><AlertHistory alerts={alerts} /></div>
+        <div className="h-80 min-h-0 min-w-0"><AlertHistory announceRowCount="off" alerts={alerts} /></div>
       </DialogContent>
     </Dialog>
   )

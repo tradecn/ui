@@ -41,18 +41,22 @@ export interface QuoteFieldProps {
   className?: string
 }
 
-export function QuoteField({ convention, value, onValueChange, stepFrom = null, label, error, invalidText, placeholder, id: idProp, disabled = false, shiftMultiplier = 10, side, inputRef, className }: QuoteFieldProps) {
+export function QuoteField({ convention, value: rawValue, onValueChange, stepFrom = null, label, error, invalidText, placeholder, id: idProp, disabled = false, shiftMultiplier = 10, side, inputRef, className }: QuoteFieldProps) {
   const basis = quoteBasisOf(convention)
   const word = label ?? QUOTE_BASIS_LABELS[basis]
   const generated = useId()
   const id = idProp ?? generated
+  // A feed warming up hands out NaN, and nothing non-finite prints or steps: such a value is
+  // no value. NaN also never equals itself, so comparing it raw would re-run the follow below
+  // every render until React stops the loop.
+  const value = rawValue !== null && Number.isFinite(rawValue) ? rawValue : null
   const [text, setText] = useState(() => (value === null ? "" : formatQuote(value, convention)))
   const [invalid, setInvalid] = useState(false)
 
   // Derived state, set during render: the parent moved the value, so the text follows, unless the
   // text already reads as that value (someone is typing it) and would only be reformatted under them.
   const [known, setKnown] = useState(value)
-  if (value !== known) {
+  if (!Object.is(value, known)) {
     setKnown(value)
     if (parseQuote(text, convention) !== value) {
       setText(value === null ? "" : formatQuote(value, convention))
@@ -74,8 +78,8 @@ export function QuoteField({ convention, value, onValueChange, stepFrom = null, 
   }
 
   function step(steps: number) {
-    const from = value ?? stepFrom
-    if (from === null || from === undefined) return
+    const from = value ?? (stepFrom !== null && stepFrom !== undefined && Number.isFinite(stepFrom) ? stepFrom : null)
+    if (from === null) return
     const next = stepQuote(from, convention, steps)
     setText(formatQuote(next, convention))
     setInvalid(false)

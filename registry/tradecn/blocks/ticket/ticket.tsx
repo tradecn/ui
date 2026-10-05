@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
@@ -8,7 +8,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
-import { NUMERIC_CLASS, formatNotional, formatPrice, formatQuantity, numericFontClass, stepByTick, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, formatNotional, formatQuantity, formatQuote, numericFontClass, stepQuote, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
@@ -63,7 +63,7 @@ export interface TicketAction {
   /** The draft, checked: a positive quantity, and a price when the order type takes one. */
   run: (draft: TicketDraft, instrument: TicketInstrument) => void
   destructive?: boolean
-  /** What `ticket.send` runs. The first allowed action by default. */
+  /** The prominent action. `ticket.send` prefers it while it checks the draft; an action with `checked: false` never takes the send key. */
   primary?: boolean
   /** The draft is checked, and held by a limit, before this runs. Default true; false for an action that sends nothing of the draft. */
   checked?: boolean
@@ -125,12 +125,12 @@ export const DEFAULT_TIME_IN_FORCES: readonly TicketOption[] = [
 /** `mod+1` to `mod+9`: the quick sizes, in order. */
 export const QUICK_SIZE_KEYS: readonly string[] = ["mod+1", "mod+2", "mod+3", "mod+4", "mod+5", "mod+6", "mod+7", "mod+8", "mod+9"]
 
-/** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket when you have not. */
+/** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket as registry defaults your own registration shadows. */
 export const TICKET_BINDINGS: readonly HotkeyBinding[] = [
   { id: "ticket.send", keys: "mod+enter", scope: "editing", description: "Send the ticket", group: "Ticket" },
   { id: "ticket.flip", keys: "mod+shift+x", scope: "editing", description: "Flip buy and sell", group: "Ticket" },
-  { id: "ticket.tick-up", keys: "mod+up", scope: "editing", description: "Price up one tick", group: "Ticket" },
-  { id: "ticket.tick-down", keys: "mod+down", scope: "editing", description: "Price down one tick", group: "Ticket" },
+  { id: "ticket.tick-up", keys: "mod+up", scope: "editing", description: "Price up one step", group: "Ticket" },
+  { id: "ticket.tick-down", keys: "mod+down", scope: "editing", description: "Price down one step", group: "Ticket" },
   ...QUICK_SIZE_KEYS.map((keys, i) => ({ id: `ticket.size-${i + 1}`, keys, scope: "editing" as const, description: `Quick size ${i + 1}`, group: "Ticket" })),
 ]
 
@@ -165,7 +165,7 @@ export interface TicketProps {
   /** Anything that changes identity when the server acknowledges: an order id, a timestamp. The ticket rings once in `primary`. */
   acknowledged?: unknown
   disabled?: boolean
-  /** Declare `TICKET_BINDINGS` in the hotkey registry when they are not. Default true. */
+  /** Declare `TICKET_BINDINGS` as registry defaults. Default true. */
   hotkeys?: boolean
   labels?: Partial<TicketLabels>
   className?: string
@@ -173,11 +173,11 @@ export interface TicketProps {
 
 const isPriced = (types: readonly TicketOption[], id: string) => types.find((t) => t.id === id)?.priced !== false
 
-/** "Buy 5 ZN @ 99-16+", or "Buy 5 ZN at market" for a type that takes no price. */
+/** "Buy 5 ZN @ 99-16+", or "Buy 5 ZN at market" for a type that takes no price. The level prints in the instrument's quote basis, as the field shows it. */
 export function describeDraft(draft: TicketDraft, instrument: TicketInstrument, orderTypes: readonly TicketOption[] = DEFAULT_ORDER_TYPES, labels: Pick<TicketLabels, "buy" | "sell"> = DEFAULT_TICKET_LABELS): string {
   const side = draft.side === "buy" ? labels.buy : labels.sell
   const quantity = draft.quantity === null ? "" : ` ${formatQuantity(draft.quantity)}`
-  const price = !isPriced(orderTypes, draft.type) ? " at market" : draft.price === null ? "" : ` @ ${formatPrice(draft.price, instrument.convention.price)}`
+  const price = !isPriced(orderTypes, draft.type) ? " at market" : draft.price === null ? "" : ` @ ${formatQuote(draft.price, instrument.convention)}`
   return `${side}${quantity} ${instrument.symbol}${price}`
 }
 
@@ -190,36 +190,22 @@ export interface TicketProblems {
 export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption[], labels: TicketLabels = DEFAULT_TICKET_LABELS): TicketProblems {
   const problems: TicketProblems = {}
   if (draft.quantity === null || !(draft.quantity > 0)) problems.quantity = labels.quantityInvalid
-  if (isPriced(orderTypes, draft.type) && draft.price === null) problems.price = labels.priceRequired
+  if (isPriced(orderTypes, draft.type) && (draft.price === null || !Number.isFinite(draft.price))) problems.price = labels.priceRequired
   return problems
 }
 
-// Several tickets can be up at once, so the bindings are declared once per registry and taken
-// back when the last ticket that leaned on them leaves. A consumer that declared an id owns it.
-const declared = new WeakMap<HotkeyRegistry, Map<string, { count: number; ours: boolean }>>()
+/** The send shortcut's target: the first allowed action that checks the draft, preferring the primary one. An unchecked action sends nothing of the draft, so a shortcut named send never runs one. */
+function sendTarget(allowed: readonly TicketAction[]): TicketAction | null {
+  return allowed.find((action) => action.primary && action.checked !== false) ?? allowed.find((action) => action.checked !== false) ?? null
+}
 
+// Every ticket declares the bindings as registry defaults: the registry refcounts them, a
+// consumer registration of an id shadows its default, and unregistering surfaces it again, so
+// no mount order can delete a consumer's declaration or strand a remaining ticket without one.
 function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBinding[]): () => void {
-  let table = declared.get(registry)
-  if (!table) declared.set(registry, (table = new Map()))
-  const have = new Set(registry.list().map((entry) => entry.id))
-  for (const binding of bindings) {
-    const entry = table.get(binding.id)
-    if (entry) entry.count += 1
-    else {
-      const ours = !have.has(binding.id)
-      if (ours) registry.register(binding)
-      table.set(binding.id, { count: 1, ours })
-    }
-  }
+  const releases = bindings.map((binding) => registry.declareDefault(binding))
   return () => {
-    for (const binding of bindings) {
-      const entry = table.get(binding.id)
-      if (!entry) continue
-      entry.count -= 1
-      if (entry.count > 0) continue
-      table.delete(binding.id)
-      if (entry.ours) registry.unregister(binding.id)
-    }
+    for (const release of releases) release()
   }
 }
 
@@ -232,6 +218,12 @@ export function parseQuantity(text: string): number | null {
 }
 
 const noop = () => () => {}
+const guardKey = (fn: () => void) => (event: KeyboardEvent | globalThis.KeyboardEvent) => {
+  event.preventDefault()
+  fn()
+}
+const TICKET_CORE_BINDINGS = TICKET_BINDINGS.filter((binding) => !binding.id.startsWith("ticket.size-"))
+const TICKET_SIZE_BINDINGS = TICKET_BINDINGS.filter((binding) => binding.id.startsWith("ticket.size-"))
 
 export function Ticket({
   instrument,
@@ -283,7 +275,9 @@ export function Ticket({
   const box = useRef<HTMLDivElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
   const latest = useRef({ onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming, quickSizes })
-  useEffect(() => {
+  // Layout phase, not passive: a keydown can land between the commit that removed a button
+  // and the passive effects, and the check at run time must see what the trader sees.
+  useLayoutEffect(() => {
     latest.current = { onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming, quickSizes }
   })
 
@@ -298,6 +292,25 @@ export function Ticket({
   // The acknowledgement: a ring in primary, once, when the server says so. No direction, because it has none.
   useFlash(box, acknowledged, { variant: "ring", color: "var(--primary)" })
 
+  // When the control under focus leaves — a sent action's button unmounts or disables with
+  // the acknowledgement — focus falls to body, outside every fence, and the shortcuts go
+  // dead. The scope root, which carries the fence's tabIndex, takes it instead. A deliberate
+  // blur clears the record, or a later removal of that button would steal focus back in.
+  const focusedInside = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const node = box.current ? box.current.parentElement ?? box.current : null
+    const previous = focusedInside.current
+    if (!node || !previous) return
+    const doc = node.ownerDocument
+    const gone = !previous.isConnected || previous.matches(":disabled")
+    if (gone && (doc.activeElement === previous || doc.activeElement === doc.body)) {
+      focusedInside.current = null
+      // Never scroll: the park can fire while the trader reads elsewhere, and a focus move
+      // is what the page promises.
+      node.focus({ preventScroll: true })
+    }
+  })
+
   function update(patch: Partial<TicketDraft>) {
     setDraft((d) => ({ ...d, ...patch }))
     setProblems((p) => (patch.quantity !== undefined && p.quantity ? { ...p, quantity: undefined } : patch.price !== undefined && p.price ? { ...p, price: undefined } : p))
@@ -309,19 +322,22 @@ export function Ticket({
     update({ price: value })
   }
 
-  /** Where a step starts when the field is blank: the last, then the mid, then whichever side there is. */
+  /** Where a step starts when the field is blank: the last, then the mid, then whichever side there is. A warming feed's NaN is no reference at all. */
   function priceToStepFrom(): number | null {
-    if (draft.price !== null) return draft.price
+    if (draft.price !== null && Number.isFinite(draft.price)) return draft.price
     const { bid, ask, last } = reference ?? {}
-    if (typeof last === "number") return last
-    if (typeof bid === "number" && typeof ask === "number") return stepByTick((bid + ask) / 2, convention.tick, 0)
-    return typeof bid === "number" ? bid : typeof ask === "number" ? ask : null
+    if (Number.isFinite(last)) return last as number
+    if (Number.isFinite(bid) && Number.isFinite(ask)) return stepQuote(((bid as number) + (ask as number)) / 2, convention, 0)
+    return Number.isFinite(bid) ? (bid as number) : Number.isFinite(ask) ? (ask as number) : null
   }
 
   function stepPrice(steps: number) {
     const from = priceToStepFrom()
     if (from === null) return
-    setPrice(stepByTick(from, convention.tick, steps))
+    // The field steps in the instrument's quote basis, so the shortcut steps the same way,
+    // or the price sent would differ from the price shown on a discount, yield, or spread
+    // instrument.
+    setPrice(stepQuote(from, convention, steps))
   }
 
   function stepQuantity(steps: number) {
@@ -359,6 +375,7 @@ export function Ticket({
 
   const allowed = actions.filter((action) => allowedActions?.includes(action.id))
   const primary = allowed.find((action) => action.primary) ?? allowed[0]
+  const sendAction = sendTarget(allowed)
 
   function run(action: TicketAction) {
     // Checked as the click lands, against the props as they are now: an action can stop being allowed.
@@ -384,45 +401,71 @@ export function Ticket({
     send()
   }
 
-  // Keys: declared once per registry, bound to this ticket's box so another ticket's keys stay its own.
+  // Keys: defaults declared per ticket, handlers fenced to this ticket so another's keys stay its own.
   const registry = useMaybeHotkeys()
   const handlers = useRef({ send: () => {}, flip: () => {}, up: () => {}, down: () => {}, quick: (n: number) => {
       void n
     } })
-  useEffect(() => {
+  useLayoutEffect(() => {
     handlers.current = {
       send: () => {
         const { actions: list, allowedActions: allowedNow } = latest.current
         const now = list.filter((action) => allowedNow?.includes(action.id))
-        const first = now.find((action) => action.primary) ?? now[0]
+        const first = sendTarget(now)
         if (first) run(first)
       },
-      flip: () => update({ side: draft.side === "buy" ? "sell" : "buy" }),
-      up: () => stepPrice(1),
-      down: () => stepPrice(-1),
+      flip: () => {
+        if (latest.current.disabled) return
+        update({ side: draft.side === "buy" ? "sell" : "buy" })
+      },
+      up: () => {
+        if (!latest.current.disabled) stepPrice(1)
+      },
+      down: () => {
+        if (!latest.current.disabled) stepPrice(-1)
+      },
       quick,
     }
   })
+  const quickCount = quickSizes?.length ?? 0
+  // Fenced to the scope root, so the shortcuts run from the symbol, the status, and the padding too.
+  const within = useMemo(() => ({ scope: "editing", element: () => (box.current ? box.current.parentElement ?? box.current : null) }), [])
   useEffect(() => {
     if (!registry) return
-    const release = declareHotkeys ? declareBindings(registry, TICKET_BINDINGS) : noop()
-    const within = { scope: "editing", element: () => box.current }
-    const guard = (fn: () => void) => (event: KeyboardEvent | globalThis.KeyboardEvent) => {
-      event.preventDefault()
-      fn()
-    }
+    const release = declareHotkeys ? declareBindings(registry, TICKET_CORE_BINDINGS) : noop()
     const unbind = [
-      registry.bind("ticket.send", guard(() => handlers.current.send()), within),
-      registry.bind("ticket.flip", guard(() => handlers.current.flip()), within),
-      registry.bind("ticket.tick-up", guard(() => handlers.current.up()), within),
-      registry.bind("ticket.tick-down", guard(() => handlers.current.down()), within),
-      ...QUICK_SIZE_KEYS.map((_, i) => registry.bind(`ticket.size-${i + 1}`, guard(() => handlers.current.quick(i + 1)), within)),
+      registry.bind("ticket.send", guardKey(() => handlers.current.send()), within),
+      registry.bind("ticket.flip", guardKey(() => handlers.current.flip()), within),
+      registry.bind("ticket.tick-up", guardKey(() => handlers.current.up()), within),
+      registry.bind("ticket.tick-down", guardKey(() => handlers.current.down()), within),
     ]
     return () => {
       for (const u of unbind) u()
       release()
     }
-  }, [registry, declareHotkeys])
+  }, [registry, declareHotkeys, within])
+  // The sizes declare only for the quick sizes passed — a declared id needs its handler or it
+  // has no fence and conflicts with another ticket's — and a size-count change never touches
+  // the core four. Handlers still bind fenced for all nine so an id anyone else declares —
+  // spreading TICKET_BINDINGS is the documented pattern — always meets a fence. An undeclared
+  // absent size passes through untouched; a declared one is consumed by the registry before
+  // this handler runs, which then does nothing for a size this ticket lacks.
+  useEffect(() => {
+    if (!registry || quickCount === 0) return
+    const release = declareHotkeys ? declareBindings(registry, TICKET_SIZE_BINDINGS.slice(0, quickCount)) : noop()
+    return release
+  }, [registry, declareHotkeys, quickCount])
+  useEffect(() => {
+    if (!registry) return
+    const unbind = TICKET_SIZE_BINDINGS.map((binding, i) => registry.bind(binding.id, (event) => {
+      if (i >= (latest.current.quickSizes?.length ?? 0)) return
+      event.preventDefault()
+      handlers.current.quick(i + 1)
+    }, within))
+    return () => {
+      for (const u of unbind) u()
+    }
+  }, [registry, within])
   const sendKeys = useSyncExternalStore(
     registry?.subscribe ?? noop,
     () => registry?.list().find((entry) => entry.id === "ticket.send")?.keys ?? null,
@@ -431,11 +474,14 @@ export function Ticket({
 
   const referencePrice = (name: keyof TicketReference, label: string) => {
     const value = reference?.[name]
-    if (typeof value !== "number") return null
+    if (typeof value !== "number" || !Number.isFinite(value)) return null
+    // Snapped to the quote grid and printed in the quote basis: what the click stores is what
+    // the field will show.
+    const quote = stepQuote(value, convention, 0)
     return (
-      <Button key={name} type="button" variant="ghost" size="sm" className={cn("h-5 gap-1 px-1 text-xs", numericFontClass(convention.price))} disabled={disabled || !priced} aria-label={`${label} ${formatPrice(value, convention.price)}, use it`} data-reference={name} onClick={() => setPrice(value)}>
+      <Button key={name} type="button" variant="ghost" size="sm" className={cn("h-5 gap-1 px-1 text-xs", numericFontClass(convention))} disabled={disabled || !priced} aria-label={`${label} ${formatQuote(quote, convention)}, use it`} data-reference={name} onClick={() => setPrice(quote)}>
         <span className="text-muted-foreground">{label}</span>
-        {formatPrice(value, convention.price)}
+        {formatQuote(quote, convention)}
       </Button>
     )
   }
@@ -460,8 +506,17 @@ export function Ticket({
   )
 
   return (
-    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block outline-none lining-nums tabular-nums", className)}>
-      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground">
+    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/30 lining-nums tabular-nums", className)}>
+      <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }} onBlurCapture={(event) => {
+        // Focus moving somewhere outside the ticket on purpose: the leaving control is still
+        // in the document and enabled, so there is nothing to recover from. A window switch
+        // also blurs with no destination, but the document loses focus with it — the record
+        // stays, so a control withdrawn while the trader is away still parks on return.
+        const leaving = event.target as HTMLElement
+        const next = event.relatedTarget as HTMLElement | null
+        if (!next && !event.currentTarget.ownerDocument.hasFocus()) return
+        if (focusedInside.current === leaving && leaving.isConnected && !leaving.matches(":disabled") && (!next || !event.currentTarget.contains(next))) focusedInside.current = null
+      }}>
         <div className="flex items-center gap-2">
           <span className="font-(family-name:--tradecn-font-mono) text-sm font-semibold" data-ticket-symbol>
             {instrument.symbol}
@@ -557,7 +612,7 @@ export function Ticket({
                 onClick={() => run(action)}
               >
                 {confirming === action.id ? labels.anyway.replace("{action}", typeof action.label === "function" ? action.label(draft) : action.label) : typeof action.label === "function" ? action.label(draft) : action.label}
-                {action === primary && sendKeys && (
+                {action === sendAction && sendKeys && (
                   <KbdGroup aria-hidden>
                     {formatKeys(sendKeys)[0]?.map((cap) => (
                       <Kbd key={cap} className="text-xs">{cap}</Kbd>

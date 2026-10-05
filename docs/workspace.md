@@ -275,7 +275,7 @@ Saved popouts are reopened during restoration, often without a user gesture. If 
 
 ### One window per JavaScript context
 
-For a desktop shell with separate webviews, mount one `Workspace` per window, each with its own stores and layout saved under the window id. The shell tracks windows and their layouts and opens new windows itself; omit workspace `popout` actions.
+For a desktop shell with separate webviews, mount one `Workspace` per window, each with its own stores and layout saved under its record's `layoutId` — several windows can share one layout, which then needs coordinated writes; see [Desktop shells](shells.md) and [`window-set`](window-set.md), which provides the window tracking. The shell opens new windows itself; omit workspace `popout` actions.
 
 Connect link groups through a `LinkTransport` built with `createCallbackTransport` and the shell's events (see [`panel`](panel.md)). Mount a `HotkeysProvider` in each window.
 
@@ -296,7 +296,7 @@ These mappings follow light, dark, and tradecn themes. `scripts/workspace-theme.
 
 Dock overlays start at z-index `30`; floating groups increase that value, and their overflow popups use twice the group's value. The tab-controls example adds `isolate` to `Workspace`, keeping those native layers in the workspace's stacking context while its portaled menus render above them. Use the same setup when composing tab menus, and choose the workspace's position in your application's layers.
 
-Set `--dv-overlay-z-index` on `.dockview-theme-tradecn` to change the base. The floating-container rule replaces Dockview's self-referencing declaration with the root value. Optional tab-group colors configured through `api.dockview` use `--chart-1` through `--chart-5`, with grey using `--muted-foreground`. Installation also adds `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` if missing.
+Set `--dv-overlay-z-index` on `.dockview-theme-tradecn` to change the base. The floating-container rule replaces Dockview's self-referencing declaration with the root value. Optional tab-group colors configured through `api.dockview` use `--chart-1` through `--chart-5`, with grey using `--muted-foreground`. Installation also adds `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` if missing, with the mono font token, the accessible pair, and the hyperlegible remap.
 
 ### The dock's own API
 
@@ -308,8 +308,8 @@ Set `--dv-overlay-z-index` on `.dockview-theme-tradecn` to change the base. The 
 | `closePanel(id)` | `void` | Closes the panel and removes its saved record. |
 | `focusPanel(id)` | `void` | Activates and focuses the panel. |
 | `focusNext(step = 1)` | `void` | Moves forward (`1`) or backward (`-1`). |
-| `panels()` | `WorkspacePanelInfo[]` | Lists each panel's `id`, `kind`, `title`, `active`, and `location`. |
-| `activePanel()` | `string \| null` | Returns the active id, or `null`. |
+| `panels()` | `WorkspacePanelInfo[]` | Lists each panel's `id`, `kind`, `title`, `active`, and `location`. Raw panels are not listed. |
+| `activePanel()` | `string \| null` | Returns the active id, a raw panel's included, or `null`. |
 | `getState(id)` | `WorkspacePanelState \| undefined` | Reads a panel's state. |
 | `setTitle(id, title)` | `void` | Updates a nonempty title. |
 | `setState(id, patch)` | `void` | Applies the same patch or updater accepted by the panel handle. |

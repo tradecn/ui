@@ -60,7 +60,7 @@ export interface ColumnDef<T> {
   flash?: false | "fill" | "ring"
   /** Right-aligned, lining tabular figures in the numeric family, flashes by default. */
   numeric?: boolean
-  /** The family a numeric cell sets in: `numeric` (the sans, digits at one width) by default, or `mono` for a column of fraction quotes whose ticks must line up. */
+  /** The family a numeric cell sets in: `numeric` (the sans, digits at one width) by default, or `mono` for fraction quotes, so digits and the dash take one width; a tailed quote still runs longer than an untailed one. */
   font?: "numeric" | "mono"
   /** Reads a value typed into a rule in this column's own format (`99-16+` on a 32nds column). Default: a number for a numeric column, the text itself otherwise. */
   parse?: (text: string) => unknown

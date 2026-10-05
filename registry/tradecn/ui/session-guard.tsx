@@ -176,7 +176,9 @@ export function SessionGuardProvider({ expiresAt: suppliedExpiry, warnMs = DEFAU
   const clock = suppliedClock ?? sharedClock()
   const expiresAt = suppliedExpiry === null || suppliedExpiry === undefined || !Number.isFinite(suppliedExpiry) ? null : suppliedExpiry
   const phaseSnapshot = useCallback(() => sessionStatus(expiresAt, clock.now(), warnMs).phase, [expiresAt, clock, warnMs])
-  const phase = useSyncExternalStore(clock.subscribe, phaseSnapshot, phaseSnapshot)
+  // Subscribed through the clock, not detached from it, so a class-based Clock keeps its `this`.
+  const subscribeClock = useCallback((cb: () => void) => clock.subscribe(cb), [clock])
+  const phase = useSyncExternalStore(subscribeClock, phaseSnapshot, phaseSnapshot)
   const labels = useMemo<SessionGuardLabels>(() => ({ ...DEFAULT_SESSION_GUARD_LABELS, ...labelsProp }), [labelsProp])
   const [request] = useState(() => createRequestStore(onReauthenticate))
   const expire = useRef(onExpire)
@@ -352,7 +354,7 @@ export interface SessionStatusProps {
   className?: string
 }
 
-/** The session for a status bar: the word, the time left, and the phase on `data-session-status` and in the accessible name. */
+/** The session for a status bar: the word, the time left, and the phase on `data-session-status`, spoken through visually hidden text. */
 export function SessionStatus({ expiresAt, warnMs = DEFAULT_WARN_MS, clock, labels: labelsProp, className }: SessionStatusProps) {
   const labels = useMemo<SessionGuardLabels>(() => ({ ...DEFAULT_SESSION_GUARD_LABELS, ...labelsProp }), [labelsProp])
   const status = useSessionStatus(expiresAt, { warnMs, clock })
@@ -361,9 +363,10 @@ export function SessionStatus({ expiresAt, warnMs = DEFAULT_WARN_MS, clock, labe
   return (
     <span
       data-session-status={status.phase}
-      aria-label={`${labels.session}: ${word}${remaining === null ? "" : `, ${remaining}`}`}
       className={cn("inline-flex items-center gap-1 whitespace-nowrap", status.phase === "warning" && "text-expiring", status.phase === "expired" && "text-destructive", className)}
     >
+      {/* A generic span cannot carry aria-label, so the spoken sentence is hidden text. */}
+      <span className="sr-only">{`${labels.session}: ${word}${remaining === null ? "" : `, ${remaining}`}`}</span>
       <span aria-hidden>{labels.session}</span>{" "}
       {status.phase === "expired" ? (
         <span aria-hidden>{labels.ended}</span>

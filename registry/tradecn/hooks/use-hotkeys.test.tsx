@@ -1,7 +1,7 @@
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react"
 import { useState, type ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
-import { HotkeyScope, HotkeysProvider, useHotkey, useHotkeyList, useHotkeys, useMaybeHotkeys, usePendingChord } from "@/registry/tradecn/hooks/use-hotkeys"
+import { HotkeyScope, HotkeysProvider, useDeclaredHotkeyIds, useHotkey, useHotkeyList, useHotkeys, useMaybeHotkeys, usePendingChord } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry, type HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
 
 const BINDINGS: HotkeyBinding[] = [
@@ -36,6 +36,18 @@ describe("HotkeysProvider", () => {
   it("makes its own registry when given none", () => {
     const { result } = renderHook(() => useHotkeys(), { wrapper: ({ children }: { children: ReactNode }) => <HotkeysProvider>{children}</HotkeysProvider> })
     expect(result.current.list()).toEqual([])
+  })
+
+  it("unions nested declarations for one shared registry", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const { result } = renderHook(() => useDeclaredHotkeyIds(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <HotkeysProvider registry={registry} bindings={[BINDINGS[0]!]}>
+          <HotkeysProvider registry={registry} bindings={[BINDINGS[1]!]}>{children}</HotkeysProvider>
+        </HotkeysProvider>
+      ),
+    })
+    expect([...result.current].sort()).toEqual(["go.home", "palette.open"])
   })
 
   it("is required by useHotkeys and optional for useMaybeHotkeys", () => {

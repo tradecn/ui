@@ -38,6 +38,8 @@ export interface InstrumentConvention {
   quoteStep?: number
   /** Decimals for a yield, discount, or spread quote. Default 3, 3, and 1. Price quotes follow their convention. */
   quoteDecimals?: number
+  /** Whether a higher quote means a lower price, so a normal market quotes the bid above the offer. Defaults by basis: yield and discount invert; price and spread do not, since a CDS spread quotes bid below offer while cash credit quotes the other way — declare it for the instrument when the default reads wrong. */
+  quoteInverted?: boolean
 }
 
 function isNil(v: Nullable): v is null | undefined {
@@ -148,15 +150,35 @@ export function parsePrice(s: string, c: PriceConvention): number | null {
         else return null
       }
       const value = Number(wholeText) + (ticks + subFraction) / c.denominator
-      return sign === "-" ? -value : value
+      // What cannot print back in the notation is refused: unit scaling must stay finite, the
+      // whole part must stay out of exponent form (1e21 up), and "-0" stays plain zero.
+      if (value >= 1e21 || !Number.isFinite(value * c.denominator * (c.eighths ? 8 : 2))) return null
+      return value === 0 ? 0 : sign === "-" ? -value : value
     }
   }
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) return null
   const n = Number(text)
   if (!Number.isFinite(n)) return null
-  if (c.kind === "tick") return roundToTick(n, c.tick)
-  if (c.kind === "decimal") return Number(n.toFixed(c.decimals))
-  return n
+  // Every convention keeps the promise the reference row makes: what parses can print back.
+  // Intl prints tick and decimal prices in full digits at any finite size, so only fraction
+  // notation carries the 1e21 bound; tick scaling must stay finite, and zero stays plain zero.
+  if (c.kind === "tick") {
+    const rounded = roundToTick(n, c.tick)
+    return Number.isFinite(rounded) ? (rounded === 0 ? 0 : rounded) : null
+  }
+  if (c.kind === "decimal") {
+    const fixed = Number(n.toFixed(c.decimals))
+    return fixed === 0 ? 0 : fixed
+  }
+  // A decimal typed into a fraction convention snaps to the printable grid, so the value a field
+  // reports is the price its formatted text shows. The magnitude rounds, as the formatter rounds,
+  // so a negative tie snaps away from zero the way it prints.
+  const unitsPerWhole = c.denominator * (c.eighths ? 8 : 2)
+  const units = Math.round(Math.abs(n) * unitsPerWhole)
+  // Scaling can overflow a finite input, a magnitude from 1e21 up prints in exponent form the
+  // notation cannot parse back, and a sub-half-unit negative would make negative zero.
+  if (!Number.isFinite(units) || units / unitsPerWhole >= 1e21) return null
+  return units === 0 ? 0 : (n < 0 ? -units : units) / unitsPerWhole
 }
 
 /** 4.2531 as "4.253%". */
@@ -287,13 +309,13 @@ export function formatTicks(v: Nullable, o: { signed?: boolean; unit?: string } 
  * width, which is what a column of prices wants. docs/typography.md has the reasoning and the tokens.
  */
 export const NUMERIC_CLASS = "font-(family-name:--tradecn-font-numeric) lining-nums tabular-nums"
-/** The same figures in the mono stack, `--tradecn-font-mono`: for a fraction quote, whose dash, ticks, and tail must line up down a column. */
+/** The same figures in the mono stack, `--tradecn-font-mono`: for a fraction quote, so digits and the dash take one width; tails still lengthen a quote. */
 export const MONO_NUMERIC_CLASS = "font-(family-name:--tradecn-font-mono) lining-nums tabular-nums"
 
 /**
  * The class for a number printed under a convention: a fraction price (99-16+) sets in the mono stack, so
- * 99-16+ over 99-17 keeps its dash and its tail in the same place; every other price, and every quote in
- * another basis, keeps the numeric family.
+ * digits and the dash take one width down a column; a tailed quote still runs longer than an untailed one.
+ * Every other price, and every quote in another basis, keeps the numeric family.
  */
 export function numericFontClass(c?: PriceConvention | InstrumentConvention | null): string {
   const price = c && "price" in c ? (quoteBasisOf(c) === "price" ? c.price : null) : c
@@ -311,6 +333,13 @@ const QUOTE_DEFAULTS: Record<Exclude<QuoteBasis, "price">, { step: number; decim
 
 export function quoteBasisOf(c: InstrumentConvention): QuoteBasis {
   return c.quoteBasis ?? "price"
+}
+
+/** Whether a higher quote means a lower price for this instrument: declared, else by basis — yield and discount invert, price and spread do not. */
+export function quoteInvertedOf(c: InstrumentConvention): boolean {
+  if (c.quoteInverted !== undefined) return c.quoteInverted
+  const basis = quoteBasisOf(c)
+  return basis === "yield" || basis === "discount"
 }
 
 /** What a quote steps by in its basis: the tick for a price, else `quoteStep` or the basis default. */
@@ -337,7 +366,11 @@ export function parseQuote(s: string, c: InstrumentConvention): number | null {
   const text = s.trim().replace(/−/g, "-").replace(/,/g, "")
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) return null
   const n = Number(text)
-  return Number.isFinite(n) ? roundToTick(n, quoteStepOf(c)) : null
+  if (!Number.isFinite(n)) return null
+  // Snapping divides by the step, which can overflow where the raw number does not; what
+  // cannot print back is not a quote.
+  const snapped = roundToTick(n, quoteStepOf(c))
+  return Number.isFinite(snapped) ? snapped : null
 }
 
 /** Move a quote by `steps` of its step, from the nearest grid value. */

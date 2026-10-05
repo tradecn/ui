@@ -47,7 +47,7 @@ function Desk({ instrument, reference, open }: { instrument: TicketInstrument; r
         ]}
         actions={[
           { id: "send", label: (d) => (d.side === "buy" ? "Buy" : "Sell"), run: server.send, primary: true },
-          { id: "cancel", label: "Cancel", run: server.cancel, destructive: true },
+          { id: "cancel", label: "Cancel", checked: false, run: server.cancel, destructive: true },
         ]}
         allowedActions={server.state.allowedActions}
         status={server.state.status}

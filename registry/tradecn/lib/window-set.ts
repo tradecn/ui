@@ -41,7 +41,7 @@ export interface WindowRecord {
   bounds?: WindowBounds
   /** The display the window sits on, as the shell names it. */
   display?: string
-  /** The one window that opens first and whose close ends the desk. At most one; the first wins. */
+  /** The one window that opens first. What closing it means is the owner's policy. At most one; the first wins. */
   main?: boolean
 }
 
@@ -133,7 +133,7 @@ export function parseWindowSet(value: unknown): WindowSet | null {
   return windowSetOf(records, readBoundaries(raw.boundaries))
 }
 
-/** The window that opens first and whose close ends the desk: the one marked main, else the first. */
+/** The window that opens first: the one marked main, else the first. What closing it means is the owner's policy. */
 export function mainWindow(set: WindowSet): WindowRecord | undefined {
   return set.windows.find((w) => w.main) ?? set.windows[0]
 }
@@ -185,7 +185,7 @@ export interface WindowSetController {
   dispose(): void
 }
 
-/** `?window=<id>&layout=<layoutId>` on the document's own path, so every window loads the same app and reads the query to know which it is. */
+/** `?window=<id>&layout=<layoutId>` on the document's own path, so every secondary window loads the same app and reads the query to know which it is; the initial main window receives its record at startup instead. */
 export function defaultWindowUrl(record: WindowRecord): string {
   const path = typeof location === "object" && location !== null && typeof location.pathname === "string" ? location.pathname : ""
   return `${path}?window=${encodeURIComponent(record.id)}&layout=${encodeURIComponent(record.layoutId)}`
