@@ -98,6 +98,38 @@ describe("HotkeyEditor", () => {
     expect(row("go.blotter").dataset.remapped).toBeUndefined()
   })
 
+  it("refuses Tab, Enter, and Space as bindings: Tab leaves capture, the others wait", () => {
+    // A Tab-away must never become a live binding on a destructive action: the next
+    // Tab on the focused Change button would run it. Bare Enter and Space are refused
+    // the same way; with a modifier they commit as usual.
+    const { registry } = mount()
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    let capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    const tab = fireEvent.keyDown(capture, { key: "Tab", code: "Tab" })
+    expect(tab).toBe(true)
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(keysOf("book.cancel")).toBe("x")
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Shift", code: "ShiftLeft", shiftKey: true })
+    fireEvent.keyDown(capture, { key: "Tab", code: "Tab", shiftKey: true })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(keysOf("book.cancel")).toBe("x")
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Enter", code: "Enter" })
+    fireEvent.keyDown(capture, { key: " ", code: "Space" })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).not.toBeNull()
+    expect(keysOf("book.cancel")).toBe("x")
+    fireEvent.keyDown(capture, { key: "Enter", code: "Enter", ctrlKey: true })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(keysOf("book.cancel")).toBe("ctrl+enter")
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
+    fireEvent.keyDown(capture, { key: "Delete", code: "Delete" })
+    expect(registry.list().find((e) => e.id === "book.cancel")?.keys).toBe("")
+  })
+
   it("Escape cancels a capture, a bare modifier is not a shortcut, and Backspace unbinds", () => {
     const { registry } = mount()
     fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))

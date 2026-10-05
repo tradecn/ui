@@ -14,6 +14,8 @@ export interface PaletteAction {
   subtitle?: string
   /** A hotkey scope, `panel:book`. The action is offered only when the palette is opened from inside that scope. Omit for everywhere. */
   scope?: string
+  /** The panel instance that owns a scoped action. With several panels sharing one scope, the instance containing the captured focus runs; registrations without it fall back to the latest. */
+  within?: () => Element | null
   keywords?: readonly string[]
   /** The heading the row sits under. */
   group?: string
@@ -62,7 +64,7 @@ const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${r.id}` 
 
 export function createActionRegistry(options: { maxRecents?: number } = {}): ActionRegistry {
   const maxRecents = options.maxRecents ?? 8
-  const actions = new Map<string, PaletteAction>()
+  const actions = new Map<string, PaletteAction[]>()
   const listeners = new Set<() => void>()
   const recentListeners = new Set<(recents: readonly PaletteRecent[]) => void>()
   let snapshot: readonly PaletteAction[] | null = null
@@ -76,16 +78,24 @@ export function createActionRegistry(options: { maxRecents?: number } = {}): Act
   return {
     register(input) {
       const added = Array.isArray(input) ? (input as readonly PaletteAction[]) : [input as PaletteAction]
-      for (const action of added) actions.set(action.id, action)
+      for (const action of added) actions.set(action.id, [...(actions.get(action.id) ?? []), action])
       emit()
       return () => {
-        // Only what this call registered: a later registration under the same id is someone else's.
+        // Only what this call registered: another instance's registration under the same id stays.
         let changed = false
-        for (const action of added) if (actions.get(action.id) === action) changed = actions.delete(action.id) || changed
+        for (const action of added) {
+          const instances = actions.get(action.id)
+          if (!instances) continue
+          const rest = instances.filter((instance) => instance !== action)
+          if (rest.length === instances.length) continue
+          if (rest.length) actions.set(action.id, rest)
+          else actions.delete(action.id)
+          changed = true
+        }
         if (changed) emit()
       }
     },
-    list: () => (snapshot ??= [...actions.values()]),
+    list: () => (snapshot ??= [...actions.values()].flat()),
     recents: () => recents,
     touch(recent) {
       const key = recentKey(recent)
@@ -219,11 +229,15 @@ const SLOT = "tradecn-command-palette"
 // Where focus last was outside any palette, as a scope chain. It decides which scoped actions are
 // on offer, and it has to be read before the palette takes focus for itself.
 let focusScopes = AMBIENT_SCOPES
+// The focused element itself, for telling apart panel instances that share a scope name.
+// Read when a row runs, never subscribed to.
+let focusElement: Element | null = null
 const focusListeners = new Set<() => void>()
 
 function onFocusIn(event: globalThis.FocusEvent) {
   const target = event.target as Element | null
   if (target && typeof target.closest === "function" && target.closest(`[data-slot="${SLOT}"]`)) return
+  focusElement = target
   const next = scopeChain(target).join(" ")
   if (next === focusScopes) return
   focusScopes = next
@@ -234,7 +248,9 @@ function subscribeFocusScopes(cb: () => void) {
   if (!focusListeners.size) {
     // Nobody was listening, so whatever was remembered is stale. Start from where focus is now.
     const focused = document.activeElement
-    focusScopes = focused?.closest(`[data-slot="${SLOT}"]`) ? AMBIENT_SCOPES : scopeChain(focused).join(" ")
+    const outside = focused?.closest(`[data-slot="${SLOT}"]`) ? null : focused
+    focusElement = outside
+    focusScopes = outside ? scopeChain(outside).join(" ") : AMBIENT_SCOPES
     document.addEventListener("focusin", onFocusIn)
   }
   focusListeners.add(cb)
@@ -243,6 +259,8 @@ function subscribeFocusScopes(cb: () => void) {
     if (!focusListeners.size) document.removeEventListener("focusin", onFocusIn)
   }
 }
+
+const getFocusElement = () => focusElement
 
 const getFocusScopes = () => focusScopes
 const getServerFocusScopes = () => AMBIENT_SCOPES
@@ -388,14 +406,26 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   const keysOf = new Map(entries.map((e) => [e.id, e.keys]))
   const scopeLabel = (scope: string) => scope.replace(/^panel:/, "")
 
+  // With several panel instances sharing a scope, the one containing the captured focus
+  // answers — the fence rule, applied to actions. Fallback: the latest registration.
+  const instanceOf = (action: PaletteAction) => {
+    const instances = list.filter((a) => a.id === action.id && a.scope === action.scope)
+    if (instances.length < 2) return action
+    const el = getFocusElement()
+    if (el?.isConnected) for (let i = instances.length - 1; i >= 0; i--) {
+      const root = instances[i]!.within?.()
+      if (root?.contains(el)) return instances[i]!
+    }
+    return instances[instances.length - 1]!
+  }
   const actionRow = (action: PaletteAction, prefix: string, recent: PaletteRecent | null): PaletteRow => ({
     key: `${prefix}:${action.id}`,
     title: action.title,
     subtitle: action.subtitle,
     badge: action.scope ? scopeLabel(action.scope) : undefined,
     keys: (action.bindingId && keysOf.get(action.bindingId)) || undefined,
-    run: action.run,
-    secondary: action.secondary,
+    run: () => instanceOf(action).run(),
+    secondary: action.secondary && { title: action.secondary.title, run: () => (instanceOf(action).secondary ?? action.secondary)!.run() },
     recent,
   })
   const symbolRow = (symbol: SymbolResult, prefix: string): PaletteRow => ({
@@ -408,7 +438,15 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     recent: { kind: "symbol", symbol },
   })
 
-  const offered = list.filter((a) => !a.scope || active.has(a.scope))
+  const offeredAll = list.filter((a) => !a.scope || active.has(a.scope))
+  // One row per action id and scope, whichever instance answers.
+  const seen = new Set<string>()
+  const offered = offeredAll.filter((a) => {
+    const key = `${a.scope ?? ""}\u0000${a.id}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
   const sections: MutablePaletteGroup[] = []
   if (!query) {
     const rows: PaletteRow[] = []

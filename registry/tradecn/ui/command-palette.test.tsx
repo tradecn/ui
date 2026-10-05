@@ -32,7 +32,7 @@ afterEach(() => {
 })
 
 describe("createActionRegistry", () => {
-  it("lists, replaces by id, and unregisters only what a call added", () => {
+  it("lists, stacks same-id registrations, and unregisters only what a call added", () => {
     const actions = createActionRegistry()
     const woke = vi.fn()
     actions.subscribe(woke)
@@ -41,11 +41,14 @@ describe("createActionRegistry", () => {
     const first = actions.list()
     expect(first).toEqual([a])
     expect(actions.list()).toBe(first)
-    const replacement: PaletteAction = { id: "a", title: "A2", run: () => {} }
-    actions.register(replacement)
+    const second: PaletteAction = { id: "a", title: "A2", run: () => {} }
+    actions.register(second)
+    // Both instances stand: a second panel registering the same id no longer erases
+    // the first one's action.
+    expect(actions.list()).toEqual([a, second])
     off()
-    expect(actions.list()).toEqual([replacement])
-    expect(woke).toHaveBeenCalledTimes(2)
+    expect(actions.list()).toEqual([second])
+    expect(woke).toHaveBeenCalledTimes(3)
   })
 
   it("keeps recents most recent first, deduplicated, capped, and tells persistence", () => {
@@ -168,6 +171,46 @@ describe("CommandPalette", () => {
     view.rerender(ui(true))
     expect(rows()).toContain("action:book.cancel")
     expect(screen.getByText("book")).toBeInTheDocument()
+  })
+
+  it("runs the instance whose panel held focus when two share a scope, and survives the other's unmount", () => {
+    // Two books, one scope name, one action id: the palette resolves the instance the
+    // fence way, by which panel contained the captured focus, and an unmount removes
+    // only its own registration.
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    function Book({ name, run: runBook }: { name: string; run: () => void }) {
+      const root = React.useRef<HTMLDivElement>(null)
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within: () => root.current }), [runBook])
+      return <div ref={root}><HotkeyScope scope="panel:book"><button>{name}</button></HotkeyScope></div>
+    }
+    const ui = (open: boolean, both: boolean) => (
+      <HotkeysProvider>
+        <Book name="book A" run={ranA} />
+        {both && <Book name="book B" run={ranB} />}
+        <ComposedPalette actions={actions} open={open} />
+      </HotkeysProvider>
+    )
+    const view = render(ui(false, true))
+    act(() => screen.getByText("book A").focus())
+    view.rerender(ui(true, true))
+    expect(rows().filter((row) => row === "action:book.refresh")).toHaveLength(1)
+    fireEvent.click(document.querySelector('[data-row="action:book.refresh"]')!)
+    expect(ranA).toHaveBeenCalledTimes(1)
+    expect(ranB).not.toHaveBeenCalled()
+    view.rerender(ui(false, true))
+    act(() => screen.getByText("book B").focus())
+    view.rerender(ui(true, true))
+    fireEvent.click(document.querySelector('[data-row="action:book.refresh"]')!)
+    expect(ranB).toHaveBeenCalledTimes(1)
+    expect(ranA).toHaveBeenCalledTimes(1)
+    view.rerender(ui(false, false))
+    act(() => screen.getByText("book A").focus())
+    view.rerender(ui(true, false))
+    expect(rows()).toContain("action:book.refresh")
+    fireEvent.click(document.querySelector('[data-row="action:book.refresh"]')!)
+    expect(ranA).toHaveBeenCalledTimes(2)
   })
 })
 

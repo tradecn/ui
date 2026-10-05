@@ -39,6 +39,17 @@ function Keys({ keys }: { keys: string }) {
 }
 
 function Book({ name, log }: { name: string; log: (line: string) => void }) {
+  // The hooks live INSIDE the scope: a hook called beside its HotkeyScope binds with
+  // no restriction, and the latest unrestricted handler wins everywhere — pressing x
+  // in one book would cancel the other book's order.
+  return (
+    <HotkeyScope scope="panel:book" className="rounded border border-border p-3 outline-none focus-within:border-ring">
+      <BookBody name={name} log={log} />
+    </HotkeyScope>
+  )
+}
+
+function BookBody({ name, log }: { name: string; log: (line: string) => void }) {
   const [selected, setSelected] = useState(0)
   const [orders, setOrders] = useState(["BUY 5mm 99-16+", "SELL 2mm 99-17", "BUY 10mm 99-15+", "SELL 1mm 99-18"])
   useHotkey("book.next", () => setSelected((i) => (orders.length ? (i + 1) % orders.length : 0)))
@@ -50,7 +61,7 @@ function Book({ name, log }: { name: string; log: (line: string) => void }) {
     setSelected((i) => Math.max(0, Math.min(i, orders.length - 2)))
   })
   return (
-    <HotkeyScope scope="panel:book" className="rounded border border-border p-3 outline-none focus-within:border-ring">
+    <>
       <h2 className="mb-2 font-semibold">{name}</h2>
       <ul>
         {orders.map((order, i) => (
@@ -60,7 +71,7 @@ function Book({ name, log }: { name: string; log: (line: string) => void }) {
         ))}
         {!orders.length && <li className="text-muted-foreground">empty</li>}
       </ul>
-    </HotkeyScope>
+    </>
   )
 }
 

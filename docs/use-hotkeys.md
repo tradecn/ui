@@ -114,11 +114,11 @@ The dispatcher reads `[data-hotkey-scope]` ancestors from the event target outwa
 | Event context | Eligible scopes |
 |---|---|
 | Ordinary content | Enclosing scopes, then `editing` and `global`. |
-| Text input, textarea, select, contenteditable, or `role="textbox"` | Only `editing`. Non-text inputs such as checkboxes do not count as typing. |
+| Text input, textarea, select, contenteditable, or `role="textbox"` | Only `editing`. Non-text inputs such as checkboxes do not count as typing, and neither does a combobox-style select trigger built from a button. |
 | Inside `role="menu"`, `menubar`, or `listbox` | None; the widget owns its keys. |
-| Inside `role="dialog"` or `alertdialog` | Only scopes declared on or within the nearest dialog, still subject to the input and menu rules. |
+| Inside `role="dialog"` or `alertdialog` | Only scopes declared on or within the nearest dialog, still subject to the input and menu rules. The wall holds while focus is inside the dialog: keys typed in the moment before it takes focus land on the page, where single-key bindings still run, so give destructive actions a modifier or an early capture like the command palette's. |
 
-Use `editing` for shortcuts safe while typing, such as `mod+k` and `mod+enter`; avoid bare letters. A ticket inside a dialog can declare `<HotkeyScope scope="editing">` to keep its shortcuts available.
+Use `editing` for shortcuts safe while typing, such as `mod+k` and `mod+enter`; avoid bare letters. A ticket inside a dialog can declare `<HotkeyScope scope="editing">` to keep its shortcuts available. Stored overrides keep the pressed modifier, so `mod` is saved as the platform's own key and a profile synced across platforms carries the wrong one. On a Mac, Option combinations that type dead keys — `alt+e`, `alt+i`, `alt+n`, `alt+u` on the US layout — never arrive as hotkeys.
 
 `HotkeyScope` requires `scope: HotkeyScopeName` and accepts div props except `ref`, including `children`, `className`, and `style`. It marks the div with `data-hotkey-scope` and defaults `tabIndex` to `-1`, making the panel surface focusable on click.
 

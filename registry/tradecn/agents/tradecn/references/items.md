@@ -188,7 +188,7 @@ Exports: `Workspace`, `useWorkspacePanel`, `WorkspaceTab`, `WorkspaceTabTitle`, 
 
 ### Hotkeys (`use-hotkeys`)
 
-A hotkey registry: bindings declared as data with an id, keys, a scope, and a description; one keydown listener; scopes read from the DOM so a panel's keys beat global ones; chords with a timeout; conflict detection; remapping with the consumer's persistence. Typing is protected, menus are left alone, and a dialog is a wall.
+A hotkey registry: bindings declared as data with an id, keys, a scope, and a description; one keydown listener; scopes read from the DOM so a panel's keys beat global ones; chords with a timeout; conflict detection; remapping with the consumer's persistence. Typing is protected, menus are left alone, and a dialog is a wall while focus is inside it.
 
 Exports: `HotkeysProvider`, `HotkeyScope`, `useHotkey`, `useHotkeys`, `useHotkeyList`, `usePendingChord`, `useMaybeHotkeys`, `useDeclaredHotkeyIds`.
 

@@ -349,10 +349,15 @@ export function HotkeyEditorCapture({ onKeyDown, onBlur, className, children, "a
   return <><Button type="button" variant="outline" size="sm" aria-pressed aria-invalid={problem ? true : undefined} aria-describedby={[describedBy, hintId, problem ? problemId : null].filter(Boolean).join(" ")} data-hotkey-capture="true" className={cn("h-auto min-h-7 self-start whitespace-normal px-2 text-start text-xs", className)} {...props} onKeyDown={(event) => {
     onKeyDown?.(event)
     if (event.defaultPrevented) return
+    // A bare Tab is someone leaving, not a binding: capture cancels and the move
+    // proceeds. Bare Enter and Space are refused too — they would turn the next
+    // activation of whatever holds the binding's action into the action itself.
+    if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) return cancel()
     event.preventDefault()
     event.stopPropagation()
     if (event.key === "Escape") return cancel()
     if (event.key === "Backspace" || event.key === "Delete") return commit("")
+    if ((event.key === "Enter" || event.key === " ") && !event.ctrlKey && !event.metaKey && !event.altKey) return
     const keys = keysFromEvent(event.nativeEvent)
     if (keys) commit(keys)
   }} onBlur={(event) => {

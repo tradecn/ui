@@ -79,7 +79,7 @@ The grammar accepts `AAPL`, `MSFT`, or `ZN`, followed by `DES` or `GP`. It repor
 
 ## Symbol search
 
-Supply a `SymbolSearchAdapter` for asynchronous lookup. Here, two or more letters search three local symbols after a short delay, making the searching state visible. Try `AA`, `MS`, or `ZN`. Changing the query cancels the pending lookup; the adapter clears its timer when aborted.
+Supply a `SymbolSearchAdapter` for asynchronous lookup, created once and kept stable — an adapter rebuilt on every parent render restarts its search each time and never settles. Here, two or more letters search three local symbols after a short delay, making the searching state visible. Try `AA`, `MS`, or `ZN`. Changing the query cancels the pending lookup; the adapter clears its timer when aborted.
 
 Enter selects the highlighted symbol. Shift+Enter, or clicking its Watch hint, requests watching it instead. The caption shows which callback ran. Replace the delayed local lookup with your symbol service and pass the supplied abort signal to the request.
 
@@ -215,11 +215,12 @@ Use `CommandPaletteItem` for result selection and `CommandPaletteSecondary` for 
 
 | Field | Type | Default | Purpose |
 |---|---|---|---|
-| `id` | `string` | Required | Identity; registering the same ID replaces the action. |
+| `id` | `string` | Required | Identity. Same-ID registrations stack; each unregisters only its own, and rows show one entry per ID and scope. |
 | `title` | `string` | Required | Row title and primary search text. |
 | `run` | `() => void` | Required | Primary action. |
 | `subtitle` | `string` | — | Secondary text exposed as `row.subtitle` for your markup; also searchable. |
 | `scope` | `string` | Everywhere | Hotkey scope required to offer a registered action. Exposed as `row.badge`, with `panel:` removed. |
+| `within` | `() => Element \| null` | Latest registration | The panel instance that owns a scoped action. With several panels sharing one scope, the instance containing the captured focus runs. |
 | `keywords` | `readonly string[]` | — | Additional search terms. |
 | `group` | `string` | `labels.actions` | Heading for registered actions. An explicitly supplied group is also searchable. |
 | `bindingId` | `string` | — | Hotkey binding whose current keys appear in `row.keys`. |
@@ -227,7 +228,7 @@ Use `CommandPaletteItem` for result selection and `CommandPaletteSecondary` for 
 
 Enter or a row click runs the primary action. Shift+Enter runs `secondary` when present, otherwise the primary action. `CommandPaletteSecondary` supplies a clickable hint on the highlighted row; callers choose its content and placement. Secondary actions replace the primary callback; repeat any shared work yourself.
 
-A registered action with `scope: "panel:book"` is offered only when the palette opens from inside `<HotkeyScope scope="panel:book">`. It captures the scope before taking focus and keeps it for that opening. Grammar rows are not scope-filtered.
+A registered action with `scope: "panel:book"` is offered only when the palette opens from inside `<HotkeyScope scope="panel:book">`. It captures the scope before taking focus and keeps it for that opening; the capture tracks focus moves, so after focus falls to the body the last panel's offer stands. When several panels share a scope name and register the same action ID, supply `within` so the panel containing the captured focus answers, the way fenced hotkey handlers do. Grammar rows are not scope-filtered.
 
 Matching is case-insensitive, and every query word must match. Each word scores highest for an exact title, followed by a title prefix, title word start, other title substring, metadata match, or letters in order within the title. Metadata includes the subtitle, group, ID, and keywords. `scorePaletteAction(action, query)` returns the combined score, `-1` for a miss, or `0` for an empty query. Registered actions are ranked, then collected under their group headings.
 
@@ -243,7 +244,7 @@ Matching is case-insensitive, and every query word must match. Each word scores 
 | `onRecentsChange` | `(recents: readonly PaletteRecent[]) => void` → `() => void` | Subscribes to `touch` updates; returns cleanup. |
 | `subscribe` | `() => void` → `() => void` | Subscribes to action and recent changes; returns cleanup. |
 
-Palettes sharing a registry share its actions and recents. Each filters its own rows by query and captured scope.
+Palettes sharing a registry share its actions and recents. Each filters its own rows by query and captured scope. The opening shortcut belongs to whichever same-variant palette mounted its binding last, and unmounting that palette retires the shortcut until another registers it — one palette per variant per registry is the supported shape.
 
 ### Symbols
 
