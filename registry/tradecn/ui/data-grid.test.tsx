@@ -552,6 +552,65 @@ describe("certification pins", () => {
     }
   })
 
+  it("keeps a parked overscan row's flash for the release", () => {
+    // With fewer rows than the rendered range, a parked arrival mounts immediately.
+    // Its window still opens at the release: nothing plays off the arrival commit,
+    // and the release sweep plays the flash on the mounted row in place.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(12, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "mid", sym: "MID", px: 102.5, qty: 1 }] })
+      })
+      // Mounted in the overscan band, parked at the tail: the flash waits.
+      const parked = document.querySelector('[data-row-id="mid"]') as HTMLElement
+      expect(parked).not.toBeNull()
+      expect(parked.dataset.direction).toBeUndefined()
+      // The release reorders mid into place; the sweep plays the flash there.
+      act(() => { vi.advanceTimersByTime(1_000) })
+      const settled = document.querySelector('[data-row-id="mid"]') as HTMLElement
+      expect(settled).not.toBeNull()
+      expect(settled.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("keeps a scrolled-back editor's draft without stealing focus, until a fresh open asks for it", () => {
+    // The open editor scrolls out of the rendered range and back: the draft
+    // survives, the remount does not steal focus, and a fresh open of the
+    // mounted cell focuses it again.
+    const onEdit = vi.fn(() => undefined)
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(40, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const draft = screen.getByRole("textbox") as HTMLInputElement
+    expect(document.activeElement).toBe(draft)
+    fireEvent.change(draft, { target: { value: "105.5" } })
+    const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+    scroller.scrollTop = 30 * ROW_HEIGHT
+    fireEvent.scroll(scroller)
+    expect(screen.queryByRole("textbox")).toBeNull()
+    scroller.scrollTop = 0
+    fireEvent.scroll(scroller)
+    const back = screen.getByRole("textbox") as HTMLInputElement
+    expect(back.value).toBe("105.5")
+    expect(document.activeElement).not.toBe(back)
+    // A fresh open of the already-mounted cell is a request for focus.
+    fireEvent.keyDown(grid, { key: "F2" })
+    expect(document.activeElement).toBe(screen.getByRole("textbox"))
+  })
+
   it("ages parked marks from arrival on a view without holdExpiresAt, and the forwarding wrapper keeps the release accounting", () => {
     // The documented fallback and the migration guide's wrapper, side by side: a
     // wrapped view that drops holdExpiresAt loses a flash to a long hold; one that
@@ -1103,12 +1162,14 @@ describe("certification pins", () => {
     // that is entirely a number stays raw.
     expect(csv.split("\r\n")[6]).toBe("'+1+SUM(A1:A9)")
     expect(csv.split("\r\n")[7]).toBe("-1.5e3")
-    // A finite numeric accessor skips neutralization: its formatted text is data,
-    // signs and grouping included.
+    // A finite numeric accessor skips only the sign rule: its signed, grouped text
+    // is data, but a formatter that emits a hard formula lead is still neutralized.
     const pnl = createRowStore<{ id: string; v: number }>({ getRowId: row => row.id })
     pnl.applyDeltas({ upsert: [{ id: "a", v: 1234.5 }] })
     const signed: ColumnDef<{ id: string; v: number }>[] = [{ key: "v", header: "P&L", width: 80, accessor: row => row.v, format: value => `+${(value as number).toLocaleString("en-US", { minimumFractionDigits: 2 })}` }]
     expect(exportCsv(pnl, signed, ["a"]).split("\r\n")[1]).toBe('"+1,234.50"')
+    const linked: ColumnDef<{ id: string; v: number }>[] = [{ key: "v", header: "P&L", width: 80, numeric: true, accessor: row => row.v, format: value => `=HYPERLINK("https://example.com","${value as number}")` }]
+    expect(exportCsv(pnl, linked, ["a"]).split("\r\n")[1]).toBe('"\'=HYPERLINK(""https://example.com"",""1234.5"")"')
   })
 })
 

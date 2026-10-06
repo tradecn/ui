@@ -709,11 +709,15 @@ function RowInner<T>(p: RowProps<T>) {
   useLayoutEffect(() => {
     const mark = p.entered.get(p.id)
     if (p.highlightEnter && mark !== undefined && ref.current) {
+      const now = Date.now()
+      // A mark still parked by a running hold keeps waiting: its window opens at
+      // the release, and the grid's release sweep plays it — overscan rows mount
+      // while parked and must not burn their flash off screen.
+      if (mark.until !== null && now < mark.until) return
       p.entered.delete(p.id)
       // A row that arrived off-view and scrolls in later flashes only the remainder
       // of its window — measured from the hold release when one parked it — and an
       // arrival from minutes ago is not news.
-      const now = Date.now()
       const elapsed = now - enterStart(mark, now)
       if (elapsed < ENTER_WINDOW_MS) playFlash(ref.current, "flat", { windowMs: ENTER_WINDOW_MS, variant: "fill", elapsed })
     }
@@ -1238,7 +1242,32 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     if (arrived.length && followTail && following && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     newSinceAnnounce.current += arrived.length
     prevIdsRef.current = ids
-  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, followTail, following, memory])
+    // The release sweep: a mark whose hold has lapsed may belong to a row that
+    // mounted while parked and so still waits. Play it on the mounted element now
+    // that this commit's DOM is in place; rows not mounted keep their marks for
+    // the mount check. Consumed marks make the StrictMode replay a no-op.
+    if (rowEnter.highlight && scrollRef.current) {
+      const now = Date.now()
+      let sweep: Map<RowId, number> | null = null
+      for (const [id, mark] of entered) {
+        if (mark.until !== null && now >= mark.until) {
+          const elapsed = now - enterStart(mark, now)
+          if (elapsed < ENTER_WINDOW_MS) (sweep ??= new Map()).set(id, elapsed)
+          else entered.delete(id)
+        }
+      }
+      if (sweep) {
+        for (const el of scrollRef.current.querySelectorAll<HTMLElement>("[data-row-id]")) {
+          const id = el.dataset.rowId
+          const elapsed = id !== undefined ? sweep.get(id) : undefined
+          if (id !== undefined && elapsed !== undefined) {
+            entered.delete(id)
+            playFlash(el, "flat", { windowMs: ENTER_WINDOW_MS, variant: "fill", elapsed })
+          }
+        }
+      }
+    }
+  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, rowEnter.highlight, followTail, following, memory, entered])
 
   const stopFollowing = () => {
     if (!followTail || !following) return
