@@ -92,8 +92,11 @@ describe("toPanelState", () => {
     cyclic.self = cyclic
     expect(toPanelState(cyclic)).toEqual({ keep: 7 })
     // An own "__proto__" key stays an ordinary own key, as JSON keeps it: no
-    // prototype swap, no silent key drop.
-    const hostile = toPanelState(JSON.parse('{"__proto__":{"symbol":"ES"},"group":1}'))
+    // prototype swap, no silent key drop. The cycle forces the per-key pass,
+    // where the key is copied by hand; the whole pass gets this right by itself.
+    const parsed = JSON.parse('{"__proto__":{"symbol":"ES"},"group":1}') as Record<string, unknown>
+    parsed.self = parsed
+    const hostile = toPanelState(parsed)
     expect(Object.getPrototypeOf(hostile)).toBe(Object.prototype)
     expect(Object.keys(hostile).sort()).toEqual(["__proto__", "group"])
     expect((hostile as { symbol?: unknown }).symbol).toBeUndefined()
