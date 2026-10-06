@@ -651,6 +651,11 @@ describe("certification pins", () => {
       const x = document.querySelector('[data-row-id="x"]') as HTMLElement
       expect(x).not.toBeNull()
       expect(x.dataset.direction).toBeUndefined()
+      // The commit that finally observes the release is itself an arrival: y's own
+      // mark is this commit's, never backdated past the lapsed deadline.
+      const y = document.querySelector('[data-row-id="y"]') as HTMLElement
+      expect(y).not.toBeNull()
+      expect(y.dataset.direction).toBe("flat")
     } finally {
       vi.useRealTimers()
     }

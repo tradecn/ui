@@ -250,7 +250,7 @@ Use `big` to implement a larger step, such as ten ticks with Shift; the grid doe
 
 Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid changes. An editor opened and left unchanged sends nothing, whatever rounding its format applies, and every close of an untouched editor — Enter, Tab, blur, Escape, or the teardowns below — restores the promise-backed pending or rejected state it covered, with a promise that settled meanwhile applied to it. A pending from a void `onEdit` has no promise to settle it, so reopening dismisses it the way v1 did. A value equal to the store's current value sends nothing.
 
-Hiding or removing a column while its text editor is still open discards the draft without calling `onEdit`. A row that a filter, re-sort, or removal takes out of the view does the same: its open editor closes, the draft is discarded, and the returning row does not reopen it or take focus. Removing its `edit` configuration or switching to `toggle` also discards it.
+Hiding or removing a column while its text editor is still open discards the draft without calling `onEdit`. A row that a filter or removal takes out of the view does the same: its open editor closes, the draft is discarded, and the returning row does not reopen it or take focus. A re-sort that only moves the row keeps the editor open with its draft; scrolled back to, it renders unfocused. Removing its `edit` configuration or switching to `toggle` also discards it.
 
 Restoring the column does not reopen the draft. These column changes preserve pending and rejected edits.
 

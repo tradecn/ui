@@ -1190,8 +1190,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const held = view.isHeld()
     if (held && !prevHeldRef.current) heldSinceRef.current = at
     if (!held && prevHeldRef.current) {
-      const releasedAt = Math.min(at, view.holdExpiresAt() ?? at)
-      for (const [id, stamp] of entered) if (stamp >= heldSinceRef.current) entered.set(id, releasedAt)
+      const releasedAt = Math.min(at, view.holdExpiresAt?.() ?? at)
+      // Only the marks the hold actually parked: this commit's own arrivals were
+      // stamped moments ago at `at` and must not be backdated past the release.
+      for (const [id, stamp] of entered) if (stamp >= heldSinceRef.current && stamp <= releasedAt) entered.set(id, releasedAt)
     }
     prevHeldRef.current = held
     const nowSet = new Set(ids)
