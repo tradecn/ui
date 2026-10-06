@@ -478,6 +478,827 @@ describe("DataGrid", () => {
   })
 })
 
+describe("certification pins", () => {
+  it("flashes an arrival in its own commit, and a departed row's return as a fresh arrival", () => {
+    // The grid marks arrivals in an insertion effect, which runs before any row's
+    // layout effect: a row mounting in the commit of its arrival finds its mark.
+    // StrictMode's replay masked the old ordering, so this render is deliberately bare.
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} rowEnter={{ highlight: true }} />)
+    act(() => {
+      store.applyDeltas({ upsert: [{ id: "fresh", sym: "FRESH", px: 101, qty: 1 }] })
+    })
+    const fresh = document.querySelector('[data-row-id="fresh"]') as HTMLElement
+    expect(fresh.dataset.direction).toBe("flat")
+    // A row that arrives beyond the rendered range and departs unseen loses its mark;
+    // what flashes on its return is the return's own fresh mark, not the old one.
+    act(() => {
+      store.applyDeltas({ upsert: Array.from({ length: 30 }, (_, i) => ({ id: `tail${i}`, sym: `T${i}`, px: 1, qty: 1 })) })
+    })
+    expect(document.querySelector('[data-row-id="tail29"]')).toBeNull()
+    act(() => {
+      store.applyDeltas({ remove: ["tail29"] })
+    })
+    act(() => {
+      store.applyDeltas({ remove: Array.from({ length: 29 }, (_, i) => `tail${i}`) })
+    })
+    act(() => {
+      store.applyDeltas({ upsert: [{ id: "tail29", sym: "T29", px: 1, qty: 1 }] })
+    })
+    // The return is itself an arrival: it flashes on its own fresh mark.
+    const returned = document.querySelector('[data-row-id="tail29"]') as HTMLElement
+    expect(returned).not.toBeNull()
+    expect(returned.dataset.direction).toBe("flat")
+  })
+
+  it("flashes a fresh off-view arrival scrolled to in time, and not a stale one", () => {
+    // A scroll moves the rendered range without touching ids, so no pruning runs and
+    // the row's own window check decides: within the window the remainder flashes,
+    // past it an old arrival is not news.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} rowEnter={{ highlight: true }} />)
+      const scroller = screen.getByRole("grid").querySelector<HTMLElement>(".overflow-auto")!
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "fresh", sym: "FRESH", px: 1, qty: 1 }] })
+      })
+      expect(document.querySelector('[data-row-id="fresh"]')).toBeNull()
+      // Within the window: scroll down, the mount flashes the remainder.
+      vi.setSystemTime(1_000_000 + 500)
+      scroller.scrollTop = 30 * ROW_HEIGHT
+      fireEvent.scroll(scroller)
+      const freshRow = document.querySelector('[data-row-id="fresh"]') as HTMLElement
+      expect(freshRow).not.toBeNull()
+      expect(freshRow.dataset.direction).toBe("flat")
+      // Past the window: a second arrival waits two minutes before being scrolled to.
+      scroller.scrollTop = 0
+      fireEvent.scroll(scroller)
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "stale", sym: "STALE", px: 1, qty: 2 }] })
+      })
+      expect(document.querySelector('[data-row-id="stale"]')).toBeNull()
+      vi.setSystemTime(1_000_000 + 120_000)
+      scroller.scrollTop = 30 * ROW_HEIGHT
+      fireEvent.scroll(scroller)
+      const staleRow = document.querySelector('[data-row-id="stale"]') as HTMLElement
+      expect(staleRow).not.toBeNull()
+      expect(staleRow.dataset.direction).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("stands the release sweep down when highlighting turns off", () => {
+    // A timer armed for a parked mark must not flash after rowEnter.highlight
+    // flips to false, however the flip races the timer's own closure.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(12, store)
+      const { rerender } = render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "mid", sym: "MID", px: 102.5, qty: 1 }] })
+      })
+      expect((document.querySelector('[data-row-id="mid"]') as HTMLElement).dataset.direction).toBeUndefined()
+      rerender(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: false }} />)
+      act(() => { vi.advanceTimersByTime(1_000) })
+      const row = document.querySelector('[data-row-id="mid"]') as HTMLElement
+      expect(row).not.toBeNull()
+      expect(row.dataset.direction).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("reports the hold deadline in wall time whatever clock the view runs on", () => {
+    // ViewOptions.now takes any millisecond clock — the suite's own store tests use
+    // one starting at zero. The grid compares deadlines with Date.now, so the view
+    // converts: a hold longer than the flash window still ends in a flash.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      let tick = 0
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, store)
+      const view = store.prepareView({ comparator: (a, b) => a.px - b.px, reorderHoldMs: 2_000, now: () => tick })
+      view.connect()
+      render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" view={view} rowHeight={ROW_HEIGHT} initialRect={RECT} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "mid", sym: "MID", px: 102.5, qty: 1 }] })
+      })
+      expect(document.querySelector('[data-row-id="mid"]')).toBeNull()
+      // The hold outlives the 1.5 s window; on the raw view clock the deadline
+      // would read as two million milliseconds in the past.
+      tick = 2_000
+      act(() => { vi.advanceTimersByTime(2_000) })
+      // The release sorts mid into the viewport; it mounts there and flashes.
+      const row = document.querySelector('[data-row-id="mid"]') as HTMLElement
+      expect(row).not.toBeNull()
+      expect(row.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("sweeps only its own rows when a nested grid shares an id", () => {
+    // The release sweep finds rows by data-row-id under its scroller, which sees a
+    // nested grid's rows too: the DOM id decides whose row flashes.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const inner = createRowStore<Quote>({ getRowId: row => row.id })
+      inner.applyDeltas({ upsert: [{ id: "shared", sym: "INNER", px: 1, qty: 1 }] })
+      const outer = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, outer)
+      const innerCols: ColumnDef<Quote>[] = [{ key: "sym", header: "Sym", width: 80, accessor: row => row.sym }]
+      const cols: ColumnDef<Quote>[] = [
+        { key: "sym", header: "Sym", width: 80, accessor: row => row.sym },
+        { key: "book", header: "Book", width: 240, accessor: () => "", cell: ({ row }) => (row as Quote).id === "r0" ? <DataGrid store={inner} columns={innerCols} label="Inner" preset="option-chain" rowHeight={ROW_HEIGHT} initialRect={{ width: 200, height: 60 }} rowEnter={{ highlight: false }} /> : null },
+      ]
+      render(<DataGrid store={outer} columns={cols} label="Outer" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: true }} />)
+      const grid = screen.getAllByRole("grid")[0]!
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        outer.applyDeltas({ upsert: [{ id: "shared", sym: "OUTER", px: 999, qty: 1 }] })
+      })
+      // Parked at the tail, beyond the outer rendered range; the nested grid's
+      // "shared" row is mounted. The release must not flash the nested row.
+      act(() => { vi.advanceTimersByTime(750) })
+      const innerRow = document.querySelector('[data-row-id="shared"]') as HTMLElement
+      expect(innerRow.textContent).toContain("INNER")
+      expect(innerRow.dataset.direction).toBeUndefined()
+      // The outer row still owns its mark: scrolled to in time, it flashes.
+      const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+      scroller.scrollTop = 40 * ROW_HEIGHT
+      fireEvent.scroll(scroller)
+      const outerRow = Array.from(document.querySelectorAll<HTMLElement>('[data-row-id="shared"]')).find(el => el.textContent?.includes("OUTER"))
+      expect(outerRow).not.toBeUndefined()
+      expect(outerRow!.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("flashes an on-screen arrival when a release publishes nothing", () => {
+    // Store order: the newcomer lands in its final place, the release reorders
+    // nothing, and no commit observes it. The deadline timer plays the flash.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(3, store)
+      render(<DataGrid store={store} columns={columns} label="Orders" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "n", sym: "N", px: 1, qty: 1 }] })
+      })
+      const row = document.querySelector('[data-row-id="n"]') as HTMLElement
+      expect(row).not.toBeNull()
+      expect(row.dataset.direction).toBeUndefined()
+      act(() => { vi.advanceTimersByTime(750) })
+      expect(row.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("keeps a parked overscan row's flash for the release", () => {
+    // With fewer rows than the rendered range, a parked arrival mounts immediately.
+    // Its window still opens at the release: nothing plays off the arrival commit,
+    // and the release sweep plays the flash on the mounted row in place.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(12, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "mid", sym: "MID", px: 102.5, qty: 1 }] })
+      })
+      // Mounted in the overscan band, parked at the tail: the flash waits.
+      const parked = document.querySelector('[data-row-id="mid"]') as HTMLElement
+      expect(parked).not.toBeNull()
+      expect(parked.dataset.direction).toBeUndefined()
+      // The release reorders mid into place; the sweep plays the flash there.
+      act(() => { vi.advanceTimersByTime(1_000) })
+      const settled = document.querySelector('[data-row-id="mid"]') as HTMLElement
+      expect(settled).not.toBeNull()
+      expect(settled.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("keeps a scrolled-back editor's draft without stealing focus, until a fresh open asks for it", () => {
+    // The open editor scrolls out of the rendered range and back: the draft
+    // survives, the remount does not steal focus, and a fresh open of the
+    // mounted cell focuses it again.
+    const onEdit = vi.fn(() => undefined)
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(40, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const draft = screen.getByRole("textbox") as HTMLInputElement
+    expect(document.activeElement).toBe(draft)
+    fireEvent.change(draft, { target: { value: "105.5" } })
+    const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+    scroller.scrollTop = 30 * ROW_HEIGHT
+    fireEvent.scroll(scroller)
+    expect(screen.queryByRole("textbox")).toBeNull()
+    scroller.scrollTop = 0
+    fireEvent.scroll(scroller)
+    const back = screen.getByRole("textbox") as HTMLInputElement
+    expect(back.value).toBe("105.5")
+    expect(document.activeElement).not.toBe(back)
+    // A fresh open of the already-mounted cell is a request for focus, not a reset:
+    // the draft survives the reopen.
+    fireEvent.keyDown(grid, { key: "F2" })
+    const reopened = screen.getByRole("textbox") as HTMLInputElement
+    expect(document.activeElement).toBe(reopened)
+    expect(reopened.value).toBe("105.5")
+  })
+
+  it("ages parked marks from arrival on a view without holdExpiresAt, and the forwarding wrapper keeps the release accounting", () => {
+    // The documented fallback and the migration guide's wrapper, side by side: a
+    // wrapped view that drops holdExpiresAt loses a flash to a long hold; one that
+    // forwards it, as the guide's complete wrapper does, keeps it.
+    const wrap = (source: RowStore<Quote>, forward: boolean): RowStore<Quote> => ({
+      ...source,
+      prepareView(options) {
+        const view = source.prepareView(options)
+        return {
+          store: view.store,
+          getIds: () => view.getIds(),
+          subscribe: listener => view.subscribe(listener),
+          connect: () => view.connect(),
+          touch: () => view.touch(),
+          isHeld: () => view.isHeld(),
+          ...(forward ? { holdExpiresAt: () => view.holdExpiresAt?.() ?? null } : {}),
+          dispose: () => view.dispose(),
+          isDisposed: () => view.isDisposed(),
+        }
+      },
+    })
+    const park = (store: RowStore<Quote>) => {
+      seed(40, store)
+      const utils = render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: true }} />)
+      const grid = utils.container.querySelector<HTMLElement>('[role="grid"]')!
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "mid", sym: "MID", px: 102.5, qty: 1 }] })
+      })
+      act(() => { vi.advanceTimersByTime(900) })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => { vi.advanceTimersByTime(900) })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => { vi.advanceTimersByTime(1100) })
+      const row = utils.container.querySelector<HTMLElement>('[data-row-id="mid"]')
+      expect(row).not.toBeNull()
+      const direction = row!.dataset.direction
+      utils.unmount()
+      return direction
+    }
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      expect(park(wrap(createRowStore<Quote>({ getRowId: row => row.id }), false))).toBeUndefined()
+      expect(park(wrap(createRowStore<Quote>({ getRowId: row => row.id }), true))).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("flashes an arrival a reorder hold parked once it settles into place", () => {
+    // The hold's wait is the grid's, not the row's: a newcomer parked at the tail
+    // through sustained navigation still flashes when the hold releases.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "mid", sym: "MID", px: 102.5, qty: 1 }] })
+      })
+      // Parked at the tail, beyond the rendered range: no mount, no flash yet.
+      expect(document.querySelector('[data-row-id="mid"]')).toBeNull()
+      // Extend the hold far past the flash window: the grid's own keys carry the
+      // extensions to the parked mark, and the mid-hold arrival keeps the feed real.
+      act(() => { vi.advanceTimersByTime(900) })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => { vi.advanceTimersByTime(900) })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "noise", sym: "NOISE", px: 400, qty: 1 }] })
+      })
+      act(() => { vi.advanceTimersByTime(1100) })
+      const row = document.querySelector('[data-row-id="mid"]') as HTMLElement
+      expect(row).not.toBeNull()
+      expect(row.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("ages only the marks the hold parked, not older strangers", () => {
+    // An off-view arrival from before the hold is almost stale when interaction
+    // starts; the release must not make it news again.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      // An early arrival lands before any hold, at the tail beyond the rendered
+      // range, where it stays; the mid-hold newcomer is what reorders at release.
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "old", sym: "OLD", px: 500, qty: 1 }] })
+      })
+      expect(document.querySelector('[data-row-id="old"]')).toBeNull()
+      // The hold is extended past the old arrival's window, and a newcomer parks
+      // mid-hold beside it.
+      vi.setSystemTime(1_000_000 + 900)
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      vi.setSystemTime(1_000_000 + 1_600)
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "parked", sym: "PARKED", px: 102.9, qty: 1 }] })
+      })
+      act(() => { vi.advanceTimersByTime(1_000) })
+      // Released: the newcomer the hold parked settles into view and flashes; the
+      // stranger whose window passed before the hold began is scrolled to and silent.
+      const parked = document.querySelector('[data-row-id="parked"]') as HTMLElement
+      expect(parked).not.toBeNull()
+      expect(parked.dataset.direction).toBe("flat")
+      const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+      scroller.scrollTop = 32 * ROW_HEIGHT
+      fireEvent.scroll(scroller)
+      const row = document.querySelector('[data-row-id="old"]') as HTMLElement
+      expect(row).not.toBeNull()
+      expect(row.dataset.direction).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("does not revive marks when a hold lapses unobserved and a late commit finds them", () => {
+    // Store order never reorders at release, so nothing publishes when the hold
+    // lapses: the transition is seen minutes later on an unrelated arrival, and the
+    // restamp must use the lapsed deadline, never that commit's clock.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, store)
+      render(<DataGrid store={store} columns={columns} label="Orders" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "x", sym: "X", px: 1, qty: 1 }] })
+      })
+      expect(document.querySelector('[data-row-id="x"]')).toBeNull()
+      // The hold lapses with the order unchanged: nothing publishes. Five minutes of
+      // quiet, then an unrelated arrival finally runs the transition.
+      act(() => { vi.advanceTimersByTime(300_000) })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "y", sym: "Y", px: 1, qty: 1 }] })
+      })
+      const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+      scroller.scrollTop = 32 * ROW_HEIGHT
+      fireEvent.scroll(scroller)
+      const x = document.querySelector('[data-row-id="x"]') as HTMLElement
+      expect(x).not.toBeNull()
+      expect(x.dataset.direction).toBeUndefined()
+      // The commit that finally observes the release is itself an arrival: y's own
+      // mark is this commit's, never backdated past the lapsed deadline.
+      const y = document.querySelector('[data-row-id="y"]') as HTMLElement
+      expect(y).not.toBeNull()
+      expect(y.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("lets no second hold revive the marks of the first", () => {
+    // Two interactions with a lapse between them: the first hold's parked mark ages
+    // from the first deadline, whatever hold is running when it is finally seen.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, store)
+      render(<DataGrid store={store} columns={columns} label="Orders" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "x", sym: "X", px: 1, qty: 1 }] })
+      })
+      expect(document.querySelector('[data-row-id="x"]')).toBeNull()
+      // Hold one lapses unobserved; a minute later a second hold starts, and the
+      // next arrival lands while it is still running.
+      act(() => { vi.advanceTimersByTime(60_000) })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => { vi.advanceTimersByTime(100) })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "y", sym: "Y", px: 1, qty: 1 }] })
+      })
+      act(() => { vi.advanceTimersByTime(900) })
+      const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+      scroller.scrollTop = 32 * ROW_HEIGHT
+      fireEvent.scroll(scroller)
+      const x = document.querySelector('[data-row-id="x"]') as HTMLElement
+      expect(x).not.toBeNull()
+      expect(x.dataset.direction).toBeUndefined()
+      const y = document.querySelector('[data-row-id="y"]') as HTMLElement
+      expect(y).not.toBeNull()
+      expect(y.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("dismisses a pending with no live promise on reopen, as v1 did", () => {
+    // A void onEdit can leave a pending only the store can clear; when the server
+    // normalizes the value, nothing ever matches. Reopening dismisses it, so Escape
+    // or an untouched close leaves a clean cell.
+    const onEdit = vi.fn(() => undefined)
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105.123" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    act(() => {
+      store.applyDeltas({ patch: [{ id: "r0", fields: { px: 105.12 } }] })
+    })
+    const cell = () => document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" })
+    expect(cell().hasAttribute("data-pending")).toBe(false)
+    expect(cell().textContent).toContain("105.12")
+  })
+
+  it("keeps the covered pending when an invalid draft blurs away", async () => {
+    // Typing junk over a reopened pending and clicking away sends nothing: the
+    // cover comes back, and the server's later rejection still lands.
+    let reject!: (reason: unknown) => void
+    const onEdit = vi.fn(() => new Promise((_, rej) => { reject = rej }))
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => { const n = Number(text); return Number.isFinite(n) ? n : { problem: "Not a number" } } } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    const cell = () => document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    fireEvent.keyDown(grid, { key: "F2" })
+    const reopened = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(reopened, { target: { value: "abc" } })
+    fireEvent.blur(reopened)
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    await act(async () => {
+      reject(new Error("too far"))
+    })
+    expect(cell().textContent).toContain("too far")
+  })
+
+  it("settles a covered pending when the store catches up during the reopen", async () => {
+    const onEdit = vi.fn(() => new Promise(() => {}))
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    // The venue acknowledges while the untouched reopen is up, then moves on.
+    act(() => {
+      store.applyDeltas({ patch: [{ id: "r0", fields: { px: 105 } }] })
+    })
+    act(() => {
+      store.applyDeltas({ patch: [{ id: "r0", fields: { px: 106 } }] })
+    })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" })
+    const cell = document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell.hasAttribute("data-pending")).toBe(false)
+    expect(cell.textContent).toContain("106")
+  })
+
+  it("closes an open editor when its row leaves the view, and the returning row steals nothing", async () => {
+    const onEdit = vi.fn()
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(3, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    const ui = (filter?: (row: Quote) => boolean) => <DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} filter={filter} onEdit={onEdit} />
+    const view = render(ui())
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    expect(screen.getByRole("textbox")).toBeInTheDocument()
+    view.rerender(ui((row) => row.id !== "r1"))
+    expect(screen.queryByRole("textbox")).toBeNull()
+    const outside = document.createElement("button")
+    document.body.appendChild(outside)
+    outside.focus()
+    view.rerender(ui())
+    expect(screen.queryByRole("textbox")).toBeNull()
+    expect(document.activeElement).toBe(outside)
+    expect(onEdit).not.toHaveBeenCalled()
+    outside.remove()
+  })
+
+  it("sends nothing from an editor opened and left unchanged, Tab chains included", () => {
+    const onEdit = vi.fn()
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "r0", sym: "S0", px: 0.123456, qty: 10 }] })
+    // One row: a single ArrowDown lands on it.
+    const rounding: ColumnDef<Quote>[] = [
+      { key: "px", header: "Price", width: 80, accessor: row => row.px, format: v => (v as number).toFixed(2), edit: { parse: text => Number(text) } },
+      { key: "qty", header: "Qty", width: 80, accessor: row => row.qty, edit: { parse: text => Number(text) } },
+    ]
+    render(<DataGrid store={store} columns={rounding} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    expect(input.value).toBe("0.12")
+    fireEvent.keyDown(input, { key: "Tab" })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" })
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it("keeps a pending edit and its later rejection through an untouched reopen", async () => {
+    // Reopening a pending cell shows the committed text; closing it untouched must
+    // restore the pending mark, so the server's later rejection still lands.
+    let reject!: (reason: unknown) => void
+    const onEdit = vi.fn(() => new Promise((_, rej) => { reject = rej }))
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    const cell = () => document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    fireEvent.keyDown(grid, { key: "F2" })
+    const reopened = screen.getByRole("textbox") as HTMLInputElement
+    expect(reopened.value).toBe("105")
+    fireEvent.keyDown(reopened, { key: "Enter" })
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    // Escape restores the covered state the same way the untouched close does.
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" })
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    await act(async () => {
+      reject(new Error("too far"))
+    })
+    expect(cell().textContent).toContain("too far")
+  })
+
+  it("closes an untouched editor on blur without sending", () => {
+    const onEdit = vi.fn()
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "r0", sym: "S0", px: 0.123456, qty: 10 }] })
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, format: v => (v as number).toFixed(2), edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.blur(input)
+    expect(onEdit).not.toHaveBeenCalled()
+    expect(screen.queryByRole("textbox")).toBeNull()
+  })
+
+  it("does not activate a hidden focused row through Enter on a non-editable grid", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(3, store)
+    const activate = vi.fn()
+    const ui = (filter?: (row: Quote) => boolean) => <DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} filter={filter} onRowActivate={activate} />
+    const view = render(ui())
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    view.rerender(ui((row) => row.id !== "r1"))
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(activate).not.toHaveBeenCalled()
+    view.rerender(ui())
+    fireEvent.keyDown(grid, { key: "Enter" })
+    expect(activate).toHaveBeenCalledTimes(1)
+  })
+
+  it("lets no keyboard command act on a focused row the view no longer holds", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(3, store)
+    const activate = vi.fn(), selection = vi.fn(), onEdit = vi.fn()
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    const ui = (filter?: (row: Quote) => boolean) => <DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} filter={filter} onRowActivate={activate} onSelectionChange={selection} onEdit={onEdit} />
+    const view = render(ui())
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    activate.mockClear()
+    selection.mockClear()
+    view.rerender(ui((row) => row.id !== "r1"))
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.keyDown(grid, { key: " " })
+    fireEvent.keyDown(grid, { key: "5" })
+    expect(activate).not.toHaveBeenCalled()
+    expect(selection).not.toHaveBeenCalled()
+    expect(screen.queryByRole("textbox")).toBeNull()
+  })
+
+  it("keeps the covered state when permission is revoked under an untouched reopen", () => {
+    // A revocation mid-look refuses a real change; it must not erase the pending
+    // state a merely-opened editor was covering.
+    const onEdit = vi.fn(() => new Promise(() => {}))
+    const store = createRowStore<{ id: string; px: number; locked: boolean }>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "r0", px: 101, locked: false }, { id: "r1", px: 102, locked: false }] })
+    const cols: ColumnDef<{ id: string; px: number; locked: boolean }>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text), canEdit: row => !row.locked } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    const cell = () => document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    fireEvent.keyDown(grid, { key: "F2" })
+    act(() => {
+      store.applyDeltas({ patch: [{ id: "r0", fields: { locked: true } }] })
+    })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" })
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
+  it("rewrites a covered pending when its promise settles under the reopened editor", async () => {
+    // Reject while the untouched reopen is still up: the close must show the refusal,
+    // never restore a pending with no live promise behind it.
+    let reject!: (reason: unknown) => void
+    const onEdit = vi.fn(() => new Promise((_, rej) => { reject = rej }))
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    await act(async () => {
+      reject(new Error("too far"))
+    })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" })
+    const cell = document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell.hasAttribute("data-pending")).toBe(false)
+    expect(cell.textContent).toContain("too far")
+    expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
+  it("clears a covered pending whose promise resolves under the reopen", async () => {
+    let resolve!: () => void
+    const onEdit = vi.fn(() => new Promise<void>(res => { resolve = res }))
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    await act(async () => {
+      resolve()
+    })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" })
+    const cell = document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell.hasAttribute("data-pending")).toBe(false)
+    expect(cell.hasAttribute("data-rejected")).toBe(false)
+  })
+
+  it("ignores a retained open for a row the view no longer holds", async () => {
+    // The delayed-open pattern, aimed at a filtered-out row: without the gate, the
+    // editor state mounts and takes focus whenever the row next returns.
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    let handle: CellEditHandle | undefined
+    const onEdit = vi.fn()
+    const custom: ColumnDef<Quote>[] = [
+      { key: "sym", header: "Symbol", width: 80, accessor: row => row.sym },
+      { key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) }, cell: ({ edit, value }) => { handle = edit; return String(value) } },
+    ]
+    const layout = (filter?: (row: Quote) => boolean) => <>
+      <input aria-label="Outside" />
+      <DataGrid store={store} columns={custom} label="Sheet" initialRect={RECT} filter={filter} onEdit={onEdit} />
+    </>
+    const { rerender } = render(layout())
+    const retained = handle!
+    // The custom cell runs per row; the retained handle is the last-rendered row's, r1.
+    rerender(layout(row => row.id !== "r1"))
+    act(() => retained.open())
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    const outside = screen.getByRole("textbox", { name: "Outside" })
+    outside.focus()
+    rerender(layout())
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    expect(outside).toHaveFocus()
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it("emits no selection change from Escape when nothing is selected", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const selection = vi.fn()
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} onSelectionChange={selection} />)
+    fireEvent.keyDown(screen.getByRole("grid"), { key: "Escape" })
+    expect(selection).not.toHaveBeenCalled()
+  })
+
+  it("neutralizes spreadsheet formulas in the export", () => {
+    const store = createRowStore<{ id: string; note: string }>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: [{ id: "a", note: "=SUM(A1:A9)" }, { id: "b", note: "@cmd" }, { id: "c", note: "-1200" }, { id: "d", note: "plain" }, { id: "e", note: "-cmd" }, { id: "f", note: "+1+SUM(A1:A9)" }, { id: "g", note: "-1.5e3" }] })
+    const cols: ColumnDef<{ id: string; note: string }>[] = [{ key: "note", header: "Note", width: 120, accessor: row => row.note }]
+    const csv = exportCsv(store, cols, ["a", "b", "c", "d", "e", "f", "g"])
+    expect(csv).toContain("'=SUM(A1:A9)")
+    expect(csv).toContain("'@cmd")
+    // Signed numbers are data: no prefix, so numeric exports stay parseable.
+    expect(csv.split("\r\n")[3]).toBe("-1200")
+    expect(csv.split("\r\n")[4]).toBe("plain")
+    expect(csv.split("\r\n")[5]).toBe("'-cmd")
+    // A leading number does not stop a spreadsheet evaluating the rest: only a field
+    // that is entirely a number stays raw.
+    expect(csv.split("\r\n")[6]).toBe("'+1+SUM(A1:A9)")
+    expect(csv.split("\r\n")[7]).toBe("-1.5e3")
+    // A finite numeric accessor skips only the sign rule: its signed, grouped text
+    // is data, but a formatter that emits a hard formula lead is still neutralized.
+    const pnl = createRowStore<{ id: string; v: number }>({ getRowId: row => row.id })
+    pnl.applyDeltas({ upsert: [{ id: "a", v: 1234.5 }] })
+    const signed: ColumnDef<{ id: string; v: number }>[] = [{ key: "v", header: "P&L", width: 80, accessor: row => row.v, format: value => `+${(value as number).toLocaleString("en-US", { minimumFractionDigits: 2 })}` }]
+    expect(exportCsv(pnl, signed, ["a"]).split("\r\n")[1]).toBe('"+1,234.50"')
+    const linked: ColumnDef<{ id: string; v: number }>[] = [{ key: "v", header: "P&L", width: 80, numeric: true, accessor: row => row.v, format: value => `=HYPERLINK("https://example.com","${value as number}")` }]
+    expect(exportCsv(pnl, linked, ["a"]).split("\r\n")[1]).toBe('"\'=HYPERLINK(""https://example.com"",""1234.5"")"')
+    // Signed numeric text that does not read as one number is not data either.
+    const payload: ColumnDef<{ id: string; v: number }>[] = [{ key: "v", header: "P&L", width: 80, numeric: true, accessor: row => row.v, format: () => "-2+3+cmd" }]
+    expect(exportCsv(pnl, payload, ["a"]).split("\r\n")[1]).toBe("'-2+3+cmd")
+  })
+})
+
 describe("rules as data", () => {
   const thirtySeconds = { kind: "fraction", denominator: 32, half: "+" } as const
   const ruled: ColumnDef<Quote>[] = [

@@ -472,6 +472,56 @@ test("a watchlist grid remains virtual inside a plain bounded container", async 
   await expect.poll(() => grid.locator("[data-row-id]").count()).toBeLessThan(50)
 })
 
+test("keyboard walking keeps the focused row clear of the sticky header and footer edges", async ({ page }) => {
+  // The virtualizer learns through scrollMargin that rows start below the sticky
+  // header: without it, a downward align auto stops a row short, ArrowDown walks
+  // focus just below the fold, and End never reveals the last row. The checks are
+  // against the header's bottom and the viewport's bottom, not the scroller box,
+  // which includes the area the stickies cover.
+  await page.goto("/")
+  await page.getByRole("button", { name: "Load 500 quotes" }).click()
+  const grid = page.locator("[data-slot='tradecn-watchlist']").getByRole("grid")
+  const viewport = grid.locator(".overflow-auto")
+  const header = grid.locator("[role='row']").first()
+  await grid.focus()
+  await grid.press("Home")
+  const inView = async () => {
+    const active = await grid.getAttribute("aria-activedescendant")
+    const row = grid.locator(`[id="${active}"]`)
+    const rowBox = (await row.boundingBox())!
+    const headerBox = (await header.boundingBox())!
+    const viewBox = (await viewport.boundingBox())!
+    expect(rowBox.y).toBeGreaterThanOrEqual(headerBox.y + headerBox.height - 0.5)
+    expect(rowBox.y + rowBox.height).toBeLessThanOrEqual(viewBox.y + viewBox.height + 0.5)
+  }
+  for (let step = 0; step < 14; step++) await grid.press("ArrowDown")
+  await inView()
+  await grid.press("End")
+  await expect(grid.locator('[data-row-id="SYM499"]')).toBeVisible()
+  await inView()
+  await grid.press("Home")
+  await inView()
+  for (let step = 0; step < 9; step++) await grid.press("ArrowDown")
+  await grid.press("PageUp")
+  await inView()
+})
+
+test("keyboard walking clears a sticky footer's top edge", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='data-grid']")
+  const grid = scene.getByRole("grid", { name: "Smoke" })
+  const footer = grid.locator("[data-grid-footer]")
+  await expect(footer).toBeVisible()
+  await grid.focus()
+  await grid.press("Home")
+  await grid.press("End")
+  const active = await grid.getAttribute("aria-activedescendant")
+  const row = grid.locator(`[id="${active}"]`)
+  const rowBox = (await row.boundingBox())!
+  const footerBox = (await footer.boundingBox())!
+  expect(rowBox.y + rowBox.height).toBeLessThanOrEqual(footerBox.y + 0.5)
+})
+
 for (const dark of [false, true]) for (const key of ["Delete", "Backspace"]) test(`blotter owns ${key} only on its grid root (${dark ? "dark" : "light"})`, async ({ page }) => {
   const errors: string[] = []
   page.on("console", message => message.type() === "error" && errors.push(message.text()))

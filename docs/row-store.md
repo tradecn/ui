@@ -72,7 +72,7 @@ Messages received counts every queued message; Batches applied excludes the seed
 
 Queue then cancel discards the queued batch without changing the store. The next burst continues the sample feed's prices, so canceled values are skipped.
 
-The demo's own cleanup effect calls `cancel()` on unmount — the batcher has no lifecycle of its own. `pending()` says whether a batch is queued, and `flush()` applies queued work immediately; an already-batched feed should call `applyDeltas` directly. The batcher merges queued metadata by summing `dropped`, OR-ing `gap`, and letting the last value win for the rest, and it takes `raf`/`caf` options for environments without animation frames.
+The demo's own cleanup effect calls `cancel()` on unmount — the batcher has no lifecycle of its own. `pending()` says whether a batch is queued, and `flush()` applies queued work immediately; an already-batched feed should call `applyDeltas` directly. The batcher merges queued metadata by summing `dropped` and letting the last mention win for the rest, `gap` included — a frame that never mentions `gap` writes nothing, so a recorded gap survives a replay's quiet frames — and it takes `raf`/`caf` options for environments without animation frames.
 
 <!-- demo: row-store-batching -->
 
@@ -142,6 +142,7 @@ For an imperative view, use `store.createView(options)` outside render and call 
 | `subscribe(listener)` | Adds a local change listener. It does not connect the view. |
 | `connect()` | Follows batches and returns an idempotent release function. Multiple connections release independently; the last release stops registration and timers. |
 | `touch()` | Records a hold deadline. A disconnected view starts no timer; reconnection uses only the remaining duration. |
+| `holdExpiresAt?()` | Optional. When the current or most recent hold lapses or lapsed, converted to `Date.now()` milliseconds whatever clock `now` injects; `null` before any hold. The grid uses it to age parked arrival marks from the release, not from whenever a later commit observes it. A view without it ages marks from their arrival, so a hold longer than the highlight window swallows those flashes. |
 | `dispose()` | Permanently stops the view. Further connections and touches do nothing. |
 
 Custom `RowStore` implementations must provide a pure `prepareView` factory with these semantics. Preparation, filters, comparators and snapshot reads must not write to the store or create external resources.

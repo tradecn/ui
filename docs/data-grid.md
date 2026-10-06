@@ -205,6 +205,8 @@ Pointer presses in the scroll area call `touch()` during capture, including pres
 
 During the hold, existing rows keep their relative order, new rows append, and removed or filtered-out rows leave. The view sorts again when the hold expires, even without another feed update.
 
+An arrival the hold parks starts its highlight window when the hold lapses, not when it arrived — and no later hold revives it. A parked row that is already rendered, at a visible tail or in the overscan band, waits with the others and flashes in place on the grid's deadline timer when the hold lapses, whether or not the release publishes an update. One scrolled to later flashes whatever remains of its window. The grid's own keys and presses carry extensions to still-parked marks; calling `touch()` on a supplied view directly shortens those remainders instead of restarting them. This release accounting needs the view's `holdExpiresAt`, which the internally owned view and [`row-store`](row-store.md) views provide; on a custom view without it, a hold longer than the highlight window swallows the parked flash.
+
 The `reorderHoldMs` prop configures the internally owned view. With a supplied `view`, configure its hold yourself; the grid still calls `touch()` on it.
 
 ### Following the tail
@@ -248,19 +250,19 @@ Give the grid `onEdit` and the column a `CellEdit<T>`:
 
 Use `big` to implement a larger step, such as ten ticks with Shift; the grid does not multiply it. A cell refused by `canEdit` carries `aria-readonly="true"`. [`parameter-grid`](parameter-grid.md) builds a parameter sheet on this API.
 
-Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid input. A value equal to the store's current value sends nothing.
+Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid changes. An editor opened and left unchanged sends nothing, whatever rounding its format applies, and every close of an untouched editor — Enter, Tab, blur, Escape, or the teardowns below — restores the promise-backed pending or rejected state it covered, with a promise that settled meanwhile applied to it. A pending from a void `onEdit` has no promise to settle it, so reopening dismisses it the way v1 did. A value equal to the store's current value sends nothing.
 
-Hiding or removing a column while its text editor is still open discards the draft without calling `onEdit`. Removing its `edit` configuration or switching to `toggle` also discards it.
+Hiding or removing a column while its text editor is still open discards the draft without calling `onEdit`. A row that a filter or removal takes out of the view does the same: its open editor closes, the draft is discarded, and the returning row does not reopen it or take focus. A re-sort that only moves the row keeps the editor open with its draft; scrolled back to, it renders unfocused. Removing its `edit` configuration or switching to `toggle` also discards it.
 
 Restoring the column does not reopen the draft. These column changes preserve pending and rejected edits.
 
 A commit calls `onEdit` with `{ rowId, key, value, previous, row }`. The grid never writes the store. Its default renderer shows the committed text muted with `data-pending` until the store value matches it or the returned promise resolves. Resolution clears pending state and displays the current store value, which may still be the old value. Returning nothing leaves the edit pending until the store matches.
 
-A thrown error or rejection of a still-pending promise displays the store value with the error message, `data-rejected`, and destructive styling. Reopening the editor clears the error. A pending cell can also be reopened, starting from its committed text.
+A thrown error or rejection of a still-pending promise displays the store value with the error message, `data-rejected`, and destructive styling. Reopening the editor clears the error while it is open; closing it untouched brings the error back, and committing a change replaces it. A pending cell can also be reopened, starting from its committed text.
 
 A custom `cell` receives `edit: { status, commit(value), open() }` when editing is enabled for its column. It sees `status` as absent or an object whose `kind` is `pending` or `rejected`. While a text editor is open, the grid renders its built-in editor instead of calling `cell`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text.
 
-For an available text-editable cell, `open()` opens and focuses the text editor. It does not select the row or change the grid's logical row or chosen column. To return grid navigation to that row after editing, control `focusedRowId` and update it in the action handler before calling `open()`. Column shortcuts still use the previously chosen column; choose a column with grid navigation or its header.
+For an available text-editable cell, `open()` opens and focuses the text editor. It does nothing for a row outside the view, and on the cell already being edited it keeps the draft and asks for focus again. It does not select the row or change the grid's logical row or chosen column. To return grid navigation to that row after editing, control `focusedRowId` and update it in the action handler before calling `open()`. Column shortcuts still use the previously chosen column; choose a column with grid navigation or its header.
 
 ### Identity
 
@@ -330,10 +332,10 @@ To handle a grid shortcut in a parent, call `preventDefault()` from `onKeyDownCa
 | Home / End | Focus the first / last row. |
 | Shift + a row navigation key | Extend selection in multi-select mode. |
 | Left / Right | Move column focus. |
-| Space | Toggle selection in multi mode; select in single mode. On an editable toggle cell, commit its toggle instead. |
-| Enter | Edit the focused editable cell, including toggles; otherwise activate the row. |
-| F2 | Edit the focused editable cell, including toggles. |
-| Type a character other than Space | Open an editable text cell with that character. Toggle cells and Ctrl, Cmd, or Alt combinations do not open an editor. |
+| Space | Toggle selection in multi mode; select in single mode. On an editable toggle cell, commit its toggle instead. Does nothing while the focused row is outside the view. |
+| Enter | Edit the focused editable cell, including toggles; otherwise activate the row. Does nothing while the focused row is outside the view. |
+| F2 | Edit the focused editable cell, including toggles. Does nothing while the focused row is outside the view. |
+| Type a character other than Space | Open an editable text cell with that character. Toggle cells and Ctrl, Cmd, or Alt combinations do not open an editor, and nothing opens while the focused row is outside the view. |
 | Escape | Clear selection. |
 | Ctrl or Cmd+A | Select all rows in the view in multi mode. |
 | Alt+Left / Right | Move the focused column. |

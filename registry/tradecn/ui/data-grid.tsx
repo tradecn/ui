@@ -118,8 +118,8 @@ export interface EditChange<T> {
  * rejects, with the server's message and the value that stands.
  */
 export type EditStatus =
-  | { kind: "editing"; text: string; problem: string | null; selectAll: boolean }
-  | { kind: "pending"; value: unknown; text: string }
+  | { kind: "editing"; text: string; problem: string | null; selectAll: boolean; initial?: string | null; focused?: boolean; prior?: EditStatus }
+  | { kind: "pending"; value: unknown; text: string; tracked?: boolean }
   | { kind: "rejected"; value: unknown; message: string }
 
 /** What a `cell` renderer gets for an editable column: the edit's status, and a way to commit a value of its own (a checkbox's). */
@@ -240,6 +240,14 @@ type Resolved<T> = ColumnDef<T> & { width: number; minWidth: number }
 const EMPTY_SET: ReadonlySet<RowId> = new Set()
 const SELECT_WIDTH = 32
 const ENTER_WINDOW_MS = 1500
+
+// When a mark's flash window begins: at arrival, or, for a mark a reorder hold
+// parked, when that hold lapses — frozen at `now` while the hold is still running.
+interface EnterMark {
+  at: number
+  until: number | null
+}
+const enterStart = (mark: EnterMark, now: number) => (mark.until !== null ? Math.max(mark.at, Math.min(mark.until, now)) : mark.at)
 
 // Native controls and focus targets own interaction regardless of an authored role.
 const ROW_CONTROLS = 'a[href], button, input, select, textarea, label, summary, audio[controls], video[controls], iframe, object, embed, [contenteditable]:not([contenteditable="false"]), [tabindex], [data-grid-interaction="control"]'
@@ -366,7 +374,22 @@ export function resolveColumns<T>(columns: ColumnDef<T>[], state: ColumnState): 
 /** CSV of the given rows and visible columns, RFC 4180 quoting. */
 export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: readonly RowId[]): string {
   const cols = columns.filter((c) => !c.hidden)
-  const esc = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s)
+  // Spreadsheets execute cells led by = + - @ or a tab or carriage return: free-text
+  // fields — a message, an author — must not run as formulas when the file is opened.
+  // The apostrophe prefix is the spreadsheet convention for "this is text".
+  // A sign-led field is data only when the WHOLE field is a number: a leading digit
+  // does not stop a spreadsheet from evaluating what follows it.
+  const wholeNumber = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i
+  const neutral = (s: string) => (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !wholeNumber.test(s)) ? `'${s}` : s)
+  // A finite numeric accessor usually formats to a number — +1,234.50 from a signed
+  // formatter included — and number-shaped text is data. The sign rule still applies
+  // to numeric text that does not read as one number, and the hard leads always
+  // neutralize: a formatter may emit arbitrary text.
+  const numberShaped = /^[+-]?(\d{1,3}(,\d{3})+|\d+)(\.\d*)?$|^[+-]?\.\d+$|^[+-]?\d+(\.\d*)?e[+-]?\d+$/i
+  const esc = (s: string, numeric = false) => {
+    const t = numeric ? (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !numberShaped.test(s)) ? `'${s}` : s) : neutral(s)
+    return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
+  }
   const header = cols.map((c) => esc(typeof c.header === "string" ? c.header : c.key)).join(",")
   const lines: string[] = []
   for (const id of ids) {
@@ -376,7 +399,8 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
       cols
         .map((c) => {
           const v = c.accessor(row)
-          return esc(c.format ? c.format(v, row) : v === null || v === undefined ? "" : String(v))
+          const numeric = typeof v === "number" && Number.isFinite(v)
+          return esc(c.format ? c.format(v, row) : v === null || v === undefined ? "" : String(v), numeric)
         })
         .join(","),
     )
@@ -429,6 +453,10 @@ interface EditController {
   tracker: EditTracker
   reconcileColumns(keys: ReadonlySet<string>): void
   unmountEditor(key: string, input: HTMLInputElement): void
+  editorFocusFell: { current: boolean }
+  markFocused(rowId: RowId, key: string): void
+  rowOf(k: string): RowId | undefined
+  forget(k: string): void
   open(rowId: RowId, key: string, typed?: string): void
   type(rowId: RowId, key: string, text: string): void
   /** Parse, check, and send. `move` opens the next (1) or previous (-1) editable cell of the row after. */
@@ -441,6 +469,7 @@ interface EditController {
   blur(rowId: RowId, key: string): void
   /** A later batch brought the row's value to the committed one. */
   settle(rowId: RowId, key: string): void
+  settlePrior(rowId: RowId, key: string): void
 }
 
 function editText<T>(col: ColumnDef<T>, value: unknown, row: T): string {
@@ -507,15 +536,21 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
     const input = ref.current
     return () => { if (input) edits.unmountEditor(colKey, input) }
   }, [edits, colKey])
+  const focused = status.focused ?? false
   useEffect(() => {
     const el = ref.current
     if (!el) return
+    // Once per OPEN, not per mount: a row scrolled away and back remounts its editor,
+    // and that remount must not steal focus — while a fresh open() of a mounted cell
+    // resets the flag and focuses again.
+    if (focused) return
+    edits.markFocused(rowId, colKey)
     el.focus({ preventScroll: true })
     if (selectAll) el.select()
     else el.setSelectionRange(el.value.length, el.value.length)
-    // On mount only: a keystroke must not reselect the text under the hand.
+    // A keystroke must not reselect the text under the hand.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [focused])
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     const mod = e.metaKey || e.ctrlKey || e.altKey
     switch (e.key) {
@@ -573,10 +608,13 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
   const get = useCallback(() => (tracker ? tracker.get(key) : undefined), [tracker, key])
   const status = useSyncExternalStore(subscribe, get, undefinedStatus)
   // A later batch brought the row's value to the committed one: the edit is settled, and the cell reads the store again.
+  // A covered pending settles the same way, or a close after the store moved on would restore a pending nothing can clear.
   const settled = status?.kind === "pending" && Object.is(status.value, value)
+  const coveredSettled = status?.kind === "editing" && status.prior?.kind === "pending" && Object.is(status.prior.value, value)
   useEffect(() => {
     if (settled) edits?.settle(rowId, col.key)
-  }, [settled, edits, rowId, col.key])
+    else if (coveredSettled) edits?.settlePrior(rowId, col.key)
+  }, [settled, coveredSettled, edits, rowId, col.key])
   const handle = useMemo<CellEditHandle | undefined>(
     () => (editable ? { status, commit: (next) => edits!.commitValue(rowId, col.key, next), open: () => edits!.open(rowId, col.key) } : undefined),
     [editable, status, edits, rowId, col.key],
@@ -661,7 +699,7 @@ interface RowProps<T> {
   memory: FlashMemory
   flashVariant: "fill" | "ring"
   flashWindowMs: number
-  entered: Set<RowId>
+  entered: Map<RowId, EnterMark>
   highlightEnter: boolean
   getRowProps?: (row: T, id: RowId) => RowDecoration | undefined
   rules: AppliedRules<T> | null
@@ -672,9 +710,19 @@ function RowInner<T>(p: RowProps<T>) {
   const row = useRow(p.store, p.id)
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    if (p.highlightEnter && p.entered.has(p.id) && ref.current) {
+    const mark = p.entered.get(p.id)
+    if (p.highlightEnter && mark !== undefined && ref.current) {
+      const now = Date.now()
+      // A mark still parked by a running hold keeps waiting: its window opens at
+      // the release, and the grid's release sweep plays it — overscan rows mount
+      // while parked and must not burn their flash off screen.
+      if (mark.until !== null && now < mark.until) return
       p.entered.delete(p.id)
-      playFlash(ref.current, "flat", { windowMs: ENTER_WINDOW_MS, variant: "fill" })
+      // A row that arrived off-view and scrolls in later flashes only the remainder
+      // of its window — measured from the hold release when one parked it — and an
+      // arrival from minutes ago is not news.
+      const elapsed = now - enterStart(mark, now)
+      if (elapsed < ENTER_WINDOW_MS) playFlash(ref.current, "flat", { windowMs: ENTER_WINDOW_MS, variant: "fill", elapsed })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -864,15 +912,16 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
-  const editLatest = useRef({ columns, resolved, onEdit })
+  const editLatest = useRef({ columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId) })
   useInsertionEffect(() => {
-    editLatest.current = { columns, resolved, onEdit }
+    editLatest.current = { columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId) }
   })
   const editable = Boolean(onEdit)
   const edits = useMemo<EditController | null>(() => {
     if (!editable) return null
     const tracker = createEditTracker()
     let activeColumn: string | null = null
+    const cellsByKey = new Map<string, RowId>()
     const column = (key: string) => editLatest.current.columns.find((c) => c.key === key)
     const focusGrid = () => rootRef.current?.focus({ preventScroll: true })
     const send = (rowId: RowId, col: ColumnDef<T> & { edit: CellEdit<T> }, row: T, value: unknown) => {
@@ -882,7 +931,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         tracker.set(k, undefined)
         return
       }
-      tracker.set(k, { kind: "pending", value, text: editText(col, value, row) })
+      tracker.set(k, { kind: "pending", value, text: editText(col, value, row), tracked: false })
       let result: void | Promise<unknown>
       try {
         result = editLatest.current.onEdit?.({ rowId, key: col.key, value, previous, row })
@@ -891,14 +940,21 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         return
       }
       if (result && typeof (result as Promise<unknown>).then === "function") {
+        const started = tracker.get(k)
+        if (started?.kind === "pending") tracker.set(k, { ...started, tracked: true })
         ;(result as Promise<unknown>).then(
           () => {
             const now = tracker.get(k)
             if (now?.kind === "pending" && Object.is(now.value, value)) tracker.set(k, undefined)
+            // A reopened untouched editor covers the pending status as prior: the
+            // settle rewrites it there, or the close would restore a pending with
+            // no live promise behind it.
+            else if (now?.kind === "editing" && now.prior?.kind === "pending" && Object.is(now.prior.value, value)) tracker.set(k, { ...now, prior: undefined })
           },
           (error: unknown) => {
             const now = tracker.get(k)
             if (now?.kind === "pending" && Object.is(now.value, value)) tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error) })
+            else if (now?.kind === "editing" && now.prior?.kind === "pending" && Object.is(now.prior.value, value)) tracker.set(k, { ...now, prior: { kind: "rejected", value: previous, message: messageOf(error) } })
           },
         )
       }
@@ -919,27 +975,54 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     }
     function open(rowId: RowId, key: string, typed?: string) {
       if (!visibleEditColumns.current.has(key)) return
+      // A retained handle must not open an editor on a row the view no longer holds:
+      // it would mount and take focus whenever the row next returned.
+      if (!editLatest.current.inView(rowId)) return
       const col = column(key)
       const row = store.getRow(rowId)
       if (!canEditCell(col, row) || col.edit.toggle) return
+      cellsByKey.set(cellKey(rowId, key), rowId)
       const k = cellKey(rowId, key)
       const before = tracker.editing()
-      if (before && before !== k) tracker.set(before, undefined)
+      if (before && before !== k) {
+        const covered = tracker.get(before)
+        cellsByKey.delete(before)
+        tracker.set(before, covered?.kind === "editing" ? covered.prior : undefined)
+      }
       // A pending cell reopens on what it shows, the committed value, not on the value the store still holds.
       const now = tracker.get(k)
+      // Reopening the cell already being edited is a request for focus, not a reset:
+      // the draft, its problem, and what the editor covers all stay.
+      if (now?.kind === "editing" && typed === undefined) {
+        activeColumn = key
+        tracker.set(k, { ...now, selectAll: true, focused: false })
+        return
+      }
       const text = now?.kind === "pending" ? now.text : editText(col, col.accessor(row!), row!)
       activeColumn = key
-      tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined })
+      // The status this editor replaced comes back if it closes untouched: reopening a
+      // pending cell and leaving must not erase a promise-backed pending or a later
+      // rejection. A pending with no live promise can never settle, so reopening
+      // dismisses it the way v1 did — any close then clears the cell.
+      const covered = now?.kind === "editing" ? now.prior : now
+      const prior = covered?.kind === "pending" && !covered.tracked ? undefined : covered
+      tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false, prior })
     }
     const controller: EditController = {
       tracker,
+      editorFocusFell: { current: false },
       reconcileColumns(keys) {
         const active = tracker.editing()
-        if (active !== null && activeColumn !== null && !keys.has(activeColumn)) tracker.set(active, undefined)
+        if (active !== null && activeColumn !== null && !keys.has(activeColumn)) {
+          const covered = tracker.get(active)
+          cellsByKey.delete(active)
+          tracker.set(active, covered?.kind === "editing" ? covered.prior : undefined)
+        }
       },
       unmountEditor(key, input) {
         const doc = input.ownerDocument
         if (doc.activeElement !== input) return
+        controller.editorFocusFell.current = true
         const check = { key, unavailable: !visibleEditColumns.current.has(key) }
         editorFocusChecks.current.add(check)
         // Remember the removal commit even if the column returns before this focus check runs.
@@ -952,6 +1035,13 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         })
       },
       open,
+      rowOf: (k: string) => cellsByKey.get(k),
+      forget: (k: string) => void cellsByKey.delete(k),
+      markFocused(rowId, key) {
+        const k = cellKey(rowId, key)
+        const now = tracker.get(k)
+        if (now?.kind === "editing" && !now.focused) tracker.set(k, { ...now, focused: true })
+      },
       type(rowId, key, text) {
         const k = cellKey(rowId, key)
         const now = tracker.get(k)
@@ -961,10 +1051,21 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const k = cellKey(rowId, key)
         const now = tracker.get(k)
         if (now?.kind !== "editing") return
+        // Opened and left unchanged: a format that rounds must not turn looking into
+        // an edit, so the untouched text sends nothing and the covered state comes
+        // back — ahead of the permission check, so a revocation mid-look cannot
+        // erase a pending or rejected state the way it refuses a real change.
+        if (now.initial != null && now.text === now.initial) {
+          cellsByKey.delete(k)
+          tracker.set(k, now.prior)
+          moveOn(rowId, key, move)
+          return
+        }
         const col = column(key)
         const row = store.getRow(rowId)
         if (!canEditCell(col, row)) {
-          tracker.set(k, undefined)
+          cellsByKey.delete(k)
+          tracker.set(k, now.prior)
           return focusGrid()
         }
         const parsed = col.edit.parse(now.text, row!)
@@ -973,6 +1074,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
           tracker.set(k, { ...now, problem: problem.problem })
           return
         }
+        cellsByKey.delete(k)
         send(rowId, col, row!, parsed)
         moveOn(rowId, key, move)
       },
@@ -989,7 +1091,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       },
       cancel(rowId, key) {
         const k = cellKey(rowId, key)
-        if (tracker.get(k)?.kind === "editing") tracker.set(k, undefined)
+        cellsByKey.delete(k)
+        const now = tracker.get(k)
+        if (now?.kind === "editing") tracker.set(k, now.prior)
         focusGrid()
       },
       step(rowId, key, dir, big) {
@@ -1005,18 +1109,25 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       },
       blur(rowId, key) {
         const k = cellKey(rowId, key)
+        cellsByKey.delete(k)
         const now = tracker.get(k)
         if (now?.kind !== "editing") return
+        if (now.initial != null && now.text === now.initial) return tracker.set(k, now.prior)
         const col = column(key)
         const row = store.getRow(rowId)
-        if (!canEditCell(col, row)) return tracker.set(k, undefined)
+        if (!canEditCell(col, row)) return tracker.set(k, now.prior)
         const parsed = col.edit.parse(now.text, row!)
-        if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!)) return tracker.set(k, undefined)
+        if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!)) return tracker.set(k, now.prior)
         send(rowId, col, row!, parsed)
       },
       settle(rowId, key) {
         const k = cellKey(rowId, key)
         if (tracker.get(k)?.kind === "pending") tracker.set(k, undefined)
+      },
+      settlePrior(rowId, key) {
+        const k = cellKey(rowId, key)
+        const now = tracker.get(k)
+        if (now?.kind === "editing" && now.prior?.kind === "pending") tracker.set(k, { ...now, prior: undefined })
       },
     }
     return controller
@@ -1031,6 +1142,27 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   useLayoutEffect(() => {
     edits?.reconcileColumns(visibleEditColumns.current)
   }, [edits, resolved])
+  // A row that a filter or removal takes out of the view takes its open editor
+  // with it; the editor cannot then grab focus back when the row returns, and focus
+  // its unmount dropped on body comes home to the grid — only then: a feed commit
+  // that closes a never-focused editor moves nothing.
+  useLayoutEffect(() => {
+    if (!edits) return
+    // Read-and-clear up front: the flag answers for this commit's unmount only,
+    // never for a Tab chain or scroll-out from some earlier one.
+    const fell = edits.editorFocusFell.current
+    edits.editorFocusFell.current = false
+    const k = edits.tracker.editing()
+    if (k === null) return
+    const rowId = edits.rowOf(k)
+    if (rowId !== undefined && !indexOf.has(rowId)) {
+      const covered = edits.tracker.get(k)
+      edits.forget(k)
+      edits.tracker.set(k, covered?.kind === "editing" ? covered.prior : undefined)
+      const doc = rootRef.current?.ownerDocument
+      if (fell && doc && doc.activeElement === doc.body) rootRef.current?.focus({ preventScroll: true })
+    }
+  }, [edits, indexOf])
   const virtualizer = useVirtualizer({
     count: ids.length,
     getScrollElement: () => scrollRef.current,
@@ -1038,6 +1170,14 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     overscan,
     getItemKey: (i) => ids[i]!,
     initialRect,
+    // The sticky header sits in normal flow above the rows, so row i really starts at
+    // (i+1) x rowHeight inside the scroller: scrollMargin tells the virtualizer so, and
+    // the paddings keep an aligned row clear of the sticky header above and the sticky
+    // footer below. Rows keep rendering at v.start - scrollMargin inside the rowgroup,
+    // which itself sits after the header, so nothing moves visually.
+    scrollMargin: rowHeight,
+    scrollPaddingStart: rowHeight,
+    scrollPaddingEnd: footer ? rowHeight : 0,
   })
   const items = virtualizer.getVirtualItems()
   const uid = useId()
@@ -1055,25 +1195,127 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     if (followTail && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [followTail])
 
-  // Rows arriving: highlight, pin the viewport or follow the tail, announce. Rows leaving: forget their flashes.
-  const entered = useRef(new Set<RowId>()).current
+  // Arrival marks, in the insertion phase: all insertion effects for a commit run
+  // before any layout effect, so a row mounting in the commit of its arrival finds
+  // its mark — a mount-only layout effect in the row checks after this has written.
+  // A mark parked by a reorder hold carries that hold's deadline, captured at
+  // arrival: its window starts when the hold lapses, however late the release is
+  // observed, and no later hold can touch it. The grid's own touches extend the
+  // deadlines of marks still parked, synchronously, where an extension cannot be
+  // mistaken for a new hold; extending a supplied view directly leaves them, so
+  // that extension shortens the remainder rather than restarting it.
+  const entered = useRef(new Map<RowId, EnterMark>()).current
+  // After a touch extends the hold, move still-parked marks to the new deadline.
+  // Only unexpired marks move: one whose hold already lapsed belongs to a finished
+  // hold, and the touch that follows starts a new one that must not revive it.
+  const refreshParkedMarks = () => {
+    const deadline = view.isHeld() ? (view.holdExpiresAt?.() ?? null) : null
+    if (deadline === null) return
+    const now = Date.now()
+    for (const [id, mark] of entered) if (mark.until !== null && mark.until > now && mark.until < deadline) entered.set(id, { at: mark.at, until: deadline })
+    scheduleReleaseSweep()
+  }
+  // A release that reorders nothing publishes nothing, so no commit observes it:
+  // the deadline timer plays those flashes. Rendered commits sweep synchronously
+  // and the timer re-arms for whatever is still parked.
+  const sweepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const highlightRef = useRef(rowEnter.highlight)
+  useInsertionEffect(() => { highlightRef.current = rowEnter.highlight }, [rowEnter.highlight])
+  const sweepDueMarks = useCallback(() => {
+    // The ref, not the closure: a timer armed before highlighting turned off must
+    // not flash on a stale true while the stand-down effect is still queued.
+    if (!highlightRef.current || !scrollRef.current) return
+    const now = Date.now()
+    let due: Map<RowId, number> | null = null
+    for (const [id, mark] of entered) {
+      if (mark.until !== null && now >= mark.until) {
+        const elapsed = now - enterStart(mark, now)
+        if (elapsed < ENTER_WINDOW_MS) (due ??= new Map()).set(id, elapsed)
+        else entered.delete(id)
+      }
+    }
+    if (due) {
+      for (const el of scrollRef.current.querySelectorAll<HTMLElement>("[data-row-id]")) {
+        const id = el.dataset.rowId
+        const elapsed = id !== undefined ? due.get(id) : undefined
+        // A nested grid's rows can share ids with this one: the DOM id says whose row this is.
+        if (id !== undefined && elapsed !== undefined && el.id === `${uid}-${id}`) {
+          entered.delete(id)
+          playFlash(el, "flat", { windowMs: ENTER_WINDOW_MS, variant: "fill", elapsed })
+        }
+      }
+    }
+  }, [entered, uid])
+  const scheduleReleaseSweep = useCallback(() => {
+    if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current)
+    sweepTimerRef.current = null
+    const now = Date.now()
+    let next = Infinity
+    for (const [, mark] of entered) if (mark.until !== null && mark.until > now) next = Math.min(next, mark.until)
+    if (next === Infinity) return
+    sweepTimerRef.current = setTimeout(() => {
+      sweepTimerRef.current = null
+      sweepDueMarks()
+      scheduleReleaseSweep()
+    }, Math.min(next - now, 2 ** 31 - 1))
+  }, [entered, sweepDueMarks])
+  useEffect(() => () => { if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current) }, [])
+  useEffect(() => {
+    if (rowEnter.highlight) return
+    // Highlighting turned off: an armed timer would fire its old closure and
+    // flash anyway, and unobserved marks would linger. Stand both down.
+    if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current)
+    sweepTimerRef.current = null
+    entered.clear()
+  }, [rowEnter.highlight, entered])
   const prevIdsRef = useRef<readonly RowId[]>(ids)
+  const markIdsRef = useRef<readonly RowId[]>(ids)
   const newSinceAnnounce = useRef(0)
-  useLayoutEffect(() => {
-    const prev = prevIdsRef.current
+  // One diff per commit: the insertion effect computes it and the layout effect
+  // consumes it, so an order change builds two id sets, not four.
+  const diffRef = useRef<{ prev: readonly RowId[]; arrived: RowId[]; departed: RowId[] } | null>(null)
+  useInsertionEffect(() => {
+    const prev = markIdsRef.current
     if (prev === ids) return
+    markIdsRef.current = ids
     const prevSet = new Set(prev)
     const nowSet = new Set(ids)
     const arrived: RowId[] = []
     for (const id of ids) if (!prevSet.has(id)) arrived.push(id)
-    let departed = 0
-    for (const id of prev) {
-      if (!nowSet.has(id)) {
-        departed++
-        memory.forget(`${id}\u0000`)
-      }
+    const departed: RowId[] = []
+    for (const id of prev) if (!nowSet.has(id)) departed.push(id)
+    diffRef.current = { prev, arrived, departed }
+    if (!rowEnter.highlight) return
+    const at = Date.now()
+    const until = view.isHeld() ? (view.holdExpiresAt?.() ?? null) : null
+    for (const id of arrived) entered.set(id, { at, until })
+    for (const [id, mark] of entered) {
+      if (!nowSet.has(id)) entered.delete(id)
+      else if (at - enterStart(mark, at) >= ENTER_WINDOW_MS) entered.delete(id)
     }
-    if ((arrived.length || departed) && rowEnter.pinViewport && scrollRef.current) {
+    if (until !== null) scheduleReleaseSweep()
+  }, [ids, rowEnter.highlight, entered, view])
+
+  // The scroll work stays in the layout phase, where refs belong to this commit:
+  // pin the viewport, follow the tail, count arrivals, forget departed flashes.
+  useLayoutEffect(() => {
+    const prev = prevIdsRef.current
+    if (prev === ids) return
+    // The insertion effect stashed this commit's diff; a StrictMode replay reaches
+    // the early return above, so a stale stash is never consumed twice.
+    const stash = diffRef.current
+    const fresh = stash !== null && stash.prev === prev
+    const arrived = fresh ? stash.arrived : []
+    const departed = fresh ? stash.departed : []
+    if (!fresh) {
+      const prevSet = new Set(prev)
+      const nowSet = new Set(ids)
+      for (const id of ids) if (!prevSet.has(id)) (arrived as RowId[]).push(id)
+      for (const id of prev) if (!nowSet.has(id)) (departed as RowId[]).push(id)
+    }
+    diffRef.current = null
+    for (const id of departed) memory.forget(`${id}\u0000`)
+    if ((arrived.length || departed.length) && rowEnter.pinViewport && scrollRef.current) {
       const el = scrollRef.current
       const firstIndex = Math.floor(el.scrollTop / rowHeight)
       const firstId = prev[firstIndex]
@@ -1081,10 +1323,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       if (nextIndex !== undefined && nextIndex !== firstIndex) el.scrollTop += (nextIndex - firstIndex) * rowHeight
     }
     if (arrived.length && followTail && following && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    if (arrived.length && rowEnter.highlight) for (const id of arrived) entered.add(id)
     newSinceAnnounce.current += arrived.length
     prevIdsRef.current = ids
-  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, rowEnter.highlight, followTail, following, entered, memory])
+  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, followTail, following, memory])
 
   const stopFollowing = () => {
     if (!followTail || !following) return
@@ -1194,7 +1435,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const hideColumn = useCallback((key: string) => updateColumns((s) => ({ ...s, hidden: [...new Set([...s.hidden, key])] })), [updateColumns])
   const resetColumns = useCallback(() => setColumnState(baseState), [baseState, setColumnState])
 
-  const visibleCount = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? initialRect?.height ?? rowHeight * 10) / rowHeight))
+  // The sticky header and footer each cover one row of the viewport.
+  const visibleCount = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? initialRect?.height ?? rowHeight * 10) / rowHeight) - 1 - (footer ? 1 : 0))
 
   // The focused cell's column when it can be edited now, else undefined.
   const editableFocus = () => {
@@ -1210,14 +1452,19 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     // The editor owns its keys; what it lets through (a modifier-held arrow) is for the listeners above the grid.
     if (pathMatches(e.currentTarget, path, element => element.hasAttribute("data-cell-editor"))) return
     view.touch()
+    refreshParkedMarks()
     stopFollowing()
     // Focused controls own their keys; application handlers can also claim a grid key in capture.
     if (e.defaultPrevented || e.target !== e.currentTarget) return
     const fi = focusedRowId !== null ? (indexOf.get(focusedRowId) ?? -1) : -1
     const ci = focusedColKey !== null ? resolved.findIndex((c) => c.key === focusedColKey) : -1
     const mod = e.metaKey || e.ctrlKey
+    // Commands that act on the focused row require it to be in the current view, the
+    // same bar aria-activedescendant holds: a row a filter or removal took out is not
+    // silently activated, edited, selected, or menued.
+    const focusedInView = fi >= 0
     // Typing on an editable cell opens its editor with the character typed.
-    if (e.key.length === 1 && e.key !== " " && !mod && !e.altKey) {
+    if (focusedInView && e.key.length === 1 && e.key !== " " && !mod && !e.altKey) {
       const col = editableFocus()
       if (col && !col.edit.toggle) {
         e.preventDefault()
@@ -1265,6 +1512,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       }
       case " ": {
         e.preventDefault()
+        if (!focusedInView) return
         const col = editableFocus()
         if (col?.edit.toggle) {
           const row = store.getRow(focusedRowId!)!
@@ -1276,6 +1524,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       }
       case "Enter":
       case "F2": {
+        if (!focusedInView) return
         const col = editableFocus()
         if (col) {
           e.preventDefault()
@@ -1292,7 +1541,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         return
       }
       case "Escape":
-        setSelection(EMPTY_SET)
+        if (selectionMode !== "none" && selection.size) setSelection(EMPTY_SET)
         return
       case "a":
       case "A":
@@ -1368,6 +1617,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const onPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
     if (!gridTarget(rootRef.current, e.target, e.nativeEvent.composedPath())) return
     view.touch()
+    refreshParkedMarks()
     stopFollowing()
   }
 
@@ -1476,7 +1726,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
                 lefts={lefts}
                 width={totalWidth}
                 height={rowHeight}
-                start={v.start}
+                start={v.start - rowHeight}
                 selected={selection.has(id)}
                 focused={focusedRowId === id}
                 focusedColKey={focusedColKey}

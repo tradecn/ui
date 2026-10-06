@@ -73,7 +73,7 @@ export const DEFAULT_AUDIT_TRAIL_LABELS: AuditTrailLabels = {
 let clockFormat: Intl.DateTimeFormat | null = null
 const localTime = (ms: number) => {
   clockFormat ??= new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
-  return `${clockFormat.format(ms)}.${String(ms % 1000).padStart(3, "0")}`
+  return `${clockFormat.format(ms)}.${String(Math.floor(ms % 1000)).padStart(3, "0")}`
 }
 
 const fill = (template: string, values: Record<string, string>) => template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "")
