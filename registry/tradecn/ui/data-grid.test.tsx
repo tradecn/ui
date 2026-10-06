@@ -552,6 +552,30 @@ describe("certification pins", () => {
     }
   })
 
+  it("flashes an on-screen arrival when a release publishes nothing", () => {
+    // Store order: the newcomer lands in its final place, the release reorders
+    // nothing, and no commit observes it. The deadline timer plays the flash.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(3, store)
+      render(<DataGrid store={store} columns={columns} label="Orders" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "n", sym: "N", px: 1, qty: 1 }] })
+      })
+      const row = document.querySelector('[data-row-id="n"]') as HTMLElement
+      expect(row).not.toBeNull()
+      expect(row.dataset.direction).toBeUndefined()
+      act(() => { vi.advanceTimersByTime(750) })
+      expect(row.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("keeps a parked overscan row's flash for the release", () => {
     // With fewer rows than the rendered range, a parked arrival mounts immediately.
     // Its window still opens at the release: nothing plays off the arrival commit,

@@ -1196,7 +1196,48 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     if (deadline === null) return
     const now = Date.now()
     for (const [id, mark] of entered) if (mark.until !== null && mark.until >= now && mark.until < deadline) entered.set(id, { at: mark.at, until: deadline })
+    scheduleReleaseSweep()
   }
+  // A release that reorders nothing publishes nothing, so no commit observes it:
+  // the deadline timer plays those flashes. Rendered commits sweep synchronously
+  // and the timer re-arms for whatever is still parked.
+  const sweepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sweepDueMarks = useCallback(() => {
+    if (!rowEnter.highlight || !scrollRef.current) return
+    const now = Date.now()
+    let due: Map<RowId, number> | null = null
+    for (const [id, mark] of entered) {
+      if (mark.until !== null && now >= mark.until) {
+        const elapsed = now - enterStart(mark, now)
+        if (elapsed < ENTER_WINDOW_MS) (due ??= new Map()).set(id, elapsed)
+        else entered.delete(id)
+      }
+    }
+    if (due) {
+      for (const el of scrollRef.current.querySelectorAll<HTMLElement>("[data-row-id]")) {
+        const id = el.dataset.rowId
+        const elapsed = id !== undefined ? due.get(id) : undefined
+        if (id !== undefined && elapsed !== undefined) {
+          entered.delete(id)
+          playFlash(el, "flat", { windowMs: ENTER_WINDOW_MS, variant: "fill", elapsed })
+        }
+      }
+    }
+  }, [rowEnter.highlight, entered])
+  const scheduleReleaseSweep = useCallback(() => {
+    if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current)
+    sweepTimerRef.current = null
+    const now = Date.now()
+    let next = Infinity
+    for (const [, mark] of entered) if (mark.until !== null && mark.until > now) next = Math.min(next, mark.until)
+    if (next === Infinity) return
+    sweepTimerRef.current = setTimeout(() => {
+      sweepTimerRef.current = null
+      sweepDueMarks()
+      scheduleReleaseSweep()
+    }, next - now)
+  }, [entered, sweepDueMarks])
+  useEffect(() => () => { if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current) }, [])
   const prevIdsRef = useRef<readonly RowId[]>(ids)
   const markIdsRef = useRef<readonly RowId[]>(ids)
   const newSinceAnnounce = useRef(0)
@@ -1214,6 +1255,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       if (!nowSet.has(id)) entered.delete(id)
       else if (at - enterStart(mark, at) >= ENTER_WINDOW_MS) entered.delete(id)
     }
+    if (until !== null) scheduleReleaseSweep()
   }, [ids, rowEnter.highlight, entered, view])
 
   // The scroll work stays in the layout phase, where refs belong to this commit:
@@ -1245,29 +1287,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     // The release sweep: a mark whose hold has lapsed may belong to a row that
     // mounted while parked and so still waits. Play it on the mounted element now
     // that this commit's DOM is in place; rows not mounted keep their marks for
-    // the mount check. Consumed marks make the StrictMode replay a no-op.
-    if (rowEnter.highlight && scrollRef.current) {
-      const now = Date.now()
-      let sweep: Map<RowId, number> | null = null
-      for (const [id, mark] of entered) {
-        if (mark.until !== null && now >= mark.until) {
-          const elapsed = now - enterStart(mark, now)
-          if (elapsed < ENTER_WINDOW_MS) (sweep ??= new Map()).set(id, elapsed)
-          else entered.delete(id)
-        }
-      }
-      if (sweep) {
-        for (const el of scrollRef.current.querySelectorAll<HTMLElement>("[data-row-id]")) {
-          const id = el.dataset.rowId
-          const elapsed = id !== undefined ? sweep.get(id) : undefined
-          if (id !== undefined && elapsed !== undefined) {
-            entered.delete(id)
-            playFlash(el, "flat", { windowMs: ENTER_WINDOW_MS, variant: "fill", elapsed })
-          }
-        }
-      }
-    }
-  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, rowEnter.highlight, followTail, following, memory, entered])
+    // the mount check. Consumed marks make the StrictMode replay a no-op, and the
+    // deadline timer re-arms for releases no commit will observe.
+    sweepDueMarks()
+    scheduleReleaseSweep()
+  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, followTail, following, memory, sweepDueMarks, scheduleReleaseSweep])
 
   const stopFollowing = () => {
     if (!followTail || !following) return
