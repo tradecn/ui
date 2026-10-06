@@ -575,13 +575,21 @@ With `onRemove`, grid deletion keys still work without visible removal parts and
 
 After using a control, press Shift+Tab until the grid itself has focus, or click a cell without a control, to resume grid commands. Use `WatchlistRemoveButton`, `WatchlistRemoveMenuItem` or `useWatchlist().remove` for removal controls elsewhere in your layout.
 
-The root adds no row subscriptions. Form drafts remain local, and stable grid inputs preserve per-row updates. Keep shared recipes, columns and formatters stable where they feed memoized rows — and `getRowProps` too: v1 froze an inline one behind a never-changing wrapper, so it cost nothing and its changes never reached mounted rows; the wrapper now follows your function, so a new decoration shows at once and an unmemoized inline function re-renders rows on every parent render. Positions and ParameterGrid change the same way, ParameterGrid's `onEdit` included.
+The root adds no row subscriptions. Form drafts remain local, and stable grid inputs preserve per-row updates. Keep shared recipes, columns and formatters stable where they feed memoized rows — and `getRowProps` too: v1 hid an inline one behind a never-changing wrapper, so it cost nothing, and a new decoration reached a mounted row only when that row next re-rendered for its own reasons; the wrapper now follows your function, so a new decoration shows at once and an unmemoized inline function re-renders rows on every parent render.
 
 Portaled menu keys no longer change DataGrid selection, navigation or row activation. In Radix, ArrowDown inside a removal menu previously moved the underlying selection and could change the row being removed. Menu navigation now keeps its original target.
 
 A successful add-form submission now clears both its draft and invalid state. A previously refused draft can succeed without another edit when validation changes or its symbol arrives in the store.
 
 Menu renderers now use current props when enabled or replaced, including while a menu is open. The renderer is not passed to memoized rows.
+
+## Positions
+
+`getRowProps` and `renderContextMenu` follow the current render instead of a ref published one render behind: memoize `getRowProps` or every parent render re-renders every row, and a decoration change reaches mounted rows at once.
+
+## ParameterGrid
+
+The same `getRowProps` change as Positions, and `onEdit` passes straight to the grid, which reads it current on every commit: a commit from a mount-time layout effect lands in this render's handler, not the last one's.
 
 ## Blotter
 

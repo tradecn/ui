@@ -1,9 +1,14 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { useLayoutEffect } from "react"
+import { useLayoutEffect, useState } from "react"
+import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { editProblem, type ColumnDef, type EditChange } from "@/registry/tradecn/ui/data-grid"
 import { DEFAULT_PARAMETER_GRID_LABELS, ParameterGrid, allowsAction, parameterColumns, parameterEdit, type ParameterDef, type ParameterRow } from "@/registry/tradecn/ui/parameter-grid"
+
+// Module-level, as the docs say to memoize: the counting test proves them free.
+const moduleEdit = () => undefined
+const moduleRowProps = () => undefined
 
 interface Sheet extends ParameterRow {
   skew: number | null
@@ -52,6 +57,53 @@ function setup(onEdit: (change: EditChange<Sheet>) => void | Promise<unknown> = 
 }
 
 describe("parameterColumns and parameterEdit", () => {
+  it("does not re-render rows when the parent re-renders with a memoized getRowProps", async () => {
+    const user = userEvent.setup()
+    let cellRenders = 0
+    const store = createRowStore<Sheet>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: ROWS, meta: { producedAt: 1_700_000_200_000 } })
+    const probe: ColumnDef<Sheet>[] = [
+      { key: "name", header: "Parameter", width: 160, accessor: (r) => r.name },
+      { key: "probe", header: "Probe", width: 40, accessor: () => 0, cell: () => ((cellRenders += 1), (<i>p</i>)) },
+    ]
+    function Parent() {
+      const [n, setN] = useState(0)
+      return (
+        <>
+          <button onClick={() => setN(n + 1)}>parent {n}</button>
+          <ParameterGrid store={store} parameters={PARAMETERS} columns={probe} onEdit={moduleEdit} initialRect={RECT} time={(ms) => `t${ms}`} getRowProps={moduleRowProps} />
+        </>
+      )
+    }
+    render(<Parent />)
+    const before = cellRenders
+    expect(before).toBeGreaterThan(0)
+    await user.click(screen.getByRole("button", { name: /parent/ }))
+    expect(cellRenders).toBe(before)
+  })
+
+  it("withdrawing the action while pending holds one request on every path; a disabled checkbox alone does not", () => {
+    // The docs' one-in-flight recipe, both halves: the grid's Space still sends
+    // while the cell is pending — disabling the checkbox blocks only the pointer —
+    // and withdrawing the permission refuses keyboard and pointer alike.
+    const onEdit = vi.fn(() => new Promise(() => {}))
+    const { store, grid } = setup(onEdit)
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: " " })
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    // Still pending, permission still granted: the keyboard path sends again.
+    fireEvent.keyDown(grid, { key: " " })
+    expect(onEdit).toHaveBeenCalledTimes(2)
+    // The server demo's mechanism: withdraw the action while a reply is pending.
+    act(() => {
+      store.applyDeltas({ patch: [{ id: "zn", fields: { allowedActions: ["edit"] } }] })
+    })
+    fireEvent.keyDown(grid, { key: " " })
+    expect(onEdit).toHaveBeenCalledTimes(2)
+  })
+
   it("hands the grid the current onEdit and getRowProps, not the first render's", () => {
     const first = vi.fn()
     const second = vi.fn()

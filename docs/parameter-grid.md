@@ -74,7 +74,6 @@ Uses the data grid's `parameters` preset: 24 px rows, single selection, ring fla
 | `onEdit` | `(change: EditChange<T>) => void \| Promise<unknown>` | Required | Send a value or enable request to the server. |
 | `columns` | `ColumnDef<T>[]` | `parameterColumns(options)` | Replace the generated column list. |
 | `label` | `string` | `"Parameters"` | Accessible name for the grid. |
-| `className` | `string` | None | Classes on the outer `tradecn-parameter-grid` container, not the grid. |
 | `labels` | `Partial<ParameterGridLabels>` | `DEFAULT_PARAMETER_GRID_LABELS` | Override the labels listed below. |
 | `time` | `(ms: number) => string` | Local 24-hour `HH:MM:SS` | Format updated and as-of times. |
 | `changedSince` | `number \| null` | `null` | Mark rows updated at or after this epoch time in milliseconds. |
@@ -82,7 +81,7 @@ Uses the data grid's `parameters` preset: 24 px rows, single selection, ring fla
 | `editAction` | `string` | `"edit"` | Permission id for parameter edits. |
 | `asOf` | `boolean` | `true` | Show the as-of line above the grid. |
 | `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Decorate rows; a supplied `aria-description` takes precedence over the changed label. Memoize it: the wrapper follows your function, so a new one re-renders every row and a memoized one is free. |
-| `className` | `string` | None | Additional classes on the outer wrapper. |
+| `className` | `string` | None | Classes on the outer `tradecn-parameter-grid` container, not the grid. |
 
 `parameterColumns(options)` returns `ColumnDef<T>[]` to add, drop, or reorder in your own list. Its `ParameterColumnOptions<T>` accepts `parameters`, `labels`, `time`, `changedSince`, `toggleAction`, and `editAction` with the defaults above. A supplied `columns` list replaces the generated columns and their formatting, permissions, and controls.
 
@@ -103,7 +102,7 @@ Extend `ParameterRow` with the fields your accessors read:
 
 ### The sheet is the server's
 
-The grid reads your store and never writes it. A valid commit calls `onEdit` with `{ rowId, key, value, previous, row }`, where `previous` is the current accessor value and `row` is the current store row. Committing that same value sends nothing. Return the request's promise from `onEdit` so a rejection reaches the cell instead of being lost to a store that never catches up. Settlement still matches by value, so two in-flight requests for the same value can settle each other: keep one request in flight per cell, as the enable checkbox does by staying disabled while pending.
+The grid reads your store and never writes it. A valid commit calls `onEdit` with `{ rowId, key, value, previous, row }`, where `previous` is the current accessor value and `row` is the current store row. Committing that same value sends nothing. Return the request's promise from `onEdit` so a rejection reaches the cell instead of being lost to a store that never catches up. Settlement still matches by value, so two in-flight requests for the same value can settle each other: keep one request in flight per cell by withdrawing the action from `allowedActions` while a reply is pending, as the server demo does — that holds every path, where the pending checkbox's disabled state only blocks the pointer and the grid's Space, Enter, and F2 still send.
 
 A parameter cell shows the committed text muted and italic while pending. Pending clears when the store's accessor value matches the committed value (`Object.is`), or when the returned promise resolves. Resolution displays the current store value, which may still be the old value. Returning nothing leaves the cell pending until the store matches.
 

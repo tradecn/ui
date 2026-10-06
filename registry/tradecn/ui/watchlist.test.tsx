@@ -41,6 +41,9 @@ const ROWS: WatchlistRow[] = [
   { symbol: "CL", last: 78.1, change: 0, changePct: 0, volume: null },
 ]
 
+// Module-level, as the docs say to memoize: the counting test proves it free.
+const moduleRowProps = (row: WatchlistRow) => (row.symbol === "ZN" ? { "data-rule": "steady" } : undefined)
+
 function seeded(): RowStore<WatchlistRow> {
   const store = createRowStore<WatchlistRow>({ getRowId: (r) => r.symbol })
   store.applyDeltas({ upsert: ROWS })
@@ -262,7 +265,7 @@ describe("Watchlist", () => {
       return (
         <>
           <button onClick={() => setN(n + 1)}>parent {n}</button>
-          <Harness store={store} columns={columns} onAdd={() => {}} onRemove={() => {}} renderContextMenu={() => null} />
+          <Harness store={store} columns={columns} onAdd={() => {}} onRemove={() => {}} renderContextMenu={() => null} getRowProps={moduleRowProps} />
         </>
       )
     }

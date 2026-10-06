@@ -67,12 +67,11 @@ The final state stays visible until Restore book replaces the original rows. Sel
 | `riskHeader` | `string` | `"Risk"` | Name the default risk column, such as DV01 or Delta. |
 | `totals` | `false \| Record<string, (rows: T[]) => string>` | `positionsTotals(options)` | Replace the footer values by column key, or hide the footer. |
 | `label` | `string` | `"Positions"` | Accessible name of the grid. |
-| `className` | `string` | None | Classes on the outer `tradecn-positions` container, not the grid. |
 | `selectionMode` | `"none" \| "single" \| "multi"` | `"single"` | Choose selection behavior. |
 | `selectionColumn` | `boolean` | `false` | Show checkboxes when selection is `"multi"`. |
 | `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Menu items for the selection or targeted row. |
 | `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | Side decorations | Add row classes or override the side's state and accessible description. Memoize it: the wrapper follows your function, so a new one re-renders every row and a memoized one is free. |
-| `className` | `string` | None | Classes on the outer `Positions` container. |
+| `className` | `string` | None | Classes on the outer `tradecn-positions` container, not the grid. |
 
 Sorting, filtering, a supplied `view`, column state, row callbacks, and keyboard behavior follow [`DataGrid`](data-grid.md). `preset` and `footer` are excluded; use `totals` for the footer. `PositionsColumnOptions<T>` is the shared options type for `price`, `pnl`, `risk`, and `riskHeader`.
 

@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { useState } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ContextMenuItem } from "@/components/ui/context-menu"
+import type { ColumnDef } from "@/registry/tradecn/ui/data-grid"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { Positions, formatPosition, positionSide, positionsColumns, positionsTotals, withSign, type PositionRow } from "@/registry/tradecn/ui/positions"
 
@@ -11,6 +14,9 @@ const ROWS: PositionRow[] = [
 ]
 
 const RECT = { width: 900, height: 200 }
+
+// Module-level, as the docs say to memoize: the counting test proves it free.
+const moduleRowProps = (row: PositionRow) => (row.id === "zn" ? { "data-rule": "steady" } : undefined)
 
 beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, writable: true, value: vi.fn(() => ({ cancel: vi.fn(), currentTime: 0, onfinish: null })) })
@@ -67,6 +73,28 @@ describe("the position's words", () => {
 })
 
 describe("Positions", () => {
+  it("does not re-render rows when the parent re-renders with a memoized getRowProps", async () => {
+    const user = userEvent.setup()
+    let cellRenders = 0
+    const probe: ColumnDef<PositionRow>[] = [...positionsColumns<PositionRow>({}), { key: "probe", header: "Probe", width: 40, accessor: () => 0, cell: () => ((cellRenders += 1), (<i>p</i>)) }]
+    const store = createRowStore<PositionRow>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: ROWS })
+    function Parent() {
+      const [n, setN] = useState(0)
+      return (
+        <>
+          <button onClick={() => setN(n + 1)}>parent {n}</button>
+          <Positions store={store} initialRect={RECT} columns={probe} getRowProps={moduleRowProps} />
+        </>
+      )
+    }
+    render(<Parent />)
+    const before = cellRenders
+    expect(before).toBeGreaterThan(0)
+    await user.click(screen.getByRole("button", { name: /parent/ }))
+    expect(cellRenders).toBe(before)
+  })
+
   it("a new getRowProps reaches rows already on screen, and an open menu follows the renderer in the same render", async () => {
     const store = createRowStore<PositionRow>({ getRowId: (r) => r.id })
     store.applyDeltas({ upsert: ROWS })
