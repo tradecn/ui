@@ -479,7 +479,7 @@ describe("DataGrid", () => {
 })
 
 describe("certification pins", () => {
-  it("flashes a row that arrives inside the view in its own commit, and not a returning one", () => {
+  it("flashes an arrival in its own commit, and a departed row's return as a fresh arrival", () => {
     // The grid marks arrivals in an insertion effect, which runs before any row's
     // layout effect: a row mounting in the commit of its arrival finds its mark.
     // StrictMode's replay masked the old ordering, so this render is deliberately bare.
@@ -491,8 +491,8 @@ describe("certification pins", () => {
     })
     const fresh = document.querySelector('[data-row-id="fresh"]') as HTMLElement
     expect(fresh.dataset.direction).toBe("flat")
-    // A row that arrives beyond the rendered range and departs unseen loses its mark:
-    // when it returns much later into view, it does not flash as new.
+    // A row that arrives beyond the rendered range and departs unseen loses its mark;
+    // what flashes on its return is the return's own fresh mark, not the old one.
     act(() => {
       store.applyDeltas({ upsert: Array.from({ length: 30 }, (_, i) => ({ id: `tail${i}`, sym: `T${i}`, px: 1, qty: 1 })) })
     })
@@ -547,6 +547,45 @@ describe("certification pins", () => {
       const staleRow = document.querySelector('[data-row-id="stale"]') as HTMLElement
       expect(staleRow).not.toBeNull()
       expect(staleRow.dataset.direction).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("sweeps only its own rows when a nested grid shares an id", () => {
+    // The release sweep finds rows by data-row-id under its scroller, which sees a
+    // nested grid's rows too: the DOM id decides whose row flashes.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const inner = createRowStore<Quote>({ getRowId: row => row.id })
+      inner.applyDeltas({ upsert: [{ id: "shared", sym: "INNER", px: 1, qty: 1 }] })
+      const outer = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, outer)
+      const innerCols: ColumnDef<Quote>[] = [{ key: "sym", header: "Sym", width: 80, accessor: row => row.sym }]
+      const cols: ColumnDef<Quote>[] = [
+        { key: "sym", header: "Sym", width: 80, accessor: row => row.sym },
+        { key: "book", header: "Book", width: 240, accessor: () => "", cell: ({ row }) => (row as Quote).id === "r0" ? <DataGrid store={inner} columns={innerCols} label="Inner" preset="option-chain" rowHeight={ROW_HEIGHT} initialRect={{ width: 200, height: 60 }} rowEnter={{ highlight: false }} /> : null },
+      ]
+      render(<DataGrid store={outer} columns={cols} label="Outer" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: true }} />)
+      const grid = screen.getAllByRole("grid")[0]!
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        outer.applyDeltas({ upsert: [{ id: "shared", sym: "OUTER", px: 999, qty: 1 }] })
+      })
+      // Parked at the tail, beyond the outer rendered range; the nested grid's
+      // "shared" row is mounted. The release must not flash the nested row.
+      act(() => { vi.advanceTimersByTime(750) })
+      const innerRow = document.querySelector('[data-row-id="shared"]') as HTMLElement
+      expect(innerRow.textContent).toContain("INNER")
+      expect(innerRow.dataset.direction).toBeUndefined()
+      // The outer row still owns its mark: scrolled to in time, it flashes.
+      const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+      scroller.scrollTop = 40 * ROW_HEIGHT
+      fireEvent.scroll(scroller)
+      const outerRow = Array.from(document.querySelectorAll<HTMLElement>('[data-row-id="shared"]')).find(el => el.textContent?.includes("OUTER"))
+      expect(outerRow).not.toBeUndefined()
+      expect(outerRow!.dataset.direction).toBe("flat")
     } finally {
       vi.useRealTimers()
     }
@@ -630,9 +669,12 @@ describe("certification pins", () => {
     const back = screen.getByRole("textbox") as HTMLInputElement
     expect(back.value).toBe("105.5")
     expect(document.activeElement).not.toBe(back)
-    // A fresh open of the already-mounted cell is a request for focus.
+    // A fresh open of the already-mounted cell is a request for focus, not a reset:
+    // the draft survives the reopen.
     fireEvent.keyDown(grid, { key: "F2" })
-    expect(document.activeElement).toBe(screen.getByRole("textbox"))
+    const reopened = screen.getByRole("textbox") as HTMLInputElement
+    expect(document.activeElement).toBe(reopened)
+    expect(reopened.value).toBe("105.5")
   })
 
   it("ages parked marks from arrival on a view without holdExpiresAt, and the forwarding wrapper keeps the release accounting", () => {

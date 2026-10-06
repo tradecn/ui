@@ -451,6 +451,7 @@ interface EditController {
   tracker: EditTracker
   reconcileColumns(keys: ReadonlySet<string>): void
   unmountEditor(key: string, input: HTMLInputElement): void
+  editorFocusFell: { current: boolean }
   markFocused(rowId: RowId, key: string): void
   rowOf(k: string): RowId | undefined
   forget(k: string): void
@@ -988,6 +989,13 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       }
       // A pending cell reopens on what it shows, the committed value, not on the value the store still holds.
       const now = tracker.get(k)
+      // Reopening the cell already being edited is a request for focus, not a reset:
+      // the draft, its problem, and what the editor covers all stay.
+      if (now?.kind === "editing" && typed === undefined) {
+        activeColumn = key
+        tracker.set(k, { ...now, selectAll: true, focused: false })
+        return
+      }
       const text = now?.kind === "pending" ? now.text : editText(col, col.accessor(row!), row!)
       activeColumn = key
       // The status this editor replaced comes back if it closes untouched: reopening a
@@ -1000,6 +1008,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     }
     const controller: EditController = {
       tracker,
+      editorFocusFell: { current: false },
       reconcileColumns(keys) {
         const active = tracker.editing()
         if (active !== null && activeColumn !== null && !keys.has(activeColumn)) {
@@ -1011,6 +1020,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       unmountEditor(key, input) {
         const doc = input.ownerDocument
         if (doc.activeElement !== input) return
+        controller.editorFocusFell.current = true
         const check = { key, unavailable: !visibleEditColumns.current.has(key) }
         editorFocusChecks.current.add(check)
         // Remember the removal commit even if the column returns before this focus check runs.
@@ -1130,9 +1140,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   useLayoutEffect(() => {
     edits?.reconcileColumns(visibleEditColumns.current)
   }, [edits, resolved])
-  // A row that a filter, re-sort, or removal takes out of the view takes its open
-  // editor with it; the editor cannot then grab focus back when the row returns, and
-  // focus the unmount dropped on body comes home to the grid.
+  // A row that a filter or removal takes out of the view takes its open editor
+  // with it; the editor cannot then grab focus back when the row returns, and focus
+  // its unmount dropped on body comes home to the grid — only then: a feed commit
+  // that closes a never-focused editor moves nothing.
   useLayoutEffect(() => {
     if (!edits) return
     const k = edits.tracker.editing()
@@ -1143,8 +1154,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       edits.forget(k)
       edits.tracker.set(k, covered?.kind === "editing" ? covered.prior : undefined)
       const doc = rootRef.current?.ownerDocument
-      if (doc && doc.activeElement === doc.body) rootRef.current?.focus({ preventScroll: true })
+      if (edits.editorFocusFell.current && doc && doc.activeElement === doc.body) rootRef.current?.focus({ preventScroll: true })
     }
+    edits.editorFocusFell.current = false
   }, [edits, indexOf])
   const virtualizer = useVirtualizer({
     count: ids.length,
@@ -1217,13 +1229,14 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       for (const el of scrollRef.current.querySelectorAll<HTMLElement>("[data-row-id]")) {
         const id = el.dataset.rowId
         const elapsed = id !== undefined ? due.get(id) : undefined
-        if (id !== undefined && elapsed !== undefined) {
+        // A nested grid's rows can share ids with this one: the DOM id says whose row this is.
+        if (id !== undefined && elapsed !== undefined && el.id === `${uid}-${id}`) {
           entered.delete(id)
           playFlash(el, "flat", { windowMs: ENTER_WINDOW_MS, variant: "fill", elapsed })
         }
       }
     }
-  }, [rowEnter.highlight, entered])
+  }, [rowEnter.highlight, entered, uid])
   const scheduleReleaseSweep = useCallback(() => {
     if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current)
     sweepTimerRef.current = null
@@ -1235,7 +1248,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       sweepTimerRef.current = null
       sweepDueMarks()
       scheduleReleaseSweep()
-    }, next - now)
+    }, Math.min(next - now, 2 ** 31 - 1))
   }, [entered, sweepDueMarks])
   useEffect(() => () => { if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current) }, [])
   const prevIdsRef = useRef<readonly RowId[]>(ids)
@@ -1284,14 +1297,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     if (arrived.length && followTail && following && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     newSinceAnnounce.current += arrived.length
     prevIdsRef.current = ids
-    // The release sweep: a mark whose hold has lapsed may belong to a row that
-    // mounted while parked and so still waits. Play it on the mounted element now
-    // that this commit's DOM is in place; rows not mounted keep their marks for
-    // the mount check. Consumed marks make the StrictMode replay a no-op, and the
-    // deadline timer re-arms for releases no commit will observe.
-    sweepDueMarks()
-    scheduleReleaseSweep()
-  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, followTail, following, memory, sweepDueMarks, scheduleReleaseSweep])
+
+  }, [ids, indexOf, rowHeight, rowEnter.pinViewport, followTail, following, memory])
 
   const stopFollowing = () => {
     if (!followTail || !following) return
@@ -1426,7 +1433,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const ci = focusedColKey !== null ? resolved.findIndex((c) => c.key === focusedColKey) : -1
     const mod = e.metaKey || e.ctrlKey
     // Commands that act on the focused row require it to be in the current view, the
-    // same bar aria-activedescendant holds: a row a filter or re-sort removed is not
+    // same bar aria-activedescendant holds: a row a filter or removal took out is not
     // silently activated, edited, selected, or menued.
     const focusedInView = fi >= 0
     // Typing on an editable cell opens its editor with the character typed.

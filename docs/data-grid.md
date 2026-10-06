@@ -262,7 +262,7 @@ A thrown error or rejection of a still-pending promise displays the store value 
 
 A custom `cell` receives `edit: { status, commit(value), open() }` when editing is enabled for its column. It sees `status` as absent or an object whose `kind` is `pending` or `rejected`. While a text editor is open, the grid renders its built-in editor instead of calling `cell`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text.
 
-For an available text-editable cell, `open()` opens and focuses the text editor. It does not select the row or change the grid's logical row or chosen column. To return grid navigation to that row after editing, control `focusedRowId` and update it in the action handler before calling `open()`. Column shortcuts still use the previously chosen column; choose a column with grid navigation or its header.
+For an available text-editable cell, `open()` opens and focuses the text editor. It does nothing for a row outside the view, and on the cell already being edited it keeps the draft and asks for focus again. It does not select the row or change the grid's logical row or chosen column. To return grid navigation to that row after editing, control `focusedRowId` and update it in the action handler before calling `open()`. Column shortcuts still use the previously chosen column; choose a column with grid navigation or its header.
 
 ### Identity
 
