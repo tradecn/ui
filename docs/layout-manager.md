@@ -147,7 +147,7 @@ Copy `DeskTab` from the [Workspace Usage example](workspace.md#usage) into an ap
 | `onTemplatesChange` | `(templates: LayoutTemplate[]) => void` | Required | Receives the whole list after an edit. |
 | `current` | `WorkspaceLayout \| null` | `null` | Layout captured by Save current. |
 | `onLoad` | `(layout: WorkspaceLayout, template: LayoutTemplate) => void` | Required | Requests a workspace load. |
-| `kinds` | `Iterable<string>` | - | Nonempty known kinds enable missing-kind warnings and confirmation. |
+| `kinds` | `Iterable<string>` | - | Nonempty known kinds enable missing-kind warnings and confirmation. Read on every render: pass an array or `Set`, not a one-shot iterator. |
 | `activeId` | `string \| null` | `null` | Marks a template as loaded. |
 | `now` | `() => number` | `Date.now` | Clock in milliseconds since the epoch. |
 | `labels` | `Partial<LayoutManagerLabels>` | `DEFAULT_LAYOUT_MANAGER_LABELS` | Label overrides shared with the parts and hooks. |
@@ -401,8 +401,8 @@ A successful import through `LayoutManagerImportContent` restores focus to its t
 
 The manager never calls the workspace API or writes storage. Stored/imported layouts pass through `parseWorkspaceLayout`, while a Load click forwards the supplied template as-is.
 
-The workspace's `api.load` parses again and returns `false` if parsing or dock restoration fails.
+The workspace's `api.load` parses again and returns `false` if parsing or dock restoration fails — and a failed restoration leaves the workspace empty, so an `onLoad` handler checks the result and reloads a known-good layout.
 
 ### Tokens
 
-Installation adds `stale` for the unknown-kinds badge when absent.
+Installation adds `stale` for the unknown-kinds badge when absent, with the font tokens and the hyperlegible remap.

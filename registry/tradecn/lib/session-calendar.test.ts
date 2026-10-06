@@ -21,6 +21,25 @@ const overnight = createSessionCalendar({
 
 const utc = (y: number, m: number, d: number, h = 0, min = 0) => Date.UTC(y, m - 1, d, h, min)
 
+describe("hour-24 posts", () => {
+  it("status agrees with nextTransition across a post that stretches two days past the open", () => {
+    // Monday opens 17:00, closes Tuesday 16:00, post runs to Wednesday 00:30
+    // (24:30 of the close day). The old one-day lookback lost the span at
+    // Wednesday 00:00 and called it closed while nextTransition still said post.
+    const stretched = createSessionCalendar({ zone: "UTC", sessions: [{ days: [1], open: "17:00", close: "16:00", post: "24:30" }] })
+    const mondayOpen = zonedInstant("2026-09-21", "17:00", "UTC")
+    const tuesdayEvening = zonedInstant("2026-09-22", "20:00", "UTC")
+    const wednesdaySmallHours = zonedInstant("2026-09-23", "00:10", "UTC")
+    const postEnds = zonedInstant("2026-09-23", "00:30", "UTC")
+    expect(stretched.status(mondayOpen)).toBe("open")
+    expect(stretched.status(tuesdayEvening)).toBe("post")
+    expect(stretched.status(wednesdaySmallHours)).toBe("post")
+    expect(stretched.status(postEnds)).toBe("closed")
+    const transition = stretched.nextTransition(tuesdayEvening)
+    expect(transition).toEqual({ at: postEnds, status: "closed" })
+  })
+})
+
 describe("the zone arithmetic", () => {
   it("reads an instant's date, weekday, and minutes in a zone", () => {
     // 2026-09-22T14:30Z is 10:30 on a Tuesday in New York.

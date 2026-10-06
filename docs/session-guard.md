@@ -206,7 +206,7 @@ A duplicate call resolves without waiting for the active request. Read `pending`
 | `fallbackFocusRef` | `RefObject<HTMLElement \| null>` | Required | Persistent, focusable application control to receive focus if native restoration leaves it on the body or closing dialog. |
 | `className` | `string` | - | Additional classes to apply to the dialog content. |
 
-Use the installed `DialogTitle` and `DialogDescription` to name and describe the dialog. Keep the fallback target mounted outside conditional content. A valid native return target takes precedence. The part owns final focus, so `finalFocus` and `onCloseAutoFocus` are reserved, along with root control props, `showCloseButton`, `forceMount` and `keepMounted`. Use `useSessionGuard` when replacing the whole dialog and its focus policy.
+Use the installed `DialogTitle` and `DialogDescription` to name and describe the dialog. Keep the fallback target mounted outside conditional content. A valid native return target takes precedence. The part owns final focus, so the focus-return and mount-control props are reserved whatever your base calls them: `onCloseAutoFocus` and `forceMount` on Radix, `finalFocus` and `keepMounted` on Base UI, along with root control props and `showCloseButton`. Use `useSessionGuard` when replacing the whole dialog and its focus policy.
 
 The modal blocks pointer interaction underneath. For events inside its `role="dialog"`, [`use-hotkeys`](use-hotkeys.md) considers only scopes declared inside that dialog. Surrounding drafts and stores stay mounted; authentication fields inside dialog content follow the installed primitive's normal close/unmount lifecycle.
 
@@ -254,4 +254,4 @@ The guard holds no token, reads no cookie, and does not refresh credentials or r
 
 ### Tokens
 
-The install adds `expiring` and `expiring-soft` if you do not have them, for the warning and the readout's warning phase.
+The install adds `expiring` and `expiring-soft` if you do not have them, for the warning and the readout's warning phase, with the font tokens and the hyperlegible remap.

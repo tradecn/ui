@@ -130,7 +130,7 @@ These exports use the same conversion rules as the calendar. Date strings are `Y
 
 `LocalTime` is `{ date: string, weekday: number, minutes: number }`. `minutes` counts whole minutes and omits seconds.
 
-`parseTime` trims whitespace and accepts one or two hour digits (`0`–`24`) and exactly two minute digits (`00`–`59`). For example, `"9:05"` returns `545`, `"24:00"` returns `1440`, and `"9.30"` returns `NaN`. It also accepts `"24:59"`; `zonedInstant` normalizes hour `24` into the following date.
+`parseTime` trims whitespace and accepts one or two hour digits (`0`–`24`) and exactly two minute digits (`00`–`59`). For example, `"9:05"` returns `545`, `"24:00"` returns `1440`, and `"9.30"` returns `NaN`. It also accepts `"24:59"`; `zonedInstant` normalizes hour `24` into the following date. Called directly with input the calendar would refuse, `zonedInstant` and `localTime` throw a `RangeError` rather than guessing.
 
 ### What it does not do
 

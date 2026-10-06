@@ -87,9 +87,10 @@ describe("toPanelState", () => {
     expect(toPanelState(null)).toEqual({})
     expect(toPanelState([1])).toEqual({})
     expect(toPanelState("x")).toEqual({})
-    const cyclic: Record<string, unknown> = {}
+    // One bad value drops alone: the cycle goes, its siblings stay.
+    const cyclic: Record<string, unknown> = { keep: 7 }
     cyclic.self = cyclic
-    expect(toPanelState(cyclic)).toEqual({})
+    expect(toPanelState(cyclic)).toEqual({ keep: 7 })
   })
 })
 

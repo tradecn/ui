@@ -207,8 +207,10 @@ export function createSessionCalendar(options: SessionCalendarOptions): FullSess
   }
 
   function around(now: number): Span[] {
+    // Two days back: a next-day close with an hour-24 post stretches a span to
+    // its opening date plus two, and status must agree with nextTransition there.
     const today = localTime(now, zone).date
-    return [...spansOpening(addDays(today, -1)), ...spansOpening(today)]
+    return [...spansOpening(addDays(today, -2)), ...spansOpening(addDays(today, -1)), ...spansOpening(today)]
   }
 
   function status(now: number): SessionStatus {

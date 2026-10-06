@@ -86,7 +86,7 @@ Declare a binding once for `panel:book`; the handler under the focused book answ
 
 ### The header is a drag handle
 
-Point your layout's handle selector at `[data-panel-handle]` on `PanelHeader`. The panel does not drag itself. `SymbolTag`, `LinkGroupDot`, and `PanelActions` stop `pointerdown`, `mousedown`, and `touchstart` from reaching the header. On `LinkGroupDot` and `PanelActions`, your own handler runs first, and a `preventDefault()` it adds lets the press through to the header's drag; `SymbolTag` exposes no press handlers. They do not stop `dragstart`; HTML drag and drop needs a separate handle beside these controls.
+Give every panel a `PanelTitle` or an `aria-label`: the region's name comes from that title, and without either its `aria-labelledby` points at nothing. Point your layout's handle selector at `[data-panel-handle]` on `PanelHeader`. The panel does not drag itself. `SymbolTag`, `LinkGroupDot`, and `PanelActions` stop `pointerdown`, `mousedown`, and `touchstart` from reaching React handlers on the header and listeners on `document` or `window`. A drag library that attaches native listeners to the header itself hears the press anyway — React handles events at its root, after the native pass — so give such a library its cancel or filter selector for these controls. On `LinkGroupDot` and `PanelActions`, your own handler runs first, and a `preventDefault()` it adds lets the press through to the header's drag; `SymbolTag` exposes no press handlers. They do not stop `dragstart`; HTML drag and drop needs a separate handle beside these controls.
 
 `PanelActions` aligns your buttons at the header's far end. Supply their icons; shadcn resolves the icon library from your project's `iconLibrary` setting.
 
@@ -115,7 +115,7 @@ External `value` changes show a 900 ms `panel-sync` ring, including changes from
 
 ### Link groups
 
-`useLinkGroup()` requires `LinkGroupProvider`; there is no shared module-level fallback on the server. It returns `{ group, symbol, setSymbol, setGroup, cycleGroup }`. A `LinkGroup` is `1 | 2 | 3 | 4 | null`, where `null` means unlinked.
+`useLinkGroup()` lives in `hooks/use-link-group` beside `usePopout`, with `createCallbackTransport` and `createLinkGroupStore` in `lib/link-group`. It throws outside a `LinkGroupProvider`, on the server as everywhere. It returns `{ group, symbol, setSymbol, setGroup, cycleGroup }`. A `LinkGroup` is `1 | 2 | 3 | 4 | null`, where `null` means unlinked.
 
 | Hook option | Type | Default | Purpose |
 |---|---|---|---|
@@ -208,7 +208,7 @@ Stylesheets and the body's class are copied on opening. Root attributes stay syn
 
 ### Tokens
 
-The install adds missing `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` tokens for borders, the sync ring, and group colors.
+The install adds missing `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` tokens for borders, the sync ring, and group colors, with the mono font token, the accessible pair, and the hyperlegible remap.
 
 ### What it does not do
 

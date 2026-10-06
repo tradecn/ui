@@ -110,6 +110,16 @@ describe("LayoutManager", () => {
     return { onTemplatesChange, onLoad, onExport, onReset, rerender, region: screen.getByRole("region", { name: "Layouts" }) }
   }
 
+  it("renders a template handed in with an out-of-range savedAt as never saved, without unmounting", () => {
+    // The parser already floors these at the Date range; a template passed
+    // directly must not let toISOString throw mid-render and take the manager down.
+    const hostile = [{ id: "t-x", name: "Hostile", layout: TWO, savedAt: Number.POSITIVE_INFINITY }]
+    render(<LayoutManager templates={hostile} onTemplatesChange={() => {}} onLoad={() => {}} current={TWO} kinds={["book", "chart"]} now={() => T}><LayoutManagerControls /></LayoutManager>)
+    const item = screen.getByRole("listitem")
+    expect(item.textContent).toContain("Hostile")
+    expect(item.querySelector("time")).toBeNull()
+  })
+
   it("saves the current layout under a typed name, says when the name is taken, and lists the templates with their panel counts", () => {
     const { onTemplatesChange, rerender, region } = setup()
     expect(region.dataset.slot).toBe("tradecn-layout-manager")

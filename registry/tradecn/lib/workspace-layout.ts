@@ -63,15 +63,20 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-/** The value as JSON would store it: functions and undefined are gone, and anything that cannot be stored is an empty state. */
+/** The value as JSON would store it, key by key: functions and undefined are gone, and a value JSON cannot walk — a cycle, say — drops alone, so one bad value never wipes the rest of the state. */
 export function toPanelState(value: unknown): WorkspacePanelState {
   if (!isObject(value)) return {}
-  try {
-    const stored: unknown = JSON.parse(JSON.stringify(value))
-    return isObject(stored) ? (stored as WorkspacePanelState) : {}
-  } catch {
-    return {}
+  const out: WorkspacePanelState = {}
+  for (const [key, entry] of Object.entries(value)) {
+    try {
+      const text = JSON.stringify(entry)
+      if (text === undefined) continue
+      out[key] = JSON.parse(text) as WorkspaceJson
+    } catch {
+      continue
+    }
   }
+  return out
 }
 
 function readBoundaries(value: unknown): WorkspacePersistenceBoundaries {

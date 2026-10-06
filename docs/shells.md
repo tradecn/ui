@@ -80,7 +80,7 @@ async function createWebview(id: string, url: string) {
 }
 ```
 
-For `adapter.open`, use `await WebviewWindow.getByLabel(id) ?? await createWebview(id, url)`. Adopt the initial `main` without navigating it again; its layout comes from the startup record. For a new window, use an app-relative entry such as `index.html?window=...&layout=...`, resolved through Tauri's configured development URL or bundled assets. Register its lifecycle handlers, apply bounds, then `await win.show()`. If setup fails after creation, remove the new window and its handlers before rejecting.
+For `adapter.open`, use `await WebviewWindow.getByLabel(id) ?? await createWebview(id, url)`. Adopt the initial `main` without navigating it again; its layout comes from the startup record. For a new window, use an app-relative entry such as `index.html?window=...&layout=...`, resolved through Tauri's configured development URL or bundled assets — and hand the same entry to the controller as `createWindowSet(adapter, { url })`, or `adapter.open` receives the default URL unchanged. Register its lifecycle handlers, apply bounds, then `await win.show()`. If setup fails after creation, remove the new window and its handlers before rejecting.
 
 Choose a geometry convention before saving. This Tauri example stores the outer position in physical pixels and **content size** in logical pixels. Convert only the content-size reading with the window's scale factor. Restore the physical position first, then the logical size on the destination monitor; this avoids interpreting a saved desktop coordinate using the starting monitor's scale. The [window APIs](https://v2.tauri.app/reference/javascript/api/namespacewindow/) and [DPI types](https://v2.tauri.app/reference/javascript/api/namespacedpi/) distinguish these units.
 
@@ -248,7 +248,13 @@ const stored = readWindowSet(prefs) ?? windowSetOf([{ id: "main", layoutId: "des
 const desk = normalizeDesk(stored)
 await lifecycle.registerInitialWindow("main")
 const windows = createWindowSet(lifecycle.adapter)
-await windows.restore(desk)
+try {
+  await windows.restore(desk)
+} catch (error) {
+  // restore stops at the first window that fails to open and does not roll back:
+  // report it and mount the main window regardless, or the desk stays blank.
+  reportError(error)
+}
 await mountMain(desk.windows.find((record) => record.id === "main")!)
 ```
 
@@ -269,7 +275,7 @@ try {
 }
 ```
 
-In Electron, handle [`before-quit`](https://www.electronjs.org/docs/latest/api/app#event-before-quit) with `event.preventDefault()` synchronously, then run this sequence under a reentry guard. The final host step can destroy approved windows and call `app.quit()` with the guard released for that final pass. Route the main window's `close` event through the same sequence. In Tauri, prevent the initial main close request and Rust [`RunEvent::ExitRequested`](https://docs.rs/tauri/latest/tauri/enum.RunEvent.html); the host resumes exit only after the owner's persistence acknowledgment. A quit hook cannot guarantee saving through crashes or forced OS termination, so also persist during normal use.
+In Electron, handle [`before-quit`](https://www.electronjs.org/docs/latest/api/app#event-before-quit) with `event.preventDefault()` synchronously, then run this sequence under a reentry guard. The final host step can destroy approved windows, set an approved flag, and call `app.quit()`; `before-quit` fires once more for that call, and while the flag is set the handler returns without `preventDefault()`. Route the main window's `close` event through the same sequence. In Tauri, prevent the initial main close request and Rust [`RunEvent::ExitRequested`](https://docs.rs/tauri/latest/tauri/enum.RunEvent.html); the host resumes exit only after the owner's persistence acknowledgment. A quit hook cannot guarantee saving through crashes or forced OS termination, so also persist during normal use.
 
 Window-set `boundaries` describe intended ownership; they do not filter fields. A preferences export selects whole slots. Marking the `windows` slot as `template` exports its saved `bounds` and `display` too. To share only window ids, layout ids, and the main flag, remove geometry from a copy before writing the template slot.
 
