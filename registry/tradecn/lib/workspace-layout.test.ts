@@ -118,6 +118,8 @@ describe("toPanelState", () => {
     expect(toPanelState({ secret: "x", toJSON: () => 5 })).toEqual({})
     // A toJSON that throws cannot be honored key by key: its raw fields stay hidden.
     expect(toPanelState({ secret: "x", toJSON(): never { throw new Error("x") } })).toEqual({})
+    // Even reading toJSON can throw; that yields nothing too, never a throw.
+    expect(toPanelState({ secret: "x", get toJSON(): never { throw new Error("x") } })).toEqual({})
   })
 })
 

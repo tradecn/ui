@@ -113,7 +113,7 @@ describe("LayoutManager", () => {
   it("renders a template handed in with an out-of-range savedAt as never saved, without unmounting", () => {
     // The parser already floors these at the Date range; a template passed
     // directly must not let toISOString throw mid-render and take the manager down.
-    // Infinity fails the finite check; 1e20 is finite and fails only the range.
+    // Both fail the range check: Infinity, and 1e20, which is finite.
     const hostile = [
       { id: "t-x", name: "Hostile", layout: TWO, savedAt: Number.POSITIVE_INFINITY },
       { id: "t-y", name: "Far future", layout: TWO, savedAt: 1e20 },

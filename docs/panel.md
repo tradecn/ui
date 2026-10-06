@@ -115,7 +115,7 @@ External `value` changes show a 900 ms `panel-sync` ring, including changes from
 
 ### Link groups
 
-`useLinkGroup()` lives in `hooks/use-link-group` and `usePopout` in `hooks/use-popout`, with `createCallbackTransport` and `createLinkGroupStore` in `lib/link-group`. It throws outside a `LinkGroupProvider`, on the server as everywhere. It returns `{ group, symbol, setSymbol, setGroup, cycleGroup }`. A `LinkGroup` is `1 | 2 | 3 | 4 | null`, where `null` means unlinked.
+`useLinkGroup()` lives in `hooks/use-link-group` and `usePopout` in `hooks/use-popout`, with `createCallbackTransport` and `createLinkGroupStore` in `lib/link-group`. `useLinkGroup()` throws outside a `LinkGroupProvider`, on the server as everywhere. It returns `{ group, symbol, setSymbol, setGroup, cycleGroup }`. A `LinkGroup` is `1 | 2 | 3 | 4 | null`, where `null` means unlinked.
 
 | Hook option | Type | Default | Purpose |
 |---|---|---|---|

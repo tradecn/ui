@@ -884,7 +884,7 @@ Drag sessions reject foreign and cross-chooser drops, accept empty string column
 
 ## SessionCalendar
 
-Hour-24 windows report consistently: `status` and `timeToClose` now look back two opening dates, so a next-day close with an hour-24 `post` reports `post` to its stated end — v1 reported `closed` for that final stretch — and `nextTransition` generates the same cutoff it reports.
+Hour-24 windows report consistently: `status` and `timeToClose` now look back two opening dates, so a next-day close with an hour-24 `post` reports `post` to its stated end — v1 reported `closed` for that final stretch — and `nextTransition` generates the same cutoff `status` reports.
 
 ## SessionGuard
 
