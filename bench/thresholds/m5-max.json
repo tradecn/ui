@@ -1,14 +1,14 @@
 {
-  "$comment": "Written 2026-09-21 before the run it gates, never edited to pass. Supersedes m5-max.2026-09-20.json, which stays as the record: its frame p99 limit sat on the vsync interval and measured the display, not the grid. Under vsync, frame pacing only says whether a frame was missed, and droppedFramesAllowed already says that, so the headroom number here is script time.",
+  "$comment": "Written 2026-10-06 before the run it gates, never edited to pass. Supersedes m5-max.2026-09-21.json, which stays as the record: its 5 ms script gate was met at 2.5 ms when written, but the bundled headless Chromium has moved since, and on 2026-10-06 main itself (effedf0) reads script p99 7.50 ms with two dropped frames on this machine — the old gate had come to measure the browser build, not the grid. Both numbers here are re-derived from that same-day main reading: script headroom that still catches a half-again regression, and the two dropped frames main shows at rest, which land at random frame numbers with low script time — the build misses the odd vsync on its own.",
   "machine": "Apple M5 Max, 128 GB, macOS 27.0, Playwright Chromium headless",
-  "writtenOn": "2026-09-21",
-  "supersedes": "m5-max.2026-09-20.json",
+  "writtenOn": "2026-10-06",
+  "supersedes": "m5-max.2026-09-21.json",
   "rows": 1000,
   "visible": 60,
   "columns": 12,
   "updatesPerFrame": 2000,
   "seconds": 10,
-  "scriptP99Ms": 5,
-  "droppedFramesAllowed": 0,
+  "scriptP99Ms": 9,
+  "droppedFramesAllowed": 2,
   "longTasksAllowed": 0
 }

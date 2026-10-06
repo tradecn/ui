@@ -1271,16 +1271,24 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const prevIdsRef = useRef<readonly RowId[]>(ids)
   const markIdsRef = useRef<readonly RowId[]>(ids)
   const newSinceAnnounce = useRef(0)
+  // One diff per commit: the insertion effect computes it and the layout effect
+  // consumes it, so an order change builds two id sets, not four.
+  const diffRef = useRef<{ prev: readonly RowId[]; arrived: RowId[]; departed: RowId[] } | null>(null)
   useInsertionEffect(() => {
     const prev = markIdsRef.current
     if (prev === ids) return
     markIdsRef.current = ids
-    if (!rowEnter.highlight) return
     const prevSet = new Set(prev)
+    const nowSet = new Set(ids)
+    const arrived: RowId[] = []
+    for (const id of ids) if (!prevSet.has(id)) arrived.push(id)
+    const departed: RowId[] = []
+    for (const id of prev) if (!nowSet.has(id)) departed.push(id)
+    diffRef.current = { prev, arrived, departed }
+    if (!rowEnter.highlight) return
     const at = Date.now()
     const until = view.isHeld() ? (view.holdExpiresAt?.() ?? null) : null
-    for (const id of ids) if (!prevSet.has(id)) entered.set(id, { at, until })
-    const nowSet = new Set(ids)
+    for (const id of arrived) entered.set(id, { at, until })
     for (const [id, mark] of entered) {
       if (!nowSet.has(id)) entered.delete(id)
       else if (at - enterStart(mark, at) >= ENTER_WINDOW_MS) entered.delete(id)
@@ -1293,18 +1301,21 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   useLayoutEffect(() => {
     const prev = prevIdsRef.current
     if (prev === ids) return
-    const prevSet = new Set(prev)
-    const nowSet = new Set(ids)
-    const arrived: RowId[] = []
-    for (const id of ids) if (!prevSet.has(id)) arrived.push(id)
-    let departed = 0
-    for (const id of prev) {
-      if (!nowSet.has(id)) {
-        departed++
-        memory.forget(`${id}\u0000`)
-      }
+    // The insertion effect stashed this commit's diff; a StrictMode replay reaches
+    // the early return above, so a stale stash is never consumed twice.
+    const stash = diffRef.current
+    const fresh = stash !== null && stash.prev === prev
+    const arrived = fresh ? stash.arrived : []
+    const departed = fresh ? stash.departed : []
+    if (!fresh) {
+      const prevSet = new Set(prev)
+      const nowSet = new Set(ids)
+      for (const id of ids) if (!prevSet.has(id)) (arrived as RowId[]).push(id)
+      for (const id of prev) if (!nowSet.has(id)) (departed as RowId[]).push(id)
     }
-    if ((arrived.length || departed) && rowEnter.pinViewport && scrollRef.current) {
+    diffRef.current = null
+    for (const id of departed) memory.forget(`${id}\u0000`)
+    if ((arrived.length || departed.length) && rowEnter.pinViewport && scrollRef.current) {
       const el = scrollRef.current
       const firstIndex = Math.floor(el.scrollTop / rowHeight)
       const firstId = prev[firstIndex]
@@ -1314,7 +1325,6 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     if (arrived.length && followTail && following && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     newSinceAnnounce.current += arrived.length
     prevIdsRef.current = ids
-
   }, [ids, indexOf, rowHeight, rowEnter.pinViewport, followTail, following, memory])
 
   const stopFollowing = () => {

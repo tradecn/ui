@@ -1,0 +1,45 @@
+{
+  "machine": "m5-max",
+  "date": "2026-10-06",
+  "done": true,
+  "params": {
+    "scenario": "updates",
+    "rows": 1000,
+    "visible": 60,
+    "cols": 12,
+    "updates": 2000,
+    "seconds": 10,
+    "preset": "rfq",
+    "hold": 0,
+    "warmupMs": 1000,
+    "arrivals": 2000,
+    "burstMs": 2000,
+    "bars": 5000,
+    "kind": "line"
+  },
+  "frames": 598,
+  "p50": 16.699999999999818,
+  "p99": 16.800000000000182,
+  "max": 50,
+  "mean": 16.749665551839463,
+  "droppedFrames": 2,
+  "droppedThresholdMs": 25.049999999999727,
+  "droppedAt": [
+    {
+      "frame": 4,
+      "ms": 33.40000000000009,
+      "scriptMs": 3.599999964237213
+    },
+    {
+      "frame": 5,
+      "ms": 50,
+      "scriptMs": 3.799999952316284
+    }
+  ],
+  "longTasks": 0,
+  "cellsPaintedPerFrame": 136.15551839464882,
+  "scriptP50": 3.900000035762787,
+  "scriptP99": 7.400000035762787,
+  "scriptMax": 9.600000023841858,
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36"
+}
