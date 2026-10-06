@@ -119,7 +119,7 @@ export interface EditChange<T> {
  */
 export type EditStatus =
   | { kind: "editing"; text: string; problem: string | null; selectAll: boolean; initial?: string | null; focused?: boolean; prior?: EditStatus }
-  | { kind: "pending"; value: unknown; text: string }
+  | { kind: "pending"; value: unknown; text: string; tracked?: boolean }
   | { kind: "rejected"; value: unknown; message: string }
 
 /** What a `cell` renderer gets for an editable column: the edit's status, and a way to commit a value of its own (a checkbox's). */
@@ -913,7 +913,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         tracker.set(k, undefined)
         return
       }
-      tracker.set(k, { kind: "pending", value, text: editText(col, value, row) })
+      tracker.set(k, { kind: "pending", value, text: editText(col, value, row), tracked: false })
       let result: void | Promise<unknown>
       try {
         result = editLatest.current.onEdit?.({ rowId, key: col.key, value, previous, row })
@@ -922,6 +922,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         return
       }
       if (result && typeof (result as Promise<unknown>).then === "function") {
+        const started = tracker.get(k)
+        if (started?.kind === "pending") tracker.set(k, { ...started, tracked: true })
         ;(result as Promise<unknown>).then(
           () => {
             const now = tracker.get(k)
@@ -974,8 +976,12 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const text = now?.kind === "pending" ? now.text : editText(col, col.accessor(row!), row!)
       activeColumn = key
       // The status this editor replaced comes back if it closes untouched: reopening a
-      // pending cell and leaving must not erase the pending mark or a later rejection.
-      tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false, prior: now?.kind === "editing" ? now.prior : now })
+      // pending cell and leaving must not erase a promise-backed pending or a later
+      // rejection. A pending with no live promise can never settle, so reopening
+      // dismisses it the way v1 did — any close then clears the cell.
+      const covered = now?.kind === "editing" ? now.prior : now
+      const prior = covered?.kind === "pending" && !covered.tracked ? undefined : covered
+      tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false, prior })
     }
     const controller: EditController = {
       tracker,
@@ -1166,6 +1172,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const markIdsRef = useRef<readonly RowId[]>(ids)
   const newSinceAnnounce = useRef(0)
   const prevHeldRef = useRef(false)
+  const heldSinceRef = useRef(0)
   useInsertionEffect(() => {
     const prev = markIdsRef.current
     if (prev === ids) return
@@ -1175,10 +1182,12 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const at = Date.now()
     for (const id of ids) if (!prevSet.has(id)) entered.set(id, at)
     // A reorder hold parks newcomers at the tail until the trader's hands are still:
-    // that wait is the grid's, not the row's, so marks do not age while held and are
-    // restamped when the hold releases and the rows settle into place.
+    // that wait is the grid's, not the row's, so marks do not age while held, and the
+    // marks set during the hold — only those — are restamped when it releases and the
+    // parked rows settle into place.
     const held = view.isHeld()
-    if (!held && prevHeldRef.current) for (const id of entered.keys()) entered.set(id, at)
+    if (held && !prevHeldRef.current) heldSinceRef.current = at
+    if (!held && prevHeldRef.current) for (const [id, stamp] of entered) if (stamp >= heldSinceRef.current) entered.set(id, at)
     prevHeldRef.current = held
     const nowSet = new Set(ids)
     for (const [id, stamp] of entered) {

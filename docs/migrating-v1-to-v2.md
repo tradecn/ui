@@ -385,7 +385,7 @@ A focused Save or always-visible Add button that disables itself moves focus to 
 
 ## DataGrid
 
-Grid shortcuts now run only when focus is on the grid itself. In v1, keys from header controls, selection checkboxes, and custom cell controls also ran grid commands. These controls now keep their own key behavior.
+Grid shortcuts now run only when focus is on the grid itself. In v1, keys from header controls, selection checkboxes, and custom cell controls also ran grid commands. These controls now keep their own key behavior. Reopening a pending or rejected cell changed: v1 replaced the status and Escape discarded it; v2 covers it, every close of the untouched editor restores it with any meanwhile-settled promise applied, and committing a change replaces it. A pending from a void `onEdit` still dismisses on reopen, since nothing could ever settle it.
 
 After using a control, press Shift+Tab until the grid itself has focus, or click a cell without a control, to resume grid navigation.
 
