@@ -241,6 +241,14 @@ const EMPTY_SET: ReadonlySet<RowId> = new Set()
 const SELECT_WIDTH = 32
 const ENTER_WINDOW_MS = 1500
 
+// When a mark's flash window begins: at arrival, or, for a mark a reorder hold
+// parked, when that hold lapses — frozen at `now` while the hold is still running.
+interface EnterMark {
+  at: number
+  until: number | null
+}
+const enterStart = (mark: EnterMark, now: number) => (mark.until !== null ? Math.max(mark.at, Math.min(mark.until, now)) : mark.at)
+
 // Native controls and focus targets own interaction regardless of an authored role.
 const ROW_CONTROLS = 'a[href], button, input, select, textarea, label, summary, audio[controls], video[controls], iframe, object, embed, [contenteditable]:not([contenteditable="false"]), [tabindex], [data-grid-interaction="control"]'
 const CONTROL_ROLES = new Set("button link checkbox radio switch combobox listbox option textbox searchbox slider spinbutton scrollbar tab tablist toolbar menu menubar menuitem menuitemcheckbox menuitemradio tree treeitem radiogroup doc-backlink doc-biblioref doc-glossref doc-noteref".split(" "))
@@ -688,7 +696,7 @@ interface RowProps<T> {
   memory: FlashMemory
   flashVariant: "fill" | "ring"
   flashWindowMs: number
-  entered: Map<RowId, number>
+  entered: Map<RowId, EnterMark>
   highlightEnter: boolean
   getRowProps?: (row: T, id: RowId) => RowDecoration | undefined
   rules: AppliedRules<T> | null
@@ -699,12 +707,14 @@ function RowInner<T>(p: RowProps<T>) {
   const row = useRow(p.store, p.id)
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    const at = p.entered.get(p.id)
-    if (p.highlightEnter && at !== undefined && ref.current) {
+    const mark = p.entered.get(p.id)
+    if (p.highlightEnter && mark !== undefined && ref.current) {
       p.entered.delete(p.id)
       // A row that arrived off-view and scrolls in later flashes only the remainder
-      // of its window: an arrival from minutes ago is not news.
-      const elapsed = Date.now() - at
+      // of its window — measured from the hold release when one parked it — and an
+      // arrival from minutes ago is not news.
+      const now = Date.now()
+      const elapsed = now - enterStart(mark, now)
       if (elapsed < ENTER_WINDOW_MS) playFlash(ref.current, "flat", { windowMs: ENTER_WINDOW_MS, variant: "fill", elapsed })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1167,13 +1177,14 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // Arrival marks, in the insertion phase: all insertion effects for a commit run
   // before any layout effect, so a row mounting in the commit of its arrival finds
   // its mark — a mount-only layout effect in the row checks after this has written.
-  // Marks carry their arrival time and are pruned when stale or departed.
-  const entered = useRef(new Map<RowId, number>()).current
+  // A mark parked by a reorder hold carries that hold's deadline, captured at
+  // arrival: its window starts when the hold lapses, however late the release is
+  // observed, and no later hold can touch it. An extension after the arrival
+  // shortens the remainder rather than restarting it.
+  const entered = useRef(new Map<RowId, EnterMark>()).current
   const prevIdsRef = useRef<readonly RowId[]>(ids)
   const markIdsRef = useRef<readonly RowId[]>(ids)
   const newSinceAnnounce = useRef(0)
-  const prevHeldRef = useRef(false)
-  const heldSinceRef = useRef(0)
   useInsertionEffect(() => {
     const prev = markIdsRef.current
     if (prev === ids) return
@@ -1181,25 +1192,16 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     if (!rowEnter.highlight) return
     const prevSet = new Set(prev)
     const at = Date.now()
-    for (const id of ids) if (!prevSet.has(id)) entered.set(id, at)
-    // A reorder hold parks newcomers at the tail until the trader's hands are still:
-    // that wait is the grid's, not the row's, so marks set during the hold — only
-    // those — are restamped to the moment the hold actually lapsed. A release nothing
-    // published is observed late, so the recorded deadline, not this commit's clock,
-    // is what the parked marks restamp to; a five-minute-old release revives nothing.
-    const held = view.isHeld()
-    if (held && !prevHeldRef.current) heldSinceRef.current = at
-    if (!held && prevHeldRef.current) {
-      const releasedAt = Math.min(at, view.holdExpiresAt?.() ?? at)
-      // Only the marks the hold actually parked: this commit's own arrivals were
-      // stamped moments ago at `at` and must not be backdated past the release.
-      for (const [id, stamp] of entered) if (stamp >= heldSinceRef.current && stamp <= releasedAt) entered.set(id, releasedAt)
-    }
-    prevHeldRef.current = held
+    const until = view.isHeld() ? (view.holdExpiresAt?.() ?? null) : null
+    for (const id of ids) if (!prevSet.has(id)) entered.set(id, { at, until })
+    // A hold extended under traffic: every held-era commit refreshes the parked
+    // marks to the latest deadline. An extension on a quiet feed goes unobserved
+    // and shortens those remainders instead — the page says so.
+    if (until !== null) for (const [id, mark] of entered) if (mark.until !== null && mark.until < until) entered.set(id, { at: mark.at, until })
     const nowSet = new Set(ids)
-    for (const [id, stamp] of entered) {
+    for (const [id, mark] of entered) {
       if (!nowSet.has(id)) entered.delete(id)
-      else if (!held && at - stamp >= ENTER_WINDOW_MS) entered.delete(id)
+      else if (at - enterStart(mark, at) >= ENTER_WINDOW_MS) entered.delete(id)
     }
   }, [ids, rowEnter.highlight, entered, view])
 

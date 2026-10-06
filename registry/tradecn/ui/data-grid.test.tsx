@@ -568,11 +568,15 @@ describe("certification pins", () => {
       })
       // Parked at the tail, beyond the rendered range: no mount, no flash yet.
       expect(document.querySelector('[data-row-id="mid"]')).toBeNull()
-      // Extend the hold past the flash window, then let it lapse.
-      vi.setSystemTime(1_000_000 + 900)
+      // Extend the hold far past the flash window; feed traffic lets the grid
+      // observe the extensions, refreshing the parked mark to the new deadline.
       act(() => { vi.advanceTimersByTime(900) })
       fireEvent.keyDown(grid, { key: "ArrowDown" })
-      vi.setSystemTime(1_000_000 + 2000)
+      act(() => { vi.advanceTimersByTime(900) })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "noise", sym: "NOISE", px: 400, qty: 1 }] })
+      })
       act(() => { vi.advanceTimersByTime(1100) })
       const row = document.querySelector('[data-row-id="mid"]') as HTMLElement
       expect(row).not.toBeNull()
@@ -653,6 +657,42 @@ describe("certification pins", () => {
       expect(x.dataset.direction).toBeUndefined()
       // The commit that finally observes the release is itself an arrival: y's own
       // mark is this commit's, never backdated past the lapsed deadline.
+      const y = document.querySelector('[data-row-id="y"]') as HTMLElement
+      expect(y).not.toBeNull()
+      expect(y.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("lets no second hold revive the marks of the first", () => {
+    // Two interactions with a lapse between them: the first hold's parked mark ages
+    // from the first deadline, whatever hold is running when it is finally seen.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, store)
+      render(<DataGrid store={store} columns={columns} label="Orders" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "x", sym: "X", px: 1, qty: 1 }] })
+      })
+      expect(document.querySelector('[data-row-id="x"]')).toBeNull()
+      // Hold one lapses unobserved; a minute later a second hold starts and lapses too.
+      act(() => { vi.advanceTimersByTime(60_000) })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => { vi.advanceTimersByTime(1_000) })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "y", sym: "Y", px: 1, qty: 1 }] })
+      })
+      const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+      scroller.scrollTop = 32 * ROW_HEIGHT
+      fireEvent.scroll(scroller)
+      const x = document.querySelector('[data-row-id="x"]') as HTMLElement
+      expect(x).not.toBeNull()
+      expect(x.dataset.direction).toBeUndefined()
       const y = document.querySelector('[data-row-id="y"]') as HTMLElement
       expect(y).not.toBeNull()
       expect(y.dataset.direction).toBe("flat")

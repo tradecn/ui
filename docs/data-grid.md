@@ -205,6 +205,8 @@ Pointer presses in the scroll area call `touch()` during capture, including pres
 
 During the hold, existing rows keep their relative order, new rows append, and removed or filtered-out rows leave. The view sorts again when the hold expires, even without another feed update.
 
+An arrival the hold parks starts its highlight window when the hold lapses, not when it arrived, however late the grid observes the release — and no later hold revives it. Feed updates during the hold let the grid track extensions; extending a hold on a feed gone quiet shortens the parked remainder instead of restarting it.
+
 The `reorderHoldMs` prop configures the internally owned view. With a supplied `view`, configure its hold yourself; the grid still calls `touch()` on it.
 
 ### Following the tail
