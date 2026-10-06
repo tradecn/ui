@@ -457,6 +457,7 @@ interface EditController {
   blur(rowId: RowId, key: string): void
   /** A later batch brought the row's value to the committed one. */
   settle(rowId: RowId, key: string): void
+  settlePrior(rowId: RowId, key: string): void
 }
 
 function editText<T>(col: ColumnDef<T>, value: unknown, row: T): string {
@@ -595,10 +596,13 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
   const get = useCallback(() => (tracker ? tracker.get(key) : undefined), [tracker, key])
   const status = useSyncExternalStore(subscribe, get, undefinedStatus)
   // A later batch brought the row's value to the committed one: the edit is settled, and the cell reads the store again.
+  // A covered pending settles the same way, or a close after the store moved on would restore a pending nothing can clear.
   const settled = status?.kind === "pending" && Object.is(status.value, value)
+  const coveredSettled = status?.kind === "editing" && status.prior?.kind === "pending" && Object.is(status.prior.value, value)
   useEffect(() => {
     if (settled) edits?.settle(rowId, col.key)
-  }, [settled, edits, rowId, col.key])
+    else if (coveredSettled) edits?.settlePrior(rowId, col.key)
+  }, [settled, coveredSettled, edits, rowId, col.key])
   const handle = useMemo<CellEditHandle | undefined>(
     () => (editable ? { status, commit: (next) => edits!.commitValue(rowId, col.key, next), open: () => edits!.open(rowId, col.key) } : undefined),
     [editable, status, edits, rowId, col.key],
@@ -1087,6 +1091,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const k = cellKey(rowId, key)
         if (tracker.get(k)?.kind === "pending") tracker.set(k, undefined)
       },
+      settlePrior(rowId, key) {
+        const k = cellKey(rowId, key)
+        const now = tracker.get(k)
+        if (now?.kind === "editing" && now.prior?.kind === "pending") tracker.set(k, { ...now, prior: undefined })
+      },
     }
     return controller
   }, [editable, store])
@@ -1156,6 +1165,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const prevIdsRef = useRef<readonly RowId[]>(ids)
   const markIdsRef = useRef<readonly RowId[]>(ids)
   const newSinceAnnounce = useRef(0)
+  const prevHeldRef = useRef(false)
   useInsertionEffect(() => {
     const prev = markIdsRef.current
     if (prev === ids) return
@@ -1164,9 +1174,18 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const prevSet = new Set(prev)
     const at = Date.now()
     for (const id of ids) if (!prevSet.has(id)) entered.set(id, at)
+    // A reorder hold parks newcomers at the tail until the trader's hands are still:
+    // that wait is the grid's, not the row's, so marks do not age while held and are
+    // restamped when the hold releases and the rows settle into place.
+    const held = view.isHeld()
+    if (!held && prevHeldRef.current) for (const id of entered.keys()) entered.set(id, at)
+    prevHeldRef.current = held
     const nowSet = new Set(ids)
-    for (const [id, stamp] of entered) if (!nowSet.has(id) || at - stamp >= ENTER_WINDOW_MS) entered.delete(id)
-  }, [ids, rowEnter.highlight, entered])
+    for (const [id, stamp] of entered) {
+      if (!nowSet.has(id)) entered.delete(id)
+      else if (!held && at - stamp >= ENTER_WINDOW_MS) entered.delete(id)
+    }
+  }, [ids, rowEnter.highlight, entered, view])
 
   // The scroll work stays in the layout phase, where refs belong to this commit:
   // pin the viewport, follow the tail, count arrivals, forget departed flashes.

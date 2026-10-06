@@ -470,6 +470,14 @@ test("a watchlist grid remains virtual inside a plain bounded container", async 
   await viewport.evaluate(element => { element.scrollTop = element.scrollHeight })
   await expect(grid.locator('[data-row-id="SYM499"]')).toBeVisible()
   await expect.poll(() => grid.locator("[data-row-id]").count()).toBeLessThan(50)
+  // The arrival window is real time: scroll back up and down after it has passed,
+  // and an old off-view arrival mounts with no flash — the row's own window check,
+  // which only a real scroll can exercise.
+  await viewport.evaluate(element => { element.scrollTop = 0 })
+  await page.waitForTimeout(1600)
+  await viewport.evaluate(element => { element.scrollTop = element.scrollHeight })
+  await expect(grid.locator('[data-row-id="SYM499"]')).toBeVisible()
+  await expect(grid.locator('[data-row-id="SYM499"]')).not.toHaveAttribute("data-direction", /./)
 })
 
 test("keyboard walking keeps the focused row clear of the sticky header and footer edges", async ({ page }) => {

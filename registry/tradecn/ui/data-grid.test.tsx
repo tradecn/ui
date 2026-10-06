@@ -512,27 +512,88 @@ describe("certification pins", () => {
     expect(returned).not.toBeNull()
   })
 
-  it("does not flash an old off-view arrival when it finally scrolls in", () => {
-    // The mark carries its arrival time: a row scrolled to within the window flashes
-    // the remainder; one from minutes ago is not news and flashes nothing.
+  it("prunes a stale off-view arrival mark on the next ids change", () => {
+    // The mark carries its arrival time. happy-dom cannot move the rendered range
+    // without an ids change, so this pins the age prune; the row's own window check
+    // covers the pure-scroll mount and is proven in the browser smoke, where a real
+    // scroll reaches an old arrival and finds no flash.
     vi.useFakeTimers()
-    vi.setSystemTime(1_000_000)
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(2, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} rowEnter={{ highlight: true }} />)
+      act(() => {
+        store.applyDeltas({ upsert: Array.from({ length: 30 }, (_, i) => ({ id: `tail${i}`, sym: `T${i}`, px: 1, qty: 1 })) })
+      })
+      expect(document.querySelector('[data-row-id="tail29"]')).toBeNull()
+      vi.setSystemTime(1_000_000 + 120_000)
+      act(() => {
+        store.applyDeltas({ remove: Array.from({ length: 29 }, (_, i) => `tail${i}`) })
+      })
+      const row = document.querySelector('[data-row-id="tail29"]') as HTMLElement
+      expect(row).not.toBeNull()
+      expect(row.dataset.direction).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("flashes an arrival a reorder hold parked once it settles into place", () => {
+    // The hold's wait is the grid's, not the row's: a newcomer parked at the tail
+    // through sustained navigation still flashes when the hold releases.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "mid", sym: "MID", px: 102.5, qty: 1 }] })
+      })
+      // Parked at the tail, beyond the rendered range: no mount, no flash yet.
+      expect(document.querySelector('[data-row-id="mid"]')).toBeNull()
+      // Extend the hold past the flash window, then let it lapse.
+      vi.setSystemTime(1_000_000 + 900)
+      act(() => { vi.advanceTimersByTime(900) })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      vi.setSystemTime(1_000_000 + 2000)
+      act(() => { vi.advanceTimersByTime(1100) })
+      const row = document.querySelector('[data-row-id="mid"]') as HTMLElement
+      expect(row).not.toBeNull()
+      expect(row.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("settles a covered pending when the store catches up during the reopen", async () => {
+    const onEdit = vi.fn(() => undefined)
     const store = createRowStore<Quote>({ getRowId: row => row.id })
     seed(2, store)
-    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} rowEnter={{ highlight: true }} />)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    // The venue acknowledges while the untouched reopen is up, then moves on.
     act(() => {
-      store.applyDeltas({ upsert: Array.from({ length: 30 }, (_, i) => ({ id: `tail${i}`, sym: `T${i}`, px: 1, qty: 1 })) })
+      store.applyDeltas({ patch: [{ id: "r0", fields: { px: 105 } }] })
     })
-    expect(document.querySelector('[data-row-id="tail29"]')).toBeNull()
-    vi.setSystemTime(1_000_000 + 120_000)
-    // Two minutes later the rows above depart and tail29 scrolls into the range.
     act(() => {
-      store.applyDeltas({ remove: Array.from({ length: 29 }, (_, i) => `tail${i}`) })
+      store.applyDeltas({ patch: [{ id: "r0", fields: { px: 106 } }] })
     })
-    const row = document.querySelector('[data-row-id="tail29"]') as HTMLElement
-    expect(row).not.toBeNull()
-    expect(row.dataset.direction).toBeUndefined()
-    vi.useRealTimers()
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" })
+    const cell = document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell.hasAttribute("data-pending")).toBe(false)
+    expect(cell.textContent).toContain("106")
   })
 
   it("closes an open editor when its row leaves the view, and the returning row steals nothing", async () => {
