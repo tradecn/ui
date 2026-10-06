@@ -575,7 +575,7 @@ With `onRemove`, grid deletion keys still work without visible removal parts and
 
 After using a control, press Shift+Tab until the grid itself has focus, or click a cell without a control, to resume grid commands. Use `WatchlistRemoveButton`, `WatchlistRemoveMenuItem` or `useWatchlist().remove` for removal controls elsewhere in your layout.
 
-The root adds no row subscriptions. Form drafts remain local, and stable grid inputs preserve per-row updates. Keep shared recipes, columns and formatters stable where they feed memoized rows.
+The root adds no row subscriptions. Form drafts remain local, and stable grid inputs preserve per-row updates. Keep shared recipes, columns and formatters stable where they feed memoized rows — and `getRowProps` too: v1 froze an inline one behind a never-changing wrapper, so it cost nothing and its changes never reached mounted rows; the wrapper now follows your function, so a new decoration shows at once and an unmemoized inline function re-renders rows on every parent render. Positions and ParameterGrid change the same way, ParameterGrid's `onEdit` included.
 
 Portaled menu keys no longer change DataGrid selection, navigation or row activation. In Radix, ArrowDown inside a removal menu previously moved the underlying selection and could change the row being removed. Menu navigation now keeps its original target.
 

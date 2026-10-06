@@ -1,5 +1,4 @@
-import { act, render, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
@@ -68,18 +67,21 @@ describe("the position's words", () => {
 })
 
 describe("Positions", () => {
-  it("a new getRowProps reaches rows already on screen, and the menu renderer is never a render behind", async () => {
-    const user = userEvent.setup()
+  it("a new getRowProps reaches rows already on screen, and an open menu follows the renderer in the same render", async () => {
     const store = createRowStore<PositionRow>({ getRowId: (r) => r.id })
     store.applyDeltas({ upsert: ROWS })
     const { rerender } = render(<Positions store={store} initialRect={RECT} renderContextMenu={() => <ContextMenuItem>Old action</ContextMenuItem>} />)
     const row = document.querySelector<HTMLElement>("[data-row-id='ty']")!
     expect(row).not.toHaveAttribute("data-rule")
-    rerender(<Positions store={store} initialRect={RECT} getRowProps={(r) => (r.id === "ty" ? { "data-rule": "watch" } : undefined)} renderContextMenu={() => <ContextMenuItem>New action</ContextMenuItem>} />)
+    rerender(<Positions store={store} initialRect={RECT} getRowProps={(r) => (r.id === "ty" ? { "data-rule": "watch" } : undefined)} renderContextMenu={() => <ContextMenuItem>Old action</ContextMenuItem>} />)
     expect(document.querySelector<HTMLElement>("[data-row-id='ty']")!).toHaveAttribute("data-rule", "watch")
-    // The renderer handed to the grid is the one from this render, not the last.
-    await user.pointer({ keys: "[MouseRight]", target: document.querySelector("[data-row-id='ty']")!.firstElementChild as HTMLElement })
-    expect(await screen.findByRole("menuitem", { name: "New action" })).toBeInTheDocument()
+    // Open first, swap the renderer while the menu is open, assert in that same
+    // render: a wrapper that reads a ref published by an effect shows the old
+    // item here and catches up only one render later.
+    fireEvent.contextMenu(document.querySelector("[data-row-id='ty']")!.firstElementChild as HTMLElement)
+    expect(await screen.findByRole("menuitem", { name: "Old action" })).toBeInTheDocument()
+    rerender(<Positions store={store} initialRect={RECT} getRowProps={(r) => (r.id === "ty" ? { "data-rule": "watch" } : undefined)} renderContextMenu={() => <ContextMenuItem>New action</ContextMenuItem>} />)
+    expect(screen.getByRole("menuitem", { name: "New action" })).toBeInTheDocument()
   })
 
   it("renders the book with the sign printed and the side named, colors by direction, and totals in the footer", () => {

@@ -81,7 +81,7 @@ Uses the data grid's `parameters` preset: 24 px rows, single selection, ring fla
 | `toggleAction` | `string` | `"toggle"` | Permission id for the enable checkbox. |
 | `editAction` | `string` | `"edit"` | Permission id for parameter edits. |
 | `asOf` | `boolean` | `true` | Show the as-of line above the grid. |
-| `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Decorate rows; a supplied `aria-description` takes precedence over the changed label. |
+| `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Decorate rows; a supplied `aria-description` takes precedence over the changed label. Memoize it: the wrapper follows your function, so a new one re-renders every row and a memoized one is free. |
 | `className` | `string` | None | Additional classes on the outer wrapper. |
 
 `parameterColumns(options)` returns `ColumnDef<T>[]` to add, drop, or reorder in your own list. Its `ParameterColumnOptions<T>` accepts `parameters`, `labels`, `time`, `changedSince`, `toggleAction`, and `editAction` with the defaults above. A supplied `columns` list replaces the generated columns and their formatting, permissions, and controls.
@@ -103,7 +103,7 @@ Extend `ParameterRow` with the fields your accessors read:
 
 ### The sheet is the server's
 
-The grid reads your store and never writes it. A valid commit calls `onEdit` with `{ rowId, key, value, previous, row }`, where `previous` is the current accessor value and `row` is the current store row. Committing that same value sends nothing. Return the request's promise from `onEdit`: pending state then follows each request's own answer rather than waiting for the store to match, and a rejection lands on the cell that asked.
+The grid reads your store and never writes it. A valid commit calls `onEdit` with `{ rowId, key, value, previous, row }`, where `previous` is the current accessor value and `row` is the current store row. Committing that same value sends nothing. Return the request's promise from `onEdit` so a rejection reaches the cell instead of being lost to a store that never catches up. Settlement still matches by value, so two in-flight requests for the same value can settle each other: keep one request in flight per cell, as the enable checkbox does by staying disabled while pending.
 
 A parameter cell shows the committed text muted and italic while pending. Pending clears when the store's accessor value matches the committed value (`Object.is`), or when the returned promise resolves. Resolution displays the current store value, which may still be the old value. Returning nothing leaves the cell pending until the store matches.
 

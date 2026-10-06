@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
+import { useLayoutEffect } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { editProblem, type EditChange } from "@/registry/tradecn/ui/data-grid"
+import { editProblem, type ColumnDef, type EditChange } from "@/registry/tradecn/ui/data-grid"
 import { DEFAULT_PARAMETER_GRID_LABELS, ParameterGrid, allowsAction, parameterColumns, parameterEdit, type ParameterDef, type ParameterRow } from "@/registry/tradecn/ui/parameter-grid"
 
 interface Sheet extends ParameterRow {
@@ -56,18 +57,29 @@ describe("parameterColumns and parameterEdit", () => {
     const second = vi.fn()
     const store = createRowStore<Sheet>({ getRowId: (r) => r.id })
     store.applyDeltas({ upsert: ROWS, meta: { producedAt: 1_700_000_200_000 } })
-    const { rerender } = render(<ParameterGrid store={store} parameters={PARAMETERS} onEdit={first} initialRect={RECT} time={(ms) => `t${ms}`} />)
-    rerender(<ParameterGrid store={store} parameters={PARAMETERS} onEdit={second} initialRect={RECT} time={(ms) => `t${ms}`} getRowProps={(r) => (r.id === ROWS[0]!.id ? { "data-rule": "review" } : undefined)} />)
+    // A custom cell that commits the moment it mounts: its layout effect runs
+    // before any passive effect, where a ref published by useEffect still holds
+    // the previous render's handler.
+    function CommitOnMount({ edit }: { edit?: { commit: (value: unknown) => void } }) {
+      useLayoutEffect(() => {
+        edit?.commit(42)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [])
+      return <span>probe</span>
+    }
+    const probeColumns: ColumnDef<Sheet>[] = [
+      { key: "name", header: "Parameter", width: 160, accessor: (r) => r.name },
+      { key: "width", header: "Width", width: 100, accessor: (r) => r.width, edit: { parse: (text) => Number(text) }, cell: ({ edit }) => <CommitOnMount edit={edit} /> },
+    ]
+    const base: ColumnDef<Sheet>[] = [probeColumns[0]!]
+    const { rerender } = render(<ParameterGrid store={store} parameters={PARAMETERS} columns={base} onEdit={first} initialRect={RECT} time={(ms) => `t${ms}`} />)
+    rerender(<ParameterGrid store={store} parameters={PARAMETERS} columns={probeColumns} onEdit={second} initialRect={RECT} time={(ms) => `t${ms}`} getRowProps={(r) => (r.id === ROWS[0]!.id ? { "data-rule": "review" } : undefined)} />)
     // The decoration from the second render's getRowProps is on screen already.
     expect(document.querySelector<HTMLElement>(`[data-row-id="${ROWS[0]!.id}"]`)!).toHaveAttribute("data-rule", "review")
-    // A toggle commit lands in the second handler, never the first.
-    const grid = screen.getByRole("grid", { name: "Parameters" })
-    fireEvent.keyDown(grid, { key: "ArrowDown" })
-    fireEvent.keyDown(grid, { key: "ArrowRight" })
-    fireEvent.keyDown(grid, { key: "ArrowRight" })
-    fireEvent.keyDown(grid, { key: " " })
+    // Every mount-time commit landed in the second handler, never the first.
     expect(first).not.toHaveBeenCalled()
-    expect(second).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalled()
+    expect(second.mock.calls.every(([change]) => change.value === 42)).toBe(true)
   })
 
   it("lays out name, the enable box, one column per parameter, and the updated time, with numeric defaults", () => {
