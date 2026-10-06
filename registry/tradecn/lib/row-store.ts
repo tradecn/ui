@@ -337,7 +337,9 @@ class ViewImpl<T> implements PreparedRowView<T> {
   }
 
   holdExpiresAt() {
-    return this.holdUntil > 0 ? this.holdUntil : null
+    // The hold is kept in the view's own clock; the reported deadline is wall
+    // time, so a grid can compare it with Date.now whatever clock was injected.
+    return this.holdUntil > 0 ? Date.now() + (this.holdUntil - this.now()) : null
   }
 
   touch() {

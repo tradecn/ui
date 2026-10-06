@@ -1207,7 +1207,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const deadline = view.isHeld() ? (view.holdExpiresAt?.() ?? null) : null
     if (deadline === null) return
     const now = Date.now()
-    for (const [id, mark] of entered) if (mark.until !== null && mark.until >= now && mark.until < deadline) entered.set(id, { at: mark.at, until: deadline })
+    for (const [id, mark] of entered) if (mark.until !== null && mark.until > now && mark.until < deadline) entered.set(id, { at: mark.at, until: deadline })
     scheduleReleaseSweep()
   }
   // A release that reorders nothing publishes nothing, so no commit observes it:
@@ -1251,6 +1251,14 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     }, Math.min(next - now, 2 ** 31 - 1))
   }, [entered, sweepDueMarks])
   useEffect(() => () => { if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current) }, [])
+  useEffect(() => {
+    if (rowEnter.highlight) return
+    // Highlighting turned off: an armed timer would fire its old closure and
+    // flash anyway, and unobserved marks would linger. Stand both down.
+    if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current)
+    sweepTimerRef.current = null
+    entered.clear()
+  }, [rowEnter.highlight, entered])
   const prevIdsRef = useRef<readonly RowId[]>(ids)
   const markIdsRef = useRef<readonly RowId[]>(ids)
   const newSinceAnnounce = useRef(0)

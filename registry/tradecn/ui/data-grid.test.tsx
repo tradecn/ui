@@ -552,6 +552,38 @@ describe("certification pins", () => {
     }
   })
 
+  it("reports the hold deadline in wall time whatever clock the view runs on", () => {
+    // ViewOptions.now takes any millisecond clock — the suite's own store tests use
+    // one starting at zero. The grid compares deadlines with Date.now, so the view
+    // converts: a hold longer than the flash window still ends in a flash.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      let tick = 0
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, store)
+      const view = store.prepareView({ comparator: (a, b) => a.px - b.px, reorderHoldMs: 2_000, now: () => tick })
+      view.connect()
+      render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" view={view} rowHeight={ROW_HEIGHT} initialRect={RECT} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "mid", sym: "MID", px: 102.5, qty: 1 }] })
+      })
+      expect(document.querySelector('[data-row-id="mid"]')).toBeNull()
+      // The hold outlives the 1.5 s window; on the raw view clock the deadline
+      // would read as two million milliseconds in the past.
+      tick = 2_000
+      act(() => { vi.advanceTimersByTime(2_000) })
+      // The release sorts mid into the viewport; it mounts there and flashes.
+      const row = document.querySelector('[data-row-id="mid"]') as HTMLElement
+      expect(row).not.toBeNull()
+      expect(row.dataset.direction).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("sweeps only its own rows when a nested grid shares an id", () => {
     // The release sweep finds rows by data-row-id under its scroller, which sees a
     // nested grid's rows too: the DOM id decides whose row flashes.
