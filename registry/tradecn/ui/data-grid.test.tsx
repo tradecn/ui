@@ -680,13 +680,15 @@ describe("certification pins", () => {
         store.applyDeltas({ upsert: [{ id: "x", sym: "X", px: 1, qty: 1 }] })
       })
       expect(document.querySelector('[data-row-id="x"]')).toBeNull()
-      // Hold one lapses unobserved; a minute later a second hold starts and lapses too.
+      // Hold one lapses unobserved; a minute later a second hold starts, and the
+      // next arrival lands while it is still running.
       act(() => { vi.advanceTimersByTime(60_000) })
       fireEvent.keyDown(grid, { key: "ArrowDown" })
-      act(() => { vi.advanceTimersByTime(1_000) })
+      act(() => { vi.advanceTimersByTime(100) })
       act(() => {
         store.applyDeltas({ upsert: [{ id: "y", sym: "Y", px: 1, qty: 1 }] })
       })
+      act(() => { vi.advanceTimersByTime(900) })
       const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
       scroller.scrollTop = 32 * ROW_HEIGHT
       fireEvent.scroll(scroller)

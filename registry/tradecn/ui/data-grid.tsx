@@ -1179,9 +1179,20 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // its mark — a mount-only layout effect in the row checks after this has written.
   // A mark parked by a reorder hold carries that hold's deadline, captured at
   // arrival: its window starts when the hold lapses, however late the release is
-  // observed, and no later hold can touch it. An extension after the arrival
-  // shortens the remainder rather than restarting it.
+  // observed, and no later hold can touch it. The grid's own touches extend the
+  // deadlines of marks still parked, synchronously, where an extension cannot be
+  // mistaken for a new hold; extending a supplied view directly leaves them, so
+  // that extension shortens the remainder rather than restarting it.
   const entered = useRef(new Map<RowId, EnterMark>()).current
+  // After a touch extends the hold, move still-parked marks to the new deadline.
+  // Only unexpired marks move: one whose hold already lapsed belongs to a finished
+  // hold, and the touch that follows starts a new one that must not revive it.
+  const refreshParkedMarks = () => {
+    const deadline = view.isHeld() ? (view.holdExpiresAt?.() ?? null) : null
+    if (deadline === null) return
+    const now = Date.now()
+    for (const [id, mark] of entered) if (mark.until !== null && mark.until >= now && mark.until < deadline) entered.set(id, { at: mark.at, until: deadline })
+  }
   const prevIdsRef = useRef<readonly RowId[]>(ids)
   const markIdsRef = useRef<readonly RowId[]>(ids)
   const newSinceAnnounce = useRef(0)
@@ -1194,10 +1205,6 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const at = Date.now()
     const until = view.isHeld() ? (view.holdExpiresAt?.() ?? null) : null
     for (const id of ids) if (!prevSet.has(id)) entered.set(id, { at, until })
-    // A hold extended under traffic: every held-era commit refreshes the parked
-    // marks to the latest deadline. An extension on a quiet feed goes unobserved
-    // and shortens those remainders instead — the page says so.
-    if (until !== null) for (const [id, mark] of entered) if (mark.until !== null && mark.until < until) entered.set(id, { at: mark.at, until })
     const nowSet = new Set(ids)
     for (const [id, mark] of entered) {
       if (!nowSet.has(id)) entered.delete(id)
@@ -1358,6 +1365,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     // The editor owns its keys; what it lets through (a modifier-held arrow) is for the listeners above the grid.
     if (pathMatches(e.currentTarget, path, element => element.hasAttribute("data-cell-editor"))) return
     view.touch()
+    refreshParkedMarks()
     stopFollowing()
     // Focused controls own their keys; application handlers can also claim a grid key in capture.
     if (e.defaultPrevented || e.target !== e.currentTarget) return
@@ -1522,6 +1530,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const onPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
     if (!gridTarget(rootRef.current, e.target, e.nativeEvent.composedPath())) return
     view.touch()
+    refreshParkedMarks()
     stopFollowing()
   }
 
