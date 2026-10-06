@@ -651,8 +651,38 @@ describe("certification pins", () => {
     expect(cell().textContent).toContain("105.12")
   })
 
+  it("keeps the covered pending when an invalid draft blurs away", async () => {
+    // Typing junk over a reopened pending and clicking away sends nothing: the
+    // cover comes back, and the server's later rejection still lands.
+    let reject!: (reason: unknown) => void
+    const onEdit = vi.fn(() => new Promise((_, rej) => { reject = rej }))
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => { const n = Number(text); return Number.isFinite(n) ? n : { problem: "Not a number" } } } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    const cell = () => document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    fireEvent.keyDown(grid, { key: "F2" })
+    const reopened = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(reopened, { target: { value: "abc" } })
+    fireEvent.blur(reopened)
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(cell().hasAttribute("data-pending")).toBe(true)
+    await act(async () => {
+      reject(new Error("too far"))
+    })
+    expect(cell().textContent).toContain("too far")
+  })
+
   it("settles a covered pending when the store catches up during the reopen", async () => {
-    const onEdit = vi.fn(() => undefined)
+    const onEdit = vi.fn(() => new Promise(() => {}))
     const store = createRowStore<Quote>({ getRowId: row => row.id })
     seed(2, store)
     const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
@@ -865,6 +895,30 @@ describe("certification pins", () => {
     expect(cell.hasAttribute("data-pending")).toBe(false)
     expect(cell.textContent).toContain("too far")
     expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
+  it("clears a covered pending whose promise resolves under the reopen", async () => {
+    let resolve!: () => void
+    const onEdit = vi.fn(() => new Promise<void>(res => { resolve = res }))
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    const input = screen.getByRole("textbox") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "105" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    await act(async () => {
+      resolve()
+    })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" })
+    const cell = document.querySelector('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell.hasAttribute("data-pending")).toBe(false)
+    expect(cell.hasAttribute("data-rejected")).toBe(false)
   })
 
   it("ignores a retained open for a row the view no longer holds", async () => {

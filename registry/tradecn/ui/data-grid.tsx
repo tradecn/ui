@@ -374,9 +374,10 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
   const wholeNumber = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i
   const neutral = (s: string) => (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !wholeNumber.test(s)) ? `'${s}` : s)
   // A finite numeric accessor's text is data by construction — +1,234.50 from a signed
-  // formatter included — so only non-numeric fields go through neutralization.
+  // formatter included — so the sign rule does not apply to it; the hard leads still
+  // neutralize, since a formatter may emit arbitrary text.
   const esc = (s: string, numeric = false) => {
-    const t = numeric ? s : neutral(s)
+    const t = numeric ? (/^[=@\t\r]/.test(s) ? `'${s}` : s) : neutral(s)
     return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
   }
   const header = cols.map((c) => esc(typeof c.header === "string" ? c.header : c.key)).join(",")
@@ -1090,7 +1091,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const row = store.getRow(rowId)
         if (!canEditCell(col, row)) return tracker.set(k, now.prior)
         const parsed = col.edit.parse(now.text, row!)
-        if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!)) return tracker.set(k, undefined)
+        if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!)) return tracker.set(k, now.prior)
         send(rowId, col, row!, parsed)
       },
       settle(rowId, key) {
