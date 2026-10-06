@@ -199,7 +199,7 @@ An unregistered kind renders a placeholder and uses the same tab component, so o
 
 Keep small settings in `state`: a symbol, link group, or view option. `WorkspacePanelState` is a string-keyed object of JSON values; `WorkspacePanelStatePatch` also accepts `undefined` to remove a key. `setState` shallow-merges a patch or a patch returned from a function of the previous state. An identical serialized result triggers no store update or save.
 
-Runtime values are cleaned through JSON serialization, key by key. Function-valued object properties disappear, dates become strings, and a value serialization rejects — a cycle, say — is dropped alone, keeping the rest of the state. These non-JSON values are outside the declared input type.
+Runtime values are cleaned through JSON serialization, whole when it walks — a top-level `toJSON` is honored — and key by key when it does not. Function-valued object properties disappear, dates become strings, and a value serialization rejects — a cycle or a throwing getter, say — is dropped alone, keeping the rest of the state. These non-JSON values are outside the declared input type.
 
 In [Linked panels](#linked-panels), `useLinkGroup` treats the starting symbol as a seed. A real group write, including one from another window, takes precedence.
 

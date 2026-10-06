@@ -98,6 +98,10 @@ describe("toPanelState", () => {
     expect(Object.keys(hostile).sort()).toEqual(["__proto__", "group"])
     expect((hostile as { symbol?: unknown }).symbol).toBeUndefined()
     expect(JSON.parse(JSON.stringify(hostile))).toEqual({ ["__proto__"]: { symbol: "ES" }, group: 1 })
+    // A throwing getter drops alone too; its siblings survive the per-key pass.
+    expect(toPanelState({ a: 1, get bad(): never { throw new Error("x") }, b: 2 })).toEqual({ a: 1, b: 2 })
+    // The happy path still serializes whole, so a top-level toJSON is honored.
+    expect(toPanelState({ ignored: true, toJSON: () => ({ x: 1 }) })).toEqual({ x: 1 })
   })
 })
 

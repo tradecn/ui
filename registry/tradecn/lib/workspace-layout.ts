@@ -63,12 +63,27 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-/** The value as JSON would store it, key by key: functions and undefined are gone, and a value JSON cannot walk — a cycle, say — drops alone, so one bad value never wipes the rest of the state. */
+/** The value as JSON would store it: functions and undefined are gone, and a top-level toJSON is honored. When JSON cannot walk the whole value, what it can walk is kept key by key — a cycle or a throwing getter drops alone and never wipes the rest of the state. */
 export function toPanelState(value: unknown): WorkspacePanelState {
   if (!isObject(value)) return {}
+  try {
+    const stored: unknown = JSON.parse(JSON.stringify(value))
+    if (isObject(stored)) return stored as WorkspacePanelState
+    if (stored !== undefined) return {}
+  } catch {
+    // Fall through to the per-key pass.
+  }
+  let keys: string[]
+  try {
+    keys = Object.keys(value)
+  } catch {
+    return {}
+  }
   const pairs: Array<[string, WorkspaceJson]> = []
-  for (const [key, entry] of Object.entries(value)) {
+  for (const key of keys) {
     try {
+      // The read runs inside the guard: a throwing getter drops its own key only.
+      const entry: unknown = (value as Record<string, unknown>)[key]
       const text = JSON.stringify(entry)
       if (text === undefined) continue
       // Collected as pairs: assigning out[key] would hand a "__proto__" key to the
