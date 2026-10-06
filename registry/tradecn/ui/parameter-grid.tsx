@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useMemo } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
 import { NULL_TOKEN, NUMERIC_CLASS, formatPrice } from "@/registry/tradecn/lib/format"
@@ -272,28 +272,26 @@ function AsOf<T>({ store, time, labels }: { store: RowStore<T>; time: (ms: numbe
 export function ParameterGrid<T extends ParameterRow = ParameterRow>({ parameters, labels: labelsProp, time, changedSince = null, toggleAction = "toggle", editAction = "edit", columns, label = "Parameters", onEdit, asOf = true, className, store, getRowProps, ...grid }: ParameterGridProps<T>) {
   const labels = useMemo(() => ({ ...DEFAULT_PARAMETER_GRID_LABELS, ...labelsProp }), [labelsProp])
   const timeFn = time ?? localTime
-  // The grid's rows are memoized, so what it is handed keeps its identity from one render to the next; your callbacks are read through a ref.
-  const latest = useRef({ onEdit, getRowProps })
-  useEffect(() => {
-    latest.current = { onEdit, getRowProps }
-  })
   const all = useMemo(() => columns ?? parameterColumns<T>({ parameters, labels, time: timeFn, changedSince, toggleAction, editAction }), [columns, parameters, labels, timeFn, changedSince, toggleAction, editAction])
-  const edit = useCallback((change: EditChange<T>) => latest.current.onEdit(change), [])
-  // A changed row says so to a screen reader; the dot in its name cell is the mark a sighted reader sees.
+  // A changed row says so to a screen reader; the dot in its name cell is the mark
+  // a sighted reader sees. Keyed on the caller's function: a new decoration
+  // reaches rows already on screen, and a memoized one keeps row identity across
+  // unrelated re-renders. onEdit passes straight through — the grid reads its
+  // handler current on every commit.
   const rowProps = useCallback(
     (row: T, id: RowId) => {
-      const own = latest.current.getRowProps?.(row, id)
+      const own = getRowProps?.(row, id)
       const changed = changedSince !== null && row.updatedAt !== null && row.updatedAt !== undefined && row.updatedAt >= changedSince
       if (!changed) return own
       return { ...own, "aria-description": own?.["aria-description"] ?? labels.changed }
     },
-    [changedSince, labels.changed],
+    [getRowProps, changedSince, labels.changed],
   )
   return (
     <div data-slot="tradecn-parameter-grid" className={cn("flex h-full min-h-0 flex-col gap-1 lining-nums tabular-nums", className)}>
       {asOf && <AsOf store={store} time={timeFn} labels={labels} />}
       <div className="min-h-0 flex-1">
-        <DataGrid<T> {...grid} store={store} preset="parameters" label={label} columns={all} onEdit={edit} getRowProps={rowProps} />
+        <DataGrid<T> {...grid} store={store} preset="parameters" label={label} columns={all} onEdit={onEdit} getRowProps={rowProps} />
       </div>
     </div>
   )

@@ -211,7 +211,7 @@ Focus the grid itself for arrow-key navigation and Delete; see [DataGrid keyboar
 
 ### What it costs
 
-The add form keeps its own state, so typing re-renders its controls without re-rendering grid rows. Selection, focus and removal callbacks use stable commands, and `getRowProps` has a stable wrapper. `renderContextMenu` runs with current props and is not passed to memoized rows. The root adds no store subscriptions or timers; the grid owns its subscriptions and cleanup.
+The add form keeps its own state, so typing re-renders its controls without re-rendering grid rows. Selection, focus and removal callbacks use stable commands. The `getRowProps` wrapper follows your function: memoize it and rows keep their identity across unrelated re-renders, hand in a new one and the decoration reaches rows already on screen. `renderContextMenu` runs with current props and is not passed to memoized rows. The root adds no store subscriptions or timers; the grid owns its subscriptions and cleanup.
 
 With stable grid inputs, a value update that leaves view membership and order unchanged re-renders only the affected visible row. The watchlist tests count cell renders during typing, parent renders, and a single-row update.
 

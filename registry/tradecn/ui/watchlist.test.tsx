@@ -238,6 +238,19 @@ describe("Watchlist", () => {
     expect(screen.getByRole("grid")).toHaveAttribute("aria-rowcount", "3")
   })
 
+  it("a new getRowProps reaches rows already on screen without a store delta", () => {
+    const store = seeded()
+    const quiet = () => undefined
+    const { rerender } = render(<Harness store={store} onAdd={() => {}} getRowProps={quiet} />)
+    const first = document.querySelector<HTMLElement>("[data-row-id]")!
+    const symbol = first.dataset.rowId!
+    expect(first).not.toHaveAttribute("data-rule")
+    // The halt lands in app state, not the store: the decoration must still appear.
+    const halted = (r: WatchlistRow) => (r.symbol === symbol ? { "data-rule": "halted" } : undefined)
+    rerender(<Harness store={store} onAdd={() => {}} getRowProps={halted} />)
+    expect(document.querySelector<HTMLElement>(`[data-row-id="${symbol}"]`)!).toHaveAttribute("data-rule", "halted")
+  })
+
   it("does not re-render a row of the grid while you type in the add field, or when the parent re-renders", async () => {
     const user = userEvent.setup()
     let cellRenders = 0

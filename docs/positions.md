@@ -67,6 +67,7 @@ The final state stays visible until Restore book replaces the original rows. Sel
 | `riskHeader` | `string` | `"Risk"` | Name the default risk column, such as DV01 or Delta. |
 | `totals` | `false \| Record<string, (rows: T[]) => string>` | `positionsTotals(options)` | Replace the footer values by column key, or hide the footer. |
 | `label` | `string` | `"Positions"` | Accessible name of the grid. |
+| `className` | `string` | None | Classes on the outer `tradecn-positions` container, not the grid. |
 | `selectionMode` | `"none" \| "single" \| "multi"` | `"single"` | Choose selection behavior. |
 | `selectionColumn` | `boolean` | `false` | Show checkboxes when selection is `"multi"`. |
 | `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Menu items for the selection or targeted row. |

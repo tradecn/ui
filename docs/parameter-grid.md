@@ -74,6 +74,7 @@ Uses the data grid's `parameters` preset: 24 px rows, single selection, ring fla
 | `onEdit` | `(change: EditChange<T>) => void \| Promise<unknown>` | Required | Send a value or enable request to the server. |
 | `columns` | `ColumnDef<T>[]` | `parameterColumns(options)` | Replace the generated column list. |
 | `label` | `string` | `"Parameters"` | Accessible name for the grid. |
+| `className` | `string` | None | Classes on the outer `tradecn-parameter-grid` container, not the grid. |
 | `labels` | `Partial<ParameterGridLabels>` | `DEFAULT_PARAMETER_GRID_LABELS` | Override the labels listed below. |
 | `time` | `(ms: number) => string` | Local 24-hour `HH:MM:SS` | Format updated and as-of times. |
 | `changedSince` | `number \| null` | `null` | Mark rows updated at or after this epoch time in milliseconds. |
@@ -102,7 +103,7 @@ Extend `ParameterRow` with the fields your accessors read:
 
 ### The sheet is the server's
 
-The grid reads your store and never writes it. A valid commit calls `onEdit` with `{ rowId, key, value, previous, row }`, where `previous` is the current accessor value and `row` is the current store row. Committing that same value sends nothing.
+The grid reads your store and never writes it. A valid commit calls `onEdit` with `{ rowId, key, value, previous, row }`, where `previous` is the current accessor value and `row` is the current store row. Committing that same value sends nothing. Return the request's promise from `onEdit`: pending state then follows each request's own answer rather than waiting for the store to match, and a rejection lands on the cell that asked.
 
 A parameter cell shows the committed text muted and italic while pending. Pending clears when the store's accessor value matches the committed value (`Object.is`), or when the returned promise resolves. Resolution displays the current store value, which may still be the old value. Returning nothing leaves the cell pending until the store matches.
 

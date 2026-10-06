@@ -51,6 +51,25 @@ function setup(onEdit: (change: EditChange<Sheet>) => void | Promise<unknown> = 
 }
 
 describe("parameterColumns and parameterEdit", () => {
+  it("hands the grid the current onEdit and getRowProps, not the first render's", () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const store = createRowStore<Sheet>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: ROWS, meta: { producedAt: 1_700_000_200_000 } })
+    const { rerender } = render(<ParameterGrid store={store} parameters={PARAMETERS} onEdit={first} initialRect={RECT} time={(ms) => `t${ms}`} />)
+    rerender(<ParameterGrid store={store} parameters={PARAMETERS} onEdit={second} initialRect={RECT} time={(ms) => `t${ms}`} getRowProps={(r) => (r.id === ROWS[0]!.id ? { "data-rule": "review" } : undefined)} />)
+    // The decoration from the second render's getRowProps is on screen already.
+    expect(document.querySelector<HTMLElement>(`[data-row-id="${ROWS[0]!.id}"]`)!).toHaveAttribute("data-rule", "review")
+    // A toggle commit lands in the second handler, never the first.
+    const grid = screen.getByRole("grid", { name: "Parameters" })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: " " })
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+
   it("lays out name, the enable box, one column per parameter, and the updated time, with numeric defaults", () => {
     const columns = parameterColumns({ parameters: PARAMETERS })
     expect(columns.map((c) => c.key)).toEqual(["name", "enabled", "skew", "width", "maxSize", "note", "updated"])

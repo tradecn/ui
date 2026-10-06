@@ -115,7 +115,7 @@ Scroll down before receiving a batch to see the RFQ preset keep the first visibl
 | `className` | `string` | None | Classes on the grid root. |
 | `initialRect` | `{ width: number; height: number }` | None | Viewport size in px before measurement, for tests or server rendering. |
 
-Each context-menu opening remounts its content and supplies a fresh snapshot of target rows, including reopening during a closing animation. Ordinary rerenders within an opening preserve content state. Subscribe inside custom content for values that must update while it stays open.
+Each context-menu opening remounts its content and supplies a fresh snapshot of target rows, including reopening during a closing animation. Ordinary rerenders within an opening preserve content state. Subscribe inside custom content for values that must update while it stays open. `ids` is the raw target set while `rows` holds only the targets still in the store, so after a removal the arrays differ in length and do not line up by index: act on `ids`, and read each row through the store when you need its fields.
 
 `RowDecoration` accepts optional string fields: `className`, `data-state`, `data-rule`, `data-tone`, and `aria-description`.
 
@@ -144,6 +144,8 @@ Reset emits the configured `baseState` through `onColumnStateChange`, including 
 ColumnChooser normalizes its edits and suppresses effective no-ops; share defaults for the same rendered columns, not identical callback payloads or counts.
 
 Keep an external chooser or application reset control when a snapshot can hide every column: an empty header has no menu to reopen columns.
+
+A move from the header or Alt+arrows rebuilds the order from visible columns, so a hidden column loses its place and returns at the end when shown; [ColumnChooser](column-chooser.md) keeps hidden columns in place when the same state matters. Move is also offered across the frozen boundary, where it changes state without changing what is visible.
 
 Drag a column's right edge to resize it. Movement is measured from its starting width, rounded to pixels, and clamped to `minWidth`. Other column settings and the change callback come from the latest committed props.
 
@@ -258,7 +260,7 @@ Restoring the column does not reopen the draft. These column changes preserve pe
 
 A commit calls `onEdit` with `{ rowId, key, value, previous, row }`. The grid never writes the store. Its default renderer shows the committed text muted with `data-pending` until the store value matches it or the returned promise resolves. Resolution clears pending state and displays the current store value, which may still be the old value. Returning nothing leaves the edit pending until the store matches.
 
-A thrown error or rejection of a still-pending promise displays the store value with the error message, `data-rejected`, and destructive styling. Reopening the editor clears the error while it is open; closing it untouched brings the error back, and committing a change replaces it. A pending cell can also be reopened, starting from its committed text.
+A thrown error or rejection of a still-pending promise displays the store value with the error message, `data-rejected`, and destructive styling. Pending state matches replies by value, not by request: commit 105, then 106, then 105 again, and the first request's success settles the third's pending mark, whose own later rejection is dropped — return the promise from `onEdit` so each request carries its own answer. Reopening the editor clears the error while it is open; closing it untouched brings the error back, and committing a change replaces it. A pending cell can also be reopened, starting from its committed text.
 
 A custom `cell` receives `edit: { status, commit(value), open() }` when editing is enabled for its column. It sees `status` as absent or an object whose `kind` is `pending` or `rejected`. While a text editor is open, the grid renders its built-in editor instead of calling `cell`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text.
 
@@ -266,7 +268,7 @@ For an available text-editable cell, `open()` opens and focuses the text editor.
 
 ### Identity
 
-Selection, focus, and context-menu targets use row ids, so a reorder preserves their identity. `aria-activedescendant` names the focused row while its id is in the view; each data row's `aria-rowindex` is its zero-based view index plus two, accounting for the header.
+Selection, focus, and context-menu targets use row ids, so a reorder preserves their identity. The grid never prunes them: a removed or filtered-out row stays selected and counted until your application drops it, and a Shift range whose anchor has left the view starts from the top of the view. Prune selection against the store when rows retire, as the watchlist layout demo does. `aria-activedescendant` names the focused row while its id is in the view; each data row's `aria-rowindex` is its zero-based view index plus two, accounting for the header.
 
 With announcements enabled, a 1,000 ms timer reports the row count through a polite live region, for example "1,024 rows, 12 new". It starts on mount and restarts when the count changes. Continuous count changes delay the announcement.
 
@@ -350,7 +352,7 @@ When a column disappears while its menu trigger or menu owns focus, focus return
 
 If a column disappears or no longer supports a text editor, its focused editor returns focus to the grid when removed. Focus moved elsewhere is left alone.
 
-Hiding or removing the focused column clears column focus. Press Left or Right on the grid to choose a visible column before using its shortcuts.
+Hiding or removing the focused column clears column focus. Press Left or Right on the grid to choose a visible column before using its shortcuts. The chosen column is shown visually and is not reported to assistive technology, which hears the row as one unit: a screen-reader workflow drives column actions from the header controls, not the grid shortcuts.
 
 Existing sort, row focus, and selection remain unchanged. A controlled hide request leaves column focus in place until the caller accepts it.
 
