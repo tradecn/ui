@@ -552,6 +552,56 @@ describe("certification pins", () => {
     }
   })
 
+  it("ages parked marks from arrival on a view without holdExpiresAt, and the forwarding wrapper keeps the release accounting", () => {
+    // The documented fallback and the migration guide's wrapper, side by side: a
+    // wrapped view that drops holdExpiresAt loses a flash to a long hold; one that
+    // forwards it, as the guide's complete wrapper does, keeps it.
+    const wrap = (source: RowStore<Quote>, forward: boolean): RowStore<Quote> => ({
+      ...source,
+      prepareView(options) {
+        const view = source.prepareView(options)
+        return {
+          store: view.store,
+          getIds: () => view.getIds(),
+          subscribe: listener => view.subscribe(listener),
+          connect: () => view.connect(),
+          touch: () => view.touch(),
+          isHeld: () => view.isHeld(),
+          ...(forward ? { holdExpiresAt: () => view.holdExpiresAt?.() ?? null } : {}),
+          dispose: () => view.dispose(),
+          isDisposed: () => view.isDisposed(),
+        }
+      },
+    })
+    const park = (store: RowStore<Quote>) => {
+      seed(40, store)
+      const utils = render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: true }} />)
+      const grid = utils.container.querySelector<HTMLElement>('[role="grid"]')!
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "mid", sym: "MID", px: 102.5, qty: 1 }] })
+      })
+      act(() => { vi.advanceTimersByTime(900) })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => { vi.advanceTimersByTime(900) })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => { vi.advanceTimersByTime(1100) })
+      const row = utils.container.querySelector<HTMLElement>('[data-row-id="mid"]')
+      expect(row).not.toBeNull()
+      const direction = row!.dataset.direction
+      utils.unmount()
+      return direction
+    }
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      expect(park(wrap(createRowStore<Quote>({ getRowId: row => row.id }), false))).toBeUndefined()
+      expect(park(wrap(createRowStore<Quote>({ getRowId: row => row.id }), true))).toBe("flat")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("flashes an arrival a reorder hold parked once it settles into place", () => {
     // The hold's wait is the grid's, not the row's: a newcomer parked at the tail
     // through sustained navigation still flashes when the hold releases.

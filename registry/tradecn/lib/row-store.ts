@@ -70,7 +70,7 @@ export interface RowView<T> {
   touch(): void
   /** True while a hold is in force. */
   isHeld(): boolean
-  /** When the current or most recent reorder hold lapses or lapsed; null before any hold. Optional: custom views without it age arrival marks from the observing commit. */
+  /** When the current or most recent reorder hold lapses or lapsed; null before any hold. Optional: without it, parked arrival marks age from their arrival, so a hold longer than the highlight window swallows those flashes. */
   holdExpiresAt?(): number | null
   dispose(): void
   /** True after `dispose`: the view no longer follows the store. */
