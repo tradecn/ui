@@ -41,6 +41,9 @@ const ROWS: WatchlistRow[] = [
   { symbol: "CL", last: 78.1, change: 0, changePct: 0, volume: null },
 ]
 
+// Module-level, as the docs say to memoize: the counting test proves it free.
+const moduleRowProps = (row: WatchlistRow) => (row.symbol === "ZN" ? { "data-rule": "steady" } : undefined)
+
 function seeded(): RowStore<WatchlistRow> {
   const store = createRowStore<WatchlistRow>({ getRowId: (r) => r.symbol })
   store.applyDeltas({ upsert: ROWS })
@@ -238,6 +241,19 @@ describe("Watchlist", () => {
     expect(screen.getByRole("grid")).toHaveAttribute("aria-rowcount", "3")
   })
 
+  it("a new getRowProps reaches rows already on screen without a store delta", () => {
+    const store = seeded()
+    const quiet = () => undefined
+    const { rerender } = render(<Harness store={store} onAdd={() => {}} getRowProps={quiet} />)
+    const first = document.querySelector<HTMLElement>("[data-row-id]")!
+    const symbol = first.dataset.rowId!
+    expect(first).not.toHaveAttribute("data-rule")
+    // The halt lands in app state, not the store: the decoration must still appear.
+    const halted = (r: WatchlistRow) => (r.symbol === symbol ? { "data-rule": "halted" } : undefined)
+    rerender(<Harness store={store} onAdd={() => {}} getRowProps={halted} />)
+    expect(document.querySelector<HTMLElement>(`[data-row-id="${symbol}"]`)!).toHaveAttribute("data-rule", "halted")
+  })
+
   it("does not re-render a row of the grid while you type in the add field, or when the parent re-renders", async () => {
     const user = userEvent.setup()
     let cellRenders = 0
@@ -245,11 +261,11 @@ describe("Watchlist", () => {
     const store = seeded()
     function Parent() {
       const [n, setN] = useState(0)
-      // Inline callbacks on purpose: the component reads them through a ref so they can be.
+      // Inline commands on purpose: the root reads commands through a ref so they can be. getRowProps feeds memoized rows, so it is the module-level one the docs ask for.
       return (
         <>
           <button onClick={() => setN(n + 1)}>parent {n}</button>
-          <Harness store={store} columns={columns} onAdd={() => {}} onRemove={() => {}} renderContextMenu={() => null} />
+          <Harness store={store} columns={columns} onAdd={() => {}} onRemove={() => {}} renderContextMenu={() => null} getRowProps={moduleRowProps} />
         </>
       )
     }

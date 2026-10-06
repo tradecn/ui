@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, useCallback, useContext, useEffect, useInsertionEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNode, type Ref } from "react"
+import { createContext, useCallback, useContext, useInsertionEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNode, type Ref } from "react"
 import { Button } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { Input } from "@/components/ui/input"
@@ -166,13 +166,13 @@ export function WatchlistGrid<T extends WatchlistRow = WatchlistRow>({ columns, 
   const store = source as RowStore<T>
   const { selection, focusedRowId, targets, select, focus } = useSelection()
   const { canRemove, remove } = useActions()
-  const latest = useRef({ getRowProps })
-  useEffect(() => { latest.current = { getRowProps } })
   const all = useMemo(() => columns ?? watchlistColumns<T>({ price }), [columns, price])
+  // Keyed on the caller's function: a new decoration reaches rows already on
+  // screen, and a memoized one keeps row identity across unrelated re-renders.
   const rowProps = useCallback((row: T, id: RowId) => {
-    const own = latest.current.getRowProps?.(row, id)
+    const own = getRowProps?.(row, id)
     return { ...own, className: cn("group/row", own?.className) }
-  }, [])
+  }, [getRowProps])
   function keyDown(event: KeyboardEvent<HTMLDivElement>) {
     onKeyDown?.(event)
     if (!canRemove || event.defaultPrevented || (event.key !== "Delete" && event.key !== "Backspace")) return

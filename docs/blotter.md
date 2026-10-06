@@ -208,7 +208,7 @@ Each order's `allowedActions` lists the actions the server permits now. An absen
 | `run` | `(rows: T[], ids: RowId[]) => void` | Yes | Receive only currently permitted rows and their store ids. |
 | `destructive` | `boolean` | No | Use the destructive toolbar-button style without changing the menu item. |
 
-The ordinary button shows `Cancel 3` when all three targets allow it, `Cancel 2 of 3` when one does not, and a disabled `Cancel` when none do. `BlotterSelection` reports the number of root targets as "selected", including a focused-row fallback.
+The ordinary button shows `Cancel 3` when all three targets allow it, `Cancel 2 of 3` when one does not, and a disabled `Cancel` when none do. `BlotterSelection` reports the number of root targets as "selected", including a focused-row fallback. Targets a filter has hidden stay in the count and in the action — working orders off screen are still cancelled — while removed orders leave the action but stay counted until your application prunes the selection.
 
 Permissions are checked when controls render and again against the store when invoked. Only the second check's permitted rows reach `run`. If none remain, it is not called. `allowedActions` is the server's last report, not a guarantee.
 

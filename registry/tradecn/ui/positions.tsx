@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react"
+import { useCallback, useMemo, type ReactNode } from "react"
 import { directionClass, directionOf } from "@/registry/tradecn/hooks/use-flash"
 import { NULL_TOKEN, formatNotional, formatPrice, formatQuantity, formatSigned } from "@/registry/tradecn/lib/format"
 import type { RowId } from "@/registry/tradecn/lib/row-store"
@@ -134,26 +134,22 @@ export interface PositionsProps<T extends PositionRow = PositionRow> extends Omi
 }
 
 export function Positions<T extends PositionRow = PositionRow>({ columns, price, pnl, risk, riskHeader, label = "Positions", totals, renderContextMenu, className, store, getRowProps, selectionMode = "single", ...grid }: PositionsProps<T>) {
-  // The grid's rows are memoized, so what it is handed keeps its identity from one render to the next; your callbacks are read through a ref.
-  const latest = useRef({ renderContextMenu, getRowProps })
-  useEffect(() => {
-    latest.current = { renderContextMenu, getRowProps }
-  })
   const options = useMemo<PositionsColumnOptions<T>>(() => ({ price, pnl, risk, riskHeader }), [price, pnl, risk, riskHeader])
   const all = useMemo(() => columns ?? positionsColumns<T>(options), [columns, options])
   const footer = useMemo(() => (totals === false ? undefined : (totals ?? positionsTotals<T>(options))), [totals, options])
-  const hasOwnMenu = Boolean(renderContextMenu)
-  const menu = useCallback((rows: T[], ids: RowId[]) => latest.current.renderContextMenu?.(rows, ids), [])
-  // The row says its side in words a screen reader hears, under whatever your own props say.
+  // The row says its side in words a screen reader hears, under whatever your own
+  // props say. Keyed on the caller's function: a new decoration reaches rows
+  // already on screen, and a memoized one keeps row identity across unrelated
+  // re-renders. The menu passes straight through, as blotter's does.
   const rowProps = useCallback((row: T, id: RowId) => {
-    const own = latest.current.getRowProps?.(row, id)
+    const own = getRowProps?.(row, id)
     const side = positionSide(row.position)
     return { ...own, "data-state": own?.["data-state"] ?? side, "aria-description": own?.["aria-description"] ?? (side === "flat" ? undefined : side) }
-  }, [])
+  }, [getRowProps])
   return (
     <div data-slot="tradecn-positions" className={cn("flex h-full min-h-0 flex-col gap-1 lining-nums tabular-nums", className)}>
       <div className="min-h-0 flex-1">
-        <DataGrid<T> {...grid} store={store} preset="blotter" selectionMode={selectionMode} label={label} columns={all} footer={footer} getRowProps={rowProps} renderContextMenu={hasOwnMenu ? menu : undefined} />
+        <DataGrid<T> {...grid} store={store} preset="blotter" selectionMode={selectionMode} label={label} columns={all} footer={footer} getRowProps={rowProps} renderContextMenu={renderContextMenu} />
       </div>
     </div>
   )

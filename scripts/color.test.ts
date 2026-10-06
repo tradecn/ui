@@ -22,6 +22,8 @@ const CHANNELS: Array<{ file: string; channel: string; proof: RegExp }> = [
   { file: "ui/sparkline.tsx", channel: "data-direction on the root and the direction in the words a screen reader hears", proof: /data-direction=\{tone\}/ },
   { file: "ui/price-chart.tsx", channel: "Last and Change each carry data-direction; Change prints a sign when composed, and the plot's accessible name says the direction in a word; the canvas takes the same tokens", proof: /data-chart-last="" data-direction=\{summary\.direction\}/ },
   { file: "ui/blotter.tsx", channel: "the side column's text is the word Buy or Sell", proof: /row\.side/ },
+  { file: "ui/watchlist.tsx", channel: "directionClass colors change and changePct, whose text prints its sign through formatSigned and a signed formatPercent", proof: /signed\(value, formatSigned/ },
+  { file: "ui/positions.tsx", channel: "directionClass colors signed figures that print their sign, and the position cell carries data-side with the side said in words for a screen reader", proof: /data-side=\{positionSide\(row\.position\)\}/ },
   { file: "ui/depth-ladder.tsx", channel: "headers belong to the caller; DepthLadderColumnHeader defaults to labels.bid and labels.ask, checked by depth-ladder.test.tsx (builds the rungs / prints the sizes through formatSize) and the depth-ladder smoke scene's columnheader assertions; every size cell carries data-side and staging says buy or sell", proof: /data-side=\{side\}/ },
   { file: "ui/spread-matrix.tsx", channel: "the flash writes data-direction for its window, and the spread it colors is printed with its sign through formatTicks or a signed formatBps", proof: /data-\[direction=/ },
   { file: "ui/feed-health.tsx", channel: "the dot is aria-hidden; omitted indicator children supply a screen-reader state word (feed-health.test.tsx checks this, and the feed-health smoke scene checks compact state and tier words)", proof: /className="sr-only">\{feed.state\}/ },
@@ -39,7 +41,10 @@ function* sources(dir: string): Generator<string> {
 
 describe("contract rule 15: direction never rides on hue alone", () => {
   const registryDir = path.join(ROOT, "registry/tradecn")
-  const colored = [...sources(registryDir)].filter((file) => DIRECTION_COLOR.test(readFileSync(file, "utf8"))).map((file) => path.relative(registryDir, file))
+  // directionClass builds the utility class at runtime, so a call to it colors by
+  // direction without the class ever appearing in the caller's source: count calls too.
+  const colorsByDirection = (src: string) => DIRECTION_COLOR.test(src) || /\bdirectionClass\s*\(/.test(src)
+  const colored = [...sources(registryDir)].filter((file) => colorsByDirection(readFileSync(file, "utf8"))).map((file) => path.relative(registryDir, file))
 
   it.each(["border-s-up", "data-[tone=up]:border-s-up", "dark:border-e-down-soft/50", "hover:border-x-up", "border-t-down", "text-up", "bg-down-soft", "var(--up)"])("detects direction and installs its token for %s", (source) => {
     expect(DIRECTION_COLOR.test(source)).toBe(true)
