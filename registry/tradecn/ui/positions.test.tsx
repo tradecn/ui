@@ -84,7 +84,7 @@ describe("Positions", () => {
       return (
         <>
           <button onClick={() => setN(n + 1)}>parent {n}</button>
-          <Positions store={store} initialRect={RECT} columns={probe} getRowProps={moduleRowProps} />
+          <Positions store={store} initialRect={RECT} columns={probe} getRowProps={moduleRowProps} renderContextMenu={() => <ContextMenuItem>Act</ContextMenuItem>} />
         </>
       )
     }

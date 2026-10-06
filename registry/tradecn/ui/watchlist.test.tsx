@@ -261,7 +261,7 @@ describe("Watchlist", () => {
     const store = seeded()
     function Parent() {
       const [n, setN] = useState(0)
-      // Inline callbacks on purpose: the component reads them through a ref so they can be.
+      // Inline commands on purpose: the root reads commands through a ref so they can be. getRowProps feeds memoized rows, so it is the module-level one the docs ask for.
       return (
         <>
           <button onClick={() => setN(n + 1)}>parent {n}</button>

@@ -6,8 +6,9 @@ import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { editProblem, type ColumnDef, type EditChange } from "@/registry/tradecn/ui/data-grid"
 import { DEFAULT_PARAMETER_GRID_LABELS, ParameterGrid, allowsAction, parameterColumns, parameterEdit, type ParameterDef, type ParameterRow } from "@/registry/tradecn/ui/parameter-grid"
 
-// Module-level, as the docs say to memoize: the counting test proves them free.
-const moduleEdit = () => undefined
+// getRowProps feeds memoized rows, so the docs say to memoize it and the counting
+// test uses a module-level one. onEdit is deliberately inline there: the grid reads
+// it current internally, so the Usage example's inline handler costs nothing.
 const moduleRowProps = () => undefined
 
 interface Sheet extends ParameterRow {
@@ -71,7 +72,7 @@ describe("parameterColumns and parameterEdit", () => {
       return (
         <>
           <button onClick={() => setN(n + 1)}>parent {n}</button>
-          <ParameterGrid store={store} parameters={PARAMETERS} columns={probe} onEdit={moduleEdit} initialRect={RECT} time={(ms) => `t${ms}`} getRowProps={moduleRowProps} />
+          <ParameterGrid store={store} parameters={PARAMETERS} columns={probe} onEdit={() => undefined} initialRect={RECT} time={(ms) => `t${ms}`} getRowProps={moduleRowProps} />
         </>
       )
     }
@@ -82,7 +83,7 @@ describe("parameterColumns and parameterEdit", () => {
     expect(cellRenders).toBe(before)
   })
 
-  it("withdrawing the action while pending holds one request on every path; a disabled checkbox alone does not", () => {
+  it("withdrawing the action while pending refuses the keyboard retry that a disabled checkbox lets through", () => {
     // The docs' one-in-flight recipe, both halves: the grid's Space still sends
     // while the cell is pending — disabling the checkbox blocks only the pointer —
     // and withdrawing the permission refuses keyboard and pointer alike.

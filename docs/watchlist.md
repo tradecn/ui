@@ -125,7 +125,7 @@ Apply callbacks when controlling selection or focus. With internal state, callba
 | `columns` | `ColumnDef<T>[]` | `watchlistColumns({ price })` | Choose columns and their order. |
 | `price` | `(value: number, row: T) => string` | Two decimals | Format default last, bid and ask cells; unused with explicit columns. |
 | `label` | `string` | `"Watchlist"` | Accessible name of the grid. |
-| `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Row decoration, merged with `group/row`. |
+| `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Row decoration, merged with `group/row`. Memoize it: the wrapper follows your function, so a new one re-renders every row and a memoized one is free. |
 | `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Complete menu content, including any removal action. |
 | `className` | `string` | None | Classes on the grid's sizing wrapper. |
 | `ref` | `Ref<HTMLDivElement>` | None | Ref to the sizing wrapper. |
@@ -211,7 +211,7 @@ Focus the grid itself for arrow-key navigation and Delete; see [DataGrid keyboar
 
 ### What it costs
 
-The add form keeps its own state, so typing re-renders its controls without re-rendering grid rows. Selection, focus and removal callbacks use stable commands. The `getRowProps` wrapper follows your function: memoize it and rows keep their identity across unrelated re-renders, hand in a new one and the decoration reaches rows already on screen. `renderContextMenu` runs with current props and is not passed to memoized rows. The root adds no store subscriptions or timers; the grid owns its subscriptions and cleanup.
+The add form keeps its own state, so typing re-renders its controls without re-rendering grid rows. Selection, focus and removal callbacks use stable commands. The `getRowProps` wrapper follows your function: memoize it and memoized rows skip re-rendering across unrelated re-renders, hand in a new one and the decoration reaches rows already on screen. `renderContextMenu` runs with current props and is not passed to memoized rows. The root adds no store subscriptions or timers; the grid owns its subscriptions and cleanup.
 
 With stable grid inputs, a value update that leaves view membership and order unchanged re-renders only the affected visible row. The watchlist tests count cell renders during typing, parent renders, and a single-row update.
 
