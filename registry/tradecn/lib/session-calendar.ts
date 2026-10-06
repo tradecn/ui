@@ -232,7 +232,7 @@ export function createSessionCalendar(options: SessionCalendarOptions): FullSess
     if (!sessions.length) return null
     const today = localTime(now, zone).date
     const marks: SessionTransition[] = []
-    for (let i = -1; i <= 21; i++) {
+    for (let i = -2; i <= 21; i++) {
       const date = addDays(today, i)
       for (const span of spansOpening(date)) {
         if (span.pre < span.open) marks.push({ at: span.pre, status: "pre" })

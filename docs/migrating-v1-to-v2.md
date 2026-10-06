@@ -882,6 +882,10 @@ Items are named groups inside your collection. A focus target that becomes hidde
 
 Drag sessions reject foreign and cross-chooser drops, accept empty string column keys, and clear when their source disappears. These correct the released drag and focus defects.
 
+## SessionCalendar
+
+Hour-24 windows report consistently: `status` and `timeToClose` now look back two opening dates, so a next-day close with an hour-24 `post` reports `post` to its stated end — v1 reported `closed` for that final stretch — and `nextTransition` generates the same cutoff it reports.
+
 ## SessionGuard
 
 Replace `SessionGuard` with `SessionGuardProvider` and compose its warning, dialog and actions. The old export and `SessionGuardProps` are removed: their `children` meant authentication content, whereas provider children own the whole composition.

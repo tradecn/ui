@@ -37,6 +37,9 @@ describe("hour-24 posts", () => {
     expect(stretched.status(postEnds)).toBe("closed")
     const transition = stretched.nextTransition(tuesdayEvening)
     expect(transition).toEqual({ at: postEnds, status: "closed" })
+    // Inside the stretch itself: the mark loop must reach the Monday span too,
+    // or the boundary status reports is one nextTransition never generates.
+    expect(stretched.nextTransition(wednesdaySmallHours)).toEqual({ at: postEnds, status: "closed" })
   })
 })
 

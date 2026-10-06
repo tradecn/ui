@@ -66,17 +66,19 @@ function isObject(value: unknown): value is Record<string, unknown> {
 /** The value as JSON would store it, key by key: functions and undefined are gone, and a value JSON cannot walk — a cycle, say — drops alone, so one bad value never wipes the rest of the state. */
 export function toPanelState(value: unknown): WorkspacePanelState {
   if (!isObject(value)) return {}
-  const out: WorkspacePanelState = {}
+  const pairs: Array<[string, WorkspaceJson]> = []
   for (const [key, entry] of Object.entries(value)) {
     try {
       const text = JSON.stringify(entry)
       if (text === undefined) continue
-      out[key] = JSON.parse(text) as WorkspaceJson
+      // Collected as pairs: assigning out[key] would hand a "__proto__" key to the
+      // prototype setter instead of keeping it an ordinary own key, as JSON does.
+      pairs.push([key, JSON.parse(text) as WorkspaceJson])
     } catch {
       continue
     }
   }
-  return out
+  return Object.fromEntries(pairs)
 }
 
 function readBoundaries(value: unknown): WorkspacePersistenceBoundaries {
