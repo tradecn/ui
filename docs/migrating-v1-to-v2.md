@@ -958,6 +958,8 @@ Keep the fallback target outside conditional content. Surrounding drafts remain 
 
 Existing `Workspace` calls keep the title-and-close tab, panel API and version-1 saved layouts. No API migration is required.
 
+Panel state cleaning changed: v1 turned the whole state into `{}` when any value failed to serialize; v2 keeps the serializable keys and drops only the failing one. A top-level `toJSON` still decides what is stored, and when JSON cannot use what it returns, nothing is stored, as in v1.
+
 Closing a tab with its standalone close button now dismisses the overflow popup. Refresh the installed Workspace CSS: floating groups now use the theme's base z-index of `30` instead of Dockview's fallback `999`. Put custom `--dv-overlay-z-index` values on `.dockview-theme-tradecn`, where floating containers inherit them.
 
 You can add `tabComponent` when you want to arrange tab contents or replace its actions:

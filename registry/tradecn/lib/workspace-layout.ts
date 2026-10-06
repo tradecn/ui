@@ -63,15 +63,21 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-/** The value as JSON would store it: functions and undefined are gone, and a top-level toJSON is honored. When JSON cannot walk the whole value, what it can walk is kept key by key — a cycle or a throwing getter drops alone and never wipes the rest of the state. */
+/** The value as JSON would store it: functions and undefined are gone, and a top-level toJSON decides what is stored, as it does for JSON. When JSON cannot walk the whole value, what it can walk is kept key by key — a cycle or a throwing getter drops alone and never wipes the rest of the state — unless a top-level toJSON owns the result, since its raw fields are what it chose to hide. */
 export function toPanelState(value: unknown): WorkspacePanelState {
   if (!isObject(value)) return {}
   try {
-    const stored: unknown = JSON.parse(JSON.stringify(value))
-    if (isObject(stored)) return stored as WorkspacePanelState
-    if (stored !== undefined) return {}
+    const text = JSON.stringify(value)
+    // A top-level toJSON that returns undefined, a function, or a symbol stores nothing.
+    if (text === undefined) return {}
+    const stored: unknown = JSON.parse(text)
+    return isObject(stored) ? (stored as WorkspacePanelState) : {}
   } catch {
-    // Fall through to the per-key pass.
+    try {
+      if (typeof (value as { toJSON?: unknown }).toJSON === "function") return {}
+    } catch {
+      return {}
+    }
   }
   let keys: string[]
   try {

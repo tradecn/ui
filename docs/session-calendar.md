@@ -59,7 +59,7 @@ The returned `FullSessionCalendar` has these members. Numeric instants are milli
 | `isTradingDay(date)` | `(date: string \| number \| Date) => boolean` | Whether a session is scheduled to open on the local date, excluding holidays |
 | `local(now)` | `(now: number) => LocalTime` | Local date, weekday, and minutes since midnight |
 
-`SessionTransition` is `{ at: number, status: SessionStatus }`: `at` is an epoch timestamp in milliseconds, and `status` applies from that instant. `nextTransition` checks session and holiday boundaries for opening dates from two days back through 21 days ahead in the calendar's zone, the same reach `status` reads. It skips boundaries that leave the status unchanged and can return `null` with nonempty sessions, including a continuously open calendar.
+`SessionTransition` is `{ at: number, status: SessionStatus }`: `at` is an epoch timestamp in milliseconds, and `status` applies from that instant. `nextTransition` checks session and holiday boundaries for opening dates from two days back through 21 days ahead in the calendar's zone, the same lookback `status` uses. It skips boundaries that leave the status unchanged and can return `null` with nonempty sessions, including a continuously open calendar.
 
 For overlapping sessions, `timeToClose` checks earlier opening dates before today's, then sessions in input order. Its countdown can end while another session remains open; use `nextTransition` to find a change in the calendar's status.
 

@@ -401,7 +401,7 @@ A successful import through `LayoutManagerImportContent` restores focus to its t
 
 The manager never calls the workspace API or writes storage. Stored/imported layouts pass through `parseWorkspaceLayout`, while a Load click forwards the supplied template as-is.
 
-The workspace's `api.load` parses again and returns `false` if parsing or dock restoration fails — and a failed restoration leaves the workspace empty, so an `onLoad` handler checks the result and reloads a known-good layout.
+The workspace's `api.load` parses again and returns `false` if parsing or dock restoration fails. Either failure leaves the workspace empty and calls `onLayoutError`, so recovery is the application's: check the result in `onLoad` and load a known-good layout when it is `false`. The workspace demo only reports the failure.
 
 ### Tokens
 

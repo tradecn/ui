@@ -113,11 +113,15 @@ describe("LayoutManager", () => {
   it("renders a template handed in with an out-of-range savedAt as never saved, without unmounting", () => {
     // The parser already floors these at the Date range; a template passed
     // directly must not let toISOString throw mid-render and take the manager down.
-    const hostile = [{ id: "t-x", name: "Hostile", layout: TWO, savedAt: Number.POSITIVE_INFINITY }]
+    // Infinity fails the finite check; 1e20 is finite and fails only the range.
+    const hostile = [
+      { id: "t-x", name: "Hostile", layout: TWO, savedAt: Number.POSITIVE_INFINITY },
+      { id: "t-y", name: "Far future", layout: TWO, savedAt: 1e20 },
+    ]
     render(<LayoutManager templates={hostile} onTemplatesChange={() => {}} onLoad={() => {}} current={TWO} kinds={["book", "chart"]} now={() => T}><LayoutManagerControls /></LayoutManager>)
-    const item = screen.getByRole("listitem")
-    expect(item.textContent).toContain("Hostile")
-    expect(item.querySelector("time")).toBeNull()
+    const items = screen.getAllByRole("listitem")
+    expect(items.map((item) => item.textContent?.includes("Hostile") || item.textContent?.includes("Far future"))).toEqual([true, true])
+    for (const item of items) expect(item.querySelector("time")).toBeNull()
   })
 
   it("saves the current layout under a typed name, says when the name is taken, and lists the templates with their panel counts", () => {

@@ -248,15 +248,21 @@ const stored = readWindowSet(prefs) ?? windowSetOf([{ id: "main", layoutId: "des
 const desk = normalizeDesk(stored)
 await lifecycle.registerInitialWindow("main")
 const windows = createWindowSet(lifecycle.adapter)
-try {
-  await windows.restore(desk)
-} catch (error) {
-  // restore stops at the first window that fails to open and does not roll back:
-  // report it and mount the main window regardless, or the desk stays blank.
-  reportError(error)
+const main = desk.windows.find((record) => record.id === "main")!
+// restore() stops at the first window that fails and does not roll back, and a
+// snapshot lists only open windows, so one failure would drop every later window
+// from the next save. Open each record on its own, main first.
+for (const record of [main, ...desk.windows.filter((record) => record !== main)]) {
+  try {
+    await windows.open(record)
+  } catch (error) {
+    reportError(error)
+  }
 }
-await mountMain(desk.windows.find((record) => record.id === "main")!)
+await mountMain(main)
 ```
+
+A window that fails to open is still absent from the next snapshot. If `main` itself fails, that snapshot is empty: treat it as a failed launch rather than saving it over the desk.
 
 `main: true` changes restore order. It does not implement whole-desk shutdown. Intercept quit before any window is destroyed, stop new window operations, and wait for operations already in flight. Collect approval and flush layout/preference writes from every renderer, snapshot while all windows still exist, then await durable storage. Only after that should the host close secondaries and the owner last. Do not use `closeAll()` from a Tauri owner webview: its insertion order can close the owner first.
 

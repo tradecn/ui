@@ -101,10 +101,23 @@ describe("toPanelState", () => {
     expect(Object.keys(hostile).sort()).toEqual(["__proto__", "group"])
     expect((hostile as { symbol?: unknown }).symbol).toBeUndefined()
     expect(JSON.parse(JSON.stringify(hostile))).toEqual({ ["__proto__"]: { symbol: "ES" }, group: 1 })
+    // The whole pass keeps it an own key too, with no cycle forcing the fallback.
+    const whole = toPanelState(JSON.parse('{"__proto__":{"symbol":"ES"},"group":1}'))
+    expect(Object.getPrototypeOf(whole)).toBe(Object.prototype)
+    expect(Object.keys(whole).sort()).toEqual(["__proto__", "group"])
     // A throwing getter drops alone too; its siblings survive the per-key pass.
     expect(toPanelState({ a: 1, get bad(): never { throw new Error("x") }, b: 2 })).toEqual({ a: 1, b: 2 })
-    // The happy path still serializes whole, so a top-level toJSON is honored.
+    // A proxy whose own keys cannot be listed yields nothing rather than throwing.
+    expect(toPanelState(new Proxy({ a: 1 }, { ownKeys() { throw new Error("x") } }))).toEqual({})
+  })
+
+  it("lets a top-level toJSON decide what is stored, and never falls back to the fields it hides", () => {
     expect(toPanelState({ ignored: true, toJSON: () => ({ x: 1 }) })).toEqual({ x: 1 })
+    // JSON stores nothing for undefined, and nothing that is not an object is state.
+    expect(toPanelState({ secret: "x", toJSON: () => undefined })).toEqual({})
+    expect(toPanelState({ secret: "x", toJSON: () => 5 })).toEqual({})
+    // A toJSON that throws cannot be honored key by key: its raw fields stay hidden.
+    expect(toPanelState({ secret: "x", toJSON(): never { throw new Error("x") } })).toEqual({})
   })
 })
 
