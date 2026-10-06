@@ -176,6 +176,25 @@ describe("views", () => {
     expect(cb).toHaveBeenCalledTimes(2)
   })
 
+  it("reports no hold deadline before any hold, then a wall-clock one from its own clock", () => {
+    let t = 0
+    const now = () => t
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id, now })
+    store.applyDeltas({ upsert: [q("a", 3)] })
+    const view = store.createView({ comparator: (x, y) => y.px - x.px, reorderHoldMs: 1000, now })
+    expect(view.holdExpiresAt!()).toBeNull()
+    view.touch()
+    const wall = Date.now()
+    const deadline = view.holdExpiresAt!()
+    expect(deadline).not.toBeNull()
+    // The hold runs on the injected zero-based clock; the report is wall time.
+    expect(Math.abs(deadline! - (wall + 1000))).toBeLessThanOrEqual(50)
+    t = 2000
+    const lapsed = view.holdExpiresAt!()
+    expect(lapsed).not.toBeNull()
+    expect(lapsed!).toBeLessThan(Date.now())
+  })
+
   it("touch is a no-op without a hold, dispose stops updates", () => {
     const store = make()
     store.applyDeltas({ upsert: [q("a", 1), q("b", 2)] })

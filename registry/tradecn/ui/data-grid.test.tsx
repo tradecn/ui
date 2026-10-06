@@ -552,6 +552,31 @@ describe("certification pins", () => {
     }
   })
 
+  it("stands the release sweep down when highlighting turns off", () => {
+    // A timer armed for a parked mark must not flash after rowEnter.highlight
+    // flips to false, however the flip races the timer's own closure.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(12, store)
+      const { rerender } = render(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "mid", sym: "MID", px: 102.5, qty: 1 }] })
+      })
+      expect((document.querySelector('[data-row-id="mid"]') as HTMLElement).dataset.direction).toBeUndefined()
+      rerender(<DataGrid store={store} columns={columns} label="Quotes" preset="rfq" rowHeight={ROW_HEIGHT} initialRect={RECT} sort={{ key: "px", dir: "asc" }} rowEnter={{ highlight: false }} />)
+      act(() => { vi.advanceTimersByTime(1_000) })
+      const row = document.querySelector('[data-row-id="mid"]') as HTMLElement
+      expect(row).not.toBeNull()
+      expect(row.dataset.direction).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("reports the hold deadline in wall time whatever clock the view runs on", () => {
     // ViewOptions.now takes any millisecond clock — the suite's own store tests use
     // one starting at zero. The grid compares deadlines with Date.now, so the view
@@ -775,8 +800,8 @@ describe("certification pins", () => {
       })
       // Parked at the tail, beyond the rendered range: no mount, no flash yet.
       expect(document.querySelector('[data-row-id="mid"]')).toBeNull()
-      // Extend the hold far past the flash window; feed traffic lets the grid
-      // observe the extensions, refreshing the parked mark to the new deadline.
+      // Extend the hold far past the flash window: the grid's own keys carry the
+      // extensions to the parked mark, and the mid-hold arrival keeps the feed real.
       act(() => { vi.advanceTimersByTime(900) })
       fireEvent.keyDown(grid, { key: "ArrowDown" })
       act(() => { vi.advanceTimersByTime(900) })
@@ -793,7 +818,7 @@ describe("certification pins", () => {
     }
   })
 
-  it("restamps only the marks the hold parked, not older strangers", () => {
+  it("ages only the marks the hold parked, not older strangers", () => {
     // An off-view arrival from before the hold is almost stale when interaction
     // starts; the release must not make it news again.
     vi.useFakeTimers()
@@ -1268,6 +1293,9 @@ describe("certification pins", () => {
     expect(exportCsv(pnl, signed, ["a"]).split("\r\n")[1]).toBe('"+1,234.50"')
     const linked: ColumnDef<{ id: string; v: number }>[] = [{ key: "v", header: "P&L", width: 80, numeric: true, accessor: row => row.v, format: value => `=HYPERLINK("https://example.com","${value as number}")` }]
     expect(exportCsv(pnl, linked, ["a"]).split("\r\n")[1]).toBe('"\'=HYPERLINK(""https://example.com"",""1234.5"")"')
+    // Signed numeric text that does not read as one number is not data either.
+    const payload: ColumnDef<{ id: string; v: number }>[] = [{ key: "v", header: "P&L", width: 80, numeric: true, accessor: row => row.v, format: () => "-2+3+cmd" }]
+    expect(exportCsv(pnl, payload, ["a"]).split("\r\n")[1]).toBe("'-2+3+cmd")
   })
 })
 

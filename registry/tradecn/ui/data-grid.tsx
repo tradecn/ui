@@ -381,11 +381,13 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
   // does not stop a spreadsheet from evaluating what follows it.
   const wholeNumber = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i
   const neutral = (s: string) => (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !wholeNumber.test(s)) ? `'${s}` : s)
-  // A finite numeric accessor's text is data by construction — +1,234.50 from a signed
-  // formatter included — so the sign rule does not apply to it; the hard leads still
-  // neutralize, since a formatter may emit arbitrary text.
+  // A finite numeric accessor usually formats to a number — +1,234.50 from a signed
+  // formatter included — and number-shaped text is data. The sign rule still applies
+  // to numeric text that does not read as one number, and the hard leads always
+  // neutralize: a formatter may emit arbitrary text.
+  const numberShaped = /^[+-]?(\d{1,3}(,\d{3})+|\d+)(\.\d*)?$|^[+-]?\.\d+$|^[+-]?\d+(\.\d*)?e[+-]?\d+$/i
   const esc = (s: string, numeric = false) => {
-    const t = numeric ? (/^[=@\t\r]/.test(s) ? `'${s}` : s) : neutral(s)
+    const t = numeric ? (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !numberShaped.test(s)) ? `'${s}` : s) : neutral(s)
     return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
   }
   const header = cols.map((c) => esc(typeof c.header === "string" ? c.header : c.key)).join(",")
@@ -1146,6 +1148,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // that closes a never-focused editor moves nothing.
   useLayoutEffect(() => {
     if (!edits) return
+    // Read-and-clear up front: the flag answers for this commit's unmount only,
+    // never for a Tab chain or scroll-out from some earlier one.
+    const fell = edits.editorFocusFell.current
+    edits.editorFocusFell.current = false
     const k = edits.tracker.editing()
     if (k === null) return
     const rowId = edits.rowOf(k)
@@ -1154,9 +1160,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       edits.forget(k)
       edits.tracker.set(k, covered?.kind === "editing" ? covered.prior : undefined)
       const doc = rootRef.current?.ownerDocument
-      if (edits.editorFocusFell.current && doc && doc.activeElement === doc.body) rootRef.current?.focus({ preventScroll: true })
+      if (fell && doc && doc.activeElement === doc.body) rootRef.current?.focus({ preventScroll: true })
     }
-    edits.editorFocusFell.current = false
   }, [edits, indexOf])
   const virtualizer = useVirtualizer({
     count: ids.length,
@@ -1214,8 +1219,12 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // the deadline timer plays those flashes. Rendered commits sweep synchronously
   // and the timer re-arms for whatever is still parked.
   const sweepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const highlightRef = useRef(rowEnter.highlight)
+  useInsertionEffect(() => { highlightRef.current = rowEnter.highlight }, [rowEnter.highlight])
   const sweepDueMarks = useCallback(() => {
-    if (!rowEnter.highlight || !scrollRef.current) return
+    // The ref, not the closure: a timer armed before highlighting turned off must
+    // not flash on a stale true while the stand-down effect is still queued.
+    if (!highlightRef.current || !scrollRef.current) return
     const now = Date.now()
     let due: Map<RowId, number> | null = null
     for (const [id, mark] of entered) {
@@ -1236,7 +1245,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         }
       }
     }
-  }, [rowEnter.highlight, entered, uid])
+  }, [entered, uid])
   const scheduleReleaseSweep = useCallback(() => {
     if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current)
     sweepTimerRef.current = null
