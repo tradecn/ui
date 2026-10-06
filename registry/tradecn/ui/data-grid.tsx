@@ -1183,12 +1183,16 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const at = Date.now()
     for (const id of ids) if (!prevSet.has(id)) entered.set(id, at)
     // A reorder hold parks newcomers at the tail until the trader's hands are still:
-    // that wait is the grid's, not the row's, so marks do not age while held, and the
-    // marks set during the hold — only those — are restamped when it releases and the
-    // parked rows settle into place.
+    // that wait is the grid's, not the row's, so marks set during the hold — only
+    // those — are restamped to the moment the hold actually lapsed. A release nothing
+    // published is observed late, so the recorded deadline, not this commit's clock,
+    // is what the parked marks restamp to; a five-minute-old release revives nothing.
     const held = view.isHeld()
     if (held && !prevHeldRef.current) heldSinceRef.current = at
-    if (!held && prevHeldRef.current) for (const [id, stamp] of entered) if (stamp >= heldSinceRef.current) entered.set(id, at)
+    if (!held && prevHeldRef.current) {
+      const releasedAt = Math.min(at, view.holdExpiresAt() ?? at)
+      for (const [id, stamp] of entered) if (stamp >= heldSinceRef.current) entered.set(id, releasedAt)
+    }
     prevHeldRef.current = held
     const nowSet = new Set(ids)
     for (const [id, stamp] of entered) {

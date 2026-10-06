@@ -606,8 +606,7 @@ describe("certification pins", () => {
       act(() => {
         store.applyDeltas({ upsert: [{ id: "parked", sym: "PARKED", px: 102.9, qty: 1 }] })
       })
-      vi.setSystemTime(1_000_000 + 2_600)
-      act(() => { vi.advanceTimersByTime(1_700) })
+      act(() => { vi.advanceTimersByTime(1_000) })
       // Released: the newcomer the hold parked settles into view and flashes; the
       // stranger whose window passed before the hold began is scrolled to and silent.
       const parked = document.querySelector('[data-row-id="parked"]') as HTMLElement
@@ -619,6 +618,39 @@ describe("certification pins", () => {
       const row = document.querySelector('[data-row-id="old"]') as HTMLElement
       expect(row).not.toBeNull()
       expect(row.dataset.direction).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("does not revive marks when a hold lapses unobserved and a late commit finds them", () => {
+    // Store order never reorders at release, so nothing publishes when the hold
+    // lapses: the transition is seen minutes later on an unrelated arrival, and the
+    // restamp must use the lapsed deadline, never that commit's clock.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const store = createRowStore<Quote>({ getRowId: row => row.id })
+      seed(40, store)
+      render(<DataGrid store={store} columns={columns} label="Orders" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} rowEnter={{ highlight: true }} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "x", sym: "X", px: 1, qty: 1 }] })
+      })
+      expect(document.querySelector('[data-row-id="x"]')).toBeNull()
+      // The hold lapses with the order unchanged: nothing publishes. Five minutes of
+      // quiet, then an unrelated arrival finally runs the transition.
+      act(() => { vi.advanceTimersByTime(300_000) })
+      act(() => {
+        store.applyDeltas({ upsert: [{ id: "y", sym: "Y", px: 1, qty: 1 }] })
+      })
+      const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+      scroller.scrollTop = 32 * ROW_HEIGHT
+      fireEvent.scroll(scroller)
+      const x = document.querySelector('[data-row-id="x"]') as HTMLElement
+      expect(x).not.toBeNull()
+      expect(x.dataset.direction).toBeUndefined()
     } finally {
       vi.useRealTimers()
     }

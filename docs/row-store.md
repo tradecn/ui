@@ -142,6 +142,7 @@ For an imperative view, use `store.createView(options)` outside render and call 
 | `subscribe(listener)` | Adds a local change listener. It does not connect the view. |
 | `connect()` | Follows batches and returns an idempotent release function. Multiple connections release independently; the last release stops registration and timers. |
 | `touch()` | Records a hold deadline. A disconnected view starts no timer; reconnection uses only the remaining duration. |
+| `holdExpiresAt()` | When the current or most recent hold lapses or lapsed; `null` before any hold. The grid uses it to age arrival marks from the release, not from whenever a later commit observes it. |
 | `dispose()` | Permanently stops the view. Further connections and touches do nothing. |
 
 Custom `RowStore` implementations must provide a pure `prepareView` factory with these semantics. Preparation, filters, comparators and snapshot reads must not write to the store or create external resources.

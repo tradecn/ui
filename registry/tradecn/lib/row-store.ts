@@ -70,6 +70,8 @@ export interface RowView<T> {
   touch(): void
   /** True while a hold is in force. */
   isHeld(): boolean
+  /** When the current or most recent reorder hold lapses or lapsed; null before any hold. */
+  holdExpiresAt(): number | null
   dispose(): void
   /** True after `dispose`: the view no longer follows the store. */
   isDisposed(): boolean
@@ -332,6 +334,10 @@ class ViewImpl<T> implements PreparedRowView<T> {
 
   isHeld() {
     return this.now() < this.holdUntil
+  }
+
+  holdExpiresAt() {
+    return this.holdUntil > 0 ? this.holdUntil : null
   }
 
   touch() {
