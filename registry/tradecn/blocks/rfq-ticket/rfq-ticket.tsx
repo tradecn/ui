@@ -245,6 +245,15 @@ const noop = () => () => {}
 // A limit's identity apart from its words, which the market can change under it.
 const ruleOf = (p: LimitProblem) => `${p.field}\u0000${p.rule}`
 
+// What a press met, as it landed: the question an action asked, or (no action) the blocks it was refused for, by rule.
+interface Said {
+  text: string
+  revision: number
+  draft: RfqQuoteDraft | null
+  action: string | null
+  rules: readonly string[]
+}
+
 // A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused
 // button, run nothing and answer no question the first press asked. The hold belongs to the button it repeats
 // on, and ends when the key is let go or focus leaves that button.
@@ -386,21 +395,18 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const otherBlocks = blocking.filter((p) => p.field !== "bid" && p.field !== "ask")
   const asking = confirming !== null ? confirms(limitProblems) : []
   const limitsText = [...otherBlocks, ...asking].map((p) => p.message).join(" ")
-  // What a screen reader hears from the limits, never a sentence the moving market merely rewrites: the blocks the
-  // market can reword (a level's distance, another field's rule) when their set of rules changes, and the question when the press
-  // asks it or a confirm the market brings joins it. Each message is a new node, so the same words said again are
-  // still heard, and a message goes once what it said no longer stands.
-  const spoken = blocking
-  const blockSet = spoken.map(ruleOf).join("\u0001")
-  const askSet = asking.map(ruleOf).join("\u0001")
-  const [said, setSaid] = useState(() => ({ text: "", revision: 0, about: "", blocks: blockSet, asks: "" }))
-  if (blockSet !== said.blocks || askSet !== said.asks) {
-    let { text, revision, about } = said
-    if (blockSet !== said.blocks && blockSet) [text, revision, about] = [spoken.map((p) => p.message).join(" "), revision + 1, "blocks"]
-    else if (askSet !== said.asks && askSet) [text, revision, about] = [asking.map((p) => p.message).join(" "), revision + 1, "question"]
-    else if ((about === "blocks" && !blockSet) || (about === "question" && !askSet)) [text, about] = ["", ""]
-    setSaid({ text, revision, about, blocks: blockSet, asks: askSet })
-  }
+  // What a screen reader hears from the limits: what a press met, as it landed — the blocks it was refused for, or
+  // the question it asked. Nothing is said as the market or the dealer's typing rewords them; the line and the
+  // fields keep the live words on screen. A message goes for good once the draft changes or what it said no longer
+  // stands (a block it named stops blocking, or the question is answered or withdrawn), so a block the market brings
+  // back waits for the next press. Each message is a new node, so the same words said again are still heard.
+  const [said, setSaid] = useState<Said>({ text: "", revision: 0, draft: null, action: null, rules: [] })
+  const blockingRules = new Set(blocking.map(ruleOf))
+  const stands = said.draft === draft && (said.action === null ? said.rules.every((rule) => blockingRules.has(rule)) : confirming === said.action)
+  if (said.draft !== null && !stands) setSaid({ ...said, text: "", draft: null, action: null, rules: [] })
+  const heard = stands ? said : null
+  // The reasons the standing question asked about: a reason the market adds since makes the next press ask again.
+  const askedRules = useRef<ReadonlySet<string>>(new Set())
 
   /** Where a step starts when a field is blank: the market's same side, the suggested level, the market's other side, then its mid. */
   function stepFrom(side: QuoteSide): number | null {
@@ -454,11 +460,14 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       const quoted = quotedSides(now.side)
       const over = lines ? checkLimits({ bid: quoted.includes("bid") ? current.bid : null, ask: quoted.includes("ask") ? current.ask : null }, lines, { market: now.market, convention: now.instrument.convention }) : []
       const blocking = blocks(over)
-      const stopped = problemsByField(blocking)
-      setProblems({ bid: found.bid ?? stopped.bid, ask: found.ask ?? stopped.ask })
+      setProblems({ bid: found.bid, ask: found.ask })
+      if (blocking.length) setSaid((prev) => ({ text: blocking.map((p) => p.message).join(" "), revision: prev.revision + 1, draft: current, action: null, rules: blocking.map(ruleOf) }))
       if (found.bid || found.ask || blocking.length) return
-      if (confirms(over).length && asked !== action.id) {
+      const reasons = confirms(over)
+      if (reasons.length && (asked !== action.id || !reasons.every((p) => askedRules.current.has(ruleOf(p))))) {
+        askedRules.current = new Set(reasons.map(ruleOf))
         setConfirming(action.id)
+        setSaid((prev) => ({ text: reasons.map((p) => p.message).join(" "), revision: prev.revision + 1, draft: current, action: action.id, rules: [] }))
         return
       }
     }
@@ -718,7 +727,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
           </p>
         )}
         <span aria-live="polite" aria-atomic="true" className="sr-only" data-rfq-announcer>
-          {said.text && <span key={said.revision}>{said.text}</span>}
+          {heard && <span key={heard.revision}>{heard.text}</span>}
         </span>
 
         {inquiry.message && (

@@ -247,7 +247,7 @@ export function quoteEdit<T extends QuoteRow>(field: QuoteField, options: QuoteC
         const n = readNumber(text)
         if (n === "bad") return editProblem(labels.notANumber)
         // A fraction is refused from the text, before Number can round it away near the safe-integer limit.
-        if (n !== null && (!Number.isSafeInteger(n) || n < 0 || /\.\d*[1-9]/.test(text))) return editProblem(labels.notASize)
+        if (n !== null && (!Number.isSafeInteger(n) || n < 0 || /\.\d*[1-9]/.test(text.replace(/,/g, "")))) return editProblem(labels.notASize)
         return n
       },
       format: (value) => (isNumber(value) ? formatQuantity(value) : ""),

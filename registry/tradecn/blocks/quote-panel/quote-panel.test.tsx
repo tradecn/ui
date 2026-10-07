@@ -144,6 +144,7 @@ describe("quotePanelColumns and quoteEdit", () => {
     expect(size.parse("9007199254740991", ROWS[0]!)).toBe(9007199254740991)
     // A fraction is refused from the text, even where Number would round it away.
     expect(size.parse("9007199254740991.1", ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notASize })
+    expect(size.parse("9007199254740991.0,1", ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notASize })
     expect(size.parse("5.0", ROWS[0]!)).toBe(5)
   })
 

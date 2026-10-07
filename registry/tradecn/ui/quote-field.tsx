@@ -28,8 +28,9 @@ export interface QuoteFieldProps {
   /** A problem your check found with the value, printed under the field and tied to the input. */
   error?: string
   /**
-   * False when you say `error` yourself: the field then shows it without an alert, for an error whose words change
-   * on their own, such as a distance from a moving market. Default true.
+   * False when you say `error` yourself: the field then shows it without an alert and without tying it to the input,
+   * for an error whose words change on their own, such as a distance from a moving market, which would otherwise be
+   * read again at every change. Default true.
    */
   announceError?: boolean
   /** Said under the field when the text is not a quote. Default names the basis. */
@@ -99,6 +100,8 @@ export function QuoteField({ convention, value: rawValue, onValueChange, stepFro
   }
 
   const problem = error ?? (invalid ? (invalidText ?? `Not a ${word.toLowerCase()} in this instrument's notation.`) : undefined)
+  // The field's own reading of the text is always said; your error is, unless you say it yourself.
+  const announced = error === undefined || announceError
 
   return (
     <div data-slot="tradecn-quote-field" data-basis={basis} data-side={side} className={cn("block lining-nums tabular-nums", className)}>
@@ -115,7 +118,7 @@ export function QuoteField({ convention, value: rawValue, onValueChange, stepFro
             spellCheck={false}
             disabled={disabled}
             aria-invalid={problem ? true : undefined}
-            aria-describedby={problem ? `${id}-error` : undefined}
+            aria-describedby={problem && announced ? `${id}-error` : undefined}
             data-numeric=""
             className={cn(numericFontClass(convention), "text-xs md:text-xs")}
             onChange={(event) => change(event.target.value)}
@@ -131,9 +134,8 @@ export function QuoteField({ convention, value: rawValue, onValueChange, stepFro
             </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
-        {/* The field's own reading of the text is an alert; your error is one unless you say it yourself. */}
         {problem && (
-          <FieldError id={`${id}-error`} {...(error !== undefined && !announceError ? { role: "none" } : {})}>
+          <FieldError id={`${id}-error`} {...(announced ? {} : { role: "none" })}>
             {problem}
           </FieldError>
         )}

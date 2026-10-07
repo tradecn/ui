@@ -197,6 +197,15 @@ export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption
 // A limit's identity apart from its words, which the market can change under it.
 const ruleOf = (p: LimitProblem) => `${p.field}\u0000${p.rule}`
 
+// What a press met, as it landed: the question an action asked, or (no action) the blocks it was refused for, by rule.
+interface Said {
+  text: string
+  revision: number
+  draft: TicketDraft | null
+  action: string | null
+  rules: readonly string[]
+}
+
 // A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused
 // button, run nothing and answer no question the first press asked. The hold belongs to the button it repeats
 // on, and ends when the key is let go or focus leaves that button.
@@ -298,22 +307,18 @@ export function Ticket({
   const otherBlocks = blocking.filter((p) => p.field !== "quantity" && p.field !== "price")
   const asking = confirming !== null ? confirms(limitProblems) : []
   const limitsText = [...otherBlocks, ...asking].map((p) => p.message).join(" ")
-  // What a screen reader hears from the limits, never a sentence the moving market merely rewrites: the blocks the
-  // market can reword (the price's distance, another field's rule) when their set of rules changes, and the question when the press
-  // asks it or a confirm the market brings joins it. Each message is a new node, so the same words said again are
-  // still heard, and a message goes once what it said no longer stands. A quantity's
-  // block, worded by the trader alone, is the quantity field's own alert.
-  const spoken = blocking.filter((p) => p.field !== "quantity")
-  const blockSet = spoken.map(ruleOf).join("\u0001")
-  const askSet = asking.map(ruleOf).join("\u0001")
-  const [said, setSaid] = useState(() => ({ text: "", revision: 0, about: "", blocks: blockSet, asks: "" }))
-  if (blockSet !== said.blocks || askSet !== said.asks) {
-    let { text, revision, about } = said
-    if (blockSet !== said.blocks && blockSet) [text, revision, about] = [spoken.map((p) => p.message).join(" "), revision + 1, "blocks"]
-    else if (askSet !== said.asks && askSet) [text, revision, about] = [asking.map((p) => p.message).join(" "), revision + 1, "question"]
-    else if ((about === "blocks" && !blockSet) || (about === "question" && !askSet)) [text, about] = ["", ""]
-    setSaid({ text, revision, about, blocks: blockSet, asks: askSet })
-  }
+  // What a screen reader hears from the limits: what a press met, as it landed — the blocks it was refused for, or
+  // the question it asked. Nothing is said as the market or the trader's typing rewords them; the line and the
+  // fields keep the live words on screen. A message goes for good once the draft changes or what it said no longer
+  // stands (a block it named stops blocking, or the question is answered or withdrawn), so a block the market brings
+  // back waits for the next press. Each message is a new node, so the same words said again are still heard.
+  const [said, setSaid] = useState<Said>({ text: "", revision: 0, draft: null, action: null, rules: [] })
+  const blockingRules = new Set(blocking.map(ruleOf))
+  const stands = said.draft === draft && (said.action === null ? said.rules.every((rule) => blockingRules.has(rule)) : confirming === said.action)
+  if (said.draft !== null && !stands) setSaid({ ...said, text: "", draft: null, action: null, rules: [] })
+  const heard = stands ? said : null
+  // The reasons the standing question asked about: a reason the market adds since makes the next press ask again.
+  const askedRules = useRef<ReadonlySet<string>>(new Set())
 
   const box = useRef<HTMLDivElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
@@ -441,11 +446,14 @@ export function Ticket({
     // The limits, as the click lands: a block stops here and shows under its field; a confirm asks once, and the next click on the same action sends.
     const over = lines ? checkLimits({ side: current.side, quantity: current.quantity, price }, lines, { market, convention: inst.convention }) : []
     const blocking = blocks(over)
-    const stopped = problemsByField(blocking)
-    setProblems({ quantity: found.quantity ?? stopped.quantity, price: found.price ?? stopped.price })
+    setProblems({ quantity: found.quantity, price: found.price })
+    if (blocking.length) setSaid((now) => ({ text: blocking.map((p) => p.message).join(" "), revision: now.revision + 1, draft: current, action: null, rules: blocking.map(ruleOf) }))
     if (found.quantity || found.price || blocking.length) return
-    if (confirms(over).length && asked !== action.id) {
+    const reasons = confirms(over)
+    if (reasons.length && (asked !== action.id || !reasons.every((p) => askedRules.current.has(ruleOf(p))))) {
+      askedRules.current = new Set(reasons.map(ruleOf))
       setConfirming(action.id)
+      setSaid((now) => ({ text: reasons.map((p) => p.message).join(" "), revision: now.revision + 1, draft: current, action: action.id, rules: [] }))
       return
     }
     send()
@@ -586,8 +594,13 @@ export function Ticket({
         <div className="grid grid-cols-2 gap-2">
           <Field data-invalid={shownProblems.quantity ? true : undefined}>
             <FieldLabel htmlFor={`${id}-quantity`}>{labels.quantity}</FieldLabel>
-            <Input id={`${id}-quantity`} value={quantityText} inputMode="decimal" autoComplete="off" spellCheck={false} disabled={disabled} aria-invalid={shownProblems.quantity ? true : undefined} data-numeric="" className={cn("h-7 text-xs md:text-xs", NUMERIC_CLASS)} onChange={(event) => onQuantityChange(event.target.value)} onBlur={onQuantityBlur} onKeyDown={stepper(stepQuantity)} />
-            {shownProblems.quantity && <FieldError>{shownProblems.quantity}</FieldError>}
+            <Input id={`${id}-quantity`} value={quantityText} inputMode="decimal" autoComplete="off" spellCheck={false} disabled={disabled} aria-invalid={shownProblems.quantity ? true : undefined} aria-describedby={problems.quantity ? `${id}-quantity-error` : undefined} data-numeric="" className={cn("h-7 text-xs md:text-xs", NUMERIC_CLASS)} onChange={(event) => onQuantityChange(event.target.value)} onBlur={onQuantityBlur} onKeyDown={stepper(stepQuantity)} />
+            {/* A press's own problem is an alert tied to the field; a live limit block is said when a press meets it. */}
+            {shownProblems.quantity && (
+              <FieldError id={`${id}-quantity-error`} {...(problems.quantity ? {} : { role: "none" })}>
+                {shownProblems.quantity}
+              </FieldError>
+            )}
             {quickSizes && quickSizes.length > 0 && (
               <div role="group" aria-label={labels.quickSizes} data-ticket-quick-sizes="" className="flex flex-wrap gap-1">
                 {quickSizes.map((size, i) => (
@@ -686,7 +699,7 @@ export function Ticket({
           </p>
         )}
         <span aria-live="polite" aria-atomic="true" className="sr-only" data-ticket-announcer>
-          {said.text && <span key={said.revision}>{said.text}</span>}
+          {heard && <span key={heard.revision}>{heard.text}</span>}
         </span>
 
         {(status || message) && (
