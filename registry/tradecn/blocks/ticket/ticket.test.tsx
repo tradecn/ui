@@ -156,6 +156,21 @@ describe("Ticket", () => {
     expect(screen.getByText("Nothing can be done with this ticket right now.")).toBeInTheDocument()
   })
 
+  it("snaps an off-grid default price to the quote grid, so the price sent is the one shown", () => {
+    const { run } = mount({ defaultDraft: { quantity: 5, price: 99.51 } })
+    expect(price().value).toBe("99-16+")
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(run.mock.calls[0]![0]).toMatchObject({ price: 99.515625 })
+  })
+
+  it("withdraws the price problem when the type stops taking a price", () => {
+    mount({ defaultDraft: { quantity: 5 } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(screen.getByText("This order type needs a price.")).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Type"), { target: { value: "market" } })
+    expect(screen.queryByText("This order type needs a price.")).toBeNull()
+  })
+
   it("checks the draft as the action runs: a quantity above zero, a price when the type takes one", () => {
     const { run } = mount()
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
@@ -227,6 +242,16 @@ describe("Ticket", () => {
 })
 
 describe("Ticket keys", () => {
+  it("never runs a destructive action on the send key, even one that checks the draft", () => {
+    // Cancel at the default checked is the shape the actions fixture above uses:
+    // mod+enter must not reach it when it is the only action allowed.
+    const cancel = vi.fn()
+    mount({ defaultDraft: { quantity: 5, price: 99.5 }, actions: [{ id: "cancel", label: "Cancel", run: cancel, destructive: true }], allowedActions: ["cancel"] })
+    quantity().focus()
+    fireEvent.keyDown(quantity(), { key: "Enter", ctrlKey: true })
+    expect(cancel).not.toHaveBeenCalled()
+  })
+
   it("sends, flips, and steps from inside its own fields, with the keys in the editing scope", () => {
     const { run, registry } = mount({ defaultDraft: { quantity: 5, price: 99.5 }, quickSizes: [1, 2, 3, 4, 5, 6, 7, 8, 9] })
     expect(registry!.list().map((e) => e.id)).toEqual(expect.arrayContaining(TICKET_BINDINGS.map((b) => b.id)))

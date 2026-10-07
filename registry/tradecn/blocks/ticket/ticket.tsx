@@ -194,9 +194,10 @@ export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption
   return problems
 }
 
-/** The send shortcut's target: the first allowed action that checks the draft, preferring the primary one. An unchecked action sends nothing of the draft, so a shortcut named send never runs one. */
+/** The send shortcut's target: the first allowed action that checks the draft, preferring the primary one. An unchecked action sends nothing of the draft and a destructive one cancels or pulls, so a shortcut named send runs neither. */
 function sendTarget(allowed: readonly TicketAction[]): TicketAction | null {
-  return allowed.find((action) => action.primary && action.checked !== false) ?? allowed.find((action) => action.checked !== false) ?? null
+  const sending = allowed.filter((action) => action.checked !== false && !action.destructive)
+  return sending.find((action) => action.primary) ?? sending[0] ?? null
 }
 
 // Every ticket declares the bindings as registry defaults: the registry refcounts them, a
@@ -251,11 +252,12 @@ export function Ticket({
   const [draft, setDraft] = useState<TicketDraft>(() => ({
     side: "buy",
     quantity: null,
-    price: null,
     type: orderTypes[0]?.id ?? "",
     tif: timeInForces[0]?.id ?? "",
     account: accounts?.[0]?.id ?? null,
     ...defaultDraft,
+    // Snapped to the quote grid, as a reference click is: the field prints the grid value.
+    price: typeof defaultDraft?.price === "number" && Number.isFinite(defaultDraft.price) ? stepQuote(defaultDraft.price, convention, 0) : (defaultDraft?.price ?? null),
   }))
   const [quantityText, setQuantityText] = useState(() => (draft.quantity === null ? "" : formatQuantity(draft.quantity)))
   const [problems, setProblems] = useState<TicketProblems>({})
@@ -313,7 +315,12 @@ export function Ticket({
 
   function update(patch: Partial<TicketDraft>) {
     setDraft((d) => ({ ...d, ...patch }))
-    setProblems((p) => (patch.quantity !== undefined && p.quantity ? { ...p, quantity: undefined } : patch.price !== undefined && p.price ? { ...p, price: undefined } : p))
+    setProblems((p) => {
+      if (patch.quantity !== undefined && p.quantity) return { ...p, quantity: undefined }
+      // A new price, or a type that takes none, answers the price problem.
+      if (p.price && (patch.price !== undefined || (patch.type !== undefined && !isPriced(orderTypes, patch.type)))) return { ...p, price: undefined }
+      return p
+    })
     setConfirming(null)
   }
 

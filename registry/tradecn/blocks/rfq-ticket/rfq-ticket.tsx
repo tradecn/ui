@@ -242,9 +242,9 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
 }
 
 const noop = () => () => {}
-/** The one action the send key runs: it sends the quote, so a pass never rides mod+enter. */
+/** The one action the send key runs: it sends the quote, so neither a pass nor a destructive action rides mod+enter. */
 function sendTarget(allowed: readonly RfqAction[]): RfqAction | undefined {
-  const sending = allowed.filter((action) => action.needsQuote !== false)
+  const sending = allowed.filter((action) => action.needsQuote !== false && !action.destructive)
   return sending.find((action) => action.primary) ?? sending[0]
 }
 const RFQ_CORE_BINDINGS = RFQ_TICKET_BINDINGS.filter((binding) => !binding.id.startsWith("rfq.size-"))
@@ -279,7 +279,8 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const id = useId()
   const { convention } = inquiry.instrument
   const sides = quotedSides(inquiry.side)
-  const [draft, setDraft] = useState<RfqQuoteDraft>(() => ({ inquiryId: inquiry.id, bid: level(defaultDraft?.bid), ask: level(defaultDraft?.ask), quantity: inquiry.quantity }))
+  const snapped = (v: number | null) => (v === null ? null : stepQuote(v, convention, 0))
+  const [draft, setDraft] = useState<RfqQuoteDraft>(() => ({ inquiryId: inquiry.id, bid: snapped(level(defaultDraft?.bid)), ask: snapped(level(defaultDraft?.ask)), quantity: inquiry.quantity }))
   const [problems, setProblems] = useState<RfqQuoteProblems>({})
   // The action a limit asked again about; the next click on it sends. Any change to a level withdraws the question.
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -398,7 +399,8 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
     if (!suggested) return
     for (const side of sides) {
       const value = level(suggested[side])
-      if (value !== null) setLevel(side, value)
+      // Snapped to the quote grid: the button and the field print the grid value, so that is what sends.
+      if (value !== null) setLevel(side, stepQuote(value, convention, 0))
     }
   }
 

@@ -109,7 +109,7 @@ Scroll down before receiving a batch to see the RFQ preset keep the first visibl
 | `footer` | `Record<string, (rows: T[]) => string>` | None | Totals keyed by column key. |
 | `onEdit` | `(change: EditChange<T>) => void \| Promise<unknown>` | None | Handle commits; enables columns with `edit`. |
 | `onRowActivate` | `(row: T, id: RowId) => void` | None | Handle grid Enter or an unhandled double-click on plain row content, unless it opens an editor. |
-| `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Menu items opened from an owned row, for the selection or targeted row. |
+| `renderContextMenu` | `(rows: T[], ids: RowId[], target?: RowId \| null) => ReactNode` | None | Menu items opened from an owned row, for the selection or targeted row. `target` is the row the menu opened on, which can sit inside a larger selection, taken from the event that opened it. |
 | `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Row classes, state, tone, and accessible description. |
 | `emptyState` | `ReactNode` | `"No rows"` | Empty-view content. |
 | `className` | `string` | None | Classes on the grid root. |
@@ -245,7 +245,7 @@ Give the grid `onEdit` and the column a `CellEdit<T>`:
 |---|---|---|---|
 | `parse` | `(text: string, row: T) => unknown` | Required | Return a value or `editProblem("…")`. |
 | `format` | `(value: unknown, row: T) => string` | Column formatter or `String(value)`; blank for nullish values | Editor and pending text. |
-| `validate` | `(value: unknown, row: T) => EditProblem \| null \| undefined` | None | Return a problem to refuse the value. |
+| `validate` | `(value: unknown, row: T, commit?: EditCommit) => EditProblem \| null \| undefined` | None | Return a problem to refuse the value. The grid passes `commit`, `{ via, repeat, session }`: `via` is `"enter"`, `"tab"`, `"blur"`, or `"value"` for a toggle or a cell control's commit; `repeat` is true for the repeats of a held key, Enter or Tab in an editor and Space or Enter on a toggle, and for a cell control's commit that says so, and false for a blur; `session` numbers each opening of an editor, uniquely across every grid on the page, and value commits share `0`. A check that asks a question can insist on a fresh Enter in the same opening for the answer. |
 | `step` | `(value: unknown, dir: 1 \| -1, big: boolean, row: T) => unknown` | None | Return the next value for Up or Down; Shift sets `big`. |
 | `toggle` | `(value: unknown, row: T) => unknown` | None | Return a value to commit without opening an editor. |
 | `canEdit` | `(row: T) => boolean` | Returns `true` | Make individual cells read-only with `false`. |
@@ -262,7 +262,7 @@ A commit calls `onEdit` with `{ rowId, key, value, previous, row }`. The grid ne
 
 A thrown error or rejection of a still-pending promise displays the store value with the error message, `data-rejected`, and destructive styling. Pending state matches replies by value, not by request, even with promises: commit 105, then 106, then 105 again, and the first request's success settles the third's pending mark, whose own later rejection is dropped. Returning the promise from `onEdit` lets a rejection reach the cell, but the grid cannot tell two requests for the same value apart — keep one request in flight per cell by refusing the cell through `canEdit` while a reply is pending, as ParameterGrid's server demo does by withdrawing the permission. A custom cell that merely disables its control blocks the pointer only: on a toggle column, the grid's Space, Enter, and F2 still commit. Reopening the editor clears the error while it is open; closing it untouched brings the error back, and committing a change replaces it. A pending cell can also be reopened, starting from its committed text.
 
-A custom `cell` receives `edit: { status, commit(value), open() }` when editing is enabled for its column. It sees `status` as absent or an object whose `kind` is `pending` or `rejected`. While a text editor is open, the grid renders its built-in editor instead of calling `cell`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text.
+A custom `cell` receives `edit: { status, commit(value, how?), open() }` when editing is enabled for its column. It sees `status` as absent or an object whose `kind` is `pending` or `rejected`. While a text editor is open, the grid renders its built-in editor instead of calling `cell`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text. Pass `{ repeat: true }` as `how` for a commit a held key repeats, so `validate` sees it as one.
 
 For an available text-editable cell, `open()` opens and focuses the text editor. It does nothing for a row outside the view, and on the cell already being edited it keeps the draft and asks for focus again. It does not select the row or change the grid's logical row or chosen column. To return grid navigation to that row after editing, control `focusedRowId` and update it in the action handler before calling `open()`. Column shortcuts still use the previously chosen column; choose a column with grid navigation or its header.
 
@@ -286,7 +286,7 @@ Fallback ARIA role lists use the first recognized role: `role="unsupported butto
 
 Use native controls with accessible names in custom cells. A custom handler can also claim a press or double-click with `preventDefault()` or `stopPropagation()`. Row actions run during bubbling, after the child handler. To claim one from a parent, use its capture handler.
 
-With `renderContextMenu`, right-clicking plain content in a selected row keeps the selection; another row becomes the target. Controls, nested grids, content portaled outside this grid, headers, footers and empty space do not open its row menu. Controls retain their own context menus, including the browser's default when the application leaves it available.
+With `renderContextMenu`, right-clicking plain content in a selected row keeps the selection; another row becomes the target. Either way the row under the pointer is the menu's `target`, even while a parent that controls `focusedRowId` has not moved focus there; a touch's long press opens it on the touched row, and Shift+F10 or the Menu key on the focused row. Controls, nested grids, content portaled outside this grid, headers, footers and empty space do not open its row menu. Controls retain their own context menus, including the browser's default when the application leaves it available.
 
 When a row menu is installed, rejected `contextmenu`, non-mouse `pointerdown`, and single-touch `touchstart` events stop React bubbling after child handlers run. Use capture handlers on ancestors to observe them. Multiple-touch `touchstart` events reach the menu so it can cancel a pending long press.
 

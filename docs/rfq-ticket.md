@@ -51,7 +51,7 @@ Both sides are required for a two-way quote. Enter a crossed pair to see the cro
 
 ## Suggested levels and shortcuts
 
-The Auto button copies suggested levels into the draft without sending. Choose a quick size, then Quote; the request caption includes that quantity. The venue supplies the allowed sizes, which can include more than the original inquiry's size. This example also shows client details, venue tags, settlement, and preformatted risk context.
+The Auto button copies suggested levels into the draft without sending, snapped to the quote grid, so the level sent is the one the button and the field show. Choose a quick size, then Quote; the request caption includes that quantity. The venue supplies the allowed sizes, which can include more than the original inquiry's size. This example also shows client details, venue tags, settlement, and preformatted risk context.
 
 Inside a quote field, use `mod+shift+a` for suggestions, `mod+up` or `mod+down` to step the focused level, `mod+1` or `mod+2` for the first two quick sizes, and `mod+enter` to quote. `mod` is Command on Mac and Control elsewhere. `HotkeysProvider` enables these bindings and the send hint; plain Enter sends nothing.
 
@@ -77,7 +77,7 @@ This block installs `rfq-ticket.tsx` in your `components` alias. It shares sourc
 |---|---|---|---|
 | `inquiry` | `RfqInquiry` | Required | Server data for this ticket. |
 | `actions` | `readonly RfqAction[]` | Required | Available action definitions, in display order. |
-| `defaultDraft` | `Partial<RfqLevels>` | Both levels `null` | Initial bid and ask; read only on mount. |
+| `defaultDraft` | `Partial<RfqLevels>` | Both levels `null` | Initial bid and ask, snapped to the quote grid; read only on mount, with the inquiry's quantity. A side the inquiry did not ask for still enters the draft, reaches `run`, and feeds the crossed check, so seed only the requested sides. |
 | `onDraftChange` | `(draft: RfqQuoteDraft) => void` | None | Reports the current draft after a change. |
 | `acknowledged` | `unknown` | `undefined` | Change this value when the server acknowledges a quote. |
 | `autoFocus` | `boolean` | `false` | Requests focus on the first quote field on mount. |
@@ -102,7 +102,7 @@ This block installs `rfq-ticket.tsx` in your `components` alias. It shares sourc
 | `tags` | `readonly string[]` | None | Venue badges, such as protocol, dealer count, or list name. |
 | `settlement` | `string` | None | Settlement text. |
 | `receivedAt` | `number` | First countdown render | Arrival in milliseconds since the epoch; sets the countdown bar's full duration. |
-| `context` | `readonly RfqContextItem[]` | None | Preformatted `label` and `value` strings, with optional `tone: "up" \| "down" \| "flat"`. |
+| `context` | `readonly RfqContextItem[]` | None | Preformatted `label` and `value` strings, with optional `tone: "up" \| "down" \| "flat"`. The tone only colors the value, so put the direction in it as a sign or a word. |
 | `market` | `RfqMarket` | None | Reference bid, ask, and optional mid; optional `label` defaults to `"Market"`. |
 | `quoted` | `RfqLevels` | None | This desk's live quote from the server. |
 | `suggested` | `RfqLevels` | None | Proposed levels to copy into the draft. |
@@ -156,9 +156,9 @@ The last two helpers default to `DEFAULT_RFQ_TICKET_LABELS` and accept a full `R
 | `run` | `(draft: RfqQuoteDraft, inquiry: RfqInquiry) => void` | Required | Executes the action with the current draft and inquiry. |
 | `needsQuote` | `boolean` | `true` | Requires quote and limit checks. |
 | `destructive` | `boolean` | `false` | Uses the destructive button style. |
-| `primary` | `boolean` | Automatic | Preferred by `rfq.send` among quote-sending actions; uses primary styling unless destructive. |
+| `primary` | `boolean` | Automatic | Preferred by `rfq.send` among quote-sending actions that are not `destructive`; `rfq.send` never runs a destructive action. Uses primary styling unless destructive. |
 
-Only matching actions render, in your `actions` order. No matches produces the nothing-allowed message. The primary action — for styling — is the first allowed action marked `primary`, otherwise the first that needs a quote, otherwise the first allowed action. The send key chooses separately: the first allowed quote-sending action, preferring one marked `primary`, so a `needsQuote: false` action never runs on it however it is marked.
+Only matching actions render, in your `actions` order. No matches produces the nothing-allowed message. The primary action — for styling — is the first allowed action marked `primary`, otherwise the first that needs a quote, otherwise the first allowed action. The send key chooses separately: the first allowed quote-sending action that is not `destructive`, preferring one marked `primary`, so neither a `needsQuote: false` action nor a destructive one ever runs on it, however it is marked.
 
 On execution, the ticket rechecks `disabled`, permission, and any required quote and limit checks against current props. Quote errors appear under their fields. Set `needsQuote: false` for pass, stop, or server-priced actions; these receive the current draft without quote or limit validation.
 
@@ -178,7 +178,7 @@ Inside a `HotkeysProvider`, the ticket declares these `editing` bindings as regi
 
 | Binding | Default key | Action |
 |---|---|---|
-| `rfq.send` | `mod+enter` | Runs the first allowed quote-sending action, preferring the primary; its key caps render on that action's button. |
+| `rfq.send` | `mod+enter` | Runs the first allowed quote-sending action that is not `destructive`, preferring the primary; its key caps render on that action's button, and it does nothing when no such action is allowed. |
 | `rfq.tick-up`, `rfq.tick-down` | `mod+up`, `mod+down` | Steps the side the key came from — its field or step buttons — else the first field. |
 | `rfq.suggested` | `mod+shift+a` | Copies suggested levels. |
 | `rfq.size-1` … `rfq.size-N` | `mod+1` … `mod+N` | Selects an entry from `quickSizes`, in supplied order; declared through `N = quickSizes.length`, at most nine. |
