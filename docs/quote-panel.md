@@ -46,7 +46,7 @@ Return a promise from `onEdit` when the server can reject a command. This exampl
 
 The server's `allowedActions` controls both editing and which row buttons appear. Pause keeps the levels, Pull clears them and removes edit permission, and Resume restores a two-way from the market. These handlers write the status and permissions back to the store so the result stays visible. The unrelated columns start hidden so the row actions stay in view.
 
-Pull all asks for a second press, then receives every row that allows `"pull"`, including rows outside a filter or selection. After all rows are pulled, it is disabled; Resume makes a row eligible again. Escape or another click inside the panel cancels the question.
+Pull all asks for a second, separate press, then receives every row that allows `"pull"`, including rows outside a filter or selection. After all rows are pulled, it is disabled; Resume makes a row eligible again. Escape or another click inside the panel cancels the question.
 
 <!-- demo: quote-panel-actions -->
 
@@ -117,7 +117,7 @@ The cell shows the committed value as pending until the store matches it (`Objec
 |---|---|---|---|
 | `bid`, `ask` | The instrument's notation (`99-16+`, `4.125`) through `parseQuote`; a typed decimal snaps to the printable grid | One quote step, ten with Shift; from the market's same side when the side is empty | No level on that side |
 | `skew`, `width` | A plain decimal number of quote steps, including fractional steps; a width is zero or more | One step, ten with Shift; from zero when empty | Null |
-| `bidSize`, `askSize` | A whole number, zero or more | One, ten with Shift; from zero when empty, never below zero | Null |
+| `bidSize`, `askSize` | A whole number from zero to `Number.MAX_SAFE_INTEGER` | One, ten with Shift; from zero when empty, never below zero | Null |
 
 Numbers are plain decimals: `1e3` and `0x10` are refused. A crossed edit is refused in the editor before it is sent, read through the instrument's quote direction: a bid at or above the desk's ask, or an ask at or below its bid, normally — the reverse where the direction inverts.
 
@@ -140,7 +140,7 @@ Each `QuoteAction<T>` defines a row button:
 | `run` | `(row: T) => void \| Promise<unknown>` | Required | Handle the action for the rendered row. |
 | `destructive` | `boolean` | `false` | Use destructive button styling; adds no confirmation. |
 
-Buttons follow your `actions` order and appear only when `allowedActions` includes their ids. A click rechecks permission against the rendered row. While a returned promise is pending, every action button on that row is disabled. Fulfillment or rejection re-enables them; rejection shows no built-in error. The status changes only when the store changes.
+Buttons follow your `actions` order and appear only when `allowedActions` includes their ids. A click rechecks permission against the rendered row, and a press counts once: a double-click's second click and a held Enter's repeats run nothing. While a returned promise is pending, every action button on that row is disabled. Fulfillment or rejection re-enables them; rejection shows no built-in error. The status changes only when the store changes.
 
 The same actions are on the row menu, so the keyboard reaches them: right-click the row, or press Shift+F10 or the Menu key on the focused row. With `actions` passed, a right-click on a row opens this menu instead of the browser's own. The buttons themselves stay out of the Tab order, keeping the grid one tab stop. The menu names the row it opened on and acts on that row alone, whatever else is selected. While it stays open, its items follow the row as the server changes it. A run started from either the menu or a button holds both until its promise settles; the hold is the panel's, so it survives the row scrolling out of view and back. A row the server allows no action on, and every row when `actions` is an empty list, shows `No actions for this row right now.` in its menu. Items your own `renderContextMenu` returns follow the row's actions. Pass `actions` always or never: switching between a list and `undefined` adds or removes the menu, which remounts the grid's rows.
 
@@ -148,7 +148,7 @@ When the control under focus leaves, focus moves to the grid so its keys keep wo
 
 Action buttons and the gaps between them preserve row selection and logical focus, including while a command is pending.
 
-Pull all appears when `onPullAll` is given. The first press changes its label to `Pull all anyway?`; a click elsewhere inside the panel, Escape within it, or focus leaving the panel cancels the question. The second press rereads the store and passes every row whose `allowedActions` includes `pullAction`, regardless of the grid's filter or selection. The button is disabled when no row allows the action or its returned promise is pending. Fulfillment or rejection clears the pending state without an error message. `data-quote-pull-all` carries the eligible row count.
+Pull all appears when `onPullAll` is given. The first press changes its label to `Pull all anyway?`; a click elsewhere inside the panel, Escape within it, or focus leaving the panel cancels the question. The second press — a fresh one, not a double-click's second click or a held Enter's repeat — rereads the store and passes every row whose `allowedActions` includes `pullAction`, regardless of the grid's filter or selection. The button is disabled when no row allows the action or its returned promise is pending. Fulfillment or rejection clears the pending state without an error message. `data-quote-pull-all` carries the eligible row count.
 
 ### Columns
 
@@ -162,7 +162,7 @@ Pass `columns` as a function to keep the panel's question line. The panel calls 
 | `quoteEdit<T>(field, options)` | `CellEdit<T>` | A `QuoteField` and `QuoteColumnOptions<T>` for its parser, stepper, permission check, and validation. |
 | `allowsQuoteAction(row, id)` | `boolean` | A `QuoteRow` and action id (`string`); false for an absent or empty list. |
 
-For example, inside your component, with a stable `convention` and `limits` as in [Confirming and blocking edits](#confirming-and-blocking-edits):
+For example, inside your component, with a stable `convention`, `limits`, `actions`, and `labels`, the ones you pass the panel, as in [Confirming and blocking edits](#confirming-and-blocking-edits):
 
 ```tsx
 import { useCallback } from "react"
@@ -171,13 +171,13 @@ import { quotePanelColumns, type QuotePanelQuestion, type QuoteRow } from "@/com
 // Inside the component: every generated column but skew, with the panel's question line.
 const columns = useCallback(
   (question: QuotePanelQuestion) =>
-    quotePanelColumns<QuoteRow>({ convention, limits, ...question }).filter((column) => column.key !== "skew"),
-  [convention, limits],
+    quotePanelColumns<QuoteRow>({ convention, limits, actions, labels, ...question }).filter((column) => column.key !== "skew"),
+  [convention, limits, actions, labels],
 )
-// Pass columns={columns} to QuotePanel.
+// Pass columns={columns} to QuotePanel, with the same actions, so the row's buttons and its menu agree.
 ```
 
-`QuoteColumnOptions<T>` requires `convention` and accepts `labels`, `editAction`, and `limits` with the types and defaults in the props table. It also accepts `actions` and `font`, which only `quotePanelColumns` uses, `asked?: Set<string>` for the question standing, and `onQuestion?: (question: string | null) => void`, told each question a confirm limit asks, and `null` when a later check answers it, blocks or crosses the value, finds nothing to ask, a blank value included, or comes from leaving the editor. Text that does not parse never reaches a check. It is not told when an editor closes without a commit or its text changes. `QuoteField` is `"bid" | "ask" | "skew" | "width" | "bidSize" | "askSize"`.
+`QuoteColumnOptions<T>` requires `convention` and accepts `labels`, `editAction`, and `limits` with the types and defaults in the props table. It also accepts `actions` and `font`, which only `quotePanelColumns` uses, `asked?: Set<string>` for the question standing, and `onQuestion?: (question: string | null) => void`, told each question a confirm limit asks, and `null` when a later check answers it, blocks or crosses the value, finds nothing to ask, a blank value included, or comes from leaving the editor. Text that does not parse never reaches a check. It is not told when an editor closes without a commit or its text changes. In the panel, focus leaving the control that asked withdraws its question too, unless the window lost focus. `QuoteField` is `"bid" | "ask" | "skew" | "width" | "bidSize" | "askSize"`.
 
 Outside the panel, in a grid of your own, create a stable `asked` set and pass it, with your own `onQuestion`, to every helper whose questions share one line; a set holds one question, so give each line you show its own. Clear the set, and the question you show, when the asking editor's text changes or focus leaves it, as the panel does; otherwise a value stepped or typed away and back in the same opening passes on the old question. Without a set, every confirming validation asks again.
 

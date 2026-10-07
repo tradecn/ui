@@ -57,7 +57,7 @@ export default function RfqTicketServerDemo() {
       </div>
       <div className="w-[26rem] max-w-full space-y-2 text-xs lining-nums tabular-nums">
         <RfqTicket key={inquiry.id} inquiry={inquiry} actions={actions} acknowledged={acknowledged} />
-        <p role="status" className="text-muted-foreground">Inquiry {inquiry.id}: {inquiry.status}. Acknowledgements: {acknowledged}.</p>
+        <p className="text-muted-foreground">Inquiry {inquiry.id}: {inquiry.status}. Acknowledgements: {acknowledged}.</p>
       </div>
     </>
   )

@@ -139,6 +139,9 @@ describe("quotePanelColumns and quoteEdit", () => {
     expect(width.parse(huge, ROWS[0]!)).toEqual({ problem: "Not a number." })
     expect(quoteEdit<QuoteRow>("skew", { convention: T32 }).parse(`-${huge}`, ROWS[0]!)).toEqual({ problem: "Not a number." })
     expect(size.parse(huge, ROWS[0]!)).toEqual({ problem: "Not a number." })
+    // A size a JavaScript number cannot hold exactly is refused rather than silently changed.
+    expect(size.parse("9007199254740993", ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notASize })
+    expect(size.parse("9007199254740991", ROWS[0]!)).toBe(9007199254740991)
   })
 
   it("answers only the question standing, and only on a fresh Enter in the same opening of the editor", () => {
@@ -514,6 +517,17 @@ describe("the panel", () => {
     expect(document.querySelector("[data-quote-question]")).toHaveTextContent("Do it again to send it.")
     act(() => screen.getByRole("grid", { name: "Quotes" }).focus())
     expect(document.querySelector("[data-quote-question]")).toBeNull()
+    // A window switch away from the control keeps the question; focus leaving it on purpose, straight out of the
+    // panel, withdraws it.
+    act(() => set.focus())
+    fireEvent.click(set)
+    expect(document.querySelector("[data-quote-question]")).not.toBeNull()
+    const away = vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    fireEvent.blur(set)
+    away.mockRestore()
+    expect(document.querySelector("[data-quote-question]")).not.toBeNull()
+    act(() => set.blur())
+    expect(document.querySelector("[data-quote-question]")).toBeNull()
   })
 
   it("opens a row menu that says there are no actions when actions is an empty list, and keeps a row's null token plain row content", async () => {
@@ -747,6 +761,35 @@ describe("the panel", () => {
     act(() => store.applyDeltas({ patch: [{ id: "2Y", fields: { status: "Pulled", allowedActions: ["resume"], bid: null, ask: null } }, { id: "10Y", fields: { status: "Pulled", allowedActions: ["resume"] } }] }))
     expect(button).toHaveAttribute("data-quote-pull-all", "0")
     expect(button).toBeDisabled()
+  })
+
+  it("counts a press on Pull all or a row button once: a double-click's second click runs nothing", () => {
+    const { cell, onPullAll, actions } = setup()
+    const pull = screen.getByRole("button", { name: "Pull all" })
+    fireEvent.click(pull, { detail: 1 })
+    fireEvent.click(pull, { detail: 2 })
+    expect(pull).toHaveTextContent("Pull all anyway?")
+    expect(onPullAll).not.toHaveBeenCalled()
+    fireEvent.keyDown(pull, { key: "Enter", repeat: true })
+    fireEvent.click(pull, { detail: 0 })
+    expect(onPullAll).not.toHaveBeenCalled()
+    fireEvent.keyUp(pull, { key: "Enter" })
+    fireEvent.click(pull, { detail: 0 })
+    expect(onPullAll).toHaveBeenCalledTimes(1)
+    const pause = within(cell("2Y", "actions")).getByRole("button", { name: "Pause" })
+    fireEvent.click(pause, { detail: 1 })
+    fireEvent.click(pause, { detail: 2 })
+    expect(actions[0]!.run).toHaveBeenCalledTimes(1)
+    // A hold is the button's own, and ends when focus leaves it.
+    const rowPull = within(cell("10Y", "actions")).getByRole("button", { name: "Pull" })
+    const resume = within(cell("10Y", "actions")).getByRole("button", { name: "Resume" })
+    fireEvent.keyDown(resume, { key: "Enter", repeat: true })
+    fireEvent.click(rowPull, { detail: 0 })
+    expect(actions[2]!.run).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(resume, { key: "Enter", repeat: true })
+    fireEvent.blur(resume)
+    fireEvent.click(resume, { detail: 0 })
+    expect(actions[1]!.run).toHaveBeenCalledTimes(1)
   })
 
   it("shows no Pull all without a handler, and takes its words from labels", () => {

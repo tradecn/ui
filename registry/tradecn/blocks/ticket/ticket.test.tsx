@@ -128,6 +128,16 @@ describe("Ticket", () => {
     expect(lastDraft(onDraftChange).quantity).toBeNull()
   })
 
+  it("steps the quantity by one when the instrument's step is not a whole number from 1 to the safe-integer limit", () => {
+    for (const step of [0, 0.5, -100, Number.NaN, 2 ** 53]) {
+      const { view, onDraftChange } = mount({ instrument: { ...ZN, quantityStep: step } })
+      fireEvent.keyDown(quantity(), { key: "ArrowUp" })
+      expect(quantity().value).toBe("1")
+      expect(lastDraft(onDraftChange).quantity).toBe(1)
+      view.unmount()
+    }
+  })
+
   it("shows the side through aria-pressed and flips it", () => {
     const { onDraftChange } = mount()
     expect(screen.getByRole("button", { name: "Buy" })).toHaveAttribute("aria-pressed", "true")
@@ -723,6 +733,80 @@ describe("limits", () => {
     expect(run.mock.calls[0]![0]).toMatchObject({ quantity: 21, price: 99.53125 })
     expect(send).not.toHaveAttribute("data-confirming")
     expect(send).toHaveTextContent("Send")
+  })
+
+  it("counts a press once: a double-click's second click and a held Enter's repeats neither answer the question nor run again", () => {
+    const { run } = mount({ limits: LIMITS, reference: REFERENCE })
+    type(quantity(), "20")
+    type(price(), "99-17")
+    const send = screen.getByRole("button", { name: /^Send/ })
+    fireEvent.click(send, { detail: 1 })
+    fireEvent.click(send, { detail: 2 })
+    expect(run).not.toHaveBeenCalled()
+    expect(send).toHaveTextContent("Send anyway?")
+    // The click a held Enter repeats on the focused button does not answer either.
+    fireEvent.keyDown(send, { key: "Enter", repeat: true })
+    fireEvent.click(send, { detail: 0 })
+    expect(run).not.toHaveBeenCalled()
+    // A fresh press does.
+    fireEvent.keyDown(send, { key: "Enter" })
+    fireEvent.click(send, { detail: 0 })
+    expect(run).toHaveBeenCalledTimes(1)
+    // With nothing to ask, a double-click still runs once.
+    type(quantity(), "5")
+    fireEvent.click(send, { detail: 1 })
+    fireEvent.click(send, { detail: 2 })
+    expect(run).toHaveBeenCalledTimes(2)
+    // Letting a held Enter go ends the hold: a click with no key behind it runs again.
+    fireEvent.keyDown(send, { key: "Enter", repeat: true })
+    fireEvent.keyUp(send, { key: "Enter" })
+    fireEvent.click(send, { detail: 0 })
+    expect(run).toHaveBeenCalledTimes(3)
+    // So does focus leaving the button mid-hold.
+    fireEvent.keyDown(send, { key: "Enter", repeat: true })
+    fireEvent.blur(send)
+    fireEvent.click(send, { detail: 0 })
+    expect(run).toHaveBeenCalledTimes(4)
+  })
+
+  it("holds only the button a held Enter repeats on", () => {
+    const send = vi.fn()
+    const cancel = vi.fn()
+    mount({ actions: [{ id: "send", label: "Send", run: send, primary: true }, { id: "cancel", label: "Cancel", run: cancel, checked: false }], allowedActions: ["send", "cancel"], defaultDraft: draftOf() })
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Send/ }), { key: "Enter", repeat: true })
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }), { detail: 0 })
+    expect(cancel).toHaveBeenCalledTimes(1)
+  })
+
+  it("says the limits' question once, as the press asks it, and not again as the market moves the numbers in it", () => {
+    const { rerender } = mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } }, reference: { bid: 99.5, ask: 99.515625 }, defaultDraft: draftOf({ price: 99.625 }) })
+    const announcer = document.querySelector<HTMLElement>("[data-ticket-announcer]")!
+    expect(announcer).toHaveAttribute("aria-live", "polite")
+    expect(announcer).toBeEmptyDOMElement()
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }))
+    expect(announcer).toHaveTextContent("The price is 7 ticks from the market, past 4 ticks. Send it anyway?")
+    const said = announcer.firstElementChild
+    // A tick of market: the line on screen follows it; what was said stays said.
+    rerender({ reference: { bid: 99.5, ask: 99.53125 } })
+    expect(document.querySelector("[data-ticket-limits='confirm']")).toHaveTextContent("6 ticks")
+    expect(announcer.firstElementChild).toBe(said)
+    expect(announcer).toHaveTextContent("7 ticks")
+  })
+
+  it("says another field's block as it arrives, and not again while only its words change", () => {
+    let words = "Desk policy blocks this order."
+    let on = false
+    const limits = { custom: () => (on ? [{ field: "desk", level: "block" as const, rule: "desk-policy", message: words }] : []) }
+    const { rerender } = mount({ limits, defaultDraft: draftOf() })
+    const announcer = document.querySelector<HTMLElement>("[data-ticket-announcer]")!
+    on = true
+    rerender({ limits: { ...limits } })
+    expect(announcer).toHaveTextContent("Desk policy blocks this order.")
+    const said = announcer.firstElementChild
+    words = "Desk policy blocks this order again."
+    rerender({ limits: { ...limits } })
+    expect(document.querySelector("[data-ticket-limits='block']")).toHaveTextContent("again")
+    expect(announcer.firstElementChild).toBe(said)
   })
 
   it("blocks under the field and holds the actions that send the draft, live and as the click lands, while an unchecked action still runs", () => {
