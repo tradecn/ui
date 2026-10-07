@@ -177,7 +177,7 @@ Custom content can wrap or move the reading while the cell retains its flash. Mo
 | `useSpreadMatrixCell()` | Either spread cell | `spread: number \| null`, `basis: SpreadBasis`, `diagonal: boolean`. |
 | `useSpreadMatrixStructure()` | `SpreadMatrixStructureRow` | `structure: SpreadStructure`, `legLabels: readonly string[]`, `weights: readonly number[]`, `spread: number \| null`, `basis: SpreadBasis`. |
 
-The hooks reuse their parent's state. Use them to place leg descriptions outside the default Legs column or build controls around a spread without another quote subscription. With weights or a tick outside the rule in [Structures](#structures), `spread` can also be infinite, or `NaN` in bps mode.
+The hooks reuse their parent's state. Use them to place leg descriptions outside the default Legs column or build controls around a spread without another quote subscription. With weights or a tick outside the rule in [Structures](#structures), `spread` can also be infinite, or `NaN` in bps mode, and a sum too large to hold is infinite even with valid inputs.
 
 ### Accessibility
 

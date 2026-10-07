@@ -291,7 +291,7 @@ The last close determines direction against the reference. Equal prices are `fla
 
 The root, `PriceChartLast`, and `PriceChartChange` carry `data-direction`.
 
-The plot's accessible name includes the direction, last price, change, range, and bar count. While the plot has focus, the name keeps the reading it took focus with, and the value text keeps the selected bar's readout as it was when the selection reached that bar, or the held reading with no bar selected, so a live feed doesn't make a screen reader read either again; moving the selection reads the bar it reaches as it is then:
+The plot's accessible name includes the direction, last price, change, range, and bar count. While the plot has focus, the name keeps the reading it took focus with, and the value text keeps the selected bar's readout as it was when the selection reached that bar, or the held reading with no bar selected, so a live feed doesn't make a screen reader read either again; moving the selection, or taking focus, reads the bar as it is then. On a window that drops old bars, the selection follows its index, so the value text changes once per bar as a new bar reaches it, and a chart whose `label` changes under focus is named for the new one:
 
 ```text
 ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars

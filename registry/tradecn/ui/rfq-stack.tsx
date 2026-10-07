@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Input } from "@/components/ui/input"
 import { useView } from "@/registry/tradecn/hooks/use-row-store"
 import { NULL_TOKEN, formatNotional, formatPrice, formatQuantity } from "@/registry/tradecn/lib/format"
-import { compileComparator, compileFilter, type GridRules, type RuleColumn } from "@/registry/tradecn/lib/grid-rules"
+import { applyRules, compileComparator, compileFilter, type GridRules, type RuleColumn } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 import { Countdown, type CountdownThresholds } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, type ColumnDef, type DataGridProps } from "@/registry/tradecn/ui/data-grid"
@@ -213,6 +213,8 @@ interface ThresholdFieldProps {
 
 // A size as plain decimal digits: `0x10`, `1e3`, `1,000`, and `2,5` are not one.
 const PLAIN_SIZE = /^\s*(?:\d+\.?\d*|\.\d+)\s*$/
+/** A threshold as the field prints it: plain decimal digits, never an exponent the field would refuse. */
+const plainSize = (n: number) => n.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 20 })
 /** The field's text as a size: null for blank or zero (no threshold), undefined for text that is not a plain size. */
 function readSize(text: string): number | null | undefined {
   if (text.trim() === "") return null
@@ -224,13 +226,13 @@ function readSize(text: string): number | null | undefined {
 // Its own component with its own state: a keystroke here re-renders this field and not one row of the grid.
 function ThresholdField({ value, unit, label, onChange }: ThresholdFieldProps) {
   const scale = unit === "mm" ? 1e6 : 1
-  const [text, setText] = useState(() => (value === null ? "" : String(value / scale)))
+  const [text, setText] = useState(() => (value === null ? "" : plainSize(value / scale)))
   const [known, setKnown] = useState(value)
   if (value !== known) {
     setKnown(value)
     const read = readSize(text)
     const shown = read === undefined ? undefined : read === null ? null : read * scale
-    if (shown !== value) setText(value === null ? "" : String(value / scale))
+    if (shown !== value) setText(value === null ? "" : plainSize(value / scale))
   }
   // Text that is not a plain size is marked and changes nothing: the threshold in force stays.
   const invalid = readSize(text) === undefined
@@ -281,6 +283,7 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
   store,
   onRowActivate,
   getRowProps,
+  rules,
   ...grid
 }: RfqStackProps<T>) {
   const [ownThreshold, setOwnThreshold] = useState<number | null>(defaultThreshold)
@@ -311,6 +314,10 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
     const byThreshold = rfqThresholdFilter<T>(threshold)
     return filter ? (row: T) => byThreshold(row) && filter(row) : byThreshold
   }, [threshold, filter])
+  // The row rules the grid applies, compiled the same way, so the stack's word on a row joins a rule's instead of
+  // replacing the one thing that carries the rule's meaning besides its color.
+  const ruleColumns = rules?.columns
+  const ruled = useMemo(() => (ruleColumns?.length ? applyRules(ruleColumns, all) : null), [ruleColumns, all])
   const activate = useCallback((row: T, id: RowId) => {
     latest.current.onActivate?.(id, row)
     latest.current.onRowActivate?.(row, id)
@@ -322,14 +329,15 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
       // Set aside: muted, said to a screen reader, still in its place in the order. The active mark wins,
       // and is said too.
       const parked = !active && parkedIds?.has(id) === true
+      const mark = active ? activeLabel : parked ? parkedLabel : ""
       return {
         ...own,
         "data-state": active ? "active" : parked ? "parked" : own?.["data-state"],
-        "aria-description": own?.["aria-description"] ?? (active ? activeLabel : parked ? parkedLabel : undefined),
+        "aria-description": own?.["aria-description"] ?? (mark ? [ruled?.getRowProps(row)?.["aria-description"], mark].filter(Boolean).join(", ") : undefined),
         className: cn(active && "bg-primary/10 shadow-[inset_2px_0_0_var(--primary)]", parked && "text-muted-foreground", own?.className),
       }
     },
-    [activeId, parkedIds, getRowProps, activeLabel, parkedLabel],
+    [activeId, parkedIds, getRowProps, activeLabel, parkedLabel, ruled],
   )
   const hasOwnMenu = Boolean(renderContextMenu)
   const menu = useCallback((rows: T[], ids: RowId[]) => latest.current.renderContextMenu?.(rows, ids), [])
@@ -338,7 +346,7 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
     <div data-slot="tradecn-rfq-stack" data-active={activeId ?? undefined} className={cn("flex h-full min-h-0 flex-col gap-1 lining-nums tabular-nums", className)}>
       {showField && <ThresholdField value={threshold} unit={thresholdUnit} label={thresholdLabel} onChange={setThreshold} />}
       <div className="min-h-0 flex-1">
-        <DataGrid<T> {...grid} store={store} preset="rfq" label={label} columns={all} filter={combined} onRowActivate={activate} getRowProps={rowProps} renderContextMenu={hasOwnMenu ? menu : undefined} />
+        <DataGrid<T> {...grid} store={store} preset="rfq" label={label} columns={all} rules={rules} filter={combined} onRowActivate={activate} getRowProps={rowProps} renderContextMenu={hasOwnMenu ? menu : undefined} />
       </div>
     </div>
   )

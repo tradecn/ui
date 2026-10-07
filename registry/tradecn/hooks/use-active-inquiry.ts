@@ -50,10 +50,6 @@ export function useActiveInquiry<T>(source: RowStore<T> | RowView<T>, options: A
   // The chosen row itself, so the server's word on it is seen the moment it changes.
   const chosenRow = useRow(store, chosen ?? NONE)
   const { isEnded } = options
-  const ended = useRef(isEnded)
-  useEffect(() => {
-    ended.current = isEnded
-  })
 
   // A parked inquiry whose row left the store leaves the set with it. Settled during render, as the choice is.
   let pruned: Set<RowId> | null = null
@@ -99,12 +95,13 @@ export function useActiveInquiry<T>(source: RowStore<T> | RowView<T>, options: A
       if (id !== null) {
         // A press that lands as the server ends an inquiry, or after its row left, is not a choice: the open one stays.
         const picked = store.getRow(id)
-        if (picked === undefined || ended.current(picked)) return
+        if (picked === undefined || isEnded(picked)) return
         unpark(id)
       }
       setChosen(id)
     },
-    [store, unpark],
+    // The render's own end-state rule, so a pick made as a new rule arrives is judged by it, as `next` is.
+    [store, unpark, isEnded],
   )
   const next = useCallback(() => {
     setChosen((current) => firstOpen(store, source.getIds(), isEnded, current, live) ?? current)

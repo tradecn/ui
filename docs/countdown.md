@@ -74,7 +74,7 @@ One linear Web Animation shrinks the bar to zero, with no JavaScript work per fr
 
 Countdowns and [`feed-health`](feed-health.md) share one timer: `sharedClock()` from `@/lib/clock`, ticking once a second. Each countdown subscribes independently; ticks don't re-render its parents.
 
-The clock's `now()` returns its last tick, which refreshes while anything subscribes. A countdown samples the time source when it is first drawn and is never behind that moment, so one mounted after the clock sat idle shows the real time left from its first frame and announces nothing as the clock catches up. Pass a faster `clock` for finer timing, or `createClock(1000, () => t)` for tests. `createClock` ticks once a second for an interval that is not a positive finite number of milliseconds.
+The clock's `now()` returns its last tick, which refreshes while anything subscribes. On a clock with `sample`, as `createClock` makes, a countdown samples the time source when it is first drawn and is never behind that moment, so one mounted after the clock sat idle shows the real time left from its first frame and announces nothing as the clock catches up. That moment stays when `clock` changes; change the countdown's `key` to start it again. Pass a faster `clock` for finer timing, or `createClock(1000, () => t)` for tests. `createClock` ticks once a second for an interval that is not a positive number of milliseconds up to 2³¹ − 1, the most a timer holds.
 
 Render countdowns on the client. The shared clock advances only while something in a browser subscribes, so server-rendered digits, tiers, and `data-tier` go stale and mismatch on hydration.
 

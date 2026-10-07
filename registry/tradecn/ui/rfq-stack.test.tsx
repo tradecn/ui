@@ -1,5 +1,5 @@
 import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react"
-import { StrictMode } from "react"
+import { StrictMode, useLayoutEffect } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useActiveInquiry } from "@/registry/tradecn/hooks/use-active-inquiry"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
@@ -192,6 +192,16 @@ describe("RfqStack", () => {
     expect(price.mock.calls.length).toBe(calls)
   })
 
+  it("prints a threshold it is handed as plain digits, never as an exponent it would refuse", () => {
+    const { rerender } = render(<Harness store={seeded()} threshold={0.5} thresholdField />)
+    const field = screen.getByLabelText("Hide auto under") as HTMLInputElement
+    expect(field.value).toBe("0.0000005")
+    expect(field).not.toHaveAttribute("aria-invalid")
+    rerender(<Harness store={seeded()} threshold={0.25} thresholdField />)
+    expect(field.value).toBe("0.00000025")
+    expect(field).not.toHaveAttribute("aria-invalid")
+  })
+
   it("refuses a threshold that is not a plain size, marks it, and keeps the one in force", () => {
     const onThresholdChange = vi.fn()
     render(<Harness store={seeded()} defaultThreshold={5_000_000} thresholdField onThresholdChange={onThresholdChange} />)
@@ -281,6 +291,24 @@ describe("useActiveInquiry", () => {
     expect(result.current.activeId).toBe("q3")
   })
 
+  it("judges a pick by the end-state rule of the render that handed setActive out, a pick in that commit's layout effect included", () => {
+    const store = seeded()
+    const endsQ2 = (row: RfqStackRow) => ended(row) || row.id === "q2"
+    function Picker({ isEnded, pick }: { isEnded: (row: RfqStackRow) => boolean; pick: string }) {
+      const active = useActiveInquiry(store, { isEnded })
+      const { setActive } = active
+      useLayoutEffect(() => {
+        setActive(pick)
+      }, [pick, setActive])
+      return <output>{active.activeId}</output>
+    }
+    const { rerender } = render(<Picker isEnded={ended} pick="q3" />)
+    expect(screen.getByRole("status")).toHaveTextContent("q3")
+    // The rule that ends q2 arrives in the same commit as the pick of q2: the pick is refused and q3 stays.
+    rerender(<Picker isEnded={endsQ2} pick="q2" />)
+    expect(screen.getByRole("status")).toHaveTextContent("q3")
+  })
+
   it("chooses and tells the same under StrictMode", () => {
     const store = seeded()
     const onChange = vi.fn()
@@ -325,6 +353,20 @@ describe("useRfqStackView with rules", () => {
     expect(rowOf("q2")).toHaveAttribute("data-rule", "big")
     expect(rowOf("q2")).toHaveAttribute("aria-description", "Large")
     expect(rowOf("q1")).not.toHaveAttribute("data-rule")
+  })
+})
+
+describe("the stack's word beside a rule's", () => {
+  it("joins its word on the active and a parked row to a row rule's description, and an empty label adds nothing", () => {
+    const store = seeded()
+    const large: GridRules = { columns: [{ id: "big", column: "size", when: { op: "gte", value: "5,000,000" }, tone: "primary", target: "row", label: "Large" }] }
+    const { rerender } = render(<Harness store={store} rules={large} activeId="q2" parkedIds={new Set(["q1"])} />)
+    expect(rowOf("q2")).toHaveAttribute("data-rule", "big")
+    expect(rowOf("q2")).toHaveAttribute("aria-description", "Large, In the ticket")
+    expect(rowOf("q1")).toHaveAttribute("aria-description", "Large, Parked")
+    expect(rowOf("q4")).not.toHaveAttribute("aria-description")
+    rerender(<Harness store={store} rules={large} activeId="q2" parkedIds={new Set(["q1"])} activeLabel="" />)
+    expect(rowOf("q2")).toHaveAttribute("aria-description", "Large")
   })
 })
 

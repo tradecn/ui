@@ -15,6 +15,8 @@ import { RfqStack, bySize, byTimeLeft, stackOrder, useRfqStackView, type RfqStac
 
 const T32: InstrumentConvention = { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }
 const ust = createInstrumentFormatter(T32)
+// One formatter for the whole scene: the stack rebuilds its columns for a new one.
+const ustPrice = (value: number) => ust.price(value)
 const INSTRUMENTS = ["T 4 1/8 05/15/34", "T 4 1/4 02/15/29", "T 3 7/8 08/15/33", "T 4 5/8 05/15/54", "T 4 1/2 11/15/26"]
 const CLIENTS: [string, string][] = [["Client A", "Tier 1"], ["Client B", "Tier 2"], ["Client C", "Tier 1"], ["Client D", "Tier 3"], ["Client E", "Tier 2"]]
 const ENDED = new Set(["Done", "Done away", "Passed", "Expired"])
@@ -150,7 +152,7 @@ export function RfqStackScene() {
           {log || " "}
         </span>
         <div className="grid min-h-0 flex-1 grid-cols-[1fr_26rem] gap-4">
-          <RfqStack store={store} view={view} activeId={active.activeId} onActivate={active.setActive} threshold={threshold} onThresholdChange={setThreshold} price={(v) => ust.price(v)} />
+          <RfqStack store={store} view={view} activeId={active.activeId} onActivate={active.setActive} threshold={threshold} onThresholdChange={setThreshold} price={ustPrice} />
           <div>{inquiry ? <RfqTicket key={inquiry.id} inquiry={inquiry} actions={actions} autoFocus /> : <p className="text-muted-foreground">No open inquiry.</p>}</div>
         </div>
       </main>

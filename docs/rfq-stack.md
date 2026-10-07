@@ -100,7 +100,7 @@ Column state and keyboard behavior belong to the grid.
 | `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Supplies right-click actions. |
 | `className` | `string` | None | Styles the stack wrapper. |
 
-Column-formatting and threshold props are listed below. Remaining props use `DataGridProps<T>`, except `preset`. A new `filter` or `getRowProps` re-filters or redraws the rows the grid holds, without waiting for the feed, so keep each stable: a module function, a `useCallback`, or a `useMemo`. The handlers, `onActivate`, `onRowActivate`, `renderContextMenu`, and `onThresholdChange`, may be inline.
+Column-formatting and threshold props are listed below. Remaining props use `DataGridProps<T>`, except `preset`. A new `filter` or `getRowProps` re-filters or redraws the rows the grid holds, without waiting for the feed, and without a view of yours a new `filter` also replaces the grid's own view, which drops a running reorder hold, so keep each stable: a module function, a `useCallback`, or a `useMemo`. The handlers, `onActivate`, `onRowActivate`, `renderContextMenu`, and `onThresholdChange`, may be inline.
 
 `onRowActivate(row, id)` also runs after `onActivate(id, row)`; note the reversed arguments. Enter on the grid or a double-click on plain row content activates a row unless grid editing handles that interaction. Custom controls retain their own [pointer interactions](data-grid.md#pointer-interactions).
 
@@ -115,7 +115,7 @@ Column-formatting and threshold props are listed below. Remaining props use `Dat
 | `thresholds` | `CountdownThresholds` | `{ soonMs: 10_000 }` | Countdown's provisional warning threshold, in milliseconds. |
 | `clock` | `Clock` | `sharedClock()` | Countdown clock; the default ticks once a second. |
 
-`price`, `time`, and `clock` shape every cell, so a new one rebuilds the columns and redraws every visible row: pass stable ones. `thresholds` is read by its value, so it may be written inline. For instrument-specific prices, pass one stable formatter that looks the instrument up, such as a module function: `const price = (value, row) => conventions[row.instrument].price(value)`. With custom `columns`, pass these options to `rfqStackColumns` yourself.
+`price`, `time`, and `clock` shape every cell, so a new one rebuilds the columns and redraws every visible row, and without a view of yours replaces the grid's own view and drops a running reorder hold: pass stable ones. `thresholds` is read by its value, so it may be written inline. For instrument-specific prices, pass one stable formatter that looks the instrument up, such as a module function: `const price = (value, row) => conventions[row.instrument].price(value)`. With custom `columns`, pass these options to `rfqStackColumns` yourself.
 
 | `RfqStackRow` field | Type | Required / default | Meaning |
 |---|---|---|---|
@@ -198,7 +198,7 @@ The field then reports edits; the hook applies them. Persist the threshold in yo
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `isEnded` | `(row: T) => boolean` | Required | Reads the venue's status to decide whether an inquiry is over. |
+| `isEnded` | `(row: T) => boolean` | Required | Reads the venue's status to decide whether an inquiry is over. `setActive` and `next` are made again for a new one, so keep it stable. |
 | `onChange` | `(id: RowId \| null, row: T \| null) => void` | None | Reports the initial choice, including `null`, and later active-id changes. Updates that leave the active id unchanged do not trigger it. |
 
 The hook chooses the first non-ended, unparked row in source order. It keeps that inquiry through arrivals and reordering until it ends, leaves the store, is parked, or the trader chooses another.
@@ -217,7 +217,7 @@ Pass `activeId` to mark the row with `data-state="active"` and a left bar. Key t
 
 Parking keeps the row in the stack and skips it during automatic selection; parking the active inquiry advances the ticket. Unparking restores eligibility without replacing another active inquiry.
 
-Parked rows are muted, use `data-state="parked"`, and have an accessible description of `parkedLabel`, and the active row one of `activeLabel`, unless `getRowProps` supplies one. The active mark takes precedence.
+Parked rows are muted, use `data-state="parked"`, and have an accessible description of `parkedLabel`, and the active row one of `activeLabel`, joined after a row rule's description, unless `getRowProps` supplies one. An empty label adds nothing. The active mark takes precedence.
 
 Each row's timer is named by `Time left`, the inquiry id, and the time left, so a row read from its cells says how long is left.
 

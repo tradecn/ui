@@ -523,7 +523,7 @@ export function PriceChartOverlaySwatch({ overlayId, className, ...props }: Pric
 }
 
 export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDown: onKeyDownProp, onFocus, onBlur, ...props }: ComponentProps<"div">) {
-  const { columns, summary, cursor, bar, convention, overlays: overlayList, sentence, readout, kind, baseline, zone, crosshair, lastLine, select } = useChartContext()
+  const { columns, summary, cursor, bar, convention, overlays: overlayList, label, sentence, readout, kind, baseline, zone, crosshair, lastLine, select } = useChartContext()
   const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
   // The document the plot is in. A popout moves the plot into its own window without remounting it, so the
   // observers check it as they fire and bind again to the new window when it changed.
@@ -559,7 +559,10 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   // What a screen reader is told while it is on the plot: the summary as of the moment it took focus, and the
   // selected bar's readout as of the moment the selection reached that bar. A live feed moves the picture and the
   // visible readings, never these, so a focused plot is not read again at every update.
-  const [heldName, setHeldName] = useState<string | null>(null)
+  const [held, setHeld] = useState<{ name: string; label: string } | null>(null)
+  // A chart switched to another instrument under focus is named for it.
+  if (held !== null && held.label !== label) setHeld({ name: sentence, label })
+  const heldName = held?.name ?? null
   const heardKey = cursor === null || !bar ? null : `${cursor}\u0000${bar.time}`
   const [heard, setHeard] = useState<{ key: string | null; text: string }>({ key: null, text: "" })
   if (heard.key !== heardKey) setHeard({ key: heardKey, text: readout })
@@ -579,18 +582,23 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     plot.current?.setData(alignedData(columns, kind, overlaysRef.current), true)
   }, [columns, kind, plotKey])
 
-  // The box's size, from a ResizeObserver of the plot's own window, which reports while that window draws;
-  // nothing is drawn before the first measurement.
+  // The box's size, from ResizeObservers; nothing is drawn before the first measurement. The page's own observer
+  // always watches, so the plot is measured again when a popout closes and hands it back; in a popout, that
+  // window's observer watches too, since it reports while the popout draws.
   useLayoutEffect(() => {
     if (!plotEl || !doc) return
-    const Observer = doc.defaultView?.ResizeObserver ?? ResizeObserver
-    const observer = new Observer(([entry]) => {
+    const report: ResizeObserverCallback = ([entry]) => {
       if (plotEl.ownerDocument !== doc) return setDoc(plotEl.ownerDocument)
       const rect = entry?.contentRect
       if (rect && rect.width > 0 && rect.height > 0) setSize((s) => (s && s.width === rect.width && s.height === rect.height ? s : { width: rect.width, height: rect.height }))
-    })
-    observer.observe(plotEl)
-    return () => observer.disconnect()
+    }
+    const observers = [new ResizeObserver(report)]
+    const Own = doc.defaultView?.ResizeObserver
+    if (Own && Own !== ResizeObserver) observers.push(new Own(report))
+    for (const observer of observers) observer.observe(plotEl)
+    return () => {
+      for (const observer of observers) observer.disconnect()
+    }
   }, [plotEl, doc])
 
   // The plot: made once the box has a size and the store a bar, remade for a new kind, zone, or convention, never per update.
@@ -660,11 +668,14 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     const watched = { attributes: true, attributeFilter: ["class", "style", "data-theme", "data-accessibility"] }
     observer.observe(document.documentElement, watched)
     if (doc.documentElement !== document.documentElement) observer.observe(doc.documentElement, watched)
-    // A theme that follows the system needs no attribute change, so the scheme flip is watched too.
-    const scheme = doc.defaultView?.matchMedia?.("(prefers-color-scheme: dark)")
-    scheme?.addEventListener("change", changed)
+    // A theme that follows the system needs no attribute change, so the scheme flip is watched too, from the page's
+    // window, which outlives a popout, and from the popout's while the plot is in one.
+    const candidates: (Window | null)[] = [typeof window === "undefined" ? null : window, doc.defaultView]
+    const views = candidates.filter((view, i): view is Window => view !== null && candidates.indexOf(view) === i)
+    const schemes = views.map((view) => view.matchMedia?.("(prefers-color-scheme: dark)")).filter((scheme): scheme is MediaQueryList => Boolean(scheme))
+    for (const scheme of schemes) scheme.addEventListener("change", changed)
     return () => {
-      scheme?.removeEventListener("change", changed)
+      for (const scheme of schemes) scheme.removeEventListener("change", changed)
       observer.disconnect()
       u.destroy()
       plot.current = null
@@ -721,12 +732,14 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       onKeyDown={onKeyDown}
       onFocus={(event) => {
         onFocus?.(event)
-        setHeldName(sentence)
+        setHeld({ name: sentence, label })
+        // A selection the pointer made before focus is read as it is now.
+        setHeard({ key: heardKey, text: readout })
         if (!event.defaultPrevented && interactive && cursor === null) moveCursor(count - 1)
       }}
       onBlur={(event) => {
         onBlur?.(event)
-        setHeldName(null)
+        setHeld(null)
         if (!event.defaultPrevented) moveCursor(null)
       }}
       data-chart-plot=""

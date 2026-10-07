@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { createRef, StrictMode } from "react"
+import { createRef, StrictMode, useLayoutEffect } from "react"
 import { createPortal } from "react-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
@@ -384,6 +384,51 @@ describe("PriceChart composition", () => {
     }
   })
 
+  it("measures the plot again when a popout closes and hands it back, and goes on following its box", async () => {
+    stubDrawing()
+    // Observers that report the box they are told to, made by the page's window or by a popout's.
+    let box = { width: 600, height: 300 }
+    const live = new Set<{ fire: () => void; window: string }>()
+    const observerFor = (window: string) =>
+      class {
+        targets: Element[] = []
+        record: { fire: () => void; window: string }
+        constructor(callback: ResizeObserverCallback) {
+          this.record = { fire: () => callback(this.targets.map((target) => ({ target, contentRect: { ...box } }) as unknown as ResizeObserverEntry), this as unknown as ResizeObserver), window }
+        }
+        observe(target: Element) {
+          this.targets.push(target)
+          live.add(this.record)
+          this.record.fire()
+        }
+        unobserve() {}
+        disconnect() {
+          live.delete(this.record)
+        }
+      }
+    vi.stubGlobal("ResizeObserver", observerFor("page"))
+    const host = document.createElement("div")
+    document.body.append(host)
+    render(createPortal(<PriceChart store={seeded()} convention={ZN} label="ZN"><PriceChartPlot /></PriceChart>, host))
+    await act(async () => {})
+    // A popout with a window of its own takes the chart; a theme change binds the plot to it.
+    const popout = document.implementation.createHTMLDocument("popout")
+    Object.defineProperty(popout, "defaultView", { configurable: true, value: { ResizeObserver: observerFor("popout"), matchMedia: window.matchMedia.bind(window) } })
+    popout.body.append(host)
+    await act(async () => { document.documentElement.classList.add("dark") })
+    await act(async () => { document.documentElement.classList.remove("dark") })
+    expect([...live].map((observer) => observer.window).sort()).toEqual(["page", "popout"])
+    // The popout closes: its window is gone, the host is back in the page, and the box has changed.
+    for (const observer of [...live]) if (observer.window === "popout") live.delete(observer)
+    document.body.append(host)
+    box = { width: 800, height: 400 }
+    await act(async () => { for (const observer of [...live]) observer.fire() })
+    await act(async () => {})
+    const plot = plots.at(-1) as unknown as { width: number; height: number }
+    expect([plot.width, plot.height]).toEqual([800, 400])
+    expect([...live].map((observer) => observer.window)).toEqual(["page"])
+  })
+
   it("draws the axis in the runtime's zone for a zone the runtime does not know, as the readout does", async () => {
     stubDrawing()
     const before = plots.length
@@ -415,6 +460,29 @@ describe("PriceChart composition", () => {
     // Leaving lets the name follow the feed again.
     act(() => plot.blur())
     expect(plot.getAttribute("aria-label")).not.toBe(name)
+  })
+
+  it("reads a selection the pointer made before focus as it is when focus arrives, and names a chart switched under focus for its new instrument", () => {
+    const store = seeded()
+    type Select = (index: number | null, fromPointer?: boolean) => void
+    let point: Select | null = null
+    // The plot's pointer hook selects through the chart's context; without a canvas, this stands in for it.
+    function Pointer() {
+      const state = usePriceChart() as unknown as { select: Select }
+      useLayoutEffect(() => {
+        point = state.select
+      })
+      return null
+    }
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /><Pointer /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => point!(2, true))
+    // The hovered last bar trades before the plot takes focus.
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    act(() => plot.focus())
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-24 V 30")
+    rerender(<PriceChart store={store} convention={ZN} label="ZH" zone="UTC"><PriceChartPlot /><Pointer /></PriceChart>)
+    expect(plot.getAttribute("aria-label")).toMatch(/^ZH: /)
   })
 
   it("shares one subscription across repeated readings and cleans it up", () => {

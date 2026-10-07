@@ -27,7 +27,7 @@ it("samples the source without changing subscriber snapshots, notifications or t
   stop()
 })
 
-it.each([0, -5, NaN, Infinity])("ticks once a second for an interval of %d ms, instead of as fast as the timer allows", (interval) => {
+it.each([0, -5, NaN, Infinity, 2 ** 31])("ticks once a second for an interval of %d ms, instead of as fast as the timer allows", (interval) => {
   const every = vi.spyOn(globalThis, "setInterval")
   let time = 0
   const clock = createClock(interval, () => time)
