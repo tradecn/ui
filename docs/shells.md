@@ -37,7 +37,7 @@ const layoutId = params.get("layout") ?? "desk"
 
 Load the layout before mounting. Supply a `seed` callback when a missing or invalid layout should create default panels. Use distinct layout ids for independently saved windows, or coordinate writes when several windows share one.
 
-A new `createWindowSet` has empty bookkeeping. Its adapter must adopt an existing initial native window when `restore` calls `open` for that id. Create the controller once in its owner, await one startup restore, and route later open/close requests to it. Other renderers mount their workspace without constructing another controller.
+A new `createWindowSet` has empty bookkeeping. Its adapter must adopt an existing initial native window when `open` runs for that id. Create the controller once in its owner, open the saved windows once at startup as the launch sequence below does, and route later open/close requests to it. Other renderers mount their workspace without constructing another controller.
 
 | Adapter method | Required behavior |
 |---|---|
@@ -50,7 +50,7 @@ The controller removes a record after `close` resolves, even if the native windo
 
 ## A Rust-hosted shell: Tauri 2
 
-Run the controller only when `WebviewWindow.getCurrent().label === "main"`. Reserve that label for the configured initial window; allow saved secondary labels such as `desk-*`. Before restoring, install the owner's lifecycle service: it watches native destruction, intercepts close requests, and keeps the main webview alive through persistence. The Rust host must also intercept application exit requests; see Launch and quit below.
+Run the controller only when `WebviewWindow.getCurrent().label === "main"`. Reserve that label for the configured initial window; allow saved secondary labels such as `desk-*`. Before opening saved windows, install the owner's lifecycle service: it watches native destruction, intercepts close requests, and keeps the main webview alive through persistence. The Rust host must also intercept application exit requests; see Launch and quit below.
 
 [Creating a `WebviewWindow`](https://v2.tauri.app/reference/javascript/api/namespacewebviewwindow/) returns a handle before creation finishes. Register both result listeners immediately and remove both when the result arrives:
 
@@ -80,7 +80,7 @@ async function createWebview(id: string, url: string) {
 }
 ```
 
-For `adapter.open`, use `await WebviewWindow.getByLabel(id) ?? await createWebview(id, url)`. Adopt the initial `main` without navigating it again; its layout comes from the startup record. For a new window, use an app-relative entry such as `index.html?window=...&layout=...`, resolved through Tauri's configured development URL or bundled assets. Register its lifecycle handlers, apply bounds, then `await win.show()`. If setup fails after creation, remove the new window and its handlers before rejecting.
+For `adapter.open`, use `await WebviewWindow.getByLabel(id) ?? await createWebview(id, url)`. Adopt the initial `main` without navigating it again; its layout comes from the startup record. For a new window, use an app-relative entry such as `index.html?window=...&layout=...`, resolved through Tauri's configured development URL or bundled assets — and give the controller a `url` function that builds the same entry from each record, as the launch sequence below does, or `adapter.open` receives the default URL unchanged. Register its lifecycle handlers, apply bounds, then `await win.show()`. If setup fails after creation, remove the new window and its handlers before rejecting.
 
 Choose a geometry convention before saving. This Tauri example stores the outer position in physical pixels and **content size** in logical pixels. Convert only the content-size reading with the window's scale factor. Restore the physical position first, then the logical size on the destination monitor; this avoids interpreting a saved desktop coordinate using the starting monitor's scale. The [window APIs](https://v2.tauri.app/reference/javascript/api/namespacewindow/) and [DPI types](https://v2.tauri.app/reference/javascript/api/namespacedpi/) distinguish these units.
 
@@ -161,7 +161,7 @@ Keep close interception in the owner or Rust host with this split. A secondary r
 
 ## A Node-hosted shell: Electron
 
-Keep the controller and native window map in the main process, after `app.whenReady()`. Register the already-created initial `BrowserWindow` as `main` before restoring. Renderers request operations through a narrow preload bridge; they do not own controllers.
+Keep the controller and native window map in the main process, after `app.whenReady()`. Register the already-created initial `BrowserWindow` as `main` before opening saved windows. Renderers request operations through a narrow preload bridge; they do not own controllers.
 
 This `open` fragment uses outer bounds, matching `BrowserWindow`'s default sizing and `getBounds()`. `PRELOAD` is your absolute preload path; `DEV_ENTRY` is your complete development page URL; `HTML_ENTRY` is your packaged HTML path. `watchWindow` is application-owned: it installs the coordinated `close` handler and forwards `closed` to the adapter's synchronous subscriber set, deleting the native map entry then.
 
@@ -238,7 +238,7 @@ Each renderer builds `createCallbackTransport({ send: window.shell.sendLink, rec
 
 ## Launch and quit
 
-Read preferences before mounting the initial workspace. Normalize the saved desk to your reserved `main` id and mark only that record `main: true`; add a default record if it is missing. The initial renderer must receive that record's `layoutId`, including when adopting an already-open window. Validate native label rules and adjust saved geometry before restore.
+Read preferences before mounting the initial workspace. Normalize the saved desk to your reserved `main` id and mark only that record `main: true`; add a default record if it is missing. The initial renderer must receive that record's `layoutId`, including when adopting an already-open window. Validate native label rules and adjust saved geometry before opening them.
 
 The following is application pseudocode. `lifecycle` implements the native requirements above; `normalizeDesk`, `loadPreferences`, and `mountMain` are yours. In Tauri, run this bootstrap only in the webview whose native label is `main`. In Electron, run it once in the main process and deliver the chosen record to the initial renderer.
 
@@ -247,21 +247,39 @@ let prefs = await loadPreferences()
 const stored = readWindowSet(prefs) ?? windowSetOf([{ id: "main", layoutId: "desk", main: true }])
 const desk = normalizeDesk(stored)
 await lifecycle.registerInitialWindow("main")
-const windows = createWindowSet(lifecycle.adapter)
-await windows.restore(desk)
-await mountMain(desk.windows.find((record) => record.id === "main")!)
+const windows = createWindowSet(lifecycle.adapter, {
+  url: (record) => `index.html?window=${encodeURIComponent(record.id)}&layout=${encodeURIComponent(record.layoutId)}`,
+})
+const main = desk.windows.find((record) => record.id === "main")!
+// restore() stops at the first window that fails and does not roll back, and a
+// snapshot lists only open windows, so one failure would drop every later window
+// from the next save. Open each record on its own, main first.
+for (const record of [main, ...desk.windows.filter((record) => record !== main)]) {
+  try {
+    await windows.open(record)
+  } catch (error) {
+    reportError(error)
+  }
+}
+const launched = windows.isOpen("main")
+await mountMain(main)
 ```
 
-`main: true` changes restore order. It does not implement whole-desk shutdown. Intercept quit before any window is destroyed, stop new window operations, and wait for operations already in flight. Collect approval and flush layout/preference writes from every renderer, snapshot while all windows still exist, then await durable storage. Only after that should the host close secondaries and the owner last. Do not use `closeAll()` from a Tauri owner webview: its insertion order can close the owner first.
+A window that fails to open is absent from the next snapshot. When `main` fails, the others still open, so that snapshot lacks `main` rather than being empty; it is empty only when every window failed. Check `windows.isOpen("main")` after the loop, as `launched` does, and while it is `false` skip every window-set write — the quit sequence's save below and any save during normal use — or the next launch replaces the main window's layout and bounds with defaults. A secondary window that fails to open drops out of the next save the same way; to keep it, carry the records that failed to open forward into the set you save. If `main` fails the same way on every launch, its saved record is never rewritten, so repair or reset that record rather than leaving the desk stuck.
+
+`main: true` marks the desk's main record, the one normalization keeps under the `main` id; the launch sequence opens that id first, and `restore` orders by the flag. It does not implement whole-desk shutdown. Intercept quit before any window is destroyed, stop new window operations, and wait for operations already in flight. Collect approval and flush layout/preference writes from every renderer, snapshot while all windows still exist, then await durable storage. Only after that should the host close secondaries and the owner last. Do not use `closeAll()` from a Tauri owner webview: its insertion order can close the owner first.
 
 ```ts
 // Application pseudocode, called once for each accepted quit attempt.
 await lifecycle.pauseAndDrain()
 try {
   await lifecycle.approveAndFlushAll() // Rejects if any window cancels.
-  const next = writeWindowSet(prefs, await windows.snapshot())
-  await persistPreferences(next) // Resolves after durable storage, not just an in-memory update.
-  prefs = next
+  if (launched) {
+    // A launch whose main window never opened would save a desk without it.
+    const next = writeWindowSet(prefs, await windows.snapshot())
+    await persistPreferences(next) // Resolves after durable storage, not just an in-memory update.
+    prefs = next
+  }
   await lifecycle.finishQuit() // Host closes approved windows; owner last.
 } catch (error) {
   lifecycle.resume()
@@ -269,7 +287,7 @@ try {
 }
 ```
 
-In Electron, handle [`before-quit`](https://www.electronjs.org/docs/latest/api/app#event-before-quit) with `event.preventDefault()` synchronously, then run this sequence under a reentry guard. The final host step can destroy approved windows and call `app.quit()` with the guard released for that final pass. Route the main window's `close` event through the same sequence. In Tauri, prevent the initial main close request and Rust [`RunEvent::ExitRequested`](https://docs.rs/tauri/latest/tauri/enum.RunEvent.html); the host resumes exit only after the owner's persistence acknowledgment. A quit hook cannot guarantee saving through crashes or forced OS termination, so also persist during normal use.
+In Electron, handle [`before-quit`](https://www.electronjs.org/docs/latest/api/app#event-before-quit) with `event.preventDefault()` synchronously, then run this sequence under a reentry guard. The final host step can destroy approved windows, set an approved flag, and call `app.quit()`; `before-quit` fires once more for that call, and while the flag is set the handler returns without `preventDefault()`. Route the main window's `close` event through the same sequence. In Tauri, prevent the initial main close request and Rust [`RunEvent::ExitRequested`](https://docs.rs/tauri/latest/tauri/enum.RunEvent.html); the host resumes exit only after the owner's persistence acknowledgment. A quit hook cannot guarantee saving through crashes or forced OS termination, so also persist during normal use, under the same `launched` check.
 
 Window-set `boundaries` describe intended ownership; they do not filter fields. A preferences export selects whole slots. Marking the `windows` slot as `template` exports its saved `bounds` and `display` too. To share only window ids, layout ids, and the main flag, remove geometry from a copy before writing the template slot.
 

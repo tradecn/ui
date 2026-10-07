@@ -59,9 +59,9 @@ The returned `FullSessionCalendar` has these members. Numeric instants are milli
 | `isTradingDay(date)` | `(date: string \| number \| Date) => boolean` | Whether a session is scheduled to open on the local date, excluding holidays |
 | `local(now)` | `(now: number) => LocalTime` | Local date, weekday, and minutes since midnight |
 
-`SessionTransition` is `{ at: number, status: SessionStatus }`: `at` is an epoch timestamp in milliseconds, and `status` applies from that instant. `nextTransition` checks session and holiday boundaries for opening dates from yesterday through 21 days ahead in the calendar's zone. It skips boundaries that leave the status unchanged and can return `null` with nonempty sessions, including a continuously open calendar.
+`SessionTransition` is `{ at: number, status: SessionStatus }`: `at` is an epoch timestamp in milliseconds, and `status` applies from that instant. `nextTransition` checks session and holiday boundaries for opening dates from two days back through 21 days ahead in the calendar's zone, the same lookback `status` uses. It skips boundaries that leave the status unchanged and can return `null` with nonempty sessions, including a continuously open calendar.
 
-For overlapping sessions, `timeToClose` checks yesterday's opening date before today's, then sessions in input order. Its countdown can end while another session remains open; use `nextTransition` to find a change in the calendar's status.
+For overlapping sessions, `timeToClose` checks earlier opening dates before today's, then sessions in input order. Its countdown can end while another session remains open; use `nextTransition` to find a change in the calendar's status.
 
 `isTradingDay` reads a `YYYY-MM-DD` string directly and converts a number or `Date` to the calendar's zone. It checks opening dates, not settlement eligibility or whether an overnight session is still active. A Friday can return `false` while Thursday's session remains open.
 
@@ -93,7 +93,7 @@ Sessions with an invalid `open` or `close` are ignored. Missing or invalid `pre`
 
 Each window includes its start and excludes its end. At a session's close, it no longer contributes `open`; other windows still determine the status.
 
-`status` and `timeToClose` consider only today's and yesterday's opening dates. Hour-24 times can extend an overnight window beyond that lookup: a UTC Monday session from `17:00` to `16:00` with `post: "24:30"` is already reported closed at Wednesday midnight. `nextTransition` can miss that cutoff and report `00:30` instead.
+`status` and `timeToClose` consider opening dates from two days back through today — far enough that an hour-24 time on a next-day close cannot stretch a window past the lookup. A UTC Monday session from `17:00` to `16:00` with `post: "24:30"` reports `post` until Wednesday `00:30`, and `nextTransition` reports that same cutoff.
 
 ### Holidays and early closes
 
@@ -130,7 +130,7 @@ These exports use the same conversion rules as the calendar. Date strings are `Y
 
 `LocalTime` is `{ date: string, weekday: number, minutes: number }`. `minutes` counts whole minutes and omits seconds.
 
-`parseTime` trims whitespace and accepts one or two hour digits (`0`–`24`) and exactly two minute digits (`00`–`59`). For example, `"9:05"` returns `545`, `"24:00"` returns `1440`, and `"9.30"` returns `NaN`. It also accepts `"24:59"`; `zonedInstant` normalizes hour `24` into the following date.
+`parseTime` trims whitespace and accepts one or two hour digits (`0`–`24`) and exactly two minute digits (`00`–`59`). For example, `"9:05"` returns `545`, `"24:00"` returns `1440`, and `"9.30"` returns `NaN`. It also accepts `"24:59"`; `zonedInstant` normalizes hour `24` into the following date. Called directly, `zonedInstant` and `localTime` throw a `RangeError` for a time `parseTime` rejects, a date with fewer than three parts or a non-numeric one, an instant outside the Date range, or an unknown zone. Dates are otherwise read leniently, as `Number` and `Date.UTC` read them: an empty part reads as 0, `"2026-02-31"` becomes March 3, `"2026-02-00"` becomes January 31, and `"1-2-3"` becomes 1901-02-03, so validate dates before passing them.
 
 ### What it does not do
 

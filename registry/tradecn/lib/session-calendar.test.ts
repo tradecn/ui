@@ -21,6 +21,37 @@ const overnight = createSessionCalendar({
 
 const utc = (y: number, m: number, d: number, h = 0, min = 0) => Date.UTC(y, m - 1, d, h, min)
 
+describe("hour-24 posts", () => {
+  it("status agrees with nextTransition across a post that stretches two days past the open", () => {
+    // Monday opens 17:00, closes Tuesday 16:00, post runs to Wednesday 00:30
+    // (24:30 of the close day). The old one-day lookback lost the span at
+    // Wednesday 00:00 and called it closed while nextTransition still said post.
+    const stretched = createSessionCalendar({ zone: "UTC", sessions: [{ days: [1], open: "17:00", close: "16:00", post: "24:30" }] })
+    const mondayOpen = zonedInstant("2026-09-21", "17:00", "UTC")
+    const tuesdayEvening = zonedInstant("2026-09-22", "20:00", "UTC")
+    const wednesdaySmallHours = zonedInstant("2026-09-23", "00:10", "UTC")
+    const postEnds = zonedInstant("2026-09-23", "00:30", "UTC")
+    expect(stretched.status(mondayOpen)).toBe("open")
+    expect(stretched.status(tuesdayEvening)).toBe("post")
+    expect(stretched.status(wednesdaySmallHours)).toBe("post")
+    expect(stretched.status(postEnds)).toBe("closed")
+    const transition = stretched.nextTransition(tuesdayEvening)
+    expect(transition).toEqual({ at: postEnds, status: "closed" })
+    // Inside the stretch itself: the mark loop must reach the Monday span too,
+    // or the boundary status reports is one nextTransition never generates.
+    expect(stretched.nextTransition(wednesdaySmallHours)).toEqual({ at: postEnds, status: "closed" })
+  })
+
+  it("timeToClose reaches a session two opening dates back", () => {
+    // An early close of 24:30 on Tuesday keeps Monday's session open to Wednesday
+    // 00:30, two opening dates past its open; a one-day lookback would miss it.
+    const late = createSessionCalendar({ zone: "UTC", sessions: [{ days: [1], open: "17:00", close: "16:00" }], earlyCloses: [{ date: "2026-09-22", close: "24:30" }] })
+    const wednesday = zonedInstant("2026-09-23", "00:10", "UTC")
+    expect(late.status(wednesday)).toBe("open")
+    expect(late.timeToClose(wednesday)).toBe(20 * 60_000)
+  })
+})
+
 describe("the zone arithmetic", () => {
   it("reads an instant's date, weekday, and minutes in a zone", () => {
     // 2026-09-22T14:30Z is 10:30 on a Tuesday in New York.

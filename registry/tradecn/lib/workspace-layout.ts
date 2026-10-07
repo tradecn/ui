@@ -63,15 +63,48 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-/** The value as JSON would store it: functions and undefined are gone, and anything that cannot be stored is an empty state. */
+/** The value as JSON would store it: functions and undefined are gone, and a top-level toJSON decides what is stored, as it does for JSON. When JSON cannot walk the whole value, what it can walk is kept key by key — a cycle or a throwing getter drops alone and never wipes the rest of the state — unless the value has a top-level toJSON at all, since its raw fields are what it chose to hide. */
 export function toPanelState(value: unknown): WorkspacePanelState {
   if (!isObject(value)) return {}
   try {
-    const stored: unknown = JSON.parse(JSON.stringify(value))
+    const text = JSON.stringify(value)
+    // A top-level toJSON that returns undefined, a function, or a symbol stores nothing.
+    if (text === undefined) return {}
+    const stored: unknown = JSON.parse(text)
     return isObject(stored) ? (stored as WorkspacePanelState) : {}
+  } catch {
+    // A value with a toJSON, own or inherited, owns its serialization: when JSON
+    // could not use it, store nothing rather than the fields it hides. Existence is
+    // checked, not the value, so a stateful getter never gets a second, different say.
+    try {
+      if ("toJSON" in value) return {}
+    } catch {
+      return {}
+    }
+  }
+  let keys: string[]
+  try {
+    keys = Object.keys(value)
   } catch {
     return {}
   }
+  const pairs: Array<[string, WorkspaceJson]> = []
+  for (const key of keys) {
+    try {
+      // The read runs inside the guard: a throwing getter drops its own key only.
+      const entry: unknown = (value as Record<string, unknown>)[key]
+      // Serialized under its own key, so a nested toJSON receives the key JSON's
+      // whole pass would give it; a value JSON omits leaves the wrapper empty.
+      const stored = JSON.parse(JSON.stringify({ [key]: entry })) as Record<string, WorkspaceJson>
+      if (!Object.prototype.hasOwnProperty.call(stored, key)) continue
+      // Collected as pairs: assigning out[key] would hand a "__proto__" key to the
+      // prototype setter instead of keeping it an ordinary own key, as JSON does.
+      pairs.push([key, stored[key] as WorkspaceJson])
+    } catch {
+      continue
+    }
+  }
+  return Object.fromEntries(pairs)
 }
 
 function readBoundaries(value: unknown): WorkspacePersistenceBoundaries {

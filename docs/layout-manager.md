@@ -147,7 +147,7 @@ Copy `DeskTab` from the [Workspace Usage example](workspace.md#usage) into an ap
 | `onTemplatesChange` | `(templates: LayoutTemplate[]) => void` | Required | Receives the whole list after an edit. |
 | `current` | `WorkspaceLayout \| null` | `null` | Layout captured by Save current. |
 | `onLoad` | `(layout: WorkspaceLayout, template: LayoutTemplate) => void` | Required | Requests a workspace load. |
-| `kinds` | `Iterable<string>` | - | Nonempty known kinds enable missing-kind warnings and confirmation. |
+| `kinds` | `Iterable<string>` | - | Nonempty known kinds enable missing-kind warnings and confirmation. Read on every render: pass an array or `Set`, not a one-shot iterator. |
 | `activeId` | `string \| null` | `null` | Marks a template as loaded. |
 | `now` | `() => number` | `Date.now` | Clock in milliseconds since the epoch. |
 | `labels` | `Partial<LayoutManagerLabels>` | `DEFAULT_LAYOUT_MANAGER_LABELS` | Label overrides shared with the parts and hooks. |
@@ -289,7 +289,7 @@ All `LayoutTemplate` fields are required. Keep ids unique when supplying your ow
 | `id` | `string` | Row identity for actions and `activeId`. Generated ids use the lowest available `t-1`, `t-2`, and so on. |
 | `name` | `string` | Display name and save/import replacement key. |
 | `layout` | `WorkspaceLayout` | Workspace arrangement and panel records. |
-| `savedAt` | `number` | Milliseconds since the epoch, within the Date range. `LayoutManagerSavedAt` displays positive values in the browser's locale and time zone; a stored value that is missing, nonnumeric, non-finite, or beyond the range reads as never saved. |
+| `savedAt` | `number` | Milliseconds since the epoch, within the Date range. `LayoutManagerSavedAt` displays positive values in the browser's locale and time zone; a stored value that is missing, nonnumeric, non-finite, or beyond the range reads as never saved, and so does a template passed in directly with a value beyond the range. |
 
 ### The list is yours
 
@@ -401,8 +401,8 @@ A successful import through `LayoutManagerImportContent` restores focus to its t
 
 The manager never calls the workspace API or writes storage. Stored/imported layouts pass through `parseWorkspaceLayout`, while a Load click forwards the supplied template as-is.
 
-The workspace's `api.load` parses again and returns `false` if parsing or dock restoration fails.
+The workspace's `api.load` parses again and returns `false` if parsing or dock restoration fails. Either failure leaves the workspace empty and calls `onLayoutError`, so recovery is the application's: check the result in `onLoad` and load a known-good layout when it is `false`. The workspace demo only reports the failure.
 
 ### Tokens
 
-Installation adds `stale` for the unknown-kinds badge when absent.
+Installation adds `stale` for the unknown-kinds badge when absent, with the mono font token, the accessible pair, and the hyperlegible remap.

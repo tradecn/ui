@@ -104,7 +104,7 @@ Each readout shows its label beside a `<time>` element with lining, tabular figu
 
 Every readout subscribes locally through `useNow`. Three readings using the default source share one timer, which stops after its last subscriber leaves. Setting `seconds={false}` changes the visible format, while the ISO timestamp still updates on the source cadence, once a second by default. A bar without clock readings creates no clock subscriptions.
 
-Pass `source` to each readout to use a custom clock, and keep the object stable between renders: the readout resubscribes when `source` changes, and a new object built each render resubscribes each render. Its `Clock` interface has `now(): number`, returning the last tick's epoch milliseconds, and `subscribe(callback: () => void): () => void`, returning cleanup. Keep `now()` stable between ticks and supply valid timestamps within JavaScript's date range.
+Pass `source` to each readout to use a custom clock, and keep the object stable between renders: the readout resubscribes when `source` changes, and a new object built each render resubscribes each render. Its `Clock` interface, from `@/lib/clock` beside `createClock`, has `now(): number`, returning the last tick's epoch milliseconds, `subscribe(callback: () => void): () => void`, returning cleanup, and an optional `sample?()` that reads the source for an event timestamp without changing the tick snapshot or starting a timer. Keep `now()` stable between ticks and supply valid timestamps within JavaScript's date range.
 
 The `StatusBarClock` descriptor type retains `label`, `zone`, `seconds` and `hourCycle`. When mapping descriptors, use a stable key such as a unique label/zone pair and spread each descriptor onto `StatusBarClockReadout`.
 

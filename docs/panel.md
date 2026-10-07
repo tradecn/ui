@@ -82,11 +82,11 @@ Increment the counter, then pop it out. Its count survives the move, and `i` sti
 
 Declare a binding once for `panel:book`; the handler under the focused book answers it. Clicking the panel aims the keyboard at it. Palette actions with that scope appear when opened from inside a book — and with several books on the screen, register each book's action with `within: useHotkeyScope()`, called in a child of `Panel` the way `useHotkey` is, so the book that held focus is the one that runs; without it, the latest registration answers. `Panel` renders without `HotkeysProvider`, but hotkeys need the provider. See [`use-hotkeys`](use-hotkeys.md) for binding options.
 
-`Panel` renders a `region` named by `PanelTitle`, or by an explicit `aria-label`. Border priority is `error`, then `dragTarget`, then active. `data-state` is `error`, `drag-target`, `active`, `inactive`, or `auto`; `auto` uses CSS focus-within.
+`Panel` renders a `region` named by `PanelTitle`, or by an explicit `aria-label`. Give every panel one of the two: without either, the region's `aria-labelledby` points at nothing. Border priority is `error`, then `dragTarget`, then active. `data-state` is `error`, `drag-target`, `active`, `inactive`, or `auto`; `auto` uses CSS focus-within.
 
 ### The header is a drag handle
 
-Point your layout's handle selector at `[data-panel-handle]` on `PanelHeader`. The panel does not drag itself. `SymbolTag`, `LinkGroupDot`, and `PanelActions` stop `pointerdown`, `mousedown`, and `touchstart` from reaching the header. On `LinkGroupDot` and `PanelActions`, your own handler runs first, and a `preventDefault()` it adds lets the press through to the header's drag; `SymbolTag` exposes no press handlers. They do not stop `dragstart`; HTML drag and drop needs a separate handle beside these controls.
+Point your layout's handle selector at `[data-panel-handle]` on `PanelHeader`. The panel does not drag itself. `SymbolTag`, `LinkGroupDot`, and `PanelActions` stop `pointerdown`, `mousedown`, and `touchstart` from reaching React handlers on the header and bubbling native listeners above the element where React handles the event: the React root, or the nearest portal container, such as a Workspace panel's. Capture listeners still receive them, and so does any native listener at or below that element — the header itself, a container a drag library watches, or `document` when React renders into `document` itself — because React handles events after the native pass reaches that element. Give such a library its cancel or filter selector for these controls. On `LinkGroupDot` and `PanelActions`, your own handler runs first, and a `preventDefault()` it adds lets the press through to the header's drag; `SymbolTag` exposes no press handlers. They do not stop `dragstart`; HTML drag and drop needs a separate handle beside these controls.
 
 `PanelActions` aligns your buttons at the header's far end. Supply their icons; shadcn resolves the icon library from your project's `iconLibrary` setting.
 
@@ -115,7 +115,7 @@ External `value` changes show a 900 ms `panel-sync` ring, including changes from
 
 ### Link groups
 
-`useLinkGroup()` requires `LinkGroupProvider`; there is no shared module-level fallback on the server. It returns `{ group, symbol, setSymbol, setGroup, cycleGroup }`. A `LinkGroup` is `1 | 2 | 3 | 4 | null`, where `null` means unlinked.
+`useLinkGroup()` lives in `hooks/use-link-group` and `usePopout` in `hooks/use-popout`, with `createCallbackTransport` and `createLinkGroupStore` in `lib/link-group`. `useLinkGroup()` throws outside a `LinkGroupProvider`, on the server as everywhere. It returns `{ group, symbol, setSymbol, setGroup, cycleGroup }`. A `LinkGroup` is `1 | 2 | 3 | 4 | null`, where `null` means unlinked.
 
 | Hook option | Type | Default | Purpose |
 |---|---|---|---|
@@ -208,7 +208,7 @@ Stylesheets and the body's class are copied on opening. Root attributes stay syn
 
 ### Tokens
 
-The install adds missing `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` tokens for borders, the sync ring, and group colors.
+The install adds missing `panel-active`, `panel-drag-target`, `panel-error`, `panel-sync`, and `link-1` through `link-4` tokens for borders, the sync ring, and group colors, with the mono font token, the accessible pair, and the hyperlegible remap.
 
 ### What it does not do
 

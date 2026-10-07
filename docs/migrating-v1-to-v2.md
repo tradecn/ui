@@ -882,6 +882,10 @@ Items are named groups inside your collection. A focus target that becomes hidde
 
 Drag sessions reject foreign and cross-chooser drops, accept empty string column keys, and clear when their source disappears. These correct the released drag and focus defects.
 
+## SessionCalendar
+
+Hour-24 windows report consistently: `status` and `timeToClose` now look back two opening dates, so a next-day close with an hour-24 `post` reports `post` to its stated end — v1 reported `closed` for that final stretch — and `nextTransition` generates the same cutoff `status` reports.
+
 ## SessionGuard
 
 Replace `SessionGuard` with `SessionGuardProvider` and compose its warning, dialog and actions. The old export and `SessionGuardProps` are removed: their `children` meant authentication content, whereas provider children own the whole composition.
@@ -953,6 +957,8 @@ Keep the fallback target outside conditional content. Surrounding drafts remain 
 ## Workspace
 
 Existing `Workspace` calls keep the title-and-close tab, panel API and version-1 saved layouts. No API migration is required.
+
+Panel state cleaning changed: v1 turned the whole state into `{}` when any value failed to serialize; v2 keeps the serializable keys and drops only the failing one. A top-level `toJSON` still decides what is stored, and when JSON cannot use what it returns, nothing is stored, as in v1.
 
 Closing a tab with its standalone close button now dismisses the overflow popup. Refresh the installed Workspace CSS: floating groups now use the theme's base z-index of `30` instead of Dockview's fallback `999`. Put custom `--dv-overlay-z-index` values on `.dockview-theme-tradecn`, where floating containers inherit them.
 

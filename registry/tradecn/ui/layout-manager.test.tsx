@@ -110,6 +110,31 @@ describe("LayoutManager", () => {
     return { onTemplatesChange, onLoad, onExport, onReset, rerender, region: screen.getByRole("region", { name: "Layouts" }) }
   }
 
+  it("renders a template handed in with an out-of-range savedAt as never saved, without unmounting", () => {
+    // The parser already floors these at the Date range; a template passed
+    // directly must not let toISOString throw mid-render and take the manager down.
+    // Infinity and the finite 1e20 fail the range check; the string fails the typeof.
+    const hostile = [
+      { id: "t-x", name: "Hostile", layout: TWO, savedAt: Number.POSITIVE_INFINITY },
+      { id: "t-y", name: "Far future", layout: TWO, savedAt: 1e20 },
+      // An untyped caller's numeric string: new Date(string) would be Invalid Date.
+      { id: "t-z", name: "Stringly", layout: TWO, savedAt: "1700000000000" as unknown as number },
+    ]
+    render(<LayoutManager templates={hostile} onTemplatesChange={() => {}} onLoad={() => {}} current={TWO} kinds={["book", "chart"]} now={() => T}><LayoutManagerControls /></LayoutManager>)
+    const items = screen.getAllByRole("listitem")
+    expect(items.map((item) => ["Hostile", "Far future", "Stringly"].some((name) => item.textContent?.includes(name)))).toEqual([true, true, true])
+    for (const item of items) expect(item.querySelector("time")).toBeNull()
+  })
+
+  it("renders a valid savedAt as a time", () => {
+    // The positive control beside the hostile cases: a guard that hid every
+    // timestamp would pass those and fail here.
+    render(<LayoutManager templates={[{ id: "t-ok", name: "Saved", layout: TWO, savedAt: T }]} onTemplatesChange={() => {}} onLoad={() => {}} current={TWO} kinds={["book", "chart"]} now={() => T}><LayoutManagerControls /></LayoutManager>)
+    const time = screen.getByRole("listitem").querySelector("time")
+    expect(time).not.toBeNull()
+    expect(time!.getAttribute("dateTime")).toBe(new Date(T).toISOString())
+  })
+
   it("saves the current layout under a typed name, says when the name is taken, and lists the templates with their panel counts", () => {
     const { onTemplatesChange, rerender, region } = setup()
     expect(region.dataset.slot).toBe("tradecn-layout-manager")

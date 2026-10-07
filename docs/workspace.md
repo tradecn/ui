@@ -181,7 +181,7 @@ An unregistered kind renders a placeholder and uses the same tab component, so o
 
 ### Adding panels
 
-`api.addPanel(options)` returns the panel id. If that id is already open, it leaves its title and state unchanged and focuses the existing panel — unless `focus: false`, which leaves both the active panel and the keyboard alone, so an ensure-open call cannot steal from the panel the trader is in.
+`api.addPanel(options)` returns the panel id. If the `id` you pass is already open, it leaves that panel's title and state unchanged and focuses it — unless `focus: false`, which leaves both the active panel and the keyboard alone, so an ensure-open call cannot steal from the panel the trader is in. It throws when the dock rejects the options — an unknown `reference`, say — and discards the new record. A throw inside `seed` is not caught: it propagates out of the dock's ready callback, and `onReady` never fires. With the default `focus: true`, the last panel added during `seed` that asks for focus takes keyboard focus when it mounts, and a failing `addPanel` leaves the request it found in place; pass `focus: false` while seeding to leave focus where it is, as the tab-controls demo does.
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
@@ -189,7 +189,7 @@ An unregistered kind renders a placeholder and uses the same tab component, so o
 | `id` | `string` | Lowest free `<kind>-N`, starting at 1 | Identifies the panel. |
 | `title` | `string` | `kind` | Names the panel and tab. |
 | `state` | `WorkspacePanelState` | `{}` | Initial JSON state. |
-| `position` | `{ reference?: string; direction: "left" \| "right" \| "above" \| "below" \| "within" }` | Active group | Places the panel beside a reference panel, or tabs it with `within`. |
+| `position` | `{ reference?: string; direction: "left" \| "right" \| "above" \| "below" \| "within" }` | Active group | Places the panel beside a reference panel, or tabs it with `within`. Without `reference`, the direction is relative to the whole dock. |
 | `floating` | `boolean \| WorkspaceBox` | `false` | Opens floating; takes precedence over `position`. |
 | `focus` | `boolean` | `true` | Moves keyboard focus into the new panel after rendering; the dock still makes a new panel active either way. On an id that is already open, `false` changes nothing at all. |
 
@@ -199,7 +199,7 @@ An unregistered kind renders a placeholder and uses the same tab component, so o
 
 Keep small settings in `state`: a symbol, link group, or view option. `WorkspacePanelState` is a string-keyed object of JSON values; `WorkspacePanelStatePatch` also accepts `undefined` to remove a key. `setState` shallow-merges a patch or a patch returned from a function of the previous state. An identical serialized result triggers no store update or save.
 
-Runtime values are cleaned through JSON serialization. Function-valued object properties disappear, dates become strings, and an unserializable object becomes `{}`. These non-JSON values are outside the declared input type.
+Runtime values are cleaned through JSON serialization, whole when it walks and key by key when it does not. Function-valued object properties disappear, dates become strings, and a value serialization rejects — a cycle or a throwing getter inside a value, say — is dropped alone, keeping the rest of the state. A top-level `toJSON` decides what is stored: when it returns anything but an object JSON can store, or throws, nothing is stored rather than the fields it hides. `setState` spreads its patch into the current state before cleaning it, so the rule applies to the merged object: a throwing getter on the patch object itself throws from `setState`, a `toJSON` of the patch's own decides the whole merged state, and an inherited one, such as a class method, is skipped by the spread. These non-JSON values are outside the declared input type.
 
 In [Linked panels](#linked-panels), `useLinkGroup` treats the starting symbol as a seed. A real group write, including one from another window, takes precedence.
 
@@ -236,7 +236,7 @@ Both `defaultLayout` and `api.load` use this parser. If parsing fails or dockvie
 
 ### Saving is yours
 
-`onLayoutChange` runs after changes stop for `layoutChangeDelay` milliseconds. Resize drags can report on every pointer move. Seeding schedules a save; a successful synchronous restore establishes the saved baseline, and unchanged snapshots do not save again. Delayed popout restoration can produce further changes.
+`onLayoutChange` runs after changes stop for `layoutChangeDelay` milliseconds. The dock reports a resize drag on every pointer move, and the debounce folds those into one save unless the drag pauses longer than `layoutChangeDelay`. Seeding schedules a save; a successful synchronous restore establishes the saved baseline, and unchanged snapshots do not save again. Delayed popout restoration can produce further changes.
 
 Unmounting flushes a pending callback before disposing the dock. This does not guarantee a write when a page closes: page unload need not unmount React, and asynchronous writes are not awaited. Choose storage in your callback: `localStorage`, a desktop file, or a server. `onLayoutError` receives synchronous serialization or callback errors; handle rejected asynchronous writes yourself.
 
