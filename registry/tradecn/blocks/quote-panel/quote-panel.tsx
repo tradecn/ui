@@ -246,7 +246,7 @@ export function quoteEdit<T extends QuoteRow>(field: QuoteField, options: QuoteC
       parse: (text) => {
         const n = readNumber(text)
         if (n === "bad") return editProblem(labels.notANumber)
-        if (n !== null && (!Number.isInteger(n) || n < 0)) return editProblem(labels.notASize)
+        if (n !== null && (!Number.isSafeInteger(n) || n < 0)) return editProblem(labels.notASize)
         return n
       },
       format: (value) => (isNumber(value) ? formatQuantity(value) : ""),
@@ -303,6 +303,18 @@ const isElement = (node: unknown): node is Element => typeof node === "object" &
 const isEditor = (node: unknown): node is HTMLInputElement => isElement(node) && node.hasAttribute("data-cell-editor")
 const subscribeNothing = () => () => {}
 
+// A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused
+// button, run nothing and answer no question the first press asked.
+function useFreshPress() {
+  const held = useRef(false)
+  return {
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      held.current = event.key === "Enter" && event.repeat
+    },
+    fresh: (event: MouseEvent<HTMLElement>) => event.detail <= 1 && !(event.detail === 0 && held.current),
+  }
+}
+
 // Focus leaving a control on purpose. A window switch also blurs with no destination, but the document loses
 // focus with it, so the record stays and a control withdrawn while the trader is away still hands focus to the
 // grid on return.
@@ -341,6 +353,7 @@ interface RowActionsProps<T extends QuoteRow> {
 // held while a run's promise is out. The status word never moves on a click; only the row's next batch moves it.
 function RowActions<T extends QuoteRow>({ row, rowId, actions }: RowActionsProps<T>) {
   const [pending, hold] = useRowRun(rowId)
+  const press = useFreshPress()
   const box = useRef<HTMLSpanElement>(null)
   // When the button under focus leaves — the server's reply swaps Pause for Resume, or holds the row — focus
   // falls to body and the grid's keys go dead. The grid takes it instead. Leaving on purpose clears the record.
@@ -380,7 +393,9 @@ function RowActions<T extends QuoteRow>({ row, rowId, actions }: RowActionsProps
       }}
     >
       {allowed.length === 0 ? <span className="text-muted-foreground">{NULL_TOKEN}</span> : allowed.map((action) => (
-        <Button key={action.id} type="button" size="sm" variant={action.destructive ? "destructive" : "ghost"} className="h-5 px-1.5 text-xs" tabIndex={-1} disabled={pending !== null} data-action={action.id} data-pending={pending === action.id || undefined} onClick={() => runQuoteAction(row, action, pending !== null, hold)}>
+        <Button key={action.id} type="button" size="sm" variant={action.destructive ? "destructive" : "ghost"} className="h-5 px-1.5 text-xs" tabIndex={-1} disabled={pending !== null} data-action={action.id} data-pending={pending === action.id || undefined} onKeyDown={press.onKeyDown} onClick={(event) => {
+            if (press.fresh(event)) runQuoteAction(row, action, pending !== null, hold)
+          }}>
           {action.label}
         </Button>
       ))}
@@ -450,7 +465,7 @@ export function quotePanelColumns<T extends QuoteRow>(options: QuoteColumnOption
   ]
 }
 
-/** What the panel hands a `columns` function: its memory of the questions standing, and its question line. */
+/** What the panel hands a `columns` function: its memory of the question standing, and its question line. */
 export interface QuotePanelQuestion {
   asked: Set<string>
   onQuestion: (question: string | null) => void
@@ -478,7 +493,8 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
   const [runs] = useState(createPendingRuns)
   const root = useRef<HTMLDivElement>(null)
   // Where focus was as the question was asked: the editor whose commit asked, or the control that committed.
-  // Focus landing anywhere else, its text changing, or its blur withdraws the question and the memory with it.
+  // Focus landing anywhere else in the panel, its text changing, or its blur withdraws the question and the
+  // memory with it; a control's blur counts when focus leaves it on purpose, not for a window switch.
   const asking = useRef<Element | null>(null)
   useLayoutEffect(() => {
     asking.current = question !== null ? (root.current?.ownerDocument.activeElement ?? null) : null
@@ -533,6 +549,7 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
     return rows
   }, [store, ids, meta.version, pullAction])
   const [confirming, setConfirming] = useState(false)
+  const pullPress = useFreshPress()
   const [pulling, setPulling] = useState(false)
   const pullAll = () => {
     if (pulling) return
@@ -590,8 +607,9 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
     if (asking.current && e.target === asking.current) withdrawQuestion()
   }
   const onBlur = (e: FocusEvent<HTMLDivElement>) => {
-    // An editor closing withdraws the question, whether or not leaving committed anything.
-    if (isEditor(e.target)) withdrawQuestion()
+    // An editor closing withdraws the question, whether or not leaving committed anything; so does focus leaving
+    // the control that asked, straight out of the panel included.
+    if (isEditor(e.target) || (asking.current && e.target === asking.current && deliberateBlur(e))) withdrawQuestion()
     if (focusedControl.current === e.target && deliberateBlur(e)) focusedControl.current = null
     const next = e.relatedTarget
     if (confirming && !(isElement(next) && e.currentTarget.contains(next))) setConfirming(false)
@@ -609,7 +627,9 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
               {question}
             </p>
             {onPullAll && (
-              <Button type="button" size="sm" variant={confirming ? "destructive" : "outline"} className="h-7" disabled={pulling || pullable.length === 0} data-quote-pull-all={pullable.length} data-confirming={confirming || undefined} onClick={pullAll}>
+              <Button type="button" size="sm" variant={confirming ? "destructive" : "outline"} className="h-7" disabled={pulling || pullable.length === 0} data-quote-pull-all={pullable.length} data-confirming={confirming || undefined} onKeyDown={pullPress.onKeyDown} onClick={(event) => {
+                if (pullPress.fresh(event)) pullAll()
+              }}>
                 {confirming ? labels.pullAllAnyway : labels.pullAll}
               </Button>
             )}

@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
@@ -243,6 +243,18 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
 
 const noop = () => () => {}
 /** The one action the send key runs: it sends the quote, so neither a pass nor a destructive action rides mod+enter. */
+// A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused
+// button, run nothing and answer no question the first press asked.
+function useFreshPress() {
+  const held = useRef(false)
+  return {
+    onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => {
+      held.current = event.key === "Enter" && event.repeat
+    },
+    fresh: (event: ReactMouseEvent<HTMLElement>) => event.detail <= 1 && !(event.detail === 0 && held.current),
+  }
+}
+
 function sendTarget(allowed: readonly RfqAction[]): RfqAction | undefined {
   const sending = allowed.filter((action) => action.needsQuote !== false && !action.destructive)
   return sending.find((action) => action.primary) ?? sending[0]
@@ -284,6 +296,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const [problems, setProblems] = useState<RfqQuoteProblems>({})
   // The action a limit asked again about; the next click on it sends. Any change to a level withdraws the question.
   const [confirming, setConfirming] = useState<string | null>(null)
+  const press = useFreshPress()
 
   const box = useRef<HTMLDivElement>(null)
   const inputs = { bid: useRef<HTMLInputElement>(null), ask: useRef<HTMLInputElement>(null) }
@@ -361,6 +374,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const shownProblems = { bid: problems.bid ?? blockedBy.bid, ask: problems.ask ?? blockedBy.ask }
   const otherBlocks = blocking.filter((p) => p.field !== "bid" && p.field !== "ask")
   const asking = confirming !== null ? confirms(limitProblems) : []
+  const limitsText = [...otherBlocks, ...asking].map((p) => p.message).join(" ")
 
   /** Where a step starts when a field is blank: the market's same side, the suggested level, the market's other side, then its mid. */
   function stepFrom(side: QuoteSide): number | null {
@@ -556,7 +570,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <Badge variant="secondary" className="h-5 px-1.5 text-xs font-medium" data-rfq-status>
+            <Badge role="status" variant="secondary" className="h-5 px-1.5 text-xs font-medium" data-rfq-status>
               {inquiry.status}
             </Badge>
             <Countdown expiresAt={inquiry.expiresAt} startsAt={inquiry.receivedAt} label={`${labels.ticket} ${inquiry.id}`} className="text-sm" />
@@ -651,7 +665,10 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
                   disabled={disabled || (blocked && action.needsQuote !== false)}
                   data-action={action.id}
                   data-confirming={confirming === action.id || undefined}
-                  onClick={() => run(action)}
+                  onKeyDown={press.onKeyDown}
+                  onClick={(event) => {
+                    if (press.fresh(event)) run(action)
+                  }}
                 >
                   {confirming === action.id ? labels.anyway.replace("{action}", typeof action.label === "function" ? action.label(draft) : action.label) : typeof action.label === "function" ? action.label(draft) : action.label}
                   {action === sendAction && sendKeys && (
@@ -667,11 +684,10 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
           </span>
         </div>
 
-        {(otherBlocks.length > 0 || asking.length > 0) && (
-          <p className={asking.length ? "text-stale" : "text-destructive"} data-rfq-limits={asking.length ? "confirm" : "block"}>
-            {[...otherBlocks, ...asking].map((p) => p.message).join(" ")}
-          </p>
-        )}
+        {/* Always in the page, so the question a confirm asks is announced as it appears. */}
+        <p role="status" className={limitsText ? (asking.length ? "text-stale" : "text-destructive") : "sr-only"} data-rfq-limits={limitsText ? (asking.length ? "confirm" : "block") : undefined}>
+          {limitsText}
+        </p>
 
         {inquiry.message && (
           <p className="border-t border-border pt-1.5 text-muted-foreground" data-rfq-message>

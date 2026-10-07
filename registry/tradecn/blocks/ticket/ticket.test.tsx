@@ -128,6 +128,15 @@ describe("Ticket", () => {
     expect(lastDraft(onDraftChange).quantity).toBeNull()
   })
 
+  it("steps the quantity by one when the instrument's step is not a whole number above zero", () => {
+    for (const step of [0, 0.5, -100, Number.NaN]) {
+      const { view } = mount({ instrument: { ...ZN, quantityStep: step } })
+      fireEvent.keyDown(quantity(), { key: "ArrowUp" })
+      expect(quantity().value).toBe("1")
+      view.unmount()
+    }
+  })
+
   it("shows the side through aria-pressed and flips it", () => {
     const { onDraftChange } = mount()
     expect(screen.getByRole("button", { name: "Buy" })).toHaveAttribute("aria-pressed", "true")
@@ -723,6 +732,43 @@ describe("limits", () => {
     expect(run.mock.calls[0]![0]).toMatchObject({ quantity: 21, price: 99.53125 })
     expect(send).not.toHaveAttribute("data-confirming")
     expect(send).toHaveTextContent("Send")
+  })
+
+  it("counts a press once: a double-click's second click and a held Enter's repeats neither answer the question nor run again", () => {
+    const { run } = mount({ limits: LIMITS, reference: REFERENCE })
+    type(quantity(), "20")
+    type(price(), "99-17")
+    const send = screen.getByRole("button", { name: /^Send/ })
+    fireEvent.click(send, { detail: 1 })
+    fireEvent.click(send, { detail: 2 })
+    expect(run).not.toHaveBeenCalled()
+    expect(send).toHaveTextContent("Send anyway?")
+    // The click a held Enter repeats on the focused button does not answer either.
+    fireEvent.keyDown(send, { key: "Enter", repeat: true })
+    fireEvent.click(send, { detail: 0 })
+    expect(run).not.toHaveBeenCalled()
+    // A fresh press does.
+    fireEvent.keyDown(send, { key: "Enter" })
+    fireEvent.click(send, { detail: 0 })
+    expect(run).toHaveBeenCalledTimes(1)
+    // With nothing to ask, a double-click still runs once.
+    type(quantity(), "5")
+    fireEvent.click(send, { detail: 1 })
+    fireEvent.click(send, { detail: 2 })
+    expect(run).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps the limits line in the page as a status region, empty until a limit speaks", () => {
+    mount({ limits: LIMITS, reference: REFERENCE })
+    const line = document.querySelector<HTMLElement>("p[role='status']")!
+    expect(line).toBeEmptyDOMElement()
+    expect(line).not.toHaveAttribute("data-ticket-limits")
+    type(quantity(), "20")
+    type(price(), "99-17")
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }))
+    expect(document.querySelector("p[role='status']")).toBe(line)
+    expect(line).toHaveTextContent("20 is above 10. Send it anyway?")
+    expect(line).toHaveAttribute("data-ticket-limits", "confirm")
   })
 
   it("blocks under the field and holds the actions that send the draft, live and as the click lands, while an unchecked action still runs", () => {

@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
@@ -195,6 +195,18 @@ export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption
 }
 
 /** The send shortcut's target: the first allowed action that checks the draft, preferring the primary one. An unchecked action sends nothing of the draft and a destructive one cancels or pulls, so a shortcut named send runs neither. */
+// A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused
+// button, run nothing and answer no question the first press asked.
+function useFreshPress() {
+  const held = useRef(false)
+  return {
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      held.current = event.key === "Enter" && event.repeat
+    },
+    fresh: (event: MouseEvent<HTMLElement>) => event.detail <= 1 && !(event.detail === 0 && held.current),
+  }
+}
+
 function sendTarget(allowed: readonly TicketAction[]): TicketAction | null {
   const sending = allowed.filter((action) => action.checked !== false && !action.destructive)
   return sending.find((action) => action.primary) ?? sending[0] ?? null
@@ -248,7 +260,9 @@ export function Ticket({
 }: TicketProps) {
   const labels = { ...DEFAULT_TICKET_LABELS, ...labelsProp }
   const id = useId()
-  const { convention, quantityStep = 1 } = instrument
+  const { convention } = instrument
+  // Quantities are whole: a step that is not a whole number above zero steps by one.
+  const quantityStep = Number.isSafeInteger(instrument.quantityStep) && instrument.quantityStep! > 0 ? instrument.quantityStep! : 1
   const [draft, setDraft] = useState<TicketDraft>(() => ({
     side: "buy",
     quantity: null,
@@ -263,6 +277,7 @@ export function Ticket({
   const [problems, setProblems] = useState<TicketProblems>({})
   // The action a limit asked again about; the next click on it sends. Any change to the draft withdraws the question.
   const [confirming, setConfirming] = useState<string | null>(null)
+  const press = useFreshPress()
   const priced = isPriced(orderTypes, draft.type)
 
   // The limits, live: a block shows under its field and holds the actions that send the draft; a confirm waits for the click.
@@ -273,6 +288,7 @@ export function Ticket({
   const shownProblems = { quantity: problems.quantity ?? blockedBy.quantity, price: problems.price ?? blockedBy.price }
   const otherBlocks = blocking.filter((p) => p.field !== "quantity" && p.field !== "price")
   const asking = confirming !== null ? confirms(limitProblems) : []
+  const limitsText = [...otherBlocks, ...asking].map((p) => p.message).join(" ")
 
   const box = useRef<HTMLDivElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
@@ -616,7 +632,10 @@ export function Ticket({
                 disabled={disabled || (blocked && action.checked !== false)}
                 data-action={action.id}
                 data-confirming={confirming === action.id || undefined}
-                onClick={() => run(action)}
+                onKeyDown={press.onKeyDown}
+                onClick={(event) => {
+                  if (press.fresh(event)) run(action)
+                }}
               >
                 {confirming === action.id ? labels.anyway.replace("{action}", typeof action.label === "function" ? action.label(draft) : action.label) : typeof action.label === "function" ? action.label(draft) : action.label}
                 {action === sendAction && sendKeys && (
@@ -631,11 +650,10 @@ export function Ticket({
           )}
         </div>
 
-        {(otherBlocks.length > 0 || asking.length > 0) && (
-          <p className={asking.length ? "text-stale" : "text-destructive"} data-ticket-limits={asking.length ? "confirm" : "block"}>
-            {[...otherBlocks, ...asking].map((p) => p.message).join(" ")}
-          </p>
-        )}
+        {/* Always in the page, so the question a confirm asks is announced as it appears. */}
+        <p role="status" className={limitsText ? (asking.length ? "text-stale" : "text-destructive") : "sr-only"} data-ticket-limits={limitsText ? (asking.length ? "confirm" : "block") : undefined}>
+          {limitsText}
+        </p>
 
         {(status || message) && (
           <div className="flex flex-wrap items-baseline gap-x-2 border-t border-border pt-1.5">

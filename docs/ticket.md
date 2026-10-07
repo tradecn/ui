@@ -76,7 +76,7 @@ This is the registry's first block: `ticket.tsx` installs into your `components`
 | `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Built-in labels and validation messages. Fixed strings remain: the unpriced `market` placeholder and `at market` wording, the references' `, use it` name suffix, the `up one tick` and `down one tick` tails after your `labels.price` in the step buttons' names, the quick sizes' notional `mm` suffix, the key caps the send target's button shows, and the built-in limit messages. |
 | `className` | `string` | None | Classes on the outer group. |
 
-`TicketInstrument` requires `symbol: string` and `convention: InstrumentConvention`; `quantityStep?: number` defaults to `1`. See [`format`](format.md) for conventions. `TicketReference` has optional `bid`, `ask`, and `last` fields, each `number | null`.
+`TicketInstrument` requires `symbol: string` and `convention: InstrumentConvention`; `quantityStep?: number` defaults to `1`, and anything but a whole number above zero steps by `1`. See [`format`](format.md) for conventions. `TicketReference` has optional `bid`, `ask`, and `last` fields, each `number | null`.
 
 `TicketOption` requires `id: string` and `label: string`. Its optional `priced: boolean` defaults to `true` and matters only in `orderTypes`. A type with `priced: false` disables the price field and reference buttons; actions receive `price: null`.
 
@@ -104,6 +104,8 @@ The first allowed action marked `primary` wins; otherwise the first allowed acti
 The ticket makes no network request and infers no order state from `run`. As with [`blotter`](blotter.md), the server supplies the allowed actions and status.
 
 Only actions named in `allowedActions` render, in `actions` order. A missing or empty allowlist shows `labels.nothingAllowed`. Permission and `disabled` are checked again when an action runs. `status` and `message` print as supplied; clicking a button never sets “Sent.”
+
+A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused button, run nothing. Two separate presses run the action twice unless `run` takes it out of `allowedActions` at once, as the demos do; do the same, or have your server refuse the repeat.
 
 Change `acknowledged` when the server acknowledges, using an order id or timestamp. After mount, each change under `Object.is` triggers a 900 ms `useFlash` ring in `primary`, without direction coloring. The initial value does not flash. When the control under focus leaves — a sent action's button unmounts or disables, with or without an acknowledgement, a window switch in between included — focus moves to the ticket itself, so the shortcuts stay live. A deliberate click elsewhere is remembered as leaving, and a re-keyed ticket starts fresh, owning no focus until the trader returns to it. Under `prefers-reduced-motion`, the ticket does not ring.
 
@@ -154,7 +156,7 @@ Use these helpers in a confirmation dialog, palette row, or test.
 Pass a [`limits`](limits.md) table for quantity thresholds, distance from market, permitted sides, or custom rules. Checks run live and again when an action runs, using `reference` as the market. A buyer's price is measured against the offer, a seller's against the bid, falling back to `last` when that side is missing, since the reference carries no midpoint. Distance uses ticks for a price basis and basis points for other quote bases.
 
 - A `block` appears under its quantity or price field and disables checked actions. Other fields, including side, appear below the actions. An action with `checked: false` can still run.
-- A `confirm` makes the chosen checked action ask again: its label becomes `{action} anyway?`, and reasons appear below the actions. The next activation of that same action runs it if checks still pass. Any draft update clears the confirmation; changes to the market or limits alone do not.
+- A `confirm` makes the chosen checked action ask again: its label becomes `{action} anyway?`, and reasons appear below the actions on a `role="status"` line, announced as they appear. The next fresh press of that same action runs it if checks still pass: a double-click's second click or a held Enter's repeat does not count. Any draft update clears the confirmation; changes to the market or limits alone do not.
 
 ### Quick sizes
 

@@ -703,6 +703,39 @@ describe("limits", () => {
     expect(lastDraft(quote)).toMatchObject({ ask: 99.59375 })
   })
 
+  it("counts a press once: a double-click's second click and a held Enter's repeats neither answer the question nor quote again", () => {
+    const { quote } = mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } } })
+    type(field("Offer"), "99-20")
+    const button = screen.getByRole("button", { name: /^Quote/ })
+    fireEvent.click(button, { detail: 1 })
+    fireEvent.click(button, { detail: 2 })
+    expect(quote).not.toHaveBeenCalled()
+    expect(button).toHaveTextContent("Quote anyway?")
+    fireEvent.keyDown(button, { key: "Enter", repeat: true })
+    fireEvent.click(button, { detail: 0 })
+    expect(quote).not.toHaveBeenCalled()
+    fireEvent.keyDown(button, { key: "Enter" })
+    fireEvent.click(button, { detail: 0 })
+    expect(quote).toHaveBeenCalledTimes(1)
+    // With nothing to ask, a double-click still quotes once.
+    type(field("Offer"), "99-17")
+    fireEvent.click(button, { detail: 1 })
+    fireEvent.click(button, { detail: 2 })
+    expect(quote).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps the limits line in the page as a status region, and announces the inquiry's status", () => {
+    mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } } })
+    const line = document.querySelector<HTMLElement>("p[role='status']")!
+    expect(line).toBeEmptyDOMElement()
+    expect(line).not.toHaveAttribute("data-rfq-limits")
+    type(field("Offer"), "99-20")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(document.querySelector("p[role='status']")).toBe(line)
+    expect(line).toHaveAttribute("data-rfq-limits", "confirm")
+    expect(document.querySelector("[data-rfq-status]")).toHaveAttribute("role", "status")
+  })
+
   it("blocks under the field and holds the actions that send a quote, while a pass still runs", () => {
     const { quote, pass } = mount({ limits: { maxDistance: { ticks: 4 } } })
     type(field("Offer"), "99-20")
