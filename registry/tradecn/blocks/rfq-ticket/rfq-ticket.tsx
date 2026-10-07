@@ -7,7 +7,7 @@ import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, quoteInvertedOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
-import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
+import { blocks, checkLimits, confirms, problemsByField, type Limits, type Problem as LimitProblem } from "@/registry/tradecn/lib/limits"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
 
@@ -242,6 +242,9 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
 }
 
 const noop = () => () => {}
+// A limit's identity apart from its words, which the market can change under it.
+const ruleOf = (p: LimitProblem) => `${p.field}\u0000${p.rule}`
+
 // A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused
 // button, run nothing and answer no question the first press asked. The hold belongs to the button it repeats
 // on, and ends when the key is let go or focus leaves that button.
@@ -307,6 +310,8 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const box = useRef<HTMLDivElement>(null)
   const inputs = { bid: useRef<HTMLInputElement>(null), ask: useRef<HTMLInputElement>(null) }
   const allowed = actions.filter((action) => inquiry.allowedActions?.includes(action.id))
+  // A question whose action the venue took away no longer stands: if the action comes back, it asks again.
+  if (confirming !== null && !allowed.some((action) => action.id === confirming)) setConfirming(null)
   const primary = allowed.find((action) => action.primary) ?? allowed.find((action) => action.needsQuote !== false) ?? allowed[0]
   // The key hint rides the action the send key actually runs, which can differ from primary.
   const sendAction = sendTarget(allowed)
@@ -381,15 +386,20 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const otherBlocks = blocking.filter((p) => p.field !== "bid" && p.field !== "ask")
   const asking = confirming !== null ? confirms(limitProblems) : []
   const limitsText = [...otherBlocks, ...asking].map((p) => p.message).join(" ")
-  // What a screen reader hears from the limits: the question as the press asked it, and the other fields' blocks
-  // as their set changes, never a sentence the moving market rewrites. Each message is a new node, so the same
-  // words said again are still heard.
-  const [said, setSaid] = useState({ text: "", revision: 0 })
-  const blockSet = otherBlocks.map((p) => `${p.field}\u0000${p.rule}`).join("\u0001")
-  const [blocksSaid, setBlocksSaid] = useState(blockSet)
-  if (blockSet !== blocksSaid) {
-    setBlocksSaid(blockSet)
-    if (blockSet) setSaid({ text: otherBlocks.map((p) => p.message).join(" "), revision: said.revision + 1 })
+  // What a screen reader hears from the limits, never a sentence the moving market merely rewrites: the blocks the
+  // market can reword (a level's distance, another field's rule) when their set of rules changes, and the question when the press
+  // asks it or a confirm the market brings joins it. Each message is a new node, so the same words said again are
+  // still heard, and a message goes once what it said no longer stands.
+  const spoken = blocking
+  const blockSet = spoken.map(ruleOf).join("\u0001")
+  const askSet = asking.map(ruleOf).join("\u0001")
+  const [said, setSaid] = useState(() => ({ text: "", revision: 0, about: "", blocks: blockSet, asks: "" }))
+  if (blockSet !== said.blocks || askSet !== said.asks) {
+    let { text, revision, about } = said
+    if (blockSet !== said.blocks && blockSet) [text, revision, about] = [spoken.map((p) => p.message).join(" "), revision + 1, "blocks"]
+    else if (askSet !== said.asks && askSet) [text, revision, about] = [asking.map((p) => p.message).join(" "), revision + 1, "question"]
+    else if ((about === "blocks" && !blockSet) || (about === "question" && !askSet)) [text, about] = ["", ""]
+    setSaid({ text, revision, about, blocks: blockSet, asks: askSet })
   }
 
   /** Where a step starts when a field is blank: the market's same side, the suggested level, the market's other side, then its mid. */
@@ -449,7 +459,6 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       if (found.bid || found.ask || blocking.length) return
       if (confirms(over).length && asked !== action.id) {
         setConfirming(action.id)
-        setSaid((now) => ({ text: confirms(over).map((p) => p.message).join(" "), revision: now.revision + 1 }))
         return
       }
     }
@@ -641,7 +650,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             const distance = quoteDistance(draft[side], level(market?.[side]), convention)
             return (
               <div key={side} className="flex flex-col gap-0.5">
-                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} invalidText={labels.invalidLevel} disabled={!quoting} error={shownProblems[side]} inputRef={inputs[side]} />
+                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} invalidText={labels.invalidLevel} disabled={!quoting} error={shownProblems[side]} announceError={problems[side] !== undefined} inputRef={inputs[side]} />
                 <span className="h-4 text-right text-muted-foreground lining-nums tabular-nums" data-rfq-distance={side} data-numeric="" aria-live="off">
                   {distance ? `${distance.text} ${labels.vsMarket}` : " "}
                 </span>

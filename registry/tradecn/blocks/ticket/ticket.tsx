@@ -9,7 +9,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { NUMERIC_CLASS, formatNotional, formatQuantity, formatQuote, numericFontClass, stepQuote, type InstrumentConvention } from "@/registry/tradecn/lib/format"
-import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
+import { blocks, checkLimits, confirms, problemsByField, type Limits, type Problem as LimitProblem } from "@/registry/tradecn/lib/limits"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
 
@@ -194,6 +194,9 @@ export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption
   return problems
 }
 
+// A limit's identity apart from its words, which the market can change under it.
+const ruleOf = (p: LimitProblem) => `${p.field}\u0000${p.rule}`
+
 // A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused
 // button, run nothing and answer no question the first press asked. The hold belongs to the button it repeats
 // on, and ends when the key is let go or focus leaves that button.
@@ -295,15 +298,21 @@ export function Ticket({
   const otherBlocks = blocking.filter((p) => p.field !== "quantity" && p.field !== "price")
   const asking = confirming !== null ? confirms(limitProblems) : []
   const limitsText = [...otherBlocks, ...asking].map((p) => p.message).join(" ")
-  // What a screen reader hears from the limits: the question as the press asked it, and the other fields' blocks
-  // as their set changes, never a sentence the moving market rewrites. Each message is a new node, so the same
-  // words said again are still heard.
-  const [said, setSaid] = useState({ text: "", revision: 0 })
-  const blockSet = otherBlocks.map((p) => `${p.field}\u0000${p.rule}`).join("\u0001")
-  const [blocksSaid, setBlocksSaid] = useState(blockSet)
-  if (blockSet !== blocksSaid) {
-    setBlocksSaid(blockSet)
-    if (blockSet) setSaid({ text: otherBlocks.map((p) => p.message).join(" "), revision: said.revision + 1 })
+  // What a screen reader hears from the limits, never a sentence the moving market merely rewrites: the blocks the
+  // market can reword (the price's distance, another field's rule) when their set of rules changes, and the question when the press
+  // asks it or a confirm the market brings joins it. Each message is a new node, so the same words said again are
+  // still heard, and a message goes once what it said no longer stands. A quantity's
+  // block, worded by the trader alone, is the quantity field's own alert.
+  const spoken = blocking.filter((p) => p.field !== "quantity")
+  const blockSet = spoken.map(ruleOf).join("\u0001")
+  const askSet = asking.map(ruleOf).join("\u0001")
+  const [said, setSaid] = useState(() => ({ text: "", revision: 0, about: "", blocks: blockSet, asks: "" }))
+  if (blockSet !== said.blocks || askSet !== said.asks) {
+    let { text, revision, about } = said
+    if (blockSet !== said.blocks && blockSet) [text, revision, about] = [spoken.map((p) => p.message).join(" "), revision + 1, "blocks"]
+    else if (askSet !== said.asks && askSet) [text, revision, about] = [asking.map((p) => p.message).join(" "), revision + 1, "question"]
+    else if ((about === "blocks" && !blockSet) || (about === "question" && !askSet)) [text, about] = ["", ""]
+    setSaid({ text, revision, about, blocks: blockSet, asks: askSet })
   }
 
   const box = useRef<HTMLDivElement>(null)
@@ -413,6 +422,8 @@ export function Ticket({
   }
 
   const allowed = actions.filter((action) => allowedActions?.includes(action.id))
+  // A question whose action the server took away no longer stands: if the action comes back, it asks again.
+  if (confirming !== null && !allowed.some((action) => action.id === confirming)) setConfirming(null)
   const primary = allowed.find((action) => action.primary) ?? allowed[0]
   const sendAction = sendTarget(allowed)
 
@@ -435,7 +446,6 @@ export function Ticket({
     if (found.quantity || found.price || blocking.length) return
     if (confirms(over).length && asked !== action.id) {
       setConfirming(action.id)
-      setSaid((now) => ({ text: confirms(over).map((p) => p.message).join(" "), revision: now.revision + 1 }))
       return
     }
     send()
@@ -598,6 +608,7 @@ export function Ticket({
             disabled={disabled || !priced}
             placeholder={priced ? undefined : "market"}
             error={shownProblems.price}
+            announceError={problems.price !== undefined}
             invalidText={labels.priceInvalid}
             inputRef={priceInput}
           />

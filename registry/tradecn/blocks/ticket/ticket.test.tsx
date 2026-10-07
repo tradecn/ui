@@ -807,6 +807,60 @@ describe("limits", () => {
     rerender({ limits: { ...limits } })
     expect(document.querySelector("[data-ticket-limits='block']")).toHaveTextContent("again")
     expect(announcer.firstElementChild).toBe(said)
+    expect(announcer).not.toHaveTextContent("again")
+    // The block clears: what was said about it goes too.
+    on = false
+    rerender({ limits: { ...limits } })
+    expect(announcer).toBeEmptyDOMElement()
+  })
+
+  it("says a price block the market rewords once, keeps the field's words live without an alert, and alerts a press's own problem", () => {
+    const { rerender } = mount({ limits: { maxDistance: { ticks: 4 } }, reference: { bid: 99.5, ask: 99.515625 }, defaultDraft: draftOf() })
+    const announcer = document.querySelector<HTMLElement>("[data-ticket-announcer]")!
+    const shown = () => screen.getByText(/ticks from the market/, { selector: "[data-slot='field-error']" })
+    expect(announcer).toBeEmptyDOMElement()
+    type(price(), "99-20")
+    expect(shown()).toHaveTextContent("7 ticks")
+    expect(shown()).toHaveAttribute("role", "none")
+    expect(announcer).toHaveTextContent("7 ticks")
+    const said = announcer.firstElementChild
+    rerender({ reference: { bid: 99.5, ask: 99.53125 } })
+    expect(shown()).toHaveTextContent("6 ticks")
+    expect(announcer.firstElementChild).toBe(said)
+    expect(announcer).toHaveTextContent("7 ticks")
+    // A press's own problem with the price is an alert: its words change only when the trader acts.
+    rerender({ orderTypes: [{ id: "limit", label: "Limit", priced: true }], limits: undefined, defaultDraft: draftOf({ price: null }) })
+    type(price(), "")
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }))
+    expect(screen.getByText("This order type needs a price.")).toHaveAttribute("role", "alert")
+  })
+
+  it("lets what it said about a question go once the question goes, and says a confirm the market brings to a standing question", () => {
+    const { rerender } = mount({ limits: { maxQuantity: { confirm: 10 }, maxDistance: { ticks: 4, level: "confirm" } }, reference: { bid: 99.5, ask: 99.6875 }, defaultDraft: draftOf({ quantity: 20, price: 99.625 }) })
+    const announcer = document.querySelector<HTMLElement>("[data-ticket-announcer]")!
+    const send = screen.getByRole("button", { name: /^Send/ })
+    fireEvent.click(send)
+    expect(announcer).toHaveTextContent("20 is above 10. Send it anyway?")
+    expect(announcer).not.toHaveTextContent("ticks")
+    // The market moves away: a distance confirm joins the question, and it is said.
+    rerender({ reference: { bid: 99.5, ask: 99.515625 } })
+    expect(announcer).toHaveTextContent("7 ticks from the market")
+    // Answered: nothing of the question stays said.
+    fireEvent.click(send)
+    expect(announcer).toBeEmptyDOMElement()
+  })
+
+  it("withdraws a question whose action the server takes away, so it asks again when the action comes back", () => {
+    const { run, rerender } = mount({ limits: LIMITS, reference: REFERENCE, defaultDraft: draftOf({ quantity: 20 }) })
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }))
+    expect(screen.getByRole("button", { name: /^Send/ })).toHaveTextContent("Send anyway?")
+    rerender({ allowedActions: [] })
+    rerender({ allowedActions: ["send"] })
+    const send = screen.getByRole("button", { name: /^Send/ })
+    expect(send).not.toHaveTextContent("anyway")
+    fireEvent.click(send)
+    expect(run).not.toHaveBeenCalled()
+    expect(send).toHaveTextContent("Send anyway?")
   })
 
   it("blocks under the field and holds the actions that send the draft, live and as the click lands, while an unchecked action still runs", () => {
@@ -836,7 +890,11 @@ describe("limits", () => {
     expect(quantity()).not.toHaveAttribute("aria-invalid", "true")
     // A buyer's price seven ticks over the offer is past the four-tick line: said under the price, and the send holds.
     type(price(), "99-20")
-    expect(screen.getByText("The price is 7 ticks from the market; the limit is 4 ticks.")).toBeInTheDocument()
+    const shown = screen.getByText("The price is 7 ticks from the market; the limit is 4 ticks.", { selector: "[data-slot='field-error']" })
+    // The market can reword it, so the field shows it without an alert and the ticket says it once.
+    expect(shown).toHaveAttribute("role", "none")
+    expect(price()).toHaveAttribute("aria-describedby", shown.id)
+    expect(document.querySelector("[data-ticket-announcer]")).toHaveTextContent("The price is 7 ticks from the market; the limit is 4 ticks.")
     expect(sendButton).toBeDisabled()
     type(price(), "99-17")
     expect(sendButton).not.toBeDisabled()

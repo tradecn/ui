@@ -753,10 +753,57 @@ describe("limits", () => {
     expect(document.querySelector("[data-rfq-status]")).toHaveAttribute("role", "status")
   })
 
+  it("says a level block the market rewords once, and keeps the field's words live without an alert", () => {
+    const { rerender } = mount({ limits: { maxDistance: { ticks: 4 } } })
+    const announcer = document.querySelector<HTMLElement>("[data-rfq-announcer]")!
+    type(field("Offer"), "99-20")
+    const shown = () => screen.getByText(/ticks from the market/, { selector: "[data-slot='field-error']" })
+    expect(shown()).toHaveTextContent("7 ticks")
+    expect(shown()).toHaveAttribute("role", "none")
+    expect(announcer).toHaveTextContent("7 ticks")
+    const said = announcer.firstElementChild
+    rerender({ inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.53125 } }) })
+    expect(shown()).toHaveTextContent("6 ticks")
+    expect(announcer.firstElementChild).toBe(said)
+    expect(announcer).toHaveTextContent("7 ticks")
+  })
+
+  it("says a confirm the market brings to a standing question, and lets it all go once the question is answered", () => {
+    const desk = { field: "ask" as const, level: "confirm" as const, rule: "desk-check", message: "Desk check. Send it anyway?" }
+    const { quote, rerender } = mount({ limits: { custom: () => [desk], maxDistance: { ticks: 4, level: "confirm" } }, inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.625 } }) })
+    const announcer = document.querySelector<HTMLElement>("[data-rfq-announcer]")!
+    type(field("Offer"), "99-20")
+    const button = screen.getByRole("button", { name: /^Quote/ })
+    fireEvent.click(button)
+    expect(announcer).toHaveTextContent("Desk check. Send it anyway?")
+    expect(announcer).not.toHaveTextContent("ticks")
+    rerender({ inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.515625 } }) })
+    expect(announcer).toHaveTextContent("7 ticks from the market")
+    fireEvent.click(button)
+    expect(quote).toHaveBeenCalledTimes(1)
+    expect(announcer).toBeEmptyDOMElement()
+  })
+
+  it("withdraws a question whose action the venue takes away, so it asks again when the action comes back", () => {
+    const { quote, rerender } = mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } } })
+    type(field("Offer"), "99-20")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(screen.getByRole("button", { name: /^Quote/ })).toHaveTextContent("Quote anyway?")
+    rerender({ inquiry: inquiry({ allowedActions: ["pass"] }) })
+    rerender({ inquiry: inquiry() })
+    const button = screen.getByRole("button", { name: /^Quote/ })
+    expect(button).not.toHaveTextContent("anyway")
+    fireEvent.click(button)
+    expect(quote).not.toHaveBeenCalled()
+    expect(button).toHaveTextContent("Quote anyway?")
+  })
+
   it("blocks under the field and holds the actions that send a quote, while a pass still runs", () => {
     const { quote, pass } = mount({ limits: { maxDistance: { ticks: 4 } } })
     type(field("Offer"), "99-20")
-    expect(screen.getByText("The ask is 7 ticks from the market; the limit is 4 ticks.")).toBeInTheDocument()
+    const shown = screen.getByText("The ask is 7 ticks from the market; the limit is 4 ticks.", { selector: "[data-slot='field-error']" })
+    expect(shown).toHaveAttribute("role", "none")
+    expect(document.querySelector("[data-rfq-announcer]")).toHaveTextContent("The ask is 7 ticks from the market; the limit is 4 ticks.")
     const button = screen.getByRole("button", { name: /^Quote/ })
     expect(button).toBeDisabled()
     expect(screen.getByRole("button", { name: "Pass" })).not.toBeDisabled()
@@ -773,7 +820,7 @@ describe("limits", () => {
   it("refuses a side the book does not take: a client who buys wants an offer, and an offer is a sell", () => {
     const { quote } = mount({ limits: { sides: ["buy"] } })
     type(field("Offer"), "99-17")
-    expect(screen.getByText("The book does not take a sell.")).toBeInTheDocument()
+    expect(screen.getByText("The book does not take a sell.", { selector: "[data-slot='field-error']" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^Quote/ })).toBeDisabled()
     fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
     expect(quote).not.toHaveBeenCalled()

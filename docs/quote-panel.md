@@ -154,7 +154,7 @@ Pull all appears when `onPullAll` is given. The first press changes its label to
 
 `quotePanelColumns(options)` returns eleven columns in this order: `instrument`, `status`, `marketBid`, `marketAsk`, `bid`, `ask`, `skew`, `width`, `bidSize`, `askSize`, and `actions`. Spread them into your own list to add, drop, or reorder. Supplying `columns` replaces the generated list, including its editors, formatting, permission checks, and row actions; panel props do not retrofit those features onto custom columns, except the row menu, which follows the panel's `actions`.
 
-Pass `columns` as a function to keep the panel's question line. The panel calls it with `QuotePanelQuestion`, `{ asked, onQuestion }`: its memory of the questions standing and its line. Spread that into `quotePanelColumns` or `quoteEdit`, and the panel withdraws the question for your columns as it does for its own. Keep the function stable, as you would a list: a new function rebuilds every column.
+Pass `columns` as a function to keep the panel's question line. The panel calls it with `QuotePanelQuestion`, `{ asked, onQuestion }`: its memory of the question standing and its line. Spread that into `quotePanelColumns` or `quoteEdit`, and the panel withdraws the question for your columns as it does for its own. Keep the function stable, as you would a list: a new function rebuilds every column.
 
 | Helper | Returns | Inputs |
 |---|---|---|

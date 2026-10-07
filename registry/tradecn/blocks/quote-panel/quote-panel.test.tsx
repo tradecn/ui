@@ -142,6 +142,9 @@ describe("quotePanelColumns and quoteEdit", () => {
     // A size a JavaScript number cannot hold exactly is refused rather than silently changed.
     expect(size.parse("9007199254740993", ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notASize })
     expect(size.parse("9007199254740991", ROWS[0]!)).toBe(9007199254740991)
+    // A fraction is refused from the text, even where Number would round it away.
+    expect(size.parse("9007199254740991.1", ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notASize })
+    expect(size.parse("5.0", ROWS[0]!)).toBe(5)
   })
 
   it("answers only the question standing, and only on a fresh Enter in the same opening of the editor", () => {

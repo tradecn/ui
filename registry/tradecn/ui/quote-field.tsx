@@ -25,8 +25,13 @@ export interface QuoteFieldProps {
   stepFrom?: number | null
   /** The label, and the word in the button names. Default: the basis word, Price, Yield, Discount, or Spread. */
   label?: string
-  /** A problem your check found with the value, printed under the field. */
+  /** A problem your check found with the value, printed under the field and tied to the input. */
   error?: string
+  /**
+   * False when you say `error` yourself: the field then shows it without an alert, for an error whose words change
+   * on their own, such as a distance from a moving market. Default true.
+   */
+  announceError?: boolean
   /** Said under the field when the text is not a quote. Default names the basis. */
   invalidText?: string
   /** Default: zero in the notation. */
@@ -41,7 +46,7 @@ export interface QuoteFieldProps {
   className?: string
 }
 
-export function QuoteField({ convention, value: rawValue, onValueChange, stepFrom = null, label, error, invalidText, placeholder, id: idProp, disabled = false, shiftMultiplier = 10, side, inputRef, className }: QuoteFieldProps) {
+export function QuoteField({ convention, value: rawValue, onValueChange, stepFrom = null, label, error, announceError = true, invalidText, placeholder, id: idProp, disabled = false, shiftMultiplier = 10, side, inputRef, className }: QuoteFieldProps) {
   const basis = quoteBasisOf(convention)
   const word = label ?? QUOTE_BASIS_LABELS[basis]
   const generated = useId()
@@ -110,6 +115,7 @@ export function QuoteField({ convention, value: rawValue, onValueChange, stepFro
             spellCheck={false}
             disabled={disabled}
             aria-invalid={problem ? true : undefined}
+            aria-describedby={problem ? `${id}-error` : undefined}
             data-numeric=""
             className={cn(numericFontClass(convention), "text-xs md:text-xs")}
             onChange={(event) => change(event.target.value)}
@@ -125,7 +131,12 @@ export function QuoteField({ convention, value: rawValue, onValueChange, stepFro
             </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
-        {problem && <FieldError>{problem}</FieldError>}
+        {/* The field's own reading of the text is an alert; your error is one unless you say it yourself. */}
+        {problem && (
+          <FieldError id={`${id}-error`} {...(error !== undefined && !announceError ? { role: "none" } : {})}>
+            {problem}
+          </FieldError>
+        )}
       </Field>
     </div>
   )
