@@ -34,7 +34,7 @@ export interface TicketInstrument {
   symbol: string
   /** How prices print, parse, and step. */
   convention: InstrumentConvention
-  /** What the arrows step the quantity by. Default 1. */
+  /** What the arrows step the quantity by: a whole number from 1 to `Number.MAX_SAFE_INTEGER`, else 1. Default 1. */
   quantityStep?: number
 }
 
@@ -267,7 +267,7 @@ export function Ticket({
   const labels = { ...DEFAULT_TICKET_LABELS, ...labelsProp }
   const id = useId()
   const { convention } = instrument
-  // Quantities are whole: a step that is not a whole number above zero steps by one.
+  // Quantities are whole: a step that is not a whole number from 1 to the safe-integer limit steps by one.
   const quantityStep = Number.isSafeInteger(instrument.quantityStep) && instrument.quantityStep! > 0 ? instrument.quantityStep! : 1
   const [draft, setDraft] = useState<TicketDraft>(() => ({
     side: "buy",

@@ -76,7 +76,7 @@ This is the registry's first block: `ticket.tsx` installs into your `components`
 | `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Built-in labels and validation messages. Fixed strings remain: the unpriced `market` placeholder and `at market` wording, the references' `, use it` name suffix, the `up one tick` and `down one tick` tails after your `labels.price` in the step buttons' names, the quick sizes' notional `mm` suffix, the key caps the send target's button shows, and the built-in limit messages. |
 | `className` | `string` | None | Classes on the outer group. |
 
-`TicketInstrument` requires `symbol: string` and `convention: InstrumentConvention`; `quantityStep?: number` defaults to `1`, and anything but a whole number above zero steps by `1`. See [`format`](format.md) for conventions. `TicketReference` has optional `bid`, `ask`, and `last` fields, each `number | null`.
+`TicketInstrument` requires `symbol: string` and `convention: InstrumentConvention`; `quantityStep?: number` defaults to `1`, and anything but a whole number from `1` to `Number.MAX_SAFE_INTEGER` steps by `1`. See [`format`](format.md) for conventions. `TicketReference` has optional `bid`, `ask`, and `last` fields, each `number | null`.
 
 `TicketOption` requires `id: string` and `label: string`. Its optional `priced: boolean` defaults to `true` and matters only in `orderTypes`. A type with `priced: false` disables the price field and reference buttons; actions receive `price: null`.
 

@@ -128,8 +128,8 @@ describe("Ticket", () => {
     expect(lastDraft(onDraftChange).quantity).toBeNull()
   })
 
-  it("steps the quantity by one when the instrument's step is not a whole number above zero", () => {
-    for (const step of [0, 0.5, -100, Number.NaN]) {
+  it("steps the quantity by one when the instrument's step is not a whole number from 1 to the safe-integer limit", () => {
+    for (const step of [0, 0.5, -100, Number.NaN, 2 ** 53]) {
       const { view, onDraftChange } = mount({ instrument: { ...ZN, quantityStep: step } })
       fireEvent.keyDown(quantity(), { key: "ArrowUp" })
       expect(quantity().value).toBe("1")

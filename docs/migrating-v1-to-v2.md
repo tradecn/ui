@@ -524,7 +524,7 @@ Both tickets declare their bindings as registry defaults through [`declareDefaul
 - Neither send key runs a `destructive` action: `ticket.send` skips one even at the default `checked`, and `rfq.send` skips one even when it sends a quote. v1 could cancel a working order on `mod+enter` when Cancel was the only action allowed; give a destructive action its own binding if it needs a key.
 - A `defaultDraft` price or level, and the RFQ ticket's Auto levels, snap to the quote grid, so the value `run` receives is the one the field shows; v1 sent the raw off-grid value under a rounded display.
 - A press counts once. In v1 a double-click on a button that asked `Send anyway?` or `Quote anyway?` answered it with its second click, and so did the repeats of a held Enter on the focused button; a double-click on any action ran it twice. Now the second click of a double-click and a held Enter's repeats run nothing, so a test that double-clicks to confirm needs two separate clicks: two `fireEvent.click` calls, two presses of Enter, or two clicks with the pointer moved in between. A screen reader hears the limits' question once, as the press asks it, from an `aria-live` region; the RFQ ticket's status badge now has `role="status"`, so a `getByRole("status")` query in a page that already had one finds two.
-- A ticket's `quantityStep` that is not a whole number above zero steps by `1`; v1 stepped to `NaN` on `0` and stored fractions the field rounded away.
+- A ticket's `quantityStep` that is not a whole number from `1` to `Number.MAX_SAFE_INTEGER` steps by `1`; v1 stepped to `NaN` on `0` and stored fractions the field rounded away.
 
 ## QuotePanel
 
