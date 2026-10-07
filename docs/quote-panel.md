@@ -117,7 +117,7 @@ The cell shows the committed value as pending until the store matches it (`Objec
 |---|---|---|---|
 | `bid`, `ask` | The instrument's notation (`99-16+`, `4.125`) through `parseQuote`; a typed decimal snaps to the printable grid | One quote step, ten with Shift; from the market's same side when the side is empty | No level on that side |
 | `skew`, `width` | A plain decimal number of quote steps, including fractional steps; a width is zero or more | One step, ten with Shift; from zero when empty | Null |
-| `bidSize`, `askSize` | A whole number, zero or more, that a JavaScript number holds exactly | One, ten with Shift; from zero when empty, never below zero | Null |
+| `bidSize`, `askSize` | A whole number from zero to `Number.MAX_SAFE_INTEGER` | One, ten with Shift; from zero when empty, never below zero | Null |
 
 Numbers are plain decimals: `1e3` and `0x10` are refused. A crossed edit is refused in the editor before it is sent, read through the instrument's quote direction: a bid at or above the desk's ask, or an ask at or below its bid, normally — the reverse where the direction inverts.
 

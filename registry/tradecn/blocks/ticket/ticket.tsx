@@ -194,23 +194,25 @@ export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption
   return problems
 }
 
-/** The send shortcut's target: the first allowed action that checks the draft, preferring the primary one. An unchecked action sends nothing of the draft and a destructive one cancels or pulls, so a shortcut named send runs neither. */
 // A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused
-// button, run nothing and answer no question the first press asked.
+// button, run nothing and answer no question the first press asked. The hold belongs to the button it repeats
+// on, and ends when the key is let go or focus leaves that button.
 function useFreshPress() {
-  const held = useRef(false)
+  const held = useRef<EventTarget | null>(null)
+  const release = () => {
+    held.current = null
+  }
   return {
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
-      held.current = event.key === "Enter" && event.repeat
+      held.current = event.key === "Enter" && event.repeat ? event.currentTarget : null
     },
-    // Letting go ends the hold, so a click with no key behind it counts again.
-    onKeyUp: () => {
-      held.current = false
-    },
-    fresh: (event: MouseEvent<HTMLElement>) => event.detail <= 1 && !(event.detail === 0 && held.current),
+    onKeyUp: release,
+    onBlur: release,
+    fresh: (event: MouseEvent<HTMLElement>) => event.detail <= 1 && !(event.detail === 0 && held.current === event.currentTarget),
   }
 }
 
+/** The send shortcut's target: the first allowed action that checks the draft, preferring the primary one. An unchecked action sends nothing of the draft and a destructive one cancels or pulls, so a shortcut named send runs neither. */
 function sendTarget(allowed: readonly TicketAction[]): TicketAction | null {
   const sending = allowed.filter((action) => action.checked !== false && !action.destructive)
   return sending.find((action) => action.primary) ?? sending[0] ?? null
@@ -293,6 +295,16 @@ export function Ticket({
   const otherBlocks = blocking.filter((p) => p.field !== "quantity" && p.field !== "price")
   const asking = confirming !== null ? confirms(limitProblems) : []
   const limitsText = [...otherBlocks, ...asking].map((p) => p.message).join(" ")
+  // What a screen reader hears from the limits: the question as the press asked it, and the other fields' blocks
+  // as their set changes, never a sentence the moving market rewrites. Each message is a new node, so the same
+  // words said again are still heard.
+  const [said, setSaid] = useState({ text: "", revision: 0 })
+  const blockSet = otherBlocks.map((p) => `${p.field}\u0000${p.rule}`).join("\u0001")
+  const [blocksSaid, setBlocksSaid] = useState(blockSet)
+  if (blockSet !== blocksSaid) {
+    setBlocksSaid(blockSet)
+    if (blockSet) setSaid({ text: otherBlocks.map((p) => p.message).join(" "), revision: said.revision + 1 })
+  }
 
   const box = useRef<HTMLDivElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
@@ -423,6 +435,7 @@ export function Ticket({
     if (found.quantity || found.price || blocking.length) return
     if (confirms(over).length && asked !== action.id) {
       setConfirming(action.id)
+      setSaid((now) => ({ text: confirms(over).map((p) => p.message).join(" "), revision: now.revision + 1 }))
       return
     }
     send()
@@ -638,6 +651,7 @@ export function Ticket({
                 data-confirming={confirming === action.id || undefined}
                 onKeyDown={press.onKeyDown}
                 onKeyUp={press.onKeyUp}
+                onBlur={press.onBlur}
                 onClick={(event) => {
                   if (press.fresh(event)) run(action)
                 }}
@@ -655,10 +669,14 @@ export function Ticket({
           )}
         </div>
 
-        {/* Always in the page, so the question a confirm asks is announced as it appears. */}
-        <p role="status" className={limitsText ? (asking.length ? "text-stale" : "text-destructive") : "sr-only"} data-ticket-limits={limitsText ? (asking.length ? "confirm" : "block") : undefined}>
-          {limitsText}
-        </p>
+        {limitsText && (
+          <p className={asking.length ? "text-stale" : "text-destructive"} data-ticket-limits={asking.length ? "confirm" : "block"}>
+            {limitsText}
+          </p>
+        )}
+        <span aria-live="polite" aria-atomic="true" className="sr-only" data-ticket-announcer>
+          {said.text && <span key={said.revision}>{said.text}</span>}
+        </span>
 
         {(status || message) && (
           <div className="flex flex-wrap items-baseline gap-x-2 border-t border-border pt-1.5">

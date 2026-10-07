@@ -105,7 +105,7 @@ The ticket makes no network request and infers no order state from `run`. As wit
 
 Only actions named in `allowedActions` render, in `actions` order. A missing or empty allowlist shows `labels.nothingAllowed`. Permission and `disabled` are checked again when an action runs. `status` and `message` print as supplied; clicking a button never sets “Sent.”
 
-A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused button, run nothing. Two separate presses run the action twice unless `run` takes it out of `allowedActions` at once, as the demos do; do the same, or have your server refuse the repeat.
+A press counts once: the second click of a double-click, within the system's double-click time and distance, and the clicks a held Enter repeats on a focused button, run nothing. Two separate presses run the action twice unless `run` takes it out of `allowedActions` at once, as the server-replies demo does; do the same, or have your server refuse the repeat.
 
 Change `acknowledged` when the server acknowledges, using an order id or timestamp. After mount, each change under `Object.is` triggers a 900 ms `useFlash` ring in `primary`, without direction coloring. The initial value does not flash. When the control under focus leaves — a sent action's button unmounts or disables, with or without an acknowledgement, a window switch in between included — focus moves to the ticket itself, so the shortcuts stay live. A deliberate click elsewhere is remembered as leaving, and a re-keyed ticket starts fresh, owning no focus until the trader returns to it. Under `prefers-reduced-motion`, the ticket does not ring.
 
@@ -156,7 +156,7 @@ Use these helpers in a confirmation dialog, palette row, or test.
 Pass a [`limits`](limits.md) table for quantity thresholds, distance from market, permitted sides, or custom rules. Checks run live and again when an action runs, using `reference` as the market. A buyer's price is measured against the offer, a seller's against the bid, falling back to `last` when that side is missing, since the reference carries no midpoint. Distance uses ticks for a price basis and basis points for other quote bases.
 
 - A `block` appears under its quantity or price field and disables checked actions. Other fields, including side, appear below the actions. An action with `checked: false` can still run.
-- A `confirm` makes the chosen checked action ask again: its label becomes `{action} anyway?`, and reasons appear below the actions on a `role="status"` line, announced as they appear. The next fresh press of that same action runs it if checks still pass: a double-click's second click or a held Enter's repeat does not count. Any draft update clears the confirmation; changes to the market or limits alone do not.
+- A `confirm` makes the chosen checked action ask again: its label becomes `{action} anyway?`, and reasons appear below the actions. A screen reader hears the question once, as the press asks it, and a block on another field once, as it arrives, not again as the market moves the numbers in them. The next fresh press of that same action runs it if checks still pass: a double-click's second click or a held Enter's repeat does not count. Any draft update clears the confirmation; changes to the market or limits alone do not.
 
 ### Quick sizes
 

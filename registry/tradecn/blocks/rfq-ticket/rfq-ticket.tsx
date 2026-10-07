@@ -242,23 +242,25 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
 }
 
 const noop = () => () => {}
-/** The one action the send key runs: it sends the quote, so neither a pass nor a destructive action rides mod+enter. */
 // A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused
-// button, run nothing and answer no question the first press asked.
+// button, run nothing and answer no question the first press asked. The hold belongs to the button it repeats
+// on, and ends when the key is let go or focus leaves that button.
 function useFreshPress() {
-  const held = useRef(false)
+  const held = useRef<EventTarget | null>(null)
+  const release = () => {
+    held.current = null
+  }
   return {
     onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => {
-      held.current = event.key === "Enter" && event.repeat
+      held.current = event.key === "Enter" && event.repeat ? event.currentTarget : null
     },
-    // Letting go ends the hold, so a click with no key behind it counts again.
-    onKeyUp: () => {
-      held.current = false
-    },
-    fresh: (event: ReactMouseEvent<HTMLElement>) => event.detail <= 1 && !(event.detail === 0 && held.current),
+    onKeyUp: release,
+    onBlur: release,
+    fresh: (event: ReactMouseEvent<HTMLElement>) => event.detail <= 1 && !(event.detail === 0 && held.current === event.currentTarget),
   }
 }
 
+/** The one action the send key runs: it sends the quote, so neither a pass nor a destructive action rides mod+enter. */
 function sendTarget(allowed: readonly RfqAction[]): RfqAction | undefined {
   const sending = allowed.filter((action) => action.needsQuote !== false && !action.destructive)
   return sending.find((action) => action.primary) ?? sending[0]
@@ -379,6 +381,16 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const otherBlocks = blocking.filter((p) => p.field !== "bid" && p.field !== "ask")
   const asking = confirming !== null ? confirms(limitProblems) : []
   const limitsText = [...otherBlocks, ...asking].map((p) => p.message).join(" ")
+  // What a screen reader hears from the limits: the question as the press asked it, and the other fields' blocks
+  // as their set changes, never a sentence the moving market rewrites. Each message is a new node, so the same
+  // words said again are still heard.
+  const [said, setSaid] = useState({ text: "", revision: 0 })
+  const blockSet = otherBlocks.map((p) => `${p.field}\u0000${p.rule}`).join("\u0001")
+  const [blocksSaid, setBlocksSaid] = useState(blockSet)
+  if (blockSet !== blocksSaid) {
+    setBlocksSaid(blockSet)
+    if (blockSet) setSaid({ text: otherBlocks.map((p) => p.message).join(" "), revision: said.revision + 1 })
+  }
 
   /** Where a step starts when a field is blank: the market's same side, the suggested level, the market's other side, then its mid. */
   function stepFrom(side: QuoteSide): number | null {
@@ -437,6 +449,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       if (found.bid || found.ask || blocking.length) return
       if (confirms(over).length && asked !== action.id) {
         setConfirming(action.id)
+        setSaid((now) => ({ text: confirms(over).map((p) => p.message).join(" "), revision: now.revision + 1 }))
         return
       }
     }
@@ -671,6 +684,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
                   data-confirming={confirming === action.id || undefined}
                   onKeyDown={press.onKeyDown}
                   onKeyUp={press.onKeyUp}
+                  onBlur={press.onBlur}
                   onClick={(event) => {
                     if (press.fresh(event)) run(action)
                   }}
@@ -689,10 +703,14 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
           </span>
         </div>
 
-        {/* Always in the page, so the question a confirm asks is announced as it appears. */}
-        <p role="status" className={limitsText ? (asking.length ? "text-stale" : "text-destructive") : "sr-only"} data-rfq-limits={limitsText ? (asking.length ? "confirm" : "block") : undefined}>
-          {limitsText}
-        </p>
+        {limitsText && (
+          <p className={asking.length ? "text-stale" : "text-destructive"} data-rfq-limits={asking.length ? "confirm" : "block"}>
+            {limitsText}
+          </p>
+        )}
+        <span aria-live="polite" aria-atomic="true" className="sr-only" data-rfq-announcer>
+          {said.text && <span key={said.revision}>{said.text}</span>}
+        </span>
 
         {inquiry.message && (
           <p className="border-t border-border pt-1.5 text-muted-foreground" data-rfq-message>

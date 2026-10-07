@@ -780,6 +780,16 @@ describe("the panel", () => {
     fireEvent.click(pause, { detail: 1 })
     fireEvent.click(pause, { detail: 2 })
     expect(actions[0]!.run).toHaveBeenCalledTimes(1)
+    // A hold is the button's own, and ends when focus leaves it.
+    const rowPull = within(cell("10Y", "actions")).getByRole("button", { name: "Pull" })
+    const resume = within(cell("10Y", "actions")).getByRole("button", { name: "Resume" })
+    fireEvent.keyDown(resume, { key: "Enter", repeat: true })
+    fireEvent.click(rowPull, { detail: 0 })
+    expect(actions[2]!.run).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(resume, { key: "Enter", repeat: true })
+    fireEvent.blur(resume)
+    fireEvent.click(resume, { detail: 0 })
+    expect(actions[1]!.run).toHaveBeenCalledTimes(1)
   })
 
   it("shows no Pull all without a handler, and takes its words from labels", () => {

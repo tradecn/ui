@@ -304,18 +304,20 @@ const isEditor = (node: unknown): node is HTMLInputElement => isElement(node) &&
 const subscribeNothing = () => () => {}
 
 // A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused
-// button, run nothing and answer no question the first press asked.
+// button, run nothing and answer no question the first press asked. The hold belongs to the button it repeats
+// on, and ends when the key is let go or focus leaves that button.
 function useFreshPress() {
-  const held = useRef(false)
+  const held = useRef<EventTarget | null>(null)
+  const release = () => {
+    held.current = null
+  }
   return {
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
-      held.current = event.key === "Enter" && event.repeat
+      held.current = event.key === "Enter" && event.repeat ? event.currentTarget : null
     },
-    // Letting go ends the hold, so a click with no key behind it counts again.
-    onKeyUp: () => {
-      held.current = false
-    },
-    fresh: (event: MouseEvent<HTMLElement>) => event.detail <= 1 && !(event.detail === 0 && held.current),
+    onKeyUp: release,
+    onBlur: release,
+    fresh: (event: MouseEvent<HTMLElement>) => event.detail <= 1 && !(event.detail === 0 && held.current === event.currentTarget),
   }
 }
 
@@ -397,7 +399,7 @@ function RowActions<T extends QuoteRow>({ row, rowId, actions }: RowActionsProps
       }}
     >
       {allowed.length === 0 ? <span className="text-muted-foreground">{NULL_TOKEN}</span> : allowed.map((action) => (
-        <Button key={action.id} type="button" size="sm" variant={action.destructive ? "destructive" : "ghost"} className="h-5 px-1.5 text-xs" tabIndex={-1} disabled={pending !== null} data-action={action.id} data-pending={pending === action.id || undefined} onKeyDown={press.onKeyDown} onKeyUp={press.onKeyUp} onClick={(event) => {
+        <Button key={action.id} type="button" size="sm" variant={action.destructive ? "destructive" : "ghost"} className="h-5 px-1.5 text-xs" tabIndex={-1} disabled={pending !== null} data-action={action.id} data-pending={pending === action.id || undefined} onKeyDown={press.onKeyDown} onKeyUp={press.onKeyUp} onBlur={press.onBlur} onClick={(event) => {
             if (press.fresh(event)) runQuoteAction(row, action, pending !== null, hold)
           }}>
           {action.label}
@@ -631,7 +633,7 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
               {question}
             </p>
             {onPullAll && (
-              <Button type="button" size="sm" variant={confirming ? "destructive" : "outline"} className="h-7" disabled={pulling || pullable.length === 0} data-quote-pull-all={pullable.length} data-confirming={confirming || undefined} onKeyDown={pullPress.onKeyDown} onKeyUp={pullPress.onKeyUp} onClick={(event) => {
+              <Button type="button" size="sm" variant={confirming ? "destructive" : "outline"} className="h-7" disabled={pulling || pullable.length === 0} data-quote-pull-all={pullable.length} data-confirming={confirming || undefined} onKeyDown={pullPress.onKeyDown} onKeyUp={pullPress.onKeyUp} onBlur={pullPress.onBlur} onClick={(event) => {
                 if (pullPress.fresh(event)) pullAll()
               }}>
                 {confirming ? labels.pullAllAnyway : labels.pullAll}

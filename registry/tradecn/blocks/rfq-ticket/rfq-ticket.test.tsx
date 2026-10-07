@@ -704,7 +704,7 @@ describe("limits", () => {
   })
 
   it("counts a press once: a double-click's second click and a held Enter's repeats neither answer the question nor quote again", () => {
-    const { quote } = mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } } })
+    const { quote, pass } = mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } } })
     type(field("Offer"), "99-20")
     const button = screen.getByRole("button", { name: /^Quote/ })
     fireEvent.click(button, { detail: 1 })
@@ -727,17 +727,29 @@ describe("limits", () => {
     fireEvent.keyUp(button, { key: "Enter" })
     fireEvent.click(button, { detail: 0 })
     expect(quote).toHaveBeenCalledTimes(3)
+    // So does focus leaving the button mid-hold; and the hold is that button's alone.
+    fireEvent.keyDown(button, { key: "Enter", repeat: true })
+    fireEvent.blur(button)
+    fireEvent.click(button, { detail: 0 })
+    expect(quote).toHaveBeenCalledTimes(4)
+    fireEvent.keyDown(button, { key: "Enter", repeat: true })
+    fireEvent.click(screen.getByRole("button", { name: "Pass" }), { detail: 0 })
+    expect(pass).toHaveBeenCalledTimes(1)
   })
 
-  it("keeps the limits line in the page as a status region, and announces the inquiry's status", () => {
-    mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } } })
-    const line = document.querySelector<HTMLElement>("p[role='status']")!
-    expect(line).toBeEmptyDOMElement()
-    expect(line).not.toHaveAttribute("data-rfq-limits")
+  it("says the limits' question once, as the press asks it, not again as the market moves, and announces the inquiry's status", () => {
+    const { rerender } = mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } } })
+    const announcer = document.querySelector<HTMLElement>("[data-rfq-announcer]")!
+    expect(announcer).toHaveAttribute("aria-live", "polite")
+    expect(announcer).toBeEmptyDOMElement()
     type(field("Offer"), "99-20")
     fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
-    expect(document.querySelector("p[role='status']")).toBe(line)
-    expect(line).toHaveAttribute("data-rfq-limits", "confirm")
+    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market, past 4 ticks. Send it anyway?")
+    const said = announcer.firstElementChild
+    rerender({ inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.53125 } }) })
+    expect(document.querySelector("[data-rfq-limits='confirm']")).toHaveTextContent("6 ticks")
+    expect(announcer.firstElementChild).toBe(said)
+    expect(announcer).toHaveTextContent("7 ticks")
     expect(document.querySelector("[data-rfq-status]")).toHaveAttribute("role", "status")
   })
 

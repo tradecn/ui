@@ -922,7 +922,7 @@ for (const kind of ["ticket", "rfq-ticket"] as const) {
     await level.fill("99-16+")
     await scene.getByRole("button", { name: "set custom block" }).click()
     await expect(action).toBeDisabled()
-    await expect(scene.getByText(kind === "ticket" ? "Desk policy blocks this order." : "Desk policy blocks this quote.")).toBeVisible()
+    await expect(scene.locator(kind === "ticket" ? "[data-ticket-limits]" : "[data-rfq-limits]")).toHaveText(kind === "ticket" ? "Desk policy blocks this order." : "Desk policy blocks this quote.")
     await level.press("ControlOrMeta+Enter")
     await expect(state).toHaveAttribute(attribute, "[]")
     await scene.getByRole("button", { name: "clear custom block" }).click()

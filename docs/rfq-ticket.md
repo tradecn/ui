@@ -97,7 +97,7 @@ This block installs `rfq-ticket.tsx` in your `components` alias. It shares sourc
 | `side` | `"buy" \| "sell" \| "two-way"` | Required | Client's side. |
 | `quantity` | `number` | Required | Raw notional or contract count. |
 | `expiresAt` | `number` | Required | Deadline in milliseconds since the epoch. |
-| `status` | `string` | Required | Venue text, printed in a badge and as `data-status`. |
+| `status` | `string` | Required | Venue text, printed in a badge with `role="status"`, so each change is announced, and as `data-status`. |
 | `client` | `RfqClient` | Name: `"A client"` | Required `name`; optional `tier`, `trader`, and `salesperson`, all strings. |
 | `tags` | `readonly string[]` | None | Venue badges, such as protocol, dealer count, or list name. |
 | `settlement` | `string` | None | Settlement text. |
@@ -160,7 +160,7 @@ The last two helpers default to `DEFAULT_RFQ_TICKET_LABELS` and accept a full `R
 
 Only matching actions render, in your `actions` order. No matches produces the nothing-allowed message. The primary action — for styling — is the first allowed action marked `primary`, otherwise the first that needs a quote, otherwise the first allowed action. The send key chooses separately: the first allowed quote-sending action that is not `destructive`, preferring one marked `primary`, so neither a `needsQuote: false` action nor a destructive one ever runs on it, however it is marked.
 
-A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused button, run nothing. Two separate presses run the action twice unless `run` takes it out of `allowedActions` at once; do that, or have your server refuse the repeat.
+A press counts once: the second click of a double-click, within the system's double-click time and distance, and the clicks a held Enter repeats on a focused button, run nothing. Two separate presses run the action twice unless `run` takes it out of `allowedActions` at once; do that, or have your server refuse the repeat.
 
 On execution, the ticket rechecks `disabled`, permission, and any required quote and limit checks against current props. Quote errors appear under their fields. Set `needsQuote: false` for pass, stop, or server-priced actions; these receive the current draft without quote or limit validation.
 
@@ -197,7 +197,7 @@ The [`limits`](limits.md) check receives only requested bid and ask levels, plus
 
 `maxDistance` compares each level with the market's same side, falling back to `market.mid` when that side is absent. Use ticks for price and basis points for other quote bases; a spread is compared in the basis points it is quoted in, in the same unit the field's distance readout uses; on a one-sided market the limit measures from its fallback while the field shows no distance. `sides` checks the dealer's side: a bid is a buy and an offer is a sell.
 
-A block shows under its field, or below the actions for other fields, and disables actions that need a quote. A confirm applies to any action that needs a quote: its button becomes `Quote anyway?` (using that action's label), the reason appears below on a `role="status"` line, announced as it appears, and the next fresh press of the same action sends if checks pass; a double-click's second click or a held Enter's repeat does not count. Editing a level or choosing a size clears the confirmation. Both checks run live and again on execution; `needsQuote: false` actions bypass them.
+A block shows under its field, or below the actions for other fields, and disables actions that need a quote. A confirm applies to any action that needs a quote: its button becomes `Quote anyway?` (using that action's label), the reason appears below, and a screen reader hears it once, as the press asks it, not again as the market moves the numbers in it; the next fresh press of the same action sends if checks pass; a double-click's second click or a held Enter's repeat does not count. Editing a level or choosing a size clears the confirmation. Both checks run live and again on execution; `needsQuote: false` actions bypass them.
 
 ### Quick sizes
 

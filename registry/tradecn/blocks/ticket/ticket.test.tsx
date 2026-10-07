@@ -130,9 +130,10 @@ describe("Ticket", () => {
 
   it("steps the quantity by one when the instrument's step is not a whole number above zero", () => {
     for (const step of [0, 0.5, -100, Number.NaN]) {
-      const { view } = mount({ instrument: { ...ZN, quantityStep: step } })
+      const { view, onDraftChange } = mount({ instrument: { ...ZN, quantityStep: step } })
       fireEvent.keyDown(quantity(), { key: "ArrowUp" })
       expect(quantity().value).toBe("1")
+      expect(lastDraft(onDraftChange).quantity).toBe(1)
       view.unmount()
     }
   })
@@ -761,19 +762,51 @@ describe("limits", () => {
     fireEvent.keyUp(send, { key: "Enter" })
     fireEvent.click(send, { detail: 0 })
     expect(run).toHaveBeenCalledTimes(3)
+    // So does focus leaving the button mid-hold.
+    fireEvent.keyDown(send, { key: "Enter", repeat: true })
+    fireEvent.blur(send)
+    fireEvent.click(send, { detail: 0 })
+    expect(run).toHaveBeenCalledTimes(4)
   })
 
-  it("keeps the limits line in the page as a status region, empty until a limit speaks", () => {
-    mount({ limits: LIMITS, reference: REFERENCE })
-    const line = document.querySelector<HTMLElement>("p[role='status']")!
-    expect(line).toBeEmptyDOMElement()
-    expect(line).not.toHaveAttribute("data-ticket-limits")
-    type(quantity(), "20")
-    type(price(), "99-17")
+  it("holds only the button a held Enter repeats on", () => {
+    const send = vi.fn()
+    const cancel = vi.fn()
+    mount({ actions: [{ id: "send", label: "Send", run: send, primary: true }, { id: "cancel", label: "Cancel", run: cancel, checked: false }], allowedActions: ["send", "cancel"], defaultDraft: draftOf() })
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Send/ }), { key: "Enter", repeat: true })
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }), { detail: 0 })
+    expect(cancel).toHaveBeenCalledTimes(1)
+  })
+
+  it("says the limits' question once, as the press asks it, and not again as the market moves the numbers in it", () => {
+    const { rerender } = mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } }, reference: { bid: 99.5, ask: 99.515625 }, defaultDraft: draftOf({ price: 99.625 }) })
+    const announcer = document.querySelector<HTMLElement>("[data-ticket-announcer]")!
+    expect(announcer).toHaveAttribute("aria-live", "polite")
+    expect(announcer).toBeEmptyDOMElement()
     fireEvent.click(screen.getByRole("button", { name: /^Send/ }))
-    expect(document.querySelector("p[role='status']")).toBe(line)
-    expect(line).toHaveTextContent("20 is above 10. Send it anyway?")
-    expect(line).toHaveAttribute("data-ticket-limits", "confirm")
+    expect(announcer).toHaveTextContent("The price is 7 ticks from the market, past 4 ticks. Send it anyway?")
+    const said = announcer.firstElementChild
+    // A tick of market: the line on screen follows it; what was said stays said.
+    rerender({ reference: { bid: 99.5, ask: 99.53125 } })
+    expect(document.querySelector("[data-ticket-limits='confirm']")).toHaveTextContent("6 ticks")
+    expect(announcer.firstElementChild).toBe(said)
+    expect(announcer).toHaveTextContent("7 ticks")
+  })
+
+  it("says another field's block as it arrives, and not again while only its words change", () => {
+    let words = "Desk policy blocks this order."
+    let on = false
+    const limits = { custom: () => (on ? [{ field: "desk", level: "block" as const, rule: "desk-policy", message: words }] : []) }
+    const { rerender } = mount({ limits, defaultDraft: draftOf() })
+    const announcer = document.querySelector<HTMLElement>("[data-ticket-announcer]")!
+    on = true
+    rerender({ limits: { ...limits } })
+    expect(announcer).toHaveTextContent("Desk policy blocks this order.")
+    const said = announcer.firstElementChild
+    words = "Desk policy blocks this order again."
+    rerender({ limits: { ...limits } })
+    expect(document.querySelector("[data-ticket-limits='block']")).toHaveTextContent("again")
+    expect(announcer.firstElementChild).toBe(said)
   })
 
   it("blocks under the field and holds the actions that send the draft, live and as the click lands, while an unchecked action still runs", () => {
