@@ -248,7 +248,7 @@ const stored = readWindowSet(prefs) ?? windowSetOf([{ id: "main", layoutId: "des
 const desk = normalizeDesk(stored)
 await lifecycle.registerInitialWindow("main")
 const windows = createWindowSet(lifecycle.adapter, {
-  url: (record) => `index.html?window=${record.id}&layout=${record.layoutId}`,
+  url: (record) => `index.html?window=${encodeURIComponent(record.id)}&layout=${encodeURIComponent(record.layoutId)}`,
 })
 const main = desk.windows.find((record) => record.id === "main")!
 // restore() stops at the first window that fails and does not roll back, and a
@@ -267,7 +267,7 @@ await mountMain(main)
 
 A window that fails to open is absent from the next snapshot. When `main` fails, the others still open, so that snapshot lacks `main` rather than being empty; it is empty only when every window failed. Check `windows.isOpen("main")` after the loop, as `launched` does, and when it is `false` skip the quit sequence's save, or the next launch replaces the main window's layout and bounds with defaults.
 
-`main: true` changes restore order. It does not implement whole-desk shutdown. Intercept quit before any window is destroyed, stop new window operations, and wait for operations already in flight. Collect approval and flush layout/preference writes from every renderer, snapshot while all windows still exist, then await durable storage. Only after that should the host close secondaries and the owner last. Do not use `closeAll()` from a Tauri owner webview: its insertion order can close the owner first.
+`main: true` marks the record the launch sequence opens first, as `restore` does too. It does not implement whole-desk shutdown. Intercept quit before any window is destroyed, stop new window operations, and wait for operations already in flight. Collect approval and flush layout/preference writes from every renderer, snapshot while all windows still exist, then await durable storage. Only after that should the host close secondaries and the owner last. Do not use `closeAll()` from a Tauri owner webview: its insertion order can close the owner first.
 
 ```ts
 // Application pseudocode, called once for each accepted quit attempt.

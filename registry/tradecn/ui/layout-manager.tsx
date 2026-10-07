@@ -543,10 +543,11 @@ export function LayoutManagerPanelCount({ className, ...props }: ReadingProps<"s
 }
 export function LayoutManagerSavedAt({ className, ...props }: Omit<ReadingProps<"time">, "dateTime">) {
   const { template } = useLayoutManagerItem()
-  // The parser's range, applied to templates handed in directly too: a timestamp
+  // The parser's check, applied to templates handed in directly too: a value
   // toISOString would throw on reads as never saved instead of unmounting the
-  // manager. NaN and Infinity fail the comparison as well.
-  const savedAt = Math.abs(template.savedAt) <= 8.64e15 ? template.savedAt : 0
+  // manager. NaN and Infinity fail the comparison; an untyped caller's string fails
+  // the typeof.
+  const savedAt = typeof template.savedAt === "number" && Math.abs(template.savedAt) <= 8.64e15 ? template.savedAt : 0
   return savedAt > 0 ? <time className={cn("text-muted-foreground lining-nums tabular-nums", className)} {...props} dateTime={new Date(savedAt).toISOString()}>{localTime(savedAt)}</time> : null
 }
 export function LayoutManagerUnknownKinds({ className, ...props }: Omit<ComponentProps<typeof Badge>, "children">) {

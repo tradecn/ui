@@ -405,4 +405,4 @@ The workspace's `api.load` parses again and returns `false` if parsing or dock r
 
 ### Tokens
 
-Installation adds `stale` for the unknown-kinds badge when absent, with the font tokens and the hyperlegible remap.
+Installation adds `stale` for the unknown-kinds badge when absent, with the mono font token, the accessible pair, and the hyperlegible remap.

@@ -90,11 +90,13 @@ export function toPanelState(value: unknown): WorkspacePanelState {
     try {
       // The read runs inside the guard: a throwing getter drops its own key only.
       const entry: unknown = (value as Record<string, unknown>)[key]
-      const text = JSON.stringify(entry)
-      if (text === undefined) continue
+      // Serialized under its own key, so a nested toJSON receives the key JSON's
+      // whole pass would give it; a value JSON omits leaves the wrapper empty.
+      const stored = JSON.parse(JSON.stringify({ [key]: entry })) as Record<string, WorkspaceJson>
+      if (!Object.prototype.hasOwnProperty.call(stored, key)) continue
       // Collected as pairs: assigning out[key] would hand a "__proto__" key to the
       // prototype setter instead of keeping it an ordinary own key, as JSON does.
-      pairs.push([key, JSON.parse(text) as WorkspaceJson])
+      pairs.push([key, stored[key] as WorkspaceJson])
     } catch {
       continue
     }

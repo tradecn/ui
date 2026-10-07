@@ -254,4 +254,4 @@ The guard holds no token, reads no cookie, and does not refresh credentials or r
 
 ### Tokens
 
-The install adds `expiring` and `expiring-soft` if you do not have them, for the warning and the readout's warning phase, with the font tokens and the hyperlegible remap.
+The install adds `expiring` and `expiring-soft` if you do not have them, for the warning and the readout's warning phase, with the sans, numeric, and mono font tokens, the accessible pair, and the hyperlegible remap.

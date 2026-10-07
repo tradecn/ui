@@ -107,6 +107,11 @@ describe("toPanelState", () => {
     expect(Object.keys(whole).sort()).toEqual(["__proto__", "group"])
     // A throwing getter drops alone too; its siblings survive the per-key pass.
     expect(toPanelState({ a: 1, get bad(): never { throw new Error("x") }, b: 2 })).toEqual({ a: 1, b: 2 })
+    // The per-key pass calls a nested toJSON with the value's own key, as the
+    // whole pass does; the cycle forces the fallback.
+    const keyed: Record<string, unknown> = { a: { toJSON: (key: string) => `under ${key}` } }
+    keyed.self = keyed
+    expect(toPanelState(keyed)).toEqual({ a: "under a" })
     // A proxy whose own keys cannot be listed yields nothing rather than throwing.
     expect(toPanelState(new Proxy({ a: 1 }, { ownKeys() { throw new Error("x") } }))).toEqual({})
   })

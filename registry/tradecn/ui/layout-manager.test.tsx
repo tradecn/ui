@@ -117,10 +117,12 @@ describe("LayoutManager", () => {
     const hostile = [
       { id: "t-x", name: "Hostile", layout: TWO, savedAt: Number.POSITIVE_INFINITY },
       { id: "t-y", name: "Far future", layout: TWO, savedAt: 1e20 },
+      // An untyped caller's numeric string: new Date(string) would be Invalid Date.
+      { id: "t-z", name: "Stringly", layout: TWO, savedAt: "1700000000000" as unknown as number },
     ]
     render(<LayoutManager templates={hostile} onTemplatesChange={() => {}} onLoad={() => {}} current={TWO} kinds={["book", "chart"]} now={() => T}><LayoutManagerControls /></LayoutManager>)
     const items = screen.getAllByRole("listitem")
-    expect(items.map((item) => item.textContent?.includes("Hostile") || item.textContent?.includes("Far future"))).toEqual([true, true])
+    expect(items.map((item) => ["Hostile", "Far future", "Stringly"].some((name) => item.textContent?.includes(name)))).toEqual([true, true, true])
     for (const item of items) expect(item.querySelector("time")).toBeNull()
   })
 
