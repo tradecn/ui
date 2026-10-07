@@ -2086,6 +2086,35 @@ describe("editing", () => {
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     fireEvent.keyDown(grid, { key: " " })
     expect(commit()).toEqual({ via: "value", repeat: false, session: 0 })
+    // A held Space or Enter on a toggle says so, as a held key in an editor does.
+    fireEvent.keyDown(grid, { key: " ", repeat: true })
+    expect(commit()).toEqual({ via: "value", repeat: true, session: 0 })
+    fireEvent.keyDown(grid, { key: "Enter", repeat: true })
+    expect(commit()).toEqual({ via: "value", repeat: true, session: 0 })
+  })
+
+  it("numbers editor openings across every grid, so two grids never share an opening", () => {
+    const sessions: number[] = []
+    const validate = vi.fn<(value: unknown, row: Quote, commit?: EditCommit) => null>((_, __, commit) => {
+      sessions.push(commit!.session)
+      return null
+    })
+    const columns = editable.map((column) => (column.key === "px" ? { ...column, edit: { parse: price, validate } } : column))
+    for (const label of ["First", "Second"]) {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(2, store)
+      const { unmount } = render(<DataGrid store={store} columns={columns} label={label} preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={vi.fn()} />)
+      const grid = screen.getByRole("grid", { name: label })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "F2" })
+      fireEvent.change(screen.getByRole("textbox", { name: "Price" }), { target: { value: "5" } })
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "Price" }), { key: "Enter" })
+      unmount()
+    }
+    expect(sessions).toHaveLength(2)
+    expect(sessions[1]).not.toBe(sessions[0])
   })
 
   it("opens nothing without onEdit", () => {

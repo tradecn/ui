@@ -1440,7 +1440,8 @@ describe("the docs pages", async () => {
     // Fetched once when the search opens. Measured on 2026-10-06: 544k characters at v1.4.13 and 804k with the
     // 2.0 docs, grown by ordinary documentation (the 2.0 migration guide alone is 93k). The cap stops runaway
     // output, such as code inlined whole or every page doubled. It leaves room for one page twice over, so a
-    // repeated passage is caught on its own: no text of 200 characters or more stands in two places.
+    // page or section dumped twice is caught on its own: no page intro or section of 200 characters or more
+    // matches another whole.
     expect(JSON.stringify(index).length).toBeLessThan(1_000_000)
     const seen = new Map<string, string>()
     for (const page of index) {

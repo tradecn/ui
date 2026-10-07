@@ -120,7 +120,7 @@ Exports: `QuoteField`.
 
 ### Quote Panel (`quote-panel`)
 
-A market maker's two-way panel: one row per instrument with the market's bid and ask, the desk's bid and ask, the skew and the width, a size per side, the server's status word, and the actions the server allows on the row. Every level, size, skew, and width is typed in place through the grid's editing contract, so an edit is a command the server answers and the cell shows it as pending until the row comes back with it; the limits table runs on every edit, a block refusing the value and a confirm asking once. Pull all asks again. Everything the panel shows is the server's.
+A market maker's two-way panel: one row per instrument with the market's bid and ask, the desk's bid and ask, the skew and the width, a size per side, the server's status word, and the actions the server allows on the row. Every level, size, skew, and width is typed in place through the grid's editing contract, so an edit is a command the server answers and the cell shows it as pending until the row comes back with it; the limits table runs on every edit, a block refusing the value and a confirm asking in words above the grid until a fresh Enter on that value answers it. Pull all asks again. Everything the panel shows is the server's.
 
 Exports: `QuotePanel`, `quotePanelColumns`, `quoteEdit`, `allowsQuoteAction`, `DEFAULT_QUOTE_PANEL_LABELS`.
 

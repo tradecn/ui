@@ -119,9 +119,11 @@ function isNumber(v: unknown): v is number {
 function readNumber(text: string): number | null | "bad" {
   const clean = text.trim().replace(/−/g, "-").replace(/,/g, "")
   if (clean === "") return null
-  // Plain decimals only: Number would also read 0x10 and 1e3, which no cell prints.
+  // Plain decimals only: Number would also read 0x10 and 1e3, which no cell prints, and a run of digits too
+  // long to hold reads as Infinity.
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(clean)) return "bad"
   const n = Number(clean)
+  if (!Number.isFinite(n)) return "bad"
   return n === 0 ? 0 : n
 }
 
@@ -138,16 +140,17 @@ export interface QuoteColumnOptions<T extends QuoteRow> {
   /** The family the price columns set in. Default: the mono stack for a fraction convention, the numeric one otherwise. */
   font?: "numeric" | "mono"
   /**
-   * The confirms already asked, keyed by row, field, value, and the editor opening that asked: the first commit
-   * of a value a limit asks about is refused with the question, and a fresh Enter in the same opening sends it.
-   * The panel owns one; pass it to share the memory with columns of your own.
+   * The questions standing, one per cell and opening of its editor: the first commit of a value a limit asks
+   * about is refused with the question, and a fresh Enter on that value in the same opening sends it. Asking
+   * about another value replaces it; any other outcome for the cell withdraws it. The panel owns one and hands
+   * it to a `columns` function; outside the panel, pass your own.
    */
   asked?: Set<string>
   /**
-   * Told the question a confirm limit asks, and null when a later check answers it, blocks or crosses the value,
-   * or finds nothing to ask. It is not told when an editor closes or its text changes: the panel withdraws its
-   * line on those itself. With columns of your own, clear what you show, and `asked`, when the asking editor's
-   * text changes or focus leaves it.
+   * Told the question a confirm limit asks, and null when a later check on the cell answers it, blocks or crosses
+   * the value, finds nothing to ask, or comes from leaving the editor. It is not told when an editor closes
+   * without a commit, or when its text changes by typing or a step: the panel withdraws on those itself. Outside
+   * the panel, clear what you show, and `asked`, when the asking editor's text changes or focus leaves it.
    */
   onQuestion?: (question: string | null) => void
 }
@@ -160,39 +163,50 @@ function limitsOf<T extends QuoteRow>(l: Limits | ((row: T) => Limits | undefine
   return typeof l === "function" ? l(row) : l
 }
 
+// A cell's standing question in one opening of its editor; calls without the grid's commit share their own.
+const questionCell = (row: QuoteRow, key: string, commit?: EditCommit) => `${row.id}\u0000${key}\u0000${commit?.session ?? "none"}\u0000`
+
+function forget(asked: Set<string> | undefined, cell: string) {
+  if (asked) for (const token of asked) if (token.startsWith(cell)) asked.delete(token)
+}
+
+// Withdraws a cell's standing question, from the memory and from the line.
+function withdraw<T extends QuoteRow>(options: QuoteColumnOptions<T>, cell: string): null {
+  forget(options.asked, cell)
+  options.onQuestion?.(null)
+  return null
+}
+
 /**
  * The limits, as the value is committed: a block refuses it in the editor with the limit's sentence; a confirm
- * refuses it with the question, and only a fresh Enter on the same value, in the same opening of the editor,
- * answers it. Leaving the editor, Tab, and a held Enter ask again rather than send; a control committing a value
- * answers by committing it again. A call without `commit` never answers: a wrapper that drops it fails closed.
+ * refuses it with the question, and only a fresh Enter on that value in the same opening of the editor answers
+ * it. A cell keeps one standing question per opening: asking about another value replaces it, and any other
+ * outcome withdraws it. Tab and a held key ask again rather than send; leaving the editor refuses without asking,
+ * since the draft goes with it; a control committing a value answers by committing it again. A call without
+ * `commit` never answers: a wrapper that drops it fails closed.
  */
 function limitProblem<T extends QuoteRow>(draft: LimitsDraft, row: T, key: string, value: unknown, options: QuoteColumnOptions<T>, labels: QuotePanelLabels, commit?: EditCommit): EditProblem | null {
+  const cell = questionCell(row, key, commit)
   const limits = limitsOf(options.limits, row)
-  if (!limits) {
-    options.onQuestion?.(null)
-    return null
-  }
+  if (!limits) return withdraw(options, cell)
   const problems = checkLimits(draft, limits, { market: { bid: row.marketBid, ask: row.marketAsk }, convention: conventionOf(options.convention, row) })
   const stop = blocks(problems)[0]
   if (stop) {
-    options.onQuestion?.(null)
+    withdraw(options, cell)
     return editProblem(stop.message)
   }
   const ask = confirms(problems)[0]
-  if (!ask) {
-    options.onQuestion?.(null)
-    return null
-  }
-  const memory = options.asked
-  const token = `${row.id}\u0000${key}\u0000${String(value)}\u0000${commit?.session ?? "none"}`
-  const answer = commit !== undefined && ((commit.via === "enter" && !commit.repeat) || commit.via === "value")
-  if (answer && memory?.has(token)) {
-    memory.delete(token)
-    options.onQuestion?.(null)
-    return null
-  }
-  memory?.add(token)
+  if (!ask) return withdraw(options, cell)
+  const token = cell + String(value)
+  const fresh = commit !== undefined && !commit.repeat && (commit.via === "enter" || commit.via === "value")
+  if (fresh && options.asked?.has(token)) return withdraw(options, cell)
   const question = fill(commit?.via === "value" ? labels.askAgainControl : labels.askAgain, { message: ask.message })
+  if (commit?.via === "blur") {
+    withdraw(options, cell)
+    return editProblem(question)
+  }
+  forget(options.asked, cell)
+  options.asked?.add(token)
   options.onQuestion?.(question)
   return editProblem(question)
 }
@@ -217,7 +231,7 @@ export function quoteEdit<T extends QuoteRow>(field: QuoteField, options: QuoteC
         const inverted = quoteInvertedOf(conventionOf(options.convention, row))
         const crossed = field === "bid" ? isNumber(row.ask) && (inverted ? value <= row.ask : value >= row.ask) : isNumber(row.bid) && (inverted ? value >= row.bid : value <= row.bid)
         if (crossed) {
-          options.onQuestion?.(null)
+          withdraw(options, questionCell(row, field, commit))
           return editProblem(field === "bid" ? labels.bidCrosses : labels.askCrosses)
         }
         return limitProblem(field === "bid" ? { bid: value } : { ask: value }, row, field, value, options, labels, commit)
@@ -292,6 +306,13 @@ const isElement = (node: unknown): node is Element => typeof node === "object" &
 const isEditor = (node: unknown): node is HTMLInputElement => isElement(node) && node.hasAttribute("data-cell-editor")
 const subscribeNothing = () => () => {}
 
+// Focus leaving a control on purpose. A window switch also blurs with no destination, but the document loses
+// focus with it, so the record stays and a control withdrawn while the trader is away still hands focus to the
+// grid on return.
+function deliberateBlur(e: FocusEvent<Element>): boolean {
+  return e.relatedTarget !== null || e.target.ownerDocument.hasFocus()
+}
+
 /** Runs a row action as a click or the row menu lands: checked against the row as it is now, held while a promise is out. */
 function runQuoteAction<T extends QuoteRow>(row: T, action: QuoteAction<T>, busy: boolean, hold: (action: string | null) => void) {
   if (busy || !allowsQuoteAction(row, action.id)) return
@@ -325,7 +346,7 @@ function RowActions<T extends QuoteRow>({ row, rowId, actions }: RowActionsProps
   const [pending, hold] = useRowRun(rowId)
   const box = useRef<HTMLSpanElement>(null)
   // When the button under focus leaves — the server's reply swaps Pause for Resume, or holds the row — focus
-  // falls to body and the grid's keys go dead. The grid takes it instead. A deliberate blur clears the record.
+  // falls to body and the grid's keys go dead. The grid takes it instead. Leaving on purpose clears the record.
   const focused = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
     const previous = focused.current
@@ -352,12 +373,13 @@ function RowActions<T extends QuoteRow>({ row, rowId, actions }: RowActionsProps
       ref={box}
       className="flex items-center gap-1"
       data-quote-actions={allowed.length}
-      data-grid-interaction="control"
+      // Only the buttons are controls: the null token stays plain row content, so it selects and opens the menu.
+      data-grid-interaction={allowed.length > 0 ? "control" : undefined}
       onFocus={(e) => {
         focused.current = e.target as HTMLElement
       }}
       onBlur={(e) => {
-        if (e.relatedTarget) focused.current = null
+        if (deliberateBlur(e)) focused.current = null
       }}
     >
       {allowed.length === 0 ? <span className="text-muted-foreground">{NULL_TOKEN}</span> : allowed.map((action) => (
@@ -385,7 +407,7 @@ function RowMenu<T extends QuoteRow>({ id, store, actions, noActions }: RowMenuP
   const row = store.getRow(id)
   const allowed = row ? actions.filter((action) => allowsQuoteAction(row, action.id)) : []
   return (
-    <ContextMenuGroup>
+    <ContextMenuGroup aria-label={row?.instrument}>
       {row && <ContextMenuLabel>{row.instrument}</ContextMenuLabel>}
       {allowed.length === 0 && <ContextMenuItem disabled>{noActions}</ContextMenuItem>}
       {row &&
@@ -431,9 +453,18 @@ export function quotePanelColumns<T extends QuoteRow>(options: QuoteColumnOption
   ]
 }
 
+/** What the panel hands a `columns` function: its memory of the questions standing, and its question line. */
+export interface QuotePanelQuestion {
+  asked: Set<string>
+  onQuestion: (question: string | null) => void
+}
+
 export interface QuotePanelProps<T extends QuoteRow = QuoteRow> extends Omit<DataGridProps<T>, "columns" | "preset" | "label" | "onEdit">, Omit<QuoteColumnOptions<T>, "asked" | "onQuestion"> {
-  /** `quotePanelColumns(options)` by default. */
-  columns?: ColumnDef<T>[]
+  /**
+   * `quotePanelColumns(options)` by default. A list replaces the columns; a function receives the panel's
+   * question wiring to spread into `quotePanelColumns` or `quoteEdit`, and keeps the panel's question line.
+   */
+  columns?: ColumnDef<T>[] | ((question: QuotePanelQuestion) => ColumnDef<T>[])
   label?: string
   /** A level, a size, the skew, or the width was typed: send it to the server. The cell stays pending until the row comes back with the value, or the promise resolves. */
   onEdit: (change: EditChange<T>) => void | Promise<unknown>
@@ -468,7 +499,10 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
   useInsertionEffect(() => {
     latest.current = { onEdit, onPullAll }
   })
-  const all = useMemo(() => columns ?? quotePanelColumns<T>({ convention, labels, actions, editAction, limits, font, asked, onQuestion: setQuestion }), [columns, convention, labels, actions, editAction, limits, font, asked])
+  const all = useMemo(
+    () => (typeof columns === "function" ? columns({ asked, onQuestion: setQuestion }) : (columns ?? quotePanelColumns<T>({ convention, labels, actions, editAction, limits, font, asked, onQuestion: setQuestion }))),
+    [columns, convention, labels, actions, editAction, limits, font, asked],
+  )
   const edit = useCallback((change: EditChange<T>) => latest.current.onEdit(change), [])
   // The row menu carries the actions of the row it opened on, for the keyboard, then any items of your own. Its
   // presence follows whether actions are passed at all, so emptying the list never remounts the grid's body.
@@ -478,7 +512,7 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
       const id = target ?? ids[0]
       return (
         <>
-          {(actions?.length ?? 0) > 0 && id !== undefined && <RowMenu<T> id={id} store={store} actions={actions ?? []} noActions={labels.noActions} />}
+          {actions !== undefined && id !== undefined && <RowMenu<T> id={id} store={store} actions={actions} noActions={labels.noActions} />}
           {renderContextMenu?.(rows, ids, target)}
         </>
       )
@@ -531,6 +565,8 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape" && confirming) setConfirming(false)
     if ((e.key === "Enter" || e.key === "Tab") && isEditor(e.target)) asker.current = e.target
+    // A step rewrites the asking editor's text without an input event; it withdraws the question as typing does.
+    if ((e.key === "ArrowUp" || e.key === "ArrowDown") && askingEditor.current && e.target === askingEditor.current) withdrawQuestion()
   }
   // When Pull all disables under focus — its promise out, or no row left to pull — focus falls to body and the
   // grid's keys go dead. The grid takes it instead. A row's buttons see to their own.
@@ -555,14 +591,15 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
     if (askingEditor.current && e.target === askingEditor.current) withdrawQuestion()
   }
   const onBlur = (e: FocusEvent<HTMLDivElement>) => {
-    // Runs after the grid's own blur handling, so a question that leaving re-asked is withdrawn too.
+    // An editor closing withdraws the question, whether or not leaving committed anything.
     if (isEditor(e.target)) withdrawQuestion()
+    if (focusedControl.current === e.target && deliberateBlur(e)) focusedControl.current = null
     const next = e.relatedTarget
-    if (next) focusedControl.current = null
     if (confirming && !(isElement(next) && e.currentTarget.contains(next))) setConfirming(false)
   }
-  // A line for the question only where one can be asked, beside Pull all when there is one.
-  const header = onPullAll !== undefined || (limits !== undefined && columns === undefined)
+  // A line for the question only where one can stand — the generated columns with limits, or a columns function
+  // given the panel's wiring — beside Pull all when there is one.
+  const header = onPullAll !== undefined || (columns === undefined ? limits !== undefined : typeof columns === "function")
 
   return (
     <PendingRunsContext.Provider value={runs}>

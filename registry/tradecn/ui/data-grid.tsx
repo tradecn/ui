@@ -87,14 +87,18 @@ export function isEditProblem(value: unknown): value is EditProblem {
   return typeof value === "object" && value !== null && Object.keys(value).length === 1 && typeof (value as EditProblem).problem === "string"
 }
 
-/** How a commit came: the editor's Enter or Tab, leaving the editor, or a cell control committing a value; whether the key was held; and which opening of the editor it came from. */
+/** How a commit came: the editor's Enter or Tab, leaving the editor, or a toggle or cell control committing a value; whether the key was held; and which opening of the editor it came from. */
 export interface EditCommit {
   via: "enter" | "tab" | "blur" | "value"
-  /** True for a held key's repeats; false for a blur or a control's value. */
+  /** True for a held key's repeats: Enter or Tab in an editor, Space or Enter on a toggle. False for a blur or a cell control's value. */
   repeat: boolean
-  /** One number per opening of an editor, so a check that asks a question can keep its answer to that opening. Control commits share session 0. */
+  /** One number per opening of an editor, unique across every grid on the page, so a check that asks a question can keep its answer to that opening. Value commits share session 0. */
   session: number
 }
+
+// Numbered across every grid, so answers kept per opening never cross from one grid to another, or from a
+// grid's openings before its store changed to those after.
+let editorOpenings = 0
 
 /** How a column's cells are edited. Every function gets the row, because a step or a check can depend on it. */
 export interface CellEdit<T> {
@@ -471,7 +475,7 @@ interface EditController {
   /** Parse, check, and send. `move` opens the next (1) or previous (-1) editable cell of the row after. */
   commit(rowId: RowId, key: string, how: EditCommit, move?: 1 | -1): void
   /** A value a cell renderer settled itself (a checkbox): sent as it is. */
-  commitValue(rowId: RowId, key: string, value: unknown): void
+  commitValue(rowId: RowId, key: string, value: unknown, repeat?: boolean): void
   cancel(rowId: RowId, key: string): void
   step(rowId: RowId, key: string, dir: 1 | -1, big: boolean): void
   /** Focus left the editor: commit what parses, drop what does not. */
@@ -929,7 +933,6 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const edits = useMemo<EditController | null>(() => {
     if (!editable) return null
     const tracker = createEditTracker()
-    let openings = 0
     let activeColumn: string | null = null
     const cellsByKey = new Map<string, RowId>()
     const column = (key: string) => editLatest.current.columns.find((c) => c.key === key)
@@ -1016,7 +1019,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       // dismisses it the way v1 did — any close then clears the cell.
       const covered = now?.kind === "editing" ? now.prior : now
       const prior = covered?.kind === "pending" && !covered.tracked ? undefined : covered
-      tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false, prior, session: ++openings })
+      tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false, prior, session: ++editorOpenings })
     }
     const controller: EditController = {
       tracker,
@@ -1088,11 +1091,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         send(rowId, col, row!, parsed)
         moveOn(rowId, key, move)
       },
-      commitValue(rowId, key, value) {
+      commitValue(rowId, key, value, repeat = false) {
         const col = column(key)
         const row = store.getRow(rowId)
         if (!canEditCell(col, row)) return
-        const problem = col.edit.validate?.(value, row!, { via: "value", repeat: false, session: 0 })
+        const problem = col.edit.validate?.(value, row!, { via: "value", repeat, session: 0 })
         if (problem) {
           tracker.set(cellKey(rowId, key), { kind: "rejected", value: col.accessor(row!), message: problem.problem })
           return
@@ -1526,7 +1529,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const col = editableFocus()
         if (col?.edit.toggle) {
           const row = store.getRow(focusedRowId!)!
-          edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row))
+          edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row), e.repeat)
           return
         }
         if (focusedRowId !== null) select([focusedRowId], selectionMode === "multi" ? "toggle" : "replace")
@@ -1539,7 +1542,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         if (col) {
           e.preventDefault()
           const row = store.getRow(focusedRowId!)!
-          if (col.edit.toggle) edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row))
+          if (col.edit.toggle) edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row), e.repeat)
           else edits!.open(focusedRowId!, col.key)
           return
         }
