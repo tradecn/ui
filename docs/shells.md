@@ -50,7 +50,7 @@ The controller removes a record after `close` resolves, even if the native windo
 
 ## A Rust-hosted shell: Tauri 2
 
-Run the controller only when `WebviewWindow.getCurrent().label === "main"`. Reserve that label for the configured initial window; allow saved secondary labels such as `desk-*`. Before restoring, install the owner's lifecycle service: it watches native destruction, intercepts close requests, and keeps the main webview alive through persistence. The Rust host must also intercept application exit requests; see Launch and quit below.
+Run the controller only when `WebviewWindow.getCurrent().label === "main"`. Reserve that label for the configured initial window; allow saved secondary labels such as `desk-*`. Before opening saved windows, install the owner's lifecycle service: it watches native destruction, intercepts close requests, and keeps the main webview alive through persistence. The Rust host must also intercept application exit requests; see Launch and quit below.
 
 [Creating a `WebviewWindow`](https://v2.tauri.app/reference/javascript/api/namespacewebviewwindow/) returns a handle before creation finishes. Register both result listeners immediately and remove both when the result arrives:
 
@@ -161,7 +161,7 @@ Keep close interception in the owner or Rust host with this split. A secondary r
 
 ## A Node-hosted shell: Electron
 
-Keep the controller and native window map in the main process, after `app.whenReady()`. Register the already-created initial `BrowserWindow` as `main` before restoring. Renderers request operations through a narrow preload bridge; they do not own controllers.
+Keep the controller and native window map in the main process, after `app.whenReady()`. Register the already-created initial `BrowserWindow` as `main` before opening saved windows. Renderers request operations through a narrow preload bridge; they do not own controllers.
 
 This `open` fragment uses outer bounds, matching `BrowserWindow`'s default sizing and `getBounds()`. `PRELOAD` is your absolute preload path; `DEV_ENTRY` is your complete development page URL; `HTML_ENTRY` is your packaged HTML path. `watchWindow` is application-owned: it installs the coordinated `close` handler and forwards `closed` to the adapter's synchronous subscriber set, deleting the native map entry then.
 
@@ -238,7 +238,7 @@ Each renderer builds `createCallbackTransport({ send: window.shell.sendLink, rec
 
 ## Launch and quit
 
-Read preferences before mounting the initial workspace. Normalize the saved desk to your reserved `main` id and mark only that record `main: true`; add a default record if it is missing. The initial renderer must receive that record's `layoutId`, including when adopting an already-open window. Validate native label rules and adjust saved geometry before restore.
+Read preferences before mounting the initial workspace. Normalize the saved desk to your reserved `main` id and mark only that record `main: true`; add a default record if it is missing. The initial renderer must receive that record's `layoutId`, including when adopting an already-open window. Validate native label rules and adjust saved geometry before opening them.
 
 The following is application pseudocode. `lifecycle` implements the native requirements above; `normalizeDesk`, `loadPreferences`, and `mountMain` are yours. In Tauri, run this bootstrap only in the webview whose native label is `main`. In Electron, run it once in the main process and deliver the chosen record to the initial renderer.
 
@@ -265,7 +265,7 @@ const launched = windows.isOpen("main")
 await mountMain(main)
 ```
 
-A window that fails to open is absent from the next snapshot. When `main` fails, the others still open, so that snapshot lacks `main` rather than being empty; it is empty only when every window failed. Check `windows.isOpen("main")` after the loop, as `launched` does, and when it is `false` skip the quit sequence's save, or the next launch replaces the main window's layout and bounds with defaults.
+A window that fails to open is absent from the next snapshot. When `main` fails, the others still open, so that snapshot lacks `main` rather than being empty; it is empty only when every window failed. Check `windows.isOpen("main")` after the loop, as `launched` does, and while it is `false` skip every window-set write — the quit sequence's save below and any save during normal use — or the next launch replaces the main window's layout and bounds with defaults. A secondary window that fails to open drops out of the next save the same way; to keep it, carry the records that failed to open forward into the set you save.
 
 `main: true` marks the record the launch sequence opens first, as `restore` does too. It does not implement whole-desk shutdown. Intercept quit before any window is destroyed, stop new window operations, and wait for operations already in flight. Collect approval and flush layout/preference writes from every renderer, snapshot while all windows still exist, then await durable storage. Only after that should the host close secondaries and the owner last. Do not use `closeAll()` from a Tauri owner webview: its insertion order can close the owner first.
 
@@ -287,7 +287,7 @@ try {
 }
 ```
 
-In Electron, handle [`before-quit`](https://www.electronjs.org/docs/latest/api/app#event-before-quit) with `event.preventDefault()` synchronously, then run this sequence under a reentry guard. The final host step can destroy approved windows, set an approved flag, and call `app.quit()`; `before-quit` fires once more for that call, and while the flag is set the handler returns without `preventDefault()`. Route the main window's `close` event through the same sequence. In Tauri, prevent the initial main close request and Rust [`RunEvent::ExitRequested`](https://docs.rs/tauri/latest/tauri/enum.RunEvent.html); the host resumes exit only after the owner's persistence acknowledgment. A quit hook cannot guarantee saving through crashes or forced OS termination, so also persist during normal use.
+In Electron, handle [`before-quit`](https://www.electronjs.org/docs/latest/api/app#event-before-quit) with `event.preventDefault()` synchronously, then run this sequence under a reentry guard. The final host step can destroy approved windows, set an approved flag, and call `app.quit()`; `before-quit` fires once more for that call, and while the flag is set the handler returns without `preventDefault()`. Route the main window's `close` event through the same sequence. In Tauri, prevent the initial main close request and Rust [`RunEvent::ExitRequested`](https://docs.rs/tauri/latest/tauri/enum.RunEvent.html); the host resumes exit only after the owner's persistence acknowledgment. A quit hook cannot guarantee saving through crashes or forced OS termination, so also persist during normal use, under the same `launched` check.
 
 Window-set `boundaries` describe intended ownership; they do not filter fields. A preferences export selects whole slots. Marking the `windows` slot as `template` exports its saved `bounds` and `display` too. To share only window ids, layout ids, and the main flag, remove geometry from a copy before writing the template slot.
 

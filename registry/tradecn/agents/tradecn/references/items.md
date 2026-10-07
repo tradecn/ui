@@ -244,7 +244,7 @@ Exports: `SESSION_STATUSES`, `localTime`, `parseTime`, `addDays`, `weekdayOf`, `
 
 ### Window Set (`window-set`)
 
-For shells whose windows are separate JavaScript contexts: the set of windows a desk has, which layout each shows, and where each sits, as data with its boundaries, and a controller that drives the consumer's adapter over the shell's own calls: open a window, close one, hear one close, ask where one is. restore() on launch opens the main window first and the rest after it; a snapshot reads the bounds back. No shell package is imported.
+For shells whose windows are separate JavaScript contexts: the set of windows a desk has, which layout each shows, and where each sits, as data with its boundaries, and a controller that drives the consumer's adapter over the shell's own calls: open a window, close one, hear one close, ask where one is. restore() opens the main window first and the rest after it, stopping at the first that fails; a snapshot reads the bounds back. No shell package is imported.
 
 Exports: `createWindowSet`, `parseWindowSet`, `windowSetOf`, `mainWindow`, `readWindowSet`, `writeWindowSet`, `defaultWindowUrl`, `WINDOW_SET_BOUNDARIES`, `WINDOW_SET_KIND`, `WINDOW_SET_VERSION`, `WINDOW_SET_SLOT`, `parseWindowRecord`.
 

@@ -130,7 +130,7 @@ These exports use the same conversion rules as the calendar. Date strings are `Y
 
 `LocalTime` is `{ date: string, weekday: number, minutes: number }`. `minutes` counts whole minutes and omits seconds.
 
-`parseTime` trims whitespace and accepts one or two hour digits (`0`–`24`) and exactly two minute digits (`00`–`59`). For example, `"9:05"` returns `545`, `"24:00"` returns `1440`, and `"9.30"` returns `NaN`. It also accepts `"24:59"`; `zonedInstant` normalizes hour `24` into the following date. Called directly, `zonedInstant` and `localTime` throw a `RangeError` for a time `parseTime` rejects, a date with non-numeric parts, an instant outside the Date range, or an unknown zone. Numeric dates are read leniently, as `Number` and `Date.UTC` read them: `"2026-02-31"` becomes March 3, `"2026-02-00"` becomes January 31, and `"1-2-3"` becomes 1901-02-03, so validate dates before passing them.
+`parseTime` trims whitespace and accepts one or two hour digits (`0`–`24`) and exactly two minute digits (`00`–`59`). For example, `"9:05"` returns `545`, `"24:00"` returns `1440`, and `"9.30"` returns `NaN`. It also accepts `"24:59"`; `zonedInstant` normalizes hour `24` into the following date. Called directly, `zonedInstant` and `localTime` throw a `RangeError` for a time `parseTime` rejects, a date with a missing or non-numeric part, an instant outside the Date range, or an unknown zone. Numeric dates are read leniently, as `Number` and `Date.UTC` read them: `"2026-02-31"` becomes March 3, `"2026-02-00"` becomes January 31, and `"1-2-3"` becomes 1901-02-03, so validate dates before passing them.
 
 ### What it does not do
 

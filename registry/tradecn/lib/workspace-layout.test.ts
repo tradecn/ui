@@ -112,6 +112,11 @@ describe("toPanelState", () => {
     const keyed: Record<string, unknown> = { a: { toJSON: (key: string) => `under ${key}` } }
     keyed.self = keyed
     expect(toPanelState(keyed)).toEqual({ a: "under a" })
+    // Values JSON omits leave no key behind in that pass either; toEqual would
+    // overlook a key holding undefined, so the keys are checked directly.
+    const sparse: Record<string, unknown> = { gone: undefined, fn: () => 1, keep: 1 }
+    sparse.self = sparse
+    expect(Object.keys(toPanelState(sparse))).toEqual(["keep"])
     // A proxy whose own keys cannot be listed yields nothing rather than throwing.
     expect(toPanelState(new Proxy({ a: 1 }, { ownKeys() { throw new Error("x") } }))).toEqual({})
   })

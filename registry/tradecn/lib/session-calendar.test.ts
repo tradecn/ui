@@ -41,6 +41,15 @@ describe("hour-24 posts", () => {
     // or the boundary status reports is one nextTransition never generates.
     expect(stretched.nextTransition(wednesdaySmallHours)).toEqual({ at: postEnds, status: "closed" })
   })
+
+  it("timeToClose reaches a session two opening dates back", () => {
+    // An early close of 24:30 on Tuesday keeps Monday's session open to Wednesday
+    // 00:30, two opening dates past its open; a one-day lookback would miss it.
+    const late = createSessionCalendar({ zone: "UTC", sessions: [{ days: [1], open: "17:00", close: "16:00" }], earlyCloses: [{ date: "2026-09-22", close: "24:30" }] })
+    const wednesday = zonedInstant("2026-09-23", "00:10", "UTC")
+    expect(late.status(wednesday)).toBe("open")
+    expect(late.timeToClose(wednesday)).toBe(20 * 60_000)
+  })
 })
 
 describe("the zone arithmetic", () => {
