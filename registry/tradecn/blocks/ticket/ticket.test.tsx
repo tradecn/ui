@@ -756,6 +756,11 @@ describe("limits", () => {
     fireEvent.click(send, { detail: 1 })
     fireEvent.click(send, { detail: 2 })
     expect(run).toHaveBeenCalledTimes(2)
+    // Letting a held Enter go ends the hold: a click with no key behind it runs again.
+    fireEvent.keyDown(send, { key: "Enter", repeat: true })
+    fireEvent.keyUp(send, { key: "Enter" })
+    fireEvent.click(send, { detail: 0 })
+    expect(run).toHaveBeenCalledTimes(3)
   })
 
   it("keeps the limits line in the page as a status region, empty until a limit speaks", () => {

@@ -722,6 +722,11 @@ describe("limits", () => {
     fireEvent.click(button, { detail: 1 })
     fireEvent.click(button, { detail: 2 })
     expect(quote).toHaveBeenCalledTimes(2)
+    // Letting a held Enter go ends the hold: a click with no key behind it quotes again.
+    fireEvent.keyDown(button, { key: "Enter", repeat: true })
+    fireEvent.keyUp(button, { key: "Enter" })
+    fireEvent.click(button, { detail: 0 })
+    expect(quote).toHaveBeenCalledTimes(3)
   })
 
   it("keeps the limits line in the page as a status region, and announces the inquiry's status", () => {

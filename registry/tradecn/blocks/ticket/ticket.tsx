@@ -203,6 +203,10 @@ function useFreshPress() {
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
       held.current = event.key === "Enter" && event.repeat
     },
+    // Letting go ends the hold, so a click with no key behind it counts again.
+    onKeyUp: () => {
+      held.current = false
+    },
     fresh: (event: MouseEvent<HTMLElement>) => event.detail <= 1 && !(event.detail === 0 && held.current),
   }
 }
@@ -633,6 +637,7 @@ export function Ticket({
                 data-action={action.id}
                 data-confirming={confirming === action.id || undefined}
                 onKeyDown={press.onKeyDown}
+                onKeyUp={press.onKeyUp}
                 onClick={(event) => {
                   if (press.fresh(event)) run(action)
                 }}

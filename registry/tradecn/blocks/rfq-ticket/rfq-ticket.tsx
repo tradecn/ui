@@ -251,6 +251,10 @@ function useFreshPress() {
     onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => {
       held.current = event.key === "Enter" && event.repeat
     },
+    // Letting go ends the hold, so a click with no key behind it counts again.
+    onKeyUp: () => {
+      held.current = false
+    },
     fresh: (event: ReactMouseEvent<HTMLElement>) => event.detail <= 1 && !(event.detail === 0 && held.current),
   }
 }
@@ -666,6 +670,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
                   data-action={action.id}
                   data-confirming={confirming === action.id || undefined}
                   onKeyDown={press.onKeyDown}
+                  onKeyUp={press.onKeyUp}
                   onClick={(event) => {
                     if (press.fresh(event)) run(action)
                   }}
