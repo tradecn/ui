@@ -431,6 +431,9 @@ export function Ticket({
   if (confirming !== null && !allowed.some((action) => action.id === confirming)) setConfirming(null)
   const primary = allowed.find((action) => action.primary) ?? allowed[0]
   const sendAction = sendTarget(allowed)
+  // A block holds a checked action without taking it out of reach: it looks disabled and stays focusable, and a
+  // press on it, from any input, is refused and says why.
+  const heldByLimit = (action: TicketAction) => blocked && action.checked !== false
 
   function run(action: TicketAction) {
     // Checked as the click lands, against the props as they are now: an action can stop being allowed.
@@ -669,8 +672,9 @@ export function Ticket({
                 type="button"
                 variant={action.destructive ? "destructive" : action === primary ? "default" : "outline"}
                 size="sm"
-                className="h-7 gap-2"
-                disabled={disabled || (blocked && action.checked !== false)}
+                className="h-7 gap-2 aria-disabled:opacity-50"
+                disabled={disabled}
+                aria-disabled={heldByLimit(action) || undefined}
                 data-action={action.id}
                 data-confirming={confirming === action.id || undefined}
                 onKeyDown={press.onKeyDown}

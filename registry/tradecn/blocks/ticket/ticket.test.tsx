@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
-import { useLayoutEffect } from "react"
+import { StrictMode, useLayoutEffect } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatQuickSize, checkDraft, describeDraft, parseQuantity, Ticket, TICKET_BINDINGS, type TicketDraft, type TicketInstrument, type TicketProps } from "@/registry/tradecn/blocks/ticket/ticket"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
@@ -688,13 +688,16 @@ describe("limits", () => {
     })
     expect(document.querySelector("[data-ticket-limits='block']")).toHaveTextContent("Desk policy blocks this order.")
     const button = screen.getByRole("button", { name: /^Send/ })
-    expect(button).toBeDisabled()
+    // Held, not taken away: it stays in reach, and a press on it is refused and says why.
+    expect(button).toHaveAttribute("aria-disabled", "true")
+    expect(button).toBeEnabled()
     fireEvent.click(button)
     expect(send).not.toHaveBeenCalled()
+    expect(document.querySelector("[data-ticket-announcer]")).toHaveTextContent("Desk policy blocks this order.")
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
     expect(cancel).toHaveBeenCalledTimes(1)
     rerender({ limits: undefined })
-    expect(button).not.toBeDisabled()
+    expect(button).not.toHaveAttribute("aria-disabled")
     expect(document.querySelector("[data-ticket-limits='block']")).toBeNull()
     fireEvent.click(button)
     expect(send).toHaveBeenCalledTimes(1)
@@ -706,7 +709,7 @@ describe("limits", () => {
       defaultDraft: draftOf(),
       limits: { custom: () => deny ? [{ field, level: "block", rule: "desk-policy", message: "Desk policy blocks this order." }] : [] },
     })
-    expect(screen.getByRole("button", { name: /^Send/ })).not.toBeDisabled()
+    expect(screen.getByRole("button", { name: /^Send/ })).not.toHaveAttribute("aria-disabled")
     deny = true
     fireEvent.keyDown(price(), { key: "Enter", ctrlKey: true })
     expect(run).not.toHaveBeenCalled()
@@ -820,6 +823,56 @@ describe("limits", () => {
     expect(announcer).toBeEmptyDOMElement()
     fireEvent.keyDown(price(), { key: "Enter", ctrlKey: true })
     expect(announcer).toHaveTextContent("Desk policy blocks this order again.")
+  })
+
+  it("keeps a held action in reach: focus stays on it as a block arrives, and a press on it says why", () => {
+    const { run, rerender } = mount({ defaultDraft: draftOf() })
+    const announcer = document.querySelector<HTMLElement>("[data-ticket-announcer]")!
+    const send = screen.getByRole("button", { name: /^Send/ })
+    send.focus()
+    rerender({ limits: { sides: ["sell"] } })
+    expect(send).toHaveAttribute("aria-disabled", "true")
+    expect(document.activeElement).toBe(send)
+    // A block the trader's own change brings is shown, and said when a press meets it.
+    rerender({ limits: { sides: ["buy"] } })
+    fireEvent.click(screen.getByRole("button", { name: "Sell" }))
+    expect(document.querySelector("[data-ticket-limits='block']")).toHaveTextContent("The book does not take a sell.")
+    expect(announcer).toBeEmptyDOMElement()
+    fireEvent.click(send)
+    expect(run).not.toHaveBeenCalled()
+    expect(announcer).toHaveTextContent("The book does not take a sell.")
+  })
+
+  it("says, asks, and lets go the same under StrictMode, and says nothing at mount", () => {
+    const run = vi.fn()
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const ui = (allowed: string[]) => (
+      <StrictMode>
+        <HotkeysProvider registry={registry}>
+          <Ticket instrument={ZN} reference={{ bid: 99.5, ask: 99.515625 }} limits={{ maxQuantity: { confirm: 10 }, maxDistance: { ticks: 4 } }} defaultDraft={draftOf({ quantity: 20, price: 99.625 })} actions={[{ id: "send", label: "Send", run, primary: true }]} allowedActions={allowed} />
+        </HotkeysProvider>
+      </StrictMode>
+    )
+    const view = render(ui(["send"]))
+    const announcer = document.querySelector<HTMLElement>("[data-ticket-announcer]")!
+    // A block present at mount is shown, and nothing is said until a press meets it.
+    expect(screen.getByText("The price is 7 ticks from the market; the limit is 4 ticks.", { selector: "[data-slot='field-error']" })).toHaveAttribute("role", "none")
+    expect(announcer).toBeEmptyDOMElement()
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }))
+    expect(announcer).toHaveTextContent("The price is 7 ticks from the market; the limit is 4 ticks.")
+    type(price(), "99-16+")
+    expect(announcer).toBeEmptyDOMElement()
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }))
+    expect(announcer).toHaveTextContent("20 is above 10. Send it anyway?")
+    // Taken away and given back: the question goes, and the action asks again.
+    view.rerender(ui([]))
+    expect(announcer).toBeEmptyDOMElement()
+    view.rerender(ui(["send"]))
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }))
+    expect(run).not.toHaveBeenCalled()
+    expect(announcer).toHaveTextContent("20 is above 10. Send it anyway?")
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }))
+    expect(run).toHaveBeenCalledTimes(1)
   })
 
   it("lets what a press was refused for go once any block it named stops blocking", () => {
@@ -938,12 +991,12 @@ describe("limits", () => {
     expect(quantity()).toHaveAttribute("aria-invalid", "true")
     const sendButton = screen.getByRole("button", { name: /^Send/ })
     const cancelButton = screen.getByRole("button", { name: "Cancel" })
-    expect(sendButton).toBeDisabled()
-    expect(cancelButton).not.toBeDisabled()
+    expect(sendButton).toHaveAttribute("aria-disabled", "true")
+    expect(cancelButton).not.toHaveAttribute("aria-disabled")
     fireEvent.click(cancelButton)
     expect(cancel).toHaveBeenCalledTimes(1)
     type(quantity(), "5")
-    expect(sendButton).not.toBeDisabled()
+    expect(sendButton).not.toHaveAttribute("aria-disabled")
     expect(quantity()).not.toHaveAttribute("aria-invalid", "true")
     // A buyer's price seven ticks over the offer is past the four-tick line: said under the price, and the send holds.
     type(price(), "99-20")
@@ -951,15 +1004,16 @@ describe("limits", () => {
     // The market can reword it, so the field shows it without an alert or a description, and a press says it.
     expect(shown).toHaveAttribute("role", "none")
     expect(price()).not.toHaveAttribute("aria-describedby")
-    expect(sendButton).toBeDisabled()
+    expect(sendButton).toHaveAttribute("aria-disabled", "true")
     type(price(), "99-17")
-    expect(sendButton).not.toBeDisabled()
+    expect(sendButton).not.toHaveAttribute("aria-disabled")
     // A side the book does not take has no field of its own; it is said on the limits line.
     rerender({ limits: { ...LIMITS, sides: ["sell"] } })
     expect(document.querySelector("[data-ticket-limits='block']")).toHaveTextContent("The book does not take a buy.")
-    expect(sendButton).toBeDisabled()
+    expect(sendButton).toHaveAttribute("aria-disabled", "true")
     fireEvent.click(sendButton)
     expect(send).not.toHaveBeenCalled()
+    expect(document.querySelector("[data-ticket-announcer]")).toHaveTextContent("The book does not take a buy.")
   })
 
   it("does nothing different without limits", () => {

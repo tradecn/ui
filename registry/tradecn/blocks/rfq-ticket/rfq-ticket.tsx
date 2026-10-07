@@ -381,7 +381,9 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   function setLevel(side: QuoteSide, value: number | null) {
     setDraft((d) => (d[side] === value ? d : { ...d, [side]: value }))
-    setProblems((p) => (p[side] ? { ...p, [side]: undefined } : p))
+    // A new level answers its own problem and a crossed pair's, whose message sits on the offer.
+    const crossed = latest.current.labels.crossed
+    setProblems((p) => (p[side] || p.ask === crossed ? { ...p, [side]: undefined, ...(p.ask === crossed ? { ask: undefined } : {}) } : p))
     setConfirming(null)
   }
 
@@ -391,6 +393,9 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const blocking = blocks(limitProblems)
   const blockedBy = problemsByField(blocking)
   const blocked = blocking.length > 0
+  // A block holds an action that sends a quote without taking it out of reach: it looks disabled and stays focusable,
+  // and a press on it, from any input, is refused and says why.
+  const heldByLimit = (action: RfqAction) => blocked && action.needsQuote !== false
   const shownProblems = { bid: problems.bid ?? blockedBy.bid, ask: problems.ask ?? blockedBy.ask }
   const otherBlocks = blocking.filter((p) => p.field !== "bid" && p.field !== "ask")
   const asking = confirming !== null ? confirms(limitProblems) : []
@@ -696,8 +701,9 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
                   type="button"
                   variant={action.destructive ? "destructive" : action === primary ? "default" : "outline"}
                   size="sm"
-                  className="h-7 gap-2"
-                  disabled={disabled || (blocked && action.needsQuote !== false)}
+                  className="h-7 gap-2 aria-disabled:opacity-50"
+                  disabled={disabled}
+                  aria-disabled={heldByLimit(action) || undefined}
                   data-action={action.id}
                   data-confirming={confirming === action.id || undefined}
                   onKeyDown={press.onKeyDown}
