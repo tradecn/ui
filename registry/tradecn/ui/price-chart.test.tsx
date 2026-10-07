@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { createRef, StrictMode } from "react"
+import { createPortal } from "react-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { barId, foldTicks, type Bar } from "@/registry/tradecn/lib/price-series"
@@ -44,6 +45,45 @@ function seeded() {
 
 const root = () => document.querySelector<HTMLElement>("[data-slot='tradecn-price-chart']")!
 const text = (selector: string) => root().querySelector(selector)?.textContent ?? ""
+
+// The plot mounts only with a measured box and a drawable canvas, so these supply both: a ResizeObserver
+// that reports once, a 2D context of recording no-ops, and a sized box.
+function stubDrawing() {
+  const bag: Record<string | symbol, unknown> = {}
+  const ctxStub = new Proxy(bag, {
+    get(target, key) {
+      if (key === "measureText") return () => ({ width: 10 })
+      if (key === "createLinearGradient" || key === "createRadialGradient" || key === "createPattern") return () => ({ addColorStop() {} })
+      if (!(key in target)) target[key] = vi.fn()
+      return target[key]
+    },
+    set(target, key, value) {
+      target[key] = value
+      return true
+    },
+  })
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctxStub as never)
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 600, height: 300, top: 0, left: 0, right: 600, bottom: 300, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+  vi.stubGlobal("Path2D", class {
+    addPath() {}
+    moveTo() {}
+    lineTo() {}
+    rect() {}
+    arc() {}
+    closePath() {}
+  })
+  vi.stubGlobal("ResizeObserver", class {
+    callback: ResizeObserverCallback
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback
+    }
+    observe(target: Element) {
+      this.callback([{ target, contentRect: { width: 600, height: 300 } } as ResizeObserverEntry], this as unknown as ResizeObserver)
+    }
+    unobserve() {}
+    disconnect() {}
+  })
+}
 
 describe("PriceChart", () => {
   it("names itself, prints the last close with its change and sign, and carries the direction as data", () => {
@@ -294,42 +334,7 @@ describe("PriceChart composition", () => {
   })
 
   it("repaints on a system scheme flip and drops the listener with the plot", async () => {
-    // The plot mounts only with a measured box and a drawable canvas, so this test supplies both:
-    // a ResizeObserver that reports once, a 2D context of recording no-ops, and a sized box.
-    const bag: Record<string | symbol, unknown> = {}
-    const ctxStub = new Proxy(bag, {
-      get(target, key) {
-        if (key === "measureText") return () => ({ width: 10 })
-        if (key === "createLinearGradient" || key === "createRadialGradient" || key === "createPattern") return () => ({ addColorStop() {} })
-        if (!(key in target)) target[key] = vi.fn()
-        return target[key]
-      },
-      set(target, key, value) {
-        target[key] = value
-        return true
-      },
-    })
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctxStub as never)
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 600, height: 300, top: 0, left: 0, right: 600, bottom: 300, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
-    vi.stubGlobal("Path2D", class {
-      addPath() {}
-      moveTo() {}
-      lineTo() {}
-      rect() {}
-      arc() {}
-      closePath() {}
-    })
-    vi.stubGlobal("ResizeObserver", class {
-      callback: ResizeObserverCallback
-      constructor(callback: ResizeObserverCallback) {
-        this.callback = callback
-      }
-      observe(target: Element) {
-        this.callback([{ target, contentRect: { width: 600, height: 300 } } as ResizeObserverEntry], this as unknown as ResizeObserver)
-      }
-      unobserve() {}
-      disconnect() {}
-    })
+    stubDrawing()
     const listeners = new Set<() => void>()
     const mql = {
       matches: false,
@@ -343,11 +348,73 @@ describe("PriceChart composition", () => {
     await act(async () => {})
     expect(listeners.size).toBe(1)
     const redraw = vi.spyOn(plots.at(-1)!, "redraw").mockImplementation(() => {})
-    act(() => { for (const fn of [...listeners]) fn() })
+    // The tokens are read once this round of observers has run.
+    await act(async () => { for (const fn of [...listeners]) fn() })
     expect(redraw).toHaveBeenCalled()
     view.unmount()
     await act(async () => {})
     expect(listeners.size).toBe(0)
+  })
+
+  it("repaints a popped-out plot from its own window's root, once the popout has copied the theme there", async () => {
+    stubDrawing()
+    // A popout renders the chart through a portal into a host it moves into a window of its own, without
+    // remounting it, and keeps that window's root in step with the page's from an observer made after the
+    // chart's, as use-popout does.
+    const host = document.createElement("div")
+    document.body.append(host)
+    render(createPortal(<PriceChart store={seeded()} convention={ZN} label="ZN"><PriceChartPlot /></PriceChart>, host))
+    await act(async () => {})
+    const popout = document.implementation.createHTMLDocument("popout")
+    popout.body.append(host)
+    new MutationObserver(() => { popout.documentElement.className = document.documentElement.className }).observe(document.documentElement, { attributes: true })
+    // Under which root's class each reading of the tokens is made.
+    const readUnder: string[] = []
+    const read = window.getComputedStyle
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+      readUnder.push(element.ownerDocument.documentElement.className)
+      return read.call(window, element, pseudo)
+    })
+    try {
+      await act(async () => { document.documentElement.classList.add("dark") })
+      expect(readUnder.length).toBeGreaterThan(0)
+      expect(readUnder.every((name) => name.includes("dark"))).toBe(true)
+    } finally {
+      document.documentElement.classList.remove("dark")
+    }
+  })
+
+  it("draws the axis in the runtime's zone for a zone the runtime does not know, as the readout does", async () => {
+    stubDrawing()
+    const before = plots.length
+    render(<PriceChart store={seeded()} convention={ZN} label="ZN" zone="Not/A_Zone"><PriceChartPlot /></PriceChart>)
+    await act(async () => {})
+    expect(plots.length).toBe(before + 1)
+  })
+
+  it("tells a screen reader on the plot what it took focus with, not every update after, and the bar a key reaches as it reads then", () => {
+    const store = seeded()
+    render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    const name = plot.getAttribute("aria-label")
+    const value = plot.getAttribute("aria-valuetext")
+    // The live last bar trades: the picture and the visible readings move, the name and the value do not.
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    expect(plot.getAttribute("aria-label")).toBe(name)
+    expect(plot.getAttribute("aria-valuetext")).toBe(value)
+    // A key moves the selection, and the bar it reaches is read as it is now.
+    fireEvent.keyDown(plot, { key: "ArrowLeft" })
+    fireEvent.keyDown(plot, { key: "ArrowRight" })
+    expect(plot.getAttribute("aria-valuetext")).toBe("14:32:00 110-24 V 30")
+    // With the crosshair put away, the value is the reading the plot took focus with, and stays it.
+    fireEvent.keyDown(plot, { key: "Escape" })
+    expect(plot.getAttribute("aria-valuetext")).toBe(name)
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.5)] }))
+    expect(plot.getAttribute("aria-valuetext")).toBe(name)
+    // Leaving lets the name follow the feed again.
+    act(() => plot.blur())
+    expect(plot.getAttribute("aria-label")).not.toBe(name)
   })
 
   it("shares one subscription across repeated readings and cleans it up", () => {
@@ -405,6 +472,10 @@ describe("PriceChart composition", () => {
     fireEvent.keyDown(plot, { key: "Home" })
     expect(plot).toHaveAttribute("aria-valuetext", "14:30:00 110-17 V 10")
     act(() => store.clear())
+    // Focus stays where it is when the bars go: the plot keeps its tab stop until it is left.
+    expect(screen.getByRole("img")).toHaveAttribute("tabindex", "0")
+    expect(document.activeElement).toBe(screen.getByRole("img"))
+    act(() => screen.getByRole("img").blur())
     expect(screen.getByRole("img")).not.toHaveAttribute("tabindex")
     expect(emptyRef.current).toHaveTextContent("Waiting for the feed")
     act(() => store.applyDeltas({ upsert: [bar(0, 110.5, 110.75)] }))

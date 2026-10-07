@@ -262,6 +262,21 @@ describe("the ladder", () => {
     expect(rung(6375)).toBeNull()
   })
 
+  it("shows the empty state for a tick that is not a finite positive size, at mount and after a good one, and stages nothing", () => {
+    const store = seed()
+    const onStage = vi.fn()
+    const { rerender } = render(<Ladder store={store} convention={{ ...ZN, tick: 0 }} mid={MID} label="ZN ladder" depth={4} initialRect={RECT} onStage={onStage} />)
+    const grid = screen.getByRole("grid", { name: "ZN ladder" })
+    expect(grid).toHaveTextContent("No market")
+    expect(document.querySelector("[role='row'][data-tick]")).toBeNull()
+    rerender(<Ladder store={store} convention={ZN} mid={MID} label="ZN ladder" depth={4} initialRect={RECT} onStage={onStage} />)
+    expect(grid).not.toHaveTextContent("No market")
+    rerender(<Ladder store={store} convention={{ ...ZN, tick: NaN }} mid={MID} label="ZN ladder" depth={4} initialRect={RECT} onStage={onStage} />)
+    expect(grid).toHaveTextContent("No market")
+    expect(document.querySelector("[role='row'][data-tick]")).toBeNull()
+    expect(onStage).not.toHaveBeenCalled()
+  })
+
   it("shows the empty state while there is no mid, and builds the ladder when one arrives", () => {
     const store = seed()
     const { rerender } = render(<Ladder store={store} convention={ZN} mid={null} label="ZN ladder" depth={4} initialRect={RECT} />)

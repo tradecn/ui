@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useNow } from "@/registry/tradecn/hooks/use-clock"
 import { sharedClock, type Clock } from "@/registry/tradecn/lib/clock"
 
@@ -27,8 +27,9 @@ export function countdownTier(remainingMs: number, thresholds: CountdownThreshol
   return remainingMs <= thresholds.soonMs ? "soon" : "plenty"
 }
 
-/** "1:30", "0:09", "0:00", and "1:02:03" past an hour. Rounds up, so it never says zero while time is left. */
+/** "1:30", "0:09", "0:00", and "1:02:03" past an hour. Rounds up, so it never says zero while time is left: an endless wait (`Infinity`) prints "–". */
 export function formatRemaining(ms: number): string {
+  if (ms === Infinity) return "–"
   const total = Number.isFinite(ms) ? Math.max(0, Math.ceil(ms / 1000)) : 0
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)
@@ -78,22 +79,26 @@ const optimistic = () => true
 
 export function Countdown({ expiresAt, startsAt, thresholds = PROVISIONAL_COUNTDOWN_THRESHOLDS, clock, label = "Time left", compact = false, announce = true, onExpire, className }: CountdownProps) {
   const c = clock ?? sharedClock()
-  const now = useNow(c)
+  const ticked = useNow(c)
+  // First sight samples the time source directly: the shared clock's last tick can be
+  // arbitrarily old when nothing subscribed while this countdown was away. The time is never
+  // behind first sight, so the first frame shows the real time left and nothing is announced
+  // when the clock catches up.
+  const [firstSeen] = useState(() => c.sample?.() ?? ticked)
+  const now = Math.max(ticked, firstSeen)
   const remaining = expiresAt - now
   const tier = countdownTier(remaining, thresholds)
 
-  // The bar's full width is `startsAt` to `expiresAt`; without `startsAt`, from first sight to the end.
-  // First sight samples the time source directly: the shared clock's last tick can be
-  // arbitrarily old when nothing subscribed while this countdown was away.
-  const [firstSeen] = useState(() => c.sample?.() ?? now)
-  const total = Math.max(1, expiresAt - (startsAt ?? firstSeen))
-  const fraction = Math.max(0, Math.min(1, remaining / total))
+  // The bar's full width is `startsAt` to `expiresAt`; without a finite `startsAt`, from first sight to the end.
+  // With no finite deadline it does not move: full for an endless wait, empty for one it cannot read.
+  const total = Math.max(1, expiresAt - (typeof startsAt === "number" && Number.isFinite(startsAt) ? startsAt : firstSeen))
+  const fraction = Number.isFinite(total) ? Math.max(0, Math.min(1, remaining / total)) : remaining > 0 ? 1 : 0
   const [reduced] = useState(prefersReducedMotion)
   // A browser without Web Animations draws the bar from the digits' tick too, instead of holding it
   // full. The server snapshot is optimistic so hydration agrees, and the client reads the real API.
   const canAnimate = useSyncExternalStore(subscribeToNothing, hasWebAnimations, optimistic)
-  // Drawn from the digits' tick when it cannot animate: reduced motion, no API, or nothing left to animate.
-  const staticBar = reduced || !canAnimate || tier === "expired"
+  // Drawn from the digits' tick when it cannot animate: reduced motion, no API, nothing left to animate, or no deadline to run to.
+  const staticBar = reduced || !canAnimate || tier === "expired" || !Number.isFinite(expiresAt)
 
   const bar = useRef<HTMLSpanElement>(null)
   useLayoutEffect(() => {
@@ -133,15 +138,21 @@ export function Countdown({ expiresAt, startsAt, thresholds = PROVISIONAL_COUNTD
     setMessage(`${label} ${formatRemaining(remaining)}`)
   }
 
+  // Named by the label and the time left together, so the digits reach a screen reader wherever the name is read,
+  // a grid row's name built from its cells included.
+  const id = useId()
   return (
     <span
       role="timer"
-      aria-label={label}
+      aria-labelledby={`${id}-label ${id}-digits`}
       data-slot="tradecn-countdown"
       data-tier={tier}
       className={cn(compact ? "inline-flex items-baseline" : "inline-flex min-w-16 flex-col gap-0.5 rounded px-1", "text-xs lining-nums tabular-nums", tier === "soon" && !compact && "bg-expiring-soft", TIER_CLASS[tier], className)}
     >
-      <span data-countdown-digits data-numeric="">
+      <span id={`${id}-label`} hidden>
+        {label}
+      </span>
+      <span id={`${id}-digits`} data-countdown-digits data-numeric="">
         {formatRemaining(remaining)}
       </span>
       {!compact && (

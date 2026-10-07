@@ -129,6 +129,23 @@ const UNREAD_PALETTE: Palette = { up: "gray", down: "gray", flat: "gray", upSoft
 const tone = (p: Palette, dir: Direction) => (dir === "up" ? p.up : dir === "down" ? p.down : p.flat)
 const soft = (p: Palette, dir: Direction) => (dir === "up" ? p.upSoft : dir === "down" ? p.downSoft : p.flatSoft)
 
+const zones = new Map<string, boolean>()
+/** Whether the runtime knows the zone. uPlot reads the axis in it and throws inside its own update for one it does not, so the axis falls back to the runtime's zone, as the readout does. */
+function knownZone(zone: string | undefined): zone is string {
+  if (!zone) return false
+  let known = zones.get(zone)
+  if (known === undefined) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: zone })
+      known = true
+    } catch {
+      known = false
+    }
+    zones.set(zone, known)
+  }
+  return known
+}
+
 let drawable: boolean | null = null
 /** Whether this document can draw on a canvas at all. A test environment without a 2D context gets the readout and the keys and no plot. */
 function canDraw(): boolean {
@@ -207,7 +224,7 @@ function plotOptions(a: PlotArgs): uPlot.Options {
     height: a.height,
     ms: 1,
     // The option wants a timestamp-to-Date function, and uPlot.tzDate(date, zone) returns the Date read in that zone; with ms: 1 the timestamp is milliseconds.
-    ...(a.zone ? { tzDate: (ts: number) => uPlot.tzDate(new Date(ts), a.zone!) } : {}),
+    ...(knownZone(a.zone) ? { tzDate: (ts: number) => uPlot.tzDate(new Date(ts), a.zone!) } : {}),
     legend: { show: false },
     select: { show: false, left: 0, top: 0, width: 0, height: 0 },
     cursor: a.crosshair
@@ -399,7 +416,7 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const selectionRef = useRef<number | null>(null)
   const interactionRef = useRef<number | null>(null)
   // The store's columns, once per applied batch: the meta's version is the one dependency, so the memo reruns on
-  // a batch and on nothing else, and a batch with no bar change gives the same columns back.
+  // a batch and on nothing else.
   const meta = useStoreMeta(store)
   const columns = useMemo(() => {
     void meta.version
@@ -508,7 +525,11 @@ export function PriceChartOverlaySwatch({ overlayId, className, ...props }: Pric
 export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDown: onKeyDownProp, onFocus, onBlur, ...props }: ComponentProps<"div">) {
   const { columns, summary, cursor, bar, convention, overlays: overlayList, sentence, readout, kind, baseline, zone, crosshair, lastLine, select } = useChartContext()
   const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
+  // The document the plot is in. A popout moves the plot into its own window without remounting it, so the
+  // observers check it as they fire and bind again to the new window when it changed.
+  const [doc, setDoc] = useState<Document | null>(null)
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  const sizeRef = useRef(size)
   const [fontEpoch, setFontEpoch] = useState(0)
   const plotKey = JSON.stringify([kind, crosshair, lastLine, zone, convention, overlayList.map((o) => [o.id, o.color, o.width]), fontEpoch])
   const plot = useRef<uPlot | null>(null)
@@ -532,7 +553,16 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     conventionRef.current = convention
     selectRef.current = select
     cursorBar.current = bar
+    sizeRef.current = size
   })
+
+  // What a screen reader is told while it is on the plot: the summary as of the moment it took focus, and the
+  // selected bar's readout as of the moment the selection reached that bar. A live feed moves the picture and the
+  // visible readings, never these, so a focused plot is not read again at every update.
+  const [heldName, setHeldName] = useState<string | null>(null)
+  const heardKey = cursor === null || !bar ? null : `${cursor}\u0000${bar.time}`
+  const [heard, setHeard] = useState<{ key: string | null; text: string }>({ key: null, text: "" })
+  if (heard.key !== heardKey) setHeard({ key: heardKey, text: readout })
   useLayoutEffect(() => {
     live.current.summary = summary
     live.current.baseline = baseline
@@ -549,23 +579,27 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     plot.current?.setData(alignedData(columns, kind, overlaysRef.current), true)
   }, [columns, kind, plotKey])
 
-  // The box's size, from a ResizeObserver; nothing is drawn before the first measurement.
+  // The box's size, from a ResizeObserver of the plot's own window, which reports while that window draws;
+  // nothing is drawn before the first measurement.
   useLayoutEffect(() => {
-    if (!plotEl) return
-    const observer = new ResizeObserver(([entry]) => {
+    if (!plotEl || !doc) return
+    const Observer = doc.defaultView?.ResizeObserver ?? ResizeObserver
+    const observer = new Observer(([entry]) => {
+      if (plotEl.ownerDocument !== doc) return setDoc(plotEl.ownerDocument)
       const rect = entry?.contentRect
       if (rect && rect.width > 0 && rect.height > 0) setSize((s) => (s && s.width === rect.width && s.height === rect.height ? s : { width: rect.width, height: rect.height }))
     })
     observer.observe(plotEl)
     return () => observer.disconnect()
-  }, [plotEl])
+  }, [plotEl, doc])
 
   // The plot: made once the box has a size and the store a bar, remade for a new kind, zone, or convention, never per update.
   const ready = size !== null && columns.bars.length > 0
   useEffect(() => {
-    if (!plotEl || !ready || !canDraw()) return
+    if (!plotEl || !doc || !ready || !canDraw()) return
     live.current.palette = readPalette(plotEl)
-    const box = plotEl.getBoundingClientRect()
+    // The measured content box, which padding, a border, or a scaled ancestor do not change.
+    const box = sizeRef.current ?? plotEl.getBoundingClientRect()
     pointerOwnsCursor.current = false
     lastCursorEvent.current = undefined
     const u = new uPlot(
@@ -599,21 +633,10 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     syncPlotCursor(u, cursorBar.current)
     // A mode or a theme is a class on <html> and the accessibility remap a data attribute; the tokens are read again
     // and the picture redrawn, or, when the font stack itself changed, the plot remade with the new axis font.
-    const observer = new MutationObserver(() => {
-      const next = readPalette(plotEl)
-      const fontChanged = next.font !== live.current.palette.font
-      live.current.palette = next
-      if (fontChanged) {
-        setFontEpoch((n) => n + 1)
-        return
-      }
-      styleCursor(u, next)
-      u.redraw(false, false)
-    })
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme", "data-accessibility"] })
-    // A theme that follows the system needs no attribute change, so the scheme flip is watched too.
-    const scheme = plotEl.ownerDocument.defaultView?.matchMedia?.("(prefers-color-scheme: dark)")
-    const onScheme = () => {
+    let queued = false
+    const repaint = () => {
+      queued = false
+      if (plot.current !== u) return
       const next = readPalette(plotEl)
       const fontChanged = next.font !== live.current.palette.font
       live.current.palette = next
@@ -624,16 +647,31 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       styleCursor(u, next)
       u.redraw(false, false)
     }
-    scheme?.addEventListener("change", onScheme)
+    // Read once this round of observers has run: a popout copies the page's root onto its own in the same round,
+    // and the plot in it reads its styles from there.
+    const changed = () => {
+      if (plotEl.ownerDocument !== doc) setDoc(plotEl.ownerDocument)
+      if (queued) return
+      queued = true
+      queueMicrotask(repaint)
+    }
+    // The page's root, where a theme is switched, and the plot's own, which a popout keeps in step with it.
+    const observer = new MutationObserver(changed)
+    const watched = { attributes: true, attributeFilter: ["class", "style", "data-theme", "data-accessibility"] }
+    observer.observe(document.documentElement, watched)
+    if (doc.documentElement !== document.documentElement) observer.observe(doc.documentElement, watched)
+    // A theme that follows the system needs no attribute change, so the scheme flip is watched too.
+    const scheme = doc.defaultView?.matchMedia?.("(prefers-color-scheme: dark)")
+    scheme?.addEventListener("change", changed)
     return () => {
-      scheme?.removeEventListener("change", onScheme)
+      scheme?.removeEventListener("change", changed)
       observer.disconnect()
       u.destroy()
       plot.current = null
       plotKeyRef.current = null
     }
     // plotKey includes convention, overlay structure and font epoch; equal inline options do not remake the plot.
-  }, [plotEl, ready, kind, crosshair, lastLine, zone, plotKey])
+  }, [plotEl, doc, ready, kind, crosshair, lastLine, zone, plotKey])
 
   useEffect(() => {
     if (size && plot.current) plot.current.setSize(size)
@@ -648,6 +686,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
 
   const attachPlot = useCallback((node: HTMLDivElement | null) => {
     setPlotEl(node)
+    setDoc(node?.ownerDocument ?? null)
     if (typeof forwardedRef === "function") return forwardedRef(node)
     if (forwardedRef) forwardedRef.current = node
   }, [forwardedRef])
@@ -671,20 +710,23 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       {...props}
       ref={attachPlot}
       role={interactive ? "slider" : "img"}
-      aria-label={sentence}
-      tabIndex={interactive ? 0 : undefined}
+      aria-label={heldName ?? sentence}
+      // Focus stays where it is when the bars go: the plot keeps its tab stop until it is left.
+      tabIndex={interactive || heldName !== null ? 0 : undefined}
       aria-orientation={interactive ? "horizontal" : undefined}
       aria-valuemin={interactive ? 0 : undefined}
       aria-valuemax={interactive ? count - 1 : undefined}
       aria-valuenow={interactive ? cursor ?? count - 1 : undefined}
-      aria-valuetext={interactive ? readout || sentence : undefined}
+      aria-valuetext={interactive ? (heardKey === null ? (heldName ?? sentence) : heard.text) : undefined}
       onKeyDown={onKeyDown}
       onFocus={(event) => {
         onFocus?.(event)
+        setHeldName(sentence)
         if (!event.defaultPrevented && interactive && cursor === null) moveCursor(count - 1)
       }}
       onBlur={(event) => {
         onBlur?.(event)
+        setHeldName(null)
         if (!event.defaultPrevented) moveCursor(null)
       }}
       data-chart-plot=""

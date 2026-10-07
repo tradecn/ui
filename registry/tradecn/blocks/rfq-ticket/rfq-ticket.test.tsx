@@ -137,7 +137,7 @@ describe("RfqTicket", () => {
     expect(ticket).toHaveTextContent("J. Doe")
     expect(ticket).toHaveTextContent("Settles T+1")
     expect(ticket.querySelector("[data-rfq-status]")).toHaveTextContent("Open")
-    expect(screen.getByRole("timer", { name: "Inquiry Q-1" })).toBeInTheDocument()
+    expect(screen.getByRole("timer", { name: /^Inquiry Q-1 \d+:\d\d$/ })).toBeInTheDocument()
     // The client buys, so the dealer offers: one field, and the market's offer beside it.
     expect(screen.getByLabelText("Offer")).toBeInTheDocument()
     expect(screen.queryByLabelText("Bid")).toBeNull()
@@ -281,7 +281,7 @@ describe("RfqTicket", () => {
 
   it("counts down from when it arrived to when it ends", () => {
     mount({ inquiry: inquiry({ receivedAt: Date.now(), expiresAt: Date.now() + 30_000 }) })
-    const timer = screen.getByRole("timer", { name: "Inquiry Q-1" })
+    const timer = screen.getByRole("timer", { name: /^Inquiry Q-1 / })
     expect(timer).toHaveTextContent(/0:(29|30)/)
     expect(timer).toHaveAttribute("data-tier", "plenty")
   })

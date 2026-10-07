@@ -160,6 +160,10 @@ Pending now belongs to one hook instance per feed. Share its result between view
 
 The live region is now atomic, so each batched transition is read as one message. The status indicator includes a state word, and compact recipes retain the tier word for assistive technology. The trigger/content pair explicitly links its tooltip description in either supported primitive base. These replace the old compact color-only cue and the missing description relationship observed in the Base UI tooltip.
 
+## Countdown
+
+The timer is named by its label and the time left together, through `aria-labelledby`, where v1 named it by `label` alone. A test that finds it with `getByRole("timer", { name: "Inquiry" })` meets both now: match the label with a pattern, or check the whole name with `toHaveAccessibleName`. `formatRemaining(Infinity)` prints `–` where v1 printed `0:00`, and an `Infinity` deadline holds a full bar; a `NaN` deadline holds an empty bar where v1 drew it full; a `startsAt` that is not a finite time is ignored. A countdown samples the time source when it is first drawn and is never behind that moment, so one mounted after its deadline reads `0:00` from its first frame, where v1 could show the clock's stale tick for a frame. `createClock` ticks once a second for an interval that is not a positive finite number, where v1 ran it as fast as the timer allowed.
+
 ## CommandPalette
 
 `CommandPalette` now requires caller-owned children and coordinates behavior without inserting UI. Replace self-closing calls with a `CommandPaletteDialog` or inline `CommandPaletteContent`, then compose the input, list, empty message, groups and items. See the complete [ordinary](command-palette.md#usage) and [inline](command-palette.md#inline-commands) examples.
@@ -250,6 +254,8 @@ Programmatic plot synchronization does not echo a callback.
 Plot recreation restores the selected bar until the next pointer movement. Cursor callbacks no longer repeat under StrictMode.
 
 The root creates no timers or live announcements.
+
+While the plot has focus, its accessible name keeps the reading it took focus with and its value text keeps the selected bar's readout from when the selection reached it; v1 rewrote both at every update, so a focused plot on a live feed was read again each time. A focused plot whose bars go keeps its tab stop until focus leaves, where v1 dropped focus to the page. A `zone` the runtime does not know falls back to the runtime's own on the axis, as the readout already did, where v1 handed it to uPlot, which threw. In a popout, the colors are read once the popout has copied the page's theme onto its own root; v1 read them first and stayed one theme behind.
 
 ## RulesEditor
 
@@ -472,6 +478,8 @@ Preserve visible side headers, own-size descriptions, and your staging status or
 
 Order permissions and submission remain application-owned.
 
+A `convention.tick` that is not a finite positive number shows the empty state and stages nothing, where v1 built rungs at non-finite prices and could hand `onStage` a `NaN` price.
+
 ## SpreadMatrix
 
 `SpreadMatrix` now requires children. Compose a named `SpreadMatrixTable` with native table sections, `SpreadMatrixHead`, and either matrix rows/cells or structure rows/cells.
@@ -605,6 +613,10 @@ Menu renderers now use current props when enabled or replaced, including while a
 ## ParameterGrid
 
 The same `getRowProps` change as Positions, and `onEdit` passes straight to the grid, which reads it current on every commit: a commit from a mount-time layout effect lands in this render's handler, not the last one's.
+
+## RfqStack
+
+`filter` and `getRowProps` are dependencies now: a new one re-filters or redraws the rows the grid holds at once, where v1 read them through a ref and waited for the next feed update, so an inline one now redraws at every render; keep them stable. `thresholds` is read by its value. `byTimeLeft`, `bySize`, and `byArrival` put a value that is not a finite number last, and `stackOrder` passes a `NaN` comparison to the next comparator; v1 let one bad row disorder the rest. A side outside the three prints as sent, where v1 printed nothing. The threshold field marks text that is not a plain decimal invalid and keeps the threshold in force, where v1 read `0x10` as `16` and turned the threshold off for `1,000`. The active row's accessible description is `activeLabel`, `In the ticket` by default, and `parkedLabel` replaces the fixed `Parked`. `useActiveInquiry`'s `setActive` ignores an ended or missing id, where v1 fell back to the stack's choice and could replace the open inquiry in the ticket.
 
 ## Blotter
 

@@ -70,12 +70,25 @@ describe("rfqStackColumns", () => {
     expect(within(rowOf("q1")).getByText("Tier 1")).toBeInTheDocument()
     expect(within(rowOf("q1")).getByText("99.500")).toBeInTheDocument()
     expect(within(rowOf("q4")).getAllByText("–")).toHaveLength(2)
-    const timer = within(rowOf("q1")).getByRole("timer", { name: "Time left q1" })
+    const timer = within(rowOf("q1")).getByRole("timer", { name: /^Time left q1 / })
     expect(timer.dataset.tier).toBe("plenty")
     expect(timer.querySelector("[aria-hidden]")).toBeNull()
     expect(within(rowOf("q3")).getByText("auto")).toBeInTheDocument()
     expect(within(rowOf("q1")).queryByText("auto")).toBeNull()
     expect(within(rowOf("q3")).getByText("Quoted")).toBeInTheDocument()
+  })
+
+  it("prints a side outside the three as the server sent it", () => {
+    const store = seeded()
+    store.applyDeltas({ upsert: [{ ...q1, id: "q7", side: "cross" as RfqStackRow["side"] }, { ...q1, id: "q8", side: "__proto__" as RfqStackRow["side"] }] })
+    render(<Harness store={store} />)
+    expect(within(rowOf("q7")).getByText("cross")).toBeInTheDocument()
+    expect(within(rowOf("q8")).getByText("__proto__")).toBeInTheDocument()
+  })
+
+  it("names each row's timer with the time left, so a row read from its cells says it", () => {
+    render(<Harness store={seeded()} />)
+    expect(within(rowOf("q1")).getByRole("timer")).toHaveAccessibleName(/^Time left q1 \d+:\d\d$/)
   })
 
   it("says a size in millions or in contracts", () => {
@@ -102,6 +115,16 @@ describe("the threshold and the order", () => {
     expect([q1, q2, q3].sort(byArrival).map((r) => r.id)).toEqual(["q3", "q2", "q1"])
     const same = { ...q3, id: "q5", quantity: q1.quantity, expiresAt: NOW + 10_000 }
     expect([q1, same, q2].sort(stackOrder(bySize, byTimeLeft)).map((r) => r.id)).toEqual(["q2", "q5", "q1"])
+  })
+
+  it("puts a value that is not a finite number last, so one bad row cannot disorder the good ones", () => {
+    const bad = { ...q2, id: "bad", expiresAt: NaN, quantity: NaN, receivedAt: NaN }
+    // Store order sixty seconds, unreadable, twenty seconds: a raw subtraction leaves it as it is.
+    expect([q1, bad, q3].sort(byTimeLeft).map((r) => r.id)).toEqual(["q3", "q1", "bad"])
+    expect([q1, bad, q3].sort(bySize).map((r) => r.id)).toEqual(["q1", "q3", "bad"])
+    expect([q1, bad, q3].sort(byArrival).map((r) => r.id)).toEqual(["q3", "q1", "bad"])
+    // A comparator that cannot tell, NaN included, leaves it to the next.
+    expect([q1, q2, q3].sort(stackOrder(() => NaN, bySize)).map((r) => r.id)).toEqual(["q2", "q1", "q3"])
   })
 })
 
@@ -146,6 +169,44 @@ describe("RfqStack", () => {
     unmount()
     render(<Harness store={seeded()} threshold={5_000_000} filter={(row) => row.side !== "two-way"} />)
     expect(rows()).toHaveLength(2)
+  })
+
+  it("re-filters when your filter changes, without waiting for the feed, and redraws when getRowProps does", () => {
+    const store = seeded()
+    const ids = () => [...rows()].map((row) => row.getAttribute("data-row-id"))
+    const { rerender } = render(<Harness store={store} filter={(row) => row.client === "Client A"} />)
+    expect(ids()).toEqual(["q1"])
+    rerender(<Harness store={store} filter={(row) => row.client === "Client B"} />)
+    expect(ids()).toEqual(["q2"])
+    rerender(<Harness store={store} filter={(row) => row.client === "Client B"} getRowProps={() => ({ className: "desk-rates" })} />)
+    expect(rowOf("q2").className).toContain("desk-rates")
+  })
+
+  it("keeps its columns through a re-render with the same thresholds written inline", () => {
+    const price = vi.fn((value: number) => value.toFixed(2))
+    const store = seeded()
+    const { rerender } = render(<Harness store={store} price={price} thresholds={{ soonMs: 10_000 }} />)
+    const calls = price.mock.calls.length
+    expect(calls).toBeGreaterThan(0)
+    rerender(<Harness store={store} price={price} thresholds={{ soonMs: 10_000 }} />)
+    expect(price.mock.calls.length).toBe(calls)
+  })
+
+  it("refuses a threshold that is not a plain size, marks it, and keeps the one in force", () => {
+    const onThresholdChange = vi.fn()
+    render(<Harness store={seeded()} defaultThreshold={5_000_000} thresholdField onThresholdChange={onThresholdChange} />)
+    const field = screen.getByLabelText("Hide auto under") as HTMLInputElement
+    for (const text of ["0x10", "1e3", "1,000", "2,5", "-1"]) {
+      fireEvent.change(field, { target: { value: text } })
+      expect(field).toHaveAttribute("aria-invalid", "true")
+    }
+    expect(onThresholdChange).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-row-id="q3"]')).toBeNull()
+    fireEvent.change(field, { target: { value: "1.5" } })
+    expect(field).not.toHaveAttribute("aria-invalid")
+    expect(onThresholdChange).toHaveBeenLastCalledWith(1_500_000)
+    fireEvent.change(field, { target: { value: "0" } })
+    expect(onThresholdChange).toHaveBeenLastCalledWith(null)
   })
 })
 
@@ -201,6 +262,34 @@ describe("useActiveInquiry", () => {
     const calls = onChange.mock.calls.length
     act(() => store.applyDeltas({ patch: [{ id: "q1", fields: { bid: 99.53125 } }] }))
     expect(onChange).toHaveBeenCalledTimes(calls)
+  })
+
+  it("keeps the inquiry in the ticket when the trader picks one the server has just ended, or one that is gone", () => {
+    const store = seeded()
+    const view = store.createView({ comparator: byArrival })
+    const { result } = renderHook(() => useActiveInquiry(view, { isEnded: ended }))
+    act(() => result.current.setActive("q2"))
+    expect(result.current.activeId).toBe("q2")
+    // q4 ends on the server just before the trader's Enter on its row lands.
+    act(() => store.applyDeltas({ patch: [{ id: "q4", fields: { status: "Expired" } }] }))
+    act(() => result.current.setActive("q4"))
+    expect(result.current.activeId).toBe("q2")
+    act(() => result.current.setActive("missing"))
+    expect(result.current.activeId).toBe("q2")
+    // Null hands it back to the stack's own choice: the first open one in its order.
+    act(() => result.current.setActive(null))
+    expect(result.current.activeId).toBe("q3")
+  })
+
+  it("chooses and tells the same under StrictMode", () => {
+    const store = seeded()
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useActiveInquiry(store, { isEnded: ended, onChange }), { wrapper: StrictMode })
+    expect(result.current.activeId).toBe("q1")
+    expect(onChange).toHaveBeenCalledTimes(1)
+    act(() => store.applyDeltas({ patch: [{ id: "q1", fields: { status: "Done" } }] }))
+    expect(result.current.activeId).toBe("q2")
+    expect(onChange).toHaveBeenCalledTimes(2)
   })
 
   it("reads a store as well as a view, and a removed inquiry gives way", () => {
@@ -290,6 +379,17 @@ describe("parking", () => {
     expect(rowOf("q1").className).toContain("text-muted-foreground")
     expect(rowOf("q2").dataset.state).toBe("active")
     expect(rowOf("q2").className).not.toContain("text-muted-foreground")
+    // The active row is said to a screen reader too.
+    expect(rowOf("q2").getAttribute("aria-description")).toBe("In the ticket")
     expect(rowOf("q3").dataset.state).toBeUndefined()
+  })
+
+  it("says the active row and a parked one in your words, and yours win over both", () => {
+    const { rerender } = render(<Harness store={seeded()} activeId="q2" parkedIds={new Set(["q1"])} activeLabel="Quoting" parkedLabel="Set aside" />)
+    expect(rowOf("q2").getAttribute("aria-description")).toBe("Quoting")
+    expect(rowOf("q1").getAttribute("aria-description")).toBe("Set aside")
+    rerender(<Harness store={seeded()} activeId="q2" parkedIds={new Set(["q1"])} getRowProps={() => ({ "aria-description": "Desk A" })} />)
+    expect(rowOf("q2").getAttribute("aria-description")).toBe("Desk A")
+    expect(rowOf("q1").getAttribute("aria-description")).toBe("Desk A")
   })
 })

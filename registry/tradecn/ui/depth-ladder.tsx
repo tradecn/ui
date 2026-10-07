@@ -203,12 +203,16 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
   const labels = useMemo<DepthLadderLabels>(() => ({ ...DEFAULT_DEPTH_LADDER_LABELS, ...labelsProp }), [labelsProp])
   const format = useMemo(() => createInstrumentFormatter(convention), [convention])
   const tickSize = convention.tick
-  const midTick = mid == null || !Number.isFinite(mid) ? null : tickIndexOf(mid, tickSize)
-  const [anchor, setAnchor] = useState<number | null>(null)
+  // A tick that is not a finite positive size builds no ladder: the empty state, as before the first mid, so no
+  // price the ladder cannot print reaches `onStage`.
+  const usable = Number.isFinite(tickSize) && tickSize > 0
+  const midTick = !usable || mid == null || !Number.isFinite(mid) ? null : tickIndexOf(mid, tickSize)
+  const [placed, setPlaced] = useState<number | null>(null)
+  const anchor = usable ? placed : null
   const [following, setFollowing] = useState(true)
   const [focused, setFocused] = useState<Focus | null>(null)
   // Keep the range under the pointer fixed until following resumes.
-  if (midTick !== null && (anchor === null || (following && Math.abs(midTick - anchor) > depth / 2))) setAnchor(midTick)
+  if (midTick !== null && (anchor === null || (following && Math.abs(midTick - anchor) > depth / 2))) setPlaced(midTick)
   const count = anchor === null ? 0 : depth * 2 + 1
   const direction = order === "descending" ? -1 : 1
   const indexOf = (tick: number) => depth + (tick - (anchor ?? 0)) * direction
@@ -257,7 +261,7 @@ export function DepthLadder({ store, convention, mid, label, depth = 200, rowHei
   const hold = useCallback(() => setFollowing(false), [])
   const recenter = () => {
     if (midTick === null) return
-    setAnchor(midTick)
+    setPlaced(midTick)
     setFollowing(true)
   }
   const stage = useCallback((tick: number, col: LadderColumn) => {

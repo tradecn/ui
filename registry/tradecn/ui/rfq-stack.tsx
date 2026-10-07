@@ -60,6 +60,8 @@ let clockFormat: Intl.DateTimeFormat | null = null
 const localTime = (ms: number) => (clockFormat ??= new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })).format(ms)
 
 const SIDE_WORD: Record<RfqStackSide, string> = { buy: "BUY", sell: "SELL", "two-way": "2-WAY" }
+/** The side the way the desk says it; one outside the three prints as the server sent it. */
+const sideWord = (side: string) => (Object.prototype.hasOwnProperty.call(SIDE_WORD, side) ? SIDE_WORD[side as RfqStackSide] : side)
 
 /** The size the way the desk says it: millions of notional, or a count of contracts. */
 export function formatStackSize(row: RfqStackRow): string {
@@ -89,7 +91,7 @@ export function rfqStackColumns<T extends RfqStackRow>(options: RfqStackColumnOp
     },
     { key: "instrument", header: "Instrument", width: 140, sortable: true, accessor: (r) => r.instrument },
     // The word is always there, so nothing reads a side from a color.
-    { key: "side", header: "Side", width: 56, sortable: true, accessor: (r) => r.side, cell: ({ row }) => <span className="text-muted-foreground">{SIDE_WORD[row.side]}</span> },
+    { key: "side", header: "Side", width: 56, sortable: true, accessor: (r) => r.side, cell: ({ row }) => <span className="text-muted-foreground">{sideWord(row.side)}</span> },
     { key: "size", header: "Size", width: 72, numeric: true, sortable: true, flash: false, accessor: (r) => r.quantity, format: (_, row) => formatStackSize(row) },
     { key: "bid", header: "Bid", width: 80, numeric: true, accessor: (r) => r.bid ?? null, format: px },
     { key: "ask", header: "Ask", width: 80, numeric: true, accessor: (r) => r.ask ?? null, format: px },
@@ -107,18 +109,26 @@ export function rfqThresholdFilter<T extends RfqStackRow>(minQuantity: number | 
   return (row) => !row.auto || row.quantity >= minQuantity
 }
 
-/** Soonest to end first. */
-export const byTimeLeft = <T extends RfqStackRow>(a: T, b: T): number => a.expiresAt - b.expiresAt
-/** Largest first. */
-export const bySize = <T extends RfqStackRow>(a: T, b: T): number => b.quantity - a.quantity
-/** Newest first. */
-export const byArrival = <T extends RfqStackRow>(a: T, b: T): number => b.receivedAt - a.receivedAt
-/** One comparator from several: the first that tells them apart decides. */
+// Finite numbers in order and everything else after them, so one row's bad value cannot disorder the rows around it.
+function finiteFirst(a: number, b: number): number {
+  const finiteA = Number.isFinite(a)
+  const finiteB = Number.isFinite(b)
+  if (finiteA && finiteB) return a - b
+  return finiteA === finiteB ? 0 : finiteA ? -1 : 1
+}
+
+/** Soonest to end first; a deadline that is not a finite time goes last. */
+export const byTimeLeft = <T extends RfqStackRow>(a: T, b: T): number => finiteFirst(a.expiresAt, b.expiresAt)
+/** Largest first; a size that is not a finite number goes last. */
+export const bySize = <T extends RfqStackRow>(a: T, b: T): number => finiteFirst(-a.quantity, -b.quantity)
+/** Newest first; an arrival that is not a finite time goes last. */
+export const byArrival = <T extends RfqStackRow>(a: T, b: T): number => finiteFirst(-a.receivedAt, -b.receivedAt)
+/** One comparator from several: the first that tells them apart decides. One that cannot (zero, or NaN) leaves it to the next. */
 export function stackOrder<T>(...comparators: ((a: T, b: T) => number)[]): (a: T, b: T) => number {
   return (a, b) => {
     for (const compare of comparators) {
       const c = compare(a, b)
-      if (c !== 0) return c
+      if (c) return c
     }
     return 0
   }
@@ -188,6 +198,10 @@ export interface RfqStackProps<T extends RfqStackRow = RfqStackRow> extends Omit
   thresholdLabel?: string
   /** Your items for the right-click menu. */
   renderContextMenu?: (rows: T[], ids: RowId[]) => ReactNode
+  /** Said to a screen reader for the active row. Default "In the ticket". */
+  activeLabel?: string
+  /** Said to a screen reader for a parked row. Default "Parked". */
+  parkedLabel?: string
 }
 
 interface ThresholdFieldProps {
@@ -197,6 +211,16 @@ interface ThresholdFieldProps {
   onChange: (value: number | null) => void
 }
 
+// A size as plain decimal digits: `0x10`, `1e3`, `1,000`, and `2,5` are not one.
+const PLAIN_SIZE = /^\s*(?:\d+\.?\d*|\.\d+)\s*$/
+/** The field's text as a size: null for blank or zero (no threshold), undefined for text that is not a plain size. */
+function readSize(text: string): number | null | undefined {
+  if (text.trim() === "") return null
+  if (!PLAIN_SIZE.test(text)) return undefined
+  const n = Number(text)
+  return Number.isFinite(n) ? (n > 0 ? n : null) : undefined
+}
+
 // Its own component with its own state: a keystroke here re-renders this field and not one row of the grid.
 function ThresholdField({ value, unit, label, onChange }: ThresholdFieldProps) {
   const scale = unit === "mm" ? 1e6 : 1
@@ -204,9 +228,12 @@ function ThresholdField({ value, unit, label, onChange }: ThresholdFieldProps) {
   const [known, setKnown] = useState(value)
   if (value !== known) {
     setKnown(value)
-    const shown = text.trim() === "" ? null : Number(text) * scale
+    const read = readSize(text)
+    const shown = read === undefined ? undefined : read === null ? null : read * scale
     if (shown !== value) setText(value === null ? "" : String(value / scale))
   }
+  // Text that is not a plain size is marked and changes nothing: the threshold in force stays.
+  const invalid = readSize(text) === undefined
   return (
     <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
       <span>{label}</span>
@@ -217,12 +244,13 @@ function ThresholdField({ value, unit, label, onChange }: ThresholdFieldProps) {
         spellCheck={false}
         aria-label={label}
         placeholder={unit === "mm" ? "mm" : "contracts"}
+        aria-invalid={invalid || undefined}
         className="h-6 w-20 rounded-sm px-1.5 py-0 font-(family-name:--tradecn-font-mono) text-xs md:text-xs"
         onChange={(event) => {
           const next = event.target.value
           setText(next)
-          const n = Number(next)
-          onChange(next.trim() === "" || !Number.isFinite(n) || n <= 0 ? null : n * scale)
+          const read = readSize(next)
+          if (read !== undefined) onChange(read === null ? null : read * scale)
         }}
       />
     </label>
@@ -246,6 +274,8 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
   thresholdUnit = "mm",
   thresholdLabel = "Hide auto under",
   renderContextMenu,
+  activeLabel = "In the ticket",
+  parkedLabel = "Parked",
   filter,
   className,
   store,
@@ -258,10 +288,12 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
   const showField = thresholdField ?? (thresholdProp !== undefined || defaultThreshold !== null || onThresholdChange !== undefined)
 
   // The grid's rows are memoized, so what it is handed has to keep its identity from one render of
-  // this component to the next. Your callbacks are read through a ref, and may be inline.
-  const latest = useRef({ onActivate, onRowActivate, getRowProps, renderContextMenu, onThresholdChange, filter })
+  // this component to the next. The handlers are read through a ref, and may be inline. `filter`,
+  // `getRowProps`, and the column options shape what the grid shows, so a new one re-filters or
+  // redraws: keep them stable. `thresholds` is read by its value.
+  const latest = useRef({ onActivate, onRowActivate, renderContextMenu, onThresholdChange })
   useEffect(() => {
-    latest.current = { onActivate, onRowActivate, getRowProps, renderContextMenu, onThresholdChange, filter }
+    latest.current = { onActivate, onRowActivate, renderContextMenu, onThresholdChange }
   })
   const controlled = thresholdProp !== undefined
   const setThreshold = useCallback(
@@ -272,32 +304,32 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
     [controlled],
   )
 
-  const all = useMemo(() => columns ?? rfqStackColumns<T>({ price, time, thresholds, clock }), [columns, price, time, thresholds, clock])
-  const hasOwnFilter = Boolean(filter)
+  const soonMs = thresholds?.soonMs
+  const all = useMemo(() => columns ?? rfqStackColumns<T>({ price, time, thresholds: soonMs === undefined ? undefined : { soonMs }, clock }), [columns, price, time, soonMs, clock])
+  // A new filter is a new function here, so the grid re-filters the rows it holds instead of waiting for the feed.
   const combined = useMemo(() => {
     const byThreshold = rfqThresholdFilter<T>(threshold)
-    return (row: T) => byThreshold(row) && (latest.current.filter?.(row) ?? true)
-    // The consumer's filter is read through the ref; its presence is what changes the function.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threshold, hasOwnFilter])
+    return filter ? (row: T) => byThreshold(row) && filter(row) : byThreshold
+  }, [threshold, filter])
   const activate = useCallback((row: T, id: RowId) => {
     latest.current.onActivate?.(id, row)
     latest.current.onRowActivate?.(row, id)
   }, [])
   const rowProps = useCallback(
     (row: T, id: RowId) => {
-      const own = latest.current.getRowProps?.(row, id)
+      const own = getRowProps?.(row, id)
       const active = id === activeId
-      // Set aside: muted, named to a screen reader, still in its place in the order. The active mark wins.
+      // Set aside: muted, said to a screen reader, still in its place in the order. The active mark wins,
+      // and is said too.
       const parked = !active && parkedIds?.has(id) === true
       return {
         ...own,
         "data-state": active ? "active" : parked ? "parked" : own?.["data-state"],
-        "aria-description": parked ? (own?.["aria-description"] ?? "Parked") : own?.["aria-description"],
+        "aria-description": own?.["aria-description"] ?? (active ? activeLabel : parked ? parkedLabel : undefined),
         className: cn(active && "bg-primary/10 shadow-[inset_2px_0_0_var(--primary)]", parked && "text-muted-foreground", own?.className),
       }
     },
-    [activeId, parkedIds],
+    [activeId, parkedIds, getRowProps, activeLabel, parkedLabel],
   )
   const hasOwnMenu = Boolean(renderContextMenu)
   const menu = useCallback((rows: T[], ids: RowId[]) => latest.current.renderContextMenu?.(rows, ids), [])

@@ -130,7 +130,7 @@ For v1 integrations, see the [migration guide](migrating-v1-to-v2.md#pricechart)
 | `label` | `string` | Required | Accessible name of the chart. |
 | `kind` | `"line" \| "candles"` | `"line"` | A line through the closes, or a candle per bar. |
 | `baseline` | `number \| null` | `null` | A finite previous close: the change is measured from it and it is drawn as a dashed line. Otherwise, the change is from the first bar's open. |
-| `zone` | `string` | The runtime's | A runtime-supported IANA zone for the time axis and readout: the venue's. |
+| `zone` | `string` | The runtime's | A runtime-supported IANA zone for the time axis and readout: the venue's. A zone the runtime does not know falls back to the runtime's own, on the axis as in the readout. |
 | `locale` | `string` | `en-US` | Locale of the readout's clock. |
 | `overlays` | `readonly PriceChartOverlay[]` | None | Lines over the bars. Compose their legend separately. |
 | `crosshair` | `boolean` | `true` | The crosshair, from the pointer and the keys. Off, the plot is an image. |
@@ -195,7 +195,7 @@ Update data through the store and move the cursor through the plot.
 | `kind`, `crosshair`, `lastLine`, `zone`, or serialized `convention` | Recreates the plot. |
 | Overlay ids, colors, widths, or order | Recreates the plot. |
 | `baseline` alone | Updates the readings without recalculating the price scale. An out-of-range reference can stay offscreen until data updates or the plot is recreated. |
-| Theme or mode | Repaints the colors on an `<html>` class, style, `data-theme`, or `data-accessibility` change, and on a system color-scheme flip. A theme switched on a container alone keeps the painted colors until one of those changes. |
+| Theme or mode | Repaints the colors on an `<html>` class, style, `data-theme`, or `data-accessibility` change, and on a system color-scheme flip. A theme switched on a container alone keeps the painted colors until one of those changes. A chart in a popout watches its own window's root as well and reads the colors once the popout has copied the page's theme there. |
 | `--tradecn-font-mono` stack | Recreates the plot to update its axis font, on the same triggers. |
 | Empty store or unmount | Destroys the plot. |
 
@@ -291,7 +291,7 @@ The last close determines direction against the reference. Equal prices are `fla
 
 The root, `PriceChartLast`, and `PriceChartChange` carry `data-direction`.
 
-The plot's accessible name includes the direction, last price, change, range, and bar count:
+The plot's accessible name includes the direction, last price, change, range, and bar count. While the plot has focus, the name keeps the reading it took focus with, and the value text keeps the selected bar's readout as it was when the selection reached that bar, or the held reading with no bar selected, so a live feed doesn't make a screen reader read either again; moving the selection reads the bar it reaches as it is then:
 
 ```text
 ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars
@@ -301,7 +301,7 @@ ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars
 
 With a crosshair and at least one finite bar, the plot is a horizontal `slider`.
 
-Focus selects the last bar unless a bar is already selected. With no bars or `crosshair={false}`, the plot is an `img` without a tab stop.
+Focus selects the last bar unless a bar is already selected. With no bars or `crosshair={false}`, the plot is an `img` without a tab stop, except that a focused plot whose bars go keeps its tab stop until focus leaves.
 
 | Key | Action |
 |---|---|

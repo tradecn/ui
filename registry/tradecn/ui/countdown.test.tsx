@@ -1,4 +1,5 @@
-import { act, render } from "@testing-library/react"
+import { act, render, screen } from "@testing-library/react"
+import { StrictMode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createClock } from "@/registry/tradecn/lib/clock"
 import { Countdown, countdownTier, formatRemaining } from "@/registry/tradecn/ui/countdown"
@@ -32,6 +33,8 @@ describe("formatRemaining", () => {
     [3_723_000, "1:02:03"],
     [-400, "0:00"],
     [NaN, "0:00"],
+    [-Infinity, "0:00"],
+    [Infinity, "–"],
   ])("%d ms is %s", (ms, text) => {
     expect(formatRemaining(ms)).toBe(text)
   })
@@ -81,13 +84,15 @@ describe("Countdown", () => {
     render(<App />)
     const live = () => root().querySelector("[aria-live]")!
     expect(root().getAttribute("role")).toBe("timer")
-    expect(root().getAttribute("aria-label")).toBe("Inquiry")
+    // Named by its label and the time left together, which follows the digits.
+    expect(screen.getByRole("timer")).toHaveAccessibleName("Inquiry 0:12")
     expect(root().dataset.tier).toBe("plenty")
     expect(digits()).toHaveTextContent("0:12")
     expect(live()).toHaveTextContent("")
     tick(1000)
     expect(root().dataset.tier).toBe("plenty")
     expect(digits()).toHaveTextContent("0:11")
+    expect(screen.getByRole("timer")).toHaveAccessibleName("Inquiry 0:11")
     expect(live()).toHaveTextContent("")
     tick(1000)
     expect(root().dataset.tier).toBe("soon")
@@ -120,18 +125,83 @@ describe("Countdown", () => {
     expect(recorded.options.duration).toBe(30_000)
   })
 
-  it("holds the bar empty in the second after the deadline, while the tick lags the sample", () => {
+  it("reads first sight from a fresh sample, so one drawn in the second after its deadline is over at once", () => {
     let t = 0
     const clock = createClock(1000, () => t)
     const stop = clock.subscribe(() => {})
     t = 500
-    // The last tick still reads 0, so the tier says soon; the fresh sample says expired. The
-    // zero-length run holds the bar at zero instead of leaving it full until the next tick.
+    // The last tick still reads 0, but first sight samples 500: past the end, so the digits, the tier, and
+    // the bar all say it is over from the first frame instead of after the next tick.
     render(<Countdown clock={clock} startsAt={-29_700} expiresAt={300} />)
-    const recorded = animations.at(-1)!
-    expect(recorded.options.duration).toBe(0)
-    expect(recorded.keyframes[0]?.transform).toBe("scaleX(0)")
+    expect(root().dataset.tier).toBe("expired")
+    expect(digits()).toHaveTextContent("0:00")
+    expect(bar().style.transform).toBe("scaleX(0)")
+    expect(animations).toHaveLength(0)
     stop()
+  })
+
+  it("shows the real time left from its first frame after the clock sat idle, and announces nothing for the catch-up", () => {
+    let t = 0
+    const clock = createClock(1000, () => t)
+    // The clock's last tick stays 0 while ten minutes pass with nothing subscribed.
+    clock.subscribe(() => {})()
+    t = 600_000
+    let firstFrame: { tier?: string; digits?: string | null } = {}
+    function Probe() {
+      return (
+        <div
+          ref={(node) => {
+            if (!node || firstFrame.tier) return
+            const timer = node.querySelector<HTMLElement>('[data-slot="tradecn-countdown"]')!
+            firstFrame = { tier: timer.dataset.tier, digits: timer.querySelector("[data-countdown-digits]")!.textContent }
+          }}
+        >
+          <Countdown clock={clock} expiresAt={605_000} label="Inquiry" />
+        </div>
+      )
+    }
+    render(<Probe />)
+    // The stale tick would have read ten minutes and five seconds left: plenty, then soon once the clock caught up.
+    expect(firstFrame).toEqual({ tier: "soon", digits: "0:05" })
+    expect(root().querySelector("[aria-live]")).toHaveTextContent("")
+  })
+
+  it("holds the bar still with no finite deadline: empty for one it cannot read, full for an endless one", () => {
+    t = 1000
+    const clock = createClock(1000, () => t)
+    const { rerender } = render(<Countdown clock={clock} expiresAt={NaN} startsAt={0} />)
+    expect(root().dataset.tier).toBe("expired")
+    expect(digits()).toHaveTextContent("0:00")
+    expect(bar().style.transform).toBe("scaleX(0)")
+    rerender(<Countdown clock={clock} expiresAt={Infinity} startsAt={0} />)
+    expect(root().dataset.tier).toBe("plenty")
+    expect(digits()).toHaveTextContent("–")
+    expect(bar().style.transform).toBe("scaleX(1)")
+    expect(animations).toHaveLength(0)
+    tick(5000)
+    expect(bar().style.transform).toBe("scaleX(1)")
+  })
+
+  it("measures from first sight when startsAt is not a finite time", () => {
+    t = 4000
+    const clock = createClock(1000, () => t)
+    render(<Countdown expiresAt={10_000} startsAt={NaN} clock={clock} />)
+    expect(animations[0]!.keyframes[0]).toEqual({ transform: "scaleX(1)" })
+    expect(animations[0]!.options.duration).toBe(6000)
+  })
+
+  it("calls onExpire once for a mount past its deadline under StrictMode", () => {
+    t = 20_000
+    const clock = createClock(1000, () => t)
+    const onExpire = vi.fn()
+    render(
+      <StrictMode>
+        <Countdown expiresAt={12_000} startsAt={0} clock={clock} onExpire={onExpire} />
+      </StrictMode>,
+    )
+    expect(onExpire).toHaveBeenCalledTimes(1)
+    tick(2000)
+    expect(onExpire).toHaveBeenCalledTimes(1)
   })
 
   it("sizes first sight from a fresh sample without startsAt", () => {
