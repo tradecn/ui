@@ -176,4 +176,22 @@ describe("QuoteField", () => {
     expect(input()).toBeDisabled()
     expect(screen.getByRole("button", { name: "Price up one tick" })).toBeDisabled()
   })
+
+  it("ties its problem to the input and alerts with it, unless the parent says it itself", () => {
+    const { set } = mount({ error: "This order type needs a price." })
+    const shown = screen.getByText("This order type needs a price.")
+    expect(input()).toHaveAttribute("aria-describedby", shown.id)
+    expect(shown).toHaveAttribute("role", "alert")
+    set(null, { error: "The price is 7 ticks from the market; the limit is 4 ticks.", announceError: false })
+    expect(screen.getByText("The price is 7 ticks from the market; the limit is 4 ticks.")).toHaveAttribute("role", "none")
+    // Words that change on their own are not the input's description either: each change would be read again.
+    expect(input()).not.toHaveAttribute("aria-describedby")
+    // The field's own reading of the text stays an alert whatever the parent says about its own words.
+    set(null, { error: undefined, announceError: false })
+    type(input(), "abc")
+    fireEvent.blur(input())
+    const own = screen.getByText("Not a price in this instrument's notation.")
+    expect(own).toHaveAttribute("role", "alert")
+    expect(input()).toHaveAttribute("aria-describedby", own.id)
+  })
 })

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
-import { useLayoutEffect } from "react"
+import { StrictMode, useLayoutEffect } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { RFQ_TICKET_BINDINGS, RfqTicket, checkQuote, describeQuote, formatSize, quoteDistance, quotedSides, type RfqAction, type RfqInquiry, type RfqQuoteDraft, type RfqTicketProps } from "@/registry/tradecn/blocks/rfq-ticket/rfq-ticket"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
@@ -97,13 +97,16 @@ describe("RfqTicket", () => {
     })
     expect(document.querySelector("[data-rfq-limits='block']")).toHaveTextContent("Desk policy blocks this quote.")
     const button = screen.getByRole("button", { name: /^Quote/ })
-    expect(button).toBeDisabled()
+    // Held, not taken away: it stays in reach, and a press on it is refused and says why.
+    expect(button).toHaveAttribute("aria-disabled", "true")
+    expect(button).toBeEnabled()
     fireEvent.click(button)
     expect(quote).not.toHaveBeenCalled()
+    expect(document.querySelector("[data-rfq-announcer]")).toHaveTextContent("Desk policy blocks this quote.")
     fireEvent.click(screen.getByRole("button", { name: "Pass" }))
     expect(pass).toHaveBeenCalledTimes(1)
     rerender({ limits: undefined })
-    expect(button).not.toBeDisabled()
+    expect(button).not.toHaveAttribute("aria-disabled")
     expect(document.querySelector("[data-rfq-limits='block']")).toBeNull()
     fireEvent.click(button)
     expect(quote).toHaveBeenCalledTimes(1)
@@ -115,7 +118,7 @@ describe("RfqTicket", () => {
       defaultDraft: { ask: 99.515625 },
       limits: { custom: () => deny ? [{ field: name, level: "block", rule: "desk-policy", message: "Desk policy blocks this quote." }] : [] },
     })
-    expect(screen.getByRole("button", { name: /^Quote/ })).not.toBeDisabled()
+    expect(screen.getByRole("button", { name: /^Quote/ })).not.toHaveAttribute("aria-disabled")
     deny = true
     fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
     expect(quote).not.toHaveBeenCalled()
@@ -753,19 +756,180 @@ describe("limits", () => {
     expect(document.querySelector("[data-rfq-status]")).toHaveAttribute("role", "status")
   })
 
+  it("says a level block only when a press meets it, and shows it without an alert or a description", () => {
+    const { rerender } = mount({ limits: { maxDistance: { ticks: 4 } } })
+    const announcer = document.querySelector<HTMLElement>("[data-rfq-announcer]")!
+    for (const text of ["9", "99", "99-", "99-2", "99-20"]) type(field("Offer"), text)
+    expect(announcer).toBeEmptyDOMElement()
+    const shown = () => screen.getByText(/ticks from the market/, { selector: "[data-slot='field-error']" })
+    expect(shown()).toHaveTextContent("7 ticks")
+    expect(shown()).toHaveAttribute("role", "none")
+    expect(field("Offer")).not.toHaveAttribute("aria-describedby")
+    fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
+    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market; the limit is 4 ticks.")
+    const said = announcer.firstElementChild
+    rerender({ inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.53125 } }) })
+    expect(shown()).toHaveTextContent("6 ticks")
+    expect(announcer.firstElementChild).toBe(said)
+    // The refused press stored nothing: the field shows the live block, still without an alert or a description.
+    expect(shown()).toHaveAttribute("role", "none")
+    expect(field("Offer")).not.toHaveAttribute("aria-describedby")
+    // The market comes back inside the line: the block is gone, and so is what was said about it, for good.
+    rerender({ inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.59375 } }) })
+    expect(announcer).toBeEmptyDOMElement()
+    // The market moving back out waits for the next press.
+    rerender({ inquiry: inquiry() })
+    expect(shown()).toHaveTextContent("7 ticks")
+    expect(announcer).toBeEmptyDOMElement()
+    fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
+    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market; the limit is 4 ticks.")
+  })
+
+  it("says the question again for every press that asks it, a second action's included", () => {
+    const quote = vi.fn()
+    const firm = vi.fn()
+    mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } }, actions: [{ id: "quote", label: "Quote", run: quote, primary: true }, { id: "firm", label: "Firm", run: firm }], inquiry: inquiry({ allowedActions: ["quote", "firm"] }) })
+    const announcer = document.querySelector<HTMLElement>("[data-rfq-announcer]")!
+    type(field("Offer"), "99-20")
+    fireEvent.click(screen.getByRole("button", { name: /^Firm/ }))
+    const first = announcer.firstElementChild
+    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market, past 4 ticks. Send it anyway?")
+    // The send key runs Quote, which has not asked yet: it asks, and is heard asking.
+    fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
+    expect(quote).not.toHaveBeenCalled()
+    expect(announcer.firstElementChild).not.toBe(first)
+    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market, past 4 ticks. Send it anyway?")
+    fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
+    expect(quote).toHaveBeenCalledTimes(1)
+    expect(firm).not.toHaveBeenCalled()
+  })
+
+  it("keeps a held action in reach: focus stays on it as a block arrives, and a press on it says why", () => {
+    const { quote, rerender } = mount({ defaultDraft: { ask: 99.53125 } })
+    const button = screen.getByRole("button", { name: /^Quote/ })
+    button.focus()
+    rerender({ limits: { sides: ["buy"] } })
+    expect(button).toHaveAttribute("aria-disabled", "true")
+    expect(document.activeElement).toBe(button)
+    fireEvent.click(button)
+    expect(quote).not.toHaveBeenCalled()
+    expect(document.querySelector("[data-rfq-announcer]")).toHaveTextContent("The book does not take a sell.")
+  })
+
+  it("says, asks, and lets go the same under StrictMode, and says nothing at mount", () => {
+    const quote = vi.fn()
+    const registry = createHotkeyRegistry({ platform: "other" })
+    const actions: RfqAction[] = [{ id: "quote", label: "Quote", run: quote, primary: true }]
+    const desk = { field: "desk", level: "confirm" as const, rule: "desk-check", message: "Check with the desk." }
+    const ui = (allowed: string[]) => (
+      <StrictMode>
+        <HotkeysProvider registry={registry}>
+          <RfqTicket inquiry={inquiry({ allowedActions: allowed })} actions={actions} limits={{ maxDistance: { ticks: 4 }, custom: () => [desk] }} defaultDraft={{ ask: 99.625 }} />
+        </HotkeysProvider>
+      </StrictMode>
+    )
+    const view = render(ui(["quote"]))
+    const announcer = document.querySelector<HTMLElement>("[data-rfq-announcer]")!
+    // A block present at mount is shown, and nothing is said until a press meets it.
+    expect(screen.getByText("The ask is 7 ticks from the market; the limit is 4 ticks.", { selector: "[data-slot='field-error']" })).toHaveAttribute("role", "none")
+    expect(announcer).toBeEmptyDOMElement()
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market; the limit is 4 ticks.")
+    type(field("Offer"), "99-17")
+    expect(announcer).toBeEmptyDOMElement()
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(announcer).toHaveTextContent("Check with the desk.")
+    // Taken away and given back: the question goes, and the action asks again.
+    view.rerender(ui([]))
+    expect(announcer).toBeEmptyDOMElement()
+    view.rerender(ui(["quote"]))
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).not.toHaveBeenCalled()
+    expect(announcer).toHaveTextContent("Check with the desk.")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).toHaveBeenCalledTimes(1)
+  })
+
+  it("clears a crossed quote's message from the offer when either level changes", () => {
+    const { quote } = mount({ inquiry: inquiry({ side: "two-way" }) })
+    type(field("Bid"), "99-17")
+    type(field("Offer"), "99-16")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).not.toHaveBeenCalled()
+    const crossed = screen.getByText("The quote is crossed.")
+    expect(crossed).toHaveAttribute("role", "alert")
+    expect(field("Offer")).toHaveAttribute("aria-describedby", crossed.id)
+    // A new bid answers it: the offer no longer shows it or is described by it.
+    type(field("Bid"), "99-15")
+    expect(screen.queryByText("The quote is crossed.")).toBeNull()
+    expect(field("Offer")).not.toHaveAttribute("aria-describedby")
+    expect(field("Offer")).not.toHaveAttribute("aria-invalid")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).toHaveBeenCalledTimes(1)
+  })
+
+  it("lets what a press was refused for go once any block it named stops blocking", () => {
+    const desk = { field: "desk", level: "block" as const, rule: "desk-policy", message: "Desk policy blocks this quote." }
+    const { rerender } = mount({ limits: { custom: () => [desk], maxDistance: { ticks: 4 } } })
+    const announcer = document.querySelector<HTMLElement>("[data-rfq-announcer]")!
+    type(field("Offer"), "99-20")
+    fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
+    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market; the limit is 4 ticks.")
+    expect(announcer).toHaveTextContent("Desk policy blocks this quote.")
+    // The market comes to the offer: the desk still blocks, but what was said is no longer true, so it goes.
+    rerender({ inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.59375 } }) })
+    expect(document.querySelector("[data-rfq-limits='block']")).toHaveTextContent("Desk policy blocks this quote.")
+    expect(announcer).toBeEmptyDOMElement()
+  })
+
+  it("asks again when the market adds a reason to a standing question, and lets it all go once the question is answered", () => {
+    const desk = { field: "ask" as const, level: "confirm" as const, rule: "desk-check", message: "Desk check. Send it anyway?" }
+    const { quote, rerender } = mount({ limits: { custom: () => [desk], maxDistance: { ticks: 4, level: "confirm" } }, inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.625 } }) })
+    const announcer = document.querySelector<HTMLElement>("[data-rfq-announcer]")!
+    type(field("Offer"), "99-20")
+    const button = screen.getByRole("button", { name: /^Quote/ })
+    fireEvent.click(button)
+    expect(announcer).toHaveTextContent("Desk check. Send it anyway?")
+    expect(announcer).not.toHaveTextContent("ticks")
+    rerender({ inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.515625 } }) })
+    expect(announcer).not.toHaveTextContent("ticks")
+    fireEvent.click(button)
+    expect(quote).not.toHaveBeenCalled()
+    expect(announcer).toHaveTextContent("7 ticks from the market")
+    fireEvent.click(button)
+    expect(quote).toHaveBeenCalledTimes(1)
+    expect(announcer).toBeEmptyDOMElement()
+  })
+
+  it("withdraws a question whose action the venue takes away, so it asks again when the action comes back", () => {
+    const { quote, rerender } = mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } } })
+    type(field("Offer"), "99-20")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(screen.getByRole("button", { name: /^Quote/ })).toHaveTextContent("Quote anyway?")
+    rerender({ inquiry: inquiry({ allowedActions: ["pass"] }) })
+    rerender({ inquiry: inquiry() })
+    const button = screen.getByRole("button", { name: /^Quote/ })
+    expect(button).not.toHaveTextContent("anyway")
+    fireEvent.click(button)
+    expect(quote).not.toHaveBeenCalled()
+    expect(button).toHaveTextContent("Quote anyway?")
+  })
+
   it("blocks under the field and holds the actions that send a quote, while a pass still runs", () => {
     const { quote, pass } = mount({ limits: { maxDistance: { ticks: 4 } } })
     type(field("Offer"), "99-20")
-    expect(screen.getByText("The ask is 7 ticks from the market; the limit is 4 ticks.")).toBeInTheDocument()
+    const shown = screen.getByText("The ask is 7 ticks from the market; the limit is 4 ticks.", { selector: "[data-slot='field-error']" })
+    expect(shown).toHaveAttribute("role", "none")
     const button = screen.getByRole("button", { name: /^Quote/ })
-    expect(button).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Pass" })).not.toBeDisabled()
+    expect(button).toHaveAttribute("aria-disabled", "true")
+    expect(screen.getByRole("button", { name: "Pass" })).not.toHaveAttribute("aria-disabled")
     fireEvent.click(screen.getByRole("button", { name: "Pass" }))
     expect(pass).toHaveBeenCalledTimes(1)
     fireEvent.click(button)
     expect(quote).not.toHaveBeenCalled()
+    expect(document.querySelector("[data-rfq-announcer]")).toHaveTextContent("The ask is 7 ticks from the market; the limit is 4 ticks.")
     type(field("Offer"), "99-17")
-    expect(button).not.toBeDisabled()
+    expect(button).not.toHaveAttribute("aria-disabled")
     fireEvent.click(button)
     expect(quote).toHaveBeenCalledTimes(1)
   })
@@ -773,10 +937,11 @@ describe("limits", () => {
   it("refuses a side the book does not take: a client who buys wants an offer, and an offer is a sell", () => {
     const { quote } = mount({ limits: { sides: ["buy"] } })
     type(field("Offer"), "99-17")
-    expect(screen.getByText("The book does not take a sell.")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /^Quote/ })).toBeDisabled()
+    expect(screen.getByText("The book does not take a sell.", { selector: "[data-slot='field-error']" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^Quote/ })).toHaveAttribute("aria-disabled", "true")
     fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
     expect(quote).not.toHaveBeenCalled()
+    expect(document.querySelector("[data-rfq-announcer]")).toHaveTextContent("The book does not take a sell.")
   })
 
   it("does nothing different without limits", () => {

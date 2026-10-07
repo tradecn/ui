@@ -7,7 +7,7 @@ import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, quoteInvertedOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
-import { blocks, checkLimits, confirms, problemsByField, type Limits } from "@/registry/tradecn/lib/limits"
+import { blocks, checkLimits, confirms, problemsByField, type Limits, type Problem as LimitProblem } from "@/registry/tradecn/lib/limits"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
 
@@ -242,6 +242,18 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
 }
 
 const noop = () => () => {}
+// A limit's identity apart from its words, which the market can change under it.
+const ruleOf = (p: LimitProblem) => `${p.field}\u0000${p.rule}`
+
+// What a press met, as it landed: the question an action asked, or (no action) the blocks it was refused for, by rule.
+interface Said {
+  text: string
+  revision: number
+  draft: RfqQuoteDraft | null
+  action: string | null
+  rules: readonly string[]
+}
+
 // A press counts once: the second click of a double-click, and the clicks a held Enter repeats on a focused
 // button, run nothing and answer no question the first press asked. The hold belongs to the button it repeats
 // on, and ends when the key is let go or focus leaves that button.
@@ -307,6 +319,8 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const box = useRef<HTMLDivElement>(null)
   const inputs = { bid: useRef<HTMLInputElement>(null), ask: useRef<HTMLInputElement>(null) }
   const allowed = actions.filter((action) => inquiry.allowedActions?.includes(action.id))
+  // A question whose action the venue took away no longer stands: if the action comes back, it asks again.
+  if (confirming !== null && !allowed.some((action) => action.id === confirming)) setConfirming(null)
   const primary = allowed.find((action) => action.primary) ?? allowed.find((action) => action.needsQuote !== false) ?? allowed[0]
   // The key hint rides the action the send key actually runs, which can differ from primary.
   const sendAction = sendTarget(allowed)
@@ -367,7 +381,9 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   function setLevel(side: QuoteSide, value: number | null) {
     setDraft((d) => (d[side] === value ? d : { ...d, [side]: value }))
-    setProblems((p) => (p[side] ? { ...p, [side]: undefined } : p))
+    // A new level answers its own problem and a crossed pair's, whose message sits on the offer.
+    const crossed = latest.current.labels.crossed
+    setProblems((p) => (p[side] || p.ask === crossed ? { ...p, [side]: undefined, ...(p.ask === crossed ? { ask: undefined } : {}) } : p))
     setConfirming(null)
   }
 
@@ -377,20 +393,25 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const blocking = blocks(limitProblems)
   const blockedBy = problemsByField(blocking)
   const blocked = blocking.length > 0
+  // A block holds an action that sends a quote without taking it out of reach: it looks disabled and stays focusable,
+  // and a press on it, from any input, is refused and says why.
+  const heldByLimit = (action: RfqAction) => blocked && action.needsQuote !== false
   const shownProblems = { bid: problems.bid ?? blockedBy.bid, ask: problems.ask ?? blockedBy.ask }
   const otherBlocks = blocking.filter((p) => p.field !== "bid" && p.field !== "ask")
   const asking = confirming !== null ? confirms(limitProblems) : []
   const limitsText = [...otherBlocks, ...asking].map((p) => p.message).join(" ")
-  // What a screen reader hears from the limits: the question as the press asked it, and the other fields' blocks
-  // as their set changes, never a sentence the moving market rewrites. Each message is a new node, so the same
-  // words said again are still heard.
-  const [said, setSaid] = useState({ text: "", revision: 0 })
-  const blockSet = otherBlocks.map((p) => `${p.field}\u0000${p.rule}`).join("\u0001")
-  const [blocksSaid, setBlocksSaid] = useState(blockSet)
-  if (blockSet !== blocksSaid) {
-    setBlocksSaid(blockSet)
-    if (blockSet) setSaid({ text: otherBlocks.map((p) => p.message).join(" "), revision: said.revision + 1 })
-  }
+  // What a screen reader hears from the limits: what a press met, as it landed — the blocks it was refused for, or
+  // the question it asked. Nothing is said as the market or the dealer's typing rewords them; the line and the
+  // fields keep the live words on screen. A message goes for good once the draft changes or what it said no longer
+  // stands (a block it named stops blocking, or the question is answered or withdrawn), so a block the market brings
+  // back waits for the next press. Each message is a new node, so the same words said again are still heard.
+  const [said, setSaid] = useState<Said>({ text: "", revision: 0, draft: null, action: null, rules: [] })
+  const blockingRules = new Set(blocking.map(ruleOf))
+  const stands = said.draft === draft && (said.action === null ? said.rules.every((rule) => blockingRules.has(rule)) : confirming === said.action)
+  if (said.draft !== null && !stands) setSaid({ ...said, text: "", draft: null, action: null, rules: [] })
+  const heard = stands ? said : null
+  // The reasons the standing question asked about: a reason the market adds since makes the next press ask again.
+  const askedRules = useRef<ReadonlySet<string>>(new Set())
 
   /** Where a step starts when a field is blank: the market's same side, the suggested level, the market's other side, then its mid. */
   function stepFrom(side: QuoteSide): number | null {
@@ -444,12 +465,14 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       const quoted = quotedSides(now.side)
       const over = lines ? checkLimits({ bid: quoted.includes("bid") ? current.bid : null, ask: quoted.includes("ask") ? current.ask : null }, lines, { market: now.market, convention: now.instrument.convention }) : []
       const blocking = blocks(over)
-      const stopped = problemsByField(blocking)
-      setProblems({ bid: found.bid ?? stopped.bid, ask: found.ask ?? stopped.ask })
+      setProblems({ bid: found.bid, ask: found.ask })
+      if (blocking.length) setSaid((prev) => ({ text: blocking.map((p) => p.message).join(" "), revision: prev.revision + 1, draft: current, action: null, rules: blocking.map(ruleOf) }))
       if (found.bid || found.ask || blocking.length) return
-      if (confirms(over).length && asked !== action.id) {
+      const reasons = confirms(over)
+      if (reasons.length && (asked !== action.id || !reasons.every((p) => askedRules.current.has(ruleOf(p))))) {
+        askedRules.current = new Set(reasons.map(ruleOf))
         setConfirming(action.id)
-        setSaid((now) => ({ text: confirms(over).map((p) => p.message).join(" "), revision: now.revision + 1 }))
+        setSaid((prev) => ({ text: reasons.map((p) => p.message).join(" "), revision: prev.revision + 1, draft: current, action: action.id, rules: [] }))
         return
       }
     }
@@ -641,7 +664,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             const distance = quoteDistance(draft[side], level(market?.[side]), convention)
             return (
               <div key={side} className="flex flex-col gap-0.5">
-                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} invalidText={labels.invalidLevel} disabled={!quoting} error={shownProblems[side]} inputRef={inputs[side]} />
+                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} invalidText={labels.invalidLevel} disabled={!quoting} error={shownProblems[side]} announceError={problems[side] !== undefined} inputRef={inputs[side]} />
                 <span className="h-4 text-right text-muted-foreground lining-nums tabular-nums" data-rfq-distance={side} data-numeric="" aria-live="off">
                   {distance ? `${distance.text} ${labels.vsMarket}` : " "}
                 </span>
@@ -678,8 +701,9 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
                   type="button"
                   variant={action.destructive ? "destructive" : action === primary ? "default" : "outline"}
                   size="sm"
-                  className="h-7 gap-2"
-                  disabled={disabled || (blocked && action.needsQuote !== false)}
+                  className="h-7 gap-2 aria-disabled:opacity-50"
+                  disabled={disabled}
+                  aria-disabled={heldByLimit(action) || undefined}
                   data-action={action.id}
                   data-confirming={confirming === action.id || undefined}
                   onKeyDown={press.onKeyDown}
@@ -709,7 +733,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
           </p>
         )}
         <span aria-live="polite" aria-atomic="true" className="sr-only" data-rfq-announcer>
-          {said.text && <span key={said.revision}>{said.text}</span>}
+          {heard && <span key={heard.revision}>{heard.text}</span>}
         </span>
 
         {inquiry.message && (

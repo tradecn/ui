@@ -32,7 +32,8 @@ The preview compares a note on price, a bill on discount, and credit on spread. 
 | `onValueChange` | `(value: number \| null) => void` | Required | Receives parsed edits and stepped values |
 | `stepFrom` | `number \| null` | `null` | Starting value for a step when `value` is `null` |
 | `label` | `string` | Basis label below | Visible label and word used in button names |
-| `error` | `string` | Unset | Parent validation message; takes precedence over the field's own error |
+| `error` | `string` | Unset | Parent validation message; takes precedence over the field's own error. Shown in an alert with the id `${id}-error`, which the input's `aria-describedby` names, as the field's own message for unreadable text is |
+| `announceError` | `boolean` | `true` | `false` shows `error` without an alert and without tying it to the input, when you say it yourself: for an error whose words change on their own, such as a distance from a moving market, which would otherwise be read again at every change. The field's own message for unreadable text stays an alert and the input's description |
 | `invalidText` | `string` | Message using the lowercase label | Text shown after invalid input loses focus |
 | `placeholder` | `string` | `formatQuote(0, convention)` | Empty-input hint, such as `0-00` or `0.000` |
 | `id` | `string` | Generated with `useId` | Input ID associated with the label |
