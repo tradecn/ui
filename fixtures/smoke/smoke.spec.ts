@@ -2989,7 +2989,8 @@ for (const dark of [false, true]) {
 // The installed quote panel over three notes: the market's and the desk's two-way in 32nds, the server's status
 // word and the buttons it allows per row, a level typed in place and written back by the server, a level too far
 // off the market asking in words over the grid and sending only on a fresh Enter, a click away discarding the
-// question, the row's actions on the row menu from the keyboard, a size over the line refused, a crossed ask refused,
+// question, the row's actions on a row menu named for its row and run from the keyboard with focus back on the grid
+// as it closes, a size over the line refused, a crossed ask refused,
 // a row's action moving the server's word and its buttons only when the server answers, and Pull all asking
 // again before it pulls every row the server allows it on.
 test("a quote panel types levels in the instrument's notation, asks past a limit in words, refuses a crossed level, and pulls all after asking again", async ({ page }) => {
@@ -3039,14 +3040,20 @@ test("a quote panel types levels in the instrument's notation, asks past a limit
   await expect(question).toHaveText(asked)
   await bid.press("Enter")
   await expect(log).toHaveText("edit 2Y bid 100.125")
-  // The row's actions are on the row menu, so the keyboard reaches them.
+  // The row's actions are on the row menu, named for its row, so the keyboard reaches them; closing it hands
+  // focus back to the grid.
   await grid.focus()
   await page.keyboard.press("Home")
   await page.keyboard.press("Shift+F10")
+  await expect(page.locator("[data-slot='context-menu-label']")).toHaveText("2Y")
   await expect(page.getByRole("menuitem", { name: "Pause" })).toBeVisible()
   await expect(page.getByRole("menuitem", { name: "Pull" })).toBeVisible()
+  // Keys go to the menu only once it holds focus; each base takes it on its own schedule.
+  const menuHoldsFocus = () => page.evaluate(() => document.activeElement?.closest("[role='menu']") != null)
+  await expect.poll(menuHoldsFocus).toBe(true)
   await page.keyboard.press("Escape")
   await expect(page.getByRole("menuitem")).toHaveCount(0)
+  await expect(grid).toBeFocused()
   await expect(cell("2Y", "bid")).toHaveText("100-04")
   // A size over the line is refused; Escape leaves the editor.
   await cell("2Y", "bidSize").dblclick()
@@ -3069,6 +3076,21 @@ test("a quote panel types levels in the instrument's notation, asks past a limit
   await expect(log).toHaveText("pause 2Y")
   await expect(status("2Y")).toHaveText("Paused")
   await expect(cell("2Y", "actions").getByRole("button")).toHaveText(["Resume", "Pull"])
+  // An item run from the keyboard acts on the menu's own row and hands focus back to the grid.
+  await grid.focus()
+  await page.keyboard.press("Home")
+  await page.keyboard.press("ArrowDown")
+  await page.keyboard.press("Shift+F10")
+  await expect(page.locator("[data-slot='context-menu-label']")).toHaveText("10Y")
+  await expect.poll(menuHoldsFocus).toBe(true)
+  const resume = page.getByRole("menuitem", { name: "Resume" })
+  await resume.focus()
+  await expect(resume).toBeFocused()
+  await page.keyboard.press("Enter")
+  await expect(log).toHaveText("resume 10Y")
+  await expect(page.getByRole("menuitem")).toHaveCount(0)
+  await expect(grid).toBeFocused()
+  await expect(status("10Y")).toHaveText("Quoting")
   // Pull all asks again: Escape withdraws the question; the second press pulls the rows the server allows it on.
   const pullAll = scene.locator("[data-quote-pull-all]")
   await expect(pullAll).toHaveText("Pull all")
@@ -3084,6 +3106,40 @@ test("a quote panel types levels in the instrument's notation, asks past a limit
   await expect(status("10Y")).toHaveText("Pulled")
   await expect(pullAll).toHaveAttribute("data-quote-pull-all", "0")
   await expect(pullAll).toBeDisabled()
+})
+
+// The quote panel in a popout window, every node of it made there, so none passes an instanceof check against
+// the opener's classes: Escape still withdraws a limit's question, and a disabling Pull all still hands focus
+// to the grid.
+test("a popped-out quote panel withdraws a limit's question on Escape and hands focus to its grid as Pull all disables", async ({ page }) => {
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='quote-panel'] [data-popped-quotes]")
+  const [popup] = await Promise.all([page.waitForEvent("popup"), scene.getByRole("button", { name: "pop out quotes" }).click()])
+  popup.on("pageerror", (error) => errors.push(error.message))
+  await popup.getByRole("button", { name: "show quotes" }).click()
+  const grid = popup.getByRole("grid", { name: "Popped quotes" })
+  await expect(grid).toBeVisible()
+  expect(await grid.evaluate((element) => element instanceof (window.opener as typeof window).HTMLElement)).toBe(false)
+  expect(await popup.locator("[data-quote-pull-all]").evaluate((element) => element instanceof (window.opener as typeof window).HTMLElement)).toBe(false)
+  await grid.locator("[data-row-id='2Y'] [data-col='bid']").dblclick()
+  const bid = grid.getByRole("textbox", { name: "Bid" })
+  await bid.fill("100-04")
+  await bid.press("Enter")
+  const question = popup.locator("[data-quote-question]")
+  await expect(question).toHaveText("The bid is 7 ticks from the market, past 4 ticks. Send it anyway? Press Enter again to send it, or Escape to discard it.")
+  await bid.press("Escape")
+  await expect(question).toHaveCount(0)
+  await expect(scene).toHaveAttribute("data-edits", "0")
+  const pullAll = popup.locator("[data-quote-pull-all]")
+  await pullAll.focus()
+  await pullAll.press("Enter")
+  await expect(pullAll).toHaveText("Pull all anyway?")
+  await pullAll.press("Enter")
+  await expect(pullAll).toBeDisabled()
+  await expect(grid).toBeFocused()
+  expect(errors).toEqual([])
 })
 
 // The installed guard: the banner up inside the window with its countdown and its button, the readout in the warning

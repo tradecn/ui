@@ -93,7 +93,7 @@ Reference prices appear above the fields; click one to use it. Blank or invalid 
 | `id` | `string` | Required | Matches an id in `allowedActions`. |
 | `label` | `string \| ((draft: TicketDraft) => string)` | Required | Button text, optionally derived from the current draft. |
 | `run` | `(draft: TicketDraft, instrument: TicketInstrument) => void` | Required | Receives the draft and instrument. |
-| `primary` | `boolean` | First allowed action | Styles the prominent button and steers `ticket.send` and its key hint toward this action while it checks the draft. |
+| `primary` | `boolean` | First allowed action | Styles the prominent button and steers `ticket.send` and its key hint toward this action while it checks the draft and is not `destructive`. |
 | `checked` | `boolean` | `true` | Checks the draft and limits before calling `run`. |
 | `destructive` | `boolean` | `false` | Uses the destructive button variant. |
 
@@ -111,7 +111,7 @@ Change `acknowledged` when the server acknowledges, using an order id or timesta
 
 | Key | Binding | Effect |
 |---|---|---|
-| `mod+enter` | `ticket.send` | Runs the first allowed action that checks the draft, preferring the primary one. |
+| `mod+enter` | `ticket.send` | Runs the first allowed action that checks the draft and is not `destructive`, preferring the primary one; does nothing when no such action is allowed. |
 | `mod+shift+x` | `ticket.flip` | Swaps buy and sell. |
 | `mod+up` / `mod+down` | `ticket.tick-up` / `ticket.tick-down` | Steps the price by the quote step from anywhere in the ticket, as the field's own arrows do. |
 | `mod+1` … `mod+9` | `ticket.size-1` … `ticket.size-9` | Selects the corresponding quick size, if present. |

@@ -460,7 +460,7 @@ describe("DataGrid pointer ownership", () => {
     const grid = screen.getByRole("grid")
     fireEvent.pointerDown(cell(grid, "c"), { ...pointer, button: 2, buttons: 2 })
     fireEvent.contextMenu(cell(grid, "c"))
-    expect(menu).toHaveBeenLastCalledWith([props.store.getRow("a"), props.store.getRow("c")], ["a", "c"])
+    expect(menu).toHaveBeenLastCalledWith([props.store.getRow("a"), props.store.getRow("c")], ["a", "c"], "c")
     expect(props.onSelectionChange).not.toHaveBeenCalled()
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" })
     fireEvent.pointerDown(cell(grid, "b"), pointer)

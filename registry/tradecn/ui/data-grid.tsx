@@ -87,10 +87,13 @@ export function isEditProblem(value: unknown): value is EditProblem {
   return typeof value === "object" && value !== null && Object.keys(value).length === 1 && typeof (value as EditProblem).problem === "string"
 }
 
-/** How a commit came: the editor's Enter or Tab, leaving the editor, or a cell control committing a value; and whether the key was held. */
+/** How a commit came: the editor's Enter or Tab, leaving the editor, or a cell control committing a value; whether the key was held; and which opening of the editor it came from. */
 export interface EditCommit {
   via: "enter" | "tab" | "blur" | "value"
+  /** True for a held key's repeats; false for a blur or a control's value. */
   repeat: boolean
+  /** One number per opening of an editor, so a check that asks a question can keep its answer to that opening. Control commits share session 0. */
+  session: number
 }
 
 /** How a column's cells are edited. Every function gets the row, because a step or a check can depend on it. */
@@ -124,7 +127,7 @@ export interface EditChange<T> {
  * rejects, with the server's message and the value that stands.
  */
 export type EditStatus =
-  | { kind: "editing"; text: string; problem: string | null; selectAll: boolean; initial?: string | null; focused?: boolean; prior?: EditStatus }
+  | { kind: "editing"; text: string; problem: string | null; selectAll: boolean; initial?: string | null; focused?: boolean; prior?: EditStatus; session?: number }
   | { kind: "pending"; value: unknown; text: string; tracked?: boolean }
   | { kind: "rejected"; value: unknown; message: string }
 
@@ -198,8 +201,8 @@ export interface DataGridProps<T> {
   focusedRowId?: RowId | null
   onFocusedRowChange?: (id: RowId | null) => void
   onRowActivate?: (row: T, id: RowId) => void
-  /** Items for the right-click menu, given the rows it applies to (the selection, or the row under the pointer). */
-  renderContextMenu?: (rows: T[], ids: RowId[]) => ReactNode
+  /** Items for the right-click menu, given the rows it applies to (the selection, or the row under the pointer) and the row it opened on. */
+  renderContextMenu?: (rows: T[], ids: RowId[], target?: RowId | null) => ReactNode
   rowEnter?: Partial<RowEnterBehavior>
   announceRowCount?: "off" | "debounced"
   /** Accessible name for the grid. */
@@ -562,7 +565,7 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
     switch (e.key) {
       case "Enter":
         e.preventDefault()
-        edits.commit(rowId, colKey, { via: "enter", repeat: e.repeat })
+        edits.commit(rowId, colKey, { via: "enter", repeat: e.repeat, session: status.session ?? 0 })
         return
       case "Escape":
         e.preventDefault()
@@ -570,7 +573,7 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
         return
       case "Tab":
         e.preventDefault()
-        edits.commit(rowId, colKey, { via: "tab", repeat: e.repeat }, e.shiftKey ? -1 : 1)
+        edits.commit(rowId, colKey, { via: "tab", repeat: e.repeat, session: status.session ?? 0 }, e.shiftKey ? -1 : 1)
         return
       case "ArrowUp":
       case "ArrowDown":
@@ -926,6 +929,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const edits = useMemo<EditController | null>(() => {
     if (!editable) return null
     const tracker = createEditTracker()
+    let openings = 0
     let activeColumn: string | null = null
     const cellsByKey = new Map<string, RowId>()
     const column = (key: string) => editLatest.current.columns.find((c) => c.key === key)
@@ -1012,7 +1016,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       // dismisses it the way v1 did — any close then clears the cell.
       const covered = now?.kind === "editing" ? now.prior : now
       const prior = covered?.kind === "pending" && !covered.tracked ? undefined : covered
-      tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false, prior })
+      tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false, prior, session: ++openings })
     }
     const controller: EditController = {
       tracker,
@@ -1088,7 +1092,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const col = column(key)
         const row = store.getRow(rowId)
         if (!canEditCell(col, row)) return
-        const problem = col.edit.validate?.(value, row!, { via: "value", repeat: false })
+        const problem = col.edit.validate?.(value, row!, { via: "value", repeat: false, session: 0 })
         if (problem) {
           tracker.set(cellKey(rowId, key), { kind: "rejected", value: col.accessor(row!), message: problem.problem })
           return
@@ -1123,7 +1127,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const row = store.getRow(rowId)
         if (!canEditCell(col, row)) return tracker.set(k, now.prior)
         const parsed = col.edit.parse(now.text, row!)
-        if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!, { via: "blur", repeat: false })) return tracker.set(k, now.prior)
+        if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!, { via: "blur", repeat: false, session: now.session ?? 0 })) return tracker.set(k, now.prior)
         send(rowId, col, row!, parsed)
       },
       settle(rowId, key) {
@@ -1667,7 +1671,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const [menuOpening, setMenuOpening] = useState(0)
   const contextRows = useMemo(() => {
     const targets = selection.size ? [...selection] : focusedRowId !== null ? [focusedRowId] : []
-    return { opening: menuOpening, ids: targets, rows: targets.map((id) => store.getRow(id)).filter((r): r is T => r !== undefined) }
+    // The row the menu opened on: a right-click focuses the row under the pointer, and the keyboard opens on the focused row.
+    return { opening: menuOpening, ids: targets, target: focusedRowId, rows: targets.map((id) => store.getRow(id)).filter((r): r is T => r !== undefined) }
   }, [selection, focusedRowId, store, menuOpening])
 
   const body = (
@@ -1776,7 +1781,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       {renderContextMenu ? (
         <ContextMenu onOpenChange={open => { if (open) setMenuOpening(value => value + 1) }}>
           <ContextMenuTrigger className="contents">{body}</ContextMenuTrigger>
-          <ContextMenuContent><Fragment key={contextRows.opening}>{renderContextMenu(contextRows.rows, contextRows.ids)}</Fragment></ContextMenuContent>
+          <ContextMenuContent><Fragment key={contextRows.opening}>{renderContextMenu(contextRows.rows, contextRows.ids, contextRows.target)}</Fragment></ContextMenuContent>
         </ContextMenu>
       ) : (
         body

@@ -1437,9 +1437,19 @@ describe("the docs pages", async () => {
         expect(text).not.toContain("Copy the files into your project")
       }
     }
-    // Fetched once when the search opens. Measured on 2026-10-06: 544k characters at v1.4.13 and 798k on main,
-    // grown by ordinary documentation (the 2.0 migration guide alone is 90k), not by duplication. The cap catches
-    // runaway output, a page dumped twice or code inlined whole, and leaves room for complete references.
+    // Fetched once when the search opens. Measured on 2026-10-06: 544k characters at v1.4.13 and 804k with the
+    // 2.0 docs, grown by ordinary documentation (the 2.0 migration guide alone is 93k). The cap stops runaway
+    // output, such as code inlined whole or every page doubled. It leaves room for one page twice over, so a
+    // repeated passage is caught on its own: no text of 200 characters or more stands in two places.
     expect(JSON.stringify(index).length).toBeLessThan(1_000_000)
+    const seen = new Map<string, string>()
+    for (const page of index) {
+      for (const section of [{ id: "", text: page.text }, ...page.sections]) {
+        if (section.text.length < 200) continue
+        const where = `${page.path}#${section.id}`
+        expect(seen.get(section.text), where).toBeUndefined()
+        seen.set(section.text, where)
+      }
+    }
   })
 })

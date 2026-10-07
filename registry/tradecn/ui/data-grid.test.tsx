@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatPrice, parsePrice } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
-import { DATA_GRID_PRESETS, DataGrid, EMPTY_COLUMN_STATE, compareForSort, editProblem, exportCsv, resolveColumns, type CellEditHandle, type ColumnDef, type ColumnState, type EditChange, type EditStatus } from "@/registry/tradecn/ui/data-grid"
+import { DATA_GRID_PRESETS, DataGrid, EMPTY_COLUMN_STATE, compareForSort, editProblem, exportCsv, resolveColumns, type CellEditHandle, type ColumnDef, type ColumnState, type EditChange, type EditCommit, type EditStatus } from "@/registry/tradecn/ui/data-grid"
 
 interface Quote {
   id: string
@@ -396,7 +396,26 @@ describe("DataGrid", () => {
     expect(onActivate).toHaveBeenCalledWith(expect.objectContaining({ id: "r0" }), "r0")
     const r3 = document.querySelector<HTMLElement>('[data-row-id="r3"]')!
     fireEvent.contextMenu(r3.firstElementChild!)
-    expect(menu).toHaveBeenLastCalledWith([expect.objectContaining({ id: "r3" })], ["r3"])
+    expect(menu).toHaveBeenLastCalledWith([expect.objectContaining({ id: "r3" })], ["r3"], "r3")
+  })
+
+  it("hands the menu the row it opened on beside the selection it applies to, by pointer and by keyboard", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(5, store)
+    const menu = vi.fn((_rows: Quote[], ids: string[]) => <div data-testid="menu">{ids.join(",")}</div>)
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} selectionMode="multi" renderContextMenu={menu} />)
+    const row = (id: string) => document.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!.firstElementChild!
+    fireEvent.pointerDown(row("r1"), { button: 0 })
+    fireEvent.pointerDown(row("r3"), { button: 0, ctrlKey: true })
+    // A right-click on a selected row keeps the selection and names the row under the pointer.
+    fireEvent.contextMenu(row("r1"))
+    expect(menu).toHaveBeenLastCalledWith([expect.objectContaining({ id: "r1" }), expect.objectContaining({ id: "r3" })], ["r1", "r3"], "r1")
+    // Shift+F10 opens on the focused row, wherever it sits in the selection.
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "F10", shiftKey: true })
+    expect(menu).toHaveBeenLastCalledWith([expect.objectContaining({ id: "r1" }), expect.objectContaining({ id: "r3" })], ["r1", "r3"], "r3")
   })
 
   it("keeps menu drafts while open and starts fresh on rapid reopening without redrawing rows", async () => {
@@ -2026,6 +2045,47 @@ describe("editing", () => {
     fireEvent.click(cell("r3", "on").querySelector("button")!)
     expect(onEdit).toHaveBeenLastCalledWith(expect.objectContaining({ rowId: "r3", key: "on", value: false }))
     expect(onEdit).toHaveBeenCalledTimes(3)
+  })
+
+  it("tells validate how each commit came and which opening of the editor it belongs to", () => {
+    const validate = vi.fn<(value: unknown, row: Quote, commit?: EditCommit) => null>(() => null)
+    const columns: ColumnDef<Quote>[] = [
+      ...editable.map((column) => (column.key === "px" ? { ...column, edit: { parse: price, validate } } : column)),
+      { key: "on", header: "On", width: 40, accessor: (r) => r.qty !== null, edit: { parse: (t) => t === "on", toggle: (v) => !v, validate } },
+    ]
+    const { grid } = setup(vi.fn(), columns)
+    const commit = () => validate.mock.lastCall?.[2]
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "5" } })
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    const enter = commit()
+    expect(enter).toMatchObject({ via: "enter", repeat: false })
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "6" } })
+    fireEvent.keyDown(editor(), { key: "Enter", repeat: true })
+    const held = commit()
+    expect(held).toMatchObject({ via: "enter", repeat: true })
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "7" } })
+    fireEvent.keyDown(editor(), { key: "Tab" })
+    const tab = commit()
+    expect(tab).toMatchObject({ via: "tab", repeat: false })
+    // Tab opened the quantity; leave it and come back to the price.
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Qty" }), { key: "Escape" })
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "8" } })
+    fireEvent.blur(editor())
+    const blur = commit()
+    expect(blur).toMatchObject({ via: "blur", repeat: false })
+    // Each opening is its own session; a toggle commits a value, outside any opening.
+    const sessions = [enter, held, tab, blur].map((c) => c!.session)
+    expect(new Set(sessions).size).toBe(4)
+    expect(sessions.every((s) => s > 0)).toBe(true)
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: " " })
+    expect(commit()).toEqual({ via: "value", repeat: false, session: 0 })
   })
 
   it("opens nothing without onEdit", () => {

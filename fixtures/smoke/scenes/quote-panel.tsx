@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from "react"
 import { QuotePanel, quotePanelColumns, type QuoteAction, type QuoteRow } from "@/components/quote-panel"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import type { EditChange } from "@/components/ui/data-grid"
+import { PanelPopout } from "@/components/ui/panel"
+import { usePopout } from "@/hooks/use-popout"
 import type { InstrumentConvention } from "@/lib/format"
 import type { Limits } from "@/lib/limits"
 import { createRowStore } from "@/lib/row-store"
@@ -80,8 +82,31 @@ export function QuotePanelScene() {
       </div>
       <output data-quote-log="">{log}</output>
       <PendingQuoteActions />
+      <PoppedQuotePanel />
     </div>
   )
+}
+
+// A panel mounted by a press inside its window, after the popout has moved there, so every node it makes
+// belongs to the popup's realm rather than being made in the opener and adopted.
+function PoppedQuotePanel() {
+  const [store] = useState(() => {
+    const store = createRowStore<QuoteRow>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: ROWS })
+    return store
+  })
+  const [edits, setEdits] = useState(0)
+  const [shown, setShown] = useState(false)
+  const popout = usePopout({ title: "Popped quotes", width: 960, height: 360 })
+  return <div data-popped-quotes="" data-edits={edits}>
+    <button type="button" onClick={() => popout.open()}>pop out quotes</button>
+    <PanelPopout popout={popout}>
+      {popout.isOpen && !shown && <button type="button" onClick={() => setShown(true)}>show quotes</button>}
+      {popout.isOpen && shown && <div style={{ height: 240 }}>
+        <QuotePanel store={store} convention={T32} limits={LIMITS} label="Popped quotes" onEdit={() => setEdits(count => count + 1)} onPullAll={() => new Promise<void>(() => {})} />
+      </div>}
+    </PanelPopout>
+  </div>
 }
 
 function PendingQuoteActions() {

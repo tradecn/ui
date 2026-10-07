@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { useLayoutEffect } from "react"
+import { createPortal } from "react-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { DEFAULT_QUOTE_PANEL_LABELS, QuotePanel, allowsQuoteAction, quoteEdit, quotePanelColumns, type QuoteAction, type QuotePanelProps, type QuoteRow } from "@/registry/tradecn/blocks/quote-panel/quote-panel"
 import { NULL_TOKEN, type InstrumentConvention } from "@/registry/tradecn/lib/format"
@@ -135,22 +136,58 @@ describe("quotePanelColumns and quoteEdit", () => {
     expect(quoteEdit<QuoteRow>("skew", { convention: T32 }).parse("-1.5", ROWS[0]!)).toBe(-1.5)
   })
 
-  it("checks the limits as a value is committed: a block refuses it, a confirm asks once and lets the same value through next time", () => {
+  it("checks the limits as a value is committed: a block refuses it, a confirm asks and a fresh Enter in the same opening answers", () => {
     const asked = new Set<string>()
-    const bid = quoteEdit<QuoteRow>("bid", { convention: T32, limits: LIMITS, asked })
+    const onQuestion = vi.fn()
+    const bid = quoteEdit<QuoteRow>("bid", { convention: T32, limits: LIMITS, asked, onQuestion })
     const row = ROWS[0]!
-    expect(bid.validate?.(100.125, row)).toEqual({ problem: "The bid is 7 ticks from the market, past 4 ticks. Send it anyway? Press Enter again to send it, or Escape to discard it." })
-    expect(bid.validate?.(100.125, row)).toBeNull()
+    const enter = { via: "enter", repeat: false, session: 1 } as const
+    const question = "The bid is 7 ticks from the market, past 4 ticks. Send it anyway? Press Enter again to send it, or Escape to discard it."
+    expect(bid.validate?.(100.125, row, enter)).toEqual({ problem: question })
+    expect(onQuestion).toHaveBeenLastCalledWith(question)
+    expect(bid.validate?.(100.125, row, enter)).toBeNull()
+    expect(onQuestion).toHaveBeenLastCalledWith(null)
     // Asked and answered: the next commit of the same value asks again.
-    expect(bid.validate?.(100.125, row)).toEqual({ problem: "The bid is 7 ticks from the market, past 4 ticks. Send it anyway? Press Enter again to send it, or Escape to discard it." })
-    // A different value is a different question.
-    expect(bid.validate?.(100.109375, row)).toEqual({ problem: "The bid is 8 ticks from the market, past 4 ticks. Send it anyway? Press Enter again to send it, or Escape to discard it." })
-    const size = quoteEdit<QuoteRow>("bidSize", { convention: T32, limits: LIMITS, asked })
-    expect(size.validate?.(150_000_000, row)).toEqual({ problem: "150,000,000 is above the size limit of 100,000,000." })
-    expect(size.validate?.(150_000_000, row)).toEqual({ problem: "150,000,000 is above the size limit of 100,000,000." })
-    expect(size.validate?.(60_000_000, row)).toEqual({ problem: "60,000,000 is above 50,000,000. Send it anyway? Press Enter again to send it, or Escape to discard it." })
-    expect(size.validate?.(60_000_000, row)).toBeNull()
-    expect(size.validate?.(10_000_000, row)).toBeNull()
+    expect(bid.validate?.(100.125, row, enter)).toEqual({ problem: question })
+    // A held Enter's repeat, Tab, and leaving the editor ask again rather than answer.
+    expect(bid.validate?.(100.125, row, { ...enter, repeat: true })).toEqual({ problem: question })
+    expect(bid.validate?.(100.125, row, { ...enter, via: "tab" })).toEqual({ problem: question })
+    expect(bid.validate?.(100.125, row, { ...enter, via: "blur" })).toEqual({ problem: question })
+    // Another opening of the editor never inherits the question.
+    expect(bid.validate?.(100.125, row, { ...enter, session: 2 })).toEqual({ problem: question })
+    expect(bid.validate?.(100.125, row, enter)).toBeNull()
+    // Without the grid's commit, nothing answers: a wrapper that drops it fails closed.
+    expect(bid.validate?.(100.125, row)).toEqual({ problem: question })
+    expect(bid.validate?.(100.125, row)).toEqual({ problem: question })
+    // A control answers by committing the same value again, and is asked in its own words.
+    const control = { via: "value", repeat: false, session: 0 } as const
+    expect(bid.validate?.(100.109375, row, control)).toEqual({ problem: "The bid is 8 ticks from the market, past 4 ticks. Send it anyway? Do it again to send it." })
+    expect(bid.validate?.(100.109375, row, control)).toBeNull()
+    // A crossed value, a block, and a value inside the limits each withdraw a standing question.
+    const third = { ...enter, session: 3 }
+    bid.validate?.(100.125, row, third)
+    expect(onQuestion).toHaveBeenLastCalledWith(question)
+    expect(bid.validate?.(100.265625, row, third)).toEqual({ problem: "The bid would cross the ask." })
+    expect(onQuestion).toHaveBeenLastCalledWith(null)
+    const fourth = { ...enter, session: 4 }
+    expect(bid.validate?.(100.125, row, fourth)).toEqual({ problem: question })
+    expect(onQuestion).toHaveBeenLastCalledWith(question)
+    expect(bid.validate?.(100.21875, row, fourth)).toBeNull()
+    expect(onQuestion).toHaveBeenLastCalledWith(null)
+    const size = quoteEdit<QuoteRow>("bidSize", { convention: T32, limits: LIMITS, asked, onQuestion })
+    expect(size.validate?.(60_000_000, row, enter)).toEqual({ problem: "60,000,000 is above 50,000,000. Send it anyway? Press Enter again to send it, or Escape to discard it." })
+    expect(onQuestion).toHaveBeenLastCalledWith("60,000,000 is above 50,000,000. Send it anyway? Press Enter again to send it, or Escape to discard it.")
+    expect(size.validate?.(150_000_000, row, enter)).toEqual({ problem: "150,000,000 is above the size limit of 100,000,000." })
+    expect(onQuestion).toHaveBeenLastCalledWith(null)
+    expect(size.validate?.(150_000_000, row, enter)).toEqual({ problem: "150,000,000 is above the size limit of 100,000,000." })
+    expect(size.validate?.(60_000_000, row, enter)).toBeNull()
+    expect(size.validate?.(10_000_000, row, enter)).toBeNull()
+    // No limits for the row: nothing to ask, and any standing question is withdrawn.
+    const unlimited = quoteEdit<QuoteRow>("bidSize", { convention: T32, limits: () => undefined, asked, onQuestion })
+    size.validate?.(60_000_000, row, third)
+    expect(onQuestion).toHaveBeenLastCalledWith(expect.stringContaining("Send it anyway?"))
+    expect(unlimited.validate?.(60_000_000, row, third)).toBeNull()
+    expect(onQuestion).toHaveBeenLastCalledWith(null)
     // Limits per row.
     const perRow = quoteEdit<QuoteRow>("bidSize", { convention: T32, limits: (r) => (r.id === "2Y" ? { maxQuantity: 1 } : undefined) })
     expect(perRow.validate?.(5, ROWS[0]!)).toEqual({ problem: "5 is above the size limit of 1." })
@@ -278,6 +315,95 @@ describe("the panel", () => {
     expect(onEdit).toHaveBeenCalledTimes(1)
   })
 
+  it("withdraws a limit question as its text changes, so a value typed away and back, or Tab away and back, is asked about again", () => {
+    const { open, type, onEdit } = setup()
+    const question = () => document.querySelector("[data-quote-question]")
+    const bid = open("2Y", "bid", "Bid")
+    type(bid, "100-04")
+    expect(question()).not.toBeNull()
+    fireEvent.change(bid, { target: { value: "100-05" } })
+    expect(question()).toBeNull()
+    type(bid, "100-04")
+    expect(onEdit).not.toHaveBeenCalled()
+    expect(question()).not.toBeNull()
+    // Back to the bid as it stands, and Tab: nothing to send, so the ask opens.
+    fireEvent.change(bid, { target: { value: "100-07" } })
+    fireEvent.keyDown(bid, { key: "Tab" })
+    const ask = screen.getByRole("textbox", { name: "Ask" })
+    expect(question()).toBeNull()
+    fireEvent.keyDown(ask, { key: "Tab", shiftKey: true })
+    const back = screen.getByRole("textbox", { name: "Bid" })
+    type(back, "100-04")
+    expect(onEdit).not.toHaveBeenCalled()
+    fireEvent.keyDown(back, { key: "Enter" })
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ key: "bid", value: 100.125 }))
+  })
+
+  it("withdraws a limit question when its row leaves the view and the grid takes focus", () => {
+    const { store, grid, open, type, onEdit } = setup()
+    const bid = open("2Y", "bid", "Bid")
+    expect(document.activeElement).toBe(bid)
+    type(bid, "100-04")
+    expect(document.querySelector("[data-quote-question]")).not.toBeNull()
+    act(() => store.applyDeltas({ remove: ["2Y"] }))
+    expect(document.activeElement).toBe(grid)
+    expect(document.querySelector("[data-quote-question]")).toBeNull()
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it("puts the actions of the row the menu opened on in it, named, whatever else is selected, and runs one on Enter", async () => {
+    const { cell, actions } = setup({ selectionMode: "multi" })
+    fireEvent.pointerDown(cell("2Y", "instrument").firstElementChild!, { button: 0 })
+    fireEvent.pointerDown(cell("10Y", "instrument").firstElementChild!, { button: 0, ctrlKey: true })
+    fireEvent.contextMenu(cell("10Y", "instrument").firstElementChild!)
+    const resume = await screen.findByRole("menuitem", { name: "Resume" })
+    expect(document.querySelector("[data-slot='context-menu-label']")?.textContent).toBe("10Y")
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Resume", "Pull"])
+    act(() => resume.focus())
+    fireEvent.keyDown(resume, { key: "Enter" })
+    expect(actions[1]!.run).toHaveBeenCalledWith(expect.objectContaining({ id: "10Y" }))
+    expect(actions[0]!.run).not.toHaveBeenCalled()
+  })
+
+  it("keeps an open row menu in step with the row's next batch", async () => {
+    const { store, cell } = setup()
+    fireEvent.contextMenu(cell("2Y", "instrument").firstElementChild!)
+    await screen.findByRole("menuitem", { name: "Pause" })
+    act(() => store.applyDeltas({ patch: [{ id: "2Y", fields: { allowedActions: ["edit", "resume", "pull"] } }] }))
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Resume", "Pull"])
+  })
+
+  it("holds the row menu's items while a run the row's button started is out", async () => {
+    const { cell, actions } = setup()
+    const pause = actions[0]!.run as ReturnType<typeof vi.fn>
+    pause.mockImplementation(() => new Promise<void>(() => {}))
+    fireEvent.click(within(cell("2Y", "actions")).getByRole("button", { name: "Pause" }))
+    fireEvent.contextMenu(cell("2Y", "instrument").firstElementChild!)
+    const pull = await screen.findByRole("menuitem", { name: "Pull" })
+    expect(pull).toHaveAttribute("aria-disabled", "true")
+    fireEvent.click(pull)
+    expect(actions[2]!.run).not.toHaveBeenCalled()
+  })
+
+  it("keeps a row's hold while its row scrolls out of the view and back", () => {
+    const { store, cell, actions } = setup()
+    act(() => store.applyDeltas({ upsert: Array.from({ length: 80 }, (_, i) => ({ id: `F${i}`, instrument: `F${i}`, status: "Quoting", allowedActions: ["pause"] })) }))
+    const pause = actions[0]!.run as ReturnType<typeof vi.fn>
+    pause.mockImplementation(() => new Promise<void>(() => {}))
+    fireEvent.click(within(cell("2Y", "actions")).getByRole("button", { name: "Pause" }))
+    const scroller = document.querySelector<HTMLElement>(".overflow-auto")!
+    act(() => {
+      scroller.scrollTop = 1800
+      fireEvent.scroll(scroller)
+    })
+    expect(document.querySelector('[data-row-id="2Y"]')).toBeNull()
+    act(() => {
+      scroller.scrollTop = 0
+      fireEvent.scroll(scroller)
+    })
+    expect(within(cell("2Y", "actions")).getByRole("button", { name: "Pause" })).toBeDisabled()
+  })
+
   it("puts each row's allowed actions on the row menu, sharing the row's hold with its buttons", async () => {
     const { cell, actions } = setup()
     const pause = actions[0]!.run as ReturnType<typeof vi.fn>
@@ -308,6 +434,19 @@ describe("the panel", () => {
     expect(document.activeElement).toBe(grid)
   })
 
+  it("moves focus to the grid when a focused row button scrolls out of the view, with no batch to prompt it", () => {
+    const { store, cell, grid } = setup()
+    act(() => store.applyDeltas({ upsert: Array.from({ length: 80 }, (_, i) => ({ id: `F${i}`, instrument: `F${i}`, status: "Quoting", allowedActions: ["pause"] })) }))
+    act(() => within(cell("2Y", "actions")).getByRole("button", { name: "Pause" }).focus())
+    const scroller = document.querySelector<HTMLElement>(".overflow-auto")!
+    act(() => {
+      scroller.scrollTop = 1800
+      fireEvent.scroll(scroller)
+    })
+    expect(document.querySelector('[data-row-id="2Y"]')).toBeNull()
+    expect(document.activeElement).toBe(grid)
+  })
+
   it("moves focus to the grid when Pull all disables under it, and withdraws its question when focus leaves the panel", () => {
     const { grid, onPullAll } = setup()
     onPullAll.mockImplementation(() => new Promise(() => {}))
@@ -334,6 +473,40 @@ describe("the panel", () => {
     act(() => pause.focus())
     act(() => store.applyDeltas({ patch: [{ id: "2Y", fields: { allowedActions: ["edit", "resume"] } }] }))
     expect(document.activeElement).toBe(grid)
+  })
+
+  it("withdraws its question and moves focus the same way in another document, as a popout renders it", () => {
+    // happy-dom shares its element classes across windows, so this holds the panel to its own document; the
+    // browser smoke holds it to another realm's classes.
+    const frame = document.createElement("iframe")
+    document.body.append(frame)
+    const doc = frame.contentDocument!
+    const store = createRowStore<QuoteRow>({ getRowId: (q) => q.id })
+    store.applyDeltas({ upsert: ROWS })
+    const onEdit = vi.fn()
+    const onPullAll = vi.fn(() => new Promise<void>(() => {}))
+    const { unmount } = render(createPortal(<QuotePanel store={store} convention={T32} limits={LIMITS} onEdit={onEdit} onPullAll={onPullAll} initialRect={RECT} />, doc.body))
+    try {
+      const view = within(doc.body)
+      const grid = view.getByRole("grid", { name: "Quotes" })
+      fireEvent.doubleClick(doc.querySelector('[data-row-id="2Y"] [data-col="bid"]')!.firstElementChild!)
+      const bid = view.getByRole("textbox", { name: "Bid" })
+      fireEvent.change(bid, { target: { value: "100-04" } })
+      fireEvent.keyDown(bid, { key: "Enter" })
+      expect(doc.querySelector("[data-quote-question]")).not.toBeNull()
+      fireEvent.keyDown(bid, { key: "Escape" })
+      expect(doc.querySelector("[data-quote-question]")).toBeNull()
+      expect(onEdit).not.toHaveBeenCalled()
+      const pull = view.getByRole("button", { name: "Pull all" })
+      act(() => pull.focus())
+      fireEvent.click(pull)
+      fireEvent.click(pull)
+      expect(pull).toBeDisabled()
+      expect(doc.activeElement).toBe(grid)
+    } finally {
+      unmount()
+      frame.remove()
+    }
   })
 
   it("hands a commit from a mount-time layout effect to this render's onEdit", () => {

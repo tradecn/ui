@@ -125,7 +125,9 @@ Numbers are plain decimals: `1e3` and `0x10` are refused. A crossed edit is refu
 
 The generated editors call [`checkLimits`](limits.md) for non-null bids, asks, and sizes. A bid is passed as `{ bid }`, an ask as `{ ask }`, and a size as `{ quantity }`, with the row's market bid/ask and convention as context. Skew, width, and blank values bypass limits. The crossed-quote check runs before limits.
 
-The first `block` refuses the value with its message. Otherwise, the first `confirm` refuses it with a question, `{message} Press Enter again to send it, or Escape to discard it.`, shown in words over the grid on a `role="status"` line carrying `data-quote-question`, as well as on the editor. Only a fresh Enter on the same row, field, and value answers it, provided no block or crossed quote now prevents it: Tab and the repeats of a held Enter ask again rather than send. Escape, a click away, or any other way out of the editor discards the question along with the draft, so a value typed again later is asked about again. A later attempt at the consumed value asks again if it still needs confirmation.
+The first `block` refuses the value with its message. Otherwise, the first `confirm` refuses it with a question, `{message} Press Enter again to send it, or Escape to discard it.`, shown on the editor and in words above the grid, on a `role="status"` line carrying `data-quote-question`. The panel shows that line where a question can stand: with `limits` on the generated columns, and beside Pull all.
+
+Only a fresh Enter on the same value, in the same opening of the editor, answers the question, provided no block or crossed quote now prevents it. Tab and the repeats of a held Enter ask again rather than send. Changing the text withdraws the question, and so does every way out of the editor: Escape, a click away, Tab on to another cell, or the row leaving the view. A value typed again later is asked about again, and an answered value asks again the next time it is committed.
 
 ### Actions
 
@@ -140,9 +142,9 @@ Each `QuoteAction<T>` defines a row button:
 
 Buttons follow your `actions` order and appear only when `allowedActions` includes their ids. A click rechecks permission against the rendered row. While a returned promise is pending, every action button on that row is disabled. Fulfillment or rejection re-enables them; rejection shows no built-in error. The status changes only when the store changes.
 
-The same actions are on the row menu, so the keyboard reaches them: right-click the row, or press Shift+F10 or the Menu key on the focused row. The buttons themselves stay out of the Tab order, keeping the grid one tab stop. A menu item rechecks permission against the store's row as it lands, and a run started from either the menu or a button holds both until its promise settles; the hold is the panel's, so it survives the row scrolling out of view and back. A row the server allows nothing on shows `Nothing can be done with this row right now.` in its menu. Items your own `renderContextMenu` returns follow the row's actions.
+The same actions are on the row menu, so the keyboard reaches them: right-click the row, or press Shift+F10 or the Menu key on the focused row. The buttons themselves stay out of the Tab order, keeping the grid one tab stop. The menu names the row it opened on and acts on that row alone, whatever else is selected. While it stays open, its items follow the row as the server changes it. A run started from either the menu or a button holds both until its promise settles; the hold is the panel's, so it survives the row scrolling out of view and back. A row the server allows nothing on shows `Nothing can be done with this row right now.` in its menu. Items your own `renderContextMenu` returns follow the row's actions.
 
-When the control under focus leaves, focus moves to the grid so its keys keep working: a row button the server's reply removes, Pull all disabling while its promise is out, or its row leaving the view.
+When the control under focus leaves, focus moves to the grid so its keys keep working: a row button the server's reply removes, its row leaving the view or scrolling out of it, or Pull all disabling while its promise is out.
 
 Action buttons and the gaps between them preserve row selection and logical focus, including while a command is pending.
 
@@ -158,9 +160,11 @@ Pull all appears when `onPullAll` is given. The first press changes its label to
 | `quoteEdit<T>(field, options)` | `CellEdit<T>` | A `QuoteField` and `QuoteColumnOptions<T>` for its parser, stepper, permission check, and validation. |
 | `allowsQuoteAction(row, id)` | `boolean` | A `QuoteRow` and action id (`string`); false for an absent or empty list. |
 
-`QuoteColumnOptions<T>` requires `convention` and accepts `labels`, `editAction`, and `limits` with the types and defaults in the props table. It also accepts `actions` and `font`, which only `quotePanelColumns` uses, `asked?: Set<string>` for confirmation memory, and `onQuestion?: (question: string | null) => void`, told each question a confirm limit asks and `null` once it is answered or no longer stands. `QuoteField` is `"bid" | "ask" | "skew" | "width" | "bidSize" | "askSize"`.
+`QuoteColumnOptions<T>` requires `convention` and accepts `labels`, `editAction`, and `limits` with the types and defaults in the props table. It also accepts `actions` and `font`, which only `quotePanelColumns` uses, `asked?: Set<string>` for confirmation memory, and `onQuestion?: (question: string | null) => void`, told each question a confirm limit asks, and `null` when a later check answers it, blocks or crosses the value, or finds nothing to ask. It is not told when an editor closes or its text changes. `QuoteField` is `"bid" | "ask" | "skew" | "width" | "bidSize" | "askSize"`.
 
-The panel does not expose its private `asked` set or accept it as a prop. When calling either helper yourself with confirm limits, create a stable set and pass it to every helper that should share confirmation memory, and clear it when an editor closes without sending, as the panel does on the editor's blur; otherwise a value typed again later can pass on an old question. Without a set, every confirming validation asks again. Pass `onQuestion` to show the question as the panel does: with custom columns, the panel's own question line stays empty. A direct call to `validate` that leaves out the grid's commit argument keeps the plain two-step answer, the second call with the same value passing.
+The panel does not expose its private `asked` set or accept it as a prop. When calling either helper yourself with confirm limits, create a stable set and pass it to every helper that should share confirmation memory. Its entries are kept per opening of an editor, so a later opening never inherits an answer. Clear the set, and the question you show, when the asking editor's text changes or focus leaves it, as the panel does; otherwise a value typed away and back in the same opening passes on the old question. Without a set, every confirming validation asks again. Pass `onQuestion` to show the question: with custom columns, the panel shows no question line of its own.
+
+A wrapper around the generated `validate` must pass the grid's third argument through: a call without it never answers a question. A cell control that commits through `edit.commit(value)` is asked in the words of `askAgainControl`, and answers by committing the same value again.
 
 For example, inside your component, with a stable `convention` and `limits` as in [Confirming and blocking edits](#confirming-and-blocking-edits):
 
@@ -189,6 +193,7 @@ const columns = useMemo(
 | `notAQuote` / `notANumber` / `notASize` / `notAWidth` | `Not a quote in this instrument's notation.` / `Not a number.` / `A size is a whole number, zero or more.` / `A width is zero or more.` | Editor problems |
 | `bidCrosses` / `askCrosses` | `The bid would cross the ask.` / `The ask would cross the bid.` | Editor problems |
 | `askAgain` | `{message} Press Enter again to send it, or Escape to discard it.` | A limit that asks; `{message}` is its sentence |
+| `askAgainControl` | `{message} Do it again to send it.` | A limit that asks about a value a cell control committed |
 | `noActions` | `Nothing can be done with this row right now.` | The row menu when the server allows nothing on the row |
 
 ### What it does not do
