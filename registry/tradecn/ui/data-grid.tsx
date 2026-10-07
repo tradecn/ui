@@ -1615,6 +1615,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     return { element, id }
   }
 
+  // The row the menu opens on, taken from the event that opens it, since a parent that controls focus may not
+  // have moved focus there yet: a pointer down starts a touch's long press, and a contextmenu event — the
+  // pointer's, or the one the keyboard sends to the focused row — opens it at once.
+  const [menuRow, setMenuRow] = useState<RowId | null>(null)
+
   // Right-click targets the row under the pointer: focus it, and make it the selection unless it is already selected.
   const onContextMenu = (e: MouseEvent<HTMLDivElement>) => {
     const target = rowTarget(e, true)
@@ -1623,6 +1628,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       return
     }
     const { id } = target
+    setMenuRow(id)
     setFocusedRowId(id)
     if (!selection.has(id)) select([id], "replace")
   }
@@ -1642,6 +1648,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       return
     }
     const { id } = target
+    setMenuRow(id)
     setFocusedRowId(id)
     if (e.button !== 0) return
     if (e.shiftKey) select([id], "range")
@@ -1674,9 +1681,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const [menuOpening, setMenuOpening] = useState(0)
   const contextRows = useMemo(() => {
     const targets = selection.size ? [...selection] : focusedRowId !== null ? [focusedRowId] : []
-    // The row the menu opened on: a right-click focuses the row under the pointer, and the keyboard opens on the focused row.
-    return { opening: menuOpening, ids: targets, target: focusedRowId, rows: targets.map((id) => store.getRow(id)).filter((r): r is T => r !== undefined) }
-  }, [selection, focusedRowId, store, menuOpening])
+    return { opening: menuOpening, ids: targets, target: menuRow ?? focusedRowId, rows: targets.map((id) => store.getRow(id)).filter((r): r is T => r !== undefined) }
+  }, [selection, focusedRowId, store, menuOpening, menuRow])
 
   const body = (
     <div

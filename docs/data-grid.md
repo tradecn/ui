@@ -109,7 +109,7 @@ Scroll down before receiving a batch to see the RFQ preset keep the first visibl
 | `footer` | `Record<string, (rows: T[]) => string>` | None | Totals keyed by column key. |
 | `onEdit` | `(change: EditChange<T>) => void \| Promise<unknown>` | None | Handle commits; enables columns with `edit`. |
 | `onRowActivate` | `(row: T, id: RowId) => void` | None | Handle grid Enter or an unhandled double-click on plain row content, unless it opens an editor. |
-| `renderContextMenu` | `(rows: T[], ids: RowId[], target?: RowId \| null) => ReactNode` | None | Menu items opened from an owned row, for the selection or targeted row. `target` is the row the menu opened on, which can sit inside a larger selection. |
+| `renderContextMenu` | `(rows: T[], ids: RowId[], target?: RowId \| null) => ReactNode` | None | Menu items opened from an owned row, for the selection or targeted row. `target` is the row the menu opened on, which can sit inside a larger selection, taken from the event that opened it. |
 | `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Row classes, state, tone, and accessible description. |
 | `emptyState` | `ReactNode` | `"No rows"` | Empty-view content. |
 | `className` | `string` | None | Classes on the grid root. |
@@ -286,7 +286,7 @@ Fallback ARIA role lists use the first recognized role: `role="unsupported butto
 
 Use native controls with accessible names in custom cells. A custom handler can also claim a press or double-click with `preventDefault()` or `stopPropagation()`. Row actions run during bubbling, after the child handler. To claim one from a parent, use its capture handler.
 
-With `renderContextMenu`, right-clicking plain content in a selected row keeps the selection; another row becomes the target. Either way the row under the pointer is the menu's `target`, and Shift+F10 or the Menu key opens the menu on the focused row. Controls, nested grids, content portaled outside this grid, headers, footers and empty space do not open its row menu. Controls retain their own context menus, including the browser's default when the application leaves it available.
+With `renderContextMenu`, right-clicking plain content in a selected row keeps the selection; another row becomes the target. Either way the row under the pointer is the menu's `target`, even while a parent that controls `focusedRowId` has not moved focus there; a touch's long press opens it on the touched row, and Shift+F10 or the Menu key on the focused row. Controls, nested grids, content portaled outside this grid, headers, footers and empty space do not open its row menu. Controls retain their own context menus, including the browser's default when the application leaves it available.
 
 When a row menu is installed, rejected `contextmenu`, non-mouse `pointerdown`, and single-touch `touchstart` events stop React bubbling after child handlers run. Use capture handlers on ancestors to observe them. Multiple-touch `touchstart` events reach the menu so it can cancel a pending long press.
 

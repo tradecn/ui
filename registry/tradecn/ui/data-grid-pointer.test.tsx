@@ -472,6 +472,45 @@ describe("DataGrid pointer ownership", () => {
     expect(cell(grid, "b").parentElement).toHaveAttribute("aria-selected", "true")
   })
 
+  it("opens the menu on the right-clicked row while a parent that controls focus keeps it elsewhere", () => {
+    const props = setup()
+    const menu = vi.fn((_rows: Quote[], ids: string[]) => <span>Targets: {ids.join(",")}</span>)
+    render(<DataGrid {...props} focusedRowId="a" renderContextMenu={menu} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.pointerDown(cell(grid, "c"), { ...pointer, button: 2, buttons: 2 })
+    fireEvent.contextMenu(cell(grid, "c"))
+    expect(props.onFocusedRowChange).toHaveBeenLastCalledWith("c")
+    expect(menu).toHaveBeenLastCalledWith([props.store.getRow("c")], ["c"], "c")
+  })
+
+  it("opens the keyboard's menu on the focused row, not on the row a pointer last pressed", () => {
+    const props = setup()
+    const menu = vi.fn((_rows: Quote[], ids: string[]) => <span>Targets: {ids.join(",")}</span>)
+    render(<DataGrid {...props} focusedRowId="a" renderContextMenu={menu} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.pointerDown(cell(grid, "c"), pointer)
+    fireEvent.keyDown(grid, { key: "F10", shiftKey: true })
+    expect(menu).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), "a")
+  })
+
+  it("opens a touch's long-press menu on the touched row while a parent that controls focus keeps it elsewhere", () => {
+    vi.useFakeTimers()
+    const props = setup()
+    const menu = vi.fn((_rows: Quote[], ids: string[]) => <span>Long press: {ids.join(",")}</span>)
+    try {
+      render(<DataGrid {...props} focusedRowId="a" renderContextMenu={menu} />)
+      const grid = screen.getByRole("grid")
+      const touch = { identifier: 1, clientX: 20, clientY: 20 }
+      fireEvent.pointerDown(cell(grid, "b"), { ...pointer, pointerType: "touch" })
+      fireEvent.touchStart(cell(grid, "b"), { touches: [touch], changedTouches: [touch] })
+      act(() => vi.advanceTimersByTime(1000))
+      expect(screen.getByText("Long press: b")).toBeInTheDocument()
+      expect(menu).toHaveBeenLastCalledWith([props.store.getRow("b")], ["b"], "b")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("keeps row subscriptions local after pointer interaction", () => {
     const props = setup()
     const renderCell = vi.fn(({ row }: { row: Quote }) => <span>{row.px}</span>)
