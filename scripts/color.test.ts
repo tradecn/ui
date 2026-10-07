@@ -15,7 +15,7 @@ const DIRECTION_COLOR = /(?<![\w-])(?:[\w-]+:)*(?:text|bg|border(?:-[xysetblr])?
 const CHANNELS: Array<{ file: string; channel: string; proof: RegExp }> = [
   { file: "hooks/use-flash.ts", channel: "the data-direction attribute the hook writes for the flash window; directionClass is paired with formatSigned where the watchlist uses it", proof: /data-direction|dataset\.direction/ },
   { file: "ui/flash-cell.tsx", channel: "data-direction on the cell for the window, and the value's own sign inside it", proof: /data-\[direction=/ },
-  { file: "ui/data-grid.tsx", channel: "data-direction on a flashing cell; the cell's text is the signed value", proof: /data-\[direction=/ },
+  { file: "ui/data-grid.tsx", channel: "data-direction on a flashing cell for its window; a signed column prints the sign too, and an unsigned price carries the direction in the attribute alone", proof: /data-\[direction=/ },
   { file: "lib/grid-rules.ts", channel: "an applied rule names itself in data-rule and data-tone on the element and puts its words in the accessible description", proof: /"aria-description": rule\.label\?\.trim\(\) \|\| describeRule/ },
   { file: "ui/alerts.tsx", channel: "the default history column prints severity; item and badge content belongs to the caller, who must pair tone with a visible cue (rendered examples are checked in the alerts smoke scene)", proof: /cell:.*\{row\.severity\}/ },
   { file: "ui/status-bar.tsx", channel: "the environment badge is the word itself, PRODUCTION or UAT, and the tone colors that word", proof: /data-status-environment=\{label\}/ },

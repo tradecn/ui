@@ -87,14 +87,20 @@ export function isEditProblem(value: unknown): value is EditProblem {
   return typeof value === "object" && value !== null && Object.keys(value).length === 1 && typeof (value as EditProblem).problem === "string"
 }
 
+/** How a commit came: the editor's Enter or Tab, leaving the editor, or a cell control committing a value; and whether the key was held. */
+export interface EditCommit {
+  via: "enter" | "tab" | "blur" | "value"
+  repeat: boolean
+}
+
 /** How a column's cells are edited. Every function gets the row, because a step or a check can depend on it. */
 export interface CellEdit<T> {
   /** Reads the typed text as a value, or says what is wrong with it. */
   parse: (text: string, row: T) => unknown
   /** The text the editor opens with. Default: the column's `format`, else the value as text, blank for null. */
   format?: (value: unknown, row: T) => string
-  /** A check on the parsed value before it is committed. */
-  validate?: (value: unknown, row: T) => EditProblem | null | undefined
+  /** A check on the parsed value before it is committed. The grid also says how the commit came, so a check that asks a question can insist on a fresh Enter for the answer; a direct call may leave it out. */
+  validate?: (value: unknown, row: T, commit?: EditCommit) => EditProblem | null | undefined
   /** Up and Down in the editor: the value one step away, ten with Shift. Left out, the arrows do nothing. */
   step?: (value: unknown, dir: 1 | -1, big: boolean, row: T) => unknown
   /** Enter or Space on the focused cell commits this in place of opening an editor: a checkbox column. */
@@ -460,7 +466,7 @@ interface EditController {
   open(rowId: RowId, key: string, typed?: string): void
   type(rowId: RowId, key: string, text: string): void
   /** Parse, check, and send. `move` opens the next (1) or previous (-1) editable cell of the row after. */
-  commit(rowId: RowId, key: string, move?: 1 | -1): void
+  commit(rowId: RowId, key: string, how: EditCommit, move?: 1 | -1): void
   /** A value a cell renderer settled itself (a checkbox): sent as it is. */
   commitValue(rowId: RowId, key: string, value: unknown): void
   cancel(rowId: RowId, key: string): void
@@ -556,7 +562,7 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
     switch (e.key) {
       case "Enter":
         e.preventDefault()
-        edits.commit(rowId, colKey)
+        edits.commit(rowId, colKey, { via: "enter", repeat: e.repeat })
         return
       case "Escape":
         e.preventDefault()
@@ -564,7 +570,7 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
         return
       case "Tab":
         e.preventDefault()
-        edits.commit(rowId, colKey, e.shiftKey ? -1 : 1)
+        edits.commit(rowId, colKey, { via: "tab", repeat: e.repeat }, e.shiftKey ? -1 : 1)
         return
       case "ArrowUp":
       case "ArrowDown":
@@ -1047,7 +1053,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const now = tracker.get(k)
         if (now?.kind === "editing") tracker.set(k, { ...now, text, problem: null })
       },
-      commit(rowId, key, move) {
+      commit(rowId, key, how, move) {
         const k = cellKey(rowId, key)
         const now = tracker.get(k)
         if (now?.kind !== "editing") return
@@ -1069,7 +1075,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
           return focusGrid()
         }
         const parsed = col.edit.parse(now.text, row!)
-        const problem = isEditProblem(parsed) ? parsed : col.edit.validate?.(parsed, row!)
+        const problem = isEditProblem(parsed) ? parsed : col.edit.validate?.(parsed, row!, how)
         if (problem) {
           tracker.set(k, { ...now, problem: problem.problem })
           return
@@ -1082,7 +1088,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const col = column(key)
         const row = store.getRow(rowId)
         if (!canEditCell(col, row)) return
-        const problem = col.edit.validate?.(value, row!)
+        const problem = col.edit.validate?.(value, row!, { via: "value", repeat: false })
         if (problem) {
           tracker.set(cellKey(rowId, key), { kind: "rejected", value: col.accessor(row!), message: problem.problem })
           return
@@ -1117,7 +1123,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const row = store.getRow(rowId)
         if (!canEditCell(col, row)) return tracker.set(k, now.prior)
         const parsed = col.edit.parse(now.text, row!)
-        if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!)) return tracker.set(k, now.prior)
+        if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!, { via: "blur", repeat: false })) return tracker.set(k, now.prior)
         send(rowId, col, row!, parsed)
       },
       settle(rowId, key) {

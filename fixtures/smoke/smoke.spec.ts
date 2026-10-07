@@ -2988,10 +2988,11 @@ for (const dark of [false, true]) {
 
 // The installed quote panel over three notes: the market's and the desk's two-way in 32nds, the server's status
 // word and the buttons it allows per row, a level typed in place and written back by the server, a level too far
-// off the market asking once and sending on the second Enter, a size over the line refused, a crossed ask refused,
+// off the market asking in words over the grid and sending only on a fresh Enter, a click away discarding the
+// question, the row's actions on the row menu from the keyboard, a size over the line refused, a crossed ask refused,
 // a row's action moving the server's word and its buttons only when the server answers, and Pull all asking
 // again before it pulls every row the server allows it on.
-test("a quote panel types levels in the instrument's notation, asks once past a limit, refuses a crossed level, and pulls all after asking again", async ({ page }) => {
+test("a quote panel types levels in the instrument's notation, asks past a limit in words, refuses a crossed level, and pulls all after asking again", async ({ page }) => {
   await page.goto("/")
   const scene = page.locator("section[data-scene='quote-panel']")
   const grid = scene.getByRole("grid", { name: "Quotes" })
@@ -3018,13 +3019,34 @@ test("a quote panel types levels in the instrument's notation, asks once past a 
   await expect(log).toHaveText("edit 2Y bid 100.203125")
   await expect(cell("2Y", "bid")).toHaveText("100-06+")
   await expect(cell("2Y", "bid")).not.toHaveAttribute("data-pending", "true")
-  // Seven ticks off the market: the limit asks once, and the second Enter sends.
+  // Seven ticks off the market: the limit asks in words over the grid, and a click away discards the question
+  // with the draft rather than sending it.
+  const question = scene.locator("[data-quote-question]")
+  const asked = "The bid is 7 ticks from the market, past 4 ticks. Send it anyway? Press Enter again to send it, or Escape to discard it."
   await cell("2Y", "bid").dblclick()
   await bid.fill("100-04")
   await bid.press("Enter")
-  await expect(bid).toHaveAttribute("aria-description", "The bid is 7 ticks from the market, past 4 ticks. Send it anyway? Enter again sends it.")
+  await expect(bid).toHaveAttribute("aria-description", asked)
+  await expect(question).toBeVisible()
+  await expect(question).toHaveText(asked)
+  await cell("2Y", "instrument").click()
+  await expect(question).toHaveCount(0)
+  await expect(log).toHaveText("edit 2Y bid 100.203125")
+  // Asked again, and only the fresh Enter on the same value sends.
+  await cell("2Y", "bid").dblclick()
+  await bid.fill("100-04")
+  await bid.press("Enter")
+  await expect(question).toHaveText(asked)
   await bid.press("Enter")
   await expect(log).toHaveText("edit 2Y bid 100.125")
+  // The row's actions are on the row menu, so the keyboard reaches them.
+  await grid.focus()
+  await page.keyboard.press("Home")
+  await page.keyboard.press("Shift+F10")
+  await expect(page.getByRole("menuitem", { name: "Pause" })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: "Pull" })).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("menuitem")).toHaveCount(0)
   await expect(cell("2Y", "bid")).toHaveText("100-04")
   // A size over the line is refused; Escape leaves the editor.
   await cell("2Y", "bidSize").dblclick()

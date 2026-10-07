@@ -245,7 +245,7 @@ Give the grid `onEdit` and the column a `CellEdit<T>`:
 |---|---|---|---|
 | `parse` | `(text: string, row: T) => unknown` | Required | Return a value or `editProblem("…")`. |
 | `format` | `(value: unknown, row: T) => string` | Column formatter or `String(value)`; blank for nullish values | Editor and pending text. |
-| `validate` | `(value: unknown, row: T) => EditProblem \| null \| undefined` | None | Return a problem to refuse the value. |
+| `validate` | `(value: unknown, row: T, commit?: EditCommit) => EditProblem \| null \| undefined` | None | Return a problem to refuse the value. The grid passes `commit`, `{ via, repeat }`: `via` is `"enter"`, `"tab"`, `"blur"`, or `"value"` for a toggle or a cell control's commit, and `repeat` is true for a held key, so a check that asks a question can insist on a fresh Enter for the answer. |
 | `step` | `(value: unknown, dir: 1 \| -1, big: boolean, row: T) => unknown` | None | Return the next value for Up or Down; Shift sets `big`. |
 | `toggle` | `(value: unknown, row: T) => unknown` | None | Return a value to commit without opening an editor. |
 | `canEdit` | `(row: T) => boolean` | Returns `true` | Make individual cells read-only with `false`. |

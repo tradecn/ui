@@ -1437,8 +1437,9 @@ describe("the docs pages", async () => {
         expect(text).not.toContain("Copy the files into your project")
       }
     }
-    // Fetched once when the search opens. Fifty-one pages now approach 400k characters as API references grow.
-    // Leave room for complete references; this catches runaway output, not ordinary documentation growth.
-    expect(JSON.stringify(index).length).toBeLessThan(800_000)
+    // Fetched once when the search opens. Measured on 2026-10-06: 544k characters at v1.4.13 and 798k on main,
+    // grown by ordinary documentation (the 2.0 migration guide alone is 90k), not by duplication. The cap catches
+    // runaway output, a page dumped twice or code inlined whole, and leaves room for complete references.
+    expect(JSON.stringify(index).length).toBeLessThan(1_000_000)
   })
 })

@@ -82,6 +82,8 @@ In Bid size, `60000000` asks for confirmation above 50 million; `150000000` is b
 | `labels` | `Partial<QuotePanelLabels>` | `DEFAULT_QUOTE_PANEL_LABELS` | Override the words listed below. |
 | `className` | `string` | None | Classes on the outer wrapper. |
 
+Keep `labels`, `actions`, `limits`, and a fixed `convention` stable between renders: a new object rebuilds every generated column.
+
 With a fixed convention, `font` defaults to `"mono"` for fractional quotes in the price basis and `"numeric"` otherwise. A function-valued `convention` always defaults to `"numeric"`, even when it returns fractional price conventions; pass `font="mono"` to override it.
 
 ### Rows
@@ -114,18 +116,16 @@ The cell shows the committed value as pending until the store matches it (`Objec
 | Field | Typed as | Steps by | Blank means |
 |---|---|---|---|
 | `bid`, `ask` | The instrument's notation (`99-16+`, `4.125`) through `parseQuote`; a typed decimal snaps to the printable grid | One quote step, ten with Shift; from the market's same side when the side is empty | No level on that side |
-| `skew`, `width` | A number of quote steps, including fractional steps | One step, ten with Shift; from zero when empty | Null |
+| `skew`, `width` | A plain decimal number of quote steps, including fractional steps; a width is zero or more | One step, ten with Shift; from zero when empty | Null |
 | `bidSize`, `askSize` | A whole number, zero or more | One, ten with Shift; from zero when empty, never below zero | Null |
 
-A crossed edit is refused in the editor before it is sent, read through the instrument's quote direction: a bid at or above the desk's ask, or an ask at or below its bid, normally — the reverse where the direction inverts.
+Numbers are plain decimals: `1e3` and `0x10` are refused. A crossed edit is refused in the editor before it is sent, read through the instrument's quote direction: a bid at or above the desk's ask, or an ask at or below its bid, normally — the reverse where the direction inverts.
 
 ### Limits
 
 The generated editors call [`checkLimits`](limits.md) for non-null bids, asks, and sizes. A bid is passed as `{ bid }`, an ask as `{ ask }`, and a size as `{ quantity }`, with the row's market bid/ask and convention as context. Skew, width, and blank values bypass limits. The crossed-quote check runs before limits.
 
-The first `block` refuses the value with its message. Otherwise, the first `confirm` asks with `{message} Enter again sends it.` The next validation that still produces a confirm for that row id, field, and numeric value consumes the remembered question and passes, provided no block or crossed quote now prevents it. Enter, Tab, or leaving the editor can trigger that validation; confirmation is not restricted to a second Enter. A later attempt at the consumed value asks again if it still needs confirmation.
-
-Unanswered questions remain in the panel's private set until consumed or the panel unmounts. Escape, trying another value, removing a row, changing the market or limits, and validations with no current confirm do not clear them. Returning to a previously asked value can therefore pass without another question. For custom columns, supply your own stable `asked` set as described below.
+The first `block` refuses the value with its message. Otherwise, the first `confirm` refuses it with a question, `{message} Press Enter again to send it, or Escape to discard it.`, shown in words over the grid on a `role="status"` line carrying `data-quote-question`, as well as on the editor. Only a fresh Enter on the same row, field, and value answers it, provided no block or crossed quote now prevents it: Tab and the repeats of a held Enter ask again rather than send. Escape, a click away, or any other way out of the editor discards the question along with the draft, so a value typed again later is asked about again. A later attempt at the consumed value asks again if it still needs confirmation.
 
 ### Actions
 
@@ -140,9 +140,13 @@ Each `QuoteAction<T>` defines a row button:
 
 Buttons follow your `actions` order and appear only when `allowedActions` includes their ids. A click rechecks permission against the rendered row. While a returned promise is pending, every action button on that row is disabled. Fulfillment or rejection re-enables them; rejection shows no built-in error. The status changes only when the store changes.
 
+The same actions are on the row menu, so the keyboard reaches them: right-click the row, or press Shift+F10 or the Menu key on the focused row. The buttons themselves stay out of the Tab order, keeping the grid one tab stop. A menu item rechecks permission against the store's row as it lands, and a run started from either the menu or a button holds both until its promise settles; the hold is the panel's, so it survives the row scrolling out of view and back. A row the server allows nothing on shows `Nothing can be done with this row right now.` in its menu. Items your own `renderContextMenu` returns follow the row's actions.
+
+When the control under focus leaves, focus moves to the grid so its keys keep working: a row button the server's reply removes, Pull all disabling while its promise is out, or its row leaving the view.
+
 Action buttons and the gaps between them preserve row selection and logical focus, including while a command is pending.
 
-Pull all appears when `onPullAll` is given. The first press changes its label to `Pull all anyway?`; a click elsewhere inside the panel or Escape within it cancels the question. The second press rereads the store and passes every row whose `allowedActions` includes `pullAction`, regardless of the grid's filter or selection. The button is disabled when no row allows the action or its returned promise is pending. Fulfillment or rejection clears the pending state without an error message. `data-quote-pull-all` carries the eligible row count.
+Pull all appears when `onPullAll` is given. The first press changes its label to `Pull all anyway?`; a click elsewhere inside the panel, Escape within it, or focus leaving the panel cancels the question. The second press rereads the store and passes every row whose `allowedActions` includes `pullAction`, regardless of the grid's filter or selection. The button is disabled when no row allows the action or its returned promise is pending. Fulfillment or rejection clears the pending state without an error message. `data-quote-pull-all` carries the eligible row count.
 
 ### Columns
 
@@ -154,9 +158,9 @@ Pull all appears when `onPullAll` is given. The first press changes its label to
 | `quoteEdit<T>(field, options)` | `CellEdit<T>` | A `QuoteField` and `QuoteColumnOptions<T>` for its parser, stepper, permission check, and validation. |
 | `allowsQuoteAction(row, id)` | `boolean` | A `QuoteRow` and action id (`string`); false for an absent or empty list. |
 
-`QuoteColumnOptions<T>` requires `convention` and accepts `labels`, `editAction`, and `limits` with the types and defaults in the props table. It also accepts `actions` and `font`, which only `quotePanelColumns` uses, and `asked?: Set<string>` for confirmation memory. `QuoteField` is `"bid" | "ask" | "skew" | "width" | "bidSize" | "askSize"`.
+`QuoteColumnOptions<T>` requires `convention` and accepts `labels`, `editAction`, and `limits` with the types and defaults in the props table. It also accepts `actions` and `font`, which only `quotePanelColumns` uses, `asked?: Set<string>` for confirmation memory, and `onQuestion?: (question: string | null) => void`, told each question a confirm limit asks and `null` once it is answered or no longer stands. `QuoteField` is `"bid" | "ask" | "skew" | "width" | "bidSize" | "askSize"`.
 
-The panel does not expose its private `asked` set or accept it as a prop. When calling either helper yourself with confirm limits, create a stable set and pass it to every helper that should share confirmation memory. Without it, every confirming validation asks again. Keep the set across renders; clear or replace it when your application needs to discard unanswered questions.
+The panel does not expose its private `asked` set or accept it as a prop. When calling either helper yourself with confirm limits, create a stable set and pass it to every helper that should share confirmation memory, and clear it when an editor closes without sending, as the panel does on the editor's blur; otherwise a value typed again later can pass on an old question. Without a set, every confirming validation asks again. Pass `onQuestion` to show the question as the panel does: with custom columns, the panel's own question line stays empty. A direct call to `validate` that leaves out the grid's commit argument keeps the plain two-step answer, the second call with the same value passing.
 
 For example, inside your component, with a stable `convention` and `limits` as in [Confirming and blocking edits](#confirming-and-blocking-edits):
 
@@ -166,11 +170,12 @@ import { quotePanelColumns, type QuoteRow } from "@/components/quote-panel"
 
 // Inside the component:
 const [asked] = useState(() => new Set<string>())
+const [question, setQuestion] = useState<string | null>(null)
 const columns = useMemo(
-  () => quotePanelColumns<QuoteRow>({ convention, limits, asked }),
+  () => quotePanelColumns<QuoteRow>({ convention, limits, asked, onQuestion: setQuestion }),
   [asked],
 )
-// Pass columns={columns} to QuotePanel.
+// Pass columns={columns} to QuotePanel, and show question near the grid.
 ```
 
 ### Labels
@@ -181,9 +186,10 @@ const columns = useMemo(
 |---|---|---|
 | `instrument` / `status` / `marketBid` / `marketAsk` / `bid` / `ask` / `skew` / `width` / `bidSize` / `askSize` / `actions` | `Instrument` / `Status` / `Mkt bid` / `Mkt ask` / `Bid` / `Ask` / `Skew` / `Width` / `Bid size` / `Ask size` / `Actions` | Column headers |
 | `pullAll` / `pullAllAnyway` | `Pull all` / `Pull all anyway?` | The button, and what it says while it asks |
-| `notAQuote` / `notANumber` / `notASize` | `Not a quote in this instrument's notation.` / `Not a number.` / `A size is a whole number, zero or more.` | Editor problems |
+| `notAQuote` / `notANumber` / `notASize` / `notAWidth` | `Not a quote in this instrument's notation.` / `Not a number.` / `A size is a whole number, zero or more.` / `A width is zero or more.` | Editor problems |
 | `bidCrosses` / `askCrosses` | `The bid would cross the ask.` / `The ask would cross the bid.` | Editor problems |
-| `askAgain` | `{message} Enter again sends it.` | A limit that asks; `{message}` is its sentence |
+| `askAgain` | `{message} Press Enter again to send it, or Escape to discard it.` | A limit that asks; `{message}` is its sentence |
+| `noActions` | `Nothing can be done with this row right now.` | The row menu when the server allows nothing on the row |
 
 ### What it does not do
 

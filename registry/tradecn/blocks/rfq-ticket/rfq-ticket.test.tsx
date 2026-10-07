@@ -190,6 +190,29 @@ describe("RfqTicket", () => {
     expect(lastDraft(onDraftChange).bid).toBe(99.515625)
   })
 
+  it("snaps off-grid suggested levels to the quote grid, so Auto sends what it shows", () => {
+    const { quote, onDraftChange } = mount({ inquiry: inquiry({ side: "two-way", suggested: { bid: 99.51, ask: 99.54 } }) })
+    fireEvent.click(screen.getByRole("button", { name: "Take the suggested levels: 99-16+ / 99-17+" }))
+    expect(lastDraft(onDraftChange)).toEqual(draftOf({ bid: 99.515625, ask: 99.546875 }))
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).toHaveBeenCalledWith(draftOf({ bid: 99.515625, ask: 99.546875 }), expect.objectContaining({ id: "Q-1" }))
+  })
+
+  it("snaps off-grid default levels to the quote grid at mount", () => {
+    const { quote } = mount({ inquiry: inquiry({ side: "two-way" }), defaultDraft: { bid: 99.49, ask: 99.54 } })
+    expect(field("Bid").value).toBe("99-15+")
+    expect(field("Offer").value).toBe("99-17+")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).toHaveBeenCalledWith(draftOf({ bid: 99.484375, ask: 99.546875 }), expect.objectContaining({ id: "Q-1" }))
+  })
+
+  it("never runs a destructive action on the send key, even one that sends a quote", () => {
+    const pull = vi.fn()
+    mount({ actions: [{ id: "pull", label: "Pull", run: pull, destructive: true }], inquiry: inquiry({ allowedActions: ["pull"] }), defaultDraft: { ask: 99.515625 } })
+    fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
+    expect(pull).not.toHaveBeenCalled()
+  })
+
   it("offers the suggested levels as one click, and fills the fields with them", () => {
     const { onDraftChange } = mount({ inquiry: inquiry({ side: "two-way", suggested: { bid: 99.5, ask: 99.515625 } }) })
     const button = screen.getByRole("button", { name: "Take the suggested levels: 99-16 / 99-16+" })

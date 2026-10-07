@@ -97,7 +97,7 @@ Reference prices appear above the fields; click one to use it. Blank or invalid 
 | `checked` | `boolean` | `true` | Checks the draft and limits before calling `run`. |
 | `destructive` | `boolean` | `false` | Uses the destructive button variant. |
 
-The first allowed action marked `primary` wins; otherwise the first allowed action is primary. Checked actions require a quantity above zero and a finite price for priced order types. Problems appear under the fields and prevent `run`. Use `checked: false` for an action such as cancel that needs neither draft validation nor limit checks; the send shortcut and its key caps pass such an action by, since a shortcut named send must never cancel an order — when only unchecked actions remain allowed, `mod+enter` does nothing.
+The first allowed action marked `primary` wins; otherwise the first allowed action is primary. Checked actions require a quantity above zero and a finite price for priced order types. Problems appear under the fields and prevent `run`; a price problem clears when the price changes or the order type stops taking one. Use `checked: false` for an action such as cancel that needs neither draft validation nor limit checks. The send shortcut and its key caps pass by every unchecked or `destructive` action, since a shortcut named send must never cancel an order: when only those remain allowed, `mod+enter` does nothing.
 
 ### What it does not do
 
@@ -137,7 +137,7 @@ Plain Enter in a field does not submit an order. The ticket has no `<form>` or i
 | `tif` | `string` | First time-in-force id, or `""`. |
 | `account` | `string \| null` | First account id, or `null`. |
 
-`defaultDraft` applies on mount, and so does everything else the draft reads: the whole draft is built once, from the props of the first render. Changing `instrument`, `orderTypes`, `accounts`, or `defaultDraft` later never rewrites it — a new instrument under an old draft keeps the old price and its text — so change the React `key` whenever the ticket should start again: a new symbol, an amendment, accounts that arrive after mount. `onDraftChange` receives draft updates, never the initial render. It retains the stored price for unpriced order types; only the draft passed to `run` replaces that price with `null`.
+`defaultDraft` applies on mount, and so does everything else the draft reads: the whole draft is built once, from the props of the first render. Changing `instrument`, `orderTypes`, `timeInForces`, `accounts`, or `defaultDraft` later never rewrites it — a new instrument under an old draft keeps the old price and its text, and a select whose list no longer holds the draft's value shows its first option while the draft keeps the old one, so the account `run` receives can differ from the one on screen — so change the React `key` whenever the ticket should start again: a new symbol, an amendment, choices that arrive after mount. A `defaultDraft` price snaps to the quote grid, as a reference click does, so the price sent is the one the field shows. `onDraftChange` receives draft updates, never the initial render. It retains the stored price for unpriced order types; only the draft passed to `run` replaces that price with `null`.
 
 Typed quantities accept nonnegative safe integers, with optional commas. Blank, negative, fractional, or invalid input becomes `null`. Quantity arrows add or subtract `quantityStep`, round to its nearest multiple, and clamp at zero. An empty field starts from zero.
 
