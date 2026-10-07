@@ -128,6 +128,11 @@ describe("toPanelState", () => {
     expect(toPanelState({ secret: "x", toJSON: () => 5 })).toEqual({})
     // A toJSON that throws cannot be honored key by key: its raw fields stay hidden.
     expect(toPanelState({ secret: "x", toJSON(): never { throw new Error("x") } })).toEqual({})
+    // A stateful getter gets one say: a throwing toJSON on JSON's read, then nothing
+    // on any later read, still stores nothing rather than the hidden field.
+    let reads = 0
+    const shifty = { secret: "x", get toJSON() { reads += 1; return reads === 1 ? () => { throw new Error("x") } : undefined } }
+    expect(toPanelState(shifty)).toEqual({})
     // Even reading toJSON can throw; that yields nothing too, never a throw.
     expect(toPanelState({ secret: "x", get toJSON(): never { throw new Error("x") } })).toEqual({})
   })

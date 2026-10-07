@@ -63,7 +63,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-/** The value as JSON would store it: functions and undefined are gone, and a top-level toJSON decides what is stored, as it does for JSON. When JSON cannot walk the whole value, what it can walk is kept key by key — a cycle or a throwing getter drops alone and never wipes the rest of the state — unless a top-level toJSON owns the result, since its raw fields are what it chose to hide. */
+/** The value as JSON would store it: functions and undefined are gone, and a top-level toJSON decides what is stored, as it does for JSON. When JSON cannot walk the whole value, what it can walk is kept key by key — a cycle or a throwing getter drops alone and never wipes the rest of the state — unless the value has a top-level toJSON at all, since its raw fields are what it chose to hide. */
 export function toPanelState(value: unknown): WorkspacePanelState {
   if (!isObject(value)) return {}
   try {
@@ -73,8 +73,11 @@ export function toPanelState(value: unknown): WorkspacePanelState {
     const stored: unknown = JSON.parse(text)
     return isObject(stored) ? (stored as WorkspacePanelState) : {}
   } catch {
+    // A value with a toJSON, own or inherited, owns its serialization: when JSON
+    // could not use it, store nothing rather than the fields it hides. Existence is
+    // checked, not the value, so a stateful getter never gets a second, different say.
     try {
-      if (typeof (value as { toJSON?: unknown }).toJSON === "function") return {}
+      if ("toJSON" in value) return {}
     } catch {
       return {}
     }

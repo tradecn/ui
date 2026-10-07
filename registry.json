@@ -4025,7 +4025,7 @@
       "categories": [
         "layout"
       ],
-      "docs": "Installs the preferences envelope alongside, so the set can travel in a slot. Write the adapter over your shell (a Tauri WebviewWindow, an Electron BrowserWindow through a preload bridge) and call restore() with the stored set on launch; docs/shells.md has the whole shape and a recipe for each.",
+      "docs": "Installs the preferences envelope alongside, so the set can travel in a slot. Write the adapter over your shell (a Tauri WebviewWindow, an Electron BrowserWindow through a preload bridge) and open the stored set on launch one window at a time, so a failure costs that window alone, since restore() stops at the first that fails; docs/shells.md has the whole shape and a recipe for each.",
       "meta": {
         "components": [
           {

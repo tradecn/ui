@@ -321,6 +321,7 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
       }
       const record = { kind, title: title ?? kind, state: state ?? {} }
       store.set(id, record)
+      const earlierFocus = wantsFocus
       if (focus) wantsFocus = id
       try {
         const base = { id, component: PANEL_COMPONENT, title: record.title }
@@ -329,7 +330,7 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
         else dv.addPanel(base)
       } catch (reason) {
         store.delete(id)
-        wantsFocus = null
+        wantsFocus = earlierFocus
         throw reason
       }
       return id

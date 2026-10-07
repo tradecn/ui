@@ -181,7 +181,7 @@ An unregistered kind renders a placeholder and uses the same tab component, so o
 
 ### Adding panels
 
-`api.addPanel(options)` returns the panel id. It throws when the dock rejects the options — an unknown `reference`, say — and the new record is discarded; a throw inside `seed` means `onReady` never fires. With the default `focus: true`, the last panel added during `seed` that asks for focus takes keyboard focus when it mounts; pass `focus: false` while seeding to leave focus where it is, as the tab-controls demo does. If that id is already open, it leaves its title and state unchanged and focuses the existing panel — unless `focus: false`, which leaves both the active panel and the keyboard alone, so an ensure-open call cannot steal from the panel the trader is in.
+`api.addPanel(options)` returns the panel id. If the `id` you pass is already open, it leaves that panel's title and state unchanged and focuses it — unless `focus: false`, which leaves both the active panel and the keyboard alone, so an ensure-open call cannot steal from the panel the trader is in. It throws when the dock rejects the options — an unknown `reference`, say — and discards the new record. A throw inside `seed` is not caught: it propagates out of the dock's ready callback, and `onReady` never fires. With the default `focus: true`, the last panel added during `seed` that asks for focus takes keyboard focus when it mounts, and a failing `addPanel` leaves the request it found in place; pass `focus: false` while seeding to leave focus where it is, as the tab-controls demo does.
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|

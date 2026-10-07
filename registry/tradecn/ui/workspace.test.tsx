@@ -500,6 +500,23 @@ describe("Workspace", () => {
     expect(screen.getByRole("button", { name: "Close book" })).toBeInTheDocument()
   })
 
+  it("keeps an earlier seed focus request when a later addPanel throws", async () => {
+    // The book asks for focus; the chart's unknown reference throws and the seed
+    // catches it. The book's request must survive the failure.
+    await mount({
+      seed: (a) => {
+        a.addPanel({ kind: "book" })
+        try {
+          a.addPanel({ kind: "chart", position: { reference: "missing", direction: "right" } })
+        } catch {
+          // The dock rejected the reference; the seed carries on.
+        }
+      },
+    })
+    const book = document.querySelector("[data-workspace-panel='book-1'] > [data-slot='tradecn-panel']")!
+    expect(document.activeElement).toBe(book)
+  })
+
   it("puts the keyboard inside the panel it focuses, and the panel's key answers there and nowhere else", async () => {
     const { api } = await mount()
     act(() => api.focusPanel("book-1"))
