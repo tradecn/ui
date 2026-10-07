@@ -3084,8 +3084,11 @@ test("a quote panel types levels in the instrument's notation, asks past a limit
   await expect(page.locator("[data-slot='context-menu-label']")).toHaveText("10Y")
   await expect(page.getByRole("group", { name: "10Y" })).toBeVisible()
   await expect.poll(menuHoldsFocus).toBe(true)
-  await page.keyboard.press("ArrowDown")
-  await expect(page.getByRole("menuitem", { name: "Resume" })).toBeFocused()
+  // A menu opened from the keyboard lands on its first item or on itself, by base and by whether the pointer has
+  // moved since the key went down: either way, the first item is next.
+  const resume = page.getByRole("menuitem", { name: "Resume" })
+  if (!(await resume.evaluate((item) => item === item.ownerDocument.activeElement))) await page.keyboard.press("ArrowDown")
+  await expect(resume).toBeFocused()
   await page.keyboard.press("Enter")
   await expect(log).toHaveText("resume 10Y")
   await expect(page.getByRole("menuitem")).toHaveCount(0)

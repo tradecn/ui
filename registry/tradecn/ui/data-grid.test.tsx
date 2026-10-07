@@ -2093,6 +2093,20 @@ describe("editing", () => {
     expect(commit()).toEqual({ via: "value", repeat: true, session: 0 })
   })
 
+  it("passes a held key's repeat from a cell control's commit to validate", () => {
+    const validate = vi.fn<(value: unknown, row: Quote, commit?: EditCommit) => null>(() => null)
+    const columns: ColumnDef<Quote>[] = [
+      { key: "sym", header: "Symbol", width: 80, accessor: (r) => r.sym },
+      { key: "px", header: "Price", width: 90, accessor: (r) => r.px, edit: { parse: price, validate }, cell: ({ edit }) => <button type="button" onKeyDown={(e) => edit?.commit(1, { repeat: e.repeat })}>Bump</button> },
+    ]
+    setup(vi.fn(), columns)
+    const bump = screen.getAllByRole("button", { name: "Bump" })[0]!
+    fireEvent.keyDown(bump, { key: "Enter" })
+    expect(validate).toHaveBeenLastCalledWith(1, expect.anything(), { via: "value", repeat: false, session: 0 })
+    fireEvent.keyDown(bump, { key: "Enter", repeat: true })
+    expect(validate).toHaveBeenLastCalledWith(1, expect.anything(), { via: "value", repeat: true, session: 0 })
+  })
+
   it("numbers editor openings across every grid, so two grids never share an opening", () => {
     const sessions: number[] = []
     const validate = vi.fn<(value: unknown, row: Quote, commit?: EditCommit) => null>((_, __, commit) => {

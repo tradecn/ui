@@ -90,7 +90,7 @@ export function isEditProblem(value: unknown): value is EditProblem {
 /** How a commit came: the editor's Enter or Tab, leaving the editor, or a toggle or cell control committing a value; whether the key was held; and which opening of the editor it came from. */
 export interface EditCommit {
   via: "enter" | "tab" | "blur" | "value"
-  /** True for a held key's repeats: Enter or Tab in an editor, Space or Enter on a toggle. False for a blur or a cell control's value. */
+  /** True for a held key's repeats: Enter or Tab in an editor, Space or Enter on a toggle, or a cell control's commit that passes `{ repeat: true }`. False for a blur. */
   repeat: boolean
   /** One number per opening of an editor, unique across every grid on the page, so a check that asks a question can keep its answer to that opening. Value commits share session 0. */
   session: number
@@ -138,7 +138,8 @@ export type EditStatus =
 /** What a `cell` renderer gets for an editable column: the edit's status, and a way to commit a value of its own (a checkbox's). */
 export interface CellEditHandle {
   status: EditStatus | undefined
-  commit: (value: unknown) => void
+  /** Validates and sends a value. Pass `{ repeat: true }` for a commit a held key repeats, so a check that asks a question never takes it for an answer. */
+  commit: (value: unknown, how?: { repeat?: boolean }) => void
   open: () => void
 }
 
@@ -629,7 +630,7 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
     else if (coveredSettled) edits?.settlePrior(rowId, col.key)
   }, [settled, coveredSettled, edits, rowId, col.key])
   const handle = useMemo<CellEditHandle | undefined>(
-    () => (editable ? { status, commit: (next) => edits!.commitValue(rowId, col.key, next), open: () => edits!.open(rowId, col.key) } : undefined),
+    () => (editable ? { status, commit: (next, how) => edits!.commitValue(rowId, col.key, next, how?.repeat), open: () => edits!.open(rowId, col.key) } : undefined),
     [editable, status, edits, rowId, col.key],
   )
   const numericClass = col.numeric ? (col.font === "mono" ? MONO_NUMERIC_CLASS : NUMERIC_CLASS) : ""

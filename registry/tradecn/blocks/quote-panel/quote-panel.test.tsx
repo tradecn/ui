@@ -141,7 +141,7 @@ describe("quotePanelColumns and quoteEdit", () => {
     expect(size.parse(huge, ROWS[0]!)).toEqual({ problem: "Not a number." })
   })
 
-  it("answers only the question standing for its cell in that opening of the editor, and only on a fresh Enter", () => {
+  it("answers only the question standing, and only on a fresh Enter in the same opening of the editor", () => {
     const asked = new Set<string>()
     const onQuestion = vi.fn()
     const bid = quoteEdit<QuoteRow>("bid", { convention: T32, limits: LIMITS, asked, onQuestion })
@@ -157,12 +157,16 @@ describe("quotePanelColumns and quoteEdit", () => {
     // A held Enter's repeat and Tab ask again; the question still stands for the next fresh Enter.
     expect(bid.validate?.(100.125, row, { ...enter, repeat: true })).toEqual({ problem: question })
     expect(bid.validate?.(100.125, row, { ...enter, via: "tab" })).toEqual({ problem: question })
-    // Another opening of the editor asks its own question and leaves this one standing.
+    // One question stands at a time, as one line shows it: another opening's question replaces this one.
     expect(bid.validate?.(100.125, row, { ...enter, session: 2 })).toEqual({ problem: question })
+    expect(bid.validate?.(100.125, row, enter)).toEqual({ problem: question })
     expect(bid.validate?.(100.125, row, enter)).toBeNull()
-    // Asking about another value replaces the question standing, so the first value is asked about again.
+    // So does a question about another value, or about another cell.
     expect(bid.validate?.(100.125, row, enter)).toEqual({ problem: question })
     expect(bid.validate?.(100.109375, row, enter)).toEqual({ problem: "The bid is 8 ticks from the market, past 4 ticks. Send it anyway? Press Enter again to send it, or Escape to discard it." })
+    expect(bid.validate?.(100.125, row, enter)).toEqual({ problem: question })
+    const ask = quoteEdit<QuoteRow>("ask", { convention: T32, limits: LIMITS, asked, onQuestion })
+    expect(ask.validate?.(100.375, row, enter)).toEqual({ problem: "The ask is 8 ticks from the market, past 4 ticks. Send it anyway? Press Enter again to send it, or Escape to discard it." })
     expect(bid.validate?.(100.125, row, enter)).toEqual({ problem: question })
     // Without the grid's commit, nothing answers: a wrapper that drops it fails closed.
     expect(bid.validate?.(100.125, row)).toEqual({ problem: question })
@@ -173,6 +177,10 @@ describe("quotePanelColumns and quoteEdit", () => {
     expect(bid.validate?.(100.109375, row, control)).toEqual({ problem: controlQuestion })
     expect(bid.validate?.(100.109375, row, { ...control, repeat: true })).toEqual({ problem: controlQuestion })
     expect(bid.validate?.(100.109375, row, control)).toBeNull()
+    // Two controls in different cells: the second's question hides the first, which is asked again, never sent.
+    expect(bid.validate?.(100.109375, row, control)).toEqual({ problem: controlQuestion })
+    expect(ask.validate?.(100.375, row, control)).toEqual({ problem: "The ask is 8 ticks from the market, past 4 ticks. Send it anyway? Do it again to send it." })
+    expect(bid.validate?.(100.109375, row, control)).toEqual({ problem: controlQuestion })
     // Sizes ask and answer the same way.
     const size = quoteEdit<QuoteRow>("bidSize", { convention: T32, limits: LIMITS, asked, onQuestion })
     expect(size.validate?.(60_000_000, row, enter)).toEqual({ problem: "60,000,000 is above 50,000,000. Send it anyway? Press Enter again to send it, or Escape to discard it." })
@@ -180,7 +188,7 @@ describe("quotePanelColumns and quoteEdit", () => {
     expect(size.validate?.(10_000_000, row, enter)).toBeNull()
   })
 
-  it("withdraws a cell's question, from the memory as from the line, on every outcome that does not ask", () => {
+  it("withdraws the question standing, from the memory as from the line, on every outcome that does not ask", () => {
     const asked = new Set<string>()
     const onQuestion = vi.fn()
     const options = { convention: T32, limits: LIMITS, asked, onQuestion }
@@ -198,6 +206,9 @@ describe("quotePanelColumns and quoteEdit", () => {
       { name: "a value inside the limits", edit: bid, value: 100.125, question: priceQuestion, outcome: (s: number) => bid.validate?.(100.21875, row, at(s)), result: null },
       { name: "a block", edit: size, value: 60_000_000, question: sizeQuestion, outcome: (s: number) => size.validate?.(150_000_000, row, at(s)), result: { problem: "150,000,000 is above the size limit of 100,000,000." } },
       { name: "a row without limits", edit: size, value: 60_000_000, question: sizeQuestion, outcome: (s: number) => unlimited.validate?.(60_000_000, row, at(s)), result: null },
+      { name: "a blank level", edit: bid, value: 100.125, question: priceQuestion, outcome: (s: number) => bid.validate?.(null, row, at(s)), result: null },
+      { name: "a blank size", edit: size, value: 60_000_000, question: sizeQuestion, outcome: (s: number) => size.validate?.(null, row, at(s)), result: null },
+      { name: "a check in another cell", edit: bid, value: 100.125, question: priceQuestion, outcome: (s: number) => size.validate?.(10_000_000, row, at(s)), result: null },
     ]
     cases.forEach(({ name, edit, value, question, outcome, result }, i) => {
       const session = 10 + i
@@ -479,13 +490,39 @@ describe("the panel", () => {
     expect(within(cell("2Y", "actions")).getByRole("button", { name: "Pause" })).toBeDisabled()
   })
 
-  it("opens a row menu that says nothing can be done when actions is an empty list, and keeps a row's null token plain row content", async () => {
+  it("calls a stable columns function again only when it changes, whatever else the panel is given", () => {
+    const store = createRowStore<QuoteRow>({ getRowId: (q) => q.id })
+    store.applyDeltas({ upsert: ROWS })
+    const columns = vi.fn((question: QuotePanelQuestion) => quotePanelColumns<QuoteRow>({ convention: T32, limits: LIMITS, ...question }))
+    const panel = () => <QuotePanel store={store} convention={T32} columns={columns} limits={{ ...LIMITS }} labels={{ status: "State" }} onEdit={vi.fn()} initialRect={RECT} />
+    const { rerender } = render(panel())
+    rerender(panel())
+    expect(columns).toHaveBeenCalledTimes(1)
+  })
+
+  it("withdraws a control's question when focus moves on, as it does an editor's", () => {
+    const store = createRowStore<QuoteRow>({ getRowId: (q) => q.id })
+    store.applyDeltas({ upsert: ROWS })
+    const columns = (question: QuotePanelQuestion): ColumnDef<QuoteRow>[] => [
+      ...quotePanelColumns<QuoteRow>({ convention: T32, limits: LIMITS, ...question }).filter((column) => column.key === "instrument"),
+      { key: "preset", header: "Preset", width: 80, accessor: (r) => r.bid ?? null, edit: quoteEdit<QuoteRow>("bid", { convention: T32, limits: LIMITS, ...question }), cell: ({ edit }) => <button type="button" onClick={() => edit?.commit(100.109375)}>Set</button> },
+    ]
+    render(<QuotePanel store={store} convention={T32} columns={columns} onEdit={vi.fn()} initialRect={RECT} />)
+    const set = within(document.querySelector<HTMLElement>('[data-row-id="2Y"] [data-col="preset"]')!).getByRole("button", { name: "Set" })
+    act(() => set.focus())
+    fireEvent.click(set)
+    expect(document.querySelector("[data-quote-question]")).toHaveTextContent("Do it again to send it.")
+    act(() => screen.getByRole("grid", { name: "Quotes" }).focus())
+    expect(document.querySelector("[data-quote-question]")).toBeNull()
+  })
+
+  it("opens a row menu that says there are no actions when actions is an empty list, and keeps a row's null token plain row content", async () => {
     const { store, cell } = setup({ actions: [] })
     act(() => store.applyDeltas({ upsert: [{ id: "7Y", instrument: "7Y", status: "Pulled", allowedActions: [] }] }))
     const token = cell("7Y", "actions").querySelector("[data-quote-actions]")!
     expect(token).not.toHaveAttribute("data-grid-interaction")
     fireEvent.contextMenu(token)
-    const nothing = await screen.findByRole("menuitem", { name: "Nothing can be done with this row right now." })
+    const nothing = await screen.findByRole("menuitem", { name: "No actions for this row right now." })
     expect(nothing).toHaveAttribute("aria-disabled", "true")
     expect(document.querySelector("[data-slot='context-menu-label']")?.textContent).toBe("7Y")
   })
