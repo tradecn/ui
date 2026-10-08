@@ -545,6 +545,11 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   // observers check it as they fire and bind again to the new window when it changed.
   const [doc, setDoc] = useState<Document | null>(null)
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  // The last size the observers reported, for a plot made while its box has none to measure.
+  const sizeRef = useRef<{ width: number; height: number } | null>(null)
+  // Colors read while the plot was out of the document come back empty: read them again when it is back.
+  const paletteStale = useRef(false)
+  const repaintRef = useRef<() => void>(() => {})
   const [fontEpoch, setFontEpoch] = useState(0)
   const plotKey = JSON.stringify([kind, crosshair, lastLine, zone, convention, overlayList.map((o) => [o.id, o.color, o.width]), fontEpoch])
   const plot = useRef<uPlot | null>(null)
@@ -615,7 +620,17 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     const report: ResizeObserverCallback = ([entry]) => {
       if (plotEl.ownerDocument !== doc) return setDoc(plotEl.ownerDocument)
       const rect = entry?.contentRect
-      if (rect && rect.width > 0 && rect.height > 0) setSize((s) => (s && s.width === rect.width && s.height === rect.height ? s : { width: rect.width, height: rect.height }))
+      if (!rect || rect.width <= 0 || rect.height <= 0) return
+      sizeRef.current = { width: rect.width, height: rect.height }
+      // The one path that resizes a plot: one made at another size than this report, as when its box was hidden or
+      // out of the document, is brought to the report even when the report itself has not changed.
+      const u = plot.current
+      if (u && (u.width !== rect.width || u.height !== rect.height)) u.setSize({ width: rect.width, height: rect.height })
+      if (paletteStale.current && plotEl.isConnected) {
+        paletteStale.current = false
+        repaintRef.current()
+      }
+      setSize((s) => (s && s.width === rect.width && s.height === rect.height ? s : { width: rect.width, height: rect.height }))
     }
     const observers = [new ResizeObserver(report)]
     const Own = doc.defaultView?.ResizeObserver
@@ -630,13 +645,22 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   const ready = size !== null && columns.bars.length > 0
   useEffect(() => {
     if (!plotEl || !doc || !ready || !canDraw()) return
-    live.current.palette = readPalette(plotEl)
-    // The content box as it is now. A size measured before this recreation can predate a layout change that came
-    // with it, and a plot made at that size moves under the pointer when the observer catches up.
-    const rect = plotEl.getBoundingClientRect()
+    if (plotEl.isConnected) live.current.palette = readPalette(plotEl)
+    else paletteStale.current = true
+    // The content box from layout as it is now, which a transform does not scale and a report made before this
+    // recreation cannot have seen; a box with none to measure (hidden, or out of the document) takes the last report.
     const style = (doc.defaultView ?? window).getComputedStyle(plotEl)
-    const edges = (...names: string[]) => names.reduce((sum, name) => sum + (parseFloat(style.getPropertyValue(name)) || 0), 0)
-    const box = { width: rect.width - edges("padding-left", "padding-right", "border-left-width", "border-right-width"), height: rect.height - edges("padding-top", "padding-bottom", "border-top-width", "border-bottom-width") }
+    // Lengths only: a box with no layout gives its declared values, which can be a percentage or auto.
+    const pixels = (name: string) => {
+      const value = style.getPropertyValue(name)
+      return value.endsWith("px") ? parseFloat(value) || 0 : 0
+    }
+    const inner = style.getPropertyValue("box-sizing") === "border-box"
+    const laidOut = {
+      width: pixels("width") - (inner ? pixels("padding-left") + pixels("padding-right") + pixels("border-left-width") + pixels("border-right-width") : 0),
+      height: pixels("height") - (inner ? pixels("padding-top") + pixels("padding-bottom") + pixels("border-top-width") + pixels("border-bottom-width") : 0),
+    }
+    const box = laidOut.width > 0 && laidOut.height > 0 ? laidOut : (sizeRef.current ?? { width: 0, height: 0 })
     pointerOwnsCursor.current = false
     lastCursorEvent.current = undefined
     const u = new uPlot(
@@ -674,6 +698,10 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     const repaint = () => {
       queued = false
       if (plot.current !== u) return
+      if (!plotEl.isConnected) {
+        paletteStale.current = true
+        return
+      }
       const next = readPalette(plotEl)
       const fontChanged = next.font !== live.current.palette.font
       live.current.palette = next
@@ -684,6 +712,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       styleCursor(u, next)
       u.redraw(false, false)
     }
+    repaintRef.current = repaint
     // Read once this round of observers has run: a popout copies the page's root onto its own in the same round,
     // and the plot in it reads its styles from there.
     const changed = () => {
@@ -706,16 +735,13 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     return () => {
       for (const scheme of schemes) scheme.removeEventListener("change", changed)
       observer.disconnect()
+      repaintRef.current = () => {}
       u.destroy()
       plot.current = null
       plotKeyRef.current = null
     }
     // plotKey includes convention, overlay structure and font epoch; equal inline options do not remake the plot.
   }, [plotEl, doc, ready, kind, crosshair, lastLine, zone, plotKey])
-
-  useEffect(() => {
-    if (size && plot.current) plot.current.setSize(size)
-  }, [size])
 
   // Keys move the plot immediately. Its cursor hook repeats this after new scales are committed;
   // pointer-owned coordinates stay where the hand put them. Silent writes cannot echo onCursor.

@@ -187,16 +187,16 @@ Update data through the store and move the cursor through the plot.
 
 ### Plot lifecycle
 
-`PriceChartPlot` draws with uPlot on a canvas. It waits for a positive `ResizeObserver` size and at least one finite bar.
+`PriceChartPlot` draws with uPlot on a canvas. It waits for a positive `ResizeObserver` size and at least one finite bar, then makes the plot at its content box as laid out, which a transform doesn't scale, or at the last observed size while the box is hidden or out of the document.
 
 | Change | Behavior |
 |---|---|
-| Box size | Resizes the existing plot. |
+| Box size | Resizes the plot to each observed size it doesn't already have, so a plot made while its box was hidden fits the box once it shows. |
 | Window | Recreates the plot in a popout's window once a resize or a theme change notices the move, and again when the popout closes and hands it back. |
 | `kind`, `crosshair`, `lastLine`, `zone`, or serialized `convention` | Recreates the plot. |
 | Overlay ids, colors, widths, or order | Recreates the plot. |
 | `baseline` alone | Updates the readings without recalculating the price scale. An out-of-range reference can stay offscreen until data updates or the plot is recreated. |
-| Theme or mode | Repaints the colors on an `<html>` class, style, `data-theme`, or `data-accessibility` change, and on a system color-scheme flip. A theme switched on a container alone keeps the painted colors until one of those changes. A chart in a popout watches its own window's root as well and reads the colors once the popout has copied the page's theme there. |
+| Theme or mode | Repaints the colors on an `<html>` class, style, `data-theme`, or `data-accessibility` change, and on a system color-scheme flip. A theme switched on a container alone keeps the painted colors until one of those changes. A chart in a popout watches its own window's root as well and reads the colors once the popout has copied the page's theme there. A plot out of the document, as in a background tab, keeps its colors and axis font until it's back, then reads them. |
 | `--tradecn-font-mono` stack | Recreates the plot to update its axis font, on the same triggers. |
 | Empty store or unmount | Destroys the plot. |
 

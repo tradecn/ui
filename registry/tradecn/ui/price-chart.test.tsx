@@ -85,6 +85,37 @@ function stubDrawing() {
   })
 }
 
+// A ResizeObserver the test reports through: each observer reports the box it is given as it starts watching, and
+// again at every `report()`.
+function reportingObserver(initial = { width: 600, height: 300 }) {
+  let box = initial
+  const live = new Set<() => void>()
+  vi.stubGlobal("ResizeObserver", class {
+    targets: Element[] = []
+    fire: () => void
+    constructor(callback: ResizeObserverCallback) {
+      this.fire = () => callback(this.targets.map((target) => ({ target, contentRect: { ...box } }) as unknown as ResizeObserverEntry), this as unknown as ResizeObserver)
+    }
+    observe(target: Element) {
+      this.targets.push(target)
+      live.add(this.fire)
+      this.fire()
+    }
+    unobserve() {}
+    disconnect() {
+      live.delete(this.fire)
+    }
+  })
+  return {
+    resize(next: { width: number; height: number }) {
+      box = next
+    },
+    report: () => act(async () => {
+      for (const fire of [...live]) fire()
+    }),
+  }
+}
+
 describe("PriceChart", () => {
   it("names itself, prints the last close with its change and sign, and carries the direction as data", () => {
     render(<PriceChart store={seeded()} convention={ZN} label="ZN, today" zone="America/New_York"><PriceChartHeader><PriceChartLast /><PriceChartChange /><PriceChartReadout /></PriceChartHeader><PriceChartPlot><PriceChartEmpty /></PriceChartPlot></PriceChart>)
@@ -431,19 +462,92 @@ describe("PriceChart composition", () => {
     expect([...live].map((observer) => observer.window)).toEqual(["page"])
   })
 
-  it("makes a recreated plot at its box as it is then, inside its padding, not at the last size the observer reported", async () => {
+  it("makes a plot at its laid-out content box, or at the last report when its box has none, and brings it to each report", async () => {
     stubDrawing()
+    const observer = reportingObserver()
     const store = seeded()
+    const kinds = ["line", "candles"] as const
+    let turn = 0
     const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN"><PriceChartPlot /></PriceChart>)
     await act(async () => {})
     const plotEl = screen.getByRole("slider")
-    // The box changes with the recreation, before the observer has said so.
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 500, height: 250, top: 0, left: 0, right: 500, bottom: 250, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
-    plotEl.style.padding = "10px"
-    rerender(<PriceChart store={store} convention={ZN} label="ZN" kind="candles"><PriceChartPlot /></PriceChart>)
+    const remake = async () => {
+      turn += 1
+      rerender(<PriceChart store={store} convention={ZN} label="ZN" kind={kinds[turn % 2]}><PriceChartPlot /></PriceChart>)
+      await act(async () => {})
+      return plots.at(-1) as unknown as { width: number; height: number }
+    }
+    // Laid out at 500 by 250 with 10 px padding inside its border box: the content box, whatever a layout read of
+    // the border box says.
+    Object.assign(plotEl.style, { width: "500px", height: "250px", padding: "10px", boxSizing: "border-box" })
+    let made = await remake()
+    expect([made.width, made.height]).toEqual([480, 230])
+    // Under a transform that halves it, the layout size, not the transformed one.
+    Object.assign(plotEl.style, { width: "600px", height: "300px", padding: "0px" })
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 300, height: 150, top: 0, left: 0, right: 300, bottom: 150, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+    made = await remake()
+    expect([made.width, made.height]).toEqual([600, 300])
+    // Hidden as it is made, with no box to measure: the last report, not nothing.
+    Object.assign(plotEl.style, { width: "", height: "" })
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+    made = await remake()
+    expect([made.width, made.height]).toEqual([600, 300])
+    // Hidden with its size declared in percentages, which a box with no layout gives back as declared: the last
+    // report, not a hundred pixels.
+    Object.assign(plotEl.style, { width: "100%", height: "100%" })
+    made = await remake()
+    expect([made.width, made.height]).toEqual([600, 300])
+    // Made at another size than the last report: the next report brings it there even though the report is unchanged.
+    Object.assign(plotEl.style, { width: "400px", height: "200px" })
+    made = await remake()
+    expect([made.width, made.height]).toEqual([400, 200])
+    await observer.report()
+    expect([made.width, made.height]).toEqual([600, 300])
+  })
+
+  it("makes its first plot at the box laid out then, not at an older report, and moves nothing when the report catches up", async () => {
+    stubDrawing()
+    // The observer last reported 600 by 300; by the time the bars are drawn, the box is laid out at 400 by 200.
+    const observer = reportingObserver({ width: 600, height: 300 })
+    const before = plots.length
+    render(<PriceChart store={seeded()} convention={ZN} label="ZN"><PriceChartPlot style={{ width: "400px", height: "200px" }} /></PriceChart>)
     await act(async () => {})
-    const plot = plots.at(-1) as unknown as { width: number; height: number }
-    expect([plot.width, plot.height]).toEqual([480, 230])
+    expect(plots.length).toBe(before + 1)
+    const made = plots.at(-1) as unknown as { width: number; height: number }
+    expect([made.width, made.height]).toEqual([400, 200])
+    observer.resize({ width: 400, height: 200 })
+    await observer.report()
+    expect([made.width, made.height]).toEqual([400, 200])
+    expect(plots.length).toBe(before + 1)
+  })
+
+  it("reads no colors while the plot is out of the document, and reads them at the first report after it is back", async () => {
+    stubDrawing()
+    const observer = reportingObserver()
+    const host = document.createElement("div")
+    document.body.append(host)
+    render(createPortal(<PriceChart store={seeded()} convention={ZN} label="ZN"><PriceChartPlot /></PriceChart>, host))
+    await act(async () => {})
+    // The colors are read through an <i> probe in the plot: note whether each read was made in the document.
+    const reads: boolean[] = []
+    const read = window.getComputedStyle
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+      if (element.tagName === "I") reads.push(element.isConnected)
+      return read.call(window, element, pseudo)
+    })
+    // Out of the document, as a dock's background tab is, a theme change reads nothing.
+    host.remove()
+    try {
+      await act(async () => { document.documentElement.classList.add("dark") })
+      expect(reads).toEqual([])
+      // Back in it, the next report reads the colors, in the document.
+      document.body.append(host)
+      await observer.report()
+      expect(reads.length).toBeGreaterThan(0)
+      expect(reads.every(Boolean)).toBe(true)
+    } finally {
+      document.documentElement.classList.remove("dark")
+    }
   })
 
   it("draws the axis in the runtime's zone for a zone the runtime does not know, as the readout does", async () => {
