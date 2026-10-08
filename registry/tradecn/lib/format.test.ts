@@ -94,6 +94,11 @@ describe("fractions", () => {
     expect(formatFraction(99.5000001, T32)).toBe("99-16")
     expect(formatFraction(99.99999999, T32)).toBe("100-00")
   })
+  it("prints the null token where the notation can't: from 1e21, and past where the scaling stays finite", () => {
+    // A whole part from 1e21 prints in exponent form, and 1e307 in 32nds scales to Infinity.
+    for (const v of [1e21, -1e21, 1e307, -Number.MAX_VALUE]) expect(formatFraction(v, T32), String(v)).toBe(NULL_TOKEN)
+    expect(formatFraction(1e20, T32)).toBe("100000000000000000000-00")
+  })
   it("parses its own output on the 1/64 grid (32nds with halves)", () => {
     fc.assert(fc.property(fc.integer({ min: 0, max: 200 * 64 }), (n) => parsePrice(formatFraction(n / 64, T32), T32) === n / 64))
   })
@@ -170,6 +175,29 @@ describe("decimal and tick prices", () => {
     expect(formatPrice(-1234.5, { kind: "decimal", decimals: 2 })).toBe(`${MINUS}1,234.50`)
     expect(parsePrice("1,234.567", { kind: "decimal", decimals: 2 })).toBe(1234.57)
   })
+  it("reads a comma only as a thousands separator in the whole part", () => {
+    const dec = { kind: "decimal", decimals: 2 } as const
+    const frac = { kind: "fraction", denominator: 32, half: "+" } as const
+    expect(parsePrice("1,234.5", dec)).toBe(1234.5)
+    expect(parsePrice("-12,345,678", dec)).toBe(-12345678)
+    expect(parsePrice("1,234-16+", frac)).toBe(1234.515625)
+    // A decimal comma, a stray comma, a leading zero, and a comma among the 32nds are not prices, never a bigger one.
+    for (const text of ["99,5", "99,50", "1,0,0", "0,995", ",995", "1,23", "1,2345", "1,234,5", "1,234.5,6", "1234,567", "01,234", "--1,234", "0,995.5", "01,234,567"]) expect(parsePrice(text, dec)).toBeNull()
+    expect(parsePrice("99-1,6", frac)).toBeNull()
+    expect(parsePrice("99,5", frac)).toBeNull()
+    // Where the convention prints decimals, one comma and no point reads either way, "4,253" as 4253 or as 4.253, so it
+    // reads as neither; a point after it, or a second group, can only be grouping.
+    for (const text of ["1,234", "4,253", "99,125"]) expect(parsePrice(text, dec)).toBeNull()
+    expect(parsePrice("99,125", { kind: "decimal", decimals: 3 })).toBeNull()
+    expect(parsePrice("99,125", frac)).toBeNull()
+    expect(parsePrice("5,012", { kind: "tick", tick: 0.25 })).toBeNull()
+    expect(parsePrice("1,234.00", dec)).toBe(1234)
+    expect(parsePrice("12,345,678", dec)).toBe(12345678)
+    // A convention that prints no decimals reads one group as its own text prints it.
+    expect(parsePrice("5,012", { kind: "decimal", decimals: 0 })).toBe(5012)
+    expect(parsePrice("5,012", { kind: "tick", tick: 1 })).toBe(5012)
+    expect(parsePrice("0,995", { kind: "decimal", decimals: 0 })).toBeNull()
+  })
 })
 
 describe("yield, bps, dv01, notional, signed, percent, quantity", () => {
@@ -245,6 +273,24 @@ describe("instrument formatter", () => {
     expect(ust.parseQuote("99-17")).toBe(99.53125)
     expect(ust.stepQuote(99.5, 1)).toBe(99.515625)
   })
+
+  it("prints in its bound locale and reads back only the text it can read", () => {
+    const dec: InstrumentConvention = { price: { kind: "decimal", decimals: 2 }, tick: 0.01 }
+    // The bound locale applies to output only: a decimal comma reads as no quote, never as a bigger one.
+    const de = createInstrumentFormatter(dec, { locale: "de-DE" })
+    expect(de.quote(99.5)).toBe("99,50")
+    expect(de.parseQuote(de.quote(99.5))).toBeNull()
+    expect(de.price(1234.5)).toBe("1.234,50")
+    expect(de.parsePrice(de.price(1234.5))).toBeNull()
+    const us = createInstrumentFormatter(dec)
+    expect(us.parseQuote(us.quote(1234.5))).toBe(1234.5)
+    // A discount at its default three decimals: de-DE prints "4,253", which reads as no quote, not 4253.
+    const discount: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.0005, quoteBasis: "discount" }
+    const deDiscount = createInstrumentFormatter(discount, { locale: "de-DE" })
+    expect(deDiscount.quote(4.2531)).toBe("4,253")
+    expect(deDiscount.parseQuote(deDiscount.quote(4.2531))).toBeNull()
+    expect(createInstrumentFormatter(discount).parseQuote("4,253.1")).toBe(4253.1)
+  })
 })
 
 describe("the quote basis", () => {
@@ -289,6 +335,10 @@ describe("the quote basis", () => {
     expect(formatQuote(4.2531, bill)).toBe("4.253")
     expect(parseQuote("4.2531", bill)).toBe(4.253)
     expect(parseQuote(" 4,253.2 ", bill)).toBe(4253.2)
+    // A decimal comma reads as no quote, never as 425, or as 4253 at the basis's three decimals.
+    expect(parseQuote("4,25", bill)).toBeNull()
+    expect(parseQuote("4,253", bill)).toBeNull()
+    expect(parseQuote("4,253,2", bill)).toBeNull()
     expect(formatQuote(4.25275, onYield)).toBe("4.2530")
     expect(parseQuote("4.2527", onYield)).toBe(4.2525)
     expect(formatQuote(12.55, credit)).toBe("12.6")

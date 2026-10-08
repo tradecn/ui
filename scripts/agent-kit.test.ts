@@ -105,8 +105,13 @@ describe("the agent kit", () => {
     for (const name of blocks) expect(line, name).toContain(`\`${name}\``)
   })
 
-  it("installs with the CLI the registry is tested with", () => {
-    expect(read("registry/tradecn/agents/tradecn/SKILL.md")).toContain(`bun x shadcn@${cliVersion()} add -y -o -c <app dir> https://tradecn.dev/r/<tag>/<item>.json`)
+  it("installs with the CLI the registry is tested with, previewing first so an app's edit to a shared file survives", () => {
+    const skill = read("registry/tradecn/agents/tradecn/SKILL.md")
+    expect(skill).toContain(`bun x shadcn@${cliVersion()} add --dry-run -c <app dir> https://tradecn.dev/r/<tag>/<item>.json`)
+    expect(skill).toContain(`bun x shadcn@${cliVersion()} add -y -o -c <app dir> https://tradecn.dev/r/<tag>/<item>.json`)
+    // Overwriting is the step after the preview, never the only instruction.
+    expect(skill.indexOf("add --dry-run")).toBeLessThan(skill.indexOf("add -y -o"))
+    expect(read("registry/tradecn/agents/tradecn/references/items.md")).toContain(`add --dry-run -c <app dir>`)
   })
 
   it("names only items and exports the registry has", () => {

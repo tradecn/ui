@@ -105,38 +105,48 @@ export function parsePreferences(value: unknown): Preferences | null {
     }
   }
   if (!isObject(raw) || raw.tradecn !== PREFERENCES_MARK || raw.version !== PREFERENCES_VERSION || !isObject(raw.slots)) return null
-  const slots: Record<string, PreferenceSlot> = {}
+  const slots: [string, PreferenceSlot][] = []
   for (const [name, slot] of Object.entries(raw.slots)) {
     if (!isObject(slot) || typeof slot.version !== "number" || !Number.isInteger(slot.version) || slot.version < 0 || !("value" in slot)) continue
     const stored = toJson(slot.value)
     if (stored === null && slot.value !== null) continue
-    slots[name] = { version: slot.version, value: stored }
+    slots.push([name, { version: slot.version, value: stored }])
   }
-  return { tradecn: PREFERENCES_MARK, version: PREFERENCES_VERSION, slots, boundaries: readBoundaries(raw.boundaries) }
+  // Defined rather than assigned, so a slot named `__proto__` is kept as a slot and doesn't set the object's prototype.
+  return { tradecn: PREFERENCES_MARK, version: PREFERENCES_VERSION, slots: Object.fromEntries(slots), boundaries: readBoundaries(raw.boundaries) }
+}
+
+// A slot is read by its own key, so a name such as `constructor` or `toString` is a slot like any other and never
+// a member of Object.prototype.
+function slotNamed(prefs: Preferences, name: string): PreferenceSlot | undefined {
+  return Object.prototype.hasOwnProperty.call(prefs.slots, name) ? prefs.slots[name] : undefined
 }
 
 /** The slot, or undefined. */
 export function getSlot(prefs: Preferences, name: string): PreferenceSlot | undefined {
-  return prefs.slots[name]
+  return slotNamed(prefs, name)
 }
 
 /**
- * The envelope with the slot set. The value is stored as JSON; `version` is the given one, else the
- * slot's own, else 1. A value and version that change nothing hand back the same envelope, so a
- * subscriber or an autosave comparing by identity sees no change.
+ * The envelope with the slot set. The value is stored as JSON at a version: the number given, or the version of
+ * the migrator given, which is the one to pass when the value was read through `readSlot` with it; else the
+ * slot's own, else 1. A value read through a migrator is at the migrator's version, and stored under the slot's
+ * older one it would be migrated again on the next read. A value and version that change nothing hand back the
+ * same envelope, so a subscriber or an autosave comparing by identity sees no change.
  */
-export function setSlot(prefs: Preferences, name: string, value: unknown, version?: number): Preferences {
+export function setSlot(prefs: Preferences, name: string, value: unknown, version?: number | PreferenceMigrator): Preferences {
   const stored = toJson(value)
   if (stored === null && value !== null) return prefs
-  const current = prefs.slots[name]
-  const next: PreferenceSlot = { version: version ?? current?.version ?? 1, value: stored }
+  const current = slotNamed(prefs, name)
+  const at = typeof version === "object" && version !== null ? version.version : version
+  const next: PreferenceSlot = { version: at ?? current?.version ?? 1, value: stored }
   if (current && current.version === next.version && sameJson(current.value, next.value)) return prefs
   return { ...prefs, slots: { ...prefs.slots, [name]: next } }
 }
 
 /** The envelope without the slot; the same envelope when there was none. */
 export function removeSlot(prefs: Preferences, name: string): Preferences {
-  if (!(name in prefs.slots)) return prefs
+  if (!slotNamed(prefs, name)) return prefs
   const slots = { ...prefs.slots }
   delete slots[name]
   return { ...prefs, slots }
@@ -173,8 +183,8 @@ export function diffPreferences(a: Preferences, b: Preferences): PreferencesDiff
   const out: PreferencesDiff = { added: [], removed: [], changed: [], same: [] }
   const names = new Set([...Object.keys(a.slots), ...Object.keys(b.slots)])
   for (const name of [...names].sort()) {
-    const x = a.slots[name]
-    const y = b.slots[name]
+    const x = slotNamed(a, name)
+    const y = slotNamed(b, name)
     if (x && !y) out.removed.push(name)
     else if (!x && y) out.added.push(name)
     else if (x && y) (x.version === y.version && sameJson(x.value, y.value) ? out.same : out.changed).push(name)
@@ -230,7 +240,7 @@ export function importPreferences(target: Preferences, incoming: unknown, option
 export function migratePreferences(prefs: Preferences, migrators: PreferenceMigrators): Preferences {
   let out = prefs
   for (const [name, migrator] of Object.entries(migrators)) {
-    const slot = prefs.slots[name]
+    const slot = slotNamed(prefs, name)
     if (!slot || slot.version >= migrator.version) continue
     const value = migrator.migrate(slot.value, slot.version)
     out = value === null ? removeSlot(out, name) : setSlot(out, name, value, migrator.version)
@@ -244,7 +254,7 @@ export function migratePreferences(prefs: Preferences, migrators: PreferenceMigr
  * envelope itself is not changed; call `migratePreferences` to write the result back.
  */
 export function readSlot<V = PreferencesJson>(prefs: Preferences, name: string, migrator?: PreferenceMigrator): V | undefined {
-  const slot = prefs.slots[name]
+  const slot = slotNamed(prefs, name)
   if (!slot) return undefined
   if (!migrator) return slot.value as V
   if (slot.version > migrator.version) return undefined
