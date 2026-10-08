@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { createRef, StrictMode } from "react"
+import { createRef, StrictMode, useEffect, useLayoutEffect } from "react"
+import { createPortal } from "react-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { barId, foldTicks, type Bar } from "@/registry/tradecn/lib/price-series"
@@ -44,6 +45,76 @@ function seeded() {
 
 const root = () => document.querySelector<HTMLElement>("[data-slot='tradecn-price-chart']")!
 const text = (selector: string) => root().querySelector(selector)?.textContent ?? ""
+
+// The plot mounts only with a measured box and a drawable canvas, so these supply both: a ResizeObserver
+// that reports once, a 2D context of recording no-ops, and a sized box.
+function stubDrawing() {
+  const bag: Record<string | symbol, unknown> = {}
+  const ctxStub = new Proxy(bag, {
+    get(target, key) {
+      if (key === "measureText") return () => ({ width: 10 })
+      if (key === "createLinearGradient" || key === "createRadialGradient" || key === "createPattern") return () => ({ addColorStop() {} })
+      if (!(key in target)) target[key] = vi.fn()
+      return target[key]
+    },
+    set(target, key, value) {
+      target[key] = value
+      return true
+    },
+  })
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctxStub as never)
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 600, height: 300, top: 0, left: 0, right: 600, bottom: 300, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+  vi.stubGlobal("Path2D", class {
+    addPath() {}
+    moveTo() {}
+    lineTo() {}
+    rect() {}
+    arc() {}
+    closePath() {}
+  })
+  vi.stubGlobal("ResizeObserver", class {
+    callback: ResizeObserverCallback
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback
+    }
+    observe(target: Element) {
+      this.callback([{ target, contentRect: { width: 600, height: 300 } } as ResizeObserverEntry], this as unknown as ResizeObserver)
+    }
+    unobserve() {}
+    disconnect() {}
+  })
+}
+
+// A ResizeObserver the test reports through: each observer reports the box it is given as it starts watching, and
+// again at every `report()`.
+function reportingObserver(initial = { width: 600, height: 300 }) {
+  let box = initial
+  const live = new Set<() => void>()
+  vi.stubGlobal("ResizeObserver", class {
+    targets: Element[] = []
+    fire: () => void
+    constructor(callback: ResizeObserverCallback) {
+      this.fire = () => callback(this.targets.map((target) => ({ target, contentRect: { ...box } }) as unknown as ResizeObserverEntry), this as unknown as ResizeObserver)
+    }
+    observe(target: Element) {
+      this.targets.push(target)
+      live.add(this.fire)
+      this.fire()
+    }
+    unobserve() {}
+    disconnect() {
+      live.delete(this.fire)
+    }
+  })
+  return {
+    resize(next: { width: number; height: number }) {
+      box = next
+    },
+    report: () => act(async () => {
+      for (const fire of [...live]) fire()
+    }),
+  }
+}
 
 describe("PriceChart", () => {
   it("names itself, prints the last close with its change and sign, and carries the direction as data", () => {
@@ -294,42 +365,7 @@ describe("PriceChart composition", () => {
   })
 
   it("repaints on a system scheme flip and drops the listener with the plot", async () => {
-    // The plot mounts only with a measured box and a drawable canvas, so this test supplies both:
-    // a ResizeObserver that reports once, a 2D context of recording no-ops, and a sized box.
-    const bag: Record<string | symbol, unknown> = {}
-    const ctxStub = new Proxy(bag, {
-      get(target, key) {
-        if (key === "measureText") return () => ({ width: 10 })
-        if (key === "createLinearGradient" || key === "createRadialGradient" || key === "createPattern") return () => ({ addColorStop() {} })
-        if (!(key in target)) target[key] = vi.fn()
-        return target[key]
-      },
-      set(target, key, value) {
-        target[key] = value
-        return true
-      },
-    })
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctxStub as never)
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 600, height: 300, top: 0, left: 0, right: 600, bottom: 300, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
-    vi.stubGlobal("Path2D", class {
-      addPath() {}
-      moveTo() {}
-      lineTo() {}
-      rect() {}
-      arc() {}
-      closePath() {}
-    })
-    vi.stubGlobal("ResizeObserver", class {
-      callback: ResizeObserverCallback
-      constructor(callback: ResizeObserverCallback) {
-        this.callback = callback
-      }
-      observe(target: Element) {
-        this.callback([{ target, contentRect: { width: 600, height: 300 } } as ResizeObserverEntry], this as unknown as ResizeObserver)
-      }
-      unobserve() {}
-      disconnect() {}
-    })
+    stubDrawing()
     const listeners = new Set<() => void>()
     const mql = {
       matches: false,
@@ -343,11 +379,476 @@ describe("PriceChart composition", () => {
     await act(async () => {})
     expect(listeners.size).toBe(1)
     const redraw = vi.spyOn(plots.at(-1)!, "redraw").mockImplementation(() => {})
-    act(() => { for (const fn of [...listeners]) fn() })
+    // The tokens are read once this round of observers has run.
+    await act(async () => { for (const fn of [...listeners]) fn() })
     expect(redraw).toHaveBeenCalled()
     view.unmount()
     await act(async () => {})
     expect(listeners.size).toBe(0)
+  })
+
+  it("repaints a popped-out plot from its own window's root, once the popout has copied the theme there", async () => {
+    stubDrawing()
+    // A popout renders the chart through a portal into a host it moves into a window of its own, without
+    // remounting it, and keeps that window's root in step with the page's from an observer made after the
+    // chart's, as use-popout does.
+    const host = document.createElement("div")
+    document.body.append(host)
+    render(createPortal(<PriceChart store={seeded()} convention={ZN} label="ZN"><PriceChartPlot /></PriceChart>, host))
+    await act(async () => {})
+    const popout = document.implementation.createHTMLDocument("popout")
+    popout.body.append(host)
+    new MutationObserver(() => { popout.documentElement.className = document.documentElement.className }).observe(document.documentElement, { attributes: true })
+    // Under which root's class each reading of the tokens is made.
+    const readUnder: string[] = []
+    const read = window.getComputedStyle
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+      readUnder.push(element.ownerDocument.documentElement.className)
+      return read.call(window, element, pseudo)
+    })
+    try {
+      await act(async () => { document.documentElement.classList.add("dark") })
+      expect(readUnder.length).toBeGreaterThan(0)
+      expect(readUnder.every((name) => name.includes("dark"))).toBe(true)
+    } finally {
+      document.documentElement.classList.remove("dark")
+    }
+  })
+
+  it("measures the plot again when a popout closes and hands it back, and goes on following its box", async () => {
+    stubDrawing()
+    // Observers that report the box they are told to, made by the page's window or by a popout's.
+    let box = { width: 600, height: 300 }
+    const live = new Set<{ fire: () => void; window: string }>()
+    const observerFor = (window: string) =>
+      class {
+        targets: Element[] = []
+        record: { fire: () => void; window: string }
+        constructor(callback: ResizeObserverCallback) {
+          this.record = { fire: () => callback(this.targets.map((target) => ({ target, contentRect: { ...box } }) as unknown as ResizeObserverEntry), this as unknown as ResizeObserver), window }
+        }
+        observe(target: Element) {
+          this.targets.push(target)
+          live.add(this.record)
+          this.record.fire()
+        }
+        unobserve() {}
+        disconnect() {
+          live.delete(this.record)
+        }
+      }
+    vi.stubGlobal("ResizeObserver", observerFor("page"))
+    // The box a layout read gives is the one the observers report.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => ({ ...box, top: 0, left: 0, right: box.width, bottom: box.height, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect)
+    const host = document.createElement("div")
+    document.body.append(host)
+    render(createPortal(<PriceChart store={seeded()} convention={ZN} label="ZN"><PriceChartPlot /></PriceChart>, host))
+    await act(async () => {})
+    // A popout with a window of its own takes the chart; a theme change binds the plot to it.
+    const popout = document.implementation.createHTMLDocument("popout")
+    Object.defineProperty(popout, "defaultView", { configurable: true, value: { ResizeObserver: observerFor("popout"), matchMedia: window.matchMedia.bind(window), getComputedStyle: window.getComputedStyle.bind(window) } })
+    popout.body.append(host)
+    await act(async () => { document.documentElement.classList.add("dark") })
+    await act(async () => { document.documentElement.classList.remove("dark") })
+    expect([...live].map((observer) => observer.window).sort()).toEqual(["page", "popout"])
+    // The popout closes: its window is gone, the host is back in the page, and the box has changed.
+    for (const observer of [...live]) if (observer.window === "popout") live.delete(observer)
+    document.body.append(host)
+    box = { width: 800, height: 400 }
+    await act(async () => { for (const observer of [...live]) observer.fire() })
+    await act(async () => {})
+    const plot = plots.at(-1) as unknown as { width: number; height: number }
+    expect([plot.width, plot.height]).toEqual([800, 400])
+    expect([...live].map((observer) => observer.window)).toEqual(["page"])
+  })
+
+  it("makes a plot at its laid-out content box, or at the last report when its box has none, and brings it to each report", async () => {
+    stubDrawing()
+    const observer = reportingObserver()
+    const store = seeded()
+    const kinds = ["line", "candles"] as const
+    let turn = 0
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN"><PriceChartPlot /></PriceChart>)
+    await act(async () => {})
+    const plotEl = screen.getByRole("slider")
+    const remake = async () => {
+      turn += 1
+      rerender(<PriceChart store={store} convention={ZN} label="ZN" kind={kinds[turn % 2]}><PriceChartPlot /></PriceChart>)
+      await act(async () => {})
+      return plots.at(-1) as unknown as { width: number; height: number }
+    }
+    // Laid out at 500 by 250 with 10 px padding inside its border box: the content box, whatever a layout read of
+    // the border box says.
+    Object.assign(plotEl.style, { width: "500px", height: "250px", padding: "10px", boxSizing: "border-box" })
+    let made = await remake()
+    expect([made.width, made.height]).toEqual([480, 230])
+    // Under a transform that halves it, the layout size, not the transformed one.
+    Object.assign(plotEl.style, { width: "600px", height: "300px", padding: "0px" })
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 300, height: 150, top: 0, left: 0, right: 300, bottom: 150, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+    made = await remake()
+    expect([made.width, made.height]).toEqual([600, 300])
+    // Hidden as it is made, with no box to measure: the last report, not nothing.
+    Object.assign(plotEl.style, { width: "", height: "" })
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+    made = await remake()
+    expect([made.width, made.height]).toEqual([600, 300])
+    // Hidden with its size declared in percentages, which a box with no layout gives back as declared: the last
+    // report, not a hundred pixels.
+    Object.assign(plotEl.style, { width: "100%", height: "100%" })
+    made = await remake()
+    expect([made.width, made.height]).toEqual([600, 300])
+    // Made at another size than the last report: the next report brings it there even though the report is unchanged.
+    Object.assign(plotEl.style, { width: "400px", height: "200px" })
+    made = await remake()
+    expect([made.width, made.height]).toEqual([400, 200])
+    await observer.report()
+    expect([made.width, made.height]).toEqual([600, 300])
+  })
+
+  it("makes its first plot at the box laid out then, not at an older report, and moves nothing when the report catches up", async () => {
+    stubDrawing()
+    // The observer last reported 600 by 300; by the time the bars are drawn, the box is laid out at 400 by 200.
+    const observer = reportingObserver({ width: 600, height: 300 })
+    const before = plots.length
+    render(<PriceChart store={seeded()} convention={ZN} label="ZN"><PriceChartPlot style={{ width: "400px", height: "200px" }} /></PriceChart>)
+    await act(async () => {})
+    expect(plots.length).toBe(before + 1)
+    const made = plots.at(-1) as unknown as { width: number; height: number }
+    expect([made.width, made.height]).toEqual([400, 200])
+    observer.resize({ width: 400, height: 200 })
+    await observer.report()
+    expect([made.width, made.height]).toEqual([400, 200])
+    expect(plots.length).toBe(before + 1)
+  })
+
+  it("reads no colors while the plot is out of the document, and reads them at the first report after it is back", async () => {
+    stubDrawing()
+    const observer = reportingObserver()
+    const host = document.createElement("div")
+    document.body.append(host)
+    render(createPortal(<PriceChart store={seeded()} convention={ZN} label="ZN"><PriceChartPlot /></PriceChart>, host))
+    await act(async () => {})
+    // The colors are read through an <i> probe in the plot: note whether each read was made in the document.
+    const reads: boolean[] = []
+    const read = window.getComputedStyle
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+      if (element.tagName === "I") reads.push(element.isConnected)
+      return read.call(window, element, pseudo)
+    })
+    // Out of the document, as a dock's background tab is, a theme change reads nothing.
+    host.remove()
+    try {
+      await act(async () => { document.documentElement.classList.add("dark") })
+      expect(reads).toEqual([])
+      // Back in it, the next report reads the colors, in the document.
+      document.body.append(host)
+      await observer.report()
+      expect(reads.length).toBeGreaterThan(0)
+      expect(reads.every(Boolean)).toBe(true)
+    } finally {
+      document.documentElement.classList.remove("dark")
+    }
+  })
+
+  it("draws the axis in the runtime's zone for a zone the runtime does not know, as the readout does", async () => {
+    stubDrawing()
+    const before = plots.length
+    render(<PriceChart store={seeded()} convention={ZN} label="ZN" zone="Not/A_Zone"><PriceChartPlot /></PriceChart>)
+    await act(async () => {})
+    expect(plots.length).toBe(before + 1)
+  })
+
+  it("tells a screen reader on the plot what it took focus with, not every update after, and the bar a key reaches as it reads then", () => {
+    const store = seeded()
+    render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    const name = plot.getAttribute("aria-label")
+    const value = plot.getAttribute("aria-valuetext")
+    // The live last bar trades: the picture and the visible readings move, the name and the value do not.
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    expect(plot.getAttribute("aria-label")).toBe(name)
+    expect(plot.getAttribute("aria-valuetext")).toBe(value)
+    // A key moves the selection, and the bar it reaches is read as it is now.
+    fireEvent.keyDown(plot, { key: "ArrowLeft" })
+    fireEvent.keyDown(plot, { key: "ArrowRight" })
+    expect(plot.getAttribute("aria-valuetext")).toBe("14:32:00 110-24 V 30")
+    // With the crosshair put away, the value is the reading the plot took focus with, and stays it.
+    fireEvent.keyDown(plot, { key: "Escape" })
+    expect(plot.getAttribute("aria-valuetext")).toBe(name)
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.5)] }))
+    expect(plot.getAttribute("aria-valuetext")).toBe(name)
+    // Nor does a new bar move the slider's value.
+    const now = plot.getAttribute("aria-valuenow")
+    act(() => store.applyDeltas({ upsert: [bar(3, 110.5, 110.5)] }))
+    expect(plot.getAttribute("aria-valuenow")).toBe(now)
+    expect(plot).toHaveAttribute("aria-valuemax", "3")
+    // The keys step from where the slider rests.
+    fireEvent.keyDown(plot, { key: "ArrowLeft" })
+    expect(plot).toHaveAttribute("aria-valuenow", "1")
+    // Leaving lets the name follow the feed again.
+    act(() => plot.blur())
+    expect(plot.getAttribute("aria-label")).not.toBe(name)
+  })
+
+  it("reads a selection the pointer made before focus as it is when focus arrives, and names a chart switched under focus for its new instrument", () => {
+    const store = seeded()
+    type Select = (index: number | null, fromPointer?: boolean) => void
+    let point: Select | null = null
+    // The plot's pointer hook selects through the chart's context; without a canvas, this stands in for it.
+    function Pointer() {
+      const state = usePriceChart() as unknown as { select: Select }
+      useLayoutEffect(() => {
+        point = state.select
+      })
+      return null
+    }
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /><Pointer /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => point!(2, true))
+    // The hovered last bar trades before the plot takes focus.
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    act(() => plot.focus())
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-24 V 30")
+    rerender(<PriceChart store={store} convention={ZN} label="ZH" zone="UTC"><PriceChartPlot /><Pointer /></PriceChart>)
+    expect(plot.getAttribute("aria-label")).toMatch(/^ZH: /)
+  })
+
+  it("reads a chart switched to another instrument under focus afresh, its value as well as its name", () => {
+    const zf = createRowStore<Bar>({ getRowId: (b) => barId(b.time), lane: "ordered" })
+    zf.applyDeltas({ upsert: [bar(0, 107.25, 107.25), bar(1, 107.25, 107.5), bar(2, 107.5, 107.75)] })
+    const decimal: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.001 }
+    const { rerender } = render(<PriceChart store={seeded()} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    // Another instrument with bars at the same times: its own price, not the last one's.
+    rerender(<PriceChart store={zf} convention={decimal} label="ZF" zone="UTC"><PriceChartPlot /></PriceChart>)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 107.750 V 30")
+    expect(plot.getAttribute("aria-label")).toMatch(/^ZF: /)
+    // A store swapped under the same label is read afresh too.
+    const name = plot.getAttribute("aria-label")
+    rerender(<PriceChart store={seeded()} convention={decimal} label="ZF" zone="UTC"><PriceChartPlot /></PriceChart>)
+    expect(plot.getAttribute("aria-label")).not.toBe(name)
+  })
+
+  it("reads a focused plot afresh when a stable store is reloaded for another instrument after the label changes", () => {
+    const store = seeded()
+    const decimal: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.001 }
+    const zfBars = [bar(0, 107.25, 107.25), bar(1, 107.25, 107.5), bar(2, 107.5, 107.75)]
+    // The store stays one object, as the docs ask; an effect keyed on the symbol loads the new bars after the label lands.
+    function Chart({ symbol }: { symbol: "ZN" | "ZF" }) {
+      useEffect(() => {
+        if (symbol === "ZF") store.applyDeltas({ upsert: zfBars })
+      }, [symbol])
+      return <PriceChart store={store} convention={symbol === "ZN" ? ZN : decimal} label={symbol} zone="UTC"><PriceChartPlot /></PriceChart>
+    }
+    const { rerender } = render(<Chart symbol="ZN" />)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    rerender(<Chart symbol="ZF" />)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 107.750 V 30")
+    expect(plot.getAttribute("aria-label")).toMatch(/^ZF: .*last 107\.750/)
+  })
+
+  it("reads a focused plot afresh when a stable store is cleared and loaded again", () => {
+    const store = seeded()
+    render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    act(() => store.clear())
+    act(() => store.applyDeltas({ upsert: [bar(0, 107.25, 107.25), bar(1, 107.25, 107.5), bar(2, 107.5, 107.75)] }))
+    expect(plot.getAttribute("aria-label")).toMatch(/last 107-24/)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 107-24 V 30")
+  })
+
+  it("reads a focused plot afresh when a store empty at the switch fills, and keeps the slider's value inside its bars", () => {
+    const zf = createRowStore<Bar>({ getRowId: (b) => barId(b.time), lane: "ordered" })
+    const store = seeded()
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    fireEvent.keyDown(plot, { key: "Escape" })
+    rerender(<PriceChart store={zf} convention={ZN} label="ZF" zone="UTC"><PriceChartPlot /></PriceChart>)
+    act(() => zf.applyDeltas({ upsert: [bar(0, 107.25, 107.25), bar(1, 107.25, 107.5), bar(2, 107.5, 107.75)] }))
+    expect(plot.getAttribute("aria-label")).toMatch(/^ZF: .*3 bars$/)
+    expect(plot).toHaveAttribute("aria-valuenow", "2")
+    // Bars that go take the resting value with them, inside what is left.
+    act(() => zf.applyDeltas({ remove: [barId(T0 + MINUTE), barId(T0 + 2 * MINUTE)] }))
+    expect(Number(plot.getAttribute("aria-valuenow"))).toBeLessThanOrEqual(Number(plot.getAttribute("aria-valuemax")))
+  })
+
+  it("reads a focused plot afresh when only its kind or only its notation changes", () => {
+    const store = seeded()
+    const decimal: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.001 }
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC" kind="candles"><PriceChartPlot /></PriceChart>)
+    expect(plot.getAttribute("aria-valuetext")).toMatch(/^14:32:00 O 110-16 H .* C 110-18 V 30$/)
+    rerender(<PriceChart store={store} convention={decimal} label="ZN" zone="UTC" kind="candles"><PriceChartPlot /></PriceChart>)
+    expect(plot.getAttribute("aria-valuetext")).toMatch(/ C 110\.56\d V 30$/)
+  })
+
+  it("reads the selected bar afresh when another bar replaces it, and holds it through a tick", () => {
+    const store = seeded()
+    render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    const name = plot.getAttribute("aria-label")
+    // A tick on the selected bar leaves its open alone, so the reading holds.
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    // A correction that replaces the bar, its open with it, is read: the value text, while the name holds.
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.25, 110.25)] }))
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-08 V 30")
+    expect(plot.getAttribute("aria-label")).toBe(name)
+  })
+
+  it("keeps the value text live while the plot does not have focus", () => {
+    const store = seeded()
+    type Select = (index: number | null, fromPointer?: boolean) => void
+    let point: Select | null = null
+    function Pointer() {
+      const state = usePriceChart() as unknown as { select: Select }
+      useLayoutEffect(() => {
+        point = state.select
+      })
+      return null
+    }
+    render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /><Pointer /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => point!(2, true))
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-24 V 30")
+  })
+
+  it("reads a focused plot once more at the batch after a switch, so a series whose first bar matches the old one is read", () => {
+    const store = seeded()
+    // The new series opens where the old one did, so only the batch after the label tells them apart.
+    const sameStart = [bar(0, 110.5, 110.25), bar(1, 110.25, 110), bar(2, 110, 109.75)]
+    function Chart({ symbol }: { symbol: "ZN" | "ZF" }) {
+      useEffect(() => {
+        if (symbol === "ZF") store.applyDeltas({ upsert: sameStart })
+      }, [symbol])
+      return <PriceChart store={store} convention={ZN} label={symbol} zone="UTC"><PriceChartPlot /></PriceChart>
+    }
+    const { rerender } = render(<Chart symbol="ZN" />)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    rerender(<Chart symbol="ZF" />)
+    expect(plot.getAttribute("aria-label")).toMatch(/^ZF: down, last 109-24/)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 109-24 V 30")
+    // Then it settles: a tick is held again.
+    const name = plot.getAttribute("aria-label")
+    act(() => store.applyDeltas({ upsert: [bar(2, 110, 109.5)] }))
+    expect(plot.getAttribute("aria-label")).toBe(name)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 109-24 V 30")
+  })
+
+  it("holds through a refresh that keeps the first bar and the selected bar, as it does through ticks", () => {
+    const store = seeded()
+    render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    const name = plot.getAttribute("aria-label")
+    const value = plot.getAttribute("aria-valuetext")
+    act(() => {
+      store.clear()
+      store.applyDeltas({ upsert: [bar(0, 110.5, 110.53125), bar(1, 110.53125, 110.5), bar(2, 110.5, 110.75), bar(3, 110.75, 110.75)] })
+    })
+    expect(plot.getAttribute("aria-label")).toBe(name)
+    expect(plot.getAttribute("aria-valuetext")).toBe(value)
+  })
+
+  it("reads a focused plot once when the first bar's open moves, as a late print or a correction does, and its baseline when that changes", () => {
+    const store = seeded()
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    const before = plot.getAttribute("aria-label")
+    act(() => store.applyDeltas({ upsert: [bar(0, 110.25, 110.53125)] }))
+    const moved = plot.getAttribute("aria-label")
+    expect(moved).not.toBe(before)
+    // Once: the tick after it is held.
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    expect(plot.getAttribute("aria-label")).toBe(moved)
+    // A previous close arriving later changes what the change is measured from.
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC" baseline={110}><PriceChartPlot /></PriceChart>)
+    expect(plot.getAttribute("aria-label")).not.toBe(moved)
+  })
+
+  it("reads a focused plot afresh when its zone changes, in the new zone's time", () => {
+    const store = seeded()
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="America/Chicago"><PriceChartPlot /></PriceChart>)
+    expect(plot).toHaveAttribute("aria-valuetext", "08:32:00 110-18 V 30")
+    // So does a change of labels, or of locale.
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="America/Chicago" labels={{ volume: "Vol" }}><PriceChartPlot /></PriceChart>)
+    expect(plot).toHaveAttribute("aria-valuetext", "08:32:00 110-18 Vol 30")
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="America/Chicago" labels={{ volume: "Vol" }} locale="ar-EG"><PriceChartPlot /></PriceChart>)
+    expect(plot.getAttribute("aria-valuetext")).not.toBe("08:32:00 110-18 Vol 30")
+    expect(plot.getAttribute("aria-valuetext")).toMatch(/ 110-18 Vol 30$/)
+  })
+
+  it("reads the value text once more at the batch after a switch, even when every new bar opens where the old one did", () => {
+    const store = seeded()
+    // The new bars open where the old ones did, so only the batch after the label can tell them apart.
+    const sameOpens = [bar(0, 110.5, 110.25), bar(1, 110.53125, 110.25), bar(2, 110.5, 110.25)]
+    function Chart({ symbol }: { symbol: "ZN" | "ZF" }) {
+      useEffect(() => {
+        if (symbol === "ZF") store.applyDeltas({ upsert: sameOpens })
+      }, [symbol])
+      return <PriceChart store={store} convention={ZN} label={symbol} zone="UTC"><PriceChartPlot /></PriceChart>
+    }
+    const { rerender } = render(<Chart symbol="ZN" />)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    rerender(<Chart symbol="ZF" />)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-08 V 30")
+  })
+
+  it("holds a focused plot's readings through a convention change that leaves its notation alone", () => {
+    const store = seeded()
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    const name = plot.getAttribute("aria-label")
+    // A finer tick changes the convention but not how a price reads, so nothing is read again.
+    rerender(<PriceChart store={store} convention={{ ...ZN, tick: 1 / 128 }} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    expect(plot.getAttribute("aria-label")).toBe(name)
+  })
+
+  it("keeps the read owed to the batch after a switch when the selection moves before the bars land", () => {
+    const store = seeded()
+    const sameOpens = [bar(0, 110.5, 110.25), bar(1, 110.53125, 110.25), bar(2, 110.5, 110.25)]
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    rerender(<PriceChart store={store} convention={ZN} label="ZF" zone="UTC"><PriceChartPlot /></PriceChart>)
+    fireEvent.keyDown(plot, { key: "ArrowLeft" })
+    act(() => store.applyDeltas({ upsert: sameOpens }))
+    expect(plot).toHaveAttribute("aria-valuetext", "14:31:00 110-08 V 20")
+  })
+
+  it("keeps a focused plot's tab stop when its crosshair turns off, until focus leaves", () => {
+    const store = seeded()
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC" crosshair={false}><PriceChartPlot /></PriceChart>)
+    expect(plot).toHaveAttribute("role", "img")
+    expect(plot).toHaveAttribute("tabindex", "0")
+    expect(document.activeElement).toBe(plot)
+    act(() => plot.blur())
+    expect(plot).not.toHaveAttribute("tabindex")
   })
 
   it("shares one subscription across repeated readings and cleans it up", () => {
@@ -405,6 +906,10 @@ describe("PriceChart composition", () => {
     fireEvent.keyDown(plot, { key: "Home" })
     expect(plot).toHaveAttribute("aria-valuetext", "14:30:00 110-17 V 10")
     act(() => store.clear())
+    // Focus stays where it is when the bars go: the plot keeps its tab stop until it is left.
+    expect(screen.getByRole("img")).toHaveAttribute("tabindex", "0")
+    expect(document.activeElement).toBe(screen.getByRole("img"))
+    act(() => screen.getByRole("img").blur())
     expect(screen.getByRole("img")).not.toHaveAttribute("tabindex")
     expect(emptyRef.current).toHaveTextContent("Waiting for the feed")
     act(() => store.applyDeltas({ upsert: [bar(0, 110.5, 110.75)] }))

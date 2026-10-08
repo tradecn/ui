@@ -133,7 +133,7 @@ The ladder defines `2 × depth + 1` rungs around a center and mounts the visible
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `store` | `RowStore<DepthLevel>` | Required | Levels keyed by `levelId(tick)`. |
-| `convention` | `InstrumentConvention` | Required | Prints prices and sets the tick size. |
+| `convention` | `InstrumentConvention` | Required | Prints prices and sets the tick size, a finite positive number; with any other, the ladder shows its empty state and stages nothing. |
 | `mid` | `number \| null \| undefined` | Required | The market's mid, as a price. Null, undefined, or nonfinite before the first finite mid shows the empty state. |
 | `label` | `string` | Required | Accessible name of the ladder. |
 | `children` | `ReactNode` | Required | The header, viewport, rows, controls, and application content. |

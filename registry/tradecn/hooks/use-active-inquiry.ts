@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useInsertionEffect, useRef, useState } from "react"
 import { useRow, useRowIds } from "@/registry/tradecn/hooks/use-row-store"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 
@@ -18,7 +18,7 @@ export interface ActiveInquiry<T> {
   /** The id in the ticket, or null when no open inquiry is on the stack. */
   activeId: RowId | null
   row: T | null
-  /** The trader picked one: Enter or a double click on a row. A parked one picked this way is parked no more. */
+  /** The trader picked one: Enter or a double click on a row. A parked one picked this way is parked no more. One the server has ended, or one gone from the store, changes nothing; null goes back to the stack's choice. */
   setActive(id: RowId | null): void
   /** The trader acted and is done with it: the next open inquiry in the stack's order takes its place, even before the server says the last one is over. */
   next(): void
@@ -50,6 +50,12 @@ export function useActiveInquiry<T>(source: RowStore<T> | RowView<T>, options: A
   // The chosen row itself, so the server's word on it is seen the moment it changes.
   const chosenRow = useRow(store, chosen ?? NONE)
   const { isEnded } = options
+  // The render's own end-state rule, written before any layout effect of the same commit can pick, so `setActive`
+  // stays one function and still judges a pick made as a new rule arrives by that rule.
+  const ended = useRef(isEnded)
+  useInsertionEffect(() => {
+    ended.current = isEnded
+  })
 
   // A parked inquiry whose row left the store leaves the set with it. Settled during render, as the choice is.
   let pruned: Set<RowId> | null = null
@@ -92,10 +98,15 @@ export function useActiveInquiry<T>(source: RowStore<T> | RowView<T>, options: A
   }, [])
   const setActive = useCallback(
     (id: RowId | null) => {
-      if (id !== null) unpark(id)
+      if (id !== null) {
+        // A press that lands as the server ends an inquiry, or after its row left, is not a choice: the open one stays.
+        const picked = store.getRow(id)
+        if (picked === undefined || ended.current(picked)) return
+        unpark(id)
+      }
       setChosen(id)
     },
-    [unpark],
+    [store, unpark],
   )
   const next = useCallback(() => {
     setChosen((current) => firstOpen(store, source.getIds(), isEnded, current, live) ?? current)

@@ -130,7 +130,7 @@ For v1 integrations, see the [migration guide](migrating-v1-to-v2.md#pricechart)
 | `label` | `string` | Required | Accessible name of the chart. |
 | `kind` | `"line" \| "candles"` | `"line"` | A line through the closes, or a candle per bar. |
 | `baseline` | `number \| null` | `null` | A finite previous close: the change is measured from it and it is drawn as a dashed line. Otherwise, the change is from the first bar's open. |
-| `zone` | `string` | The runtime's | A runtime-supported IANA zone for the time axis and readout: the venue's. |
+| `zone` | `string` | The runtime's | A runtime-supported IANA zone for the time axis and readout: the venue's. A zone the runtime does not know falls back to the runtime's own, on the axis as in the readout. |
 | `locale` | `string` | `en-US` | Locale of the readout's clock. |
 | `overlays` | `readonly PriceChartOverlay[]` | None | Lines over the bars. Compose their legend separately. |
 | `crosshair` | `boolean` | `true` | The crosshair, from the pointer and the keys. Off, the plot is an image. |
@@ -164,7 +164,7 @@ Numeric readings keep the price notation's font outside the header — mono for 
 
 `PriceChartPlot` sets its role, accessible name, tab stop, and value attributes.
 
-Its `onKeyDown`, `onFocus`, and `onBlur` call your handler first. Call `preventDefault()` to cancel the built-in behavior for that event.
+Its `onKeyDown`, `onFocus`, and `onBlur` call your handler first. Call `preventDefault()` to cancel the built-in behavior for that event; on focus and blur that is the cursor's move, and the plot still holds its readings on focus and lets them go on blur.
 
 ### usePriceChart
 
@@ -187,15 +187,16 @@ Update data through the store and move the cursor through the plot.
 
 ### Plot lifecycle
 
-`PriceChartPlot` draws with uPlot on a canvas. It waits for a positive `ResizeObserver` size and at least one finite bar.
+`PriceChartPlot` draws with uPlot on a canvas. It waits for a positive `ResizeObserver` size and at least one finite bar, then makes the plot at its content box as laid out, which a transform doesn't scale, or at the last observed size while the box is hidden or out of the document.
 
 | Change | Behavior |
 |---|---|
-| Box size | Resizes the existing plot. |
+| Box size | Resizes the plot to each observed size it doesn't already have, so a plot made while its box was hidden fits the box once it shows. |
+| Window | Recreates the plot in a popout's window once a resize or a theme change notices the move, and again when the popout closes and hands it back. |
 | `kind`, `crosshair`, `lastLine`, `zone`, or serialized `convention` | Recreates the plot. |
 | Overlay ids, colors, widths, or order | Recreates the plot. |
 | `baseline` alone | Updates the readings without recalculating the price scale. An out-of-range reference can stay offscreen until data updates or the plot is recreated. |
-| Theme or mode | Repaints the colors on an `<html>` class, style, `data-theme`, or `data-accessibility` change, and on a system color-scheme flip. A theme switched on a container alone keeps the painted colors until one of those changes. |
+| Theme or mode | Repaints the colors on an `<html>` class, style, `data-theme`, or `data-accessibility` change, and on a system color-scheme flip. A theme switched on a container alone keeps the painted colors until one of those changes. A chart in a popout watches its own window's root as well and reads the colors once the popout has copied the page's theme there. A plot out of the document, as in a background tab, keeps its colors and axis font until it's back, then reads them. |
 | `--tradecn-font-mono` stack | Recreates the plot to update its axis font, on the same triggers. |
 | Empty store or unmount | Destroys the plot. |
 
@@ -291,7 +292,7 @@ The last close determines direction against the reference. Equal prices are `fla
 
 The root, `PriceChartLast`, and `PriceChartChange` carry `data-direction`.
 
-The plot's accessible name includes the direction, last price, change, range, and bar count:
+The plot's accessible name includes the direction, last price, change, range, and bar count. While the plot has focus, the name keeps the reading it took focus with, and the value text keeps the selected bar's readout as it was when the selection reached that bar, or the held reading with no bar selected, so a live feed doesn't make a screen reader read either again; moving the selection, or taking focus, reads the bar as it is then. Both are read afresh when the store, label, kind, notation, baseline, zone, locale, or labels change, and once more at the store's next batch, so bars that land after their label are read too. Both are read once when the series changes, which the plot knows by its first bar's time and open, and the value text alone when another bar comes under the selection, known by its place, time, and open: a reload, a window that drops old bars, a correction, and a late print earlier than a bar's first tick each can do either. A reload that keeps the first bar and the selected bar is held like a tick. To have every load read afresh, clear the store in the same update that changes the label. With no bar selected, the slider's value rests at the bar the held name was read at, inside the bars there are. Without focus, the value text is the selection's readout as it is:
 
 ```text
 ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars
@@ -301,7 +302,7 @@ ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars
 
 With a crosshair and at least one finite bar, the plot is a horizontal `slider`.
 
-Focus selects the last bar unless a bar is already selected. With no bars or `crosshair={false}`, the plot is an `img` without a tab stop.
+Focus selects the last bar unless a bar is already selected. With no bars or `crosshair={false}`, the plot is an `img` without a tab stop, except that a focused plot whose bars go, or whose crosshair turns off, keeps its tab stop until focus leaves.
 
 | Key | Action |
 |---|---|

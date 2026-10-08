@@ -12,8 +12,11 @@ export interface Clock {
   sample?(): number
 }
 
-/** One interval shared by every subscriber; it runs only while someone is listening. */
+/** One interval shared by every subscriber; it runs only while someone is listening. An interval that is not a positive number of milliseconds a timer can hold, up to 2^31 − 1, ticks once a second. */
 export function createClock(intervalMs = 1000, source: () => number = Date.now): Clock {
+  // A zero, negative, NaN, or overlong interval (a timer holds 2^31 − 1 ms and fires at once past it) would run as
+  // fast as the timer allows and re-render every subscriber each time.
+  const every = intervalMs > 0 && intervalMs <= 2_147_483_647 ? intervalMs : 1000
   let current = source()
   let timer: ReturnType<typeof setInterval> | null = null
   const listeners = new Set<() => void>()
@@ -27,7 +30,7 @@ export function createClock(intervalMs = 1000, source: () => number = Date.now):
         timer = setInterval(() => {
           current = source()
           for (const l of listeners) l()
-        }, intervalMs)
+        }, every)
       }
       return () => {
         listeners.delete(cb)

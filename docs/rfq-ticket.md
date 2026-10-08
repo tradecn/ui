@@ -211,7 +211,7 @@ Choosing a size changes the draft's `quantity`. Supply sizes the venue accepts; 
 
 `labels` overrides entries in `DEFAULT_RFQ_TICKET_LABELS`: side words, field and reference labels, quote-check messages, the nothing-allowed message, the unparsable-level message (`invalidLevel`, shown by the quote fields), and confirmation text (`anyway`, with an `{action}` placeholder). Action labels and server text come from their own inputs. Limit messages, the step buttons' fixed `up one tick` and `down one tick` name tails, and hotkey descriptions are separate from this prop.
 
-The group and timer are both named `Inquiry Q-1` by default, using `labels.ticket` and the inquiry id. Fields have visible labels and use `aria-invalid` when an error is shown.
+The group is named `Inquiry Q-1` by default, using `labels.ticket` and the inquiry id, and the timer the same with the time left, such as `Inquiry Q-1 0:30`. Fields have visible labels and use `aria-invalid` when an error is shown.
 
 ### Tokens
 

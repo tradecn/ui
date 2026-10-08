@@ -26,3 +26,18 @@ it("samples the source without changing subscriber snapshots, notifications or t
   expect(clock.now()).toBe(60_000)
   stop()
 })
+
+it.each([0, -5, NaN, Infinity, 2 ** 31])("ticks once a second for an interval of %d ms, instead of as fast as the timer allows", (interval) => {
+  const every = vi.spyOn(globalThis, "setInterval")
+  let time = 0
+  const clock = createClock(interval, () => time)
+  const listener = vi.fn()
+  const stop = clock.subscribe(listener)
+  // Checked before any time passes: a zero delay would spin the fake timers forever.
+  expect(every).toHaveBeenLastCalledWith(expect.any(Function), 1000)
+  time = 1000
+  vi.advanceTimersByTime(1000)
+  expect(listener).toHaveBeenCalledOnce()
+  expect(clock.now()).toBe(1000)
+  stop()
+})
