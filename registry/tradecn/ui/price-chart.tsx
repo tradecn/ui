@@ -545,7 +545,6 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   // observers check it as they fire and bind again to the new window when it changed.
   const [doc, setDoc] = useState<Document | null>(null)
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
-  const sizeRef = useRef(size)
   const [fontEpoch, setFontEpoch] = useState(0)
   const plotKey = JSON.stringify([kind, crosshair, lastLine, zone, convention, overlayList.map((o) => [o.id, o.color, o.width]), fontEpoch])
   const plot = useRef<uPlot | null>(null)
@@ -569,7 +568,6 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     conventionRef.current = convention
     selectRef.current = select
     cursorBar.current = bar
-    sizeRef.current = size
   })
 
   // What a screen reader is told while it is on the plot: the summary as of the moment it took focus, and the
@@ -633,8 +631,12 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   useEffect(() => {
     if (!plotEl || !doc || !ready || !canDraw()) return
     live.current.palette = readPalette(plotEl)
-    // The measured content box, which padding, a border, or a scaled ancestor do not change.
-    const box = sizeRef.current ?? plotEl.getBoundingClientRect()
+    // The content box as it is now. A size measured before this recreation can predate a layout change that came
+    // with it, and a plot made at that size moves under the pointer when the observer catches up.
+    const rect = plotEl.getBoundingClientRect()
+    const style = (doc.defaultView ?? window).getComputedStyle(plotEl)
+    const edges = (...names: string[]) => names.reduce((sum, name) => sum + (parseFloat(style.getPropertyValue(name)) || 0), 0)
+    const box = { width: rect.width - edges("padding-left", "padding-right", "border-left-width", "border-right-width"), height: rect.height - edges("padding-top", "padding-bottom", "border-top-width", "border-bottom-width") }
     pointerOwnsCursor.current = false
     lastCursorEvent.current = undefined
     const u = new uPlot(

@@ -407,13 +407,15 @@ describe("PriceChart composition", () => {
         }
       }
     vi.stubGlobal("ResizeObserver", observerFor("page"))
+    // The box a layout read gives is the one the observers report.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => ({ ...box, top: 0, left: 0, right: box.width, bottom: box.height, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect)
     const host = document.createElement("div")
     document.body.append(host)
     render(createPortal(<PriceChart store={seeded()} convention={ZN} label="ZN"><PriceChartPlot /></PriceChart>, host))
     await act(async () => {})
     // A popout with a window of its own takes the chart; a theme change binds the plot to it.
     const popout = document.implementation.createHTMLDocument("popout")
-    Object.defineProperty(popout, "defaultView", { configurable: true, value: { ResizeObserver: observerFor("popout"), matchMedia: window.matchMedia.bind(window) } })
+    Object.defineProperty(popout, "defaultView", { configurable: true, value: { ResizeObserver: observerFor("popout"), matchMedia: window.matchMedia.bind(window), getComputedStyle: window.getComputedStyle.bind(window) } })
     popout.body.append(host)
     await act(async () => { document.documentElement.classList.add("dark") })
     await act(async () => { document.documentElement.classList.remove("dark") })
@@ -427,6 +429,21 @@ describe("PriceChart composition", () => {
     const plot = plots.at(-1) as unknown as { width: number; height: number }
     expect([plot.width, plot.height]).toEqual([800, 400])
     expect([...live].map((observer) => observer.window)).toEqual(["page"])
+  })
+
+  it("makes a recreated plot at its box as it is then, inside its padding, not at the last size the observer reported", async () => {
+    stubDrawing()
+    const store = seeded()
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN"><PriceChartPlot /></PriceChart>)
+    await act(async () => {})
+    const plotEl = screen.getByRole("slider")
+    // The box changes with the recreation, before the observer has said so.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 500, height: 250, top: 0, left: 0, right: 500, bottom: 250, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+    plotEl.style.padding = "10px"
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" kind="candles"><PriceChartPlot /></PriceChart>)
+    await act(async () => {})
+    const plot = plots.at(-1) as unknown as { width: number; height: number }
+    expect([plot.width, plot.height]).toEqual([480, 230])
   })
 
   it("draws the axis in the runtime's zone for a zone the runtime does not know, as the readout does", async () => {
