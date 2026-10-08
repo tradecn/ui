@@ -82,7 +82,7 @@ Render countdowns on the client. The shared clock advances only while something 
 
 A polite live region announces tier changes, such as "Inquiry 0:10" and "Inquiry 0:00", without speaking on every tick. Set `announce={false}` when the containing grid or stack handles announcements.
 
-The timer's accessible name is its label and the time left, so the time is read wherever the name is, including a grid row whose name comes from its cells.
+The timer's accessible name is its label and the time left, so the time is read wherever the name is. A grid row named by its cells would change its name at every tick, so name such rows with the grid's `getRowLabel`, as `rfq-stack` does; the grid reads the focused row's cells, the timer's name among them, once focus rests on the row.
 
 ### What it does not do
 
