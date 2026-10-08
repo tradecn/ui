@@ -195,13 +195,13 @@ Override behavior with the corresponding props and each column's `flash`; overri
 
 Rows subscribe individually through `useRow`. A value update that leaves the view's membership and order unchanged re-renders the affected visible row without re-rendering the other rows. React batches notifications from one `applyDeltas` call. Sorting, filtering, and footer totals can also do work for that batch.
 
-TanStack Virtual positions fixed-height rows. With `pinViewport`, arrivals or removals adjust `scrollTop` by the first visible row's change in index times `rowHeight`, provided that row remains in the view.
+TanStack Virtual positions fixed-height rows. The focused row and the row being edited render even outside the window, so `aria-activedescendant` always names an element that exists and Shift+F10 opens on the focused row. With `pinViewport`, arrivals or removals adjust `scrollTop` by the first visible row's change in index times `rowHeight`, provided that row remains in the view.
 
 Flash memory is keyed by row and column. A cell returning with the same value resumes a flash only while its window remains open. Reduced motion uses a static mark instead of animation. The install adds `up`, `down`, `flat`, `stale`, and `expiring` tokens and their soft variants if absent; flashes use the first three, and rules can use all five.
 
 ### The reorder hold
 
-Key events delivered to the grid from its own element or contained controls call `view.touch()`, even when already handled. Cell editors, nested grids and portaled content outside the grid are excluded.
+Key events delivered to the grid from its own element or contained controls call `view.touch()`, even when already handled. That includes a cell editor's keys, so a batch can't re-sort the row being typed into while the hold lasts. Nested grids and portaled content outside the grid are excluded.
 
 Pointer presses in the scroll area call `touch()` during capture, including presses on controls and editors. This keeps rows steady while a control handles its press. Nested grids and content portaled outside the grid have their own interaction ownership.
 
@@ -254,7 +254,7 @@ Use `big` to implement a larger step, such as ten ticks with Shift; the grid doe
 
 Only one text editor opens at a time. A failed parse or validation leaves it open with an accessible error; leaving the editor instead discards invalid input and commits valid changes. An editor opened and left unchanged sends nothing, whatever rounding its format applies, and every close of an untouched editor — Enter, Tab, blur, Escape, or the teardowns below — restores the promise-backed pending or rejected state it covered, with a promise that settled meanwhile applied to it. A pending from a void `onEdit` has no promise to settle it, so reopening dismisses it the way v1 did. A value equal to the store's current value sends nothing.
 
-Hiding or removing a column while its text editor is still open discards the draft without calling `onEdit`. A row that a filter or removal takes out of the view does the same: its open editor closes, the draft is discarded, and the returning row does not reopen it or take focus. A re-sort that only moves the row keeps the editor open with its draft; scrolled back to, it renders unfocused. Removing its `edit` configuration or switching to `toggle` also discards it.
+Hiding or removing a column while its text editor is still open discards the draft without calling `onEdit`. A row that a filter or removal takes out of the view does the same: its open editor closes, the draft is discarded, and the returning row does not reopen it or take focus. A re-sort that only moves the row keeps the editor open with its draft. The row being edited stays rendered wherever the viewport goes, so an editor scrolled or re-sorted out of the window keeps its input and its focus. Removing its `edit` configuration or switching to `toggle` also discards it.
 
 Restoring the column does not reopen the draft. These column changes preserve pending and rejected edits.
 
@@ -264,7 +264,7 @@ A thrown error or rejection of a still-pending promise displays the store value 
 
 A custom `cell` receives `edit: { status, commit(value, how?), open() }` when editing is enabled for its column. It sees `status` as absent or an object whose `kind` is `pending` or `rejected`. While a text editor is open, the grid renders its built-in editor instead of calling `cell`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text. Pass `{ repeat: true }` as `how` for a commit a held key repeats, so `validate` sees it as one.
 
-For an available text-editable cell, `open()` opens and focuses the text editor. It does nothing for a row outside the view, and on the cell already being edited it keeps the draft and asks for focus again. It does not select the row or change the grid's logical row or chosen column. To return grid navigation to that row after editing, control `focusedRowId` and update it in the action handler before calling `open()`. Column shortcuts still use the previously chosen column; choose a column with grid navigation or its header.
+For an available text-editable cell, `open()` opens and focuses the text editor and scrolls its row into view. It does nothing for a row outside the view, and on the cell already being edited it keeps the draft and asks for focus again. It does not select the row or change the grid's logical row or chosen column. To return grid navigation to that row after editing, control `focusedRowId` and update it in the action handler before calling `open()`. Column shortcuts still use the previously chosen column; choose a column with grid navigation or its header.
 
 ### Identity
 

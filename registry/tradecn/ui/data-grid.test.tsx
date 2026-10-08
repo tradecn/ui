@@ -720,10 +720,7 @@ describe("certification pins", () => {
     }
   })
 
-  it("keeps a scrolled-back editor's draft without stealing focus, until a fresh open asks for it", () => {
-    // The open editor scrolls out of the rendered range and back: the draft
-    // survives, the remount does not steal focus, and a fresh open of the
-    // mounted cell focuses it again.
+  it("keeps an open editor rendered with its draft and its focus when its row scrolls out of the window and back", () => {
     const onEdit = vi.fn(() => undefined)
     const store = createRowStore<Quote>({ getRowId: row => row.id })
     seed(40, store)
@@ -739,18 +736,128 @@ describe("certification pins", () => {
     const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
     scroller.scrollTop = 30 * ROW_HEIGHT
     fireEvent.scroll(scroller)
-    expect(screen.queryByRole("textbox")).toBeNull()
+    // The window moved on and the rows near the top went with it, but not the row being edited: the same input,
+    // its draft, and focus stay.
+    expect(document.querySelector('[data-row-id="r5"]')).toBeNull()
+    expect(screen.getByRole("textbox")).toBe(draft)
+    expect(document.activeElement).toBe(draft)
+    expect(draft.value).toBe("105.5")
     scroller.scrollTop = 0
     fireEvent.scroll(scroller)
-    const back = screen.getByRole("textbox") as HTMLInputElement
-    expect(back.value).toBe("105.5")
-    expect(document.activeElement).not.toBe(back)
-    // A fresh open of the already-mounted cell is a request for focus, not a reset:
-    // the draft survives the reopen.
+    expect(document.activeElement).toBe(draft)
+    expect(draft.value).toBe("105.5")
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it("keeps a focused row scrolled out of the window rendered, so the active descendant exists and Shift+F10 opens on it", () => {
+    const menu = vi.fn(() => null)
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(40, store)
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} renderContextMenu={menu} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+    scroller.scrollTop = 30 * ROW_HEIGHT
+    fireEvent.scroll(scroller)
+    expect(document.querySelector('[data-row-id="r5"]')).toBeNull()
+    expect(document.getElementById(grid.getAttribute("aria-activedescendant")!)).toHaveAttribute("data-row-id", "r0")
+    fireEvent.keyDown(grid, { key: "F10", shiftKey: true })
+    expect(menu).toHaveBeenLastCalledWith([expect.objectContaining({ id: "r0" })], ["r0"], "r0")
+  })
+
+  it("opens an editor by a key on a focused row scrolled out of the window where the key lands, focused and brought into view", () => {
+    const onEdit = vi.fn(() => undefined)
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(40, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+    scroller.scrollTop = 30 * ROW_HEIGHT
+    fireEvent.scroll(scroller)
+    // No layout here, so the scroll is read from the call that asks for it, not from where it lands.
+    const scrollTo = vi.spyOn(Element.prototype, "scrollTo")
+    fireEvent.keyDown(grid, { key: "5" })
+    const editor = screen.getByRole("textbox") as HTMLInputElement
+    expect(editor.closest("[data-row-id]")).toHaveAttribute("data-row-id", "r0")
+    expect(document.activeElement).toBe(editor)
+    expect(editor.value).toBe("5")
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }))
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it("opens a retained edit handle on a row out of the window rendered, focused, and brought into view", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(40, store)
+    const handles = new Map<string, CellEditHandle>()
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) }, cell: ({ rowId, edit, value }) => { if (edit) handles.set(rowId, edit); return String(value) } }]
+    render(<><button>Elsewhere</button><DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={vi.fn()} /></>)
+    const retained = handles.get("r2")!
+    const scroller = screen.getByRole("grid").querySelector<HTMLElement>(".overflow-auto")!
+    scroller.scrollTop = 30 * ROW_HEIGHT
+    fireEvent.scroll(scroller)
+    expect(document.querySelector('[data-row-id="r2"]')).toBeNull()
+    screen.getByRole("button", { name: "Elsewhere" }).focus()
+    // The virtualizer clamps a scroll to the scroller's extent, which has no layout here: give it the header and 40 rows.
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 41 * ROW_HEIGHT })
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: RECT.height })
+    const scrollTo = vi.spyOn(Element.prototype, "scrollTo")
+    act(() => retained.open())
+    const editor = screen.getByRole("textbox") as HTMLInputElement
+    expect(editor.closest("[data-row-id]")).toHaveAttribute("data-row-id", "r2")
+    expect(document.activeElement).toBe(editor)
+    // Row 2 at the top of the window, under the sticky header.
+    expect(scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ top: 2 * ROW_HEIGHT }))
+    // Scrolled away again while it holds a draft, the same handle asks for the open editor: back in view, draft kept.
+    fireEvent.change(editor, { target: { value: "7" } })
+    scroller.scrollTop = 30 * ROW_HEIGHT
+    fireEvent.scroll(scroller)
+    scrollTo.mockClear()
+    act(() => retained.open())
+    expect(document.activeElement).toBe(editor)
+    expect(editor.value).toBe("7")
+    expect(scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ top: 2 * ROW_HEIGHT }))
+  })
+
+  it("holds the order while keys land in an editor, as keys on the grid do", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(40, store)
+    const view = store.createView({ comparator: (a, b) => b.px - a.px, reorderHoldMs: 1000 })
+    const handles = new Map<string, CellEditHandle>()
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) }, cell: ({ rowId, edit, value }) => { if (edit) handles.set(rowId, edit); return String(value) } }]
+    render(<DataGrid store={store} view={view} columns={cols} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={vi.fn()} />)
+    // Opened from a handle, so no key on the grid has held anything yet.
+    act(() => handles.get("r39")!.open())
+    expect(view.isHeld()).toBe(false)
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "1" })
+    expect(view.isHeld()).toBe(true)
+    view.dispose()
+  })
+
+  it("keeps an editor rendered and focused when a re-sort with no hold moves its row out of the window", () => {
+    const onEdit = vi.fn(() => undefined)
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(40, store)
+    const view = store.createView({ comparator: (a, b) => b.px - a.px })
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
+    render(<DataGrid store={store} view={view} columns={cols} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
     fireEvent.keyDown(grid, { key: "F2" })
-    const reopened = screen.getByRole("textbox") as HTMLInputElement
-    expect(document.activeElement).toBe(reopened)
-    expect(reopened.value).toBe("105.5")
+    const draft = screen.getByRole("textbox") as HTMLInputElement
+    expect(draft.closest("[data-row-id]")).toHaveAttribute("data-row-id", "r39")
+    fireEvent.change(draft, { target: { value: "1" } })
+    // The feed takes the top row's price to the bottom of the order, far past the rendered window.
+    act(() => store.applyDeltas({ patch: [{ id: "r39", fields: { px: 0 } }] }))
+    expect(view.getIds().at(-1)).toBe("r39")
+    expect(screen.getByRole("textbox")).toBe(draft)
+    expect(document.activeElement).toBe(draft)
+    expect(draft.value).toBe("1")
+    expect(onEdit).not.toHaveBeenCalled()
+    view.dispose()
   })
 
   it("ages parked marks from arrival on a view without holdExpiresAt, and the forwarding wrapper keeps the release accounting", () => {

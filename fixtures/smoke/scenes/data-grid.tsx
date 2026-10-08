@@ -50,6 +50,7 @@ export function DataGridScene() {
       <GridDisabledControlScene tall />
       <GridResizeScene />
       <GridEditorScene />
+      <GridResortEditorScene />
       <GridDelayedEditorScene />
       <GridLayoutEditorScene />
     </div>
@@ -314,6 +315,27 @@ function GridEditorScene() {
       const last = sent.at(-1)
       if (last) store.applyDeltas({ patch: [{ id: last.rowId, fields: { px: Number(last.value) } }] })
     }}>Accept edited price</button>
+  </div>
+}
+
+// A sorted grid with no reorder hold: F7 sinks the top row to the bottom of the order, far past the rendered
+// window, while its editor holds a draft. The row being edited stays rendered, and the input keeps focus.
+const sortedDown = { comparator: (a: Row, b: Row) => b.px - a.px }
+function GridResortEditorScene() {
+  const [store] = useState(() => {
+    const store = createRowStore<Row>({ getRowId: row => row.id })
+    store.applyDeltas({ upsert: Array.from({ length: 40 }, (_, i) => ({ id: `q${i}`, px: 100 + i })) })
+    return store
+  })
+  const view = useView(store, sortedDown)!
+  const [sent, setSent] = useState<string[]>([])
+  return <div data-grid-resort-editor data-sent={sent.join(" ")} onKeyDownCapture={event => {
+    if (event.key !== "F7") return
+    event.preventDefault()
+    const top = view.getIds()[0]
+    if (top !== undefined) store.applyDeltas({ patch: [{ id: top, fields: { px: 0 } }] })
+  }}>
+    <div className="h-40"><DataGrid store={store} view={view} columns={editorColumns} label="Sorted quotes" onEdit={change => setSent(previous => [...previous, `${change.rowId}=${String(change.value)}`])} /></div>
   </div>
 }
 
