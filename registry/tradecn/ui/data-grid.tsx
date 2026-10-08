@@ -423,8 +423,9 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
 }
 
 // Editing. One editor at a time, its status kept in a tracker the cells subscribe to one key at a time,
-// so opening, typing in, or settling one cell re-renders that cell and nothing else. The controller is
-// one object for the grid's life; its callbacks read the latest props through a ref.
+// so typing in or settling one cell re-renders that cell and nothing else; opening, moving, or closing the
+// editor also renders the grid once, which keeps the row being edited rendered. The controller is one
+// object for the grid's life; its callbacks read the latest props through a ref.
 
 const cellKey = (rowId: RowId, key: string) => `${rowId}\u0000${key}`
 
@@ -563,9 +564,10 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    // Once per OPEN, not per mount: the editing row stays rendered wherever the viewport
-    // goes, and a remount (StrictMode's rehearsal, say) must not take focus a second time,
-    // while a fresh open() of a mounted cell resets the flag and focuses again.
+    // Once per OPEN, not per mount: a remount of the open editor (a Suspense or Activity
+    // reconnect, or a grid that had no height getting one) must not take focus a second time,
+    // while a fresh open() of a mounted cell resets the flag and focuses again. StrictMode's
+    // rehearsal runs this twice before the flag is read back, focusing twice, harmlessly.
     if (focused) return
     edits.markFocused(rowId, colKey)
     el.focus({ preventScroll: true })
@@ -1018,7 +1020,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       // A pending cell reopens on what it shows, the committed value, not on the value the store still holds.
       const now = tracker.get(k)
       // Reopening the cell already being edited is a request for focus, not a reset:
-      // the draft, its problem, and what the editor covers all stay.
+      // the draft, its problem, and what the editor covers all stay. A blur always
+      // resolves the editor, so one open without focus comes from a remount (above).
       if (now?.kind === "editing" && typed === undefined) {
         activeColumn = key
         tracker.set(k, { ...now, selectAll: true, focused: false })
@@ -1636,6 +1639,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     if (focusedRowId === null) return
     const root = rootRef.current
     const id = domId(focusedRowId)
+    // The focused row renders even outside the window: bring it into view, so the menu opens where it can be seen.
+    const index = indexOf.get(focusedRowId)
+    if (index !== undefined) virtualizer.scrollToIndex(index, { align: "auto" })
     const el = Array.from(root?.querySelectorAll<HTMLElement>('[role="row"][data-row-id]') ?? []).find(row => row.id === id)
     const ownerWindow = el?.ownerDocument.defaultView
     if (!el || !ownerWindow || !gridTarget(root, el)) return

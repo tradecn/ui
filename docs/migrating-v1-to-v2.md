@@ -410,7 +410,7 @@ For an available text-editable cell, a custom `edit.open()` button opens and foc
 
 Row actions now run during bubbling and honor a child's `preventDefault()` or `stopPropagation()`. In v1, row actions still ran after an earlier handler called `preventDefault()`. Parent handlers must use capture to claim the event first.
 
-Nested grids and content portaled outside the grid no longer touch its reorder hold or pause its tail following; contained controls still do so on pointer press.
+Nested grids and content portaled outside the grid no longer touch its reorder hold or pause its tail following; contained controls still do so on pointer press. A key in a cell editor now extends the hold and pauses the tail as a key on the grid does, where v1 left both alone while an editor had the keys.
 
 Open shadow roots use the same ownership rules. For a closed shadow root, mark its host or a containing element outside that closed root with `data-grid-interaction="control"` to retain the enclosing grid's hold and tail pause, or `data-grid-interaction="independent"` to skip that bookkeeping.
 

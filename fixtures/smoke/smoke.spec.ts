@@ -379,6 +379,33 @@ test("a data grid keeps an editor's focus and draft when a re-sort with no hold 
   expect(errors).toEqual([])
 })
 
+test("a data grid brings its focused row into view before Shift+F10 opens the row's menu", async ({ page }) => {
+  const errors: string[] = []
+  page.on("pageerror", error => errors.push(error.message))
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='data-grid'] [data-grid-resort-editor]")
+  const grid = scene.getByRole("grid", { name: "Sorted quotes" })
+  const scroller = grid.locator(".overflow-auto")
+  await grid.focus()
+  await grid.press("ArrowDown")
+  const row = grid.locator('[data-row-id="q39"]')
+  await expect(row).toHaveAttribute("data-focused", "true")
+  // The wheel takes the focused row far out of the window; it stays rendered, off screen.
+  await scroller.evaluate(element => { element.scrollTop = element.scrollHeight })
+  const box = async () => {
+    const [r, s] = await Promise.all([row.boundingBox(), scroller.boundingBox()])
+    return r !== null && s !== null && r.y >= s.y && r.y + r.height <= s.y + s.height
+  }
+  await expect.poll(box).toBe(false)
+  await expect(grid).toBeFocused()
+  await page.keyboard.press("Shift+F10")
+  await expect(page.getByRole("menuitem", { name: "Sorted quote action: q39" })).toBeVisible()
+  await expect.poll(box).toBe(true)
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("menuitem")).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
 for (const dark of [false, true]) for (const key of ["F8", "F9"]) test(`a data grid discards an unavailable editor without reviving focus (${key}, ${dark ? "dark" : "light"})`, async ({ page }) => {
   const errors: string[] = []
   page.on("pageerror", error => errors.push(error.message))
