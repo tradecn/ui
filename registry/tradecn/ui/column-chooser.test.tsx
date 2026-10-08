@@ -128,6 +128,22 @@ describe("ColumnSettingsPanel", () => {
     expect(document.querySelector('[data-column="px"] [data-column-rule="rich"]')).toHaveTextContent("Rich to the market")
   })
 
+  it("reads a rule saved with objects where text belongs without throwing, and paints only a tone it knows", () => {
+    const evil = { toString: 0 }
+    const saved = [
+      { id: "evil", column: "px", when: { op: "notNull" }, tone: evil },
+      { id: "listed", column: "px", when: { op: "notNull" }, tone: ["up"] },
+      { id: evil, column: "px", when: { op: "notNull" }, tone: "up" },
+    ] as unknown as ColumnRule[]
+    render(<ColumnSettingsPanel columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}} rules={saved} />)
+    for (const id of ["evil", "listed"]) {
+      const badge = document.querySelector(`[data-column="px"] [data-column-rule="${id}"]`)!
+      expect(badge).toHaveTextContent("Price is not empty")
+      expect(badge.className).not.toContain("text-up")
+    }
+    expect(document.querySelector('[data-column="px"] [data-column-rule=\'{"toString":0}\']')).toHaveTextContent("Price is not empty")
+  })
+
   it("writes every change through onColumnStateChange and keeps nothing: hide, show, move, reset a width, reset all", () => {
     const onChange = vi.fn()
     const state: ColumnState = { order: [], widths: { px: 140 }, hidden: [] }

@@ -301,7 +301,7 @@ Update selectors for the moved markers. `data-rule-row` and `data-dragging` move
 
 Moves use source indices and keep focus on the moved field when available. Drops are limited to the same rule kind in the same editor. Alt+Up/Down moves a rule from the item or its buttons; v1 also moved it from inside a select or a text field, where Alt+Down opens a select.
 
-Rule data that can't be read no longer throws. A condition with an unknown op or no condition matches no rows, and so do `in` and `between` with `values` that aren't a list, so a filter rule with an unknown op excludes every row, where v1 ignored it alone and threw beside another filter rule. A list entry that isn't an object is skipped, and the editor renders and counts nothing for it. `ruleProblem` also names a missing or unknown comparison, a range whose low end is above its high end, and a missing or unknown tone.
+Rule data that can't be read no longer throws, and `readRules` reads rules a desk saved or shared into rule objects before you hold them. A condition with an unknown op or no condition matches no rows, and so do `in` and `between` with `values` that aren't a list, so a filter rule with an unknown op excludes every row, where v1 ignored it alone and threw beside another filter rule. A list entry that isn't an object is skipped, and the editor renders and counts nothing for it. `ruleProblem` also names a missing or unknown comparison, a range whose low end is above its high end, and a missing or unknown tone.
 
 Fixed `rules-tab-*` and `rules-panel-*` IDs and the root's `data-tab` marker are removed. Your installed `Tabs` owns tab IDs and state. You can use role/name locators or set explicit IDs on your Tabs parts.
 

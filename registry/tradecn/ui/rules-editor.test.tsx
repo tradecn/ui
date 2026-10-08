@@ -10,7 +10,7 @@ import { parsePrice } from "@/registry/tradecn/lib/format"
 import type { FilterRule, GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 import type { ColumnDef, ColumnState } from "@/registry/tradecn/ui/data-grid"
-import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorFilterCount, RulesEditorItem, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorValue, useRulesEditor, useRulesEditorItem, DEFAULT_RULES_EDITOR_LABELS, moveItem, newFilter, newHighlight, newSort, parseValues, valueShape, valuesText, withColumn, withOp } from "@/registry/tradecn/ui/rules-editor"
+import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorFilterCount, RulesEditorItem, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorRuleCount, RulesEditorTone, RulesEditorToneSwatch, RulesEditorValue, useRulesEditor, useRulesEditorItem, DEFAULT_RULES_EDITOR_LABELS, moveItem, newFilter, newHighlight, newSort, parseValues, valueShape, valuesText, withColumn, withOp } from "@/registry/tradecn/ui/rules-editor"
 
 interface Rfq {
   id: string
@@ -682,14 +682,76 @@ describe("RulesEditor", () => {
         filter: [null as never, { column: "status", op: "eq", value: "Open" }],
         sort: [null as never],
       })
-      return <TabbedRulesEditor columns={columns} rules={rules} onRulesChange={(next) => { latest = next; setRules(next) }} store={seeded()} />
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={(next) => { latest = next; setRules(next) }} store={seeded()}>
+        {rules.columns?.map((rule, index) => typeof rule === "object" && rule !== null && <RulesEditorItem key={rule.id} kind="highlights" index={index}><RulesEditorMatchCount /></RulesEditorItem>)}
+        {rules.filter?.map((rule, index) => typeof rule === "object" && rule !== null && <RulesEditorItem key={index} kind="filters" index={index}><RulesEditorMatchCount /></RulesEditorItem>)}
+        <span data-testid="highlight-count"><RulesEditorRuleCount kind="highlights" /></span>
+        <RulesEditorAdd kind="sort">Add sort key</RulesEditorAdd>
+      </RulesEditor>
     }
     render(<Controlled />)
     expect(document.querySelector("[data-rule-id='after'] [data-rule-count]")).toHaveAttribute("data-rule-count", "2")
     expect(document.querySelectorAll("[data-rule-kind='highlights']")).toHaveLength(1)
-    fireEvent.click(screen.getByRole("tab", { name: /Sort/ }))
+    expect(screen.getByTestId("highlight-count")).toHaveTextContent(/^1$/)
     fireEvent.click(screen.getByRole("button", { name: "Add sort key" }))
     expect(latest?.sort).toEqual([null, { key: "id", dir: "asc" }])
+  })
+
+  it("reads every entry as the grid does: objects where text belongs show as their JSON, a list that is not a list holds nothing, and Add starts one", () => {
+    let latest: GridRules | undefined
+    const evil = { toString: 0 }
+    function Controlled() {
+      const [rules, setRules] = useState<GridRules>({
+        columns: [
+          { id: "keyed", column: { key: "px" }, when: { op: "notNull" }, tone: "up", label: "Keyed" },
+          { id: "hued", column: "px", when: { op: evil }, tone: { name: "up" }, label: "Hued" },
+          { id: "listed", column: "px", when: { op: ["eq"] }, tone: ["up"], label: "Listed" },
+        ] as never,
+        filter: { column: "status", op: "eq", value: "Open" } as never,
+      })
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={(next) => { latest = next; setRules(next) }} store={seeded()}>
+        {Array.isArray(rules.columns) && rules.columns.map((rule, index) => <RulesEditorItem key={rule.id} kind="highlights" index={index}>
+          <RulesEditorColumn /><RulesEditorOperator /><RulesEditorTone /><RulesEditorToneSwatch /><RulesEditorMatchCount /><RulesEditorProblem />
+        </RulesEditorItem>)}
+        <RulesEditorFilterCount />
+        <RulesEditorAdd kind="filters">Add filter</RulesEditorAdd>
+      </RulesEditor>
+    }
+    render(<Controlled />)
+    const shown = (label: string) => {
+      const select = screen.getByLabelText(label) as HTMLSelectElement
+      return [select.value, select.selectedOptions[0]?.textContent]
+    }
+    expect(shown("Column: Keyed")).toEqual(['{"key":"px"}', '{"key":"px"}'])
+    expect(shown("Condition: Hued")).toEqual(['{"toString":0}', '{"toString":0}'])
+    expect(shown("Tone: Hued")).toEqual(['{"name":"up"}', '{"name":"up"}'])
+    expect(shown("Condition: Listed")).toEqual(['["eq"]', '["eq"]'])
+    expect(shown("Tone: Listed")).toEqual(['["up"]', '["up"]'])
+    expect(document.querySelector("[data-rule-id='keyed']")).toHaveTextContent('No column is named "{"key":"px"}".')
+    expect(document.querySelector("[data-rule-id='hued']")).toHaveTextContent('No comparison is named "{"toString":0}".')
+    expect(document.querySelector("[data-rule-id='hued'] [data-rule-swatch]")).toHaveAttribute("data-rule-swatch", '{"name":"up"}')
+    expect(document.querySelector("[data-rule-id='listed'] [data-rule-swatch]")!.className).not.toContain("text-up")
+    expect(document.querySelector("[data-rule-id='keyed'] [data-rule-count]")).toHaveAttribute("data-rule-count", "0")
+    fireEvent.click(screen.getByText("Add filter"))
+    expect(latest?.filter).toEqual([expect.objectContaining({ column: expect.any(String) })])
+  })
+
+  it("moves a rule whose value JSON cannot print, a bigint a caller put there, without throwing", () => {
+    function Controlled() {
+      const [rules, setRules] = useState<GridRules>({ columns: [
+        { id: "big", column: "px", when: { op: "gt", value: 10n as never }, tone: "up", label: "Big" },
+        { id: "small", column: "px", when: { op: "notNull" }, tone: "down", label: "Small" },
+      ] })
+      // A parent that copies what it is handed, so the editor compares two lists that are equal but not the same.
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={(next) => setRules(structuredClone(next))}>
+        {rules.columns?.map((rule, index) => <RulesEditorItem key={rule.id} kind="highlights" index={index}><RulesEditorMove direction="down">Down</RulesEditorMove></RulesEditorItem>)}
+      </RulesEditor>
+    }
+    render(<Controlled />)
+    const down = screen.getByRole("button", { name: "Move down: Big" })
+    down.focus()
+    fireEvent.click(down)
+    expect([...document.querySelectorAll("[data-rule-id]")].map((item) => item.getAttribute("data-rule-id"))).toEqual(["small", "big"])
   })
 
   it("moves a rule only on plain Alt with an arrow from its own elements, and leaves the key to an item given an arrow-owning role", () => {
@@ -705,6 +767,7 @@ describe("RulesEditor", () => {
     const { unmount } = render(<Controlled />)
     const order = () => [...document.querySelectorAll("[data-rule-id]")].map((item) => item.getAttribute("data-rule-id"))
     const rich = document.querySelector<HTMLElement>("[data-rule-id='rich']")!
+    expect(rich).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown")
     for (const chord of [{ shiftKey: true }, { ctrlKey: true }, { metaKey: true }, { isComposing: true }]) {
       expect(fireEvent.keyDown(rich, { key: "ArrowDown", altKey: true, ...chord })).toBe(true)
       expect(order()).toEqual(["rich", "big"])

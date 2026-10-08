@@ -33,7 +33,7 @@ function QuoteRules() {
     <RulesEditor columns={columns} rules={rules} onRulesChange={setRules} className="w-lg max-w-full">
       {rules.columns?.length ? (
         <ul className="space-y-2">
-          {rules.columns?.map((rule, index) => rule && (
+          {rules.columns?.map((rule, index) => (
             <li key={rule.id}>
               <RulesEditorItem kind="highlights" index={index}>
                 <RulesEditorColumn />
@@ -161,7 +161,7 @@ Item fields, move/remove actions, problems, and match counts require `RulesEdito
 
 ### Keyboard and focus
 
-Drag an item onto another item of the same kind, or use Alt+Up/Down from the item or its buttons. A select, a text field, or an item given an arrow-owning role keeps Alt with its arrows, so Alt+Down opens a select, and Alt with Shift, Ctrl, or Meta moves nothing. Reordering uses source indices, even when you render items in a different order.
+Drag an item onto another item of the same kind, or use Alt+Up/Down from the item or its buttons. A select, a text field, or an item given an arrow-owning role keeps Alt with its arrows, so Alt+Down opens a select, and Alt with Shift, Ctrl, or Meta moves nothing. Each item names its keys in `aria-keyshortcuts`. Reordering uses source indices, even when you render items in a different order.
 
 Accepted moves keep focus on the corresponding field when available. Removal focuses the adjacent item or its remove action, then `RulesEditorAdd` when the list is empty.
 
@@ -228,7 +228,7 @@ The set field trims members and drops empties, without quoting or escaping. Ente
 
 ### Errors
 
-`RulesEditorProblem` reports missing columns, a missing or unknown comparison, missing values, unreadable values, a range whose low end is above its high end, and an unknown tone, without blocking edits or evaluation. A stored op the column doesn't offer, or an op or tone this version doesn't know, shows in its select as it is, and a highlight with no condition gets a blank one to choose from. An entry that isn't an object renders and counts nothing; the Usage example skips one with `rule &&`.
+`RulesEditorProblem` reports missing columns, a missing or unknown comparison, missing values, unreadable values, a range whose low end is above its high end, and an unknown tone, without blocking edits or evaluation. A stored op the column doesn't offer, or an op or tone this version doesn't know, shows in its select as it is, and a highlight with no condition gets a blank one to choose from. The editor reads each entry as the grid does, so an entry that isn't an object renders and counts nothing, and a name or a word saved as anything but text shows as its JSON. Read rules a desk saved or shared with [`readRules`](grid-rules.md#reading-saved-rules) before you hold them, so your own composition maps over rule objects.
 
 | Condition | Evaluation |
 |---|---|

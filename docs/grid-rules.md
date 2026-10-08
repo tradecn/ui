@@ -169,7 +169,9 @@ For a 32nds price column, use `parse: (text) => parsePrice(text, convention)` to
 
 If a required scalar comparison value parses to `null`, the condition matches no rows. As a highlight, it colors nothing; as a filter, it excludes every row. For `in` and `between`, compilation drops values that parse to `null`: `in` uses the remaining candidates, and `between` uses the first two remaining values, low then high. No candidates, or fewer than two endpoints, matches nothing.
 
-Rules arrive as data, so a rule that can't be read never throws. A condition that is missing, or names an op not in `RULE_OPS`, matches no rows, like an unreadable value, and so do `in` and `between` when their `values` aren't a list. A value that isn't text, a number, or a boolean reads as nothing. A list entry that isn't an object is skipped, like a rule naming an absent column. A tone outside `RULE_TONES` paints nothing, and the rule's words still describe the cells it matches.
+Rules arrive as data, so a rule that can't be read never throws. Read rules a desk saved or shared with `readRules` before you hold them: a list that isn't a list reads as none, an entry that isn't an object is dropped, every name and word reads as text, and a value that isn't text, a number, a boolean, or `null` reads as its JSON text, so the value the editor shows is the value compared. Reading decides nothing: an op or a tone this version doesn't know stays as its text for `ruleProblem` to name. The grid, the editor, the column chooser, and the helpers below read each entry the same way, so unread JSON doesn't throw either.
+
+A condition that is missing, or names an op not in `RULE_OPS`, matches no rows, like an unreadable value, and so do `in` and `between` when their `values` aren't a list. A tone outside `RULE_TONES` paints nothing, and the rule's words still describe the cells it matches.
 
 `ruleProblem(rule, columns)` accepts a `ColumnRule` or `FilterRule` and returns a problem sentence or `null`. Use it to show missing columns, a missing or unknown comparison, missing or unreadable inputs, a range without exactly two endpoints or with its low end above its high end, and a missing or unknown tone when the rule has a `tone` key. It checks the supplied rule separately; compilation does not call it. For example, an `in` list containing one readable and one unreadable numeric value reports a problem but still compiles to match the readable value.
 
@@ -183,12 +185,22 @@ The text uses the token color. The background uses its soft variant, or a 12% ti
 
 | Field | Type | Value |
 |---|---|---|
-| `data-rule` | `string` | Rule `id`. |
-| `data-tone` | `RuleTone` | Rule `tone`. |
+| `data-rule` | `string` | Rule `id`, as text. |
+| `data-tone` | `string` | Rule `tone`, as text. One outside `RULE_TONES` paints nothing. |
 | `aria-description` | `string` | Trimmed `label`, or `describeRule(rule, columns)` when the label is absent, blank, or not text. |
 | `className` | `string` | `RULE_TONE_CLASS[rule.tone]`, or empty for a tone outside `RULE_TONES`. |
 
 These attributes carry the rule's meaning alongside its color for tests and assistive technology. In `DataGrid`, an edit rejection takes precedence over the cell's rule description, and your `getRowProps` can override the row's description and data attributes.
+
+### Reading saved rules
+
+| Function | Input | Result |
+|---|---|---|
+| `readRules(value)` | Any JSON | `GridRules`, each list read with the readers below. A list that isn't a list is absent, and an entry that isn't an object is dropped. |
+| `readColumnRule(value)` | Any JSON | A `ColumnRule`, or `null` when the value isn't an object. Its label stays only when it is text, and its target is the row only when it says `"row"`. |
+| `readFilterRule(value)` | Any JSON | A `FilterRule`, or `null` when the value isn't an object. |
+| `readSortRule(value)` | Any JSON | A `SortRule`, or `null` when the value isn't an object. Its direction is descending only when it says `"desc"`. |
+| `readCondition(value)` | Any JSON | A `RuleCondition`, or `undefined` when the value isn't an object. Its `values` come only from a list. |
 
 ### Compiling
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
-import { RULE_TONE_CLASS, columnName, describeRule, type ColumnRule } from "@/registry/tradecn/lib/grid-rules"
+import { RULE_TONES, RULE_TONE_CLASS, columnName, describeRule, readColumnRule, type ColumnRule } from "@/registry/tradecn/lib/grid-rules"
 import { EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState } from "@/registry/tradecn/ui/data-grid"
 
 // The root coordinates controlled grid edits, search, drag ownership and focus.
@@ -109,8 +109,11 @@ export function chooserRows<T>(columns: ColumnDef<T>[], state: ColumnState, rule
     frozen: column.frozen === "left",
     width: state.widths[column.key] ?? column.width,
     resized: column.key in state.widths,
-    // A list entry that is not an object is no rule, as the grid reads it.
-    rules: rules.filter((rule) => typeof rule === "object" && rule !== null && rule.column === column.key),
+    // Each entry as the grid reads it: one that is not an object is no rule, and its names and words are text.
+    rules: (Array.isArray(rules) ? rules : []).flatMap((entry) => {
+      const rule = readColumnRule(entry)
+      return rule && rule.column === column.key ? [rule] : []
+    }),
   }))
 }
 
@@ -903,7 +906,7 @@ export function ColumnChooserRule({ ruleIndex, className, ...props }: Omit<Compo
   const reading = row.rules[ruleIndex]
   if (!reading) return null
   const { rule, description } = reading
-  return <Badge variant="outline" data-column-rule={rule.id} title={description} className={cn("h-4 min-w-0 shrink px-1.5 text-xs", RULE_TONE_CLASS[rule.tone], className)} {...props}><span className="min-w-0 truncate">{(typeof rule.label === "string" ? rule.label.trim() : "") || description}</span></Badge>
+  return <Badge variant="outline" data-column-rule={rule.id} title={description} className={cn("h-4 min-w-0 shrink px-1.5 text-xs", RULE_TONES.includes(rule.tone) && RULE_TONE_CLASS[rule.tone], className)} {...props}><span className="min-w-0 truncate">{rule.label?.trim() || description}</span></Badge>
 }
 
 export function ColumnChooserWidth({ className, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<"span">, "children">) {

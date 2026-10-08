@@ -17,7 +17,12 @@ import {
   describeRule,
   normalizeValue,
   opsFor,
+  readColumnRule,
+  readCondition,
+  readFilterRule,
   readRuleValue,
+  readRules,
+  readSortRule,
   ruleDecoration,
   ruleProblem,
   type ColumnRule,
@@ -330,5 +335,59 @@ describe("rules that arrive malformed", () => {
     expect(describeRule(bad({ op: "in", values: ["ALPHA", { x: 1 }] }), columns)).toBe('Price one of ALPHA, {"x":1}')
     expect(describeRule(bad(undefined), columns)).toBe("Price")
     expect(() => describeRule(bad({ op: "between", values: "x" }), columns)).not.toThrow()
+  })
+})
+
+describe("reading rules a desk saved", () => {
+  // An own toString that is not a function: String() and a property lookup both throw on it.
+  const evil = { toString: 0 }
+
+  it("reads any JSON into rules: lists as lists, names and words as text, values as text, numbers, booleans, or null, and an entry that is not an object dropped", () => {
+    expect(readRules(null)).toEqual({})
+    expect(readRules({ columns: { id: "x" }, filter: "bad", sort: 5 })).toEqual({})
+    const read = readRules({
+      columns: [null, 5, "bad", { id: 7, column: { key: "px" }, when: { op: evil, value: { a: 1 }, values: "x" }, tone: ["up"], label: 9, target: "cell" }],
+      filter: [{ column: "status", op: "eq", value: "Open", values: [1, {}, undefined, null] }],
+      sort: [{ key: ["px"], dir: "down" }, { key: "size", dir: "desc" }],
+    })
+    expect(read.columns).toEqual([{ id: "7", column: '{"key":"px"}', when: { op: '{"toString":0}', value: '{"a":1}' }, tone: '["up"]' }])
+    expect(read.filter).toEqual([{ column: "status", op: "eq", value: "Open", values: [1, "{}", null] }])
+    expect(read.sort).toEqual([{ key: '["px"]', dir: "asc" }, { key: "size", dir: "desc" }])
+    expect(readColumnRule(null)).toBeNull()
+    expect(readFilterRule([])).toEqual({ column: "", op: undefined })
+    expect(readSortRule("px")).toBeNull()
+    expect(readCondition("gt")).toBeUndefined()
+    expect(readColumnRule({ id: "r", column: "px", when: { op: "gt", value: 1n }, tone: "up" })?.when?.value).toBe("[object BigInt]")
+  })
+
+  it("compiles, decorates, describes, and judges such rules without throwing, and puts only text on the elements", () => {
+    const raw = [
+      { id: evil, column: "px", when: { op: evil }, tone: evil },
+      { id: "obj", column: { key: "px" }, when: { op: "notNull" }, tone: "up" },
+      { id: "arr", column: "px", when: { op: ["notNull"] }, tone: ["up"] },
+      { id: "fine", column: "px", when: { op: "notNull" }, tone: { name: "up" } },
+    ] as unknown as ColumnRule[]
+    const applied = applyRules(raw, columns)
+    const decoration = applied.cell("px", rows[0]!)!
+    expect(decoration["data-rule"]).toBe("fine")
+    expect(decoration["data-tone"]).toBe('{"name":"up"}')
+    expect(decoration.className).toBe("")
+    for (const rule of raw) {
+      expect(() => describeRule(rule, columns)).not.toThrow()
+      expect(() => ruleProblem(rule, columns)).not.toThrow()
+      expect(typeof ruleDecoration(rule, columns)["data-rule"]).toBe("string")
+    }
+    expect(ruleProblem(raw[0]!, columns)).toBe('No comparison is named "{"toString":0}".')
+    expect(ruleProblem(raw[1]!, columns)).toBe('No column is named "{"key":"px"}".')
+    expect(ruleProblem({ column: undefined } as never, columns)).toBe("The rule needs a column.")
+    expect(describeRule(raw[0]!, columns)).toBe('Price {"toString":0}')
+    // A value the editor would show as text is judged as that text: readable on a text column, not on a number column.
+    expect(ruleProblem({ column: "client", op: "eq", value: { a: 1 } } as never, columns)).toBeNull()
+    expect(ruleProblem({ column: "size", op: "eq", value: { a: 1 } } as never, columns)).toBe('"{"a":1}" is not a value Size reads.')
+    expect(rows.filter(compileFilter({ length: 2 } as never, columns))).toEqual(rows)
+    expect(compileComparator("px" as never, columns)).toBeUndefined()
+    expect(compileComparator({ length: 1, 0: { key: "size", dir: "asc" } } as never, columns)).toBeUndefined()
+    expect(describeRule(raw[1]!, columns)).toBe('{"key":"px"} is not empty')
+    expect(applyRules({ length: 1, 0: raw[3] } as never, columns).byColumn.size).toBe(0)
   })
 })

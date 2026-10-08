@@ -1373,6 +1373,19 @@ describe("rules as data", () => {
     expect(cell("r9", "sym").className).toContain("linear-gradient(color-mix(in_oklab,var(--primary)")
   })
 
+  it("draws rules saved with objects where text belongs without throwing, with only text on the elements", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(10, store)
+    const evil = { toString: 0 }
+    const saved = { columns: [{ id: evil, column: "px", when: { op: "notNull" }, tone: evil }], filter: { column: "qty", op: "notNull" }, sort: [{ key: evil, dir: evil }] } as unknown as GridRules
+    render(<DataGrid store={store} columns={ruled} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} rules={saved} />)
+    expect(cell("r9", "px")).toHaveAttribute("data-rule", '{"toString":0}')
+    expect(cell("r9", "px")).toHaveAttribute("data-tone", '{"toString":0}')
+    expect(cell("r9", "px").className).not.toContain("text-up")
+    // A filter that is not a list holds nothing back.
+    expect(document.querySelector('[data-row-id="r0"]')).not.toBeNull()
+  })
+
   it("filters and orders by the rules, and a header sort comes first with the rules breaking its ties", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     seed(10, store)
