@@ -26,7 +26,7 @@ export default function RulesEditorDemo() {
     <RulesEditor columns={columns} rules={rules} onRulesChange={setRules} className="w-lg max-w-full">
       {rules.columns?.length ? (
         <ul className="space-y-2">
-          {rules.columns?.map((rule, index) => (
+          {rules.columns?.map((rule, index) => rule && (
             <li key={rule.id}>
               <RulesEditorItem kind="highlights" index={index}>
                 <RulesEditorColumn />

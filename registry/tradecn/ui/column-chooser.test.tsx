@@ -121,6 +121,13 @@ describe("ColumnSettingsPanel", () => {
     expect(screen.queryByRole("checkbox", { name: "Show Internal" })).toBeNull()
   })
 
+  it("reads a rule list a desk saved as data: an entry that is not a rule is none, and a label that is not text gives way to the rule's words", () => {
+    const saved = [null, { id: "five", column: "px", when: { op: "notNull" }, tone: "up", label: 5 }, ...rules] as unknown as ColumnRule[]
+    render(<ColumnSettingsPanel columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}} rules={saved} />)
+    expect(document.querySelector('[data-column="px"] [data-column-rule="five"]')).toHaveTextContent("Price is not empty")
+    expect(document.querySelector('[data-column="px"] [data-column-rule="rich"]')).toHaveTextContent("Rich to the market")
+  })
+
   it("writes every change through onColumnStateChange and keeps nothing: hide, show, move, reset a width, reset all", () => {
     const onChange = vi.fn()
     const state: ColumnState = { order: [], widths: { px: 140 }, hidden: [] }

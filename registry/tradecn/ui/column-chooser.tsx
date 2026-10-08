@@ -109,7 +109,8 @@ export function chooserRows<T>(columns: ColumnDef<T>[], state: ColumnState, rule
     frozen: column.frozen === "left",
     width: state.widths[column.key] ?? column.width,
     resized: column.key in state.widths,
-    rules: rules.filter((rule) => rule.column === column.key),
+    // A list entry that is not an object is no rule, as the grid reads it.
+    rules: rules.filter((rule) => typeof rule === "object" && rule !== null && rule.column === column.key),
   }))
 }
 
@@ -902,7 +903,7 @@ export function ColumnChooserRule({ ruleIndex, className, ...props }: Omit<Compo
   const reading = row.rules[ruleIndex]
   if (!reading) return null
   const { rule, description } = reading
-  return <Badge variant="outline" data-column-rule={rule.id} title={description} className={cn("h-4 min-w-0 shrink px-1.5 text-xs", RULE_TONE_CLASS[rule.tone], className)} {...props}><span className="min-w-0 truncate">{rule.label?.trim() || description}</span></Badge>
+  return <Badge variant="outline" data-column-rule={rule.id} title={description} className={cn("h-4 min-w-0 shrink px-1.5 text-xs", RULE_TONE_CLASS[rule.tone], className)} {...props}><span className="min-w-0 truncate">{(typeof rule.label === "string" ? rule.label.trim() : "") || description}</span></Badge>
 }
 
 export function ColumnChooserWidth({ className, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<"span">, "children">) {

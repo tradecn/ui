@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
 import {
+  RULE_OPS,
   RULE_OP_LABELS,
   RULE_TONES,
   RULE_TONE_CLASS,
@@ -175,9 +176,13 @@ export function newFilter<T>(columns: readonly ColumnDef<T>[]): FilterRule {
   return { column: column?.key ?? "", op: opsFor(column)[0]! }
 }
 
+// A list entry is a rule only when it is an object; anything else (a null in a JSON list) renders and counts nothing.
+const isEntry = (value: unknown): value is object & Record<string, unknown> => typeof value === "object" && value !== null
+const NO_CONDITION = {} as RuleCondition
+
 /** A new sort key on the first column not yet in the list, ascending. */
 export function newSort<T>(columns: readonly ColumnDef<T>[], existing: readonly SortRule[] = []): SortRule {
-  const used = new Set(existing.map((rule) => rule.key))
+  const used = new Set(existing.flatMap((rule) => (isEntry(rule) ? [rule.key] : [])))
   const column = columns.find((c) => !used.has(c.key)) ?? columns[0]
   return { key: column?.key ?? "", dir: "asc" }
 }
@@ -257,14 +262,14 @@ function CountsProvider<T>({ store, columns, rules, children }: Pick<RulesEditor
   const highlightCounts = useMemo(() => {
     void version
     return store ? highlights.map((rule) => {
-      const column = byKey.get(rule.column)
+      const column = isEntry(rule) ? byKey.get(rule.column) : undefined
       return column ? countMatching(store, compileCondition(rule.when, column)) : 0
     }) : null
   }, [store, highlights, byKey, version])
   const filterCounts = useMemo(() => {
     void version
     return store ? filters.map((rule) => {
-      const column = byKey.get(rule.column)
+      const column = isEntry(rule) ? byKey.get(rule.column) : undefined
       return column ? countMatching(store, compileCondition(rule, column)) : 0
     }) : null
   }, [store, filters, byKey, version])
@@ -285,17 +290,19 @@ function isElement(target: EventTarget): target is Element {
 // Widget roles whose keyboard model uses the arrows, per the ARIA authoring practices, as the column chooser reads them.
 const ARROW_OWNING_ROLES = new Set("application columnheader combobox grid gridcell listbox menu menubar menuitem menuitemcheckbox menuitemradio option radio radiogroup row rowheader scrollbar searchbox separator slider spinbutton tab tablist textbox toolbar tree treegrid treeitem".split(" "))
 
-// Controls whose own keys matter: carets, selects, and ARIA widgets built on generic elements. The walk stops at
-// the item, which reorders; a button inside it owns no arrows and reorders too.
+// Controls whose own keys matter: carets, selects, and ARIA widgets built on generic elements. A button owns no
+// arrows. The walk checks the item itself last and stays inside it, so an item given an arrow-owning role keeps its keys.
 function arrowOwningTarget(target: EventTarget, item: HTMLElement) {
   if (!isElement(target)) return false
-  for (let node: Element | null = target; node && node !== item; node = node.parentElement) {
+  for (let node: Element | null = target; node; node = node.parentElement) {
     if (node.matches('input:not([type="checkbox"]):not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"])')) return true
     const role = node.getAttribute("role")
     if (role && role.toLowerCase().split(/[\t\n\f\r ]+/).some((token) => ARROW_OWNING_ROLES.has(token))) return true
+    if (node === item) break
   }
   return false
 }
+
 const DragContext = createContext<{ current: { kind: RulesEditorKind; index: number; list: readonly (ColumnRule | FilterRule | SortRule)[]; type: string; clear: () => void } | null }>({ current: null })
 
 // Controlled callers may copy rules. Compare their data while dragging or awaiting focus
@@ -435,8 +442,9 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
   const rule = highlight ?? filter ?? sort
   if (!rule) return null
   let columnKey = highlight?.column ?? sort?.key ?? ""
-  // A condition that is not an object has nothing to edit; one with an op the column does not offer is shown as it is.
-  let condition = typeof highlight?.when === "object" && highlight.when !== null ? highlight.when : null
+  // A highlight whose condition is missing or not an object edits from a blank one, as a filter with no op does; an op
+  // the column does not offer is shown as it is.
+  let condition = highlight ? (isEntry(highlight.when) ? highlight.when : NO_CONDITION) : null
   if (filter) {
     const { column, ...rest } = filter
     columnKey = column
@@ -449,11 +457,11 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
   }
   const state: RulesEditorItemState = {
     kind, index, name, columnKey, condition, highlight: highlight ?? null, sort: sort ?? null,
-    problem: highlight || filter ? editor.problem((highlight ?? filter)!) : editor.columns.some((c) => c.key === columnKey) ? null : `No column is named "${columnKey}".`,
+    problem: highlight ? editor.problem({ ...highlight, when: highlight.when, tone: highlight.tone }) : filter ? editor.problem(filter) : editor.columns.some((c) => c.key === columnKey) ? null : `No column is named "${columnKey}".`,
     setColumn: (key) => {
       if (sort) return replace({ ...sort, key })
       const ops = editor.columns.find((c) => c.key === key)?.ops ?? opsFor(undefined)
-      const next = condition && ops.includes(condition.op) ? condition : { op: ops[0]! }
+      const next = ops.includes(condition!.op) ? condition! : { op: ops[0]! }
       replace(highlight ? { ...highlight, column: key, when: next } : { column: key, ...next })
     },
     setCondition: (next) => {
@@ -466,7 +474,10 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
   return <ItemContext value={state}><div role="group" tabIndex={0} draggable aria-label={props["aria-labelledby"] ? undefined : name} data-rule-kind={kind} data-rule-row={index} data-rule-id={highlight?.id} data-filter-index={filter ? index : undefined} data-sort-index={sort ? index : undefined} data-dragging={dragging || undefined} className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-sm border border-border/60 p-1.5 outline-none focus-visible:border-ring data-[dragging]:opacity-50", className)} {...props}
     onKeyDown={(event) => {
       onKeyDown?.(event)
-      if (event.defaultPrevented || !event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return
+      // Plain Alt with an arrow, from this item's own elements: a portaled popover's controls bubble here through React
+      // without being the item's, and a held Shift, Ctrl, or Meta makes another chord.
+      if (event.defaultPrevented || event.nativeEvent.isComposing || !event.altKey || event.shiftKey || event.ctrlKey || event.metaKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return
+      if (!isElement(event.target) || !event.currentTarget.contains(event.target)) return
       // A select, a text field, or another control that uses the arrows keeps Alt with them: Alt+Down opens a select.
       if (arrowOwningTarget(event.target, event.currentTarget)) return
       event.preventDefault()
@@ -534,7 +545,7 @@ export function RulesEditorOperator({ onChange, className, ...props }: SelectPro
     onChange?.(event)
     if (!event.defaultPrevented) item.setCondition(withOp(condition, event.target.value as RuleOp))
   }}>
-    {!ops.includes(condition.op) && <NativeSelectOption value={current}>{Object.hasOwn(RULE_OP_LABELS, current) ? RULE_OP_LABELS[current as RuleOp] : current}</NativeSelectOption>}
+    {!ops.includes(condition.op) && <NativeSelectOption value={current}>{(RULE_OPS as readonly string[]).includes(current) ? RULE_OP_LABELS[current as RuleOp] : current}</NativeSelectOption>}
     {ops.map((op) => <NativeSelectOption key={op} value={op}>{RULE_OP_LABELS[op]}</NativeSelectOption>)}
   </NativeSelect>
 }
@@ -589,7 +600,7 @@ export function RulesEditorTone({ onChange, className, ...props }: SelectProps) 
 export function RulesEditorToneSwatch({ className, ...props }: ComponentProps<"span">) {
   const { highlight } = useRulesEditorItem()
   if (!highlight) return null
-  return <span aria-hidden data-rule-swatch={highlight.tone} className={cn("rounded-sm px-1.5 py-0.5", Object.hasOwn(RULE_TONE_CLASS, highlight.tone) && RULE_TONE_CLASS[highlight.tone], className)} {...props}>{highlight.tone}</span>
+  return <span aria-hidden data-rule-swatch={highlight.tone} className={cn("rounded-sm px-1.5 py-0.5", RULE_TONES.includes(highlight.tone) && RULE_TONE_CLASS[highlight.tone], className)} {...props}>{highlight.tone}</span>
 }
 
 export function RulesEditorTarget({ onChange, className, ...props }: SelectProps) {

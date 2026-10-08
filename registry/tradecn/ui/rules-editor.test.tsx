@@ -1,4 +1,5 @@
 import { StrictMode, createRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RulesEditorSections, TabbedRulesEditor } from "@/demos/rules-editor-tabs"
 import RulesEditorDemo from "@/demos/rules-editor"
@@ -639,7 +640,7 @@ describe("RulesEditor", () => {
     expect(document.querySelector("[data-rule-id='hue']")).toHaveTextContent('No tone is named "warning".')
   })
 
-  it("edits a highlight with no condition, a label that is not text, or values that are not a list without throwing", () => {
+  it("edits a highlight with no condition, a condition that is not an object, the filter's shape, no tone, a label that is not text, or values that are not a list", () => {
     let latest: GridRules | undefined
     function Controlled() {
       const [rules, setRules] = useState<GridRules>({ columns: [
@@ -647,22 +648,76 @@ describe("RulesEditor", () => {
         { id: "five", column: "px", when: { op: "notNull" }, tone: "up", label: 5 as never },
         { id: "list", column: "client", when: { op: "in", values: "ALPHA" as never }, tone: "up", label: "List" },
         { id: "word", column: "px", when: "gt" as never, tone: "up", label: "Word" },
+        { id: "flat", column: "px", op: "gt", value: "100-00", tone: "up", label: "Flat" } as never,
+        { id: "toneless", column: "px", when: { op: "notNull" }, label: "Toneless" } as never,
       ] })
       return <TabbedRulesEditor columns={columns} rules={rules} onRulesChange={(next) => { latest = next; setRules(next) }} />
     }
     render(<Controlled />)
-    expect(document.querySelector("[data-rule-id='bare']")).toHaveTextContent("The rule needs a comparison.")
-    expect(screen.queryByLabelText("Condition: Bare")).toBeNull()
-    // A column chosen for it brings that column's first comparison.
+    // Each highlight is checked as a highlight, whatever keys it carries, and offers a blank comparison to choose.
+    for (const name of ["Bare", "Word", "Flat"]) {
+      expect(document.querySelector(`[data-rule-id='${name.toLowerCase()}']`)).toHaveTextContent("The rule needs a comparison.")
+      expect(screen.getByLabelText(`Condition: ${name}`)).toHaveValue("")
+    }
+    expect(document.querySelector("[data-rule-id='toneless']")).toHaveTextContent("The rule needs a tone.")
+    expect(screen.getByLabelText("Tone: Toneless")).toHaveValue("")
+    // A column chosen for a bare rule brings that column's first comparison.
     fireEvent.change(screen.getByLabelText("Column: Bare"), { target: { value: "client" } })
     expect(latest?.columns?.[0]).toMatchObject({ column: "client", when: { op: "eq" } })
     expect(screen.getByLabelText("Condition: Bare")).toHaveValue("eq")
+    // A comparison chosen for one that is not an object replaces it.
+    fireEvent.change(screen.getByLabelText("Condition: Word"), { target: { value: "gt" } })
+    expect(latest?.columns?.[3]).toMatchObject({ when: { op: "gt" } })
+    expect(document.querySelector("[data-rule-id='word']")).toHaveTextContent("above needs a value.")
     // A label that is not text names the rule by its place.
     expect(screen.getByLabelText("Condition: Highlights 2")).toHaveValue("notNull")
     expect(screen.getByLabelText("Values, comma separated: List")).toHaveValue("")
-    // A condition that is not an object has no comparison to edit, so the editor offers none and says so.
-    expect(screen.queryByLabelText("Condition: Word")).toBeNull()
-    expect(document.querySelector("[data-rule-id='word']")).toHaveTextContent("The rule needs a comparison.")
+  })
+
+  it("renders and counts nothing for an entry that is not a rule, with a store, and adds a sort key beside one", () => {
+    let latest: GridRules | undefined
+    function Controlled() {
+      const [rules, setRules] = useState<GridRules>({
+        columns: [null as never, { id: "after", column: "client", when: { op: "gt", value: "C" }, tone: "up", label: "After C" }],
+        filter: [null as never, { column: "status", op: "eq", value: "Open" }],
+        sort: [null as never],
+      })
+      return <TabbedRulesEditor columns={columns} rules={rules} onRulesChange={(next) => { latest = next; setRules(next) }} store={seeded()} />
+    }
+    render(<Controlled />)
+    expect(document.querySelector("[data-rule-id='after'] [data-rule-count]")).toHaveAttribute("data-rule-count", "2")
+    expect(document.querySelectorAll("[data-rule-kind='highlights']")).toHaveLength(1)
+    fireEvent.click(screen.getByRole("tab", { name: /Sort/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Add sort key" }))
+    expect(latest?.sort).toEqual([null, { key: "id", dir: "asc" }])
+  })
+
+  it("moves a rule only on plain Alt with an arrow from its own elements, and leaves the key to an item given an arrow-owning role", () => {
+    function Controlled({ role }: { role?: string }) {
+      const [rules, setRules] = useState(RULES)
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={setRules}>
+        {rules.columns?.map((rule, index) => rule && <RulesEditorItem key={rule.id} kind="highlights" index={index} role={role}>
+          <RulesEditorRemove>Remove</RulesEditorRemove>
+          {createPortal(<button type="button">{`Pop for ${rule.id}`}</button>, document.body)}
+        </RulesEditorItem>)}
+      </RulesEditor>
+    }
+    const { unmount } = render(<Controlled />)
+    const order = () => [...document.querySelectorAll("[data-rule-id]")].map((item) => item.getAttribute("data-rule-id"))
+    const rich = document.querySelector<HTMLElement>("[data-rule-id='rich']")!
+    for (const chord of [{ shiftKey: true }, { ctrlKey: true }, { metaKey: true }, { isComposing: true }]) {
+      expect(fireEvent.keyDown(rich, { key: "ArrowDown", altKey: true, ...chord })).toBe(true)
+      expect(order()).toEqual(["rich", "big"])
+    }
+    // A control portaled out of the item bubbles to it through React, and is not the item's.
+    expect(fireEvent.keyDown(screen.getByRole("button", { name: "Pop for rich" }), { key: "ArrowDown", altKey: true })).toBe(true)
+    expect(order()).toEqual(["rich", "big"])
+    expect(fireEvent.keyDown(rich, { key: "ArrowDown", altKey: true })).toBe(false)
+    expect(order()).toEqual(["big", "rich"])
+    unmount()
+    render(<Controlled role="option" />)
+    expect(fireEvent.keyDown(document.querySelector<HTMLElement>("[data-rule-id='rich']")!, { key: "ArrowDown", altKey: true })).toBe(true)
+    expect(order()).toEqual(["rich", "big"])
   })
 
   it("leaves Alt with an arrow to a select or a text field, and moves the rule from the rule itself and its buttons", () => {

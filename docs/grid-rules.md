@@ -169,9 +169,9 @@ For a 32nds price column, use `parse: (text) => parsePrice(text, convention)` to
 
 If a required scalar comparison value parses to `null`, the condition matches no rows. As a highlight, it colors nothing; as a filter, it excludes every row. For `in` and `between`, compilation drops values that parse to `null`: `in` uses the remaining candidates, and `between` uses the first two remaining values, low then high. No candidates, or fewer than two endpoints, matches nothing.
 
-Rules arrive as data, so a rule that can't be read never throws. A condition that is missing, names an op not in `RULE_OPS`, or gives `values` that aren't a list matches no rows, like an unreadable value. A value that isn't text, a number, or a boolean reads as nothing. A list entry that isn't an object is skipped, like a rule naming an absent column. A tone outside `RULE_TONES` paints nothing, and the rule's words still describe the cells it matches.
+Rules arrive as data, so a rule that can't be read never throws. A condition that is missing, or names an op not in `RULE_OPS`, matches no rows, like an unreadable value, and so do `in` and `between` when their `values` aren't a list. A value that isn't text, a number, or a boolean reads as nothing. A list entry that isn't an object is skipped, like a rule naming an absent column. A tone outside `RULE_TONES` paints nothing, and the rule's words still describe the cells it matches.
 
-`ruleProblem(rule, columns)` accepts a `ColumnRule` or `FilterRule` and returns a problem sentence or `null`. Use it to show missing columns, a missing or unknown comparison, missing or unreadable inputs, a range without exactly two endpoints or with its low end above its high end, and an unknown tone. It checks the supplied rule separately; compilation does not call it. For example, an `in` list containing one readable and one unreadable numeric value reports a problem but still compiles to match the readable value.
+`ruleProblem(rule, columns)` accepts a `ColumnRule` or `FilterRule` and returns a problem sentence or `null`. Use it to show missing columns, a missing or unknown comparison, missing or unreadable inputs, a range without exactly two endpoints or with its low end above its high end, and a missing or unknown tone when the rule has a `tone` key. It checks the supplied rule separately; compilation does not call it. For example, an `in` list containing one readable and one unreadable numeric value reports a problem but still compiles to match the readable value.
 
 ### Tones are tokens
 
@@ -185,8 +185,8 @@ The text uses the token color. The background uses its soft variant, or a 12% ti
 |---|---|---|
 | `data-rule` | `string` | Rule `id`. |
 | `data-tone` | `RuleTone` | Rule `tone`. |
-| `aria-description` | `string` | Trimmed `label`, or `describeRule(rule, columns)` when the label is absent or blank. |
-| `className` | `string` | `RULE_TONE_CLASS[rule.tone]`. |
+| `aria-description` | `string` | Trimmed `label`, or `describeRule(rule, columns)` when the label is absent, blank, or not text. |
+| `className` | `string` | `RULE_TONE_CLASS[rule.tone]`, or empty for a tone outside `RULE_TONES`. |
 
 These attributes carry the rule's meaning alongside its color for tests and assistive technology. In `DataGrid`, an edit rejection takes precedence over the cell's rule description, and your `getRowProps` can override the row's description and data attributes.
 

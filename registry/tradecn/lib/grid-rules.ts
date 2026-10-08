@@ -190,6 +190,9 @@ function isCondition(condition: unknown): condition is RuleCondition {
   return typeof condition === "object" && condition !== null && isRuleOp((condition as RuleCondition).op)
 }
 
+// A value that is not text is quoted as its JSON, so an object in a rule reads as `{}`, not [object Object].
+const shown = (raw: unknown) => (typeof raw === "string" ? raw : (JSON.stringify(raw) ?? String(raw)))
+
 // A list of values that is not a list reads as none.
 const valuesOf = (condition: Partial<RuleCondition>): readonly RuleValue[] => (Array.isArray(condition.values) ? condition.values : [])
 
@@ -272,12 +275,10 @@ export function ruleProblem<T>(rule: { column: string; when?: RuleCondition; ton
   const given: unknown = "when" in rule ? rule.when : rule
   const op: unknown = typeof given === "object" && given !== null ? (given as { op?: unknown }).op : undefined
   if (op === undefined || op === null || op === "") return "The rule needs a comparison."
-  if (!isRuleOp(op)) return `No comparison is named "${String(op)}".`
+  if (!isRuleOp(op)) return `No comparison is named "${shown(op)}".`
   const condition = given as RuleCondition
   const name = columnName(column)
   const unreadable = (raw: RuleValue | undefined) => raw !== undefined && raw !== null && raw !== "" && readRuleValue(column, raw) === null
-  // A value that is not text is quoted as its JSON, so an object in a rule reads as `{}`, not [object Object].
-  const shown = (raw: unknown) => (typeof raw === "string" ? raw : (JSON.stringify(raw) ?? String(raw)))
   if (needsValue.has(condition.op)) {
     if (condition.value === undefined || condition.value === null || condition.value === "") return `${RULE_OP_LABELS[condition.op]} needs a value.`
     if (unreadable(condition.value)) return `"${shown(condition.value)}" is not a value ${name} reads.`
@@ -293,7 +294,7 @@ export function ruleProblem<T>(rule: { column: string; when?: RuleCondition; ton
     if (!values.length) return "one of needs at least one value."
     for (const raw of values) if (unreadable(raw)) return `"${shown(raw)}" is not a value ${name} reads.`
   }
-  if ("tone" in rule && !isRuleTone(rule.tone)) return `No tone is named "${String(rule.tone)}".`
+  if ("tone" in rule && !isRuleTone(rule.tone)) return rule.tone === undefined || rule.tone === null ? "The rule needs a tone." : `No tone is named "${shown(rule.tone)}".`
   return null
 }
 
@@ -320,7 +321,7 @@ export function describeRule<T>(rule: { column: string; when?: RuleCondition } &
         }
       }
     }
-    return String(raw)
+    return shown(raw)
   }
   if (condition.op === "isNull" || condition.op === "notNull") return `${name} ${word}`
   if (condition.op === "between") {
@@ -328,7 +329,7 @@ export function describeRule<T>(rule: { column: string; when?: RuleCondition } &
     return `${name} ${word} ${text(lo)} and ${text(hi)}`
   }
   if (condition.op === "in") return `${name} ${word} ${valuesOf(condition).map(text).join(", ")}`
-  return `${name} ${word} ${text(condition.value)}`
+  return `${name} ${word} ${text(condition.value)}`.trim()
 }
 
 /** Every rule has to hold. A rule on a column the grid does not have is skipped, so a stale rule hides nothing. */

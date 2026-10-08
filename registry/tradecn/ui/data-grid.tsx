@@ -679,7 +679,7 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
         focusedCol && "bg-muted/50",
         status?.kind === "pending" && "text-muted-foreground italic",
         rejected !== null && "text-destructive",
-        rule?.className ?? (left !== undefined ? rowRule?.className : undefined),
+        rule?.className || (left !== undefined ? rowRule?.className : undefined),
       )}
       style={left !== undefined ? { left } : undefined}
     >
