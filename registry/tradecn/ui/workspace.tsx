@@ -475,8 +475,8 @@ export interface WorkspaceProps extends Omit<ComponentProps<"div">, "children"> 
   popoutUrl?: string
 }
 
-// A delay a timer can wait out: NaN, a negative number, or one past 2^31 - 1 ms fires at once, which would save on
-// every pointer move of a drag, so those read as the default.
+// A delay a timer can wait out: NaN or a negative number fires at once, which would save on every pointer move of a
+// drag, so those read as the default; one past 2^31 - 1 ms fires at once too, so it is capped there.
 const saveDelay = (ms: number) => (Number.isFinite(ms) && ms >= 0 ? Math.min(ms, 2_147_483_647) : 250)
 
 export function Workspace({ panels, tabComponent = DefaultWorkspaceTab, defaultLayout, seed, onLayoutChange, layoutChangeDelay = 250, onLayoutError, onReady, watermark = null, locked, disableFloating, popoutUrl, className, ...props }: WorkspaceProps) {
