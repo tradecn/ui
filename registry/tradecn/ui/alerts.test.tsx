@@ -320,6 +320,19 @@ describe("AlertsAnnouncer", () => {
 })
 
 describe("AlertHistory and alertColumns", () => {
+  it("prints the null token for a time that is not an instant, and never hands one to a formatter", () => {
+    const time = vi.fn((ms: number) => `t${ms}`)
+    const format = alertColumns({ time })[0]!.format!
+    for (const ms of [Number.NaN, Infinity, -Infinity, 8.64e15 + 1, -8.64e15 - 1]) expect(format(ms, { id: "a", at: ms, severity: "info", title: "x", count: 1 } as never)).toBe("–")
+    expect(time).not.toHaveBeenCalled()
+    // With the default clock, a store whose clock gives no instant still draws its history.
+    const alerts = seeded(() => Number.NaN)
+    render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Log" /></div>)
+    const cells = [...document.querySelectorAll('[data-row-id] [data-col="at"]')]
+    expect(cells.length).toBeGreaterThan(0)
+    for (const cell of cells) expect(cell).toHaveTextContent(/^–$/)
+  })
+
   it("renders the independent grid and permits caller-owned columns and labels", () => {
     const alerts = seeded(clock().now)
     expect(alertColumns().map((column) => column.key)).toEqual(["at", "severity", "title", "message", "count"])

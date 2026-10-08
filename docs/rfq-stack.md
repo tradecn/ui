@@ -111,7 +111,7 @@ Column-formatting and threshold props are listed below. Remaining props use `Dat
 | Option | Type | Default | Purpose |
 |---|---|---|---|
 | `price` | `(value: number, row: T) => string` | Two decimals | Formats bid and ask by instrument. |
-| `time` | `(ms: number) => string` | Local 24-hour time with seconds | Formats arrival time. |
+| `time` | `(ms: number) => string` | Local 24-hour time with seconds | Formats arrival time. A time a `Date` can't hold, such as `NaN`, prints `–` instead of calling it. |
 | `thresholds` | `CountdownThresholds` | `{ soonMs: 10_000 }` | Countdown's provisional warning threshold, in milliseconds. |
 | `clock` | `Clock` | `sharedClock()` | Countdown clock; the default ticks once a second. |
 

@@ -57,6 +57,9 @@ export interface RfqStackColumnOptions<T extends RfqStackRow> {
 
 const twoDecimals = (value: number) => formatPrice(value, { kind: "decimal", decimals: 2 })
 let clockFormat: Intl.DateTimeFormat | null = null
+// Intl throws on a time that is not an instant (NaN, an infinity, or past the ±8.64e15 ms a Date holds), and a
+// throw in a cell takes the whole grid down: such a time prints the null token, whatever formatter is in use.
+const isInstant = (ms: unknown): ms is number => Number.isFinite(ms) && Math.abs(ms as number) <= 8.64e15
 const localTime = (ms: number) => (clockFormat ??= new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })).format(ms)
 
 const SIDE_WORD: Record<RfqStackSide, string> = { buy: "BUY", sell: "SELL", "two-way": "2-WAY" }
@@ -74,7 +77,7 @@ export function rfqStackColumns<T extends RfqStackRow>(options: RfqStackColumnOp
   const time = options.time ?? localTime
   const px = (value: unknown, row: T) => (typeof value === "number" ? price(value, row) : NULL_TOKEN)
   return [
-    { key: "time", header: "Time", width: 76, sortable: true, flash: false, accessor: (r) => r.receivedAt, format: (v) => time(v as number) },
+    { key: "time", header: "Time", width: 76, sortable: true, flash: false, accessor: (r) => r.receivedAt, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
     {
       key: "client",
       header: "Client",

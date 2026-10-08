@@ -72,6 +72,16 @@ describe("the pure parts", () => {
     expect(formatAuditValue({ a: 1 })).toBe('{"a":1}')
   })
 
+  it("prints the null token for a time that is not an instant, never hands one to a formatter, and prints an instant before 1970 with its own milliseconds", () => {
+    const time = vi.fn((ms: number) => `t${ms}`)
+    const at = auditTrailColumns({ time }).find(column => column.key === "at")!
+    for (const ms of [Number.NaN, Infinity, -Infinity, 8.64e15 + 1, -8.64e15 - 1]) expect(at.format!(ms, EVENTS[0]!)).toBe("–")
+    expect(time).not.toHaveBeenCalled()
+    const clock = auditTrailColumns().find(column => column.key === "at")!
+    expect(clock.format!(-1, EVENTS[0]!)).toMatch(/:\d{2}\.999$/)
+    expect(clock.format!(-1000.5, EVENTS[0]!)).toMatch(/:\d{2}\.000$/)
+  })
+
   it("lays out time, event, by, message, and the count of changed fields", () => {
     const columns = auditTrailColumns({ time: (ms) => `t${ms - T0}` })
     expect(columns.map((c) => c.key)).toEqual(["at", "event", "by", "message", "changes"])
@@ -128,6 +138,38 @@ describe("AuditTrail", () => {
     expect(pane.querySelector("[data-audit-change='price'] [data-audit-from]")).toHaveTextContent("99-16+")
     expect(pane.querySelector("[data-audit-change='price'] [data-audit-to]")).toHaveTextContent("99-17")
     expect(pane.querySelector("[data-audit-change='filled'] [data-audit-from]")).toHaveTextContent("–")
+  })
+
+  it("draws an event whose time is not an instant with the null token, in its row and in the pane's title", () => {
+    const store = createRowStore<AuditEvent>({ getRowId: (e) => e.id, lane: "ordered" })
+    store.applyDeltas({ upsert: [...EVENTS.slice(0, 2), { ...EVENTS[2]!, at: Number.NaN }] })
+    render(<AuditTrail store={store}><AuditTrailGrid initialRect={RECT} /><AuditChangesTable /></AuditTrail>)
+    const row = document.querySelector<HTMLElement>(`[data-row-id="${EVENTS[2]!.id}"]`)!
+    expect(row.querySelector("[data-col='at']")).toHaveTextContent(/^–$/)
+    fireEvent.pointerDown(row.querySelector("[role='gridcell']")!)
+    expect(within(screen.getByRole("region", { name: "Changes" })).getByRole("heading")).toHaveTextContent(`${EVENTS[2]!.event} at –`)
+  })
+
+  it("orders a whole-trail selection from one pass over the trail at each batch, not a scan per comparison", () => {
+    const N = 2000
+    const store = createRowStore<AuditEvent>({ getRowId: (e) => e.id, lane: "ordered" })
+    store.applyDeltas({ upsert: Array.from({ length: N }, (_, i): AuditEvent => ({ id: `n${i}`, at: T0 + i, event: "Amended", changes: [{ field: "price", from: i, to: i + 1 }] })) })
+    render(<AuditTrail store={store} time={(ms) => `t${ms - T0}`}><AuditTrailGrid initialRect={RECT} /><AuditChangesTable /></AuditTrail>)
+    const grid = screen.getByRole("grid", { name: "Audit trail" })
+    fireEvent.pointerDown(document.querySelector("[data-row-id='n0'] [role='gridcell']")!)
+    fireEvent.keyDown(grid, { key: "a", ctrlKey: true })
+    const pane = screen.getByRole("region", { name: "Changes" })
+    expect(within(pane).getByRole("heading")).toHaveTextContent("Amended t0 to Amended t1999")
+    // Count lookups in arrays as long as the trail through the next batch's redraw of the pane.
+    const indexOf = Array.prototype.indexOf
+    let scans = 0
+    vi.spyOn(Array.prototype, "indexOf").mockImplementation(function (this: unknown[], ...args: [unknown, number?]) {
+      if (this.length >= N) scans += 1
+      return indexOf.apply(this, args)
+    })
+    act(() => store.applyDeltas({ patch: [{ id: "n5", fields: { message: "again" } }] }))
+    expect(within(pane).getByRole("heading")).toHaveTextContent("Amended t0 to Amended t1999")
+    expect(scans).toBeLessThan(N)
   })
 
   it("follows the trail as events arrive, redraws the pane for a change to a selected event, and exports what is shown as CSV", () => {

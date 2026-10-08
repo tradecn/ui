@@ -75,7 +75,7 @@ Uses the data grid's `parameters` preset: 24 px rows, single selection, ring fla
 | `columns` | `ColumnDef<T>[]` | `parameterColumns(options)` | Replace the generated column list. |
 | `label` | `string` | `"Parameters"` | Accessible name for the grid. |
 | `labels` | `Partial<ParameterGridLabels>` | `DEFAULT_PARAMETER_GRID_LABELS` | Override the labels listed below. |
-| `time` | `(ms: number) => string` | Local 24-hour `HH:MM:SS` | Format updated and as-of times. |
+| `time` | `(ms: number) => string` | Local 24-hour `HH:MM:SS` | Format updated and as-of times. A time a `Date` can't hold, such as `NaN`, prints `–` instead of calling it. The default reads the runtime's time zone, so server-rendered times use the server's. |
 | `changedSince` | `number \| null` | `null` | Mark rows updated at or after this epoch time in milliseconds. |
 | `toggleAction` | `string` | `"toggle"` | Permission id for the enable checkbox. |
 | `editAction` | `string` | `"edit"` | Permission id for parameter edits. |
@@ -160,9 +160,9 @@ Cells blocked by permissions carry `aria-readonly="true"` when they have an edit
 
 Rows with a present `updatedAt` at or after `changedSince` show a dot beside their name and receive the `Changed` accessible description, unless `getRowProps` supplies one. A null or omitted `changedSince` disables the mark.
 
-The updated column shows `updatedAt` and a nonempty `updatedBy`, with a fill flash when the timestamp changes. A missing timestamp displays `–`.
+The updated column shows `updatedAt` and a nonempty `updatedBy`, with a fill flash when the timestamp changes. A missing timestamp, or one a `Date` can't hold, displays `–`.
 
-The as-of line shows the store's latest supplied `producedAt`, falling back to `lastBatchAt` when none has been supplied. Before either exists, it shows `–`. Both timestamps are milliseconds since the epoch and use the `time` formatter. Set `asOf={false}` to hide the line.
+The as-of line shows the store's latest supplied `producedAt`, falling back to `lastBatchAt` when none has been supplied. Before either exists, it shows `–`, and a time a `Date` can't hold reads `As of –`. Both timestamps are milliseconds since the epoch and use the `time` formatter. Set `asOf={false}` to hide the line.
 
 ### Labels
 

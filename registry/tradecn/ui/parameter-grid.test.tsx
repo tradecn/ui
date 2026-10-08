@@ -191,6 +191,25 @@ describe("ParameterGrid", () => {
     expect(disabled(screen.getByRole("checkbox", { name: "Disable TU" }))).toBe(true)
   })
 
+  it("prints the null token for an updated or as-of time that is not an instant, and never hands one to a formatter", () => {
+    const time = vi.fn((ms: number) => `t${ms}`)
+    const store = createRowStore<Sheet>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: ROWS.map((row) => (row.id === "zn" ? { ...row, updatedAt: Number.NaN } : row)), meta: { producedAt: Infinity } })
+    render(<ParameterGrid store={store} parameters={PARAMETERS} onEdit={vi.fn()} initialRect={RECT} time={time} />)
+    const cell = (rowId: string, key: string) => document.querySelector<HTMLElement>(`[data-row-id="${rowId}"] [data-col="${key}"]`)!
+    expect(cell("zn", "updated")).toHaveTextContent(/^–desk$/)
+    expect(document.querySelector("[data-parameter-asof]")).toHaveTextContent(/^As of –$/)
+    expect(time.mock.calls.flat().every((ms) => Number.isFinite(ms) && Math.abs(ms) <= 8.64e15)).toBe(true)
+  })
+
+  it("draws a sheet whose times are not instants with its default clock, one null token for each", () => {
+    const store = createRowStore<Sheet>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: ROWS.map((row) => (row.id === "zn" ? { ...row, updatedAt: 8.64e15 + 1 } : row)), meta: { producedAt: Number.NaN } })
+    render(<ParameterGrid store={store} parameters={PARAMETERS} onEdit={vi.fn()} initialRect={RECT} />)
+    expect(document.querySelector('[data-row-id="zn"] [data-col="updated"]')).toHaveTextContent(/^–desk$/)
+    expect(document.querySelector("[data-parameter-asof]")).toHaveTextContent(/^As of –$/)
+  })
+
   it("types a value in place, sends it as a change, holds it pending until the server's row agrees, and prints a rejection", async () => {
     let refuse: (e: unknown) => void = () => {}
     const onEdit = vi.fn((change: EditChange<Sheet>) => (change.value === 4 ? new Promise((_, reject) => (refuse = reject)) : undefined))

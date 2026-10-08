@@ -47,6 +47,9 @@ export interface BlotterColumnOptions<T extends BlotterRow> {
 
 const twoDecimals = (value: number) => formatPrice(value, { kind: "decimal", decimals: 2 })
 let clock: Intl.DateTimeFormat | null = null
+// Intl throws on a time that is not an instant (NaN, an infinity, or past the ±8.64e15 ms a Date holds), and a
+// throw in a cell takes the whole grid down: such a time prints the null token, whatever formatter is in use.
+const isInstant = (ms: unknown): ms is number => Number.isFinite(ms) && Math.abs(ms as number) <= 8.64e15
 const localTime = (ms: number) => (clock ??= new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })).format(ms)
 
 /** Time, symbol, side, quantity, filled, price, status, account. Spread them into your own list to add, drop, or reorder. */
@@ -54,7 +57,7 @@ export function blotterColumns<T extends BlotterRow>(options: BlotterColumnOptio
   const price = options.price ?? twoDecimals
   const time = options.time ?? localTime
   return [
-    { key: "time", header: "Time", width: 76, sortable: true, flash: false, accessor: (r) => r.time, format: (v) => time(v as number) },
+    { key: "time", header: "Time", width: 76, sortable: true, flash: false, accessor: (r) => r.time, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
     { key: "symbol", header: "Symbol", width: 76, sortable: true, accessor: (r) => r.symbol, cell: ({ row }) => <span className="font-semibold">{row.symbol}</span> },
     // The word is always there, so the color is not the only thing saying which side.
     { key: "side", header: "Side", width: 56, sortable: true, accessor: (r) => r.side, cell: ({ row }) => <span className={row.side === "buy" ? "text-up" : "text-down"}>{row.side === "buy" ? "BUY" : "SELL"}</span> },

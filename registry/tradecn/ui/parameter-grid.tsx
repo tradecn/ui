@@ -84,6 +84,9 @@ export const DEFAULT_PARAMETER_GRID_LABELS: ParameterGridLabels = {
 }
 
 let clockFormat: Intl.DateTimeFormat | null = null
+// Intl throws on a time that is not an instant (NaN, an infinity, or past the ±8.64e15 ms a Date holds), and a
+// throw in a cell takes the whole grid down: such a time prints the null token, whatever formatter is in use.
+const isInstant = (ms: unknown): ms is number => Number.isFinite(ms) && Math.abs(ms as number) <= 8.64e15
 const localTime = (ms: number) => (clockFormat ??= new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })).format(ms)
 
 const fill = (template: string, values: Record<string, string>) => template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "")
@@ -239,7 +242,7 @@ export function parameterColumns<T extends ParameterRow>(options: ParameterColum
       ) : (
         <span className="flex min-w-0 items-baseline gap-1.5">
           <span data-numeric="" className={NUMERIC_CLASS}>
-            {time(row.updatedAt)}
+            {isInstant(row.updatedAt) ? time(row.updatedAt) : NULL_TOKEN}
           </span>
           {row.updatedBy && <span className="truncate text-muted-foreground">{row.updatedBy}</span>}
         </span>
@@ -264,7 +267,7 @@ function AsOf<T>({ store, time, labels }: { store: RowStore<T>; time: (ms: numbe
   const at = meta.producedAt ?? meta.lastBatchAt
   return (
     <div data-parameter-asof={at ?? ""} className="shrink-0 text-xs text-muted-foreground lining-nums tabular-nums">
-      {at === null ? NULL_TOKEN : fill(labels.asOf, { time: time(at) })}
+      {at === null ? NULL_TOKEN : fill(labels.asOf, { time: isInstant(at) ? time(at) : NULL_TOKEN })}
     </div>
   )
 }
