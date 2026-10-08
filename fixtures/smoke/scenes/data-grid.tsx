@@ -335,7 +335,7 @@ function GridResortEditorScene() {
     const top = view.getIds()[0]
     if (top !== undefined) store.applyDeltas({ patch: [{ id: top, fields: { px: 0 } }] })
   }}>
-    <div className="h-40"><DataGrid store={store} view={view} columns={editorColumns} label="Sorted quotes" onEdit={change => setSent(previous => [...previous, `${change.rowId}=${String(change.value)}`])} /></div>
+    <div className="h-40"><DataGrid store={store} view={view} columns={editorColumns} label="Sorted quotes" onEdit={change => setSent(previous => [...previous, `${change.rowId}=${String(change.value)}`])} renderContextMenu={(_rows, ids) => <ContextMenuItem>Sorted quote action: {ids.join(",")}</ContextMenuItem>} /></div>
   </div>
 }
 

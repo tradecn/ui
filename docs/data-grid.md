@@ -195,7 +195,7 @@ Override behavior with the corresponding props and each column's `flash`; overri
 
 Rows subscribe individually through `useRow`. A value update that leaves the view's membership and order unchanged re-renders the affected visible row without re-rendering the other rows. React batches notifications from one `applyDeltas` call. Sorting, filtering, and footer totals can also do work for that batch.
 
-TanStack Virtual positions fixed-height rows. The focused row and the row being edited render even outside the window, so `aria-activedescendant` always names an element that exists and Shift+F10 opens on the focused row. With `pinViewport`, arrivals or removals adjust `scrollTop` by the first visible row's change in index times `rowHeight`, provided that row remains in the view.
+TanStack Virtual positions fixed-height rows. The focused row and the row being edited render even outside the window, so whenever the grid has a height `aria-activedescendant` names an element that exists, and Shift+F10 brings the focused row into view and opens its menu there. With `pinViewport`, arrivals or removals adjust `scrollTop` by the first visible row's change in index times `rowHeight`, provided that row remains in the view.
 
 Flash memory is keyed by row and column. A cell returning with the same value resumes a flash only while its window remains open. Reduced motion uses a static mark instead of animation. The install adds `up`, `down`, `flat`, `stale`, and `expiring` tokens and their soft variants if absent; flashes use the first three, and rules can use all five.
 

@@ -763,6 +763,8 @@ describe("certification pins", () => {
     expect(document.getElementById(grid.getAttribute("aria-activedescendant")!)).toHaveAttribute("data-row-id", "r0")
     fireEvent.keyDown(grid, { key: "F10", shiftKey: true })
     expect(menu).toHaveBeenLastCalledWith([expect.objectContaining({ id: "r0" })], ["r0"], "r0")
+    // The menu opens where the row is, and the row is brought into view first.
+    expect(scroller.scrollTop).toBe(0)
   })
 
   it("opens an editor by a key on a focused row scrolled out of the window where the key lands, focused and brought into view", () => {
