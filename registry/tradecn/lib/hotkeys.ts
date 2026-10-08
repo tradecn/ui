@@ -496,7 +496,8 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
   }
 
   function handle(event: KeyboardEvent): boolean {
-    if (event.defaultPrevented || event.isComposing || IGNORED_KEYS.has(event.key)) return false
+    // 229 is a key an input method takes, which Safari sends before isComposing says so.
+    if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || IGNORED_KEYS.has(event.key)) return false
     const target = event.target
     if (isMenuTarget(target)) {
       if (clearPending()) emit()

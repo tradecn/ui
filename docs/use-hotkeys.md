@@ -129,7 +129,7 @@ For two instances of one panel, put each handler beneath its own `HotkeyScope`. 
 
 `"g b"` waits 1,000 ms for `b`. Set `chordTimeoutMs` when creating the registry to change the wait between steps. A chord starting in a nearer scope outranks a completed binding farther out; at the same scope, the completed binding wins immediately.
 
-Already-prevented events, IME composition, and ignored keys such as bare modifiers leave a pending chord untouched. Other keydowns from a menu clear it without consuming the key. Escape elsewhere cancels it and is consumed.
+Already-prevented events, IME composition, and ignored keys such as bare modifiers leave a pending chord untouched, as does a key an input method holds that Safari sends before `isComposing` is set, with key code 229. Other keydowns from a menu clear it without consuming the key. Escape elsewhere cancels it and is consumed.
 
 A key that does not continue the chord clears it and is tried on its own, so `g` then `mod+k` can still open the palette. An unmatched repeated keydown can also clear the chord. Scope and handler eligibility are checked again for each step.
 
@@ -167,7 +167,7 @@ For persistence, create a registry once, restore saved overrides with `load`, an
 
 ### The rest
 
-`createHotkeyRegistry(options?)` accepts `chordTimeoutMs` (milliseconds, default `1000`; a value below 1 or above 2,147,483,647 reads as the default) and `platform` (`"mac"` or `"other"`, default `detectPlatform()`). The selected platform is available as `registry.platform`.
+`createHotkeyRegistry(options?)` accepts `chordTimeoutMs` (milliseconds, default `1000`; anything but a number from 1 to 2,147,483,647 reads as the default) and `platform` (`"mac"` or `"other"`, default `detectPlatform()`). The selected platform is available as `registry.platform`.
 
 | Registry method | Result or behavior |
 |---|---|
@@ -192,7 +192,7 @@ Attaching the same target more than once adds one listener; it stays until every
 
 Each optional helper `platform` is `"mac"` or `"other"` and defaults to `detectPlatform()`. For example, `formatKeys("mod+shift+k")` returns `[["⇧", "⌘", "K"]]` on a Mac and `[["Ctrl", "Shift", "K"]]` elsewhere. Use `matchesKeys` when a component handles a shortcut itself inside a protected context.
 
-The dispatcher ignores events already prevented, IME composition, and keys such as bare modifiers. Bindings run on repeated keydowns only with `repeat: true`. A binding without an eligible handler consumes nothing.
+The dispatcher ignores events already prevented, IME composition and the keys an input method holds (key code 229), and keys such as bare modifiers. Bindings run on repeated keydowns only with `repeat: true`. A binding without an eligible handler consumes nothing.
 
 Render hotkey UI on the client. A registry reads its platform when it is created, and overrides load in the browser, so on a server it has the server's platform and none of the user's remaps: key caps rendered there disagree with the client's first render for Mac users and for anyone with saved remaps.
 

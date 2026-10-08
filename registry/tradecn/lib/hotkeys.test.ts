@@ -205,6 +205,10 @@ describe("dispatch", () => {
     handled.preventDefault()
     document.body.dispatchEvent(handled)
     press("x", { isComposing: true })
+    // Safari reports a key an input method holds with key code 229 before isComposing says so.
+    const held = new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true })
+    Object.defineProperty(held, "keyCode", { value: 229 })
+    document.body.dispatchEvent(held)
     press("Shift", { shiftKey: true })
     expect(run).not.toHaveBeenCalled()
   })

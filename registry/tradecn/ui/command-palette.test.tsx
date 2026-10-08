@@ -680,8 +680,7 @@ describe("CommandPalette", () => {
     fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
     expect(ranB).toHaveBeenCalledTimes(1)
     expect(ranA).not.toHaveBeenCalled()
-    // Closed, the popout's keys are its own again; open, a key with a modifier is still the window's, so the
-    // shortcut that opened the palette closes it.
+    // Closed, the popout's keys are its own again; open, the shortcut that opened the palette closes it from there.
     press("x")
     expect(cancel).toHaveBeenCalledTimes(1)
     press("k", { ctrlKey: true })
@@ -765,6 +764,71 @@ describe("CommandPalette", () => {
     // Closed, the field's keys are its own again.
     press("X", { ctrlKey: true, shiftKey: true })
     expect(flip).toHaveBeenCalledTimes(1)
+    detach()
+  })
+
+  it.each([
+    ["ctrl+enter", { key: "Enter", ctrlKey: true }],
+    ["shift+enter", { key: "Enter", shiftKey: true }],
+    ["x", { key: "x" }],
+  ] as const)("closes from a popout on its own shortcut %s, ahead of Enter and the query, and runs no row", (hotkey, step) => {
+    const popout = document.implementation.createHTMLDocument("popout")
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const changed = vi.fn()
+    render(
+      <HotkeysProvider registry={hotkeys}>
+        {createPortal(<input aria-label="Price" />, popout.body)}
+        <ComposedPalette actions={seed()} hotkeys={hotkeys} hotkey={hotkey} onOpenChange={changed} />
+      </HotkeysProvider>,
+    )
+    const detach = hotkeys.attach(popout)
+    const price = popout.querySelector("input")!
+    const press = () => act(() => void price.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...step })))
+    press()
+    expect(changed).toHaveBeenLastCalledWith(true)
+    // A keydown with no key, as Chrome's autofill sends, goes by the capture untouched.
+    const autofill = new Event("keydown", { bubbles: true, cancelable: true })
+    expect(() => act(() => void price.dispatchEvent(autofill))).not.toThrow()
+    expect(autofill.defaultPrevented).toBe(false)
+    press()
+    expect(changed).toHaveBeenLastCalledWith(false)
+    for (const ran of Object.values(run)) expect(ran).not.toHaveBeenCalled()
+    detach()
+  })
+
+  it("leaves a key, a press, and a paste on the palette to it when its caller renders it in the popout", () => {
+    const popout = document.implementation.createHTMLDocument("popout")
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const changed = vi.fn()
+    // The parts composed without the dialog, in the popout beside its field.
+    render(
+      <HotkeysProvider registry={hotkeys}>
+        {createPortal(
+          <>
+            <input aria-label="Price" />
+            <CommandPalette actions={seed()} hotkeys={hotkeys} onOpenChange={changed}>
+              <CommandPaletteContent><CommandPaletteInput /><CommandPaletteList><PaletteResults /></CommandPaletteList></CommandPaletteContent>
+            </CommandPalette>
+          </>,
+          popout.body,
+        )}
+      </HotkeysProvider>,
+    )
+    const detach = hotkeys.attach(popout)
+    const price = popout.querySelector("input[aria-label='Price']")!
+    act(() => void price.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true })))
+    expect(changed).toHaveBeenLastCalledWith(true)
+    const field = popout.querySelector("[cmdk-input]")!
+    const selected = () => popout.querySelector('[cmdk-item][aria-selected="true"]')?.getAttribute("data-row")
+    const first = selected()
+    // An arrow on the palette's input moves its rows once, as cmdk reads it, and never comes back through the capture.
+    act(() => void field.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true })))
+    expect(selected()).not.toBe(first)
+    const paste = new Event("paste", { bubbles: true, cancelable: true })
+    act(() => void field.dispatchEvent(paste))
+    expect(paste.defaultPrevented).toBe(false)
+    act(() => void field.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })))
+    expect(changed).toHaveBeenLastCalledWith(true)
     detach()
   })
 
@@ -1028,6 +1092,41 @@ describe("hotkeys", () => {
     expect(hotkeys.list().map((e) => e.id)).toEqual(["go.blotter"])
   })
 
+  it("closes on its own shortcut in the input ahead of a row's second action", () => {
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const changed = vi.fn()
+    const detach = hotkeys.attach()
+    render(<ComposedPalette actions={seed()} hotkeys={hotkeys} hotkey="shift+enter" onOpenChange={changed} />)
+    fireEvent.keyDown(document.body, { key: "Enter", shiftKey: true })
+    expect(changed).toHaveBeenLastCalledWith(true)
+    // "New ticket" is highlighted, and Shift+Enter is both its second action and the palette's shortcut.
+    type("ticket")
+    fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
+    expect(changed).toHaveBeenLastCalledWith(false)
+    expect(run.ticketSell).not.toHaveBeenCalled()
+    detach()
+  })
+
+  it("closes on its own shortcut before focus arrives, ahead of Enter, and lets a keydown with no key go by", () => {
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const changed = vi.fn()
+    const detach = hotkeys.attach()
+    // Wherever this base puts focus on open, put it back on the body: the gap Base UI leaves in a browser.
+    const focus = vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(() => {})
+    render(<ComposedPalette actions={seed()} hotkeys={hotkeys} hotkey="shift+enter" open onOpenChange={changed} />)
+    expect(document.activeElement).toBe(document.body)
+    // Chrome's autofill sends a keydown with no key.
+    const autofill = new Event("keydown", { bubbles: true, cancelable: true })
+    expect(() => act(() => void document.body.dispatchEvent(autofill))).not.toThrow()
+    expect(autofill.defaultPrevented).toBe(false)
+    type("ticket")
+    fireEvent.keyDown(document.body, { key: "Enter", shiftKey: true })
+    expect(changed).toHaveBeenLastCalledWith(false)
+    expect(run.ticketSell).not.toHaveBeenCalled()
+    focus.mockRestore()
+    detach()
+  })
+
   it("takes keys typed before focus arrives into the query, and keeps them from the hotkeys", () => {
     const hotkeys = createHotkeyRegistry({ platform: "other" })
     const cancel = vi.fn()
@@ -1044,9 +1143,11 @@ describe("hotkeys", () => {
     // A modified key is not text, and still does not reach the dispatcher.
     fireEvent.keyDown(document.body, { key: "x", ctrlKey: true })
     expect(input()).toHaveValue("x")
-    // A key an input method holds is the method's: Safari says so with key code 229 before isComposing does.
-    fireEvent.keyDown(document.body, { key: "a", keyCode: 229 })
+    // A key an input method holds is the method's, and no binding's: Safari says so with key code 229 before
+    // isComposing does.
+    fireEvent.keyDown(document.body, { key: "x", keyCode: 229 })
     expect(input()).toHaveValue("x")
+    expect(cancel).not.toHaveBeenCalled()
     // Enter in the gap runs the highlighted row, and Shift+Enter its second action.
     fireEvent.keyDown(document.body, { key: "Backspace" })
     fireEvent.change(input(), { target: { value: "ticket" } })

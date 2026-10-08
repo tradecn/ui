@@ -409,7 +409,8 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   // Radix focuses the dialog in the commit that mounts it; Base UI does it a few milliseconds later.
   // Keys pressed in that gap land on the body, where a single-key hotkey would take them. Someone who
   // pressed mod+k is already working the palette, so until focus arrives its keys are the palette's:
-  // text goes into the query, Enter runs the highlighted row, Escape closes, and nothing reaches the dispatcher.
+  // text goes into the query, the palette's own shortcut and Escape close it, Enter runs the highlighted row,
+  // and nothing reaches the dispatcher.
   const early = useRef<{ enter: (shift: boolean) => void; escape: () => void; own: (event: KeyboardEvent) => boolean }>({ enter: () => {}, escape: () => {}, own: () => false })
   useEffect(() => {
     if (variant !== "palette" || !open) return
@@ -420,10 +421,13 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     }
     const onKey = (event: KeyboardEvent) => {
       if (inside(event.target)) return stop()
-      // 229 is a key an input method takes, which Safari sends before isComposing says so.
-      if (event.isComposing || event.keyCode === 229) return
+      // 229 is a key an input method takes, which Safari sends before isComposing says so; a keydown with no key,
+      // which Chrome's autofill sends, is no key at all.
+      if (event.isComposing || event.keyCode === 229 || typeof event.key !== "string") return
       event.stopPropagation()
-      if (event.key === "Enter") early.current.enter(event.shiftKey)
+      // The palette's own shortcut comes first, so one on Shift+Enter closes the palette rather than running a row.
+      if (early.current.own(event)) early.current.escape()
+      else if (event.key === "Enter") early.current.enter(event.shiftKey)
       else if (event.key === "Escape") early.current.escape()
       else if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return
       else setInput((typed) => typed + event.key)
@@ -443,22 +447,30 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   // A key from a popout window opens the palette in the window that renders it, and the keyboard stays in the popout,
   // where this document's focus never reaches. While the palette is open, every key in that window is the palette's,
   // with or without a modifier, so none reaches the window's own bindings: text goes into the query, Option and AltGr
-  // characters and a paste included, Backspace deletes, Up, Down, Home, and End move through the rows, Enter runs the
-  // highlighted row and Escape closes under any modifiers, and the palette's own shortcut closes it. Another shortcut
-  // with Ctrl or Meta does nothing to a field there but copy, and elsewhere the browser keeps its own. A press in the
-  // popout closes the palette, since the person has gone back to that window.
+  // characters and a paste included, Backspace deletes, Up, Down, Home, and End move through the rows, the palette's
+  // own shortcut closes it, and otherwise Enter runs the highlighted row and Escape closes under any modifiers. Another
+  // shortcut with Ctrl or Meta does nothing to a field there but copy, and elsewhere the browser keeps its own. A press
+  // in the popout closes the palette, since the person has gone back to that window. A key, a press, or a paste on the
+  // palette itself, when its caller renders it in that window, is the palette's own.
   useEffect(() => {
     const away = variant === "palette" && open ? capturedEl?.ownerDocument : undefined
     if (!away || away === document) return
     // By node type, not instanceof: the popout's nodes can belong to its own window's realm.
     const editable = (node: EventTarget | null) => (node as Element | null)?.nodeType === 1 && (node as Element).closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])") !== null
+    // The keys this capture hands the palette's input would come back to it if the palette were in that window too.
+    const mine = (node: EventTarget | null) => Boolean((node as Node | null)?.nodeType && root.current?.contains(node as Node))
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing || event.keyCode === 229) return
+      if (mine(event.target) || event.isComposing || event.keyCode === 229 || typeof event.key !== "string") return
       event.stopPropagation()
-      if (event.key === "Enter" || event.key === "Escape" || early.current.own(event)) {
+      // The palette's own shortcut comes first, so one on a modified Enter closes the palette rather than running a row.
+      if (early.current.own(event) || event.key === "Escape") {
         event.preventDefault()
-        if (event.key === "Enter") early.current.enter(event.shiftKey)
-        else early.current.escape()
+        early.current.escape()
+        return
+      }
+      if (event.key === "Enter") {
+        event.preventDefault()
+        early.current.enter(event.shiftKey)
         return
       }
       if ((event.ctrlKey || event.metaKey) && !event.getModifierState("AltGraph")) {
@@ -473,12 +485,15 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
       else if (event.key.length === 1) setInput((typed) => typed + event.key)
     }
     const onPaste = (event: ClipboardEvent) => {
+      if (mine(event.target)) return
       event.stopPropagation()
       event.preventDefault()
       const text = event.clipboardData?.getData("text/plain") ?? ""
       if (text) setInput((typed) => typed + text.replace(/\s+/g, " "))
     }
-    const onPress = () => early.current.escape()
+    const onPress = (event: PointerEvent) => {
+      if (!mine(event.target)) early.current.escape()
+    }
     away.addEventListener("keydown", onKey, true)
     away.addEventListener("paste", onPaste, true)
     away.addEventListener("pointerdown", onPress, true)
@@ -612,6 +627,13 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     onKeyDownProp?.(event)
     if (event.defaultPrevented || event.nativeEvent.isComposing) return
+    // The dispatcher stops at the dialog, so the key that opened the palette closes it from here, ahead of the keys the
+    // palette reads itself: a shortcut on Shift+Enter closes rather than running a row's second action.
+    if (variant === "palette" && early.current.own(event.nativeEvent)) {
+      event.preventDefault()
+      onDone()
+      return
+    }
     if (event.key === "Enter" && event.shiftKey) {
       const selected = event.currentTarget.querySelector('[cmdk-item][aria-selected="true"]:not([aria-disabled="true"])')
       const row = rowsByKey.get(selected?.getAttribute("data-row") ?? "")
@@ -621,12 +643,6 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     } else if (variant === "go-bar" && event.key === "Escape") {
       event.preventDefault()
       setInput("")
-      onDone()
-    } else if (variant === "palette" && ownBindingId) {
-      // The dispatcher stops at the dialog, so the key that opened the palette closes it from here.
-      const own = keysOf.get(ownBindingId)
-      if (!own || !matchesKeys(event.nativeEvent, own, hotkeys?.platform)) return
-      event.preventDefault()
       onDone()
     }
   }
