@@ -67,7 +67,7 @@ const countOr = (value: number | undefined, fallback: number) => (typeof value =
 
 // A recent read back from storage the app may not validate: an action with an id, or a symbol with its symbol, its
 // words text where it has them. Anything else is skipped, so stored data can't take the palette down while it renders.
-const isText = (value: unknown) => value === undefined || typeof value === "string"
+const isText = (value: unknown) => value === undefined || value === null || typeof value === "string"
 function isRecent(value: unknown): value is PaletteRecent {
   if (typeof value !== "object" || value === null) return false
   const entry = value as { kind?: unknown; id?: unknown; scope?: unknown; symbol?: unknown }
@@ -289,7 +289,7 @@ function subscribeFocusScopes(cb: () => void) {
 
 const getFocusElement = () => focusElement
 // The keys that move through the rows, handed to the list when they come from a popout window.
-const ROW_KEYS: ReadonlySet<string> = new Set(["ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"])
+const ROW_KEYS: ReadonlySet<string> = new Set(["ArrowUp", "ArrowDown", "Home", "End"])
 
 const getFocusScopes = () => focusScopes
 const getServerFocusScopes = () => AMBIENT_SCOPES
@@ -433,26 +433,34 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   }, [variant, open])
 
   // A key from a popout window opens the palette in the window that renders it, and the keyboard stays in the popout,
-  // where this document's focus never reaches. While the palette is open, that window's keys are the palette's: text
-  // goes into the query, Enter runs the highlighted row, Escape closes, and the arrows move through the rows. Keys
-  // with a modifier stay the window's, so the shortcut that opened the palette closes it.
+  // where this document's focus never reaches. While the palette is open, that window's keys are the palette's, as
+  // they are here before focus arrives: text goes into the query, Enter runs the highlighted row and Escape closes
+  // under any modifiers, the arrow, Home, and End keys move through the rows, and every other key stops here, so
+  // none reaches the window's own bindings. Other keys with a modifier stay the window's, so the shortcut that opened
+  // the palette closes it. A press in the popout closes the palette, since the person has gone back to that window.
   useEffect(() => {
     const away = variant === "palette" && open ? capturedEl?.ownerDocument : undefined
     if (!away || away === document) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return
+      if (event.isComposing) return
+      const modified = event.ctrlKey || event.metaKey || event.altKey
+      if (modified && event.key !== "Enter" && event.key !== "Escape") return
+      event.stopPropagation()
+      event.preventDefault()
       const field = inputRef.current
       if (event.key === "Enter") early.current.enter(event.shiftKey)
       else if (event.key === "Escape") early.current.escape()
       else if (ROW_KEYS.has(event.key)) field?.dispatchEvent(new (field.ownerDocument.defaultView ?? window).KeyboardEvent("keydown", { key: event.key, bubbles: true, cancelable: true }))
       else if (event.key === "Backspace") setInput((typed) => typed.slice(0, -1))
       else if (event.key.length === 1) setInput((typed) => typed + event.key)
-      else return
-      event.stopPropagation()
-      event.preventDefault()
     }
+    const onPress = () => early.current.escape()
     away.addEventListener("keydown", onKey, true)
-    return () => away.removeEventListener("keydown", onKey, true)
+    away.addEventListener("pointerdown", onPress, true)
+    return () => {
+      away.removeEventListener("keydown", onKey, true)
+      away.removeEventListener("pointerdown", onPress, true)
+    }
   }, [variant, open, capturedEl, inputRef])
 
   const active = new Set(scopes.split(" "))
@@ -664,6 +672,9 @@ export function CommandPalette(options: CommandPaletteProps) {
     const from = keyedFrom?.isConnected && !keyedFrom.closest(`[data-slot="${SLOT}"]`) ? keyedFrom : null
     if (open) setFrozen(from ? { scopes: scopeChain(from).join(" "), el: from } : { scopes: liveScopes, el: getFocusElement() })
     if (keyedFrom) setKeyedFrom(null)
+  } else if (keyedFrom && !open) {
+    // An open a controlled parent refused: the key's element must not stand in for a later click's.
+    setKeyedFrom(null)
   }
   const scopes = frozen.scopes
   const capturedEl = frozen.el
@@ -683,8 +694,10 @@ export function CommandPalette(options: CommandPaletteProps) {
   useInsertionEffect(() => {
     onHotkey.current = (event) => {
       if (variant !== "palette") return void inputRef.current?.focus()
+      // Only a key from another document, a popout's, names its element: here the focus tracker already knows
+      // where focus was, and keeps the last panel's offer when focus fell to the body.
       const target = event.target as Element | null
-      if (!open && target && target.nodeType === 1) setKeyedFrom(target)
+      if (!open && target && target.nodeType === 1 && target.ownerDocument !== document) setKeyedFrom(target)
       setOpen(!open)
     }
   })

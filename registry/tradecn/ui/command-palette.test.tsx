@@ -80,6 +80,9 @@ describe("createActionRegistry", () => {
       { kind: "symbol", symbol: { symbol: "MSFT", exchange: "XNAS" } },
     ] as never)
     expect(actions.recents()).toEqual([{ kind: "action", id: "b" }, { kind: "symbol", symbol: { symbol: "MSFT", exchange: "XNAS" } }])
+    // A field stored as null is a field left out, as JSON stores an adapter's missing exchange.
+    actions.loadRecents([{ kind: "action", id: "c", scope: null }, { kind: "symbol", symbol: { symbol: "ZN", exchange: null, name: null } }] as never)
+    expect(actions.recents()).toHaveLength(2)
     for (let i = 0; i < 12; i++) actions.touch({ kind: "action", id: `x${i}` })
     expect(actions.recents()).toHaveLength(8)
     // Something that isn't a list reads as no recents.
@@ -606,8 +609,15 @@ describe("CommandPalette", () => {
     const hotkeys = createHotkeyRegistry({ platform: "other" })
     const cancel = vi.fn()
     hotkeys.register({ id: "orders.cancel", keys: "x", scope: "global", description: "Cancel" }, cancel)
+    // Keys a desk binds to orders: none may reach the popout while the palette is open there.
+    const kill = vi.fn()
+    const send = vi.fn()
+    hotkeys.register({ id: "orders.kill", keys: "delete", scope: "global", description: "Kill" }, kill)
+    hotkeys.register({ id: "orders.halt", keys: "f9", scope: "global", description: "Halt" }, kill)
+    hotkeys.register({ id: "ticket.send", keys: "mod+enter", scope: "editing", description: "Send" }, send)
     const actions = createActionRegistry()
-    actions.register({ id: "go.home", title: "Go home", run: () => {} })
+    const home = vi.fn()
+    actions.register({ id: "go.home", title: "Go home", run: home })
     const ranA = vi.fn()
     const ranB = vi.fn()
     // A closed dialog stays in the DOM here, its exit animation never finishing, so what opens and closes is read here.
@@ -645,6 +655,24 @@ describe("CommandPalette", () => {
     const first = highlighted()
     press("ArrowDown")
     expect(highlighted()).not.toBe(first)
+    // Delete and an F-key stop at the palette too, and mod+Enter runs the highlighted row, not the window's send.
+    expect(press("Delete")).toBe(true)
+    expect(press("F9")).toBe(true)
+    expect(kill).not.toHaveBeenCalled()
+    press("Home")
+    const top = highlighted()
+    press("Enter", { ctrlKey: true })
+    expect(send).not.toHaveBeenCalled()
+    expect(changed).toHaveBeenLastCalledWith(false)
+    expect(top === "action:go.home" ? home : ranB).toHaveBeenCalledTimes(1)
+    home.mockClear()
+    ranB.mockClear()
+    // A press in the popout closes the palette: the person has gone back to that window.
+    press("k", { ctrlKey: true })
+    expect(changed).toHaveBeenLastCalledWith(true)
+    act(() => void bookB.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })))
+    expect(changed).toHaveBeenLastCalledWith(false)
+    press("k", { ctrlKey: true })
     press("Escape")
     expect(changed).toHaveBeenLastCalledWith(false)
     // Book B answers, though Book A holds focus in this window.
@@ -660,6 +688,55 @@ describe("CommandPalette", () => {
     expect(changed).toHaveBeenLastCalledWith(true)
     press("k", { ctrlKey: true })
     expect(changed).toHaveBeenLastCalledWith(false)
+    detach()
+  })
+
+  it("keeps the last panel's offer when focus fell to the body here and the shortcut opens the palette", () => {
+    // A row removed under its own button leaves focus on the body with no focusin: the tracker still holds the panel.
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const actions = createActionRegistry()
+    actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: () => {} })
+    const view = (shown: boolean) => (
+      <HotkeysProvider registry={hotkeys}>
+        <HotkeyScope scope="panel:book">{shown && <button type="button">Row action</button>}</HotkeyScope>
+        <ComposedPalette actions={actions} hotkeys={hotkeys} />
+      </HotkeysProvider>
+    )
+    const { rerender } = render(view(true))
+    act(() => screen.getByRole("button", { name: "Row action" }).focus())
+    rerender(view(false))
+    expect(document.activeElement).toBe(document.body)
+    act(() => void document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true })))
+    expect(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)).not.toBeNull()
+  })
+
+  it("forgets a popout key's element when a controlled parent refuses the open", () => {
+    const popout = document.implementation.createHTMLDocument("popout")
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    function BookBody({ run: runBook }: { run: () => void }) {
+      const within = useHotkeyScope()
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within }), [runBook, within])
+      return <p>book body</p>
+    }
+    const view = (open: boolean) => (
+      <HotkeysProvider registry={hotkeys}>
+        <HotkeyScope scope="panel:book" data-testid="scope-a"><BookBody run={ranA} /></HotkeyScope>
+        {createPortal(<HotkeyScope scope="panel:book" data-book="b"><BookBody run={ranB} /></HotkeyScope>, popout.body)}
+        <ComposedPalette actions={actions} hotkeys={hotkeys} open={open} onOpenChange={() => {}} />
+      </HotkeysProvider>
+    )
+    const { rerender } = render(view(false))
+    const detach = hotkeys.attach(popout)
+    act(() => (screen.getByTestId("scope-a") as HTMLElement).focus())
+    // The key from Book B asks to open; the parent refuses, then opens the palette itself, from a click here.
+    act(() => void popout.querySelector("[data-book='b']")!.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true })))
+    rerender(view(true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranA).toHaveBeenCalledTimes(1)
+    expect(ranB).not.toHaveBeenCalled()
     detach()
   })
 

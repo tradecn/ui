@@ -100,7 +100,7 @@ Join modifiers and one key with `+`; separate chord steps with spaces: `"mod+k"`
 |---|---|
 | `useHotkeys()` | Nearest provider's `HotkeyRegistry`; throws without a provider. |
 | `useMaybeHotkeys()` | Same registry, or `null` without a provider. |
-| `useHotkey(id: string, handler: HotkeyHandler, options?)` | Attach the latest `(event: KeyboardEvent) => void` handler while mounted. `options.enabled` is a boolean, default `true`; `false` detaches the handler but keeps the binding listed. The handler changes, and `false` or unmounting detaches it, in the commit that renders them, so a key in that commit never reaches a handler it replaced. |
+| `useHotkey(id: string, handler: HotkeyHandler, options?)` | Attach the latest `(event: KeyboardEvent) => void` handler while mounted. `options.enabled` is a boolean, default `true`; `false` detaches the handler but keeps the binding listed. The handler changes, and `false` or unmounting detaches it, in the commit that renders them, so a key in that commit never reaches a handler it replaced. Content a Suspense boundary hides again detaches until it shows. |
 | `useHotkeyList()` | Live `readonly HotkeyEntry[]`, including normalized `keys`, normalized `defaultKeys`, the declaration's own spelling as `declaredKeys`, and `remapped` while an override is stored for the id, one that fails to parse or matches the defaults included. |
 | `usePendingChord()` | Normalized steps typed so far, or `null`, for a status-bar hint. |
 | `useDeclaredHotkeyIds(registry?)` | Ids the surrounding providers declare through `bindings` for one registry — the nearest provider's unless given — visible during render before any effect registers them. |

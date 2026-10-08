@@ -89,7 +89,7 @@ HotkeysProvider
 
 The root coordinates the registry and search. Each item coordinates one binding's editing state. Choose the readings and controls your layout needs, and supply descriptions, action text, group headings, and empty states in your JSX.
 
-To place the editor in a dialog, install shadcn `dialog` separately and give it a `DialogTitle`. A dialog can act on Escape before the editor does, so the Escape that cancels a capture or a text edit can close the whole dialog too. Keep it open for those keys: in the dialog's Escape handling, leave the key to the editor when the event's target is inside `[data-hotkey-capture]` or `[data-hotkey-input]`.
+To place the editor in a dialog, install shadcn `dialog` separately and give it a `DialogTitle`. While a capture or a text edit is open, Escape on it cancels the edit and goes no further: the editor takes it at the window, ahead of the dialog's own Escape handling, so the dialog stays open, and your `onKeyDown` on that field doesn't see that Escape.
 
 ## Groups
 

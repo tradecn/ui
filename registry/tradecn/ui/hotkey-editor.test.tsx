@@ -1,5 +1,6 @@
 import { createRef, StrictMode } from "react"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { HotkeyEditorGroups } from "@/demos/hotkey-editor-groups"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
@@ -152,6 +153,40 @@ describe("HotkeyEditor", () => {
     capture = row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!
     fireEvent.keyDown(capture, { key: "Delete", code: "Delete" })
     expect(registry.list().find((e) => e.id === "book.cancel")?.keys).toBe("")
+  })
+
+  it("cancels an edit on Escape inside a dialog, which stays open and never hears that Escape", () => {
+    // A dialog acts on Escape ahead of the editor, in either base; the editor takes it first while an edit is open.
+    const registry = createHotkeyRegistry({ platform: "other" })
+    for (const binding of BINDINGS) registry.register(binding)
+    const changed = vi.fn()
+    render(
+      <HotkeysProvider registry={registry}>
+        <Dialog open onOpenChange={changed}>
+          <DialogContent>
+            <DialogTitle>Shortcuts</DialogTitle>
+            <HotkeyEditor><HotkeyEditorGroups /></HotkeyEditor>
+          </DialogContent>
+        </Dialog>
+      </HotkeysProvider>,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    fireEvent.keyDown(row("book.cancel").querySelector<HTMLElement>("[data-hotkey-capture]")!, { key: "Escape" })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Type it: Go to the book" }))
+    fireEvent.keyDown(screen.getByLabelText("Keys for Go to the book"), { key: "Escape" })
+    expect(screen.queryByLabelText("Keys for Go to the book")).toBeNull()
+    expect(changed).not.toHaveBeenCalled()
+    // An Escape something ahead already prevented, as a dialog that keeps itself open does, still cancels.
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    const prevented = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    prevented.preventDefault()
+    act(() => void row("book.cancel").querySelector("[data-hotkey-capture]")!.dispatchEvent(prevented))
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
+    // An Escape on anything but the open field is not the editor's.
+    fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
+    fireEvent.keyDown(document.body, { key: "Escape" })
+    expect(row("book.cancel").querySelector("[data-hotkey-capture]")).not.toBeNull()
   })
 
   it("Escape cancels a capture, a bare modifier is not a shortcut, and Backspace unbinds", () => {
