@@ -602,6 +602,84 @@ describe("PriceChart composition", () => {
     expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-24 V 30")
   })
 
+  it("reads a focused plot once more at the batch after a switch, so a series whose first bar matches the old one is read", () => {
+    const store = seeded()
+    // The new series opens where the old one did, so only the batch after the label tells them apart.
+    const sameStart = [bar(0, 110.5, 110.25), bar(1, 110.25, 110), bar(2, 110, 109.75)]
+    function Chart({ symbol }: { symbol: "ZN" | "ZF" }) {
+      useEffect(() => {
+        if (symbol === "ZF") store.applyDeltas({ upsert: sameStart })
+      }, [symbol])
+      return <PriceChart store={store} convention={ZN} label={symbol} zone="UTC"><PriceChartPlot /></PriceChart>
+    }
+    const { rerender } = render(<Chart symbol="ZN" />)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    rerender(<Chart symbol="ZF" />)
+    expect(plot.getAttribute("aria-label")).toMatch(/^ZF: down, last 109-24/)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 109-24 V 30")
+    // Then it settles: a tick is held again.
+    const name = plot.getAttribute("aria-label")
+    act(() => store.applyDeltas({ upsert: [bar(2, 110, 109.5)] }))
+    expect(plot.getAttribute("aria-label")).toBe(name)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 109-24 V 30")
+  })
+
+  it("holds through a refresh that keeps the first bar and the selected bar, as it does through ticks", () => {
+    const store = seeded()
+    render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    const name = plot.getAttribute("aria-label")
+    const value = plot.getAttribute("aria-valuetext")
+    act(() => {
+      store.clear()
+      store.applyDeltas({ upsert: [bar(0, 110.5, 110.53125), bar(1, 110.53125, 110.5), bar(2, 110.5, 110.75), bar(3, 110.75, 110.75)] })
+    })
+    expect(plot.getAttribute("aria-label")).toBe(name)
+    expect(plot.getAttribute("aria-valuetext")).toBe(value)
+  })
+
+  it("reads a focused plot once when the first bar's open moves, as a late print or a correction does, and its baseline when that changes", () => {
+    const store = seeded()
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    const before = plot.getAttribute("aria-label")
+    act(() => store.applyDeltas({ upsert: [bar(0, 110.25, 110.53125)] }))
+    const moved = plot.getAttribute("aria-label")
+    expect(moved).not.toBe(before)
+    // Once: the tick after it is held.
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    expect(plot.getAttribute("aria-label")).toBe(moved)
+    // A previous close arriving later changes what the change is measured from.
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC" baseline={110}><PriceChartPlot /></PriceChart>)
+    expect(plot.getAttribute("aria-label")).not.toBe(moved)
+  })
+
+  it("reads a focused plot afresh when its zone changes, in the new zone's time", () => {
+    const store = seeded()
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="America/Chicago"><PriceChartPlot /></PriceChart>)
+    expect(plot).toHaveAttribute("aria-valuetext", "08:32:00 110-18 V 30")
+  })
+
+  it("keeps a focused plot's tab stop when its crosshair turns off, until focus leaves", () => {
+    const store = seeded()
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC" crosshair={false}><PriceChartPlot /></PriceChart>)
+    expect(plot).toHaveAttribute("role", "img")
+    expect(plot).toHaveAttribute("tabindex", "0")
+    expect(document.activeElement).toBe(plot)
+    act(() => plot.blur())
+    expect(plot).not.toHaveAttribute("tabindex")
+  })
+
   it("shares one subscription across repeated readings and cleans it up", () => {
     const store = seeded()
     const subscribe = store.subscribeMeta

@@ -391,6 +391,7 @@ interface ChartContext extends PriceChartState {
   kind: PriceChartKind
   baseline: number | null
   zone: string | undefined
+  locale: string | undefined
   crosshair: boolean
   lastLine: boolean
   select: (index: number | null, fromPointer?: boolean) => void
@@ -454,7 +455,7 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const readout = at ? `${time(at.time)} ${kind === "candles" ? `${labels.open} ${formatPrice(at.open, price)} ${labels.high} ${formatPrice(at.high, price)} ${labels.low} ${formatPrice(at.low, price)} ${labels.close} ${formatPrice(at.close, price)}` : formatPrice(at.close, price)}${typeof at.volume === "number" && Number.isFinite(at.volume) ? ` ${labels.volume} ${formatQuantity(at.volume)}` : ""}` : ""
   const sentence = last ? `${label}: ${word}, last ${formatPrice(last.close, price)}, ${formatChange(summary.change, convention)} (${formatPercent(summary.changePct, { signed: true })}), low ${formatPrice(summary.low, price)}, high ${formatPrice(summary.high, price)}, ${count} ${labels.bars}` : `${label}: ${labels.noData}`
 
-  const context: ChartContext = { store, bars: columns.bars, columns, summary, cursor, bar: at, readout, overlays: overlayList, convention, labels, label, sentence, kind, baseline: ref, zone, crosshair, lastLine, select }
+  const context: ChartContext = { store, bars: columns.bars, columns, summary, cursor, bar: at, readout, overlays: overlayList, convention, labels, label, sentence, kind, baseline: ref, zone, locale, crosshair, lastLine, select }
 
   return (
     <PriceChartContext.Provider value={context}>
@@ -523,18 +524,22 @@ export function PriceChartOverlaySwatch({ overlayId, className, ...props }: Pric
   return <span {...props} aria-hidden="true" data-chart-swatch="" className={cn("inline-block size-2 shrink-0 rounded-full", CHART_TOKEN_CLASS[Math.min(8, Math.max(1, overlay.color ?? index + 1)) - 1], className)} />
 }
 
-/** What a plot is of: a change to any of these under focus is read afresh. */
+/** What a plot shows: a change to any of these under focus is read afresh. */
 interface PlotSubject {
   store: object
   label: string
   kind: PriceChartKind
   notation: string
-  /** The series the store holds, by its first bar's time and open: a live tick never moves either. */
+  /** The reference the change and the direction are measured from. */
+  baseline: number | null
+  /** The zone, locale, and labels the readings are worded in. */
+  wording: string
+  /** The series the store holds, known by its first bar's time and open. */
   series: string
 }
 
 export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDown: onKeyDownProp, onFocus, onBlur, ...props }: ComponentProps<"div">) {
-  const { store, columns, summary, cursor, bar, convention, overlays: overlayList, label, sentence, readout, kind, baseline, zone, crosshair, lastLine, select } = useChartContext()
+  const { store, columns, summary, cursor, bar, convention, overlays: overlayList, labels, label, sentence, readout, kind, baseline, zone, locale, crosshair, lastLine, select } = useChartContext()
   const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
   // The document the plot is in. A popout moves the plot into its own window without remounting it, so the
   // observers check it as they fire and bind again to the new window when it changed.
@@ -568,22 +573,26 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   })
 
   // What a screen reader is told while it is on the plot: the summary as of the moment it took focus, and the
-  // selected bar's readout as of the moment the selection reached that bar. A live feed moves the picture and the
-  // visible readings, never these, so a focused plot is not read again at every update. Both belong to what the
-  // plot shows, its store, label, kind, notation, and series: a switch, a reload, or a window that drops old bars
-  // is read afresh, whichever order they arrive in, and a tick on a bar is not, since it never moves a bar's open.
+  // selected bar's readout as of the moment the selection reached that bar. Ticks move the picture and the visible
+  // readings, never these, so a focused plot is not read again at every update. Both are read afresh when what the
+  // plot shows changes: its store, label, kind, notation, baseline, or wording, and then once more at the store's next batch,
+  // so bars that land after their label are read too; and once for another series, known by its first bar's time
+  // and open, or another bar under the selection, known by its place, time, and open.
   const count = columns.bars.length
   const first = columns.bars[0]
-  const subject: PlotSubject = { store, label, kind, notation: JSON.stringify(convention), series: first ? `${first.time}\u0000${first.open}` : "" }
-  const isSubject = (s: PlotSubject) => s.store === subject.store && s.label === subject.label && s.kind === subject.kind && s.notation === subject.notation && s.series === subject.series
-  const [held, setHeld] = useState<(PlotSubject & { name: string; now: number }) | null>(null)
-  if (held !== null && !isSubject(held)) setHeld({ ...subject, name: sentence, now: cursor ?? count - 1 })
+  const subject: PlotSubject = { store, label, kind, notation: JSON.stringify(convention), baseline, wording: JSON.stringify([zone ?? null, locale ?? null, labels]), series: first ? `${first.time}\u0000${first.open}` : "" }
+  // The frame is everything but the series: a reading taken as the frame changed is taken again at the next batch.
+  const isFrame = (s: PlotSubject) => s.store === subject.store && s.label === subject.label && s.kind === subject.kind && s.notation === subject.notation && s.baseline === subject.baseline && s.wording === subject.wording
+  const isSubject = (s: PlotSubject) => isFrame(s) && s.series === subject.series
+  const unsettled = (s: { settle: BarColumns | null }) => s.settle !== null && s.settle !== columns
+  const [held, setHeld] = useState<(PlotSubject & { name: string; now: number; settle: BarColumns | null }) | null>(null)
+  if (held !== null && (!isSubject(held) || unsettled(held))) setHeld({ ...subject, name: sentence, now: cursor ?? count - 1, settle: isFrame(held) ? null : columns })
   const heldName = held?.name ?? null
-  // With no bar selected, the slider rests where focus found it, inside the bars there are; the keys step from there.
+  // With no bar selected, the slider rests where the last reading left it, inside the bars there are; the keys step from there.
   const rest = held === null ? count - 1 : clamp(held.now, count - 1)
   const heardKey = cursor === null || !bar ? null : `${cursor}\u0000${bar.time}\u0000${bar.open}`
-  const [heard, setHeard] = useState<PlotSubject & { key: string | null; text: string }>({ ...subject, key: null, text: "" })
-  if (heard.key !== heardKey || !isSubject(heard)) setHeard({ ...subject, key: heardKey, text: readout })
+  const [heard, setHeard] = useState<PlotSubject & { key: string | null; text: string; settle: BarColumns | null }>({ ...subject, key: null, text: "", settle: null })
+  if (heard.key !== heardKey || !isSubject(heard) || unsettled(heard)) setHeard({ ...subject, key: heardKey, text: readout, settle: isFrame(heard) ? null : columns })
   useLayoutEffect(() => {
     live.current.summary = summary
     live.current.baseline = baseline
@@ -750,9 +759,9 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       onKeyDown={onKeyDown}
       onFocus={(event) => {
         onFocus?.(event)
-        setHeld({ ...subject, name: sentence, now: cursor ?? count - 1 })
+        setHeld({ ...subject, name: sentence, now: cursor ?? count - 1, settle: null })
         // A selection the pointer made before focus is read as it is now.
-        setHeard({ ...subject, key: heardKey, text: readout })
+        setHeard({ ...subject, key: heardKey, text: readout, settle: null })
         if (!event.defaultPrevented && interactive && cursor === null) moveCursor(count - 1)
       }}
       onBlur={(event) => {
