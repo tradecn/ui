@@ -1,4 +1,4 @@
-import { useVirtualizer } from "@tanstack/react-virtual"
+import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual"
 import { cn } from "cn"
 import {
   Fragment,
@@ -434,21 +434,26 @@ interface EditTracker {
   subscribe(key: string, cb: () => void): () => void
   /** The cell whose editor is open. */
   editing(): string | null
+  /** Called whenever the open editor moves to another cell, or closes. */
+  subscribeOpen(cb: () => void): () => void
 }
 
 function createEditTracker(): EditTracker {
   const statuses = new Map<string, EditStatus>()
   const listeners = new Map<string, Set<() => void>>()
+  const openListeners = new Set<() => void>()
   let open: string | null = null
   return {
     get: (key) => statuses.get(key),
     set(key, status) {
+      const was = open
       if (status) statuses.set(key, status)
       else statuses.delete(key)
       if (status?.kind === "editing") open = key
       else if (open === key) open = null
       const set = listeners.get(key)
       if (set) for (const cb of set) cb()
+      if (open !== was) for (const cb of openListeners) cb()
     },
     subscribe(key, cb) {
       let set = listeners.get(key)
@@ -460,6 +465,10 @@ function createEditTracker(): EditTracker {
       }
     },
     editing: () => open,
+    subscribeOpen(cb) {
+      openListeners.add(cb)
+      return () => void openListeners.delete(cb)
+    },
   }
 }
 
@@ -554,9 +563,9 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    // Once per OPEN, not per mount: a row scrolled away and back remounts its editor,
-    // and that remount must not steal focus — while a fresh open() of a mounted cell
-    // resets the flag and focuses again.
+    // Once per OPEN, not per mount: the editing row stays rendered wherever the viewport
+    // goes, and a remount (StrictMode's rehearsal, say) must not take focus a second time,
+    // while a fresh open() of a mounted cell resets the flag and focuses again.
     if (focused) return
     edits.markFocused(rowId, colKey)
     el.focus({ preventScroll: true })
@@ -924,6 +933,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const visibleEditColumns = useRef<ReadonlySet<string>>(EMPTY_SET)
   const editorFocusChecks = useRef(new Set<{ key: string; unavailable: boolean }>())
 
+  // Scrolls a row into view. Set once the virtualizer exists; the controller calls it when an editor opens.
+  const revealRow = useRef<(rowId: RowId) => void>(() => {})
+
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
   const editLatest = useRef({ columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId) })
@@ -1010,6 +1022,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       if (now?.kind === "editing" && typed === undefined) {
         activeColumn = key
         tracker.set(k, { ...now, selectAll: true, focused: false })
+        revealRow.current(rowId)
         return
       }
       const text = now?.kind === "pending" ? now.text : editText(col, col.accessor(row!), row!)
@@ -1021,6 +1034,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const covered = now?.kind === "editing" ? now.prior : now
       const prior = covered?.kind === "pending" && !covered.tracked ? undefined : covered
       tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false, prior, session: ++editorOpenings })
+      // The editing row is always rendered (see `keep` below), so its editor mounts and takes focus now; bring it
+      // to where the keys are, which for a row scrolled out of the window is not where the viewport is.
+      revealRow.current(rowId)
     }
     const controller: EditController = {
       tracker,
@@ -1177,12 +1193,33 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       if (fell && doc && doc.activeElement === doc.body) rootRef.current?.focus({ preventScroll: true })
     }
   }, [edits, indexOf])
+  // The row whose editor is open, so the grid renders again when an editor opens on another row, or closes.
+  const subscribeOpenEditor = useCallback((cb: () => void) => (edits ? edits.tracker.subscribeOpen(cb) : noopSubscribe()), [edits])
+  const openEditor = useSyncExternalStore(subscribeOpenEditor, () => edits?.tracker.editing() ?? null, () => null)
+  const editingRowId = openEditor === null ? undefined : edits?.rowOf(openEditor)
+  // The focused row and the row being edited are rendered wherever the viewport is: aria-activedescendant names an
+  // element that exists, Shift+F10 opens on a row that is there, and an editor scrolled or re-sorted out of the window
+  // keeps its input, its draft, and its focus instead of dropping them on the page.
+  const keep = useMemo(() => {
+    const kept: number[] = []
+    for (const id of [focusedRowId, editingRowId]) {
+      const i = id === null || id === undefined ? undefined : indexOf.get(id)
+      if (i !== undefined && !kept.includes(i)) kept.push(i)
+    }
+    return kept
+  }, [focusedRowId, editingRowId, indexOf])
+  const rangeExtractor = useCallback((range: Range) => {
+    const indexes = defaultRangeExtractor(range)
+    const extra = keep.filter((i) => i < range.count && !indexes.includes(i))
+    return extra.length ? [...indexes, ...extra].sort((a, b) => a - b) : indexes
+  }, [keep])
   const virtualizer = useVirtualizer({
     count: ids.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan,
     getItemKey: (i) => ids[i]!,
+    rangeExtractor,
     initialRect,
     // The sticky header sits in normal flow above the rows, so row i really starts at
     // (i+1) x rowHeight inside the scroller: scrollMargin tells the virtualizer so, and
@@ -1194,6 +1231,12 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     scrollPaddingEnd: footer ? rowHeight : 0,
   })
   const items = virtualizer.getVirtualItems()
+  useLayoutEffect(() => {
+    revealRow.current = (rowId) => {
+      const i = indexOf.get(rowId)
+      if (i !== undefined) virtualizer.scrollToIndex(i, { align: "auto" })
+    }
+  })
   const uid = useId()
   const domId = (id: RowId) => `${uid}-${id}`
 
@@ -1463,11 +1506,13 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     // Nested grids and portals own their keys, including reorder holds and following.
     const path = e.nativeEvent.composedPath()
     if (!gridTarget(e.currentTarget, e.target, path)) return
-    // The editor owns its keys; what it lets through (a modifier-held arrow) is for the listeners above the grid.
-    if (pathMatches(e.currentTarget, path, element => element.hasAttribute("data-cell-editor"))) return
+    // A key is interaction wherever in the grid it lands, the editor included: it holds the order, so a batch cannot
+    // re-sort the row being typed into away from the hand while a hold lasts, and it stops a tape following its tail.
     view.touch()
     refreshParkedMarks()
     stopFollowing()
+    // The editor owns its keys; what it lets through (a modifier-held arrow) is for the listeners above the grid.
+    if (pathMatches(e.currentTarget, path, element => element.hasAttribute("data-cell-editor"))) return
     // Focused controls own their keys; application handlers can also claim a grid key in capture.
     if (e.defaultPrevented || e.target !== e.currentTarget) return
     const fi = focusedRowId !== null ? (indexOf.get(focusedRowId) ?? -1) : -1

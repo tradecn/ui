@@ -350,6 +350,35 @@ test("watchlist menus own navigation and activate removal with Enter and Space",
   }
 })
 
+test("a data grid keeps an editor's focus and draft when a re-sort with no hold moves its row out of the window", async ({ page }) => {
+  const errors: string[] = []
+  page.on("pageerror", error => errors.push(error.message))
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='data-grid'] [data-grid-resort-editor]")
+  const grid = scene.getByRole("grid", { name: "Sorted quotes" })
+  const editor = grid.getByRole("textbox", { name: "Price" })
+  await grid.focus()
+  await grid.press("ArrowDown")
+  await grid.press("ArrowRight")
+  await grid.press("ArrowRight")
+  await grid.press("F2")
+  await expect(editor).toBeFocused()
+  await expect(grid.locator('[data-row-id="q39"]').getByRole("textbox", { name: "Price" })).toHaveCount(1)
+  await editor.fill("7")
+  // The feed takes the edited row from the top of the order to the bottom, far past the rendered window: React
+  // moves the row's element, and the input must neither blur nor send.
+  await editor.press("F7")
+  await expect(grid.locator('[data-row-id="q39"]')).toHaveAttribute("aria-rowindex", "41")
+  await expect(editor).toBeFocused()
+  await expect(editor).toHaveValue("7")
+  await expect(scene).toHaveAttribute("data-sent", "")
+  await editor.press("End")
+  await editor.press("5")
+  await editor.press("Enter")
+  await expect(scene).toHaveAttribute("data-sent", "q39=75")
+  expect(errors).toEqual([])
+})
+
 for (const dark of [false, true]) for (const key of ["F8", "F9"]) test(`a data grid discards an unavailable editor without reviving focus (${key}, ${dark ? "dark" : "light"})`, async ({ page }) => {
   const errors: string[] = []
   page.on("pageerror", error => errors.push(error.message))
