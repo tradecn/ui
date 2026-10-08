@@ -169,7 +169,9 @@ For a 32nds price column, use `parse: (text) => parsePrice(text, convention)` to
 
 If a required scalar comparison value parses to `null`, the condition matches no rows. As a highlight, it colors nothing; as a filter, it excludes every row. For `in` and `between`, compilation drops values that parse to `null`: `in` uses the remaining candidates, and `between` uses the first two remaining values, low then high. No candidates, or fewer than two endpoints, matches nothing.
 
-`ruleProblem(rule, columns)` accepts a `ColumnRule` or `FilterRule` and returns a problem sentence or `null`. Use it to show missing columns, missing or unreadable inputs, or a range without exactly two endpoints. It checks the supplied rule separately; compilation does not call it. For example, an `in` list containing one readable and one unreadable numeric value reports a problem but still compiles to match the readable value.
+Rules arrive as data, so a rule that can't be read never throws. A condition that is missing, names an op not in `RULE_OPS`, or gives `values` that aren't a list matches no rows, like an unreadable value. A value that isn't text, a number, or a boolean reads as nothing. A list entry that isn't an object is skipped, like a rule naming an absent column. A tone outside `RULE_TONES` paints nothing, and the rule's words still describe the cells it matches.
+
+`ruleProblem(rule, columns)` accepts a `ColumnRule` or `FilterRule` and returns a problem sentence or `null`. Use it to show missing columns, a missing or unknown comparison, missing or unreadable inputs, a range without exactly two endpoints or with its low end above its high end, and an unknown tone. It checks the supplied rule separately; compilation does not call it. For example, an `in` list containing one readable and one unreadable numeric value reports a problem but still compiles to match the readable value.
 
 ### Tones are tokens
 

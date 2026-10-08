@@ -299,7 +299,9 @@ Each value field renders only when its operator needs it. The parts retain comma
 
 Update selectors for the moved markers. `data-rule-row` and `data-dragging` moved from the `li` to `RulesEditorItem`. `data-rule-id`, `data-filter-index`, and `data-sort-index` moved from the inner field wrapper to that same item element.
 
-Moves use source indices and keep focus on the moved field when available. Drops are limited to the same rule kind in the same editor.
+Moves use source indices and keep focus on the moved field when available. Drops are limited to the same rule kind in the same editor. Alt+Up/Down moves a rule from the item or its buttons; v1 also moved it from inside a select or a text field, where Alt+Down opens a select.
+
+Rule data that can't be read no longer throws. A condition with an unknown op, no condition, or `values` that aren't a list matches no rows, so a filter rule with an unknown op excludes every row, where v1 ignored it alone and threw beside another filter rule. `ruleProblem` also names a missing or unknown comparison, a range whose low end is above its high end, and an unknown tone.
 
 Fixed `rules-tab-*` and `rules-panel-*` IDs and the root's `data-tab` marker are removed. Your installed `Tabs` owns tab IDs and state. You can use role/name locators or set explicit IDs on your Tabs parts.
 

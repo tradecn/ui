@@ -156,7 +156,9 @@ export function compareDirected(a: unknown, b: unknown, dir: "asc" | "desc"): nu
  */
 export function readRuleValue<T>(column: RuleColumn<T> | undefined, raw: RuleValue | undefined): unknown {
   if (raw === undefined || raw === null) return null
-  if (typeof raw !== "string") return normalizeValue(raw)
+  if (typeof raw === "number" || typeof raw === "boolean") return normalizeValue(raw)
+  // Anything else that is not text (an object or a list in a rule's JSON) has nothing to read.
+  if (typeof raw !== "string") return null
   if (column?.parse) return normalizeValue(column.parse(raw))
   if (column?.numeric) {
     const text = raw.trim().replace(/−/g, "-").replace(/,/g, "")
@@ -174,14 +176,34 @@ function same(a: unknown, b: unknown): boolean {
 
 const needsValue = new Set<RuleOp>(["eq", "ne", "gt", "gte", "lt", "lte", "contains", "startsWith"])
 
+/** True for an op this module compares with. Other text, inherited names such as `toString` included, is not one. */
+function isRuleOp(op: unknown): op is RuleOp {
+  return typeof op === "string" && (RULE_OPS as readonly string[]).includes(op)
+}
+
+/** True for a tone this module paints with. */
+function isRuleTone(tone: unknown): tone is RuleTone {
+  return typeof tone === "string" && (RULE_TONES as readonly string[]).includes(tone)
+}
+
+function isCondition(condition: unknown): condition is RuleCondition {
+  return typeof condition === "object" && condition !== null && isRuleOp((condition as RuleCondition).op)
+}
+
+// A list of values that is not a list reads as none.
+const valuesOf = (condition: Partial<RuleCondition>): readonly RuleValue[] => (Array.isArray(condition.values) ? condition.values : [])
+
 /**
  * One condition compiled against one column: the typed values are read once, and the function that
- * comes back only compares. A row whose value is null answers only `isNull` and `notNull`.
+ * comes back only compares. A row whose value is null answers only `isNull` and `notNull`. Rules are
+ * data a desk edits, so a condition that is missing, names no op this module knows, or gives `values`
+ * that are not a list matches nothing rather than throwing; `ruleProblem` says what is wrong with it.
  */
-export function compileCondition<T>(condition: RuleCondition, column: RuleColumn<T>): (row: T) => boolean {
+export function compileCondition<T>(condition: RuleCondition | undefined, column: RuleColumn<T>): (row: T) => boolean {
+  if (!isCondition(condition)) return () => false
   const { op } = condition
   const want = readRuleValue(column, condition.value)
-  const list = (condition.values ?? []).map((v) => readRuleValue(column, v)).filter((v) => v !== null)
+  const list = valuesOf(condition).map((v) => readRuleValue(column, v)).filter((v) => v !== null)
   const read = (row: T) => normalizeValue(column.accessor(row))
   switch (op) {
     case "isNull":
@@ -237,39 +259,50 @@ function findColumn<T>(columns: readonly RuleColumn<T>[], key: string): RuleColu
   return columns.find((column) => column.key === key)
 }
 
+// A list entry that is not an object (a null in JSON, say) names no column, so it is skipped like a rule that names an absent one.
+const isRule = (rule: unknown): rule is object => typeof rule === "object" && rule !== null
+
 /**
  * Why a rule cannot apply, in a sentence, or null when it can: a column the grid does not have, a
  * value the column cannot read, a range without its two ends, a set with nothing in it.
  */
-export function ruleProblem<T>(rule: { column: string; when?: RuleCondition } & Partial<RuleCondition>, columns: readonly RuleColumn<T>[]): string | null {
+export function ruleProblem<T>(rule: { column: string; when?: RuleCondition; tone?: RuleTone } & Partial<RuleCondition>, columns: readonly RuleColumn<T>[]): string | null {
   const column = findColumn(columns, rule.column)
   if (!column) return `No column is named "${rule.column}".`
-  const condition: RuleCondition = rule.when ?? { op: rule.op!, value: rule.value, values: rule.values }
+  const given: unknown = "when" in rule ? rule.when : rule
+  const op: unknown = typeof given === "object" && given !== null ? (given as { op?: unknown }).op : undefined
+  if (op === undefined || op === null || op === "") return "The rule needs a comparison."
+  if (!isRuleOp(op)) return `No comparison is named "${String(op)}".`
+  const condition = given as RuleCondition
   const name = columnName(column)
   const unreadable = (raw: RuleValue | undefined) => raw !== undefined && raw !== null && raw !== "" && readRuleValue(column, raw) === null
+  // A value that is not text is quoted as its JSON, so an object in a rule reads as `{}`, not [object Object].
+  const shown = (raw: unknown) => (typeof raw === "string" ? raw : (JSON.stringify(raw) ?? String(raw)))
   if (needsValue.has(condition.op)) {
     if (condition.value === undefined || condition.value === null || condition.value === "") return `${RULE_OP_LABELS[condition.op]} needs a value.`
-    if (unreadable(condition.value)) return `"${condition.value}" is not a value ${name} reads.`
+    if (unreadable(condition.value)) return `"${shown(condition.value)}" is not a value ${name} reads.`
   }
   if (condition.op === "between") {
-    const values = condition.values ?? []
+    const values = valuesOf(condition)
     if (values.length !== 2) return "between needs a low value and a high value."
-    for (const raw of values) if (unreadable(raw) || raw === "" || raw === null) return `"${raw ?? ""}" is not a value ${name} reads.`
+    for (const raw of values) if (unreadable(raw) || raw === "" || raw === null) return `"${raw === null ? "" : shown(raw)}" is not a value ${name} reads.`
+    if (compareValues(readRuleValue(column, values[0]), readRuleValue(column, values[1])) > 0) return "between needs a low value at or below the high value."
   }
   if (condition.op === "in") {
-    const values = (condition.values ?? []).filter((raw) => raw !== null && raw !== "")
+    const values = valuesOf(condition).filter((raw) => raw !== null && raw !== "")
     if (!values.length) return "one of needs at least one value."
-    for (const raw of values) if (unreadable(raw)) return `"${raw}" is not a value ${name} reads.`
+    for (const raw of values) if (unreadable(raw)) return `"${shown(raw)}" is not a value ${name} reads.`
   }
+  if ("tone" in rule && !isRuleTone(rule.tone)) return `No tone is named "${String(rule.tone)}".`
   return null
 }
 
 /** The rule in words: "Price above 99-16+", "Client one of ALPHA, BETA", "Status is empty". */
 export function describeRule<T>(rule: { column: string; when?: RuleCondition } & Partial<RuleCondition>, columns: readonly RuleColumn<T>[]): string {
   const column = findColumn(columns, rule.column)
-  const condition: RuleCondition = rule.when ?? { op: rule.op!, value: rule.value, values: rule.values }
+  const condition: Partial<RuleCondition> = ("when" in rule ? rule.when : rule) ?? {}
   const name = columnName(column, rule.column)
-  const word = RULE_OP_LABELS[condition.op]
+  const word = isRuleOp(condition.op) ? RULE_OP_LABELS[condition.op] : String(condition.op ?? "")
   // A string threshold reads through the column's parse, so the words print what the rule
   // compares: a decimal typed into a fraction column describes, as it matches, on the grid.
   const text = (raw: RuleValue | undefined) => {
@@ -291,10 +324,10 @@ export function describeRule<T>(rule: { column: string; when?: RuleCondition } &
   }
   if (condition.op === "isNull" || condition.op === "notNull") return `${name} ${word}`
   if (condition.op === "between") {
-    const [lo, hi] = condition.values ?? []
+    const [lo, hi] = valuesOf(condition)
     return `${name} ${word} ${text(lo)} and ${text(hi)}`
   }
-  if (condition.op === "in") return `${name} ${word} ${(condition.values ?? []).map(text).join(", ")}`
+  if (condition.op === "in") return `${name} ${word} ${valuesOf(condition).map(text).join(", ")}`
   return `${name} ${word} ${text(condition.value)}`
 }
 
@@ -302,7 +335,7 @@ export function describeRule<T>(rule: { column: string; when?: RuleCondition } &
 export function compileFilter<T>(rules: readonly FilterRule[], columns: readonly RuleColumn<T>[]): (row: T) => boolean {
   const tests: ((row: T) => boolean)[] = []
   for (const rule of rules) {
-    const column = findColumn(columns, rule.column)
+    const column = isRule(rule) ? findColumn(columns, rule.column) : undefined
     if (column) tests.push(compileCondition(rule, column))
   }
   if (!tests.length) return () => true
@@ -314,7 +347,7 @@ export function compileFilter<T>(rules: readonly FilterRule[], columns: readonly
 export function compileComparator<T>(rules: readonly SortRule[], columns: readonly RuleColumn<T>[]): ((a: T, b: T) => number) | undefined {
   const keys: { accessor: (row: T) => unknown; dir: "asc" | "desc" }[] = []
   for (const rule of rules) {
-    const column = findColumn(columns, rule.key)
+    const column = isRule(rule) ? findColumn(columns, rule.key) : undefined
     if (column) keys.push({ accessor: column.accessor, dir: rule.dir })
   }
   if (!keys.length) return undefined
@@ -332,8 +365,8 @@ export function ruleDecoration<T>(rule: ColumnRule, columns: readonly RuleColumn
   return {
     "data-rule": rule.id,
     "data-tone": rule.tone,
-    "aria-description": rule.label?.trim() || describeRule(rule, columns),
-    className: RULE_TONE_CLASS[rule.tone],
+    "aria-description": (typeof rule.label === "string" ? rule.label.trim() : "") || describeRule(rule, columns),
+    className: isRuleTone(rule.tone) ? RULE_TONE_CLASS[rule.tone] : "",
   }
 }
 
@@ -356,7 +389,7 @@ export function applyRules<T>(rules: readonly ColumnRule[], columns: readonly Ru
   const rows: { test: (row: T) => boolean; decoration: RuleDecoration }[] = []
   const byColumn = new Map<string, ColumnRule[]>()
   for (const rule of rules) {
-    const column = findColumn(columns, rule.column)
+    const column = isRule(rule) ? findColumn(columns, rule.column) : undefined
     if (!column) continue
     const compiled = { test: compileCondition(rule.when, column), decoration: ruleDecoration(rule, columns) }
     byColumn.set(rule.column, [...(byColumn.get(rule.column) ?? []), rule])

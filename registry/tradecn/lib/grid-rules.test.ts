@@ -22,6 +22,7 @@ import {
   ruleProblem,
   type ColumnRule,
   type RuleColumn,
+  type RuleCondition,
 } from "@/registry/tradecn/lib/grid-rules"
 
 interface Rfq {
@@ -268,5 +269,61 @@ describe("the words", () => {
     expect(ruleProblem({ column: "client", op: "contains", value: "a" }, columns)).toBeNull()
     expect(ruleProblem({ column: "px", when: { op: "notNull" } }, columns)).toBeNull()
     expect(ruleProblem({ column: "px", when: { op: "eq", value: "99-16+" } }, columns)).toBeNull()
+  })
+})
+
+describe("rules that arrive malformed", () => {
+  // Rules come as JSON a desk edits without a build: what this module cannot read matches nothing, says what is
+  // wrong through ruleProblem, and never throws while the grid draws.
+  const bad = (when: unknown) => ({ id: "bad", column: "px", when, tone: "up" }) as unknown as ColumnRule
+
+  it("compiles a condition with no op it knows, no condition, or values that are not a list to one that matches nothing", () => {
+    for (const condition of [{ op: "gtx", value: "99-16" }, { op: "toString" }, { op: "between", values: "99-16, 100-00" }, { op: "in", values: { 0: "ALPHA" } }, undefined, null, "gt"]) {
+      expect(rows.filter(compileCondition(condition as RuleCondition, columns[2]!))).toEqual([])
+    }
+    // A value that is not text, a number, or a boolean reads as nothing, and nothing compares with it.
+    expect(readRuleValue(columns[0], {} as never)).toBeNull()
+    expect(rows.filter(compileCondition({ op: "gt", value: {} as never }, columns[0]!))).toEqual([])
+  })
+
+  it("leaves a grid running on highlights it cannot read: those decorate nothing, an unknown tone paints nothing, and the rest decorate", () => {
+    const applied = applyRules([
+      bad({ op: "gtx", value: "99-16" }),
+      bad(undefined),
+      null as never,
+      { id: "odd", column: "status", when: { op: "eq", value: "Quoted" }, tone: "warning" as never, label: 5 as never },
+      { id: "rich", column: "px", when: { op: "gt", value: "100-00" }, tone: "up" },
+    ], columns)
+    expect(applied.cell("px", rows[0]!)).toBeUndefined()
+    expect(applied.cell("px", rows[3]!)?.["data-rule"]).toBe("rich")
+    const odd = applied.cell("status", rows[1]!)!
+    expect(odd["data-rule"]).toBe("odd")
+    expect(odd.className).toBe("")
+    expect(odd["aria-description"]).toBe("Status is Quoted")
+  })
+
+  it("filters out every row for a filter rule it cannot read, as for a value it cannot read, and skips an entry that is not a rule", () => {
+    expect(byId(rows.filter(compileFilter([{ column: "status", op: "ne", value: "Done away" }, null as never], columns)))).toEqual(["a", "b", "c"])
+    expect(rows.filter(compileFilter([{ column: "status", op: "ne", value: "Done away" }, { column: "px", op: "gtx" as never, value: "99-16" }], columns))).toEqual([])
+    const order = compileComparator([null as never, { key: "size", dir: "desc" }], columns)!
+    expect(byId([...rows].sort(order))).toEqual(["b", "d", "a", "c"])
+  })
+
+  it("says what is wrong with a rule it cannot read, and describes one without throwing", () => {
+    expect(ruleProblem(bad({ op: "gtx" }), columns)).toBe('No comparison is named "gtx".')
+    expect(ruleProblem(bad({ op: "toString" }), columns)).toBe('No comparison is named "toString".')
+    expect(ruleProblem(bad(undefined), columns)).toBe("The rule needs a comparison.")
+    expect(ruleProblem(bad("gt"), columns)).toBe("The rule needs a comparison.")
+    expect(ruleProblem({ column: "px" }, columns)).toBe("The rule needs a comparison.")
+    expect(ruleProblem(bad({ op: "between", values: "99-16, 100-00" }), columns)).toBe("between needs a low value and a high value.")
+    expect(ruleProblem(bad({ op: "between", values: ["100-00", "99-16"] }), columns)).toBe("between needs a low value at or below the high value.")
+    expect(ruleProblem(bad({ op: "between", values: ["99-16", "99-16"] }), columns)).toBeNull()
+    expect(ruleProblem(bad({ op: "gt", value: {} }), columns)).toBe('"{}" is not a value Price reads.')
+    expect(ruleProblem(bad({ op: "in", values: [[1]] }), columns)).toBe('"[1]" is not a value Price reads.')
+    expect(ruleProblem({ column: "px", when: { op: "notNull" }, tone: "warning" as never }, columns)).toBe('No tone is named "warning".')
+    expect(ruleProblem({ column: "px", when: { op: "notNull" }, tone: "up" }, columns)).toBeNull()
+    expect(describeRule(bad({ op: "gtx", value: "99-16" }), columns)).toBe("Price gtx 99-16")
+    expect(() => describeRule(bad({ op: "between", values: "x" }), columns)).not.toThrow()
+    expect(() => describeRule(bad(undefined), columns)).not.toThrow()
   })
 })

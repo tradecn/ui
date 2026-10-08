@@ -161,7 +161,7 @@ Item fields, move/remove actions, problems, and match counts require `RulesEdito
 
 ### Keyboard and focus
 
-Drag an item onto another item of the same kind, or use Alt+Up/Down from the row or its fields. Reordering uses source indices, even when you render items in a different order.
+Drag an item onto another item of the same kind, or use Alt+Up/Down from the item or its buttons. A select or a text field keeps Alt with its arrows, so Alt+Down opens a select. Reordering uses source indices, even when you render items in a different order.
 
 Accepted moves keep focus on the corresponding field when available. Removal focuses the adjacent item or its remove action, then `RulesEditorAdd` when the list is empty.
 
@@ -228,7 +228,7 @@ The set field trims members and drops empties, without quoting or escaping. Ente
 
 ### Errors
 
-`RulesEditorProblem` reports missing columns, missing values, and unreadable values without blocking edits or evaluation.
+`RulesEditorProblem` reports missing columns, a missing or unknown comparison, missing values, unreadable values, a range whose low end is above its high end, and an unknown tone, without blocking edits or evaluation. A stored op the column doesn't offer, or an op or tone this version doesn't know, shows in its select as it is.
 
 | Condition | Evaluation |
 |---|---|
@@ -236,6 +236,7 @@ The set field trims members and drops empties, without quoting or escaping. Ente
 | Mixed valid/invalid `in` set | Valid members can match. |
 | Empty text | Can match despite a missing-value message. |
 | Missing column | Individual count is zero. Combined filtering and sorting skip it. |
+| Missing or unknown comparison | Matches nothing. |
 
 ### Highlights
 

@@ -276,6 +276,26 @@ function CountsProvider<T>({ store, columns, rules, children }: Pick<RulesEditor
 }
 
 const LIST_KEY = { highlights: "columns", filters: "filter", sort: "sort" } as const
+
+function isElement(target: EventTarget): target is Element {
+  // Popouts can contain nodes created in either window, even after adoption back to the page.
+  return "nodeType" in target && target.nodeType === 1
+}
+
+// Widget roles whose keyboard model uses the arrows, per the ARIA authoring practices, as the column chooser reads them.
+const ARROW_OWNING_ROLES = new Set("application columnheader combobox grid gridcell listbox menu menubar menuitem menuitemcheckbox menuitemradio option radio radiogroup row rowheader scrollbar searchbox separator slider spinbutton tab tablist textbox toolbar tree treegrid treeitem".split(" "))
+
+// Controls whose own keys matter: carets, selects, and ARIA widgets built on generic elements. The walk stops at
+// the item, which reorders; a button inside it owns no arrows and reorders too.
+function arrowOwningTarget(target: EventTarget, item: HTMLElement) {
+  if (!isElement(target)) return false
+  for (let node: Element | null = target; node && node !== item; node = node.parentElement) {
+    if (node.matches('input:not([type="checkbox"]):not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"])')) return true
+    const role = node.getAttribute("role")
+    if (role && role.toLowerCase().split(/[\t\n\f\r ]+/).some((token) => ARROW_OWNING_ROLES.has(token))) return true
+  }
+  return false
+}
 const DragContext = createContext<{ current: { kind: RulesEditorKind; index: number; list: readonly (ColumnRule | FilterRule | SortRule)[]; type: string; clear: () => void } | null }>({ current: null })
 
 // Controlled callers may copy rules. Compare their data while dragging or awaiting focus
@@ -415,13 +435,14 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
   const rule = highlight ?? filter ?? sort
   if (!rule) return null
   let columnKey = highlight?.column ?? sort?.key ?? ""
-  let condition = highlight?.when ?? null
+  // A condition that is not an object has nothing to edit; one with an op the column does not offer is shown as it is.
+  let condition = typeof highlight?.when === "object" && highlight.when !== null ? highlight.when : null
   if (filter) {
     const { column, ...rest } = filter
     columnKey = column
     condition = rest
   }
-  const name = highlight?.label?.trim() || `${editor.labels[kind]} ${index + 1}`
+  const name = (typeof highlight?.label === "string" ? highlight.label.trim() : "") || `${editor.labels[kind]} ${index + 1}`
   const replace = (next: ColumnRule | FilterRule | SortRule) => {
     const key = LIST_KEY[kind]
     editor.change({ [key]: editor.rules[key]?.map((item, i) => i === index ? next : item) })
@@ -432,7 +453,7 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
     setColumn: (key) => {
       if (sort) return replace({ ...sort, key })
       const ops = editor.columns.find((c) => c.key === key)?.ops ?? opsFor(undefined)
-      const next = ops.includes(condition!.op) ? condition! : { op: ops[0]! }
+      const next = condition && ops.includes(condition.op) ? condition : { op: ops[0]! }
       replace(highlight ? { ...highlight, column: key, when: next } : { column: key, ...next })
     },
     setCondition: (next) => {
@@ -446,6 +467,8 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
     onKeyDown={(event) => {
       onKeyDown?.(event)
       if (event.defaultPrevented || !event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return
+      // A select, a text field, or another control that uses the arrows keeps Alt with them: Alt+Down opens a select.
+      if (arrowOwningTarget(event.target, event.currentTarget)) return
       event.preventDefault()
       event.stopPropagation()
       editor.move(kind, index, index + (event.key === "ArrowUp" ? -1 : 1))
@@ -504,10 +527,16 @@ export function RulesEditorOperator({ onChange, className, ...props }: SelectPro
   if (!item.condition) return null
   const condition = item.condition
   const ops = columns.find((c) => c.key === item.columnKey)?.ops ?? opsFor(undefined)
-  return <NativeSelect size="sm" aria-label={`${labels.condition}: ${item.name}`} data-rule-field="op" className={cn(SELECT_SIZE, className)} {...props} value={condition.op} onChange={(event) => {
+  // A stored op the column does not offer (above on a text column, or one no version knows) stays the selected
+  // option under its own word, so the select says what the grid applies.
+  const current = String(condition.op ?? "")
+  return <NativeSelect size="sm" aria-label={`${labels.condition}: ${item.name}`} data-rule-field="op" className={cn(SELECT_SIZE, className)} {...props} value={current} onChange={(event) => {
     onChange?.(event)
     if (!event.defaultPrevented) item.setCondition(withOp(condition, event.target.value as RuleOp))
-  }}>{ops.map((op) => <NativeSelectOption key={op} value={op}>{RULE_OP_LABELS[op]}</NativeSelectOption>)}</NativeSelect>
+  }}>
+    {!ops.includes(condition.op) && <NativeSelectOption value={current}>{Object.hasOwn(RULE_OP_LABELS, current) ? RULE_OP_LABELS[current as RuleOp] : current}</NativeSelectOption>}
+    {ops.map((op) => <NativeSelectOption key={op} value={op}>{RULE_OP_LABELS[op]}</NativeSelectOption>)}
+  </NativeSelect>
 }
 
 type InputProps = Omit<ComponentProps<typeof Input>, "value" | "defaultValue">
@@ -522,7 +551,7 @@ export function RulesEditorValue({ field = "value", ...props }: RulesEditorValue
 function ValueInput({ field, onChange, className, ...props }: InputProps & { field: NonNullable<RulesEditorValueProps["field"]> }) {
   const { labels } = useRulesEditor()
   const { condition, name, setCondition } = useRulesEditorItem()
-  const values = condition!.values
+  const values = Array.isArray(condition!.values) ? condition!.values : undefined
   // Keep a trailing comma under the hand, but accept a different controlled value immediately.
   const [draft, setDraft] = useState(() => valuesText(values))
   const [known, setKnown] = useState(values)
@@ -547,16 +576,20 @@ export function RulesEditorTone({ onChange, className, ...props }: SelectProps) 
   const { labels } = useRulesEditor()
   const { highlight, name, updateHighlight } = useRulesEditorItem()
   if (!highlight) return null
-  return <NativeSelect size="sm" aria-label={`${labels.tone}: ${name}`} data-rule-field="tone" className={cn(SELECT_SIZE, className)} {...props} value={highlight.tone} onChange={(event) => {
+  const current = String(highlight.tone ?? "")
+  return <NativeSelect size="sm" aria-label={`${labels.tone}: ${name}`} data-rule-field="tone" className={cn(SELECT_SIZE, className)} {...props} value={current} onChange={(event) => {
     onChange?.(event)
     if (!event.defaultPrevented) updateHighlight({ tone: event.target.value as RuleTone })
-  }}>{RULE_TONES.map((tone) => <NativeSelectOption key={tone} value={tone}>{tone}</NativeSelectOption>)}</NativeSelect>
+  }}>
+    {!RULE_TONES.includes(highlight.tone) && <NativeSelectOption value={current}>{current}</NativeSelectOption>}
+    {RULE_TONES.map((tone) => <NativeSelectOption key={tone} value={tone}>{tone}</NativeSelectOption>)}
+  </NativeSelect>
 }
 
 export function RulesEditorToneSwatch({ className, ...props }: ComponentProps<"span">) {
   const { highlight } = useRulesEditorItem()
   if (!highlight) return null
-  return <span aria-hidden data-rule-swatch={highlight.tone} className={cn("rounded-sm px-1.5 py-0.5", RULE_TONE_CLASS[highlight.tone], className)} {...props}>{highlight.tone}</span>
+  return <span aria-hidden data-rule-swatch={highlight.tone} className={cn("rounded-sm px-1.5 py-0.5", Object.hasOwn(RULE_TONE_CLASS, highlight.tone) && RULE_TONE_CLASS[highlight.tone], className)} {...props}>{highlight.tone}</span>
 }
 
 export function RulesEditorTarget({ onChange, className, ...props }: SelectProps) {
