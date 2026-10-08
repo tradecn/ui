@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { createRef, StrictMode, useLayoutEffect } from "react"
+import { createRef, StrictMode, useEffect, useLayoutEffect } from "react"
 import { createPortal } from "react-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { InstrumentConvention } from "@/registry/tradecn/lib/format"
@@ -462,6 +462,9 @@ describe("PriceChart composition", () => {
     act(() => store.applyDeltas({ upsert: [bar(3, 110.5, 110.5)] }))
     expect(plot.getAttribute("aria-valuenow")).toBe(now)
     expect(plot).toHaveAttribute("aria-valuemax", "3")
+    // The keys step from where the slider rests.
+    fireEvent.keyDown(plot, { key: "ArrowLeft" })
+    expect(plot).toHaveAttribute("aria-valuenow", "1")
     // Leaving lets the name follow the feed again.
     act(() => plot.blur())
     expect(plot.getAttribute("aria-label")).not.toBe(name)
@@ -506,6 +509,97 @@ describe("PriceChart composition", () => {
     const name = plot.getAttribute("aria-label")
     rerender(<PriceChart store={seeded()} convention={decimal} label="ZF" zone="UTC"><PriceChartPlot /></PriceChart>)
     expect(plot.getAttribute("aria-label")).not.toBe(name)
+  })
+
+  it("reads a focused plot afresh when a stable store is reloaded for another instrument after the label changes", () => {
+    const store = seeded()
+    const decimal: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.001 }
+    const zfBars = [bar(0, 107.25, 107.25), bar(1, 107.25, 107.5), bar(2, 107.5, 107.75)]
+    // The store stays one object, as the docs ask; an effect keyed on the symbol loads the new bars after the label lands.
+    function Chart({ symbol }: { symbol: "ZN" | "ZF" }) {
+      useEffect(() => {
+        if (symbol === "ZF") store.applyDeltas({ upsert: zfBars })
+      }, [symbol])
+      return <PriceChart store={store} convention={symbol === "ZN" ? ZN : decimal} label={symbol} zone="UTC"><PriceChartPlot /></PriceChart>
+    }
+    const { rerender } = render(<Chart symbol="ZN" />)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    rerender(<Chart symbol="ZF" />)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 107.750 V 30")
+    expect(plot.getAttribute("aria-label")).toMatch(/^ZF: .*last 107\.750/)
+  })
+
+  it("reads a focused plot afresh when a stable store is cleared and loaded again", () => {
+    const store = seeded()
+    render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    act(() => store.clear())
+    act(() => store.applyDeltas({ upsert: [bar(0, 107.25, 107.25), bar(1, 107.25, 107.5), bar(2, 107.5, 107.75)] }))
+    expect(plot.getAttribute("aria-label")).toMatch(/last 107-24/)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 107-24 V 30")
+  })
+
+  it("reads a focused plot afresh when a store empty at the switch fills, and keeps the slider's value inside its bars", () => {
+    const zf = createRowStore<Bar>({ getRowId: (b) => barId(b.time), lane: "ordered" })
+    const store = seeded()
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    fireEvent.keyDown(plot, { key: "Escape" })
+    rerender(<PriceChart store={zf} convention={ZN} label="ZF" zone="UTC"><PriceChartPlot /></PriceChart>)
+    act(() => zf.applyDeltas({ upsert: [bar(0, 107.25, 107.25), bar(1, 107.25, 107.5), bar(2, 107.5, 107.75)] }))
+    expect(plot.getAttribute("aria-label")).toMatch(/^ZF: .*3 bars$/)
+    expect(plot).toHaveAttribute("aria-valuenow", "2")
+    // Bars that go take the resting value with them, inside what is left.
+    act(() => zf.applyDeltas({ remove: [barId(T0 + MINUTE), barId(T0 + 2 * MINUTE)] }))
+    expect(Number(plot.getAttribute("aria-valuenow"))).toBeLessThanOrEqual(Number(plot.getAttribute("aria-valuemax")))
+  })
+
+  it("reads a focused plot afresh when only its kind or only its notation changes", () => {
+    const store = seeded()
+    const decimal: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.001 }
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC" kind="candles"><PriceChartPlot /></PriceChart>)
+    expect(plot.getAttribute("aria-valuetext")).toMatch(/^14:32:00 O 110-16 H .* C 110-18 V 30$/)
+    rerender(<PriceChart store={store} convention={decimal} label="ZN" zone="UTC" kind="candles"><PriceChartPlot /></PriceChart>)
+    expect(plot.getAttribute("aria-valuetext")).toMatch(/ C 110\.56\d V 30$/)
+  })
+
+  it("reads the selected bar afresh when another bar replaces it, and holds it through a tick", () => {
+    const store = seeded()
+    render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    // A tick on the selected bar leaves its open alone, so the reading holds.
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    // A correction that replaces the bar, its open with it, is read.
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.25, 110.25)] }))
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-08 V 30")
+  })
+
+  it("keeps the value text live while the plot does not have focus", () => {
+    const store = seeded()
+    type Select = (index: number | null, fromPointer?: boolean) => void
+    let point: Select | null = null
+    function Pointer() {
+      const state = usePriceChart() as unknown as { select: Select }
+      useLayoutEffect(() => {
+        point = state.select
+      })
+      return null
+    }
+    render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /><Pointer /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => point!(2, true))
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-24 V 30")
   })
 
   it("shares one subscription across repeated readings and cleans it up", () => {

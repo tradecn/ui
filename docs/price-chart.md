@@ -292,7 +292,7 @@ The last close determines direction against the reference. Equal prices are `fla
 
 The root, `PriceChartLast`, and `PriceChartChange` carry `data-direction`.
 
-The plot's accessible name includes the direction, last price, change, range, and bar count. While the plot has focus, the name keeps the reading it took focus with, and the value text keeps the selected bar's readout as it was when the selection reached that bar, or the held reading with no bar selected, so a live feed doesn't make a screen reader read either again; moving the selection, or taking focus, reads the bar as it is then. On a window that drops old bars, the selection follows its index, so the value text changes once per bar as a new bar reaches it. With no bar selected, the slider's value stays where focus found it. A chart switched to another store, label, kind, or notation under focus is read afresh, its value as well as its name:
+The plot's accessible name includes the direction, last price, change, range, and bar count. While the plot has focus, the name keeps the reading it took focus with, and the value text keeps the selected bar's readout as it was when the selection reached that bar, or the held reading with no bar selected, so a live feed doesn't make a screen reader read either again; moving the selection, or taking focus, reads the bar as it is then. On a window that drops old bars, the selection follows its index, so the value text changes once per bar as a new bar reaches it. With no bar selected, the slider's value stays where focus found it. A focused plot reads both afresh when what it shows changes: another store, label, kind, notation, or series, a reload or a window that drops old bars included, in whatever order they arrive. A tick on a bar does not, since it never moves the bar's open. Without focus, the value text is the selection's readout as it is:
 
 ```text
 ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars
@@ -302,7 +302,7 @@ ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars
 
 With a crosshair and at least one finite bar, the plot is a horizontal `slider`.
 
-Focus selects the last bar unless a bar is already selected. With no bars or `crosshair={false}`, the plot is an `img` without a tab stop, except that a focused plot whose bars go keeps its tab stop until focus leaves.
+Focus selects the last bar unless a bar is already selected. With no bars or `crosshair={false}`, the plot is an `img` without a tab stop, except that a focused plot whose bars go, or whose crosshair turns off, keeps its tab stop until focus leaves.
 
 | Key | Action |
 |---|---|

@@ -529,6 +529,8 @@ interface PlotSubject {
   label: string
   kind: PriceChartKind
   notation: string
+  /** The series the store holds, by its first bar's time and open: a live tick never moves either. */
+  series: string
 }
 
 export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDown: onKeyDownProp, onFocus, onBlur, ...props }: ComponentProps<"div">) {
@@ -568,14 +570,18 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   // What a screen reader is told while it is on the plot: the summary as of the moment it took focus, and the
   // selected bar's readout as of the moment the selection reached that bar. A live feed moves the picture and the
   // visible readings, never these, so a focused plot is not read again at every update. Both belong to what the
-  // plot is of, its store, label, kind, and notation: a switch under focus is read afresh.
-  const subject: PlotSubject = { store, label, kind, notation: JSON.stringify(convention) }
-  const isSubject = (s: PlotSubject) => s.store === subject.store && s.label === subject.label && s.kind === subject.kind && s.notation === subject.notation
+  // plot shows, its store, label, kind, notation, and series: a switch, a reload, or a window that drops old bars
+  // is read afresh, whichever order they arrive in, and a tick on a bar is not, since it never moves a bar's open.
   const count = columns.bars.length
+  const first = columns.bars[0]
+  const subject: PlotSubject = { store, label, kind, notation: JSON.stringify(convention), series: first ? `${first.time}\u0000${first.open}` : "" }
+  const isSubject = (s: PlotSubject) => s.store === subject.store && s.label === subject.label && s.kind === subject.kind && s.notation === subject.notation && s.series === subject.series
   const [held, setHeld] = useState<(PlotSubject & { name: string; now: number }) | null>(null)
   if (held !== null && !isSubject(held)) setHeld({ ...subject, name: sentence, now: cursor ?? count - 1 })
   const heldName = held?.name ?? null
-  const heardKey = cursor === null || !bar ? null : `${cursor}\u0000${bar.time}`
+  // With no bar selected, the slider rests where focus found it, inside the bars there are; the keys step from there.
+  const rest = held === null ? count - 1 : clamp(held.now, count - 1)
+  const heardKey = cursor === null || !bar ? null : `${cursor}\u0000${bar.time}\u0000${bar.open}`
   const [heard, setHeard] = useState<PlotSubject & { key: string | null; text: string }>({ ...subject, key: null, text: "" })
   if (heard.key !== heardKey || !isSubject(heard)) setHeard({ ...subject, key: heardKey, text: readout })
   useLayoutEffect(() => {
@@ -718,7 +724,7 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     onKeyDownProp?.(event)
     if (event.defaultPrevented || !interactive || event.metaKey || event.ctrlKey || event.altKey) return
-    const from = cursor ?? count - 1
+    const from = cursor ?? rest
     // The slider pattern's two pairs: Right and Up go forward a bar, Left and Down back one.
     const to = { ArrowLeft: from - 1, ArrowDown: from - 1, ArrowRight: from + 1, ArrowUp: from + 1, PageDown: from - 10, PageUp: from + 10, Home: 0, End: count - 1 }[event.key]
     if (to === undefined && event.key !== "Escape") return
@@ -738,9 +744,9 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       aria-orientation={interactive ? "horizontal" : undefined}
       aria-valuemin={interactive ? 0 : undefined}
       aria-valuemax={interactive ? count - 1 : undefined}
-      // With no bar selected, the value stays where focus found it, so a new bar does not change it under a screen reader.
-      aria-valuenow={interactive ? cursor ?? Math.min(held?.now ?? count - 1, count - 1) : undefined}
-      aria-valuetext={interactive ? (heardKey === null ? (heldName ?? sentence) : heard.text) : undefined}
+      aria-valuenow={interactive ? cursor ?? rest : undefined}
+      // Held while the plot has focus; without it, the selection's readout as it is.
+      aria-valuetext={interactive ? (heldName === null ? readout || sentence : heardKey === null ? heldName : heard.text) : undefined}
       onKeyDown={onKeyDown}
       onFocus={(event) => {
         onFocus?.(event)
