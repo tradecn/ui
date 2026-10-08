@@ -1563,8 +1563,9 @@ describe("row names", () => {
         { key: "dir", header: "Direction", width: 60, accessor: (r) => r.px, cell: ({ row }) => <><span aria-hidden="true">▲</span><span hidden>held</span><span role="img" aria-label="up">↑</span><span aria-label="not a name">on the day</span><span id={`why-${row.id}`} hidden>no name either</span><span aria-labelledby={`why-${row.id}`}>since the open</span></> },
         // A timer named by its hidden label and its digits, as Countdown is.
         { key: "left", header: "Left", width: 80, accessor: (r) => r.id, cell: ({ row }) => <span role="timer" aria-labelledby={`label-${row.id} digits-${row.id}`}><span id={`label-${row.id}`} hidden>Time left</span><span id={`digits-${row.id}`}>0:59</span></span> },
-        // A field reads its value and a select its chosen option, labelled or not, and an image its alt.
-        { key: "note", header: "Note", width: 120, accessor: () => "", cell: ({ row }) => <><span id={`cap-${row.id}`} hidden>Caption</span><input aria-label="Note" defaultValue={`note ${row.id}`} /><input aria-labelledby={`cap-${row.id}`} defaultValue="held" /><select aria-labelledby={`cap-${row.id}`} defaultValue="b"><option value="a">Alpha</option><option value="b">Beta</option></select><img alt="flag" src="" /></> },
+        // A field reads its value and a select its chosen option, labelled or not and whatever their role, a combobox built
+        // on a button reads its label, and an image its alt.
+        { key: "note", header: "Note", width: 120, accessor: () => "", cell: ({ row }) => <><span id={`cap-${row.id}`} hidden>Caption</span><input aria-label="Note" defaultValue={`note ${row.id}`} /><input aria-labelledby={`cap-${row.id}`} defaultValue="held" /><select aria-labelledby={`cap-${row.id}`} defaultValue="b"><option value="a">Alpha</option><option value="b">Beta</option></select><input role="combobox" aria-label="Venue" defaultValue="NYSE" /><button role="combobox" aria-label="Side">Buy</button><img alt="flag" src="" /></> },
       ]
       render(<DataGrid store={store} columns={marked} label="Quotes" initialRect={RECT} getRowLabel={symbol} selectionMode="multi" selectionColumn />)
       const grid = screen.getByRole("grid")
@@ -1572,7 +1573,7 @@ describe("row names", () => {
       fireEvent.keyDown(grid, { key: "ArrowDown" })
       fireEvent.keyDown(grid, { key: "ArrowDown" })
       act(() => vi.advanceTimersByTime(400))
-      expect(reading()).toBe("S0001, 101.00, 10, up on the day since the open, Time left 0:59, note r1 held Beta flag")
+      expect(reading()).toBe("S0001, 101.00, 10, up on the day since the open, Time left 0:59, note r1 held Beta NYSE Side flag")
     } finally {
       vi.useRealTimers()
     }
