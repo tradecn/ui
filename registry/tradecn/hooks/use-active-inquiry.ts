@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useInsertionEffect, useRef, useState } from "react"
 import { useRow, useRowIds } from "@/registry/tradecn/hooks/use-row-store"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 
@@ -50,6 +50,12 @@ export function useActiveInquiry<T>(source: RowStore<T> | RowView<T>, options: A
   // The chosen row itself, so the server's word on it is seen the moment it changes.
   const chosenRow = useRow(store, chosen ?? NONE)
   const { isEnded } = options
+  // The render's own end-state rule, written before any layout effect of the same commit can pick, so `setActive`
+  // stays one function and still judges a pick made as a new rule arrives by that rule.
+  const ended = useRef(isEnded)
+  useInsertionEffect(() => {
+    ended.current = isEnded
+  })
 
   // A parked inquiry whose row left the store leaves the set with it. Settled during render, as the choice is.
   let pruned: Set<RowId> | null = null
@@ -95,13 +101,12 @@ export function useActiveInquiry<T>(source: RowStore<T> | RowView<T>, options: A
       if (id !== null) {
         // A press that lands as the server ends an inquiry, or after its row left, is not a choice: the open one stays.
         const picked = store.getRow(id)
-        if (picked === undefined || isEnded(picked)) return
+        if (picked === undefined || ended.current(picked)) return
         unpark(id)
       }
       setChosen(id)
     },
-    // The render's own end-state rule, so a pick made as a new rule arrives is judged by it, as `next` is.
-    [store, unpark, isEnded],
+    [store, unpark],
   )
   const next = useCallback(() => {
     setChosen((current) => firstOpen(store, source.getIds(), isEnded, current, live) ?? current)

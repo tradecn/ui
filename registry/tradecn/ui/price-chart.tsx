@@ -384,6 +384,7 @@ export interface PriceChartState {
 }
 
 interface ChartContext extends PriceChartState {
+  store: object
   columns: BarColumns
   label: string
   sentence: string
@@ -453,7 +454,7 @@ export function PriceChart({ store, convention, label, kind = "line", baseline =
   const readout = at ? `${time(at.time)} ${kind === "candles" ? `${labels.open} ${formatPrice(at.open, price)} ${labels.high} ${formatPrice(at.high, price)} ${labels.low} ${formatPrice(at.low, price)} ${labels.close} ${formatPrice(at.close, price)}` : formatPrice(at.close, price)}${typeof at.volume === "number" && Number.isFinite(at.volume) ? ` ${labels.volume} ${formatQuantity(at.volume)}` : ""}` : ""
   const sentence = last ? `${label}: ${word}, last ${formatPrice(last.close, price)}, ${formatChange(summary.change, convention)} (${formatPercent(summary.changePct, { signed: true })}), low ${formatPrice(summary.low, price)}, high ${formatPrice(summary.high, price)}, ${count} ${labels.bars}` : `${label}: ${labels.noData}`
 
-  const context: ChartContext = { bars: columns.bars, columns, summary, cursor, bar: at, readout, overlays: overlayList, convention, labels, label, sentence, kind, baseline: ref, zone, crosshair, lastLine, select }
+  const context: ChartContext = { store, bars: columns.bars, columns, summary, cursor, bar: at, readout, overlays: overlayList, convention, labels, label, sentence, kind, baseline: ref, zone, crosshair, lastLine, select }
 
   return (
     <PriceChartContext.Provider value={context}>
@@ -522,8 +523,16 @@ export function PriceChartOverlaySwatch({ overlayId, className, ...props }: Pric
   return <span {...props} aria-hidden="true" data-chart-swatch="" className={cn("inline-block size-2 shrink-0 rounded-full", CHART_TOKEN_CLASS[Math.min(8, Math.max(1, overlay.color ?? index + 1)) - 1], className)} />
 }
 
+/** What a plot is of: a change to any of these under focus is read afresh. */
+interface PlotSubject {
+  store: object
+  label: string
+  kind: PriceChartKind
+  notation: string
+}
+
 export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDown: onKeyDownProp, onFocus, onBlur, ...props }: ComponentProps<"div">) {
-  const { columns, summary, cursor, bar, convention, overlays: overlayList, label, sentence, readout, kind, baseline, zone, crosshair, lastLine, select } = useChartContext()
+  const { store, columns, summary, cursor, bar, convention, overlays: overlayList, label, sentence, readout, kind, baseline, zone, crosshair, lastLine, select } = useChartContext()
   const [plotEl, setPlotEl] = useState<HTMLDivElement | null>(null)
   // The document the plot is in. A popout moves the plot into its own window without remounting it, so the
   // observers check it as they fire and bind again to the new window when it changed.
@@ -558,14 +567,17 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
 
   // What a screen reader is told while it is on the plot: the summary as of the moment it took focus, and the
   // selected bar's readout as of the moment the selection reached that bar. A live feed moves the picture and the
-  // visible readings, never these, so a focused plot is not read again at every update.
-  const [held, setHeld] = useState<{ name: string; label: string } | null>(null)
-  // A chart switched to another instrument under focus is named for it.
-  if (held !== null && held.label !== label) setHeld({ name: sentence, label })
+  // visible readings, never these, so a focused plot is not read again at every update. Both belong to what the
+  // plot is of, its store, label, kind, and notation: a switch under focus is read afresh.
+  const subject: PlotSubject = { store, label, kind, notation: JSON.stringify(convention) }
+  const isSubject = (s: PlotSubject) => s.store === subject.store && s.label === subject.label && s.kind === subject.kind && s.notation === subject.notation
+  const count = columns.bars.length
+  const [held, setHeld] = useState<(PlotSubject & { name: string; now: number }) | null>(null)
+  if (held !== null && !isSubject(held)) setHeld({ ...subject, name: sentence, now: cursor ?? count - 1 })
   const heldName = held?.name ?? null
   const heardKey = cursor === null || !bar ? null : `${cursor}\u0000${bar.time}`
-  const [heard, setHeard] = useState<{ key: string | null; text: string }>({ key: null, text: "" })
-  if (heard.key !== heardKey) setHeard({ key: heardKey, text: readout })
+  const [heard, setHeard] = useState<PlotSubject & { key: string | null; text: string }>({ ...subject, key: null, text: "" })
+  if (heard.key !== heardKey || !isSubject(heard)) setHeard({ ...subject, key: heardKey, text: readout })
   useLayoutEffect(() => {
     live.current.summary = summary
     live.current.baseline = baseline
@@ -701,7 +713,6 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
     if (typeof forwardedRef === "function") return forwardedRef(node)
     if (forwardedRef) forwardedRef.current = node
   }, [forwardedRef])
-  const count = columns.bars.length
   const interactive = crosshair && count > 0
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -727,14 +738,15 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       aria-orientation={interactive ? "horizontal" : undefined}
       aria-valuemin={interactive ? 0 : undefined}
       aria-valuemax={interactive ? count - 1 : undefined}
-      aria-valuenow={interactive ? cursor ?? count - 1 : undefined}
+      // With no bar selected, the value stays where focus found it, so a new bar does not change it under a screen reader.
+      aria-valuenow={interactive ? cursor ?? Math.min(held?.now ?? count - 1, count - 1) : undefined}
       aria-valuetext={interactive ? (heardKey === null ? (heldName ?? sentence) : heard.text) : undefined}
       onKeyDown={onKeyDown}
       onFocus={(event) => {
         onFocus?.(event)
-        setHeld({ name: sentence, label })
+        setHeld({ ...subject, name: sentence, now: cursor ?? count - 1 })
         // A selection the pointer made before focus is read as it is now.
-        setHeard({ key: heardKey, text: readout })
+        setHeard({ ...subject, key: heardKey, text: readout })
         if (!event.defaultPrevented && interactive && cursor === null) moveCursor(count - 1)
       }}
       onBlur={(event) => {

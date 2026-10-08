@@ -457,6 +457,11 @@ describe("PriceChart composition", () => {
     expect(plot.getAttribute("aria-valuetext")).toBe(name)
     act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.5)] }))
     expect(plot.getAttribute("aria-valuetext")).toBe(name)
+    // Nor does a new bar move the slider's value.
+    const now = plot.getAttribute("aria-valuenow")
+    act(() => store.applyDeltas({ upsert: [bar(3, 110.5, 110.5)] }))
+    expect(plot.getAttribute("aria-valuenow")).toBe(now)
+    expect(plot).toHaveAttribute("aria-valuemax", "3")
     // Leaving lets the name follow the feed again.
     act(() => plot.blur())
     expect(plot.getAttribute("aria-label")).not.toBe(name)
@@ -483,6 +488,24 @@ describe("PriceChart composition", () => {
     expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-24 V 30")
     rerender(<PriceChart store={store} convention={ZN} label="ZH" zone="UTC"><PriceChartPlot /><Pointer /></PriceChart>)
     expect(plot.getAttribute("aria-label")).toMatch(/^ZH: /)
+  })
+
+  it("reads a chart switched to another instrument under focus afresh, its value as well as its name", () => {
+    const zf = createRowStore<Bar>({ getRowId: (b) => barId(b.time), lane: "ordered" })
+    zf.applyDeltas({ upsert: [bar(0, 107.25, 107.25), bar(1, 107.25, 107.5), bar(2, 107.5, 107.75)] })
+    const decimal: InstrumentConvention = { price: { kind: "decimal", decimals: 3 }, tick: 0.001 }
+    const { rerender } = render(<PriceChart store={seeded()} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    // Another instrument with bars at the same times: its own price, not the last one's.
+    rerender(<PriceChart store={zf} convention={decimal} label="ZF" zone="UTC"><PriceChartPlot /></PriceChart>)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 107.750 V 30")
+    expect(plot.getAttribute("aria-label")).toMatch(/^ZF: /)
+    // A store swapped under the same label is read afresh too.
+    const name = plot.getAttribute("aria-label")
+    rerender(<PriceChart store={seeded()} convention={decimal} label="ZF" zone="UTC"><PriceChartPlot /></PriceChart>)
+    expect(plot.getAttribute("aria-label")).not.toBe(name)
   })
 
   it("shares one subscription across repeated readings and cleans it up", () => {

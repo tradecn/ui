@@ -115,7 +115,7 @@ Column-formatting and threshold props are listed below. Remaining props use `Dat
 | `thresholds` | `CountdownThresholds` | `{ soonMs: 10_000 }` | Countdown's provisional warning threshold, in milliseconds. |
 | `clock` | `Clock` | `sharedClock()` | Countdown clock; the default ticks once a second. |
 
-`price`, `time`, and `clock` shape every cell, so a new one rebuilds the columns and redraws every visible row, and without a view of yours replaces the grid's own view and drops a running reorder hold: pass stable ones. `thresholds` is read by its value, so it may be written inline. For instrument-specific prices, pass one stable formatter that looks the instrument up, such as a module function: `const price = (value, row) => conventions[row.instrument].price(value)`. With custom `columns`, pass these options to `rfqStackColumns` yourself.
+`price`, `time`, and `clock` shape every cell, so a new one rebuilds the columns and redraws every visible row, and, without a view of yours and while a header sort or a rule's sort or filter is in force, replaces the grid's own view and drops a running reorder hold: pass stable ones. `thresholds` is read by its value, so it may be written inline. For instrument-specific prices, pass one stable formatter that looks the instrument up, such as a module function: `const price = (value, row) => conventions[row.instrument].price(value)`. With custom `columns`, pass these options to `rfqStackColumns` yourself.
 
 | `RfqStackRow` field | Type | Required / default | Meaning |
 |---|---|---|---|
@@ -198,7 +198,7 @@ The field then reports edits; the hook applies them. Persist the threshold in yo
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `isEnded` | `(row: T) => boolean` | Required | Reads the venue's status to decide whether an inquiry is over. `setActive` and `next` are made again for a new one, so keep it stable. |
+| `isEnded` | `(row: T) => boolean` | Required | Reads the venue's status to decide whether an inquiry is over. `setActive` stays one function whatever you pass; `next` is made again for a new one. |
 | `onChange` | `(id: RowId \| null, row: T \| null) => void` | None | Reports the initial choice, including `null`, and later active-id changes. Updates that leave the active id unchanged do not trigger it. |
 
 The hook chooses the first non-ended, unparked row in source order. It keeps that inquiry through arrivals and reordering until it ends, leaves the store, is parked, or the trader chooses another.

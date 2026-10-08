@@ -309,6 +309,14 @@ describe("useActiveInquiry", () => {
     expect(screen.getByRole("status")).toHaveTextContent("q3")
   })
 
+  it("keeps setActive one function through a new end-state rule, as v1 did", () => {
+    const store = seeded()
+    const { result, rerender } = renderHook(({ isEnded }: { isEnded: (row: RfqStackRow) => boolean }) => useActiveInquiry(store, { isEnded }), { initialProps: { isEnded: ended } })
+    const first = result.current.setActive
+    rerender({ isEnded: (row: RfqStackRow) => ended(row) })
+    expect(result.current.setActive).toBe(first)
+  })
+
   it("chooses and tells the same under StrictMode", () => {
     const store = seeded()
     const onChange = vi.fn()

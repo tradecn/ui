@@ -192,6 +192,7 @@ Update data through the store and move the cursor through the plot.
 | Change | Behavior |
 |---|---|
 | Box size | Resizes the existing plot. |
+| Window | Recreates the plot in a popout's window once a resize or a theme change notices the move, and again when the popout closes and hands it back. |
 | `kind`, `crosshair`, `lastLine`, `zone`, or serialized `convention` | Recreates the plot. |
 | Overlay ids, colors, widths, or order | Recreates the plot. |
 | `baseline` alone | Updates the readings without recalculating the price scale. An out-of-range reference can stay offscreen until data updates or the plot is recreated. |
@@ -291,7 +292,7 @@ The last close determines direction against the reference. Equal prices are `fla
 
 The root, `PriceChartLast`, and `PriceChartChange` carry `data-direction`.
 
-The plot's accessible name includes the direction, last price, change, range, and bar count. While the plot has focus, the name keeps the reading it took focus with, and the value text keeps the selected bar's readout as it was when the selection reached that bar, or the held reading with no bar selected, so a live feed doesn't make a screen reader read either again; moving the selection, or taking focus, reads the bar as it is then. On a window that drops old bars, the selection follows its index, so the value text changes once per bar as a new bar reaches it, and a chart whose `label` changes under focus is named for the new one:
+The plot's accessible name includes the direction, last price, change, range, and bar count. While the plot has focus, the name keeps the reading it took focus with, and the value text keeps the selected bar's readout as it was when the selection reached that bar, or the held reading with no bar selected, so a live feed doesn't make a screen reader read either again; moving the selection, or taking focus, reads the bar as it is then. On a window that drops old bars, the selection follows its index, so the value text changes once per bar as a new bar reaches it. With no bar selected, the slider's value stays where focus found it. A chart switched to another store, label, kind, or notation under focus is read afresh, its value as well as its name:
 
 ```text
 ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars
