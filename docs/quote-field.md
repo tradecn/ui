@@ -58,7 +58,7 @@ For non-price quotes, `quoteStep` overrides the default step. Price quotes ignor
 
 The field uses [`format`](format.md)'s `parseQuote`, `formatQuote`, and `stepQuote`. Price input accepts the instrument's notation (`99-16+`) or a decimal. Decimal price conventions round to their decimal places, tick conventions snap to their price tick, and fraction conventions snap decimal input to their printable grid, so the value reported is the price the formatted text shows. Other bases accept decimals, snap to the quote step, and print without a unit suffix.
 
-Parsing trims whitespace, removes commas, and accepts either minus sign; decimal input uses a point. Fraction prices use the mono font; other quotes use the numeric font. A new kind of instrument needs a new convention object, with no instrument-name lookup.
+Parsing trims whitespace and accepts either minus sign; decimal input uses a point. A comma reads only as a thousands separator in the whole part, and, where the convention prints decimals, a number with one comma needs its point (`4,253.000`), since `4,253` could be a decimal comma: any other comma makes the text no price, so the field reports `null` rather than a bigger price. Deleting the first digit of `1,234.50` leaves `,234.50`, which reads as no price until the comma goes too. Fraction prices use the mono font; other quotes use the numeric font. A new kind of instrument needs a new convention object, with no instrument-name lookup.
 
 ### Typing and stepping
 

@@ -25,7 +25,7 @@ The preview groups quote conventions, instrument details, and scalar values. It 
 
 Pure functions with no React dependency. Numeric formatters accept `Nullable` (`number | null | undefined`) and return `NULL_TOKEN` (`–`, an en dash) for null, undefined, NaN, and infinities. Negative numeric output uses the typographic minus (`−`, U+2212).
 
-`Locale` is `{ locale?: string }`, with `"en-US"` as the default. Decimal and date output can use another locale, such as `{ locale: "de-DE" }`; fraction notation stays fixed. Parsing is not locale-aware, a bound locale included: `parsePrice` and `parseQuote` read a decimal point, trim whitespace, accept either minus sign, and read commas only as thousands separators in the whole part (`1,234.5`). A comma anywhere else, as in `99,5` typed on a decimal-comma keyboard, `1,0,0`, or among the 32nds, reads as no price rather than a price ten times too big.
+`Locale` is `{ locale?: string }`, with `"en-US"` as the default. Decimal and date output can use another locale, such as `{ locale: "de-DE" }`; fraction notation stays fixed. Parsing is not locale-aware, a bound locale included: `parsePrice` and `parseQuote` read a decimal point, trim whitespace, accept either minus sign, and read commas only as thousands separators in the whole part (`1,234.5`). A comma anywhere else, as in `99,5` typed on a decimal-comma keyboard, `1,0,0`, or among the 32nds, reads as no price rather than a bigger one. Where the convention prints decimals, a number with one comma and nothing after its whole part reads either way, `4,253` as 4253 or as 4.253 with a decimal comma, so it reads as no price too; write `4,253.000` or `4253` for the thousands. A convention that prints no decimals reads `5,012` as its own text prints it.
 
 ### Prices
 
@@ -72,7 +72,7 @@ In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `ei
 | `yield(value)` | `formatYield` with `yieldDecimals` |
 | `quantity(value)` | `formatQuantity` |
 | `step(value, steps)` | `stepByTick` with `convention.tick` |
-| `quote(value)`, `parseQuote(text)`, `stepQuote(value, steps)` | Quote functions below with the bound convention; the bound locale applies to output only, so `quote` in `de-DE` prints text `parseQuote` doesn't read back |
+| `quote(value)`, `parseQuote(text)`, `stepQuote(value, steps)` | Quote functions below with the bound convention; the bound locale applies to output only: `quote` in `de-DE` prints text `parseQuote` reads as no quote, such as `99,50`, or as another one, such as an integer tick's `5.012`, which reads as 5.012 and snaps to 5 |
 
 ### The quote basis
 
