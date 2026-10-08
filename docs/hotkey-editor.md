@@ -89,7 +89,7 @@ HotkeysProvider
 
 The root coordinates the registry and search. Each item coordinates one binding's editing state. Choose the readings and controls your layout needs, and supply descriptions, action text, group headings, and empty states in your JSX.
 
-To place the editor in a dialog, install shadcn `dialog` separately and give it a `DialogTitle`.
+To place the editor in a dialog, install shadcn `dialog` separately and give it a `DialogTitle`. A dialog can act on Escape before the editor does, so the Escape that cancels a capture or a text edit can close the whole dialog too. Keep it open for those keys: in the dialog's Escape handling, leave the key to the editor when the event's target is inside `[data-hotkey-capture]` or `[data-hotkey-input]`.
 
 ## Groups
 
@@ -168,6 +168,8 @@ Passing `disabled` also disables an action. Reset controls remain rendered when 
 | `HotkeyEditorConflicts` | `ul` | One message per conflict involving the item. Renders nothing without conflicts. |
 
 These readings supply their own content and omit `children` from their props. Use `useHotkeyEditorItem` to write a different reading or conflict list.
+
+Render the editor on the client: its key caps come from the registry's platform and saved overrides, which a server doesn't have.
 
 ### Hooks
 

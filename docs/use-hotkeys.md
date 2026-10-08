@@ -100,7 +100,7 @@ Join modifiers and one key with `+`; separate chord steps with spaces: `"mod+k"`
 |---|---|
 | `useHotkeys()` | Nearest provider's `HotkeyRegistry`; throws without a provider. |
 | `useMaybeHotkeys()` | Same registry, or `null` without a provider. |
-| `useHotkey(id: string, handler: HotkeyHandler, options?)` | Attach the latest `(event: KeyboardEvent) => void` handler while mounted. `options.enabled` is a boolean, default `true`; `false` detaches the handler but keeps the binding listed. |
+| `useHotkey(id: string, handler: HotkeyHandler, options?)` | Attach the latest `(event: KeyboardEvent) => void` handler while mounted. `options.enabled` is a boolean, default `true`; `false` detaches the handler but keeps the binding listed. The handler changes, and `false` or unmounting detaches it, in the commit that renders them, so a key in that commit never reaches a handler it replaced. |
 | `useHotkeyList()` | Live `readonly HotkeyEntry[]`, including normalized `keys`, normalized `defaultKeys`, the declaration's own spelling as `declaredKeys`, and `remapped` while an override is stored for the id, one that fails to parse or matches the defaults included. |
 | `usePendingChord()` | Normalized steps typed so far, or `null`, for a status-bar hint. |
 | `useDeclaredHotkeyIds(registry?)` | Ids the surrounding providers declare through `bindings` for one registry — the nearest provider's unless given — visible during render before any effect registers them. |
@@ -167,7 +167,7 @@ For persistence, create a registry once, restore saved overrides with `load`, an
 
 ### The rest
 
-`createHotkeyRegistry(options?)` accepts `chordTimeoutMs` (number, default `1000`) and `platform` (`"mac"` or `"other"`, default `detectPlatform()`). The selected platform is available as `registry.platform`.
+`createHotkeyRegistry(options?)` accepts `chordTimeoutMs` (milliseconds, default `1000`; a value that isn't above zero and at most 2,147,483,647 reads as the default) and `platform` (`"mac"` or `"other"`, default `detectPlatform()`). The selected platform is available as `registry.platform`.
 
 | Registry method | Result or behavior |
 |---|---|
@@ -194,6 +194,8 @@ Each optional helper `platform` is `"mac"` or `"other"` and defaults to `detectP
 
 The dispatcher ignores events already prevented, IME composition, and keys such as bare modifiers. Bindings run on repeated keydowns only with `repeat: true`. A binding without an eligible handler consumes nothing.
 
+Render hotkey UI on the client. A registry reads its platform when it is created, and overrides load in the browser, so on a server it has the server's platform and none of the user's remaps: key caps rendered there disagree with the client's first render for Mac users and for anyone with saved remaps.
+
 ### What it does not do
 
-No `keyup` handling or storage. Matching uses the character produced, with a physical-key fallback when Shift or Option changes it to a symbol; that fallback is disabled for AltGr. It does not infer keyboard layouts.
+No `keyup` handling or storage. Matching uses the character produced, with a physical-key fallback when Shift or Option changes it to a symbol; that fallback is disabled for AltGr. It does not infer keyboard layouts, so on a layout whose letters aren't Latin, such as Cyrillic or Greek, `mod+k` and single-letter bindings don't fire, and neither does a symbol that needs AltGr, such as `[` on a German layout.

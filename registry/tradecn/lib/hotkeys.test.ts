@@ -356,6 +356,17 @@ describe("chords", () => {
     expect(run).not.toHaveBeenCalled()
   })
 
+  it.each([0, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 31])("reads a timeout of %s as the default, which a timer can wait out", (chordTimeoutMs) => {
+    vi.useFakeTimers()
+    const registry = attached({ chordTimeoutMs })
+    const run = vi.fn()
+    registry.register(binding("go.home", "g h"), run)
+    press("g")
+    vi.advanceTimersByTime(999)
+    press("h")
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+
   it("cancels on Escape and swallows it", () => {
     const registry = attached()
     const run = vi.fn()

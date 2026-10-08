@@ -342,7 +342,9 @@ function conflictBetween(a: Rec, b: Rec): HotkeyConflict | null {
 
 export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): HotkeyRegistry {
   const platform = options.platform ?? detectPlatform()
-  const chordTimeoutMs = options.chordTimeoutMs ?? 1000
+  // A timer runs at once for 0, NaN, Infinity, or anything past 2^31 - 1 ms, and a chord could never finish: those read as the default.
+  const given = options.chordTimeoutMs
+  const chordTimeoutMs = typeof given === "number" && given > 0 && given <= 2_147_483_647 ? given : 1000
   const recs = new Map<string, Rec>()
   // Component defaults: each declaration is held individually beside the live records, installed
   // only while no consumer registration shadows the id — the earliest held declaration is the
