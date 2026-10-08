@@ -156,6 +156,8 @@ it("reads a focused inquiry's cells as separate words, its client and tier inclu
     const reading = document.querySelector("[data-grid-row-reading]")!.textContent!
     expect(focused).toBe("q1")
     expect(reading).toContain("Client A Tier 1")
+    // The countdown is named by its hidden label and its digits, and reads so.
+    expect(reading).toMatch(/Time left q1 \d+:\d\d/)
   } finally {
     vi.useRealTimers()
   }

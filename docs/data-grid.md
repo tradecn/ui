@@ -275,7 +275,7 @@ With announcements enabled, a 1,000 ms timer reports the row count through a pol
 
 Without `getRowLabel`, or with `null`, a row is named by its cells, so a screen reader can read the focused row again at every update. With it, each row is named by what it returns, and the grid reads the focused row's cells once through a polite live region of its own, 400 ms after focus rests on the row: on a new row, or when the grid takes focus. A cell that changes never reads the row, and an empty name leaves the row named by its cells, still read. Return a name that tells rows apart, and keep the function's identity stable, since a new one re-renders every row.
 
-The reading is each column's cell in order, joined with commas: a cell's text, an element with an `aria-label` read as its label, and elements side by side read as separate words. It leaves out content marked `aria-hidden` or `hidden`, and the selection checkbox. It doesn't read `aria-labelledby`, `alt` text, an input's value, a control's state, or content hidden only by CSS, and it doesn't name the columns.
+The reading is each column's cell in order, joined with commas, and follows the accessible-name rules for content: the targets of `aria-labelledby`, hidden ones included; a text field's value and a select's chosen option; an `aria-label` on an element whose role takes a name, so not on a plain `span`; an image's `alt`; otherwise the text, with elements side by side read as separate words. It leaves out content marked `aria-hidden` or `hidden`, and the selection checkbox. It doesn't read a control's state or content hidden only by CSS, and it doesn't name the columns.
 
 ### Pointer interactions
 
