@@ -17,11 +17,18 @@ import {
   describeRule,
   normalizeValue,
   opsFor,
+  readColumnRule,
+  readCondition,
+  readFilterRule,
   readRuleValue,
+  readRules,
+  readSortRule,
   ruleDecoration,
   ruleProblem,
   type ColumnRule,
+  type GridRules,
   type RuleColumn,
+  type RuleCondition,
 } from "@/registry/tradecn/lib/grid-rules"
 
 interface Rfq {
@@ -268,5 +275,179 @@ describe("the words", () => {
     expect(ruleProblem({ column: "client", op: "contains", value: "a" }, columns)).toBeNull()
     expect(ruleProblem({ column: "px", when: { op: "notNull" } }, columns)).toBeNull()
     expect(ruleProblem({ column: "px", when: { op: "eq", value: "99-16+" } }, columns)).toBeNull()
+  })
+})
+
+describe("rules that arrive malformed", () => {
+  // Rules come as JSON a desk edits without a build: what this module cannot read matches nothing, says what is
+  // wrong through ruleProblem, and never throws while the grid draws.
+  const bad = (when: unknown) => ({ id: "bad", column: "px", when, tone: "up" }) as unknown as ColumnRule
+
+  it("compiles a condition with no op it knows, no condition, or values that are not a list to one that matches nothing", () => {
+    for (const condition of [{ op: "gtx", value: "99-16" }, { op: "toString" }, { op: "between", values: "99-16, 100-00" }, { op: "in", values: { 0: "ALPHA" } }, undefined, null, "gt"]) {
+      expect(rows.filter(compileCondition(condition as RuleCondition, columns[2]!))).toEqual([])
+    }
+    // Read directly, a value that is not text, a number, or a boolean is nothing; compiled, it is read first, as its
+    // JSON text, the same way a filter list reads it.
+    expect(readRuleValue(columns[0], {} as never)).toBeNull()
+    const quoted = [{ ...rows[0]!, client: '{"a":1}' }, rows[1]!]
+    expect(byId(quoted.filter(compileCondition({ op: "eq", value: { a: 1 } as never }, columns[0]!)))).toEqual(["a"])
+    expect(byId(quoted.filter(compileFilter([{ column: "client", op: "eq", value: { a: 1 } as never }], columns)))).toEqual(["a"])
+  })
+
+  it("leaves a grid running on highlights it cannot read: those decorate nothing, an unknown tone paints nothing, and the rest decorate", () => {
+    const applied = applyRules([
+      bad({ op: "gtx", value: "99-16" }),
+      bad(undefined),
+      null as never,
+      { id: "odd", column: "status", when: { op: "eq", value: "Quoted" }, tone: "warning" as never, label: 5 as never },
+      { id: "rich", column: "px", when: { op: "gt", value: "100-00" }, tone: "up" },
+    ], columns)
+    expect(applied.cell("px", rows[0]!)).toBeUndefined()
+    expect(applied.cell("px", rows[3]!)?.["data-rule"]).toBe("rich")
+    const odd = applied.cell("status", rows[1]!)!
+    expect(odd["data-rule"]).toBe("odd")
+    expect(odd.className).toBe("")
+    expect(odd["aria-description"]).toBe("Status is Quoted")
+  })
+
+  it("filters out every row for a filter rule it cannot read, as for a value it cannot read, and skips an entry that is not a rule", () => {
+    expect(byId(rows.filter(compileFilter([{ column: "status", op: "ne", value: "Done away" }, null as never], columns)))).toEqual(["a", "b", "c"])
+    expect(rows.filter(compileFilter([{ column: "status", op: "ne", value: "Done away" }, { column: "px", op: "gtx" as never, value: "99-16" }], columns))).toEqual([])
+    const order = compileComparator([null as never, { key: "size", dir: "desc" }], columns)!
+    expect(byId([...rows].sort(order))).toEqual(["b", "d", "a", "c"])
+  })
+
+  it("says what is wrong with a rule it cannot read, and describes one without throwing", () => {
+    expect(ruleProblem(bad({ op: "gtx" }), columns)).toBe('No comparison is named "gtx".')
+    expect(ruleProblem(bad({ op: "toString" }), columns)).toBe('No comparison is named "toString".')
+    expect(ruleProblem(bad(undefined), columns)).toBe("The rule needs a comparison.")
+    expect(ruleProblem(bad("gt"), columns)).toBe("The rule needs a comparison.")
+    expect(ruleProblem({ column: "px" }, columns)).toBe("The rule needs a comparison.")
+    expect(ruleProblem(bad({ op: "between", values: "99-16, 100-00" }), columns)).toBe("between needs a low value and a high value.")
+    expect(ruleProblem(bad({ op: "between", values: ["100-00", "99-16"] }), columns)).toBe("between needs a low value at or below the high value.")
+    expect(ruleProblem(bad({ op: "between", values: ["99-16", "99-16"] }), columns)).toBeNull()
+    expect(ruleProblem(bad({ op: "gt", value: {} }), columns)).toBe('"{}" is not a value Price reads.')
+    expect(ruleProblem(bad({ op: "in", values: [[1]] }), columns)).toBe('"[1]" is not a value Price reads.')
+    expect(ruleProblem({ column: "px", when: { op: "notNull" }, tone: "warning" as never }, columns)).toBe('No tone is named "warning".')
+    expect(ruleProblem({ column: "px", when: { op: "notNull" }, tone: "up" }, columns)).toBeNull()
+    expect(ruleProblem(bad({ op: 5 }), columns)).toBe('No comparison is named "5".')
+    expect(ruleProblem(bad({ op: { name: "gt" } }), columns)).toBe('No comparison is named "{"name":"gt"}".')
+    expect(ruleProblem(bad({ op: null }), columns)).toBe("The rule needs a comparison.")
+    expect(ruleProblem({ column: "px", when: { op: "notNull" }, tone: undefined }, columns)).toBe("The rule needs a tone.")
+    expect(describeRule(bad({ op: "gtx", value: "99-16" }), columns)).toBe("Price gtx 99-16")
+    expect(describeRule(bad({ op: "in", values: ["ALPHA", { x: 1 }] }), columns)).toBe('Price one of ALPHA, {"x":1}')
+    expect(describeRule(bad(undefined), columns)).toBe("Price")
+    expect(() => describeRule(bad({ op: "between", values: "x" }), columns)).not.toThrow()
+  })
+})
+
+describe("reading rules a desk saved", () => {
+  // An own toString that is not a function: String() and a property lookup both throw on it.
+  const evil = { toString: 0 }
+
+  it("reads any JSON into rules: lists as lists, names and words as text, values as text, numbers, booleans, or null, and an entry that is not an object dropped", () => {
+    expect(readRules(null)).toStrictEqual({})
+    // A list that is not a list is left out, so spreading the reading over defaults keeps the defaults.
+    expect(readRules({ columns: { id: "x" }, filter: "bad", sort: 5 })).toStrictEqual({})
+    expect({ sort: [{ key: "size", dir: "asc" }], ...readRules({ sort: "bad" }) }.sort).toEqual([{ key: "size", dir: "asc" }])
+    const read = readRules({
+      columns: [null, 5, "bad", { id: 7, column: { key: "px" }, when: { op: evil, value: { a: 1 }, values: "x" }, tone: ["up"], label: 9, target: "cell" }],
+      filter: [{ column: "status", op: "eq", value: "Open", values: [1, {}, undefined, null] }],
+      sort: [{ key: ["px"], dir: "down" }, { key: "size", dir: "desc" }],
+    })
+    expect(read.columns).toEqual([{ id: "7", column: '{"key":"px"}', when: { op: '{"toString":0}', value: '{"a":1}' }, tone: '["up"]', target: "cell" }])
+    expect(read.filter).toEqual([{ column: "status", op: "eq", value: "Open", values: [1, "{}", null] }])
+    expect(read.sort).toEqual([{ key: '["px"]', dir: "asc" }, { key: "size", dir: "desc" }])
+    expect(readColumnRule(null)).toBeNull()
+    // A list is no rule, whatever it holds.
+    expect(readFilterRule([])).toBeNull()
+    expect(readRules({ columns: [[{ id: "x" }]] })).toStrictEqual({ columns: [] })
+    expect(readSortRule("px")).toBeNull()
+    expect(readCondition("gt")).toBeUndefined()
+    // A value JSON cannot print reads as its text: a bigint as its digits.
+    expect(readColumnRule({ id: "r", column: "px", when: { op: "gt", value: 1n }, tone: "up" })?.when?.value).toBe("1")
+  })
+
+  it("keeps every other field an app saved on a rule, its condition, a filter, a sort key, and the rules, and leaves out a field it reads to nothing", () => {
+    const read = readRules({
+      version: 2,
+      columns: [{ id: "rich", column: "px", when: { op: "gte", value: "100-00", note: "desk" }, tone: "up", owner: "desk-a", label: 5 }],
+      filter: [{ id: "f1", column: "status", op: "eq", value: "Open", enabled: true }],
+      sort: [{ key: "size", dir: "desc", pinned: true }],
+    }) as GridRules & { version?: number }
+    expect(read.version).toBe(2)
+    expect(read.columns).toStrictEqual([{ id: "rich", column: "px", when: { op: "gte", value: "100-00", note: "desk" }, tone: "up", owner: "desk-a" }])
+    expect(read.filter).toStrictEqual([{ id: "f1", column: "status", op: "eq", value: "Open", enabled: true }])
+    expect(read.sort).toStrictEqual([{ key: "size", dir: "desc", pinned: true }])
+    // A rule with no id, column, or tone reads without them, not with empty text that a column keyed "" would match.
+    expect(readColumnRule({ when: { op: "notNull" } })).toStrictEqual({ when: { op: "notNull" } })
+    // A target that is neither the row nor the cell reads as no target, the cell.
+    expect(readColumnRule({ id: "t", target: "diagonal" })).toStrictEqual({ id: "t" })
+    const decoration = ruleDecoration({ column: "px", when: { op: "notNull" } } as never, columns)
+    expect(decoration["data-rule"]).toBe("")
+    expect(decoration["data-tone"]).toBeUndefined()
+  })
+
+  it("judges and describes a rule as the kind it is told, whatever keys it carries, and reads a column saved as a number", () => {
+    const filterWithTone = { column: "px", op: "gt", value: "100-00", tone: "desk" } as never
+    expect(ruleProblem(filterWithTone, columns, "filter")).toBeNull()
+    expect(describeRule(filterWithTone, columns, "filter")).toBe("Price above 100-00")
+    const flattened = readColumnRule({ column: "status", when: null, tone: null, op: "eq", value: "Open" })!
+    expect(ruleProblem(flattened as never, columns, "highlight")).toBe("The rule needs a comparison.")
+    expect(describeRule(flattened as never, columns, "highlight")).toBe("Status")
+    expect(ruleProblem({ column: "px", when: { op: "notNull" } } as never, columns, "highlight")).toBe("The rule needs a tone.")
+    // A column keyed "" is a column: only a missing key needs one.
+    const blank: RuleColumn<Rfq>[] = [{ key: "", header: "Blank", accessor: () => null }]
+    expect(ruleProblem({ column: "", op: "isNull" } as never, blank, "filter")).toBeNull()
+    expect(ruleProblem({ op: "isNull" } as never, blank, "filter")).toBe("The rule needs a column.")
+    // A condition saved as a list is none, as the grid reads it, whatever op it carries.
+    const listed = Object.assign([], { op: "notNull" })
+    expect(ruleProblem({ column: "px", when: listed, tone: "up" } as never, columns, "highlight")).toBe("The rule needs a comparison.")
+    expect(rows.filter(compileCondition(listed as never, columns[2]!))).toEqual([])
+    // A tone saved as "" is none, as the editor shows it.
+    expect(ruleProblem({ column: "px", when: { op: "notNull" }, tone: "" } as never, columns, "highlight")).toBe("The rule needs a tone.")
+    const seven: RuleColumn<Rfq>[] = [{ key: "7", header: "Seven", accessor: () => null }]
+    expect(describeRule({ column: 7, op: "isNull" } as never, seven, "filter")).toBe("Seven is empty")
+  })
+
+  it("judges and describes a rule that is not an object, a highlight in the filter's shape, and a number JSON cannot print", () => {
+    expect(ruleProblem(null as never, columns)).toBe("The rule needs a column.")
+    expect(describeRule(null as never, columns)).toBe("")
+    expect(describeRule(5 as never, columns)).toBe("")
+    // A tone makes it a highlight, whose condition lives in `when`, as the grid reads it.
+    expect(ruleProblem({ id: "flat", column: "px", op: "gt", value: "100-00", tone: "up" } as never, columns)).toBe("The rule needs a comparison.")
+    expect(ruleProblem({ column: "px", when: { op: Number.NaN } } as never, columns)).toBe('No comparison is named "NaN".')
+  })
+
+  it("compiles, decorates, describes, and judges such rules without throwing, and puts only text on the elements", () => {
+    const raw = [
+      { id: evil, column: "px", when: { op: evil }, tone: evil },
+      { id: "obj", column: { key: "px" }, when: { op: "notNull" }, tone: "up" },
+      { id: "arr", column: "px", when: { op: ["notNull"] }, tone: ["up"] },
+      { id: "fine", column: "px", when: { op: "notNull" }, tone: { name: "up" } },
+    ] as unknown as ColumnRule[]
+    const applied = applyRules(raw, columns)
+    const decoration = applied.cell("px", rows[0]!)!
+    expect(decoration["data-rule"]).toBe("fine")
+    expect(decoration["data-tone"]).toBe('{"name":"up"}')
+    expect(decoration.className).toBe("")
+    for (const rule of raw) {
+      expect(() => describeRule(rule, columns)).not.toThrow()
+      expect(() => ruleProblem(rule, columns)).not.toThrow()
+      expect(typeof ruleDecoration(rule, columns)["data-rule"]).toBe("string")
+    }
+    expect(ruleProblem(raw[0]!, columns)).toBe('No comparison is named "{"toString":0}".')
+    expect(ruleProblem(raw[1]!, columns)).toBe('No column is named "{"key":"px"}".')
+    expect(ruleProblem({ column: undefined } as never, columns)).toBe("The rule needs a column.")
+    expect(describeRule(raw[0]!, columns)).toBe('Price {"toString":0}')
+    // A value the editor would show as text is judged as that text: readable on a text column, not on a number column.
+    expect(ruleProblem({ column: "client", op: "eq", value: { a: 1 } } as never, columns)).toBeNull()
+    expect(ruleProblem({ column: "size", op: "eq", value: { a: 1 } } as never, columns)).toBe('"{"a":1}" is not a value Size reads.')
+    expect(rows.filter(compileFilter({ length: 2 } as never, columns))).toEqual(rows)
+    expect(compileComparator("px" as never, columns)).toBeUndefined()
+    expect(compileComparator({ length: 1, 0: { key: "size", dir: "asc" } } as never, columns)).toBeUndefined()
+    expect(describeRule(raw[1]!, columns)).toBe('{"key":"px"} is not empty')
+    expect(applyRules({ length: 1, 0: raw[3] } as never, columns).byColumn.size).toBe(0)
   })
 })

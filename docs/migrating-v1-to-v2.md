@@ -299,7 +299,9 @@ Each value field renders only when its operator needs it. The parts retain comma
 
 Update selectors for the moved markers. `data-rule-row` and `data-dragging` moved from the `li` to `RulesEditorItem`. `data-rule-id`, `data-filter-index`, and `data-sort-index` moved from the inner field wrapper to that same item element.
 
-Moves use source indices and keep focus on the moved field when available. Drops are limited to the same rule kind in the same editor.
+Moves use source indices and keep focus on the moved field when available. Drops are limited to the same rule kind in the same editor. Alt+Up/Down moves a rule from the item or its buttons, with no other modifier held; v1 also moved it from inside a select or a text field, where Alt+Down opens a select, and with Shift, Ctrl, or Meta held. `onRulesChange` receives `ReadGridRules`, where v1 typed it `GridRules`: an edit can leave a rule incomplete, as typing does, so hold the editor's rules as `ReadGridRules`, the type the grid takes.
+
+Rule data that can't be read no longer throws, and `readRules` reads rules a desk saved or shared into rule objects before you hold them. A condition with an unknown op or no condition matches no rows, and so do `in` and `between` with `values` that aren't a list, so a filter rule with an unknown op excludes every row, where v1 ignored it alone and threw beside another filter rule. A list entry that isn't an object is skipped, and the editor renders and counts nothing for it. Called without a kind, `ruleProblem` and `describeRule` judge a rule with a `when` or a `tone` key as a highlight, where v1 read `rule.when` whenever it was present; pass the kind when you know the rule's list. `ruleProblem` also names a missing or unknown comparison, a range whose low end is above its high end, and a missing or unknown tone. `RuleDecoration["data-tone"]` is typed as optional `string`, where v1 typed it `RuleTone`, since a tone outside `RULE_TONES` arrives as its text. The readers' looser `Read*` types are what the helpers, the grid, and the editor take, and `applyRules(...).byColumn` holds each rule as read, a new object with every field you saved, not your rule object.
 
 Fixed `rules-tab-*` and `rules-panel-*` IDs and the root's `data-tab` marker are removed. Your installed `Tabs` owns tab IDs and state. You can use role/name locators or set explicit IDs on your Tabs parts.
 
@@ -858,7 +860,7 @@ export function QuoteColumns() {
 }
 ```
 
-The pure helpers, `ChooserRow<T>`, label type, and default labels remain exported with their previous semantics. Root commands now compare effective settings: no-op commands emit nothing, and edits normalize equivalent baseline settings and remove retired keys. Definition-hidden settings are retained. Initialize `columnState` from your defaults; `baseState` is the reset target, not an overlay applied to the grid.
+The pure helpers, `ChooserRow<T>`, label type, and default labels remain exported. `rules` takes rules written or read, and `ChooserRow<T>`'s `rules` holds each rule as read, a new object with every field you saved, not your rule object. Root commands now compare effective settings: no-op commands emit nothing, and edits normalize equivalent baseline settings and remove retired keys. Definition-hidden settings are retained. Initialize `columnState` from your defaults; `baseState` is the reset target, not an overlay applied to the grid.
 
 Pass the same `baseState` to DataGrid to align its header-menu reset with the chooser. DataGrid also uses it once to initialize uncontrolled columns. Later defaults changes leave current settings untouched until reset; existing calls without `baseState` retain the empty defaults.
 

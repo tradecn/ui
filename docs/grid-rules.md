@@ -138,7 +138,7 @@ For `eq`, `ne`, and `in`, two strings compare without regard to case; a string a
 | `RULE_OP_LABELS` | Human-readable wording for each operator. |
 | `opsFor(column)` | `NUMBER_OPS` when `column.numeric` is true, otherwise `TEXT_OPS`, including for `undefined`. This is an editor choice list; compilation does not restrict operators by column kind. |
 | `columnName(column, key?)` | A nonblank string header, otherwise the column key. Without a column, uses `key` or `""`. |
-| `describeRule(rule, columns)` | Words for a `ColumnRule` or `FilterRule`: `Price above 99-16+`, `Client one of ALPHA, BETA`, `Status is empty`. A string value prints through the column's `format` over its parsed, normalized reading when the column has both `parse` and `format`, so the words say what the rule compares; it stays as typed otherwise. |
+| `describeRule(rule, columns, kind?)` | Words for a highlight or a filter rule, written or read, judged as `kind` as `ruleProblem` judges it: `Price above 99-16+`, `Client one of ALPHA, BETA`, `Status is empty`. A string value prints through the column's `format` over its parsed, normalized reading when the column has both `parse` and `format`, so the words say what the rule compares; it stays as typed otherwise. |
 
 ### Values are typed in the column's format
 
@@ -162,6 +162,7 @@ For `eq`, `ne`, and `in`, two strings compare without regard to case; a string a
 | Any other string | Keeps the text, including `""`. |
 | Number or boolean | Keeps the value, except nonfinite numbers become `null`. |
 | `null` or `undefined` | Returns `null`. |
+| Anything else, such as an object or a list from unread JSON | Returns `null`. |
 
 `normalizeValue(value)` maps `null`, `undefined`, `NaN`, and infinities to `null`, leaving other values unchanged. A custom `parse` should return a missing value when it cannot read the text; thrown errors are not caught.
 
@@ -169,7 +170,11 @@ For a 32nds price column, use `parse: (text) => parsePrice(text, convention)` to
 
 If a required scalar comparison value parses to `null`, the condition matches no rows. As a highlight, it colors nothing; as a filter, it excludes every row. For `in` and `between`, compilation drops values that parse to `null`: `in` uses the remaining candidates, and `between` uses the first two remaining values, low then high. No candidates, or fewer than two endpoints, matches nothing.
 
-`ruleProblem(rule, columns)` accepts a `ColumnRule` or `FilterRule` and returns a problem sentence or `null`. Use it to show missing columns, missing or unreadable inputs, or a range without exactly two endpoints. It checks the supplied rule separately; compilation does not call it. For example, an `in` list containing one readable and one unreadable numeric value reports a problem but still compiles to match the readable value.
+Rules arrive as data, so a rule that can't be read never throws. Read rules a desk saved or shared with `readRules` before you hold them: a list that isn't a list reads as none, an entry that isn't an object, a list included, is dropped, every name and word reads as text, and a value that isn't text, a number, a boolean, or `null` reads as text, its JSON where it has one, so the value the editor shows is the value compared. An op or a tone this version doesn't know stays as its text for `ruleProblem` to name. A `dir` other than `"desc"` reads as ascending, and a `target` other than `"row"` or `"cell"`, or a `label` that isn't text, reads to nothing. A field that reads to nothing is left out, so any field of a read rule can be missing, and an edit saves the rule without it. Every field the readers don't read passes through, so the fields your app keeps on a rule survive an edit. The grid, the editor, the column chooser, and the helpers below read each entry the same way, so unread JSON doesn't throw either.
+
+A condition that is missing, or names an op not in `RULE_OPS`, matches no rows, like an unreadable value, and so do `in` and `between` when their `values` aren't a list. A tone outside `RULE_TONES` paints nothing, and the rule's words still describe the cells it matches.
+
+`ruleProblem(rule, columns, kind?)` accepts a highlight or a filter rule, written or read, and returns a problem sentence or `null`. Pass `kind`, a `RuleKind` (`"highlight"` or `"filter"`), when you know the rule's list: a filter can carry a field of your own named `tone`, and a read highlight can lack its `when`. Without `kind`, a rule with a `when` or a `tone` key is judged as a highlight, and its tone is checked only when it has the key; with `kind: "highlight"`, a missing tone is a problem too. Use it to show missing columns, a missing or unknown comparison, missing or unreadable inputs, a range without exactly two endpoints or with its low end above its high end, and a missing or unknown tone. It checks the supplied rule separately; compilation does not call it. For example, an `in` list containing one readable and one unreadable numeric value reports a problem but still compiles to match the readable value.
 
 ### Tones are tokens
 
@@ -177,16 +182,28 @@ If a required scalar comparison value parses to `null`, the condition matches no
 
 The text uses the token color. The background uses its soft variant, or a 12% tint for `primary` and `destructive`. This tint is a background image: a frozen cell keeps its opaque background, and a selected row's highlight shows through.
 
-`ruleDecoration(rule, columns)` returns a `RuleDecoration` for a `ColumnRule`, without checking whether it matches:
+`ruleDecoration(rule, columns)` returns a `RuleDecoration` for a highlight, written or read, without checking whether it matches:
 
 | Field | Type | Value |
 |---|---|---|
-| `data-rule` | `string` | Rule `id`. |
-| `data-tone` | `RuleTone` | Rule `tone`. |
-| `aria-description` | `string` | Trimmed `label`, or `describeRule(rule, columns)` when the label is absent or blank. |
-| `className` | `string` | `RULE_TONE_CLASS[rule.tone]`. |
+| `data-rule` | `string` | Rule `id`, as text, or empty for a rule without one. |
+| `data-tone` | `string`, optional | Rule `tone`, as text, and absent for a rule without one. One outside `RULE_TONES` paints nothing. |
+| `aria-description` | `string` | Trimmed `label`, or `describeRule(rule, columns, "highlight")` when the label is absent, blank, or not text. |
+| `className` | `string` | `RULE_TONE_CLASS[rule.tone]`, or empty for a tone outside `RULE_TONES`. |
 
 These attributes carry the rule's meaning alongside its color for tests and assistive technology. In `DataGrid`, an edit rejection takes precedence over the cell's rule description, and your `getRowProps` can override the row's description and data attributes.
+
+### Reading saved rules
+
+The readers return looser types than the ones you write: `ReadGridRules`, `ReadColumnRule`, `ReadFilterRule`, `ReadSortRule`, and `ReadCondition`. Any field can be missing, and an op or a tone can be text this version doesn't know, so code that reads a read rule checks its fields first. Every helper, the grid, and the editor take these types, and rules you wrote fit them too.
+
+| Function | Input | Result |
+|---|---|---|
+| `readRules(value)` | Any JSON | `ReadGridRules`, each list read with the readers below. A list that isn't a list is absent, and an entry that isn't an object, a list included, is dropped. |
+| `readColumnRule(value)` | Any JSON | A `ReadColumnRule`, or `null` when the value isn't an object, a list included. Its label stays only when it is text, and its target only when it says `"row"` or `"cell"`. |
+| `readFilterRule(value)` | Any JSON | A `ReadFilterRule`, or `null` when the value isn't an object, a list included. |
+| `readSortRule(value)` | Any JSON | A `ReadSortRule`, or `null` when the value isn't an object, a list included. Its direction is descending only when it says `"desc"`. |
+| `readCondition(value)` | Any JSON | A `ReadCondition`, or `undefined` when the value isn't an object, a list included. Its `values` come only from a list. |
 
 ### Compiling
 
@@ -194,14 +211,14 @@ The compilation helpers take `RuleColumn<T>` columns. Functions that take rule l
 
 | Function | Input | Result |
 |---|---|---|
-| `compileCondition(condition, column)` | One `RuleCondition` and one column | `(row: T) => boolean`. |
-| `compileFilter(rules, columns)` | `FilterRule[]` | `(row: T) => boolean`; all compiled conditions must hold. With no rules naming existing columns, every row passes. |
-| `compileComparator(rules, columns)` | `SortRule[]` | `(a: T, b: T) => number`, or `undefined` with no rules naming existing columns. Tries rules in order; returns `0` when all tie. |
-| `applyRules(rules, columns)` | `ColumnRule[]` | `AppliedRules<T>`, described below. |
+| `compileCondition(condition, column)` | One condition, written or read, and one column | `(row: T) => boolean`. |
+| `compileFilter(rules, columns)` | Filter rules, written or read | `(row: T) => boolean`; all compiled conditions must hold. With no rules naming existing columns, every row passes. |
+| `compileComparator(rules, columns)` | Sort keys, written or read | `(a: T, b: T) => number`, or `undefined` with no rules naming existing columns. Tries rules in order; returns `0` when all tie. |
+| `applyRules(rules, columns)` | Highlights, written or read | `AppliedRules<T>`, described below. |
 | `compareValues(a, b)` | Two values of type `unknown` | Numeric comparison for two numbers, text comparison otherwise; missing values last. |
 | `compareDirected(a, b, dir)` | Two values and `"asc"` or `"desc"` | The same comparison in the requested direction, with missing values still last. |
 
-Compilation parses condition inputs before evaluating rows. Compiled conditions read row values through the column's `accessor` as needed. Recompile when rules or columns change.
+Compilation reads its input as `readRules` does, then parses condition inputs before evaluating rows, so a condition compiled alone compares what the same condition in a list compares. Compiled conditions read row values through the column's `accessor` as needed. Recompile when rules or columns change.
 
 `AppliedRules<T>` provides:
 
@@ -209,7 +226,7 @@ Compilation parses condition inputs before evaluating rows. Compiled conditions 
 |---|---|---|
 | `cell` | `(columnKey: string, row: T) => RuleDecoration \| undefined` | First matching cell rule for this column. |
 | `getRowProps` | `(row: T) => RuleDecoration \| undefined` | First matching row rule. |
-| `byColumn` | `ReadonlyMap<string, readonly ColumnRule[]>` | All rules naming known columns, grouped by column key in input order, including row rules. |
+| `byColumn` | `ReadonlyMap<string, readonly ReadColumnRule[]>` | All rules naming known columns, each as read with every field you saved, grouped by column key in input order, including row rules. |
 
 `DataGrid` compiles its `rules` prop itself. Its header sort takes precedence, with rule sorting breaking ties; its `filter` callback must pass along with rule filters. With a custom `view`, the grid ignores rule filtering and sorting but still applies decorations. Keep rule arrays and columns stable between renders until they change.
 

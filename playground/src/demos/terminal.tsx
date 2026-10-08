@@ -19,7 +19,7 @@ import { useRow, useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-ro
 import { checkContract, type ContractReport } from "@/registry/tradecn/lib/agent-kit"
 import { createAlertStore, type Alert, type AlertStore } from "@/registry/tradecn/lib/alert-store"
 import { createInstrumentFormatter, formatDv01, formatNotional, formatPrice, formatQuantity, roundToTick, NUMERIC_CLASS, type InstrumentConvention } from "@/registry/tradecn/lib/format"
-import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
+import type { GridRules, ReadGridRules } from "@/registry/tradecn/lib/grid-rules"
 import { formatKeys, type HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
 import type { Limits } from "@/registry/tradecn/lib/limits"
 import type { LinkGroup } from "@/registry/tradecn/lib/link-group"
@@ -793,8 +793,8 @@ const UiContext = createContext<(dialog: DeskDialog | null) => void>(() => {})
 interface Stack {
   view: RowView<Inquiry>
   active: ActiveInquiry<Inquiry>
-  rules: GridRules
-  setRules: (rules: GridRules) => void
+  rules: ReadGridRules
+  setRules: (rules: ReadGridRules) => void
   columnState: ColumnState
   setColumnState: (state: ColumnState) => void
   threshold: number | null
@@ -809,7 +809,7 @@ function useStack(): Stack {
 
 function StackProvider({ children }: { children: ReactNode }) {
   const desk = useDesk()
-  const [rules, setRules] = useState<GridRules>(STACK_RULES)
+  const [rules, setRules] = useState<ReadGridRules>(STACK_RULES)
   const [columnState, setColumnState] = useState<ColumnState>(EMPTY_COLUMN_STATE)
   const [threshold, setThreshold] = useState<number | null>(2_000_000)
   // Largest first, then the one about to end, the threshold and the rules folded in. The grid holds it still under a hand.

@@ -97,7 +97,7 @@ Scroll down before receiving a batch to see the RFQ preset keep the first visibl
 | `preset` | `DataGridPreset` | `"blotter"` | Defaults from the preset table. |
 | `view` | `RowView<T>` | Internally owned view | Supply your own membership, order, and reorder hold. |
 | `filter` | `(row: T) => boolean` | None | Filter the internally owned view. |
-| `rules` | `GridRules` | None | Cell and row tones, filters, and sort rules. |
+| `rules` | `ReadGridRules` | None | Cell and row tones, filters, and sort rules, written or read with [`readRules`](grid-rules.md#reading-saved-rules). |
 | `rowHeight` | `number` | Preset | Fixed row height in px. |
 | `overscan` | `number` | `8` | Extra rows rendered beyond the viewport. |
 | `rowEnter` | `Partial<RowEnterBehavior>` | Preset | Override `highlight`, `pinViewport`, or `followTail` booleans. |

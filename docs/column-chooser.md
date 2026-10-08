@@ -164,7 +164,7 @@ Use cards to place descriptions beside column settings and move actions below ea
 | `baseState` | `ColumnState` | Empty state | Shared defaults for reset and default-state comparisons. |
 | `presented` | `readonly string[]` | Search-result keys | Column keys in your collection's render order. |
 | `children` | `ReactNode` | Required | Your controls, collection, and surrounding content. Conditional content is supported. |
-| `rules` | `ColumnRule[]` | Omitted | Highlight rules shown beside their columns. |
+| `rules` | `readonly ReadColumnRule[]` | Omitted | Highlight rules, written or read, shown beside their columns. |
 | `labels` | `Partial<ColumnChooserLabels>` | Default labels | Words used by readings and controls. |
 | `className` | `string` | Omitted | Additional classes to apply to the root. |
 
@@ -197,7 +197,7 @@ Search, click, keyboard, and drag handlers run before the corresponding chooser 
 
 ### Hooks
 
-`useColumnChooser()` returns `ColumnChooserState`: full `rows`, filtered `shown`, normalized `presented`, `query`, `setQuery`, `labels`, `hiddenCount`, `isDefault`, and `reset`. Each `ColumnChooserEntry` has `key`, `name`, `visible`, `frozen`, `width`, `resized`, and `rules`. `resized` compares the width with `baseState`; each rule reading contains its source `rule` and computed `description`.
+`useColumnChooser()` returns `ColumnChooserState`: full `rows`, filtered `shown`, normalized `presented`, `query`, `setQuery`, `labels`, `hiddenCount`, `isDefault`, and `reset`. Each `ColumnChooserEntry` has `key`, `name`, `visible`, `frozen`, `width`, `resized`, and `rules`. `resized` compares the width with `baseState`; each rule reading contains the `rule` as the grid reads it, with every field you saved on it, and its computed `description`.
 
 `useColumnChooserItem()` returns `ColumnChooserItemState`: `row`, `canMoveUp`, `canMoveDown`, `dragging`, `setVisible(visible)`, `move(-1 | 1)`, `moveToEdge("start" | "end")`, and `resetWidth()`. Both hooks require their named owner. The item coordinates drag and focus even when you replace its controls.
 

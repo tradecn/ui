@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Input } from "@/components/ui/input"
 import { useView } from "@/registry/tradecn/hooks/use-row-store"
 import { NULL_TOKEN, formatNotional, formatPrice, formatQuantity } from "@/registry/tradecn/lib/format"
-import { applyRules, compileComparator, compileFilter, type GridRules, type RuleColumn } from "@/registry/tradecn/lib/grid-rules"
+import { applyRules, compileComparator, compileFilter, type ReadGridRules, type RuleColumn } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 import { Countdown, type CountdownThresholds } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, type ColumnDef, type DataGridProps } from "@/registry/tradecn/ui/data-grid"
@@ -151,7 +151,7 @@ export interface RfqStackViewOptions<T extends RfqStackRow> {
    * and `rules.sort` breaks the comparator's ties, or is the order when there is no comparator. The
    * grid ignores both on a view of yours, which is why they are read here.
    */
-  rules?: GridRules
+  rules?: ReadGridRules
   /** The columns the rules name, when they are not `rfqStackColumns()`. */
   columns?: readonly RuleColumn<T>[]
 }

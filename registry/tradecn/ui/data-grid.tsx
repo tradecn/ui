@@ -27,7 +27,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { createFlashMemory, playFlash, useFlash, type FlashMemory } from "@/registry/tradecn/hooks/use-flash"
 import { useRow, useRowIds, useStoreMeta, useView } from "@/registry/tradecn/hooks/use-row-store"
 import { MONO_NUMERIC_CLASS, NULL_TOKEN, NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
-import { applyRules, compareDirected, compareValues, compileComparator, compileFilter, type AppliedRules, type GridRules, type RuleDecoration } from "@/registry/tradecn/lib/grid-rules"
+import { applyRules, compareDirected, compareValues, compileComparator, compileFilter, type AppliedRules, type ReadGridRules, type RuleDecoration } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 
 // A virtualized grid fed by a RowStore one row at a time.
@@ -220,7 +220,7 @@ export interface DataGridProps<T> {
    * With a `view` of your own the grid ignores `rules.filter` and `rules.sort`, as it ignores `filter`.
    * Keep the object's identity stable between renders, as with `filter`.
    */
-  rules?: GridRules
+  rules?: ReadGridRules
   /**
    * Totals: a sticky row under the body with one value per column named here, given the view's rows
    * (filtered and ordered, what is on screen). Recomputed once per applied batch, never per frame, and
@@ -679,7 +679,7 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
         focusedCol && "bg-muted/50",
         status?.kind === "pending" && "text-muted-foreground italic",
         rejected !== null && "text-destructive",
-        rule?.className ?? (left !== undefined ? rowRule?.className : undefined),
+        rule?.className || (left !== undefined ? rowRule?.className : undefined),
       )}
       style={left !== undefined ? { left } : undefined}
     >

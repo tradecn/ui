@@ -1,15 +1,16 @@
 import { StrictMode, createRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RulesEditorSections, TabbedRulesEditor } from "@/demos/rules-editor-tabs"
 import RulesEditorDemo from "@/demos/rules-editor"
 import RulesEditorLayoutDemo from "@/demos/rules-editor-layout"
-import { act, fireEvent, render, screen, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { parsePrice } from "@/registry/tradecn/lib/format"
-import type { FilterRule, GridRules } from "@/registry/tradecn/lib/grid-rules"
+import type { ColumnRule, FilterRule, GridRules, ReadGridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 import type { ColumnDef, ColumnState } from "@/registry/tradecn/ui/data-grid"
-import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorFilterCount, RulesEditorItem, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorValue, useRulesEditor, useRulesEditorItem, DEFAULT_RULES_EDITOR_LABELS, moveItem, newFilter, newHighlight, newSort, parseValues, valueShape, valuesText, withColumn, withOp } from "@/registry/tradecn/ui/rules-editor"
+import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorDirection, RulesEditorFilterCount, RulesEditorItem, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorRuleCount, RulesEditorTone, RulesEditorToneSwatch, RulesEditorValue, useRulesEditor, useRulesEditorItem, DEFAULT_RULES_EDITOR_LABELS, moveItem, newFilter, newHighlight, newSort, parseValues, valueShape, valuesText, withColumn, withOp } from "@/registry/tradecn/ui/rules-editor"
 
 interface Rfq {
   id: string
@@ -80,6 +81,10 @@ describe("the helpers", () => {
     expect(withColumn({ op: "between", values: ["1", "2"] }, columns[1])).toEqual({ op: "eq" })
     expect(withColumn({ op: "contains", value: "a" }, columns[2])).toEqual({ op: "eq" })
     expect(withColumn({ op: "eq", value: "a" }, columns[2])).toEqual({ op: "eq", value: "a" })
+    // Their op is one the module knows, so what they return fits a rule as written.
+    const written: ColumnRule = { id: "low", column: "px", when: withOp({ op: "gt", value: "5" }, "lt"), tone: "down" }
+    const filter: FilterRule = { column: "client", ...withColumn({ op: "gt", value: "5" }, columns[1]) }
+    expect([written.when, filter]).toEqual([{ op: "lt", value: "5" }, { column: "client", op: "eq" }])
   })
 
   it("moves an item, and makes a new highlight, filter, and sort key on the first column that fits", () => {
@@ -403,9 +408,9 @@ describe("RulesEditor", () => {
     expect(change).not.toHaveBeenCalled()
   })
 
-  it("retains field focus through edits and moves, then finds a useful target after removal", () => {
+  it("retains field focus through edits, then finds a useful target after removal", () => {
     function Controlled() {
-      const [rules, setRules] = useState(RULES)
+      const [rules, setRules] = useState<ReadGridRules>(RULES)
       return <TabbedRulesEditor columns={columns} rules={rules} onRulesChange={setRules} />
     }
     render(<Controlled />)
@@ -413,9 +418,6 @@ describe("RulesEditor", () => {
     value.focus()
     fireEvent.change(value, { target: { value: "101-00" } })
     expect(value).toHaveFocus()
-    fireEvent.keyDown(value, { key: "ArrowDown", altKey: true })
-    expect(screen.getByLabelText("Value: Rich to the market")).toHaveFocus()
-    expect(document.querySelectorAll("[data-rule-id]")[1]).toHaveAttribute("data-rule-id", "rich")
     const remove = screen.getByRole("button", { name: "Remove: Rich to the market" })
     remove.focus()
     fireEvent.click(remove)
@@ -603,22 +605,332 @@ describe("RulesEditor", () => {
   })
 
   it("keeps moved field focus when the caller accepts copied rules with reordered properties", () => {
+    const THREE: GridRules = { ...RULES, sort: [...RULES.sort!, { key: "client", dir: "asc" }] }
     function Controlled() {
-      const [rules, setRules] = useState(RULES)
+      const [rules, setRules] = useState<ReadGridRules>(THREE)
       return <TabbedRulesEditor columns={columns} rules={rules} defaultTab="sort" onRulesChange={(next) => setRules({ ...structuredClone(next), sort: next.sort?.map(({ key, dir }) => ({ dir, key })) })} />
     }
     render(<Controlled />)
-    screen.getByLabelText("Column: Sort 1").focus()
-    fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
+    const down = screen.getByRole("button", { name: "Move down: Sort 1" })
+    down.focus()
+    fireEvent.click(down)
     expect(screen.getByLabelText("Column: Sort 2")).toHaveValue("size")
-    expect(screen.getByLabelText("Column: Sort 2")).toHaveFocus()
+    expect(screen.getByRole("button", { name: "Move down: Sort 2" })).toHaveFocus()
+    // From the rule itself, the rule keeps focus.
+    const item = document.querySelector<HTMLElement>("[data-rule-kind='sort'][data-rule-row='1']")!
+    item.focus()
+    fireEvent.keyDown(item, { key: "ArrowDown", altKey: true })
+    expect(screen.getByLabelText("Column: Sort 3")).toHaveValue("size")
+    expect(document.querySelector("[data-rule-kind='sort'][data-rule-row='2']")).toHaveFocus()
+  })
+
+  it("shows a stored op the column does not offer, an op and a tone it does not know, as they are, says the problem, and counts nothing for them", () => {
+    const rules: GridRules = { columns: [
+      { id: "after", column: "client", when: { op: "gt", value: "C" }, tone: "up", label: "After C" },
+      { id: "odd", column: "px", when: { op: "gtx" as never, value: "99-16" }, tone: "up", label: "Odd" },
+      { id: "hue", column: "px", when: { op: "notNull" }, tone: "warning" as never, label: "Hue" },
+    ] }
+    render(<TabbedRulesEditor columns={columns} rules={rules} onRulesChange={() => {}} store={seeded()} />)
+    const shown = (label: string) => {
+      const select = screen.getByLabelText(label) as HTMLSelectElement
+      return [select.value, select.selectedOptions[0]?.textContent]
+    }
+    expect(shown("Condition: After C")).toEqual(["gt", "above"])
+    expect(shown("Condition: Odd")).toEqual(["gtx", '"gtx"'])
+    expect(shown("Tone: Hue")).toEqual(["warning", '"warning"'])
+    expect(document.querySelector("[data-rule-id='after'] [data-rule-count]")).toHaveAttribute("data-rule-count", "2")
+    expect(document.querySelector("[data-rule-id='odd'] [data-rule-count]")).toHaveAttribute("data-rule-count", "0")
+    expect(document.querySelector("[data-rule-id='odd']")).toHaveTextContent('No comparison is named "gtx".')
+    expect(document.querySelector("[data-rule-id='hue']")).toHaveTextContent('No tone is named "warning".')
+  })
+
+  it("edits a highlight with no condition, a condition that is not an object, the filter's shape, no tone, a label that is not text, or values that are not a list", () => {
+    let latest: ReadGridRules | undefined
+    function Controlled() {
+      const [rules, setRules] = useState<ReadGridRules>({ columns: [
+        { id: "bare", column: "px", tone: "up", label: "Bare" } as never,
+        { id: "five", column: "px", when: { op: "notNull" }, tone: "up", label: 5 as never },
+        { id: "list", column: "client", when: { op: "in", values: "ALPHA" as never }, tone: "up", label: "List" },
+        { id: "word", column: "px", when: "gt" as never, tone: "up", label: "Word" },
+        { id: "flat", column: "px", op: "gt", value: "100-00", tone: "up", label: "Flat" } as never,
+        { id: "toneless", column: "px", when: { op: "notNull" }, label: "Toneless" } as never,
+      ] })
+      return <TabbedRulesEditor columns={columns} rules={rules} onRulesChange={(next) => { latest = next; setRules(next) }} />
+    }
+    render(<Controlled />)
+    // Each highlight is checked as a highlight, whatever keys it carries, and offers a blank comparison to choose.
+    for (const name of ["Bare", "Word", "Flat"]) {
+      expect(document.querySelector(`[data-rule-id='${name.toLowerCase()}']`)).toHaveTextContent("The rule needs a comparison.")
+      expect(screen.getByLabelText(`Condition: ${name}`)).toHaveValue("")
+      // A missing comparison is a blank choice, not two quote marks.
+      expect((screen.getByLabelText(`Condition: ${name}`) as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("")
+    }
+    expect(document.querySelector("[data-rule-id='toneless']")).toHaveTextContent("The rule needs a tone.")
+    expect(screen.getByLabelText("Tone: Toneless")).toHaveValue("")
+    expect((screen.getByLabelText("Tone: Toneless") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("")
+    // A column chosen for a bare rule brings that column's first comparison.
+    fireEvent.change(screen.getByLabelText("Column: Bare"), { target: { value: "client" } })
+    expect(latest?.columns?.[0]).toMatchObject({ column: "client", when: { op: "eq" } })
+    expect(screen.getByLabelText("Condition: Bare")).toHaveValue("eq")
+    // A comparison chosen for one that is not an object replaces it.
+    fireEvent.change(screen.getByLabelText("Condition: Word"), { target: { value: "gt" } })
+    expect(latest?.columns?.[3]).toMatchObject({ when: { op: "gt" } })
+    expect(document.querySelector("[data-rule-id='word']")).toHaveTextContent("above needs a value.")
+    // A label that is not text names the rule by its place.
+    expect(screen.getByLabelText("Condition: Highlights 2")).toHaveValue("notNull")
+    expect(screen.getByLabelText("Values, comma separated: List")).toHaveValue("")
+  })
+
+  it("renders and counts nothing for an entry that is not a rule, with a store, and adds a sort key beside one", () => {
+    let latest: ReadGridRules | undefined
+    function Controlled() {
+      const [rules, setRules] = useState<ReadGridRules>({
+        columns: [null as never, { id: "after", column: "client", when: { op: "gt", value: "C" }, tone: "up", label: "After C" }],
+        filter: [null as never, { column: "status", op: "eq", value: "Open" }],
+        sort: [null as never],
+      })
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={(next) => { latest = next; setRules(next) }} store={seeded()}>
+        {rules.columns?.map((rule, index) => typeof rule === "object" && rule !== null && <RulesEditorItem key={rule.id} kind="highlights" index={index}><RulesEditorMatchCount /></RulesEditorItem>)}
+        {rules.filter?.map((rule, index) => typeof rule === "object" && rule !== null && <RulesEditorItem key={index} kind="filters" index={index}><RulesEditorMatchCount /></RulesEditorItem>)}
+        <span data-testid="highlight-count"><RulesEditorRuleCount kind="highlights" /></span>
+        <RulesEditorAdd kind="sort">Add sort key</RulesEditorAdd>
+      </RulesEditor>
+    }
+    render(<Controlled />)
+    expect(document.querySelector("[data-rule-id='after'] [data-rule-count]")).toHaveAttribute("data-rule-count", "2")
+    expect(document.querySelectorAll("[data-rule-kind='highlights']")).toHaveLength(1)
+    expect(screen.getByTestId("highlight-count")).toHaveTextContent(/^1$/)
+    fireEvent.click(screen.getByRole("button", { name: "Add sort key" }))
+    expect(latest?.sort).toEqual([null, { key: "id", dir: "asc" }])
+  })
+
+  it("reads every entry as the grid does: objects where text belongs show as their JSON, a list that is not a list holds nothing, and Add starts one", () => {
+    let latest: ReadGridRules | undefined
+    const evil = { toString: 0 }
+    function Controlled() {
+      const [rules, setRules] = useState<ReadGridRules>({
+        columns: [
+          { id: "keyed", column: { key: "px" }, when: { op: "notNull" }, tone: "up", label: "Keyed" },
+          { id: "hued", column: "px", when: { op: evil }, tone: { name: "up" }, label: "Hued" },
+          { id: "listed", column: "px", when: { op: ["eq"] }, tone: ["up"], label: "Listed" },
+        ] as never,
+        filter: { column: "status", op: "eq", value: "Open" } as never,
+      })
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={(next) => { latest = next; setRules(next) }} store={seeded()}>
+        {Array.isArray(rules.columns) && rules.columns.map((rule, index) => <RulesEditorItem key={rule.id} kind="highlights" index={index}>
+          <RulesEditorColumn /><RulesEditorOperator /><RulesEditorTone /><RulesEditorToneSwatch /><RulesEditorMatchCount /><RulesEditorProblem />
+        </RulesEditorItem>)}
+        <RulesEditorFilterCount />
+        <RulesEditorAdd kind="filters">Add filter</RulesEditorAdd>
+      </RulesEditor>
+    }
+    render(<Controlled />)
+    const shown = (label: string) => {
+      const select = screen.getByLabelText(label) as HTMLSelectElement
+      return [select.value, select.selectedOptions[0]?.textContent]
+    }
+    expect(shown("Column: Keyed")).toEqual(['{"key":"px"}', '{"key":"px"}'])
+    expect(shown("Condition: Hued")).toEqual(['{"toString":0}', '"{"toString":0}"'])
+    expect(shown("Tone: Hued")).toEqual(['{"name":"up"}', '"{"name":"up"}"'])
+    expect(shown("Condition: Listed")).toEqual(['["eq"]', '"["eq"]"'])
+    expect(shown("Tone: Listed")).toEqual(['["up"]', '"["up"]"'])
+    expect(document.querySelector("[data-rule-id='keyed']")).toHaveTextContent('No column is named "{"key":"px"}".')
+    expect(document.querySelector("[data-rule-id='hued']")).toHaveTextContent('No comparison is named "{"toString":0}".')
+    expect(document.querySelector("[data-rule-id='hued'] [data-rule-swatch]")).toHaveAttribute("data-rule-swatch", '{"name":"up"}')
+    expect(document.querySelector("[data-rule-id='listed'] [data-rule-swatch]")!.className).not.toContain("text-up")
+    expect(document.querySelector("[data-rule-id='keyed'] [data-rule-count]")).toHaveAttribute("data-rule-count", "0")
+    fireEvent.click(screen.getByText("Add filter"))
+    expect(latest?.filter).toEqual([expect.objectContaining({ column: expect.any(String) })])
+  })
+
+  it("keeps every field an app saved on a rule through an edit: a highlight's, its condition's, a filter's, and a sort key's", () => {
+    let latest: ReadGridRules | undefined
+    function Controlled() {
+      const [rules, setRules] = useState<ReadGridRules>({
+        columns: [{ id: "rich", column: "px", when: { op: "gte", value: "100-00", note: "desk" }, tone: "up", label: "Rich", owner: "desk-a" } as never],
+        filter: [{ id: "f1", column: "status", op: "eq", value: "Open", enabled: true } as never],
+        sort: [{ key: "size", dir: "desc", pinned: true } as never],
+      })
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={(next) => { latest = next; setRules(next) }}>
+        {rules.columns?.map((rule, index) => <RulesEditorItem key={rule.id} kind="highlights" index={index}><RulesEditorColumn /><RulesEditorTone /><RulesEditorValue /></RulesEditorItem>)}
+        {rules.filter?.map((_, index) => <RulesEditorItem key={index} kind="filters" index={index}><RulesEditorValue /></RulesEditorItem>)}
+        {rules.sort?.map((_, index) => <RulesEditorItem key={index} kind="sort" index={index}><RulesEditorDirection /></RulesEditorItem>)}
+      </RulesEditor>
+    }
+    render(<Controlled />)
+    fireEvent.change(screen.getByLabelText("Tone: Rich"), { target: { value: "down" } })
+    expect(latest?.columns?.[0]).toMatchObject({ owner: "desk-a", tone: "down", when: { note: "desk", op: "gte" } })
+    fireEvent.change(screen.getByLabelText("Value: Rich"), { target: { value: "101-00" } })
+    expect(latest?.columns?.[0]).toMatchObject({ owner: "desk-a", when: { note: "desk", value: "101-00" } })
+    fireEvent.change(screen.getByLabelText("Value: Filters 1"), { target: { value: "Quoted" } })
+    expect(latest?.filter?.[0]).toMatchObject({ id: "f1", enabled: true, value: "Quoted" })
+    fireEvent.change(screen.getByLabelText("Direction: Sort 1"), { target: { value: "asc" } })
+    expect(latest?.sort?.[0]).toMatchObject({ pinned: true, dir: "asc" })
+    // A text column does not offer "at or above": the comparison changes and its values go, the condition's own fields stay.
+    fireEvent.change(screen.getByLabelText("Column: Rich"), { target: { value: "client" } })
+    expect(latest?.columns?.[0]).toMatchObject({ owner: "desk-a", column: "client", when: { op: "eq", note: "desk" } })
+    expect(latest?.columns?.[0]?.when).not.toHaveProperty("value")
+  })
+
+  it("changes an op the column no longer offers, or one no version knows, keeping the condition's own fields, and the value too for an op no version knows", () => {
+    expect(withOp({ op: "gtx", value: "5", note: 1 } as never, "gt")).toEqual({ op: "gt", value: "5", note: 1 })
+    expect(withOp({ op: "gt", value: "5", note: 1 } as never, "between")).toEqual({ op: "between", note: 1 })
+    expect(withColumn({ op: "contains", value: "A", note: 1 } as never, columns[2])).toEqual({ op: "eq", note: 1 })
+  })
+
+  it("takes rules that are not an object as none, and a sort key with no key says it needs a column", () => {
+    render(<RulesEditor columns={columns} rules={null as never} onRulesChange={() => {}} store={seeded()}><RulesEditorFilterCount /></RulesEditor>)
+    cleanup()
+    render(<RulesEditor columns={columns} rules={{ sort: [{ dir: "asc" } as never, { key: "", dir: "asc" }] }} onRulesChange={() => {}}>
+      <RulesEditorItem kind="sort" index={0}><RulesEditorProblem /></RulesEditorItem>
+      <RulesEditorItem kind="sort" index={1}><RulesEditorProblem /></RulesEditorItem>
+    </RulesEditor>)
+    expect(document.querySelector("[data-sort-index='0']")).toHaveTextContent("The rule needs a column.")
+    // A key saved as "" is a key, looked up like any other.
+    expect(document.querySelector("[data-sort-index='1']")).toHaveTextContent('No column is named "".')
+  })
+
+  it("judges a filter as a filter whatever keys it carries, and edits one with no column from a blank one", () => {
+    let latest: ReadGridRules | undefined
+    render(<RulesEditor columns={columns} rules={{ filter: [
+      { column: "px", op: "gt", value: "100-00", tone: "desk" } as never,
+      { column: "status", when: { op: "eq", value: "Open" } } as never,
+      { op: "eq", value: "x" } as never,
+    ] }} onRulesChange={(next) => { latest = next }}>
+      {[0, 1, 2].map((index) => <RulesEditorItem key={index} kind="filters" index={index}><RulesEditorColumn /><RulesEditorOperator /><RulesEditorProblem /></RulesEditorItem>)}
+    </RulesEditor>)
+    // An app's own tone on a filter is no part of it: the filter compares, and nothing is wrong.
+    expect(screen.getByLabelText("Condition: Filters 1")).toHaveValue("gt")
+    expect(document.querySelector("[data-filter-index='0'] [data-rule-problem]")).toBeNull()
+    // A leftover condition does not stand in for the filter's own comparison.
+    expect(document.querySelector("[data-filter-index='1']")).toHaveTextContent("The rule needs a comparison.")
+    expect(screen.getByLabelText("Column: Filters 3")).toHaveValue("")
+    expect(document.querySelector("[data-filter-index='2']")).toHaveTextContent("The rule needs a column.")
+    // A new comparison keeps the filter without a column: the editor's blank is not a key.
+    fireEvent.change(screen.getByLabelText("Condition: Filters 3"), { target: { value: "contains" } })
+    expect(latest?.filter?.[2]).toStrictEqual({ op: "contains", value: "x" })
+  })
+
+  it("shows a rule with no column as a blank, even beside a column keyed \"\", which the grid would not use for it", () => {
+    const keyed: ColumnDef<Rfq>[] = [...columns, { key: "", header: "Blank", width: 60, accessor: () => null }]
+    render(<RulesEditor columns={keyed} rules={{
+      columns: [{ id: "none", when: { op: "isNull" }, tone: "up", label: "None" } as never, { id: "keyed", column: "", when: { op: "isNull" }, tone: "up", label: "Keyed" }],
+      filter: [{ op: "isNull" } as never, { column: "", op: "isNull" }],
+      sort: [{ dir: "asc" } as never, { key: "", dir: "asc" }],
+    }} onRulesChange={() => {}}>
+      {[0, 1].map((index) => <RulesEditorItem key={`h${index}`} kind="highlights" index={index}><RulesEditorColumn /><RulesEditorProblem /></RulesEditorItem>)}
+      {[0, 1].map((index) => <RulesEditorItem key={`f${index}`} kind="filters" index={index}><RulesEditorColumn /><RulesEditorProblem /></RulesEditorItem>)}
+      {[0, 1].map((index) => <RulesEditorItem key={`s${index}`} kind="sort" index={index}><RulesEditorColumn /><RulesEditorProblem /></RulesEditorItem>)}
+    </RulesEditor>)
+    const picked = (label: string) => (screen.getByLabelText(label) as HTMLSelectElement).selectedOptions[0]?.textContent
+    expect(["Column: None", "Column: Filters 1", "Column: Sort 1"].map(picked)).toEqual(["", "", ""])
+    expect(["Column: Keyed", "Column: Filters 2", "Column: Sort 2"].map(picked)).toEqual(["Blank", "Blank", "Blank"])
+    for (const item of ["[data-rule-id='none']", "[data-filter-index='0']", "[data-sort-index='0']"]) expect(document.querySelector(item)).toHaveTextContent("The rule needs a column.")
+    for (const item of ["[data-rule-id='keyed']", "[data-filter-index='1']", "[data-sort-index='1']"]) expect(document.querySelector(`${item} [data-rule-problem]`)).toBeNull()
+  })
+
+  it("counts the rules the readers read: a list in a rule list is no rule", () => {
+    render(<RulesEditor columns={columns} rules={{ columns: [[] as never, RULES.columns![0]!], filter: [[] as never] }} onRulesChange={() => {}}>
+      <span data-testid="highlights"><RulesEditorRuleCount kind="highlights" /></span>
+      <span data-testid="filters"><RulesEditorRuleCount kind="filters" /></span>
+    </RulesEditor>)
+    expect(screen.getByTestId("highlights")).toHaveTextContent(/^1$/)
+    expect(screen.getByTestId("filters")).toBeEmptyDOMElement()
+  })
+
+  it("keeps a filter with no column controlled while one is picked for it", () => {
+    function Controlled() {
+      const [rules, setRules] = useState<ReadGridRules>({ filter: [{ op: "eq", value: "x" } as never] })
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={setRules}><RulesEditorItem kind="filters" index={0}><RulesEditorColumn /></RulesEditorItem></RulesEditor>
+    }
+    render(<Controlled />)
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    fireEvent.change(screen.getByLabelText("Column: Filters 1"), { target: { value: "client" } })
+    expect(screen.getByLabelText("Column: Filters 1")).toHaveValue("client")
+    expect(error).not.toHaveBeenCalled()
+  })
+
+  it("moves a rule whose value JSON cannot print, a bigint a caller put there, without throwing", () => {
+    function Controlled() {
+      const [rules, setRules] = useState<ReadGridRules>({ columns: [
+        { id: "big", column: "px", when: { op: "gt", value: 10n as never }, tone: "up", label: "Big" },
+        { id: "small", column: "px", when: { op: "notNull" }, tone: "down", label: "Small" },
+      ] })
+      // A parent that copies what it is handed, so the editor compares two lists that are equal but not the same.
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={(next) => setRules(structuredClone(next))}>
+        {rules.columns?.map((rule, index) => <RulesEditorItem key={rule.id} kind="highlights" index={index}><RulesEditorMove direction="down">Down</RulesEditorMove></RulesEditorItem>)}
+      </RulesEditor>
+    }
+    render(<Controlled />)
+    const down = screen.getByRole("button", { name: "Move down: Big" })
+    down.focus()
+    fireEvent.click(down)
+    expect([...document.querySelectorAll("[data-rule-id]")].map((item) => item.getAttribute("data-rule-id"))).toEqual(["small", "big"])
+  })
+
+  it("moves a rule only on plain Alt with an arrow from its own elements, and leaves the key to an item given an arrow-owning role", () => {
+    function Controlled({ role }: { role?: string }) {
+      const [rules, setRules] = useState<ReadGridRules>(RULES)
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={setRules}>
+        {rules.columns?.map((rule, index) => rule && <RulesEditorItem key={rule.id} kind="highlights" index={index} role={role}>
+          <RulesEditorRemove>Remove</RulesEditorRemove>
+          {createPortal(<button type="button">{`Pop for ${rule.id}`}</button>, document.body)}
+        </RulesEditorItem>)}
+      </RulesEditor>
+    }
+    const { unmount } = render(<Controlled />)
+    const order = () => [...document.querySelectorAll("[data-rule-id]")].map((item) => item.getAttribute("data-rule-id"))
+    const rich = document.querySelector<HTMLElement>("[data-rule-id='rich']")!
+    expect(rich).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown")
+    for (const chord of [{ shiftKey: true }, { ctrlKey: true }, { metaKey: true }, { isComposing: true }]) {
+      expect(fireEvent.keyDown(rich, { key: "ArrowDown", altKey: true, ...chord })).toBe(true)
+      expect(order()).toEqual(["rich", "big"])
+    }
+    // A control portaled out of the item bubbles to it through React, and is not the item's.
+    expect(fireEvent.keyDown(screen.getByRole("button", { name: "Pop for rich" }), { key: "ArrowDown", altKey: true })).toBe(true)
+    expect(order()).toEqual(["rich", "big"])
+    expect(fireEvent.keyDown(rich, { key: "ArrowDown", altKey: true })).toBe(false)
+    expect(order()).toEqual(["big", "rich"])
+    unmount()
+    render(<Controlled role="option" />)
+    // Its keys stay with its role, so it names none for moving; so does an editable item's.
+    expect(document.querySelector("[data-rule-id='rich']")).not.toHaveAttribute("aria-keyshortcuts")
+    expect(fireEvent.keyDown(document.querySelector<HTMLElement>("[data-rule-id='rich']")!, { key: "ArrowDown", altKey: true })).toBe(true)
+    expect(order()).toEqual(["rich", "big"])
+    cleanup()
+    render(<RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}><RulesEditorItem kind="highlights" index={0} contentEditable suppressContentEditableWarning><span>Rich</span></RulesEditorItem></RulesEditor>)
+    expect(document.querySelector("[data-rule-id='rich']")).not.toHaveAttribute("aria-keyshortcuts")
+  })
+
+  it("leaves Alt with an arrow to a select or a text field, and moves the rule from the rule itself and its buttons", () => {
+    function Controlled() {
+      const [rules, setRules] = useState<ReadGridRules>(RULES)
+      return <TabbedRulesEditor columns={columns} rules={rules} onRulesChange={setRules} />
+    }
+    render(<Controlled />)
+    const order = () => [...document.querySelectorAll("[data-rule-id]")].map((item) => item.getAttribute("data-rule-id"))
+    // Alt+Down opens a select, and Alt with an arrow moves a text field's caret: the key stays theirs.
+    for (const field of [screen.getByLabelText("Column: Rich to the market"), screen.getByLabelText("Condition: Rich to the market"), screen.getByLabelText("Tone: Rich to the market"), screen.getByLabelText("Value: Rich to the market")]) {
+      field.focus()
+      expect(fireEvent.keyDown(field, { key: "ArrowDown", altKey: true })).toBe(true)
+      expect(order()).toEqual(["rich", "big"])
+    }
+    const rich = document.querySelector<HTMLElement>("[data-rule-id='rich']")!
+    rich.focus()
+    expect(fireEvent.keyDown(rich, { key: "ArrowDown", altKey: true })).toBe(false)
+    expect(order()).toEqual(["big", "rich"])
+    const remove = screen.getByRole("button", { name: "Remove: Rich to the market" })
+    remove.focus()
+    expect(fireEvent.keyDown(remove, { key: "ArrowUp", altKey: true })).toBe(false)
+    expect(order()).toEqual(["rich", "big"])
   })
 
   it("does not restore an ignored move's focus during a later unrelated edit", () => {
     const view = (rules: GridRules) => <TabbedRulesEditor columns={columns} rules={rules} defaultTab="sort" onRulesChange={() => {}} />
     const { rerender } = render(view(RULES))
-    screen.getByLabelText("Column: Sort 1").focus()
-    fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
+    const first = document.querySelector<HTMLElement>("[data-rule-kind='sort'][data-rule-row='0']")!
+    first.focus()
+    fireEvent.keyDown(first, { key: "ArrowDown", altKey: true })
     screen.getByLabelText("Direction: Sort 1").focus()
     rerender(view({ ...RULES, filter: [] }))
     expect(screen.getByLabelText("Direction: Sort 1")).toHaveFocus()
@@ -628,19 +940,21 @@ describe("RulesEditor", () => {
     const rules: GridRules = { sort: [{ key: "size", dir: "asc" }, { key: "size", dir: "asc" }] }
     const view = (value: GridRules) => <TabbedRulesEditor columns={columns} rules={value} defaultTab="sort" onRulesChange={() => {}} />
     const { rerender } = render(view(rules))
-    screen.getByLabelText("Column: Sort 1").focus()
-    fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
+    const first = document.querySelector<HTMLElement>("[data-rule-kind='sort'][data-rule-row='0']")!
+    first.focus()
+    fireEvent.keyDown(first, { key: "ArrowDown", altKey: true })
     screen.getByLabelText("Direction: Sort 1").focus()
     rerender(view({ ...rules, filter: [] }))
     expect(screen.getByLabelText("Direction: Sort 1")).toHaveFocus()
   })
 
   it("preserves focus chosen after a move while controlled acceptance is delayed", () => {
-    let pending: GridRules | undefined
-    const view = (rules: GridRules) => <><button>Outside</button><TabbedRulesEditor columns={columns} rules={rules} defaultTab="sort" onRulesChange={(next) => { pending = next }} /></>
+    let pending: ReadGridRules | undefined
+    const view = (rules: ReadGridRules) => <><button>Outside</button><TabbedRulesEditor columns={columns} rules={rules} defaultTab="sort" onRulesChange={(next) => { pending = next }} /></>
     const { rerender } = render(view(RULES))
-    screen.getByLabelText("Column: Sort 1").focus()
-    fireEvent.keyDown(screen.getByLabelText("Column: Sort 1"), { key: "ArrowDown", altKey: true })
+    const first = document.querySelector<HTMLElement>("[data-rule-kind='sort'][data-rule-row='0']")!
+    first.focus()
+    fireEvent.keyDown(first, { key: "ArrowDown", altKey: true })
     screen.getByRole("button", { name: "Outside" }).focus()
     rerender(view(pending!))
     expect(screen.getByRole("button", { name: "Outside" })).toHaveFocus()

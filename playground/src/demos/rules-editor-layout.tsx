@@ -1,5 +1,5 @@
 import { useId, useState } from "react"
-import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
+import type { ReadGridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import type { ColumnDef } from "@/registry/tradecn/ui/data-grid"
 import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorDirection, RulesEditorFilterCount, RulesEditorItem, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorValue } from "@/registry/tradecn/ui/rules-editor"
@@ -17,7 +17,7 @@ export default function RulesEditorLayoutDemo() {
     store.applyDeltas({ upsert: [{ id: "a", account: "ALPHA", size: 500 }, { id: "b", account: "BETA", size: 200 }] })
     return store
   })
-  const [rules, setRules] = useState<GridRules>({
+  const [rules, setRules] = useState<ReadGridRules>({
     filter: [{ column: "size", op: "gte", value: "300" }],
     sort: [{ key: "size", dir: "desc" }, { key: "account", dir: "asc" }],
   })

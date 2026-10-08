@@ -121,6 +121,29 @@ describe("ColumnSettingsPanel", () => {
     expect(screen.queryByRole("checkbox", { name: "Show Internal" })).toBeNull()
   })
 
+  it("reads a rule list a desk saved as data: an entry that is not a rule is none, and a label that is not text gives way to the rule's words", () => {
+    const saved = [null, { id: "five", column: "px", when: { op: "notNull" }, tone: "up", label: 5 }, ...rules] as unknown as ColumnRule[]
+    render(<ColumnSettingsPanel columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}} rules={saved} />)
+    expect(document.querySelector('[data-column="px"] [data-column-rule="five"]')).toHaveTextContent("Price is not empty")
+    expect(document.querySelector('[data-column="px"] [data-column-rule="rich"]')).toHaveTextContent("Rich to the market")
+  })
+
+  it("reads a rule saved with objects where text belongs without throwing, and paints only a tone it knows", () => {
+    const evil = { toString: 0 }
+    const saved = [
+      { id: "evil", column: "px", when: { op: "notNull" }, tone: evil },
+      { id: "listed", column: "px", when: { op: "notNull" }, tone: ["up"] },
+      { id: evil, column: "px", when: { op: "notNull" }, tone: "up" },
+    ] as unknown as ColumnRule[]
+    render(<ColumnSettingsPanel columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}} rules={saved} />)
+    for (const id of ["evil", "listed"]) {
+      const badge = document.querySelector(`[data-column="px"] [data-column-rule="${id}"]`)!
+      expect(badge).toHaveTextContent("Price is not empty")
+      expect(badge.className).not.toContain("text-up")
+    }
+    expect(document.querySelector('[data-column="px"] [data-column-rule=\'{"toString":0}\']')).toHaveTextContent("Price is not empty")
+  })
+
   it("writes every change through onColumnStateChange and keeps nothing: hide, show, move, reset a width, reset all", () => {
     const onChange = vi.fn()
     const state: ColumnState = { order: [], widths: { px: 140 }, hidden: [] }

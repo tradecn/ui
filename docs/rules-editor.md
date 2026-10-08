@@ -6,7 +6,7 @@ Edit one grid's highlights, filters, and sort order, with live match counts.
 
 ```tsx
 import { useState } from "react"
-import type { GridRules } from "@/lib/grid-rules"
+import type { ReadGridRules } from "@/lib/grid-rules"
 import type { ColumnDef } from "@/components/ui/data-grid"
 import {
   RulesEditor,
@@ -26,7 +26,7 @@ const columns: ColumnDef<Quote>[] = [
 ]
 
 function QuoteRules() {
-  const [rules, setRules] = useState<GridRules>({
+  const [rules, setRules] = useState<ReadGridRules>({
     columns: [{ id: "price", column: "px", when: { op: "gte", value: "100" }, tone: "up" }],
   })
   return (
@@ -119,8 +119,8 @@ Move fields and actions into cards with your own headings and content.
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `columns` | `ColumnDef<T>[]` | Required | Column definitions shared with the grid. |
-| `rules` | `GridRules` | Required | Controlled rules. Omitted lists are empty. |
-| `onRulesChange` | `(rules: GridRules) => void` | Required | Receives each edit. |
+| `rules` | `ReadGridRules` | Required | Controlled rules, written or read with [`readRules`](grid-rules.md#reading-saved-rules). Omitted lists are empty. |
+| `onRulesChange` | `(rules: ReadGridRules) => void` | Required | Receives each edit. An edit can leave a rule incomplete, as typing does, so hold the editor's rules as `ReadGridRules`, the type the grid takes. |
 | `children` | `ReactNode` | Required | Your sections, items, controls, and empty states. |
 | `store` | `RowStore<T>` | - | Rows for match counts. |
 | `labels` | `Partial<RulesEditorLabels>` | `DEFAULT_RULES_EDITOR_LABELS` | Field, action, count, and region labels. |
@@ -161,7 +161,7 @@ Item fields, move/remove actions, problems, and match counts require `RulesEdito
 
 ### Keyboard and focus
 
-Drag an item onto another item of the same kind, or use Alt+Up/Down from the row or its fields. Reordering uses source indices, even when you render items in a different order.
+Drag an item onto another item of the same kind, or use Alt+Up/Down from the item or its buttons. A select, a text field, or an item given an arrow-owning role keeps Alt with its arrows, so Alt+Down opens a select, and Alt with Shift, Ctrl, or Meta moves nothing. Each item names its keys in `aria-keyshortcuts`, unless its role or `contentEditable` keeps the arrows. Reordering uses source indices, even when you render items in a different order.
 
 Accepted moves keep focus on the corresponding field when available. Removal focuses the adjacent item or its remove action, then `RulesEditorAdd` when the list is empty.
 
@@ -171,11 +171,11 @@ Use `useRulesEditor()` inside the root for custom lists and controls.
 
 | Field | Type | Description |
 |---|---|---|
-| `rules` | `GridRules` | Current controlled rules. |
+| `rules` | `ReadGridRules` | Current controlled rules. |
 | `labels` | `RulesEditorLabels` | Merged labels. |
 | `columns` | `{ key: string; name: string; ops: readonly RuleOp[] }[]` | Column choices and supported operators. |
-| `problem` | `(rule: ColumnRule \| FilterRule) => string \| null` | Validation for the current columns. |
-| `change` | `(next: Partial<GridRules>) => void` | Merges changed lists into the controlled rules. |
+| `problem` | `(rule: ReadColumnRule \| ReadFilterRule, kind: RuleKind) => string \| null` | Validation for the current columns, judged as the kind of rule it is. |
+| `change` | `(next: Partial<ReadGridRules>) => void` | Merges changed lists into the controlled rules. |
 | `add` | `(kind: RulesEditorKind) => void` | Appends the corresponding new rule. |
 | `move` | `(kind: RulesEditorKind, from: number, to: number) => void` | Moves a rule by source index. |
 | `remove` | `(kind: RulesEditorKind, index: number) => void` | Removes a rule by source index. |
@@ -189,21 +189,22 @@ Use `useRulesEditorItem()` inside an item to build a custom field.
 | `kind` | `RulesEditorKind` | Item kind. |
 | `index` | `number` | Index in the source list. |
 | `name` | `string` | Highlight label or kind name and position. |
-| `columnKey` | `string` | Selected column. |
-| `condition` | `RuleCondition \| null` | Highlight or filter condition. |
-| `highlight` | `ColumnRule \| null` | Current highlight, if applicable. |
-| `sort` | `SortRule \| null` | Current sort key, if applicable. |
+| `columnKey` | `string` | Selected column, or `""` for a rule without one. |
+| `condition` | `ReadCondition \| null` | Highlight or filter condition, as read. |
+| `highlight` | `ReadColumnRule \| null` | Current highlight, as read, if applicable. |
+| `filter` | `ReadFilterRule \| null` | Current filter, as read, if applicable. |
+| `sort` | `ReadSortRule \| null` | Current sort key, as read, if applicable. |
 | `problem` | `string \| null` | Current validation message. |
 | `setColumn` | `(key: string) => void` | Changes the column and resets unsupported operators. |
-| `setCondition` | `(condition: RuleCondition) => void` | Changes a highlight or filter condition. |
-| `updateHighlight` | `(patch: Partial<ColumnRule>) => void` | Updates highlight properties. |
+| `setCondition` | `(condition: ReadCondition) => void` | Changes a highlight or filter condition. |
+| `updateHighlight` | `(patch: Partial<ReadColumnRule>) => void` | Updates highlight properties. |
 | `setDirection` | `(direction: "asc" \| "desc") => void` | Changes sort direction. |
 
 ### It produces rules and keeps nothing
 
 Accept each `onRulesChange` result into `rules` and share it with the grid. Keep a separate draft for a save step.
 
-Edits create a new object and edited list. Untouched lists and rules retain their references.
+Edits create a new object and edited list. Untouched lists and rules retain their references, and an edited rule keeps every field your app saved on it and on its condition.
 
 Replace changed arrays and objects. The editor retains transient drag and comma-field state, including unfinished text such as `ALPHA,`.
 
@@ -220,7 +221,7 @@ Replace changed arrays and objects. The editor retains transient drag and comma-
 
 Render all four value fields: `<RulesEditorValue />`, `<RulesEditorValue field="low" />`, `<RulesEditorValue field="high" />`, and `<RulesEditorValue field="values" />`. Each renders only when the operator needs it.
 
-`withOp` keeps values for the same shape and clears them otherwise. `withColumn` keeps supported conditions, or selects the first operator and drops values.
+`withOp` keeps values for the same shape, or when the old op is one no version knows, and clears them otherwise. `withColumn` keeps supported conditions, or selects the first operator and drops values. Both keep any other field the condition carries.
 
 Values stay as typed strings in the model and the fields, read through the column's `parse` function or numerically for numeric columns. A 32nds parser accepts `100-00`, and a typed decimal compares on the convention's printable grid; a column `format` makes descriptions print the compared price.
 
@@ -228,7 +229,7 @@ The set field trims members and drops empties, without quoting or escaping. Ente
 
 ### Errors
 
-`RulesEditorProblem` reports missing columns, missing values, and unreadable values without blocking edits or evaluation.
+`RulesEditorProblem` reports missing columns, a missing or unknown comparison, missing values, unreadable values, a range whose low end is above its high end, and a missing or unknown tone, without blocking edits or evaluation. A stored op the column doesn't offer shows in its select under its word, an op or a tone this version doesn't know shows quoted, and a column key no column has shows as saved. A missing column, op, or tone shows blank, so a highlight with no condition gets a blank one to choose from, and a missing column stays blank beside a column keyed `""`, which the grid doesn't use for it. The editor reads each entry as the grid does, so an entry that isn't an object renders and counts nothing, and a name or a word saved as anything but text shows as its JSON. Read rules a desk saved or shared with [`readRules`](grid-rules.md#reading-saved-rules) before you hold them, so your own composition maps over rule objects.
 
 | Condition | Evaluation |
 |---|---|
@@ -236,6 +237,7 @@ The set field trims members and drops empties, without quoting or escaping. Ente
 | Mixed valid/invalid `in` set | Valid members can match. |
 | Empty text | Can match despite a missing-value message. |
 | Missing column | Individual count is zero. Combined filtering and sorting skip it. |
+| Missing or unknown comparison | Matches nothing. |
 
 ### Highlights
 
@@ -270,20 +272,20 @@ Duplicate keys are allowed. Grid rules break header-sort ties, while a caller-su
 
 Import these helpers from `@/components/ui/rules-editor`. Rule types, `opsFor`, `ruleProblem`, and `describeRule` come from [`grid-rules`](grid-rules.md).
 
-Here `columns` is `readonly ColumnDef<T>[]`, `condition` is `RuleCondition`, and `op` is `RuleOp`.
+Here `columns` is `readonly ColumnDef<T>[]`, `condition` is `ReadCondition`, and `op` is `RuleOp`.
 
 | Helper | Return type | Behavior |
 |---|---|---|
 | `valueShape(op)` | `"one" \| "two" \| "many" \| "none"` | Shape in the operator table. |
 | `parseValues(text: string)` | `RuleValue[]` | Comma-separated, trimmed, nonempty strings. |
 | `valuesText(values: readonly RuleValue[] \| undefined)` | `string` | Joins with `", "`. `null` becomes empty text, and `undefined` gives `""`. |
-| `withOp(condition, op)` | `RuleCondition` | Copies for the same shape. Otherwise returns `{ op }`. |
-| `withColumn(condition, column: ColumnDef<T> \| undefined)` | `RuleCondition` | Same condition if supported. Otherwise only the first operator. |
+| `withOp(condition, op)` | `ReadCondition & { op: RuleOp }` | Copies for the same shape or an unknown old op. Otherwise drops `value` and `values` and keeps the other fields. |
+| `withColumn(condition, column: ColumnDef<T> \| undefined)` | `ReadCondition & { op: RuleOp }` | Same condition if supported. Otherwise the first operator, without values, keeping the other fields. |
 | `moveItem<X>(list: readonly X[], from: number, to: number)` | `X[]` | Moves by index. Equal or out-of-bounds indices return an unchanged copy. |
 | `newRuleId()` | `string` | Timestamp plus module-local counter. |
 | `newHighlight(columns)` | `ColumnRule` | First column/operator, fresh id, tone `"up"`. |
 | `newFilter(columns)` | `FilterRule` | First column/operator. |
-| `newSort(columns, existing: readonly SortRule[] = [])` | `SortRule` | First unused column, or first column if exhausted. Uses `dir: "asc"`. |
+| `newSort(columns, existing: readonly ReadSortRule[] = [])` | `SortRule` | First unused column, or first column if exhausted. Uses `dir: "asc"`. |
 
 With no columns, add buttons stay enabled. Helpers use an empty key, with `eq` for highlights and filters.
 
