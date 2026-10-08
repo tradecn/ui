@@ -119,6 +119,9 @@ export function Sparkline({ values, label, direction = "auto", baseline, width, 
   }
 
   const live = interactive && points.length > 0
+  // A chart that stops being live, with no readings or no longer interactive, forgets its crosshair: readings that
+  // come back later must not draw one that no pointer or focus picked.
+  if (!live && active !== null) setActive(null)
   return (
     <div
       role={live ? "slider" : "img"}
@@ -135,9 +138,9 @@ export function Sparkline({ values, label, direction = "auto", baseline, width, 
       onPointerMove={live ? onPointerMove : props.onPointerMove}
       onPointerLeave={(event) => {
         props.onPointerLeave?.(event)
-        // The chart's own document: a popout runs in the opener's JavaScript, where the
-        // global document never holds the popout's focus.
-        if (live && event.currentTarget.ownerDocument.activeElement !== event.currentTarget) setActive(null)
+        // The chart's own root: a popout runs in the opener's JavaScript, where the global
+        // document never holds the popout's focus, and in a shadow root the document's is the host.
+        if (live && (event.currentTarget.getRootNode() as Document | ShadowRoot).activeElement !== event.currentTarget) setActive(null)
       }}
       onFocus={(event) => {
         props.onFocus?.(event)

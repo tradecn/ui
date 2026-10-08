@@ -56,7 +56,7 @@ export function SparklineScene() {
           })}
         </tbody>
       </table>
-      <div className="resize overflow-hidden rounded-md border border-border p-3" style={{ width: 480, height: 140 }}>
+      <div className="resize overflow-hidden rounded-md border border-border px-3 pt-5 pb-3" style={{ width: 480, height: 140 }}>
         <Sparkline values={lead.series} baseline={lead.open} label={`${lead.symbol}, last hour`} format={price} pointLabel={minutesAgo} interactive className="h-full w-full" />
       </div>
       <p className="text-muted-foreground">Drag the corner of the box: the line follows through the shared observer.</p>
