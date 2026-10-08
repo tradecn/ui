@@ -117,7 +117,7 @@ Serve an empty same-origin `/popout.html` page, such as `public/popout.html` in 
 | `seed` | `(api: WorkspaceApi) => void` | None | Builds the initial layout when none can be restored. |
 | `onReady` | `(api: WorkspaceApi) => void` | None | Receives the API after the initial load or seed call returns. |
 | `onLayoutChange` | `(layout: WorkspaceLayout) => void` | None | Receives layouts for you to save. |
-| `layoutChangeDelay` | `number` | `250` | Debounce interval in milliseconds, captured at initialization. A value that isn't a finite number at or above zero reads as the default. |
+| `layoutChangeDelay` | `number` | `250` | Debounce interval in milliseconds, captured at initialization. A value that isn't a finite number at or above zero reads as the default, and one above 2,147,483,647, the longest delay a timer takes, reads as that. |
 | `onLayoutError` | `(reason: unknown) => void` | None | Receives load failures and synchronous errors while producing or saving a layout. |
 | `watermark` | `ReactNode` | `null` | Content shown when the main grid has no visible groups, including when all panels float or pop out. |
 | `locked` | `boolean` | `false` | Disables resizing with grid splitters. |
@@ -186,7 +186,7 @@ An unregistered kind renders a placeholder and uses the same tab component, so o
 | Option | Type | Default | Purpose |
 |---|---|---|---|
 | `kind` | `string` | Required | Selects the registered component. |
-| `id` | `string` | Lowest free `<kind>-N`, starting at 1 | Identifies the panel. An id that names an `Object.prototype` member, such as `constructor` or `__proto__`, gets the default instead, since the dock keys its panels by plain objects. |
+| `id` | `string` | Lowest free `<kind>-N`, starting at 1 | Identifies the panel. An id that names an `Object.prototype` member, such as `constructor` or `__proto__`, gets the default instead, since the dock keys its panels by plain objects. Keep the id `addPanel` returns: asking for such an id again opens another panel. |
 | `title` | `string` | `kind` | Names the panel and tab. |
 | `state` | `WorkspacePanelState` | `{}` | Initial JSON state. |
 | `position` | `{ reference?: string; direction: "left" \| "right" \| "above" \| "below" \| "within" }` | Active group | Places the panel beside a reference panel, or tabs it with `within`. Without `reference`, the direction is relative to the whole dock. |
@@ -232,7 +232,7 @@ Default ids are reused: once `ticket-1` closes, the next ticket opened is `ticke
 
 These boundaries document a policy; they do not filter panel state. You must keep session data out of `state` to make a layout portable. A panel's saved symbol is a starting value, separate from a link group's live symbol.
 
-`parseWorkspaceLayout(value)` accepts an object or JSON text and returns a copy, or `null`. It checks the version-1 envelope and basic dock structure, refuses a panel id that names an `Object.prototype` member, requires a nonempty kind for every panel, drops orphan records, defaults missing or empty titles to the kind, and cleans state. Valid recorded boundaries are preserved; missing or malformed boundaries use the current defaults. It does not fully validate dockview's internal layout. Only version 1 is currently supported.
+`parseWorkspaceLayout(value)` accepts an object or JSON text and returns a copy, or `null`. It checks the version-1 envelope and basic dock structure, refuses a panel id that names an `Object.prototype` member (`isReservedPanelId(id)` tells you whether an id does, and the dock's own `addPanel` throws on one), requires a nonempty kind for every panel, drops orphan records, defaults missing or empty titles to the kind, and cleans state. Valid recorded boundaries are preserved; missing or malformed boundaries use the current defaults. It does not fully validate dockview's internal layout. Only version 1 is currently supported.
 
 Both `defaultLayout` and `api.load` use this parser. If parsing fails or dockview refuses the layout, `api.load` clears the workspace, calls `onLayoutError`, and returns `false`. At initialization, a missing or failed layout falls back to `seed(api)`; later `api.load` calls do not seed.
 

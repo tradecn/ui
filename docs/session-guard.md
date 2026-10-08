@@ -192,7 +192,7 @@ A duplicate call resolves without waiting for the active request. Read `pending`
 
 ### The banner
 
-`SessionGuardWarning` supplies `role="status"` and the `expiring` and `expiring-soft` strip styles. The banner leaves when the session renews, often from its own button, so focus inside it moves to `fallbackFocusRef`, or back to the element it came from, instead of falling to the page. Place optional controls, account information and errors in its children. `SessionGuardWarningText` inserts the remaining-time reading into `labels.warning`.
+`SessionGuardWarning` supplies `role="status"` and the `expiring` and `expiring-soft` strip styles. The banner leaves when the session renews, often from its own button, so focus inside it moves to `fallbackFocusRef`, or back to the element it came from, instead of falling to the page. A target that is gone, disabled, or can't take focus is skipped for the next. Place optional controls, account information and errors in its children. `SessionGuardWarningText` inserts the remaining-time reading into `labels.warning`.
 
 `SessionGuardRemaining` uses the same rounded-up countdown format as [`Countdown`](countdown.md), including `data-tier` and numeric typography. It has `role="timer"` and the session label, with no separate live region. Place one warning sentence per session to avoid duplicate announcements.
 
@@ -212,7 +212,9 @@ The modal blocks pointer interaction underneath. For events inside its `role="di
 
 ### Re-authentication
 
-Every action and custom hook control shares one request lock. `SessionGuardReauthenticate` is disabled while pending and carries `data-pending="true"`; `SessionGuardActionLabel` shows `Signing in…`. A caller's `disabled` also disables the action. The caller's `onClick` runs first and can cancel the request with `preventDefault()`.
+Every action and custom hook control shares one request lock. While a request is out, `SessionGuardReauthenticate` carries `aria-disabled="true"` and `data-pending="true"`, and a press does nothing, your `onClick` included; `SessionGuardActionLabel` shows `Signing in…`. The action stays focusable, so focus stays on it until the session renews or the request is refused. A caller's `disabled` disables the action natively. The caller's `onClick` runs first and can cancel the request with `preventDefault()`.
+
+Hold a custom control the same way: set `aria-disabled` while `pending` and ignore its presses, rather than `disabled`, which moves focus to the page while the request is out.
 
 Changing phase, expiry, clock or callback does not cancel an active request. The next attempt uses the latest committed callback. Unmounting the provider stops its old completion from updating a new provider; cancellation of application work belongs to the session service.
 

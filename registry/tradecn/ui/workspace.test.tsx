@@ -722,8 +722,8 @@ describe("Workspace", () => {
     expect(document.querySelector("[data-workspace-panel='book-2'] [data-slot='tradecn-panel']")).not.toBeNull()
   })
 
-  it("refuses a layout that names a panel by an Object.prototype member, and keeps the arrangement it has", async () => {
-    const { api } = await mount()
+  it("refuses a layout that names a panel by an Object.prototype member, in the parser and in a load", async () => {
+    const { api, onLayoutError } = await mount()
     const saved = JSON.parse(JSON.stringify(api.toLayout()))
     for (const id of ["__proto__", "constructor"]) {
       const odd = JSON.parse(JSON.stringify(saved).replaceAll('"book-1"', JSON.stringify(id)))
@@ -732,7 +732,15 @@ describe("Workspace", () => {
       expect(parseWorkspaceLayout(JSON.stringify(odd))).toBeNull()
     }
     expect(parseWorkspaceLayout(saved)).not.toBeNull()
-    expect(api.panels().map((panel) => panel.id).sort()).toEqual(["book-1", "chart-1"])
+    // A load refuses it as it refuses any layout it can't read: the workspace is cleared and the error reported.
+    const odd = JSON.parse(JSON.stringify(saved).replaceAll('"book-1"', '"constructor"'))
+    let loaded = true
+    act(() => {
+      loaded = api.load(odd)
+    })
+    expect(loaded).toBe(false)
+    expect(onLayoutError).toHaveBeenCalledTimes(1)
+    expect(api.panels()).toEqual([])
   })
 
   it("keeps the keyboard where it is when an ensure-open call repeats an id with focus false", async () => {

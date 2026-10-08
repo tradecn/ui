@@ -243,13 +243,17 @@ function WarningBanner({ className, role = "status", fallbackFocusRef, ref, onFo
     const focused = (banner.getRootNode() as Document | ShadowRoot).activeElement
     if (!focused || !banner.contains(focused)) return
     for (const target of [fallback.current?.current, cameFrom.current]) {
-      if (target?.isConnected && !banner.contains(target) && !target.matches(":disabled") && !target.closest("[inert], [hidden], [aria-hidden='true']")) return target.focus()
+      if (!target?.isConnected || banner.contains(target) || target.matches(":disabled") || target.closest("[inert], [hidden], [aria-hidden='true']")) continue
+      target.focus()
+      // One the browser can't focus, hidden by a style, say, leaves focus in the banner: try the next.
+      if ((target.getRootNode() as Document | ShadowRoot).activeElement === target) return
     }
   }, [])
   return <div role={role} data-slot="tradecn-session-guard" data-session-banner="" className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-expiring/50 bg-expiring-soft px-3 py-1.5 text-xs text-foreground lining-nums tabular-nums", className)} {...props} ref={bannerRef} onFocus={(event) => {
     onFocus?.(event)
+    // Arriving from outside, focus came from that element, or from nowhere the banner can send it back to.
     const from = event.relatedTarget as HTMLElement | null
-    if (from?.nodeType === 1 && !event.currentTarget.contains(from)) cameFrom.current = from
+    if (!event.currentTarget.contains(from)) cameFrom.current = from?.nodeType === 1 ? from : null
   }} />
 }
 
@@ -280,10 +284,15 @@ export interface SessionGuardReauthenticateProps extends Omit<ComponentProps<typ
   children: ReactNode
 }
 
-/** An installed button sharing the provider's request lock. preventDefault cancels the request. */
-export function SessionGuardReauthenticate({ children, disabled, type = "button", onClick, ...props }: SessionGuardReauthenticateProps) {
+/**
+ * An installed button sharing the provider's request lock. preventDefault cancels the request. While a request is out
+ * it stays focusable with `aria-disabled` and a press does nothing: a disabled button loses focus to the page, and the
+ * banner it sits in closes, or the request is refused, with no focus left to send back.
+ */
+export function SessionGuardReauthenticate({ children, disabled, type = "button", onClick, className, ...props }: SessionGuardReauthenticateProps) {
   const { pending, reauthenticate } = useSessionGuard()
-  return <Button data-slot="tradecn-session-guard-reauthenticate" data-pending={pending || undefined} {...props} type={type} disabled={pending || disabled} onClick={event => {
+  return <Button data-slot="tradecn-session-guard-reauthenticate" data-pending={pending || undefined} {...props} aria-disabled={pending || props["aria-disabled"] || undefined} className={cn("aria-disabled:opacity-50", className)} type={type} disabled={disabled} onClick={event => {
+    if (pending) return event.preventDefault()
     onClick?.(event)
     if (!event.defaultPrevented) void reauthenticate()
   }}>{children}</Button>

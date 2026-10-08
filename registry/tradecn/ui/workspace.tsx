@@ -279,7 +279,7 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
   const toLayout = (): WorkspaceLayout => {
     const dockview = dv.toJSON()
     const records = store.snapshot()
-    const panels = Object.fromEntries(Object.keys(dockview.panels).flatMap((id) => (records[id] ? [[id, records[id]] as const] : [])))
+    const panels = Object.fromEntries(Object.keys(dockview.panels).flatMap((id) => (Object.prototype.hasOwnProperty.call(records, id) ? [[id, records[id]!] as const] : [])))
     return { version: WORKSPACE_LAYOUT_VERSION, kind: WORKSPACE_LAYOUT_KIND, dockview: dockview as unknown as WorkspaceDockLayout, panels, boundaries: WORKSPACE_PERSISTENCE_BOUNDARIES }
   }
 
