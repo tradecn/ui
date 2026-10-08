@@ -632,8 +632,8 @@ describe("RulesEditor", () => {
       return [select.value, select.selectedOptions[0]?.textContent]
     }
     expect(shown("Condition: After C")).toEqual(["gt", "above"])
-    expect(shown("Condition: Odd")).toEqual(["gtx", "gtx"])
-    expect(shown("Tone: Hue")).toEqual(["warning", "warning"])
+    expect(shown("Condition: Odd")).toEqual(["gtx", '"gtx"'])
+    expect(shown("Tone: Hue")).toEqual(["warning", '"warning"'])
     expect(document.querySelector("[data-rule-id='after'] [data-rule-count]")).toHaveAttribute("data-rule-count", "2")
     expect(document.querySelector("[data-rule-id='odd'] [data-rule-count]")).toHaveAttribute("data-rule-count", "0")
     expect(document.querySelector("[data-rule-id='odd']")).toHaveTextContent('No comparison is named "gtx".')
@@ -723,10 +723,10 @@ describe("RulesEditor", () => {
       return [select.value, select.selectedOptions[0]?.textContent]
     }
     expect(shown("Column: Keyed")).toEqual(['{"key":"px"}', '{"key":"px"}'])
-    expect(shown("Condition: Hued")).toEqual(['{"toString":0}', '{"toString":0}'])
-    expect(shown("Tone: Hued")).toEqual(['{"name":"up"}', '{"name":"up"}'])
-    expect(shown("Condition: Listed")).toEqual(['["eq"]', '["eq"]'])
-    expect(shown("Tone: Listed")).toEqual(['["up"]', '["up"]'])
+    expect(shown("Condition: Hued")).toEqual(['{"toString":0}', '"{"toString":0}"'])
+    expect(shown("Tone: Hued")).toEqual(['{"name":"up"}', '"{"name":"up"}"'])
+    expect(shown("Condition: Listed")).toEqual(['["eq"]', '"["eq"]"'])
+    expect(shown("Tone: Listed")).toEqual(['["up"]', '"["up"]"'])
     expect(document.querySelector("[data-rule-id='keyed']")).toHaveTextContent('No column is named "{"key":"px"}".')
     expect(document.querySelector("[data-rule-id='hued']")).toHaveTextContent('No comparison is named "{"toString":0}".')
     expect(document.querySelector("[data-rule-id='hued'] [data-rule-swatch]")).toHaveAttribute("data-rule-swatch", '{"name":"up"}')
@@ -778,6 +778,35 @@ describe("RulesEditor", () => {
     expect(document.querySelector("[data-rule-kind='sort']")).toHaveTextContent("The rule needs a column.")
   })
 
+  it("judges a filter as a filter whatever keys it carries, and edits one with no column from a blank one", () => {
+    render(<RulesEditor columns={columns} rules={{ filter: [
+      { column: "px", op: "gt", value: "100-00", tone: "desk" } as never,
+      { column: "status", when: { op: "eq", value: "Open" } } as never,
+      { op: "eq", value: "x" } as never,
+    ] }} onRulesChange={() => {}}>
+      {[0, 1, 2].map((index) => <RulesEditorItem key={index} kind="filters" index={index}><RulesEditorColumn /><RulesEditorOperator /><RulesEditorProblem /></RulesEditorItem>)}
+    </RulesEditor>)
+    // An app's own tone on a filter is no part of it: the filter compares, and nothing is wrong.
+    expect(screen.getByLabelText("Condition: Filters 1")).toHaveValue("gt")
+    expect(document.querySelector("[data-filter-index='0'] [data-rule-problem]")).toBeNull()
+    // A leftover condition does not stand in for the filter's own comparison.
+    expect(document.querySelector("[data-filter-index='1']")).toHaveTextContent("The rule needs a comparison.")
+    expect(screen.getByLabelText("Column: Filters 3")).toHaveValue("")
+    expect(document.querySelector("[data-filter-index='2']")).toHaveTextContent("The rule needs a column.")
+  })
+
+  it("keeps a filter with no column controlled while one is picked for it", () => {
+    function Controlled() {
+      const [rules, setRules] = useState<GridRules>({ filter: [{ op: "eq", value: "x" } as never] })
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={setRules}><RulesEditorItem kind="filters" index={0}><RulesEditorColumn /></RulesEditorItem></RulesEditor>
+    }
+    render(<Controlled />)
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    fireEvent.change(screen.getByLabelText("Column: Filters 1"), { target: { value: "client" } })
+    expect(screen.getByLabelText("Column: Filters 1")).toHaveValue("client")
+    expect(error).not.toHaveBeenCalled()
+  })
+
   it("moves a rule whose value JSON cannot print, a bigint a caller put there, without throwing", () => {
     function Controlled() {
       const [rules, setRules] = useState<GridRules>({ columns: [
@@ -821,10 +850,13 @@ describe("RulesEditor", () => {
     expect(order()).toEqual(["big", "rich"])
     unmount()
     render(<Controlled role="option" />)
-    // Its keys stay with its role, so it names none for moving.
+    // Its keys stay with its role, so it names none for moving; so does an editable item's.
     expect(document.querySelector("[data-rule-id='rich']")).not.toHaveAttribute("aria-keyshortcuts")
     expect(fireEvent.keyDown(document.querySelector<HTMLElement>("[data-rule-id='rich']")!, { key: "ArrowDown", altKey: true })).toBe(true)
     expect(order()).toEqual(["rich", "big"])
+    cleanup()
+    render(<RulesEditor columns={columns} rules={RULES} onRulesChange={() => {}}><RulesEditorItem kind="highlights" index={0} contentEditable suppressContentEditableWarning><span>Rich</span></RulesEditorItem></RulesEditor>)
+    expect(document.querySelector("[data-rule-id='rich']")).not.toHaveAttribute("aria-keyshortcuts")
   })
 
   it("leaves Alt with an arrow to a select or a text field, and moves the rule from the rule itself and its buttons", () => {

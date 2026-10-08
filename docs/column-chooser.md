@@ -164,7 +164,7 @@ Use cards to place descriptions beside column settings and move actions below ea
 | `baseState` | `ColumnState` | Empty state | Shared defaults for reset and default-state comparisons. |
 | `presented` | `readonly string[]` | Search-result keys | Column keys in your collection's render order. |
 | `children` | `ReactNode` | Required | Your controls, collection, and surrounding content. Conditional content is supported. |
-| `rules` | `ColumnRule[]` | Omitted | Highlight rules shown beside their columns. |
+| `rules` | `readonly ReadColumnRule[]` | Omitted | Highlight rules, written or read, shown beside their columns. |
 | `labels` | `Partial<ColumnChooserLabels>` | Default labels | Words used by readings and controls. |
 | `className` | `string` | Omitted | Additional classes to apply to the root. |
 

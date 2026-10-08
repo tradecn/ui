@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
-import { RULE_TONES, RULE_TONE_CLASS, columnName, describeRule, readColumnRule, type ColumnRule } from "@/registry/tradecn/lib/grid-rules"
+import { RULE_TONES, RULE_TONE_CLASS, columnName, describeRule, readColumnRule, type ReadColumnRule, type RuleTone } from "@/registry/tradecn/lib/grid-rules"
 import { EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState } from "@/registry/tradecn/ui/data-grid"
 
 // The root coordinates controlled grid edits, search, drag ownership and focus.
@@ -66,8 +66,8 @@ export interface ColumnChooserProps<T> extends ComponentProps<"div"> {
   baseState?: ColumnState
   /** Column keys in the collection's render order. Defaults to the search results. */
   presented?: readonly string[]
-  /** Rules that name columns, said in words beside the columns they touch. */
-  rules?: ColumnRule[]
+  /** Rules that name columns, said in words beside the columns they touch: written, or read from saved data. */
+  rules?: readonly ReadColumnRule[]
   labels?: Partial<ColumnChooserLabels>
   children: ReactNode
 }
@@ -83,7 +83,8 @@ export interface ChooserRow<T> {
   width: number
   /** The state holds a width for it. */
   resized: boolean
-  rules: ColumnRule[]
+  /** The rules on this column, each as the grid reads it. */
+  rules: ReadColumnRule[]
 }
 
 /**
@@ -91,7 +92,7 @@ export interface ChooserRow<T> {
  * the width in force and the rules that name each. A column hidden in its definition is not listed:
  * that is a decision in code, not one for this surface.
  */
-export function chooserRows<T>(columns: ColumnDef<T>[], state: ColumnState, rules: readonly ColumnRule[] = []): ChooserRow<T>[] {
+export function chooserRows<T>(columns: ColumnDef<T>[], state: ColumnState, rules: readonly ReadColumnRule[] = []): ChooserRow<T>[] {
   const rank = new Map(state.order.map((key, index) => [key, index]))
   const hidden = new Set(state.hidden)
   const ordered = columns
@@ -166,7 +167,7 @@ export function moveColumnBy<T>(rows: readonly ChooserRow<T>[], state: ColumnSta
 export interface ColumnChooserEntry extends Omit<ChooserRow<unknown>, "column" | "rules"> {
   /** The effective width differs from the root's reset baseline. */
   resized: boolean
-  rules: { rule: ColumnRule; description: string }[]
+  rules: { rule: ReadColumnRule; description: string }[]
 }
 
 export interface ColumnChooserState {
@@ -392,7 +393,7 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
   const rows = useMemo(() => {
     const editable = new Set(columns.filter((column) => !column.hidden).map((column) => column.key))
     const baseByKey = new Map(baseRows.map((row) => [row.key, row]))
-    return stateRows.filter((row) => editable.has(row.key)).map(({ column, rules, ...row }) => ({ ...row, resized: !Object.is(row.width, baseByKey.get(row.key)?.width), rules: rules.map((rule) => ({ rule, description: describeRule(rule, [column]) })) }))
+    return stateRows.filter((row) => editable.has(row.key)).map(({ column, rules, ...row }) => ({ ...row, resized: !Object.is(row.width, baseByKey.get(row.key)?.width), rules: rules.map((rule) => ({ rule, description: describeRule(rule, [column], "highlight") })) }))
   }, [columns, stateRows, baseRows])
   const [query, setQuery] = useState("")
   const [dragging, setDragging] = useState<string | null>(null)
@@ -907,7 +908,7 @@ export function ColumnChooserRule({ ruleIndex, className, ...props }: Omit<Compo
   const reading = row.rules[ruleIndex]
   if (!reading) return null
   const { rule, description } = reading
-  return <Badge variant="outline" data-column-rule={rule.id} title={description} className={cn("h-4 min-w-0 shrink px-1.5 text-xs", RULE_TONES.includes(rule.tone) && RULE_TONE_CLASS[rule.tone], className)} {...props}><span className="min-w-0 truncate">{rule.label?.trim() || description}</span></Badge>
+  return <Badge variant="outline" data-column-rule={rule.id} title={description} className={cn("h-4 min-w-0 shrink px-1.5 text-xs", (RULE_TONES as readonly string[]).includes(rule.tone ?? "") && RULE_TONE_CLASS[rule.tone as RuleTone], className)} {...props}><span className="min-w-0 truncate">{rule.label?.trim() || description}</span></Badge>
 }
 
 export function ColumnChooserWidth({ className, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<"span">, "children">) {

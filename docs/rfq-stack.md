@@ -156,7 +156,7 @@ The three comparators put a value that is not a finite number last, so one row's
 | `threshold` | `number \| null` | `null` | Auto-quote minimum in raw quantity units. |
 | `filter` | `(row: T) => boolean` | All rows | Additional filter. |
 | `reorderHoldMs` | `number` | `1000` | Hold duration after grid interaction. |
-| `rules` | `GridRules` | None | Combines rule filters with the threshold and filter; rule sort breaks comparator ties. |
+| `rules` | `ReadGridRules` | None | Combines rule filters with the threshold and filter; rule sort breaks comparator ties. |
 | `columns` | `readonly RuleColumn<T>[]` | `rfqStackColumns()` | Column definitions used by rules. |
 
 Pass the same [`grid-rules`](grid-rules.md) object to the hook and stack. A supplied view owns filtering, sorting, and its hold; the grid ignores its own `filter`, `sort`, `rules.filter`, and `rules.sort` for that view.

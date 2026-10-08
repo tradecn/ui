@@ -20,7 +20,12 @@ import {
   type ColumnRule,
   type FilterRule,
   type GridRules,
-  type RuleCondition,
+  type ReadColumnRule,
+  type ReadCondition,
+  type ReadFilterRule,
+  type ReadGridRules,
+  type ReadSortRule,
+  type RuleKind,
   type RuleOp,
   type RuleTone,
   type RuleValue,
@@ -106,10 +111,11 @@ export const DEFAULT_RULES_EDITOR_LABELS: RulesEditorLabels = {
 
 export type RulesEditorKind = "highlights" | "filters" | "sort"
 
-export interface RulesEditorProps<T> extends ComponentProps<"div"> {
+export interface RulesEditorProps<T, R extends ReadGridRules = GridRules> extends ComponentProps<"div"> {
   columns: ColumnDef<T>[]
-  rules: GridRules
-  onRulesChange: (rules: GridRules) => void
+  /** Rules as you hold them: written as `GridRules`, or read from saved data with `readRules`. Edits come back in the same type. */
+  rules: R
+  onRulesChange: (rules: R) => void
   /** Rows for independent match counts and the combined filter total. */
   store?: RowStore<T>
   labels?: Partial<RulesEditorLabels>
@@ -119,8 +125,8 @@ export interface RulesEditorProps<T> extends ComponentProps<"div"> {
 const OPS_WITH_VALUE = new Set<RuleOp>(["eq", "ne", "gt", "gte", "lt", "lte", "contains", "startsWith"])
 
 /** What a condition's op wants typed: one value, two (a range), many (a set), or nothing. */
-export function valueShape(op: RuleOp): "one" | "two" | "many" | "none" {
-  if (OPS_WITH_VALUE.has(op)) return "one"
+export function valueShape(op: RuleOp | string | undefined): "one" | "two" | "many" | "none" {
+  if (OPS_WITH_VALUE.has(op as RuleOp)) return "one"
   if (op === "between") return "two"
   if (op === "in") return "many"
   return "none"
@@ -140,16 +146,16 @@ export function valuesText(values: readonly RuleValue[] | undefined): string {
 }
 
 /** The condition with a new op: the typed values are kept when the new op wants the same shape and dropped otherwise. */
-export function withOp(condition: RuleCondition, op: RuleOp): RuleCondition {
+export function withOp(condition: ReadCondition, op: RuleOp): ReadCondition {
   // An op no version knows says nothing about the value's shape: keep what was typed, for the new op to read.
-  if (valueShape(condition.op) === valueShape(op) || !(RULE_OPS as readonly string[]).includes(condition.op)) return { ...condition, op }
+  if (valueShape(condition.op) === valueShape(op) || !isKnownOp(condition.op)) return { ...condition, op }
   return { ...withoutValues(condition), op }
 }
 
 /** The condition for a new column: its op if the column offers it, else the column's first, and the values dropped either way when the op changed. */
-export function withColumn<T>(condition: RuleCondition, column: ColumnDef<T> | undefined): RuleCondition {
-  const ops = opsFor(column)
-  return ops.includes(condition.op) ? condition : { ...withoutValues(condition), op: ops[0]! }
+export function withColumn<T>(condition: ReadCondition, column: ColumnDef<T> | undefined): ReadCondition {
+  const ops: readonly string[] = opsFor(column)
+  return condition.op !== undefined && ops.includes(condition.op) ? condition : { ...withoutValues(condition), op: ops[0]! }
 }
 
 /** A list with one item moved to another's index, the rest shifting to make room. */
@@ -183,9 +189,13 @@ export function newFilter<T>(columns: readonly ColumnDef<T>[]): FilterRule {
 // A rule list that is not a list reads as none; its entries are read through grid-rules' readers where they are used,
 // so an entry that is not an object renders and counts nothing and keeps the source indices of the rest.
 const listOf = <R,>(value: readonly R[] | undefined): readonly R[] => (Array.isArray(value) ? value : [])
-const NO_CONDITION: RuleCondition = Object.freeze({}) as RuleCondition
+const NO_CONDITION: ReadCondition = Object.freeze({})
+// A tone this version paints with, as opposed to text saved by another or by hand.
+const isKnownTone = (tone: string | undefined): tone is RuleTone => tone !== undefined && (RULE_TONES as readonly string[]).includes(tone)
+// An op this version knows, as opposed to text saved by another or by hand.
+const isKnownOp = (op: string | undefined): op is RuleOp => op !== undefined && (RULE_OPS as readonly string[]).includes(op)
 // A condition without its typed values, every other field it carries kept.
-function withoutValues(condition: RuleCondition): RuleCondition {
+function withoutValues(condition: ReadCondition): ReadCondition {
   const rest = { ...condition }
   delete rest.value
   delete rest.values
@@ -193,7 +203,7 @@ function withoutValues(condition: RuleCondition): RuleCondition {
 }
 
 /** A new sort key on the first column not yet in the list, ascending. */
-export function newSort<T>(columns: readonly ColumnDef<T>[], existing: readonly SortRule[] = []): SortRule {
+export function newSort<T>(columns: readonly ColumnDef<T>[], existing: readonly ReadSortRule[] = []): SortRule {
   const used = new Set(listOf(existing).flatMap((entry) => { const rule = readSortRule(entry); return rule ? [rule.key] : [] }))
   const column = columns.find((c) => !used.has(c.key)) ?? columns[0]
   return { key: column?.key ?? "", dir: "asc" }
@@ -225,9 +235,11 @@ function useThrottledVersion<T>(store: RowStore<T> | undefined, ms: number): num
 }
 
 // One empty list per kind, so a rules object without a list does not hand the memos a fresh array every render.
-const NO_RULES: GridRules = {}
-const NO_HIGHLIGHTS: ColumnRule[] = []
-const NO_FILTERS: FilterRule[] = []
+const NO_RULES: ReadGridRules = {}
+const NO_HIGHLIGHTS: ReadColumnRule[] = []
+const NO_FILTERS: ReadFilterRule[] = []
+// Any one entry of a rule list, as the editor reads it.
+type AnyRule = ReadColumnRule | ReadFilterRule | ReadSortRule
 
 function countMatching<T>(store: RowStore<T>, test: (row: T) => boolean): number {
   let n = 0
@@ -239,11 +251,12 @@ function countMatching<T>(store: RowStore<T>, test: (row: T) => boolean): number
 }
 
 export interface RulesEditorState {
-  rules: GridRules
+  rules: ReadGridRules
   labels: RulesEditorLabels
   columns: { key: string; name: string; ops: readonly RuleOp[] }[]
-  problem: (rule: ColumnRule | FilterRule) => string | null
-  change: (next: Partial<GridRules>) => void
+  /** Why a rule cannot apply, judged as the kind of rule it is, or null. */
+  problem: (rule: ReadColumnRule | ReadFilterRule, kind: RuleKind) => string | null
+  change: (next: Partial<ReadGridRules>) => void
   add: (kind: RulesEditorKind) => void
   move: (kind: RulesEditorKind, from: number, to: number) => void
   remove: (kind: RulesEditorKind, index: number) => void
@@ -266,7 +279,7 @@ interface Counts {
 const CountsContext = createContext<Counts>({ highlights: null, filters: null, shown: null })
 
 // A feed notification updates only count consumers, even when the fields are not memoized.
-function CountsProvider<T>({ store, columns, rules, children }: Pick<RulesEditorProps<T>, "store" | "columns" | "rules" | "children">) {
+function CountsProvider<T>({ store, columns, rules, children }: Pick<RulesEditorProps<T>, "store" | "columns" | "children"> & { rules: ReadGridRules }) {
   const highlights = Array.isArray(rules.columns) ? rules.columns : NO_HIGHLIGHTS
   const filters = Array.isArray(rules.filter) ? rules.filter : NO_FILTERS
   const byKey = useMemo(() => new Map(columns.map((c) => [c.key, c])), [columns])
@@ -275,7 +288,7 @@ function CountsProvider<T>({ store, columns, rules, children }: Pick<RulesEditor
     void version
     return store ? highlights.map((entry) => {
       const rule = readColumnRule(entry)
-      const column = rule ? byKey.get(rule.column) : undefined
+      const column = rule?.column === undefined ? undefined : byKey.get(rule.column)
       return rule && column ? countMatching(store, compileCondition(rule.when, column)) : 0
     }) : null
   }, [store, highlights, byKey, version])
@@ -283,7 +296,7 @@ function CountsProvider<T>({ store, columns, rules, children }: Pick<RulesEditor
     void version
     return store ? filters.map((entry) => {
       const rule = readFilterRule(entry)
-      const column = rule ? byKey.get(rule.column) : undefined
+      const column = rule?.column === undefined ? undefined : byKey.get(rule.column)
       return rule && column ? countMatching(store, compileCondition(rule, column)) : 0
     }) : null
   }, [store, filters, byKey, version])
@@ -320,11 +333,11 @@ function arrowOwningTarget(target: EventTarget, item: HTMLElement) {
   return false
 }
 
-const DragContext = createContext<{ current: { kind: RulesEditorKind; index: number; list: readonly (ColumnRule | FilterRule | SortRule)[]; type: string; clear: () => void } | null }>({ current: null })
+const DragContext = createContext<{ current: { kind: RulesEditorKind; index: number; list: readonly AnyRule[]; type: string; clear: () => void } | null }>({ current: null })
 
 // Controlled callers may copy rules. Compare their data while dragging or awaiting focus
 // restoration; property order and extra application fields do not matter.
-function sameRuleList(left: readonly (ColumnRule | FilterRule | SortRule)[] | undefined, right: readonly (ColumnRule | FilterRule | SortRule)[]) {
+function sameRuleList(left: readonly AnyRule[] | undefined, right: readonly AnyRule[]) {
   const fields = ["id", "column", "when", "op", "value", "values", "tone", "target", "label", "key", "dir"]
   if (left === right) return true
   // Data JSON cannot print (a bigint a caller put in a rule) is never the same list.
@@ -352,20 +365,20 @@ function useEditorRef<T>(localRef: { current: T | null }, forwardedRef: Ref<T> |
   }, [localRef, forwardedRef])
 }
 
-export function RulesEditor<T>({ columns, rules: given, onRulesChange, store, labels: labelsProp, children, className, ref, ...props }: RulesEditorProps<T>) {
+export function RulesEditor<T, R extends ReadGridRules = GridRules>({ columns, rules: given, onRulesChange, store, labels: labelsProp, children, className, ref, ...props }: RulesEditorProps<T, R>) {
   // Rules that are not an object (a null from storage) are no rules; read saved rules with readRules first.
-  const rules: GridRules = typeof given === "object" && given !== null ? given : NO_RULES
+  const rules: ReadGridRules = typeof given === "object" && given !== null ? given : NO_RULES
   const labels = { ...DEFAULT_RULES_EDITOR_LABELS, ...labelsProp }
   const root = useRef<HTMLDivElement>(null)
   const rootRef = useEditorRef(root, ref)
-  const dragging = useRef<{ kind: RulesEditorKind; index: number; list: readonly (ColumnRule | FilterRule | SortRule)[]; type: string; clear: () => void } | null>(null)
+  const dragging = useRef<{ kind: RulesEditorKind; index: number; list: readonly AnyRule[]; type: string; clear: () => void } | null>(null)
   useLayoutEffect(() => {
     const drag = dragging.current
     if (!drag || sameRuleList(rules[LIST_KEY[drag.kind]], drag.list)) return
     drag.clear()
     dragging.current = null
   }, [rules])
-  const focusAfter = useRef<{ rules: GridRules; kind: RulesEditorKind; index: number; list: readonly (ColumnRule | FilterRule | SortRule)[]; active: Element; field?: string } | null>(null)
+  const focusAfter = useRef<{ rules: ReadGridRules; kind: RulesEditorKind; index: number; list: readonly AnyRule[]; active: Element; field?: string } | null>(null)
   useLayoutEffect(() => {
     const pending = focusAfter.current
     if (!pending || pending.rules === rules) return
@@ -379,17 +392,18 @@ export function RulesEditor<T>({ columns, rules: given, onRulesChange, store, la
     const target = field && !field.matches(":disabled") ? field : item ?? root.current?.querySelector<HTMLElement>(`[data-rules-add="${pending.kind}"]`)
     target?.focus()
   }, [rules])
-  const rememberFocus = (kind: RulesEditorKind, index: number, list: readonly (ColumnRule | FilterRule | SortRule)[]) => {
+  const rememberFocus = (kind: RulesEditorKind, index: number, list: readonly AnyRule[]) => {
     const active = root.current?.ownerDocument.activeElement
     if (!active || !root.current?.contains(active)) return
     focusAfter.current = { rules, kind, index, list, active, field: active.getAttribute("data-rule-field") ?? undefined }
   }
-  const change = (next: Partial<GridRules>) => onRulesChange({ ...rules, ...next })
+  // Edits come back in the type the caller holds: what it wrote stays as written, and what it read stays read.
+  const change = (next: Partial<ReadGridRules>) => onRulesChange({ ...rules, ...next } as R)
   const value: RulesEditorState = {
     rules,
     labels,
     columns: columns.map((column) => ({ key: column.key, name: columnName(column), ops: opsFor(column) })),
-    problem: (rule) => ruleProblem(rule, columns),
+    problem: (rule, kind) => ruleProblem(rule, columns, kind),
     change,
     add: (kind) => {
       if (kind === "highlights") change({ columns: [...listOf(rules.columns), newHighlight(columns)] })
@@ -398,16 +412,16 @@ export function RulesEditor<T>({ columns, rules: given, onRulesChange, store, la
     },
     move: (kind, from, to) => {
       const key = LIST_KEY[kind]
-      const list = listOf<ColumnRule | FilterRule | SortRule>(rules[key])
+      const list = listOf<AnyRule>(rules[key])
       if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return
-      const next = moveItem<ColumnRule | FilterRule | SortRule>(list, from, to)
+      const next = moveItem<AnyRule>(list, from, to)
       rememberFocus(kind, to, next)
       // The key and list originate from the same kind; spread preserves the other lists.
       change({ [key]: next })
     },
     remove: (kind, index) => {
       const key = LIST_KEY[kind]
-      const list = listOf<ColumnRule | FilterRule | SortRule>(rules[key])
+      const list = listOf<AnyRule>(rules[key])
       if (index < 0 || index >= list.length) return
       const next = list.filter((_, i) => i !== index)
       rememberFocus(kind, Math.min(index, list.length - 2), next)
@@ -432,13 +446,15 @@ export interface RulesEditorItemState {
   index: number
   name: string
   columnKey: string
-  condition: RuleCondition | null
-  highlight: ColumnRule | null
-  sort: SortRule | null
+  /** The condition as read: its op can be missing, or text this version doesn't know. */
+  condition: ReadCondition | null
+  /** The highlight as read: any field can be missing. */
+  highlight: ReadColumnRule | null
+  sort: ReadSortRule | null
   problem: string | null
   setColumn: (key: string) => void
-  setCondition: (condition: RuleCondition) => void
-  updateHighlight: (patch: Partial<ColumnRule>) => void
+  setCondition: (condition: ReadCondition) => void
+  updateHighlight: (patch: Partial<ReadColumnRule>) => void
   setDirection: (direction: "asc" | "desc") => void
 }
 const ItemContext = createContext<RulesEditorItemState | null>(null)
@@ -464,9 +480,9 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
   // The entry as the grid reads it: names and words as text, and nothing for an entry that is not an object.
   const entry = listOf<unknown>(editor.rules[LIST_KEY[kind]])[index]
   const read = useMemo(() => (kind === "highlights" ? readColumnRule(entry) : kind === "filters" ? readFilterRule(entry) : readSortRule(entry)), [kind, entry])
-  const highlight = kind === "highlights" ? (read as ColumnRule | null) : null
-  const filter = kind === "filters" ? (read as FilterRule | null) : null
-  const sort = kind === "sort" ? (read as SortRule | null) : null
+  const highlight = kind === "highlights" ? (read as ReadColumnRule | null) : null
+  const filter = kind === "filters" ? (read as ReadFilterRule | null) : null
+  const sort = kind === "sort" ? (read as ReadSortRule | null) : null
   const rule = highlight ?? filter ?? sort
   if (!rule) return null
   let columnKey = highlight?.column ?? sort?.key ?? ""
@@ -475,21 +491,22 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
   let condition = highlight ? (highlight.when ?? NO_CONDITION) : null
   if (filter) {
     const { column, ...rest } = filter
-    columnKey = column
+    // A filter with no column edits from a blank one, so its select stays controlled.
+    columnKey = column ?? ""
     condition = rest
   }
   const name = highlight?.label?.trim() || `${editor.labels[kind]} ${index + 1}`
-  const replace = (next: ColumnRule | FilterRule | SortRule) => {
+  const replace = (next: AnyRule) => {
     const key = LIST_KEY[kind]
-    editor.change({ [key]: listOf<ColumnRule | FilterRule | SortRule>(editor.rules[key]).map((item, i) => i === index ? next : item) })
+    editor.change({ [key]: listOf<AnyRule>(editor.rules[key]).map((item, i) => i === index ? next : item) })
   }
   const state: RulesEditorItemState = {
     kind, index, name, columnKey, condition, highlight: highlight ?? null, sort: sort ?? null,
-    problem: highlight ? editor.problem({ ...highlight, when: highlight.when, tone: highlight.tone }) : filter ? editor.problem(filter) : !columnKey ? "The rule needs a column." : editor.columns.some((c) => c.key === columnKey) ? null : `No column is named "${columnKey}".`,
+    problem: highlight ? editor.problem(highlight, "highlight") : filter ? editor.problem(filter, "filter") : !columnKey ? "The rule needs a column." : editor.columns.some((c) => c.key === columnKey) ? null : `No column is named "${columnKey}".`,
     setColumn: (key) => {
       if (sort) return replace({ ...sort, key })
       const ops = editor.columns.find((c) => c.key === key)?.ops ?? opsFor(undefined)
-      const next = ops.includes(condition!.op) ? condition! : { ...withoutValues(condition!), op: ops[0]! }
+      const next = condition!.op !== undefined && (ops as readonly string[]).includes(condition!.op) ? condition! : { ...withoutValues(condition!), op: ops[0]! }
       replace(highlight ? { ...highlight, column: key, when: next } : { column: key, ...next })
     },
     setCondition: (next) => {
@@ -499,7 +516,7 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
     updateHighlight: (patch) => { if (highlight) replace({ ...highlight, ...patch }) },
     setDirection: (dir) => { if (sort) replace({ ...sort, dir }) },
   }
-  return <ItemContext value={state}><div role="group" tabIndex={0} draggable aria-label={props["aria-labelledby"] ? undefined : name} aria-keyshortcuts={roleOwnsArrows(props.role) ? undefined : "Alt+ArrowUp Alt+ArrowDown"} data-rule-kind={kind} data-rule-row={index} data-rule-id={highlight?.id} data-filter-index={filter ? index : undefined} data-sort-index={sort ? index : undefined} data-dragging={dragging || undefined} className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-sm border border-border/60 p-1.5 outline-none focus-visible:border-ring data-[dragging]:opacity-50", className)} {...props}
+  return <ItemContext value={state}><div role="group" tabIndex={0} draggable aria-label={props["aria-labelledby"] ? undefined : name} aria-keyshortcuts={roleOwnsArrows(props.role) || (props.contentEditable !== undefined && props.contentEditable !== false && props.contentEditable !== "false") ? undefined : "Alt+ArrowUp Alt+ArrowDown"} data-rule-kind={kind} data-rule-row={index} data-rule-id={highlight?.id} data-filter-index={filter ? index : undefined} data-sort-index={sort ? index : undefined} data-dragging={dragging || undefined} className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-sm border border-border/60 p-1.5 outline-none focus-visible:border-ring data-[dragging]:opacity-50", className)} {...props}
     onKeyDown={(event) => {
       onKeyDown?.(event)
       // Plain Alt with an arrow, from this item's own elements: a portaled popover's controls bubble here through React
@@ -515,7 +532,7 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
     onDragStart={(event) => {
       onDragStart?.(event)
       if (event.defaultPrevented) return
-      dragRef.current = { kind, index, list: listOf<ColumnRule | FilterRule | SortRule>(editor.rules[LIST_KEY[kind]]), type: dragType, clear: () => setDragging(false) }
+      dragRef.current = { kind, index, list: listOf<AnyRule>(editor.rules[LIST_KEY[kind]]), type: dragType, clear: () => setDragging(false) }
       event.dataTransfer?.setData?.("text/plain", String(index))
       event.dataTransfer?.setData?.(dragType, "")
       if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
@@ -573,7 +590,8 @@ export function RulesEditorOperator({ onChange, className, ...props }: SelectPro
     onChange?.(event)
     if (!event.defaultPrevented) item.setCondition(withOp(condition, event.target.value as RuleOp))
   }}>
-    {!ops.includes(condition.op) && <NativeSelectOption value={current}>{(RULE_OPS as readonly string[]).includes(current) ? RULE_OP_LABELS[current as RuleOp] : current}</NativeSelectOption>}
+    {/* An op the column does not offer reads as its word; one no version knows reads quoted, apart from every word here. */}
+    {!(ops as readonly string[]).includes(current) && <NativeSelectOption value={current}>{isKnownOp(current) ? RULE_OP_LABELS[current] : `"${current}"`}</NativeSelectOption>}
     {ops.map((op) => <NativeSelectOption key={op} value={op}>{RULE_OP_LABELS[op]}</NativeSelectOption>)}
   </NativeSelect>
 }
@@ -620,7 +638,7 @@ export function RulesEditorTone({ onChange, className, ...props }: SelectProps) 
     onChange?.(event)
     if (!event.defaultPrevented) updateHighlight({ tone: event.target.value as RuleTone })
   }}>
-    {!RULE_TONES.includes(highlight.tone) && <NativeSelectOption value={current}>{current}</NativeSelectOption>}
+    {!isKnownTone(current) && <NativeSelectOption value={current}>{`"${current}"`}</NativeSelectOption>}
     {RULE_TONES.map((tone) => <NativeSelectOption key={tone} value={tone}>{tone}</NativeSelectOption>)}
   </NativeSelect>
 }
@@ -628,7 +646,7 @@ export function RulesEditorTone({ onChange, className, ...props }: SelectProps) 
 export function RulesEditorToneSwatch({ className, ...props }: ComponentProps<"span">) {
   const { highlight } = useRulesEditorItem()
   if (!highlight) return null
-  return <span aria-hidden data-rule-swatch={highlight.tone} className={cn("rounded-sm px-1.5 py-0.5", RULE_TONES.includes(highlight.tone) && RULE_TONE_CLASS[highlight.tone], className)} {...props}>{highlight.tone}</span>
+  return <span aria-hidden data-rule-swatch={highlight.tone} className={cn("rounded-sm px-1.5 py-0.5", isKnownTone(highlight.tone) && RULE_TONE_CLASS[highlight.tone], className)} {...props}>{highlight.tone}</span>
 }
 
 export function RulesEditorTarget({ onChange, className, ...props }: SelectProps) {
