@@ -691,6 +691,29 @@ describe("CommandPalette", () => {
     detach()
   })
 
+  it("takes a popout's keys from the one right after the shortcut", () => {
+    const popout = document.implementation.createHTMLDocument("popout")
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const cancel = vi.fn()
+    hotkeys.register({ id: "orders.cancel", keys: "x", scope: "global", description: "Cancel" }, cancel)
+    render(
+      <HotkeysProvider registry={hotkeys}>
+        {createPortal(<HotkeyScope scope="panel:book" data-book="b"><p>book body</p></HotkeyScope>, popout.body)}
+        <ComposedPalette actions={createActionRegistry()} hotkeys={hotkeys} />
+      </HotkeysProvider>,
+    )
+    const detach = hotkeys.attach(popout)
+    const bookB = popout.querySelector("[data-book='b']")!
+    // Both keys in one batch: nothing renders between them unless the shortcut renders the opening itself.
+    act(() => {
+      bookB.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true }))
+      bookB.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true }))
+    })
+    expect(cancel).not.toHaveBeenCalled()
+    expect(input()).toHaveValue("x")
+    detach()
+  })
+
   it("keeps the last panel's offer when focus fell to the body here and the shortcut opens the palette", () => {
     // A row removed under its own button leaves focus on the body with no focusin: the tracker still holds the panel.
     const hotkeys = createHotkeyRegistry({ platform: "other" })

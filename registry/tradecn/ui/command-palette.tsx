@@ -1,5 +1,6 @@
 import { cn } from "cn"
 import { createContext, Fragment, useCallback, useContext, useEffect, useInsertionEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from "react"
+import { flushSync } from "react-dom"
 import { Command, CommandDialog, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useDeclaredHotkeyIds, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
@@ -697,7 +698,16 @@ export function CommandPalette(options: CommandPaletteProps) {
       // Only a key from another document, a popout's, names its element: here the focus tracker already knows
       // where focus was, and keeps the last panel's offer when focus fell to the body.
       const target = event.target as Element | null
-      if (!open && target && target.nodeType === 1 && target.ownerDocument !== document) setKeyedFrom(target)
+      if (!open && target && target.nodeType === 1 && target.ownerDocument !== document) {
+        // React hears a key from another window as no event of its own, so it would render the opening a task later,
+        // and the popout's next key could reach that window's bindings first. The opening renders now, and the
+        // capture listens there before this handler returns.
+        flushSync(() => {
+          setKeyedFrom(target)
+          setOpen(true)
+        })
+        return
+      }
       setOpen(!open)
     }
   })
