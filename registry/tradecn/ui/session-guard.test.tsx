@@ -1,4 +1,4 @@
-import { useRef } from "react"
+import { StrictMode, useRef } from "react"
 import { SessionNotice, type SessionNoticeProps } from "@/demos/session-guard"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -173,13 +173,14 @@ describe("the guard", () => {
     const { rerender } = render(<SessionGuard expiresAt={T0 + MINUTE} clock={clock} onReauthenticate={onReauthenticate} />)
     const stay = screen.getByRole("button", { name: "Stay signed in" })
     act(() => stay.focus())
-    // The session renews, and the banner goes with its focused button.
+    // The session renews, and the banner goes with its focused button; focus moves once it has gone.
     rerender(<SessionGuard expiresAt={t + 10 * MINUTE} clock={clock} onReauthenticate={onReauthenticate} />)
+    await act(async () => {})
     expect(screen.queryByRole("status")).toBeNull()
     expect(screen.getByRole("textbox", { name: "Draft" })).toHaveFocus()
   })
 
-  it("hands focus back where it came from when the banner closes with focus inside and no fallback", () => {
+  it("hands focus back where it came from when the banner closes with focus inside and no fallback", async () => {
     const clock = createClock(1000, () => t)
     const scene = (expiresAt: number) => (
       <SessionGuardProvider expiresAt={expiresAt} clock={clock} onReauthenticate={async () => true}>
@@ -192,6 +193,7 @@ describe("the guard", () => {
     act(() => before.focus())
     act(() => screen.getByRole("button", { name: "Stay" }).focus())
     rerender(scene(t + 10 * MINUTE))
+    await act(async () => {})
     expect(screen.queryByRole("button", { name: "Stay" })).toBeNull()
     expect(before).toHaveFocus()
   })
@@ -225,7 +227,7 @@ describe("the guard", () => {
     expect(stay).toHaveFocus()
   })
 
-  it("tries where focus came from when the fallback can't take focus", () => {
+  it("tries where focus came from when the fallback can't take focus", async () => {
     const clock = createClock(1000, () => t)
     function Scene({ expiresAt }: { expiresAt: number }) {
       const fallback = useRef<HTMLInputElement>(null)
@@ -244,10 +246,11 @@ describe("the guard", () => {
     act(() => before.focus())
     act(() => screen.getByRole("button", { name: "Stay" }).focus())
     rerender(<Scene expiresAt={t + 10 * MINUTE} />)
+    await act(async () => {})
     expect(before).toHaveFocus()
   })
 
-  it("forgets where focus came from once it arrives again from no element", () => {
+  it("forgets where focus came from once it arrives again from no element", async () => {
     const clock = createClock(1000, () => t)
     const scene = (expiresAt: number) => (
       <SessionGuardProvider expiresAt={expiresAt} clock={clock} onReauthenticate={async () => true}>
@@ -263,7 +266,31 @@ describe("the guard", () => {
     // Focus comes back into the banner from another window, which names no element.
     fireEvent.focusIn(stay, { relatedTarget: null })
     rerender(scene(t + 10 * MINUTE))
+    await act(async () => {})
     expect(before).not.toHaveFocus()
+  })
+
+  it("leaves focus where the banner's own content put it when StrictMode replays its effects", async () => {
+    const clock = createClock(1000, () => t)
+    function Scene({ expiresAt }: { expiresAt: number }) {
+      const fallback = useRef<HTMLInputElement>(null)
+      return (
+        <StrictMode>
+          <SessionGuardProvider expiresAt={expiresAt} clock={clock} onReauthenticate={async () => true}>
+            <input ref={fallback} aria-label="Fallback" />
+            <SessionGuardWarning fallbackFocusRef={fallback}><input aria-label="Code" autoFocus /></SessionGuardWarning>
+          </SessionGuardProvider>
+        </StrictMode>
+      )
+    }
+    // Live first, so the fallback is already mounted when the banner arrives, as on a desk.
+    const { rerender } = render(<Scene expiresAt={T0 + 10 * MINUTE} />)
+    expect(screen.queryByRole("status")).toBeNull()
+    // Into the warning window: the banner mounts and its content takes focus, and the replay runs the banner's cleanup on
+    // a banner that stays, so nothing moves.
+    rerender(<Scene expiresAt={T0 + MINUTE} />)
+    await act(async () => {})
+    expect(screen.getByRole("textbox", { name: "Code" })).toHaveFocus()
   })
 
   it("prints a refusal, and a rejection, as an alert beside the button, and forgets it once the session is live again", async () => {

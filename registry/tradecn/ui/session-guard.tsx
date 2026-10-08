@@ -236,18 +236,24 @@ function WarningBanner({ className, role = "status", fallbackFocusRef, ref, onFo
     if (typeof ref === "function") return ref(element)
     if (ref) ref.current = element
   }, [ref])
-  // A layout cleanup runs while the node is still in the document, so it can tell whether focus was inside it.
+  // A layout cleanup runs while the node is still in the document, so it can tell whether focus was inside it. The move
+  // waits a microtask and needs the banner gone with focus fallen to the page: StrictMode's replay runs this cleanup on a
+  // banner that stays, and focus another part has placed meanwhile is that part's.
   useLayoutEffect(() => () => {
     const banner = node.current
     if (!banner) return
     const focused = (banner.getRootNode() as Document | ShadowRoot).activeElement
     if (!focused || !banner.contains(focused)) return
-    for (const target of [fallback.current?.current, cameFrom.current]) {
-      if (!target?.isConnected || banner.contains(target) || target.matches(":disabled") || target.closest("[inert], [hidden], [aria-hidden='true']")) continue
-      target.focus()
-      // One the browser can't focus, hidden by a style, say, leaves focus in the banner: try the next.
-      if ((target.getRootNode() as Document | ShadowRoot).activeElement === target) return
-    }
+    const doc = banner.ownerDocument
+    queueMicrotask(() => {
+      if (banner.isConnected || (doc.activeElement && doc.activeElement !== doc.body)) return
+      for (const target of [fallback.current?.current, cameFrom.current]) {
+        if (!target?.isConnected || banner.contains(target) || target.matches(":disabled") || target.closest("[inert], [hidden], [aria-hidden='true']")) continue
+        target.focus()
+        // One the browser can't focus, hidden by a style, say, leaves focus on the page: try the next.
+        if ((target.getRootNode() as Document | ShadowRoot).activeElement === target) return
+      }
+    })
   }, [])
   return <div role={role} data-slot="tradecn-session-guard" data-session-banner="" className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-expiring/50 bg-expiring-soft px-3 py-1.5 text-xs text-foreground lining-nums tabular-nums", className)} {...props} ref={bannerRef} onFocus={(event) => {
     onFocus?.(event)
