@@ -1567,13 +1567,16 @@ describe("row names", () => {
         // on a button reads its label, and an image its alt.
         { key: "note", header: "Note", width: 120, accessor: () => "", cell: ({ row }) => <><span id={`cap-${row.id}`} hidden>Caption</span><input aria-label="Note" defaultValue={`note ${row.id}`} /><input aria-labelledby={`cap-${row.id}`} defaultValue="held" /><select aria-labelledby={`cap-${row.id}`} defaultValue="b"><option value="a">Alpha</option><option value="b">Beta</option></select><input role="combobox" aria-label="Venue" defaultValue="NYSE" /><button role="combobox" aria-label="Side">Buy</button><img alt="flag" src="" /></> },
       ]
+      // A heading takes no name, a link and anything with a role that takes one do, and a target is read whole, its
+      // hidden content included.
+      marked.push({ key: "kinds", header: "Kinds", width: 120, accessor: () => "", cell: ({ row }) => <><h3 aria-label="no name">heading</h3><a aria-label="link name">link</a><span role="combobox" aria-label="span name">span</span><span id={`whole-${row.id}`}>Up<span aria-hidden="true"> ▲</span></span><button aria-labelledby={`whole-${row.id}`}>×</button></> })
       render(<DataGrid store={store} columns={marked} label="Quotes" initialRect={RECT} getRowLabel={symbol} selectionMode="multi" selectionColumn />)
       const grid = screen.getByRole("grid")
       act(() => grid.focus())
       fireEvent.keyDown(grid, { key: "ArrowDown" })
       fireEvent.keyDown(grid, { key: "ArrowDown" })
       act(() => vi.advanceTimersByTime(400))
-      expect(reading()).toBe("S0001, 101.00, 10, up on the day since the open, Time left 0:59, note r1 held Beta NYSE Side flag")
+      expect(reading()).toBe("S0001, 101.00, 10, up on the day since the open, Time left 0:59, note r1 held Beta NYSE Side flag, heading link name span name Up Up ▲")
     } finally {
       vi.useRealTimers()
     }

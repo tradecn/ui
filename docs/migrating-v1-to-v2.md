@@ -608,13 +608,13 @@ A successful add-form submission now clears both its draft and invalid state. A 
 
 Menu renderers now use current props when enabled or replaced, including while a menu is open. The renderer is not passed to memoized rows.
 
-A row is named by its symbol through `getRowLabel` on `WatchlistGrid`, where v1 named it by its cells, so a test that finds a row by its cells' text now finds it by the symbol. The grid reads the focused row's cells once through a polite live region inside it, 400 ms after focus rests on the row. Pass `getRowLabel={null}` for v1's names and no reading.
+A row is named by its symbol through `getRowLabel` on `WatchlistGrid`, where v1 named it by its cells, so a test that finds a row by its cells' text now finds it by the symbol. The grid reads the focused row's cells once through a polite live region inside it, 400 ms after focus rests on the row, and the region repeats the row's text, so a text query scoped to the grid, such as Playwright's `getByText`, can find it twice. Pass `getRowLabel={null}` for v1's names and no reading.
 
 ## Positions
 
 `getRowProps` and `renderContextMenu` follow the current render instead of a ref published one render behind: memoize `getRowProps` or every parent render re-renders every row, and a decoration change reaches mounted rows at once.
 
-A row is named by its instrument through `getRowLabel`, where v1 named it by its cells, so a test that finds a row by its cells' text now finds it by the instrument. The grid reads the focused row's cells once through a polite live region inside it, 400 ms after focus rests on the row. Pass `getRowLabel={null}` for v1's names and no reading.
+A row is named by its instrument through `getRowLabel`, where v1 named it by its cells, so a test that finds a row by its cells' text now finds it by the instrument. The grid reads the focused row's cells once through a polite live region inside it, 400 ms after focus rests on the row, and the region repeats the row's text, so a text query scoped to the grid, such as Playwright's `getByText`, can find it twice. Pass `getRowLabel={null}` for v1's names and no reading.
 
 ## ParameterGrid
 
@@ -624,7 +624,7 @@ The same `getRowProps` change as Positions, and `onEdit` passes straight to the 
 
 `filter` and `getRowProps` are dependencies now: a new one re-filters or redraws the rows the grid holds at once, where v1 read them through a ref and waited for the next feed update, so an inline one now redraws at every render, and an inline `filter` without a view of yours also replaces the grid's own view and drops a running reorder hold; keep them stable. `thresholds` is read by its value. `byTimeLeft`, `bySize`, and `byArrival` put a value that is not a finite number last, and `stackOrder` passes a `NaN` comparison to the next comparator; v1 let one bad row disorder the rest. A side outside the three prints as sent, where v1 printed nothing, or threw for one named like an object property, such as `__proto__`. The threshold field marks text that is not a plain decimal invalid and keeps the threshold in force, where v1 read `0x10` as `16` and turned the threshold off for `1,000`. The active row's accessible description is `activeLabel`, `In the ticket` by default, and `parkedLabel` replaces the fixed `Parked`; both join after a row rule's description, where v1's `Parked` replaced it. `useActiveInquiry`'s `setActive` ignores an ended or missing id, where v1 fell back to the stack's choice and could replace the open inquiry in the ticket.
 
-A row is named by its client, side, size, and instrument through `getRowLabel`, where v1 named it by its cells, so a test that finds a row by its cells' text now finds it by that name. The grid reads the focused row's cells once through a polite live region inside it, 400 ms after focus rests on the row. Pass `getRowLabel={null}` to name rows by their cells and read nothing, as v1 did; Countdown's name now includes its digits, so such a row's name changes every second, where v1's didn't.
+A row is named by its client, side, size, and instrument through `getRowLabel`, where v1 named it by its cells, so a test that finds a row by its cells' text now finds it by that name. The grid reads the focused row's cells once through a polite live region inside it, 400 ms after focus rests on the row, and the region repeats the row's text, so a text query scoped to the grid, such as Playwright's `getByText`, can find it twice. Pass `getRowLabel={null}` to name rows by their cells and read nothing, as v1 did; Countdown's name now includes its digits, so such a row's name changes every second, where v1's didn't.
 
 ## Blotter
 
