@@ -4,7 +4,7 @@ import { ColumnSettingsPanel } from "./column-settings"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/components/ui/data-grid"
 import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorDirection, RulesEditorFilterCount, RulesEditorItem, RulesEditorLabel, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorRuleCount, RulesEditorTarget, RulesEditorTone, RulesEditorToneSwatch, RulesEditorValue, useRulesEditor, type RulesEditorProps } from "@/components/ui/rules-editor"
 import { NUMERIC_CLASS } from "@/lib/format"
-import type { GridRules } from "@/lib/grid-rules"
+import type { ReadGridRules } from "@/lib/grid-rules"
 import { createRowStore } from "@/lib/row-store"
 
 interface Rfq {
@@ -37,7 +37,7 @@ export function RulesEditorScene() {
     })
     return s
   }, [])
-  const [rules, setRules] = useState<GridRules>({})
+  const [rules, setRules] = useState<ReadGridRules>({})
   const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: {}, hidden: [] })
   return (
     <div className="flex w-[56rem] flex-col gap-2" data-rules-state={JSON.stringify(rules)}>
