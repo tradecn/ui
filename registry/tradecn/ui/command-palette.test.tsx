@@ -82,7 +82,7 @@ describe("createActionRegistry", () => {
     expect(actions.recents()).toEqual([{ kind: "action", id: "b" }, { kind: "symbol", symbol: { symbol: "MSFT", exchange: "XNAS" } }])
     // A field stored as null is a field left out, as JSON stores an adapter's missing exchange.
     actions.loadRecents([{ kind: "action", id: "c", scope: null }, { kind: "symbol", symbol: { symbol: "ZN", exchange: null, name: null } }] as never)
-    expect(actions.recents()).toHaveLength(2)
+    expect(actions.recents()).toEqual([{ kind: "action", id: "c" }, { kind: "symbol", symbol: { symbol: "ZN" } }])
     for (let i = 0; i < 12; i++) actions.touch({ kind: "action", id: `x${i}` })
     expect(actions.recents()).toHaveLength(8)
     // Something that isn't a list reads as no recents.
@@ -714,6 +714,60 @@ describe("CommandPalette", () => {
     detach()
   })
 
+  it("keeps every key in a popout from its bindings and its field while the palette is open, a modifier held or not", () => {
+    const popout = document.implementation.createHTMLDocument("popout")
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    // A ticket's bindings, held behind modifiers as the docs advise for orders, and answering in its fields as `editing`.
+    const flip = vi.fn()
+    const down = vi.fn()
+    hotkeys.register({ id: "ticket.flip", keys: "mod+shift+x", scope: "editing", description: "Flip" }, flip)
+    hotkeys.register({ id: "ticket.tick-down", keys: "mod+down", scope: "editing", description: "Tick down" }, down)
+    const changed = vi.fn()
+    render(
+      <HotkeysProvider registry={hotkeys}>
+        {createPortal(<HotkeyScope scope="panel:ticket"><input aria-label="Price" /></HotkeyScope>, popout.body)}
+        <ComposedPalette actions={createActionRegistry()} hotkeys={hotkeys} onOpenChange={changed} />
+      </HotkeysProvider>,
+    )
+    const detach = hotkeys.attach(popout)
+    const price = popout.querySelector("input")!
+    const press = (key: string, init: KeyboardEventInit & { keyCode?: number } = {}) => {
+      const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init })
+      if (init.keyCode !== undefined) Object.defineProperty(event, "keyCode", { value: init.keyCode })
+      act(() => void price.dispatchEvent(event))
+      return event.defaultPrevented
+    }
+    press("k", { ctrlKey: true })
+    expect(changed).toHaveBeenLastCalledWith(true)
+    // The ticket's own shortcuts stop at the palette, and do nothing to its field.
+    expect(press("X", { ctrlKey: true, shiftKey: true })).toBe(true)
+    expect(press("ArrowDown", { ctrlKey: true })).toBe(true)
+    expect(press("z", { ctrlKey: true })).toBe(true)
+    expect(flip).not.toHaveBeenCalled()
+    expect(down).not.toHaveBeenCalled()
+    // Copy keeps its default, and a paste lands in the query.
+    expect(press("c", { ctrlKey: true })).toBe(false)
+    const paste = new Event("paste", { bubbles: true, cancelable: true })
+    Object.defineProperty(paste, "clipboardData", { value: { getData: (type: string) => (type === "text/plain" ? "ZN\n" : "") } })
+    act(() => void price.dispatchEvent(paste))
+    expect(paste.defaultPrevented).toBe(true)
+    expect(input()).toHaveValue("ZN ")
+    // An Option character types; a key an input method holds does not.
+    press("å", { altKey: true })
+    expect(input()).toHaveValue("ZN å")
+    press("a", { keyCode: 229 })
+    expect(input()).toHaveValue("ZN å")
+    // Left and Right stop here and move nothing.
+    expect(press("ArrowLeft")).toBe(true)
+    // The palette's own shortcut closes it.
+    press("k", { ctrlKey: true })
+    expect(changed).toHaveBeenLastCalledWith(false)
+    // Closed, the field's keys are its own again.
+    press("X", { ctrlKey: true, shiftKey: true })
+    expect(flip).toHaveBeenCalledTimes(1)
+    detach()
+  })
+
   it("keeps the last panel's offer when focus fell to the body here and the shortcut opens the palette", () => {
     // A row removed under its own button leaves focus on the body with no focusin: the tracker still holds the panel.
     const hotkeys = createHotkeyRegistry({ platform: "other" })
@@ -989,6 +1043,9 @@ describe("hotkeys", () => {
     expect(input()).toHaveValue("x")
     // A modified key is not text, and still does not reach the dispatcher.
     fireEvent.keyDown(document.body, { key: "x", ctrlKey: true })
+    expect(input()).toHaveValue("x")
+    // A key an input method holds is the method's: Safari says so with key code 229 before isComposing does.
+    fireEvent.keyDown(document.body, { key: "a", keyCode: 229 })
     expect(input()).toHaveValue("x")
     // Enter in the gap runs the highlighted row, and Shift+Enter its second action.
     fireEvent.keyDown(document.body, { key: "Backspace" })

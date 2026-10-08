@@ -344,7 +344,7 @@ export function createHotkeyRegistry(options: HotkeyRegistryOptions = {}): Hotke
   const platform = options.platform ?? detectPlatform()
   // A timer runs at once for 0, NaN, Infinity, or anything past 2^31 - 1 ms, and a chord could never finish: those read as the default.
   const given = options.chordTimeoutMs
-  const chordTimeoutMs = typeof given === "number" && given > 0 && given <= 2_147_483_647 ? given : 1000
+  const chordTimeoutMs = typeof given === "number" && given >= 1 && given <= 2_147_483_647 ? given : 1000
   const recs = new Map<string, Rec>()
   // Component defaults: each declaration is held individually beside the live records, installed
   // only while no consumer registration shadows the id — the earliest held declaration is the

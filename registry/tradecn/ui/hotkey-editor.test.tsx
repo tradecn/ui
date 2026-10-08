@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { HotkeyEditorGroups } from "@/demos/hotkey-editor-groups"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
+import { createPortal } from "react-dom"
 import { describe, expect, it, vi } from "vitest"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry, type HotkeyBinding, type HotkeyEntry, type HotkeyOverrides } from "@/registry/tradecn/lib/hotkeys"
@@ -160,6 +161,9 @@ describe("HotkeyEditor", () => {
     const registry = createHotkeyRegistry({ platform: "other" })
     for (const binding of BINDINGS) registry.register(binding)
     const changed = vi.fn()
+    // Where Radix hears Escape, on the document in the capture phase: an edit's Escape never gets there.
+    const radix = vi.fn()
+    document.addEventListener("keydown", radix, true)
     render(
       <HotkeysProvider registry={registry}>
         <Dialog open onOpenChange={changed}>
@@ -183,10 +187,30 @@ describe("HotkeyEditor", () => {
     prevented.preventDefault()
     act(() => void row("book.cancel").querySelector("[data-hotkey-capture]")!.dispatchEvent(prevented))
     expect(row("book.cancel").querySelector("[data-hotkey-capture]")).toBeNull()
-    // An Escape on anything but the open field is not the editor's.
+    expect(radix.mock.calls.filter(([event]) => (event as KeyboardEvent).key === "Escape")).toHaveLength(0)
+    // An Escape on anything but the open field is not the editor's: the document hears it.
     fireEvent.click(screen.getByRole("button", { name: "Change: Cancel the selected order" }))
     fireEvent.keyDown(document.body, { key: "Escape" })
     expect(row("book.cancel").querySelector("[data-hotkey-capture]")).not.toBeNull()
+    expect(radix.mock.calls.filter(([event]) => (event as KeyboardEvent).key === "Escape")).toHaveLength(1)
+    document.removeEventListener("keydown", radix, true)
+  })
+
+  it("cancels a capture on Escape in a document with no window, and never binds Escape", () => {
+    // A document made for a popout before it has a window: the editor's window listener has nowhere to go.
+    const away = document.implementation.createHTMLDocument("away")
+    const registry = createHotkeyRegistry({ platform: "other" })
+    for (const binding of BINDINGS) registry.register(binding)
+    render(<HotkeysProvider registry={registry}>{createPortal(<HotkeyEditor><HotkeyEditorGroups /></HotkeyEditor>, away.body)}</HotkeysProvider>)
+    const item = away.querySelector<HTMLElement>("[data-hotkey-row='book.cancel']")!
+    const before = item.querySelector("[data-hotkey-keys]")!.getAttribute("data-hotkey-keys")
+    // Testing Library builds events from the node's window, which this document lacks, so these are dispatched directly.
+    act(() => void item.querySelector<HTMLElement>("button[aria-label='Change: Cancel the selected order']")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })))
+    const capture = item.querySelector<HTMLElement>("[data-hotkey-capture]")!
+    expect(capture).not.toBeNull()
+    act(() => void capture.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })))
+    expect(item.querySelector("[data-hotkey-capture]")).toBeNull()
+    expect(item.querySelector("[data-hotkey-keys]")!.getAttribute("data-hotkey-keys")).toBe(before)
   })
 
   it("Escape cancels a capture, a bare modifier is not a shortcut, and Backspace unbinds", () => {

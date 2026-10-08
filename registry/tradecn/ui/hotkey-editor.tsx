@@ -392,6 +392,8 @@ export function HotkeyEditorCapture({ ref, onKeyDown, onBlur, className, childre
     event.preventDefault()
     event.stopPropagation()
     if (event.key === "Backspace" || event.key === "Delete") return commit("")
+    // The window takes Escape first; in a document with no window, it still cancels and is never a binding.
+    if (event.key === "Escape") return cancel()
     if ((event.key === "Enter" || event.key === " ") && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) return
     const keys = keysFromEvent(event.nativeEvent)
     if (keys) commit(keys)

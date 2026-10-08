@@ -167,7 +167,7 @@ For persistence, create a registry once, restore saved overrides with `load`, an
 
 ### The rest
 
-`createHotkeyRegistry(options?)` accepts `chordTimeoutMs` (milliseconds, default `1000`; a value that isn't above zero and at most 2,147,483,647 reads as the default) and `platform` (`"mac"` or `"other"`, default `detectPlatform()`). The selected platform is available as `registry.platform`.
+`createHotkeyRegistry(options?)` accepts `chordTimeoutMs` (milliseconds, default `1000`; a value below 1 or above 2,147,483,647 reads as the default) and `platform` (`"mac"` or `"other"`, default `detectPlatform()`). The selected platform is available as `registry.platform`.
 
 | Registry method | Result or behavior |
 |---|---|

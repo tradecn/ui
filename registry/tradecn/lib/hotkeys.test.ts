@@ -356,7 +356,7 @@ describe("chords", () => {
     expect(run).not.toHaveBeenCalled()
   })
 
-  it.each([0, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 31])("reads a timeout of %s as the default, which a timer can wait out", (chordTimeoutMs) => {
+  it.each([0, 0.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 31])("reads a timeout of %s as the default, which a timer can wait out", (chordTimeoutMs) => {
     vi.useFakeTimers()
     const registry = attached({ chordTimeoutMs })
     const run = vi.fn()

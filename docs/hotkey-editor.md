@@ -144,7 +144,7 @@ A change to the binding's keys, declaration fields, or provider registry cancels
 
 Inputs accept their installed component's props except `value` and `defaultValue`, which are coordinated. Capture accepts installed Button props.
 
-All three forward refs and native events. Caller handlers run first. `preventDefault()` skips the part's behavior for that event.
+All three forward refs and native events. Caller handlers run first. `preventDefault()` skips the part's behavior for that event, except Escape during a capture or a text edit, which the editor takes at the window before any handler sees it.
 
 ### Actions
 
