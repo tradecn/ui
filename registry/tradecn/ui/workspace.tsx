@@ -315,7 +315,7 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
     addPanel({ kind, id: wanted, title, state, position, floating, focus = true }) {
       // An id that names an Object.prototype member breaks the dock, which keys its panels by plain objects: such a
       // panel opens under its default id instead, and the id returned says which.
-      const id = wanted !== undefined && !isReservedPanelId(wanted) ? wanted : nextPanelId(kind, dv.panels.map((panel) => panel.id))
+      const id = wanted != null && !isReservedPanelId(wanted) ? wanted : nextPanelId(kind, dv.panels.map((panel) => panel.id))
       if (dv.getPanel(id)) {
         // An ensure-open call with focus: false must not steal the keyboard from
         // the panel the trader is in.

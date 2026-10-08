@@ -248,10 +248,13 @@ function WarningBanner({ className, role = "status", fallbackFocusRef, ref, onFo
     queueMicrotask(() => {
       if (banner.isConnected || (doc.activeElement && doc.activeElement !== doc.body)) return
       for (const target of [fallback.current?.current, cameFrom.current]) {
-        if (!target?.isConnected || banner.contains(target) || target.matches(":disabled") || target.closest("[inert], [hidden], [aria-hidden='true']")) continue
+        // A target in another document can't take this page's focus back.
+        if (!target?.isConnected || target.ownerDocument !== doc || banner.contains(target) || target.matches(":disabled") || target.closest("[inert], [hidden], [aria-hidden='true']")) continue
         target.focus()
-        // One the browser can't focus, hidden by a style, say, leaves focus on the page: try the next.
-        if ((target.getRootNode() as Document | ShadowRoot).activeElement === target) return
+        // One the browser can't focus, hidden by a style, say, leaves focus on the page: try the next. Focus the target
+        // hands on to something inside it counts.
+        const now = (target.getRootNode() as Document | ShadowRoot).activeElement
+        if (now && target.contains(now)) return
       }
     })
   }, [])
@@ -298,7 +301,12 @@ export interface SessionGuardReauthenticateProps extends Omit<ComponentProps<typ
 export function SessionGuardReauthenticate({ children, disabled, type = "button", onClick, className, ...props }: SessionGuardReauthenticateProps) {
   const { pending, reauthenticate } = useSessionGuard()
   return <Button data-slot="tradecn-session-guard-reauthenticate" data-pending={pending || undefined} {...props} aria-disabled={pending || props["aria-disabled"] || undefined} className={cn("aria-disabled:opacity-50", className)} type={type} disabled={disabled} onClick={event => {
-    if (pending) return event.preventDefault()
+    // Held, the press goes no further, as a disabled button's would: nothing above it hears the click either.
+    if (pending) {
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
     onClick?.(event)
     if (!event.defaultPrevented) void reauthenticate()
   }}>{children}</Button>

@@ -212,7 +212,7 @@ The modal blocks pointer interaction underneath. For events inside its `role="di
 
 ### Re-authentication
 
-Every action and custom hook control shares one request lock. While a request is out, `SessionGuardReauthenticate` carries `aria-disabled="true"` and `data-pending="true"`, and a press does nothing, your `onClick` included; `SessionGuardActionLabel` shows `Signing in…`. The action stays focusable, so focus stays on it until the session renews or the request is refused. A caller's `disabled` disables the action natively. The caller's `onClick` runs first and can cancel the request with `preventDefault()`.
+Every action and custom hook control shares one request lock. While a request is out, `SessionGuardReauthenticate` carries `aria-disabled="true"` and `data-pending="true"`, and a press does nothing and goes no further, your `onClick` and anything above the action included, as with a disabled button; `SessionGuardActionLabel` shows `Signing in…`. The action stays focusable, so focus stays on it until the session renews or the request is refused. A caller's `disabled` disables the action natively. The caller's `onClick` runs first and can cancel the request with `preventDefault()`.
 
 Hold a custom control the same way: set `aria-disabled` while `pending` and ignore its presses, rather than `disabled`, which moves focus to the page while the request is out.
 

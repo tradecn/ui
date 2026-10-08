@@ -697,8 +697,8 @@ describe("Workspace", () => {
     expect(screen.getByText("No panel is registered for the kind “constructor”.")).toBeInTheDocument()
   })
 
-  it("reads a save delay that isn't a finite number at or above zero as the default", async () => {
-    const { api, onLayoutChange } = await mount({ layoutChangeDelay: Number.NaN })
+  it.each([Number.NaN, -1, Number.POSITIVE_INFINITY])("reads a save delay of %s, which isn't a finite number at or above zero, as the default", async (layoutChangeDelay) => {
+    const { api, onLayoutChange } = await mount({ layoutChangeDelay })
     act(() => vi.advanceTimersByTime(1000))
     onLayoutChange.mockClear()
     act(() => {
@@ -708,6 +708,26 @@ describe("Workspace", () => {
     expect(onLayoutChange).not.toHaveBeenCalled()
     act(() => vi.advanceTimersByTime(1))
     expect(onLayoutChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("caps a save delay past 2^31 - 1 ms there, where a timer would fire at once", async () => {
+    const { api, onLayoutChange } = await mount({ layoutChangeDelay: 2 ** 31 })
+    act(() => vi.advanceTimersByTime(1000))
+    onLayoutChange.mockClear()
+    act(() => {
+      api.addPanel({ kind: "chart" })
+    })
+    act(() => vi.advanceTimersByTime(60_000))
+    expect(onLayoutChange).not.toHaveBeenCalled()
+  })
+
+  it("opens a panel asked for under a null id under its default id", async () => {
+    const { api } = await mount()
+    let opened = ""
+    act(() => {
+      opened = api.addPanel({ kind: "book", id: null as never })
+    })
+    expect(opened).toBe("book-2")
   })
 
   it.each(["__proto__", "constructor", "toString", "hasOwnProperty"])("opens a panel asked for under the id %s under its default id instead", async (id) => {

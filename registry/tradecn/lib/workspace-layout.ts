@@ -15,7 +15,10 @@ export const WORKSPACE_LAYOUT_VERSION = 1
 export const WORKSPACE_PERSISTENCE_BOUNDARIES = {
   /** In the layout. `onLayoutChange` hands over a fresh one when any of these changes. */
   autosave: ["dock-arrangement", "floating-and-popout-positions", "panel-kinds", "panel-titles", "panel-state"],
-  /** Belongs to one workspace and is not in the layout. Store it beside the layout, keyed by panel id. */
+  /**
+   * Belongs to one workspace and is not in the layout. Store it beside the layout, keyed by panel id. Default ids are
+   * reused once a panel closes, so give a panel that keeps such data an id of its own.
+   */
   workspaceScoped: ["grid-column-state", "selection", "scroll-position", "ticket-drafts"],
   /** Belongs to the person, whichever workspace is open. */
   globalScoped: ["hotkey-remaps", "palette-recents", "theme", "instrument-conventions"],
