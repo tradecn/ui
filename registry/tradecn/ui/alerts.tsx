@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useRow, useView } from "@/registry/tradecn/hooks/use-row-store"
 import { byNewest, type Alert, type AlertStore, type AlertTone } from "@/registry/tradecn/lib/alert-store"
+import { NULL_TOKEN } from "@/registry/tradecn/lib/format"
 import type { RowId, RowView } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, type ColumnDef, type DataGridPreset } from "@/registry/tradecn/ui/data-grid"
 
@@ -166,6 +167,9 @@ export const ALERT_TONE_TEXT: Record<AlertTone, string> = {
 }
 
 let clockFormat: Intl.DateTimeFormat | null = null
+// Intl throws on a time that is not an instant (NaN, an infinity, or past the ±8.64e15 ms a Date holds), and a
+// throw in a cell takes the whole grid down: such a time prints the null token, whatever formatter is in use.
+const isInstant = (ms: unknown): ms is number => Number.isFinite(ms) && Math.abs(ms as number) <= 8.64e15
 const localTime = (ms: number) => (clockFormat ??= new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })).format(ms)
 
 const NEWEST_FIRST = { comparator: byNewest }
@@ -180,7 +184,7 @@ export function alertColumns(options: { time?: (ms: number) => string; labels?: 
   const time = options.time ?? localTime
   const labels = { ...DEFAULT_ALERT_HISTORY_LABELS, ...options.labels }
   return [
-    { key: "at", header: labels.time, width: 80, sortable: true, flash: false, accessor: (a) => a.at, format: (v) => time(v as number) },
+    { key: "at", header: labels.time, width: 80, sortable: true, flash: false, accessor: (a) => a.at, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
     // The word, in the tone: the tone is a hint on a word that is always there.
     { key: "severity", header: labels.severity, width: 88, sortable: true, flash: false, accessor: (a) => a.severity, cell: ({ row }) => <span className={cn("font-medium", row.tone && ALERT_TONE_TEXT[row.tone])}>{row.severity}</span> },
     { key: "title", header: labels.noticeTitle, width: 200, sortable: true, flash: false, accessor: (a) => a.title },

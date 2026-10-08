@@ -102,7 +102,7 @@ The value formatter has the signature `(field: string, value: unknown, event: T)
 | `children` | `ReactNode` | Required | Your composition. |
 | `view` | `RowView<T>` | - | Shared row IDs and order for the grid, comparisons and export. The caller owns its disposal. |
 | `columns` | `ColumnDef<T>[]` | Event columns | Shared event columns for the grid and export. |
-| `time` | `(ms: number) => string` | Local `HH:MM:SS.mmm` | Format default time cells, event titles and comparison titles. |
+| `time` | `(ms: number) => string` | Local `HH:MM:SS.mmm` | Format default time cells, event titles and comparison titles. A time a `Date` can't hold, such as `NaN`, prints `–` instead of calling it. The default reads the runtime's time zone, so server-rendered times use the server's. |
 | `value` | `(field, value, event) => string` | `formatAuditValue` | Format before and after values. |
 | `labels` | `Partial<AuditTrailLabels>` | Default labels | Override column, changes and export text. |
 | `selection` | `ReadonlySet<RowId>` | Internal empty set | Control the selected events. |

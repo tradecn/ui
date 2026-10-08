@@ -71,9 +71,14 @@ export const DEFAULT_AUDIT_TRAIL_LABELS: AuditTrailLabels = {
 }
 
 let clockFormat: Intl.DateTimeFormat | null = null
+// Intl throws on a time that is not an instant (NaN, an infinity, or past the ±8.64e15 ms a Date holds), and a
+// throw in a cell takes the whole grid down: such a time prints the null token, whatever formatter is in use.
+const isInstant = (ms: unknown): ms is number => Number.isFinite(ms) && Math.abs(ms as number) <= 8.64e15
 const localTime = (ms: number) => {
   clockFormat ??= new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
-  return `${clockFormat.format(ms)}.${String(Math.floor(ms % 1000)).padStart(3, "0")}`
+  // The instant Intl prints drops any fraction toward zero; the milliseconds are that instant's, before 1970 too.
+  const at = Math.trunc(ms)
+  return `${clockFormat.format(at)}.${String(((at % 1000) + 1000) % 1000).padStart(3, "0")}`
 }
 
 const fill = (template: string, values: Record<string, string>) => template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "")
@@ -98,7 +103,7 @@ export function auditTrailColumns<T extends AuditEvent>(options: AuditTrailColum
   const labels = { ...DEFAULT_AUDIT_TRAIL_LABELS, ...options.labels }
   const time = options.time ?? localTime
   return [
-    { key: "at", header: labels.time, width: 104, numeric: true, sortable: true, flash: false, accessor: (r) => r.at, format: (v) => time(v as number) },
+    { key: "at", header: labels.time, width: 104, numeric: true, sortable: true, flash: false, accessor: (r) => r.at, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
     { key: "event", header: labels.event, width: 128, sortable: true, flash: false, accessor: (r) => r.event, cell: ({ row }) => <span className="font-medium">{row.event}</span> },
     { key: "by", header: labels.by, width: 96, sortable: true, flash: false, accessor: (r) => r.by ?? null },
     { key: "message", header: labels.message, width: 220, flash: false, accessor: (r) => r.message ?? null },
@@ -243,14 +248,21 @@ export function AuditTrailChanges({ children, className, ...props }: AuditTrailC
   const meta = useStoreMeta(store)
   const reading = useMemo(() => {
     void meta.version
-    const chosen = [...selection].map(id => store.getRow(id)).filter((event): event is AuditEvent => event !== undefined).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
+    const stamp = (ms: number) => (isInstant(ms) ? time(ms) : NULL_TOKEN)
+    const chosen = [...selection].map(id => store.getRow(id)).filter((event): event is AuditEvent => event !== undefined)
+    if (chosen.length > 1) {
+      // The view's order from one pass over it: looking each event up inside the comparator would scan the trail
+      // per comparison, at every batch, with the whole trail selected. An event out of the view sorts first.
+      const order = new Map(ids.map((id, index) => [id, index]))
+      chosen.sort((a, b) => (order.get(a.id) ?? -1) - (order.get(b.id) ?? -1))
+    }
     if (!chosen.length) return { kind: "none" as const, event: null, title: "", changes: [], emptyMessage: labels.select }
     const first = chosen[0]!
-    if (chosen.length === 1) return { kind: "event" as const, event: first, title: fill(labels.eventTitle, { event: first.event, time: time(first.at) }), changes: [...(first.changes ?? [])], emptyMessage: first.changes?.length ? "" : labels.noChanges }
+    if (chosen.length === 1) return { kind: "event" as const, event: first, title: fill(labels.eventTitle, { event: first.event, time: stamp(first.at) }), changes: [...(first.changes ?? [])], emptyMessage: first.changes?.length ? "" : labels.noChanges }
     const last = chosen[chosen.length - 1]!
     const events = ids.map(id => store.getRow(id)).filter((event): event is AuditEvent => event !== undefined)
     const changes = diffEvents(events, first.id, last.id)
-    return { kind: "diff" as const, event: last, title: fill(labels.diffTitle, { a: `${first.event} ${time(first.at)}`, b: `${last.event} ${time(last.at)}` }), changes, emptyMessage: changes.length ? "" : labels.same }
+    return { kind: "diff" as const, event: last, title: fill(labels.diffTitle, { a: `${first.event} ${stamp(first.at)}`, b: `${last.event} ${stamp(last.at)}` }), changes, emptyMessage: changes.length ? "" : labels.same }
   }, [meta.version, store, ids, selection, time, labels])
   const formatValue = useCallback((field: string, raw: unknown) => reading.event ? value(field, raw, reading.event) : formatAuditValue(raw), [reading.event, value])
   const state = useMemo(() => ({ ...reading, labels, formatValue }), [reading, labels, formatValue])

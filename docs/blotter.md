@@ -107,7 +107,7 @@ Use the same row type for `Blotter<T>` and `BlotterGrid<T>` when supplying custo
 |---|---|---|---|
 | `columns` | `ColumnDef<T>[]` | Built-in columns | Replace the built-in columns. |
 | `price` | `(value: number, row: T) => string` | Two decimals | Format built-in price cells, unused with custom columns. |
-| `time` | `(ms: number) => string` | Local `HH:MM:SS` | Format built-in timestamps, unused with custom columns. |
+| `time` | `(ms: number) => string` | Local `HH:MM:SS` | Format built-in timestamps, unused with custom columns. A time a `Date` can't hold, such as `NaN`, prints `–` instead of calling it. The default reads the runtime's time zone, so server-rendered times use the server's. |
 | `label` | `string` | `"Blotter"` | Accessible grid name. |
 | `selectionColumn` | `boolean` | `true` | Show checkboxes in multiple-selection mode. |
 | `deleteAction` | `string` | None | Action id for Delete and Backspace on the focused grid. |

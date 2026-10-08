@@ -61,6 +61,19 @@ describe("rfqStackColumns", () => {
     expect(rfqStackColumns().map((c) => c.key)).toEqual(["time", "client", "instrument", "side", "size", "bid", "ask", "status", "timeLeft", "auto"])
   })
 
+  it("prints the null token for an arrival time that is not an instant, and never hands one to a formatter", () => {
+    const time = vi.fn((ms: number) => `t${ms}`)
+    const format = rfqStackColumns({ time })[0]!.format!
+    for (const ms of [Number.NaN, Infinity, -Infinity, 8.64e15 + 1, -8.64e15 - 1]) expect(format(ms, q1)).toBe("–")
+    expect(time).not.toHaveBeenCalled()
+    // With the default clock, a bad time is one empty cell, not a stack taken down.
+    const store = seeded()
+    render(<Harness store={store} />)
+    act(() => store.applyDeltas({ patch: [{ id: "q1", fields: { receivedAt: Number.NaN } }] }))
+    expect(rowOf("q1").querySelector('[data-col="time"]')).toHaveTextContent(/^–$/)
+    expect(rowOf("q2").querySelector('[data-col="time"]')).toHaveTextContent(/^\d{2}:\d{2}:\d{2}$/)
+  })
+
   it("prints the size as the desk says it, the side as a word, the client with its tier, levels through your convention, a countdown per row, and the auto mark", () => {
     render(<Harness store={seeded()} price={(v) => v.toFixed(3)} />)
     expect(within(rowOf("q1")).getByText("5mm")).toBeInTheDocument()

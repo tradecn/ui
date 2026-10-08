@@ -163,6 +163,20 @@ describe("blotterColumns", () => {
     const format = blotterColumns()[0]!.format!
     expect(format(Date.UTC(2026, 0, 2, 3, 4, 5), ORDERS[0]!)).toMatch(/^\d{2}:\d{2}:\d{2}$/)
   })
+
+  it("prints the null token for a time that is not an instant, and never hands one to a formatter", () => {
+    const time = vi.fn((ms: number) => `t${ms}`)
+    const format = blotterColumns({ time })[0]!.format!
+    for (const ms of [Number.NaN, Infinity, -Infinity, 8.64e15 + 1, -8.64e15 - 1]) expect(format(ms, ORDERS[0]!)).toBe("–")
+    expect(time).not.toHaveBeenCalled()
+    expect(format(8.64e15, ORDERS[0]!)).toBe("t8640000000000000")
+    // With the default clock, a bad time is one empty cell, not a blotter taken down.
+    const store = seeded()
+    render(<Harness store={store} time={undefined} />)
+    act(() => store.applyDeltas({ patch: [{ id: "o1", fields: { time: Number.NaN } }] }))
+    expect(rowOf("o1").querySelector('[data-col="time"]')).toHaveTextContent(/^–$/)
+    expect(rowOf("o2").querySelector('[data-col="time"]')).toHaveTextContent(/^\d{2}:\d{2}:\d{2}$/)
+  })
 })
 
 describe("allowedRows", () => {
