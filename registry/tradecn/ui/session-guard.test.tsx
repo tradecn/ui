@@ -3,7 +3,7 @@ import { SessionNotice, type SessionNoticeProps } from "@/demos/session-guard"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createClock } from "@/registry/tradecn/lib/clock"
-import { DEFAULT_SESSION_GUARD_LABELS, DEFAULT_WARN_MS, SessionGuardProvider, SessionStatus, sessionStatus, useSessionGuard } from "@/registry/tradecn/ui/session-guard"
+import { DEFAULT_SESSION_GUARD_LABELS, DEFAULT_WARN_MS, SessionGuardProvider, SessionGuardReauthenticate, SessionGuardWarning, SessionStatus, sessionStatus, useSessionGuard } from "@/registry/tradecn/ui/session-guard"
 
 function SessionGuard(props: Omit<SessionNoticeProps, "fallbackFocusRef">) {
   const fallback = useRef<HTMLInputElement>(null)
@@ -163,6 +163,35 @@ describe("the guard", () => {
     rerender(<SessionGuard expiresAt={t + 10 * MINUTE} clock={clock} onReauthenticate={onReauthenticate} />)
     expect(root()).toHaveAttribute("data-session-phase", "live")
     expect(screen.queryByRole("status")).toBeNull()
+  })
+
+  it("hands focus to the fallback when renewing from the banner's own button removes the banner", async () => {
+    const clock = createClock(1000, () => t)
+    const onReauthenticate = vi.fn(async () => true)
+    const { rerender } = render(<SessionGuard expiresAt={T0 + MINUTE} clock={clock} onReauthenticate={onReauthenticate} />)
+    const stay = screen.getByRole("button", { name: "Stay signed in" })
+    act(() => stay.focus())
+    // The session renews, and the banner goes with its focused button.
+    rerender(<SessionGuard expiresAt={t + 10 * MINUTE} clock={clock} onReauthenticate={onReauthenticate} />)
+    expect(screen.queryByRole("status")).toBeNull()
+    expect(screen.getByRole("textbox", { name: "Draft" })).toHaveFocus()
+  })
+
+  it("hands focus back where it came from when the banner closes with focus inside and no fallback", () => {
+    const clock = createClock(1000, () => t)
+    const scene = (expiresAt: number) => (
+      <SessionGuardProvider expiresAt={expiresAt} clock={clock} onReauthenticate={async () => true}>
+        <button type="button">Before</button>
+        <SessionGuardWarning><SessionGuardReauthenticate>Stay</SessionGuardReauthenticate></SessionGuardWarning>
+      </SessionGuardProvider>
+    )
+    const { rerender } = render(scene(T0 + MINUTE))
+    const before = screen.getByRole("button", { name: "Before" })
+    act(() => before.focus())
+    act(() => screen.getByRole("button", { name: "Stay" }).focus())
+    rerender(scene(t + 10 * MINUTE))
+    expect(screen.queryByRole("button", { name: "Stay" })).toBeNull()
+    expect(before).toHaveFocus()
   })
 
   it("prints a refusal, and a rejection, as an alert beside the button, and forgets it once the session is live again", async () => {

@@ -7,6 +7,7 @@ import { mirrorRoot } from "@/registry/tradecn/hooks/use-popout"
 import {
   createWorkspacePanelStore,
   debounce,
+  isReservedPanelId,
   nextPanelId,
   parseWorkspaceLayout,
   WORKSPACE_LAYOUT_KIND,
@@ -57,7 +58,7 @@ export interface WorkspaceBox {
 
 export interface WorkspaceAddPanelOptions {
   kind: string
-  /** `book-1`, `book-2` by default. An id that is already open is not opened twice: it is focused, unless `focus: false` leaves everything as it stands. */
+  /** `book-1`, `book-2` by default, which an id naming an `Object.prototype` member (`constructor`, `__proto__`, …) gets too. An id that is already open is not opened twice: it is focused, unless `focus: false` leaves everything as it stands. */
   id?: string
   /** The kind by default. */
   title?: string
@@ -312,7 +313,9 @@ function connect(dv: DockviewApi, store: WorkspacePanelStore, callbacks: () => C
 
   const api: WorkspaceApi = {
     addPanel({ kind, id: wanted, title, state, position, floating, focus = true }) {
-      const id = wanted ?? nextPanelId(kind, dv.panels.map((panel) => panel.id))
+      // An id that names an Object.prototype member breaks the dock, which keys its panels by plain objects: such a
+      // panel opens under its default id instead, and the id returned says which.
+      const id = wanted !== undefined && !isReservedPanelId(wanted) ? wanted : nextPanelId(kind, dv.panels.map((panel) => panel.id))
       if (dv.getPanel(id)) {
         // An ensure-open call with focus: false must not steal the keyboard from
         // the panel the trader is in.
@@ -472,6 +475,10 @@ export interface WorkspaceProps extends Omit<ComponentProps<"div">, "children"> 
   popoutUrl?: string
 }
 
+// A delay a timer can wait out: NaN, a negative number, or one past 2^31 - 1 ms fires at once, which would save on
+// every pointer move of a drag, so those read as the default.
+const saveDelay = (ms: number) => (Number.isFinite(ms) && ms >= 0 ? Math.min(ms, 2_147_483_647) : 250)
+
 export function Workspace({ panels, tabComponent = DefaultWorkspaceTab, defaultLayout, seed, onLayoutChange, layoutChangeDelay = 250, onLayoutError, onReady, watermark = null, locked, disableFloating, popoutUrl, className, ...props }: WorkspaceProps) {
   const [store] = useState(createWorkspacePanelStore)
   const [internals, setInternals] = useState<Internals | null>(null)
@@ -492,7 +499,7 @@ export function Workspace({ panels, tabComponent = DefaultWorkspaceTab, defaultL
   const ready = useCallback(
     (event: DockviewReadyEvent) => {
       live.current?.dispose()
-      const next = connect(event.api, store, () => latest.current, latest.current.layoutChangeDelay)
+      const next = connect(event.api, store, () => latest.current, saveDelay(latest.current.layoutChangeDelay))
       live.current = next
       setInternals(next)
       const { defaultLayout: stored, seed: build, onReady: tell } = latest.current

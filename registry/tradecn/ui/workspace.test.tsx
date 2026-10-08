@@ -697,6 +697,44 @@ describe("Workspace", () => {
     expect(screen.getByText("No panel is registered for the kind “constructor”.")).toBeInTheDocument()
   })
 
+  it("reads a save delay that isn't a finite number at or above zero as the default", async () => {
+    const { api, onLayoutChange } = await mount({ layoutChangeDelay: Number.NaN })
+    act(() => vi.advanceTimersByTime(1000))
+    onLayoutChange.mockClear()
+    act(() => {
+      api.addPanel({ kind: "chart" })
+    })
+    act(() => vi.advanceTimersByTime(249))
+    expect(onLayoutChange).not.toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(1))
+    expect(onLayoutChange).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(["__proto__", "constructor", "toString", "hasOwnProperty"])("opens a panel asked for under the id %s under its default id instead", async (id) => {
+    // The dock keys its panels by plain objects: an id naming an Object.prototype member would break it.
+    const { api } = await mount()
+    let opened = ""
+    act(() => {
+      opened = api.addPanel({ kind: "book", id, title: "Odd book" })
+    })
+    // The mounted desk already holds book-1.
+    expect(opened).toBe("book-2")
+    expect(document.querySelector("[data-workspace-panel='book-2'] [data-slot='tradecn-panel']")).not.toBeNull()
+  })
+
+  it("refuses a layout that names a panel by an Object.prototype member, and keeps the arrangement it has", async () => {
+    const { api } = await mount()
+    const saved = JSON.parse(JSON.stringify(api.toLayout()))
+    for (const id of ["__proto__", "constructor"]) {
+      const odd = JSON.parse(JSON.stringify(saved).replaceAll('"book-1"', JSON.stringify(id)))
+      expect(Object.keys(odd.dockview.panels)).toContain(id)
+      expect(parseWorkspaceLayout(odd)).toBeNull()
+      expect(parseWorkspaceLayout(JSON.stringify(odd))).toBeNull()
+    }
+    expect(parseWorkspaceLayout(saved)).not.toBeNull()
+    expect(api.panels().map((panel) => panel.id).sort()).toEqual(["book-1", "chart-1"])
+  })
+
   it("keeps the keyboard where it is when an ensure-open call repeats an id with focus false", async () => {
     const { api } = await mount()
     act(() => {

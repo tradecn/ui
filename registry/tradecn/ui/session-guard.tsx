@@ -214,13 +214,43 @@ export function useSessionGuard(): SessionGuardValue {
 
 export interface SessionGuardWarningProps extends ComponentProps<"div"> {
   children: ReactNode
+  /** Where focus goes when the banner closes with focus inside it, as when its own action renews the session. Without it, focus goes back where it came from. */
+  fallbackFocusRef?: RefObject<HTMLElement | null>
 }
 
 /** Caller-owned warning content, mounted only inside the warning window. */
-export function SessionGuardWarning({ className, role = "status", ...props }: SessionGuardWarningProps) {
+export function SessionGuardWarning(props: SessionGuardWarningProps) {
   const { phase } = useSessionContext()
-  if (phase !== "warning") return null
-  return <div role={role} data-slot="tradecn-session-guard" data-session-banner="" className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-expiring/50 bg-expiring-soft px-3 py-1.5 text-xs text-foreground lining-nums tabular-nums", className)} {...props} />
+  return phase === "warning" ? <WarningBanner {...props} /> : null
+}
+
+// The banner removes itself when the session renews, often from its own button, and focus inside it would fall to
+// the page: it goes to the fallback, or back where it came from into the banner.
+function WarningBanner({ className, role = "status", fallbackFocusRef, ref, onFocus, ...props }: SessionGuardWarningProps) {
+  const node = useRef<HTMLDivElement | null>(null)
+  const cameFrom = useRef<HTMLElement | null>(null)
+  const fallback = useRef(fallbackFocusRef)
+  useInsertionEffect(() => { fallback.current = fallbackFocusRef }, [fallbackFocusRef])
+  const bannerRef = useCallback((element: HTMLDivElement | null) => {
+    node.current = element
+    if (typeof ref === "function") return ref(element)
+    if (ref) ref.current = element
+  }, [ref])
+  // A layout cleanup runs while the node is still in the document, so it can tell whether focus was inside it.
+  useLayoutEffect(() => () => {
+    const banner = node.current
+    if (!banner) return
+    const focused = (banner.getRootNode() as Document | ShadowRoot).activeElement
+    if (!focused || !banner.contains(focused)) return
+    for (const target of [fallback.current?.current, cameFrom.current]) {
+      if (target?.isConnected && !banner.contains(target) && !target.matches(":disabled") && !target.closest("[inert], [hidden], [aria-hidden='true']")) return target.focus()
+    }
+  }, [])
+  return <div role={role} data-slot="tradecn-session-guard" data-session-banner="" className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-expiring/50 bg-expiring-soft px-3 py-1.5 text-xs text-foreground lining-nums tabular-nums", className)} {...props} ref={bannerRef} onFocus={(event) => {
+    onFocus?.(event)
+    const from = event.relatedTarget as HTMLElement | null
+    if (from?.nodeType === 1 && !event.currentTarget.contains(from)) cameFrom.current = from
+  }} />
 }
 
 /** The provider's countdown. Only this reading renders on ordinary clock ticks. */

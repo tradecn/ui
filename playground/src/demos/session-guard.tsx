@@ -43,7 +43,7 @@ function SessionNoticeContent({ children, className, fallbackFocusRef }: Pick<Se
   const { phase, labels, pending } = useSessionGuard()
   return (
     <div data-session-phase={phase} className={cn(phase === "warning" ? "block" : "contents", className)}>
-      <SessionGuardWarning>
+      <SessionGuardWarning fallbackFocusRef={fallbackFocusRef}>
         <SessionGuardWarningText />
         <SessionGuardReauthenticate size="sm" variant="outline" className="h-7"><SessionGuardActionLabel /></SessionGuardReauthenticate>
         <SessionGuardError />
