@@ -228,15 +228,20 @@ function isCondition(condition: unknown): condition is RuleCondition {
   return typeof condition === "object" && condition !== null && isRuleOp((condition as RuleCondition).op)
 }
 
-// A value that is not text is quoted as its JSON, so an object in a rule reads as `{}`, not [object Object], and one
-// JSON cannot print (a bigint, or an object whose own `toString` is not a function) never throws here.
+// A value that is not text is quoted as its JSON, so an object in a rule reads as `{}`, not [object Object]. One JSON
+// cannot print reads through `String`, so a bigint prints its digits, and by its tag when even that throws (an object
+// whose own `toString` is not a function), so this never throws.
 function shown(raw: unknown): string {
   if (typeof raw === "string") return raw
   if (typeof raw === "number") return String(raw)
   try {
     return JSON.stringify(raw) ?? String(raw)
   } catch {
-    return Object.prototype.toString.call(raw)
+    try {
+      return String(raw)
+    } catch {
+      return Object.prototype.toString.call(raw)
+    }
   }
 }
 
@@ -414,12 +419,13 @@ export function ruleProblem<T>(rule: ReadColumnRule & ReadFilterRule, columns: r
   const column = findColumn(columns, named)
   if (!column) return `No column is named "${named}".`
   const highlight = kind ? kind === "highlight" : isHighlightShape(rule)
-  const given: unknown = highlight ? rule.when : rule
-  const op: unknown = typeof given === "object" && given !== null ? (given as { op?: unknown }).op : undefined
-  if (op === undefined || op === null || op === "") return "The rule needs a comparison."
-  if (!isRuleOp(op)) return `No comparison is named "${shown(op)}".`
+  // The condition as the grid reads it: one saved as anything but an object that is not a list is none.
+  const read = readCondition(highlight ? rule.when : rule)
+  const op = read?.op
+  if (op === undefined || op === "") return "The rule needs a comparison."
+  if (!isRuleOp(op)) return `No comparison is named "${op}".`
   // The op is one this module knows, from here on.
-  const condition = (readCondition(given) ?? { op }) as RuleCondition
+  const condition = read as RuleCondition
   const name = columnName(column)
   const unreadable = (raw: RuleValue | undefined) => raw !== undefined && raw !== null && raw !== "" && readRuleValue(column, raw) === null
   if (needsValue.has(condition.op)) {
@@ -438,7 +444,8 @@ export function ruleProblem<T>(rule: ReadColumnRule & ReadFilterRule, columns: r
     for (const raw of values) if (unreadable(raw)) return `"${shown(raw)}" is not a value ${name} reads.`
   }
   // A highlight named as one always needs a tone; one only inferred from its keys is judged by the tone it carries.
-  if (highlight && (kind || "tone" in rule) && !isRuleTone(rule.tone)) return rule.tone === undefined || rule.tone === null ? "The rule needs a tone." : `No tone is named "${shown(rule.tone)}".`
+  const tone = textOf(rule.tone)
+  if (highlight && (kind || "tone" in rule) && !isRuleTone(tone)) return tone === undefined || tone === "" ? "The rule needs a tone." : `No tone is named "${tone}".`
   return null
 }
 

@@ -189,9 +189,10 @@ Use `useRulesEditorItem()` inside an item to build a custom field.
 | `kind` | `RulesEditorKind` | Item kind. |
 | `index` | `number` | Index in the source list. |
 | `name` | `string` | Highlight label or kind name and position. |
-| `columnKey` | `string` | Selected column. |
+| `columnKey` | `string` | Selected column, or `""` for a rule without one. |
 | `condition` | `ReadCondition \| null` | Highlight or filter condition, as read. |
 | `highlight` | `ReadColumnRule \| null` | Current highlight, as read, if applicable. |
+| `filter` | `ReadFilterRule \| null` | Current filter, as read, if applicable. |
 | `sort` | `ReadSortRule \| null` | Current sort key, as read, if applicable. |
 | `problem` | `string \| null` | Current validation message. |
 | `setColumn` | `(key: string) => void` | Changes the column and resets unsupported operators. |
@@ -228,7 +229,7 @@ The set field trims members and drops empties, without quoting or escaping. Ente
 
 ### Errors
 
-`RulesEditorProblem` reports missing columns, a missing or unknown comparison, missing values, unreadable values, a range whose low end is above its high end, and a missing or unknown tone, without blocking edits or evaluation. A stored op the column doesn't offer shows in its select under its word, an op or a tone this version doesn't know shows quoted, and a missing one shows blank, so a highlight with no condition gets a blank one to choose from. The editor reads each entry as the grid does, so an entry that isn't an object renders and counts nothing, and a name or a word saved as anything but text shows as its JSON. Read rules a desk saved or shared with [`readRules`](grid-rules.md#reading-saved-rules) before you hold them, so your own composition maps over rule objects.
+`RulesEditorProblem` reports missing columns, a missing or unknown comparison, missing values, unreadable values, a range whose low end is above its high end, and a missing or unknown tone, without blocking edits or evaluation. A stored op the column doesn't offer shows in its select under its word, an op or a tone this version doesn't know shows quoted, and a column key no column has shows as saved. A missing column, op, or tone shows blank, so a highlight with no condition gets a blank one to choose from, and a missing column stays blank beside a column keyed `""`, which the grid doesn't use for it. The editor reads each entry as the grid does, so an entry that isn't an object renders and counts nothing, and a name or a word saved as anything but text shows as its JSON. Read rules a desk saved or shared with [`readRules`](grid-rules.md#reading-saved-rules) before you hold them, so your own composition maps over rule objects.
 
 | Condition | Evaluation |
 |---|---|
@@ -278,8 +279,8 @@ Here `columns` is `readonly ColumnDef<T>[]`, `condition` is `ReadCondition`, and
 | `valueShape(op)` | `"one" \| "two" \| "many" \| "none"` | Shape in the operator table. |
 | `parseValues(text: string)` | `RuleValue[]` | Comma-separated, trimmed, nonempty strings. |
 | `valuesText(values: readonly RuleValue[] \| undefined)` | `string` | Joins with `", "`. `null` becomes empty text, and `undefined` gives `""`. |
-| `withOp(condition, op)` | `ReadCondition` | Copies for the same shape or an unknown old op. Otherwise drops `value` and `values` and keeps the other fields. |
-| `withColumn(condition, column: ColumnDef<T> \| undefined)` | `ReadCondition` | Same condition if supported. Otherwise the first operator, without values, keeping the other fields. |
+| `withOp(condition, op)` | `ReadCondition & { op: RuleOp }` | Copies for the same shape or an unknown old op. Otherwise drops `value` and `values` and keeps the other fields. |
+| `withColumn(condition, column: ColumnDef<T> \| undefined)` | `ReadCondition & { op: RuleOp }` | Same condition if supported. Otherwise the first operator, without values, keeping the other fields. |
 | `moveItem<X>(list: readonly X[], from: number, to: number)` | `X[]` | Moves by index. Equal or out-of-bounds indices return an unchanged copy. |
 | `newRuleId()` | `string` | Timestamp plus module-local counter. |
 | `newHighlight(columns)` | `ColumnRule` | First column/operator, fresh id, tone `"up"`. |

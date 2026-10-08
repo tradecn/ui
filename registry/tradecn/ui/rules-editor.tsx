@@ -449,6 +449,9 @@ export interface RulesEditorItemState {
   condition: ReadCondition | null
   /** The highlight as read: any field can be missing. */
   highlight: ReadColumnRule | null
+  /** The filter as read: any field can be missing. */
+  filter: ReadFilterRule | null
+  /** The sort key as read: its key can be missing. */
   sort: ReadSortRule | null
   problem: string | null
   setColumn: (key: string) => void
@@ -500,7 +503,7 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
     editor.change({ [key]: listOf<AnyRule>(editor.rules[key]).map((item, i) => i === index ? next : item) })
   }
   const state: RulesEditorItemState = {
-    kind, index, name, columnKey, condition, highlight: highlight ?? null, sort: sort ?? null,
+    kind, index, name, columnKey, condition, highlight: highlight ?? null, filter: filter ?? null, sort: sort ?? null,
     problem: highlight ? editor.problem(highlight, "highlight") : filter ? editor.problem(filter, "filter") : sort && sort.key === undefined ? "The rule needs a column." : editor.columns.some((c) => c.key === columnKey) ? null : `No column is named "${columnKey}".`,
     setColumn: (key) => {
       if (sort) return replace({ ...sort, key })
@@ -510,7 +513,8 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
     },
     setCondition: (next) => {
       if (highlight) replace({ ...highlight, when: next })
-      else if (filter) replace({ column: columnKey, ...next })
+      // A filter with no column keeps none: the editor's blank is not a key.
+      else if (filter) replace(filter.column === undefined ? { ...next } : { column: filter.column, ...next })
     },
     updateHighlight: (patch) => { if (highlight) replace({ ...highlight, ...patch }) },
     setDirection: (dir) => { if (sort) replace({ ...sort, dir }) },
@@ -567,11 +571,14 @@ const SELECT_SIZE = "[&_select[data-size=sm]]:text-xs"
 export function RulesEditorColumn({ onChange, className, ...props }: SelectProps) {
   const { columns, labels } = useRulesEditor()
   const item = useRulesEditorItem()
+  // A rule with no column shows a blank, first, so it is the one selected even beside a column keyed "", which the
+  // grid would not use for it; a key no column has shows as it is.
+  const missing = (item.highlight?.column ?? item.filter?.column ?? item.sort?.key) === undefined
   return <NativeSelect size="sm" aria-label={`${labels.column}: ${item.name}`} data-rule-field="column" className={cn(SELECT_SIZE, className)} {...props} value={item.columnKey} onChange={(event) => {
     onChange?.(event)
     if (!event.defaultPrevented) item.setColumn(event.target.value)
   }}>
-    {!columns.some((c) => c.key === item.columnKey) && <NativeSelectOption value={item.columnKey}>{item.columnKey}</NativeSelectOption>}
+    {(missing || !columns.some((c) => c.key === item.columnKey)) && <NativeSelectOption value={item.columnKey}>{item.columnKey}</NativeSelectOption>}
     {columns.map((c) => <NativeSelectOption key={c.key} value={c.key}>{c.name}</NativeSelectOption>)}
   </NativeSelect>
 }

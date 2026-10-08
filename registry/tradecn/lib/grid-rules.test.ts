@@ -365,7 +365,8 @@ describe("reading rules a desk saved", () => {
     expect(readRules({ columns: [[{ id: "x" }]] })).toStrictEqual({ columns: [] })
     expect(readSortRule("px")).toBeNull()
     expect(readCondition("gt")).toBeUndefined()
-    expect(readColumnRule({ id: "r", column: "px", when: { op: "gt", value: 1n }, tone: "up" })?.when?.value).toBe("[object BigInt]")
+    // A value JSON cannot print reads as its text: a bigint as its digits.
+    expect(readColumnRule({ id: "r", column: "px", when: { op: "gt", value: 1n }, tone: "up" })?.when?.value).toBe("1")
   })
 
   it("keeps every other field an app saved on a rule, its condition, a filter, a sort key, and the rules, and leaves out a field it reads to nothing", () => {
@@ -400,8 +401,12 @@ describe("reading rules a desk saved", () => {
     const blank: RuleColumn<Rfq>[] = [{ key: "", header: "Blank", accessor: () => null }]
     expect(ruleProblem({ column: "", op: "isNull" } as never, blank, "filter")).toBeNull()
     expect(ruleProblem({ op: "isNull" } as never, blank, "filter")).toBe("The rule needs a column.")
-    // A condition saved as a list with an op on it is judged by that op alone.
-    expect(ruleProblem({ column: "px", when: Object.assign([], { op: "notNull" }), tone: "up" } as never, columns, "highlight")).toBeNull()
+    // A condition saved as a list is none, as the grid reads it, whatever op it carries.
+    const listed = Object.assign([], { op: "notNull" })
+    expect(ruleProblem({ column: "px", when: listed, tone: "up" } as never, columns, "highlight")).toBe("The rule needs a comparison.")
+    expect(rows.filter(compileCondition(listed as never, columns[2]!))).toEqual([])
+    // A tone saved as "" is none, as the editor shows it.
+    expect(ruleProblem({ column: "px", when: { op: "notNull" }, tone: "" } as never, columns, "highlight")).toBe("The rule needs a tone.")
     const seven: RuleColumn<Rfq>[] = [{ key: "7", header: "Seven", accessor: () => null }]
     expect(describeRule({ column: 7, op: "isNull" } as never, seven, "filter")).toBe("Seven is empty")
   })

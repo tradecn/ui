@@ -791,11 +791,12 @@ describe("RulesEditor", () => {
   })
 
   it("judges a filter as a filter whatever keys it carries, and edits one with no column from a blank one", () => {
+    let latest: ReadGridRules | undefined
     render(<RulesEditor columns={columns} rules={{ filter: [
       { column: "px", op: "gt", value: "100-00", tone: "desk" } as never,
       { column: "status", when: { op: "eq", value: "Open" } } as never,
       { op: "eq", value: "x" } as never,
-    ] }} onRulesChange={() => {}}>
+    ] }} onRulesChange={(next) => { latest = next }}>
       {[0, 1, 2].map((index) => <RulesEditorItem key={index} kind="filters" index={index}><RulesEditorColumn /><RulesEditorOperator /><RulesEditorProblem /></RulesEditorItem>)}
     </RulesEditor>)
     // An app's own tone on a filter is no part of it: the filter compares, and nothing is wrong.
@@ -805,6 +806,27 @@ describe("RulesEditor", () => {
     expect(document.querySelector("[data-filter-index='1']")).toHaveTextContent("The rule needs a comparison.")
     expect(screen.getByLabelText("Column: Filters 3")).toHaveValue("")
     expect(document.querySelector("[data-filter-index='2']")).toHaveTextContent("The rule needs a column.")
+    // A new comparison keeps the filter without a column: the editor's blank is not a key.
+    fireEvent.change(screen.getByLabelText("Condition: Filters 3"), { target: { value: "contains" } })
+    expect(latest?.filter?.[2]).toStrictEqual({ op: "contains", value: "x" })
+  })
+
+  it("shows a rule with no column as a blank, even beside a column keyed \"\", which the grid would not use for it", () => {
+    const keyed: ColumnDef<Rfq>[] = [...columns, { key: "", header: "Blank", width: 60, accessor: () => null }]
+    render(<RulesEditor columns={keyed} rules={{
+      columns: [{ id: "none", when: { op: "isNull" }, tone: "up", label: "None" } as never, { id: "keyed", column: "", when: { op: "isNull" }, tone: "up", label: "Keyed" }],
+      filter: [{ op: "isNull" } as never, { column: "", op: "isNull" }],
+      sort: [{ dir: "asc" } as never, { key: "", dir: "asc" }],
+    }} onRulesChange={() => {}}>
+      {[0, 1].map((index) => <RulesEditorItem key={`h${index}`} kind="highlights" index={index}><RulesEditorColumn /><RulesEditorProblem /></RulesEditorItem>)}
+      {[0, 1].map((index) => <RulesEditorItem key={`f${index}`} kind="filters" index={index}><RulesEditorColumn /><RulesEditorProblem /></RulesEditorItem>)}
+      {[0, 1].map((index) => <RulesEditorItem key={`s${index}`} kind="sort" index={index}><RulesEditorColumn /><RulesEditorProblem /></RulesEditorItem>)}
+    </RulesEditor>)
+    const picked = (label: string) => (screen.getByLabelText(label) as HTMLSelectElement).selectedOptions[0]?.textContent
+    expect(["Column: None", "Column: Filters 1", "Column: Sort 1"].map(picked)).toEqual(["", "", ""])
+    expect(["Column: Keyed", "Column: Filters 2", "Column: Sort 2"].map(picked)).toEqual(["Blank", "Blank", "Blank"])
+    for (const item of ["[data-rule-id='none']", "[data-filter-index='0']", "[data-sort-index='0']"]) expect(document.querySelector(item)).toHaveTextContent("The rule needs a column.")
+    for (const item of ["[data-rule-id='keyed']", "[data-filter-index='1']", "[data-sort-index='1']"]) expect(document.querySelector(`${item} [data-rule-problem]`)).toBeNull()
   })
 
   it("counts the rules the readers read: a list in a rule list is no rule", () => {

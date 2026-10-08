@@ -162,6 +162,7 @@ For `eq`, `ne`, and `in`, two strings compare without regard to case; a string a
 | Any other string | Keeps the text, including `""`. |
 | Number or boolean | Keeps the value, except nonfinite numbers become `null`. |
 | `null` or `undefined` | Returns `null`. |
+| Anything else, such as an object or a list from unread JSON | Returns `null`. |
 
 `normalizeValue(value)` maps `null`, `undefined`, `NaN`, and infinities to `null`, leaving other values unchanged. A custom `parse` should return a missing value when it cannot read the text; thrown errors are not caught.
 
@@ -169,11 +170,11 @@ For a 32nds price column, use `parse: (text) => parsePrice(text, convention)` to
 
 If a required scalar comparison value parses to `null`, the condition matches no rows. As a highlight, it colors nothing; as a filter, it excludes every row. For `in` and `between`, compilation drops values that parse to `null`: `in` uses the remaining candidates, and `between` uses the first two remaining values, low then high. No candidates, or fewer than two endpoints, matches nothing.
 
-Rules arrive as data, so a rule that can't be read never throws. Read rules a desk saved or shared with `readRules` before you hold them: a list that isn't a list reads as none, an entry that isn't an object is dropped, every name and word reads as text, and a value that isn't text, a number, a boolean, or `null` reads as its JSON text, so the value the editor shows is the value compared. Reading decides nothing: an op or a tone this version doesn't know stays as its text for `ruleProblem` to name, a field that reads to nothing is left out, so any field of a read rule can be missing, and every field the readers don't read passes through, so the fields your app keeps on a rule survive an edit. The grid, the editor, the column chooser, and the helpers below read each entry the same way, so unread JSON doesn't throw either.
+Rules arrive as data, so a rule that can't be read never throws. Read rules a desk saved or shared with `readRules` before you hold them: a list that isn't a list reads as none, an entry that isn't an object, a list included, is dropped, every name and word reads as text, and a value that isn't text, a number, a boolean, or `null` reads as text, its JSON where it has one, so the value the editor shows is the value compared. An op or a tone this version doesn't know stays as its text for `ruleProblem` to name. A `dir` other than `"desc"` reads as ascending, and a `target` other than `"row"` or `"cell"`, or a `label` that isn't text, reads to nothing. A field that reads to nothing is left out, so any field of a read rule can be missing, and an edit saves the rule without it. Every field the readers don't read passes through, so the fields your app keeps on a rule survive an edit. The grid, the editor, the column chooser, and the helpers below read each entry the same way, so unread JSON doesn't throw either.
 
 A condition that is missing, or names an op not in `RULE_OPS`, matches no rows, like an unreadable value, and so do `in` and `between` when their `values` aren't a list. A tone outside `RULE_TONES` paints nothing, and the rule's words still describe the cells it matches.
 
-`ruleProblem(rule, columns, kind?)` accepts a highlight or a filter rule, written or read, and returns a problem sentence or `null`. Pass `kind`, `"highlight"` or `"filter"`, when you know the rule's list: a filter can carry a field of your own named `tone`, and a read highlight can lack its `when`. Without `kind`, a rule with a `when` or a `tone` key is judged as a highlight, and its tone is checked only when it has the key; with `kind: "highlight"`, a missing tone is a problem too. Use it to show missing columns, a missing or unknown comparison, missing or unreadable inputs, a range without exactly two endpoints or with its low end above its high end, and a missing or unknown tone. It checks the supplied rule separately; compilation does not call it. For example, an `in` list containing one readable and one unreadable numeric value reports a problem but still compiles to match the readable value.
+`ruleProblem(rule, columns, kind?)` accepts a highlight or a filter rule, written or read, and returns a problem sentence or `null`. Pass `kind`, a `RuleKind` (`"highlight"` or `"filter"`), when you know the rule's list: a filter can carry a field of your own named `tone`, and a read highlight can lack its `when`. Without `kind`, a rule with a `when` or a `tone` key is judged as a highlight, and its tone is checked only when it has the key; with `kind: "highlight"`, a missing tone is a problem too. Use it to show missing columns, a missing or unknown comparison, missing or unreadable inputs, a range without exactly two endpoints or with its low end above its high end, and a missing or unknown tone. It checks the supplied rule separately; compilation does not call it. For example, an `in` list containing one readable and one unreadable numeric value reports a problem but still compiles to match the readable value.
 
 ### Tones are tokens
 
@@ -199,10 +200,10 @@ The readers return looser types than the ones you write: `ReadGridRules`, `ReadC
 | Function | Input | Result |
 |---|---|---|
 | `readRules(value)` | Any JSON | `ReadGridRules`, each list read with the readers below. A list that isn't a list is absent, and an entry that isn't an object, a list included, is dropped. |
-| `readColumnRule(value)` | Any JSON | A `ReadColumnRule`, or `null` when the value isn't an object. Its label stays only when it is text, and its target only when it says `"row"` or `"cell"`. |
-| `readFilterRule(value)` | Any JSON | A `ReadFilterRule`, or `null` when the value isn't an object. |
-| `readSortRule(value)` | Any JSON | A `ReadSortRule`, or `null` when the value isn't an object. Its direction is descending only when it says `"desc"`. |
-| `readCondition(value)` | Any JSON | A `ReadCondition`, or `undefined` when the value isn't an object. Its `values` come only from a list. |
+| `readColumnRule(value)` | Any JSON | A `ReadColumnRule`, or `null` when the value isn't an object, a list included. Its label stays only when it is text, and its target only when it says `"row"` or `"cell"`. |
+| `readFilterRule(value)` | Any JSON | A `ReadFilterRule`, or `null` when the value isn't an object, a list included. |
+| `readSortRule(value)` | Any JSON | A `ReadSortRule`, or `null` when the value isn't an object, a list included. Its direction is descending only when it says `"desc"`. |
+| `readCondition(value)` | Any JSON | A `ReadCondition`, or `undefined` when the value isn't an object, a list included. Its `values` come only from a list. |
 
 ### Compiling
 
