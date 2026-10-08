@@ -46,9 +46,11 @@ The repository's luminance calculation gives the direction pair a grayscale rati
 
 ### The colors are checked
 
-The contrast tests require 4.5 to 1 for the declared text/surface pairs and for `primary`, `up`, `down`, `stale`, `expiring`, `link-1` through `link-4`, `panel-sync`, `destructive`, and `ring` on the background and card, in both modes. They also check foreground text over the soft tints. These checks do not cover every component state or chart color.
+The contrast tests require 4.5 to 1 for the declared text/surface pairs and for `primary`, `up`, `down`, `stale`, `expiring`, `link-1` through `link-4`, `panel-sync`, `destructive`, and `ring` on the background and card, in both modes. They blend a tint the way a browser does, in gamma-encoded sRGB.
 
-The calculated light primary contrast is 5.1 to 1 on the page and 4.8 to 1 on a card. The tightest checked pair is `down` on the light card at 4.6 to 1. The browser matrix installs each theme separately into three consumers and reads every theme color back from the page in both modes.
+The foreground clears 4.5 to 1 on every tint an item puts text on: the soft tints, and `primary` and `destructive` at 15 and 12 percent, over the background and a card. A tone's own color on its tint falls below that in light mode, so tinted badges, rule highlights, a countdown running short, a stale feed tier, and the ladder's own size carry foreground text, and a selected grid row is marked by a bar rather than filled. The marks a grid cell carries also clear 4.5 to 1 on the grid's own tints: the focused column and the ladder's mid row. A cell's fill flash starts at its direction's tint and fades within its window, and direction text in that cell reads below 4.5 to 1 as the flash starts. These checks do not cover every component state or chart colors.
+
+The calculated light primary contrast is 5.1 to 1 on the page and 4.8 to 1 on a card. The tightest checked pair is `down` on the depth ladder's light mid row, at 4.54 to 1; on a light card it is 4.6 to 1. The browser matrix installs each theme separately into three consumers and reads every theme color back from the page in both modes.
 
 ### What it does not do
 

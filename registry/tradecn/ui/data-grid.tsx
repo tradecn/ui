@@ -580,6 +580,10 @@ const undefinedStatus = () => undefined
 
 const FILL_CLASSES = "data-[direction=up]:bg-up-soft data-[direction=down]:bg-down-soft data-[direction=flat]:bg-flat-soft"
 const RING_CLASSES = "data-[direction=up]:shadow-[inset_0_0_0_1px_var(--up)] data-[direction=down]:shadow-[inset_0_0_0_1px_var(--down)] data-[direction=flat]:shadow-[inset_0_0_0_1px_var(--flat)]"
+// A selected row is marked by a bar at the start of its first cell, not filled: a fill behind a row's up and down text
+// drops it below 4.5 to 1 in the light themes. The first cell is the selection box's when there is one, and a frozen
+// first column keeps the bar in view as the grid scrolls sideways.
+const SELECTED_BAR = "before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-primary"
 
 function alignClass(col: { align?: "left" | "right" | "center"; numeric?: boolean }) {
   const a = col.align ?? (col.numeric ? "right" : "left")
@@ -596,6 +600,8 @@ interface CellProps<T> {
   flashVariant: "fill" | "ring"
   flashWindowMs: number
   focusedCol: boolean
+  /** The first cell of a selected row with no selection box draws the selection's bar. */
+  selectedBar: boolean
   rules: AppliedRules<T> | null
   /** The row's own rule, for a frozen cell to paint: its opaque background would otherwise cut a gap in the row's tint. */
   rowRule: RuleDecoration | undefined
@@ -683,7 +689,7 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
   )
 }
 
-function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol, rules, rowRule, edits }: CellProps<T>) {
+function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol, selectedBar, rules, rowRule, edits }: CellProps<T>) {
   const value = col.accessor(row)
   const ref = useRef<HTMLDivElement>(null)
   const flash = col.flash ?? (col.numeric ? flashVariant : false)
@@ -749,6 +755,8 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
         col.numeric && cn("justify-end", numericClass),
         col.align === "center" && "justify-center",
         flash === "ring" ? RING_CLASSES : flash === "fill" ? FILL_CLASSES : undefined,
+        // Before the frozen position, so a frozen cell stays sticky under the bar's `relative`.
+        selectedBar && cn("relative", SELECTED_BAR),
         left !== undefined && "sticky z-10 bg-background",
         focusedCol && "bg-muted/50",
         status?.kind === "pending" && "text-muted-foreground italic",
@@ -836,7 +844,6 @@ function RowInner<T>(p: RowProps<T>) {
       className={cn(
         "absolute top-0 left-0 grid items-stretch border-b border-border/60",
         FILL_CLASSES,
-        p.selected && "bg-accent",
         p.focused && "outline-1 -outline-offset-1 outline-ring",
         rule?.className,
         extra?.className,
@@ -844,7 +851,7 @@ function RowInner<T>(p: RowProps<T>) {
       style={{ gridTemplateColumns: p.template, width: p.width, height: p.height, transform: `translateY(${p.start}px)` }}
     >
       {p.selectionColumn && (
-        <div role="gridcell" aria-colindex={1} className="sticky left-0 z-10 flex items-center justify-center bg-background">
+        <div role="gridcell" aria-colindex={1} className={cn("sticky left-0 z-10 flex items-center justify-center bg-background", p.selected && SELECTED_BAR)}>
           <Checkbox checked={p.selected} onCheckedChange={() => p.onToggle(p.id)} aria-label="Select row" />
         </div>
       )}
@@ -860,6 +867,7 @@ function RowInner<T>(p: RowProps<T>) {
           flashVariant={p.flashVariant}
           flashWindowMs={p.flashWindowMs}
           focusedCol={p.focusedColKey === col.key}
+          selectedBar={p.selected && !p.selectionColumn && i === 0}
           rules={p.rules}
           rowRule={rule}
           edits={p.edits}

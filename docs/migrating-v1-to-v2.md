@@ -160,9 +160,13 @@ Pending now belongs to one hook instance per feed. Share its result between view
 
 The live region is now atomic, so each batched transition is read as one message. The status indicator includes a state word, and compact recipes retain the tier word for assistive technology. The trigger/content pair explicitly links its tooltip description in either supported primitive base. These replace the old compact color-only cue and the missing description relationship observed in the Base UI tooltip.
 
+The stale tier's badge and tooltip trigger put foreground text on the `stale-soft` tint, where v1 colored the text `stale`: stale text on its own tint fell below 4.5 to 1 in light mode. The aging tier keeps its `stale` text on the plain surface.
+
 ## Countdown
 
 The timer is named by its label and the time left together, through `aria-labelledby`, where v1 named it by `label` alone. A test that finds it with `getByRole("timer", { name: "Inquiry" })` meets both now: match the label with a pattern, or check the whole name with `toHaveAccessibleName`. The label rides in a hidden element inside the timer, so a test reading its `textContent` meets the label too. `formatRemaining(Infinity)` prints `–` where v1 printed `0:00`, and an `Infinity` deadline holds a full bar; a `NaN` deadline holds an empty bar where v1 drew it full; a `startsAt` that is not a finite time is ignored. A countdown samples the time source when it is first drawn and is never behind that moment, so one mounted after its deadline reads `0:00` from its first frame, where v1 could show the clock's stale tick for a frame. `createClock` ticks once a second for an interval that is not a positive number of milliseconds up to 2³¹ − 1, where v1 ran it as fast as the timer allowed.
+
+Running short, the full countdown's digits are the foreground on the `expiring-soft` tint, where v1 colored them `expiring` on it, below 4.5 to 1 in light mode. The compact countdown has no tint and keeps `expiring` digits.
 
 ## CommandPalette
 
@@ -430,6 +434,8 @@ Resize handles now start only from an unhandled primary-button press by a primar
 
 The handle is pointer-only. Use Alt+Shift+Left or Right with the grid focused to resize the chosen column.
 
+A selected row is marked by a bar at the start of its first cell, the selection box's when there is one, where v1 filled the row with `bg-accent`, which put up and down text below 4.5 to 1 in light mode. A rule's tone paints foreground text on its tint, and `text-up`, `text-down`, and `text-flat` content inside takes the foreground too, where v1 colored the text with the tone.
+
 ## DepthLadder
 
 Replace the self-closing `DepthLadder` with an explicit composition.
@@ -481,6 +487,8 @@ Preserve visible side headers, own-size descriptions, and your staging status or
 Order permissions and submission remain application-owned.
 
 A `convention.tick` that is not a finite positive number shows the empty state and stages nothing, where v1 built rungs at non-finite prices and could hand `onStage` a `NaN` price.
+
+Your own size's chip puts foreground text on its `primary` tint, where v1 colored the text `primary`.
 
 ## SpreadMatrix
 
@@ -824,6 +832,8 @@ Explicit `undefined` values for `labels.environment` or `labels.user` now use th
 Each clock readout retains its local subscription, including when used outside the root. Default readings share one timer; a custom source still changes formatting and timestamps on its own cadence.
 
 Use stable keys when reordering clock descriptors. The helpers, tone classes, descriptor types and default labels remain available.
+
+`STATUS_TONE_CLASS` puts each tone's tint behind foreground text, where v1 colored the text with the tone too, below 4.5 to 1 on its tint in light mode.
 
 ## ColumnChooser
 

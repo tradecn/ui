@@ -14,7 +14,10 @@ Color also affects interpretation. Bazley, Cronqvist, and Mormann found effects 
 |---|---|
 | Text | The 13 declared foreground/surface pairs, including page, card, popover, button, muted, accent, and sidebar text. |
 | Marks | `primary`, `up`, `down`, `stale`, `expiring`, `link-1` through `link-4`, `panel-sync`, `destructive`, and `ring`, each on the background and card. |
-| Tints | Foreground text over `up-soft`, `down-soft`, `flat-soft`, `stale-soft`, and `expiring-soft`, composited on the page by the test's luminance calculation. |
+| Tints | Foreground text over `up-soft`, `down-soft`, `flat-soft`, `stale-soft`, and `expiring-soft`, and over `primary` and `destructive` at 15 and 12 percent, each on the background and card. |
+| Grid tints | `up`, `down`, `stale`, `expiring`, `destructive`, and `primary` over `muted` at 50 percent, a grid's focused column, and 60 percent, the depth ladder's mid row, on the background. |
+
+A tint is blended with the surface the way a browser blends it, in gamma-encoded sRGB. Every item puts foreground text on a tint, never the tint's own color: a tone's color on its tint falls below 4.5 to 1 in light mode. A selected grid row is marked by a bar, not filled, for the same reason.
 
 These calculations do not check every component state, chart color, or consumer override. Check the rendered combinations your app uses.
 

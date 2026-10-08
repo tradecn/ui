@@ -428,7 +428,7 @@ export function DepthLadderOwnSize({ side, className, ...props }: Omit<Component
   const row = useRowContext()
   const value = side === "bid" ? row.myBid : row.myAsk
   if (value === null) return null
-  return <span data-numeric="" data-mine-size="" className={cn("rounded-sm bg-primary/15 px-1 text-primary", NUMERIC_CLASS, className)} {...props}>{row.config.formatSize(value)}<span className="sr-only"> {row.config.labels.mine}</span></span>
+  return <span data-numeric="" data-mine-size="" className={cn("rounded-sm bg-primary/15 px-1 text-foreground", NUMERIC_CLASS, className)} {...props}>{row.config.formatSize(value)}<span className="sr-only"> {row.config.labels.mine}</span></span>
 }
 
 function ownsCellClick(event: MouseEvent<HTMLDivElement>) {

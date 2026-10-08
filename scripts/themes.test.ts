@@ -31,11 +31,12 @@ describe("the oklch converter", () => {
     expect(luminance(must("oklch(0.86644 0.29483 142.4953)"))).toBeCloseTo(0.7152, 2)
   })
 
-  it("reads an alpha, as a number or a percentage, and composites it over the backdrop", () => {
+  it("reads an alpha, as a number or a percentage, and composites it over the backdrop as a browser does", () => {
     expect(must("oklch(0.74 0.15 165 / 18%)").alpha).toBeCloseTo(0.18)
     expect(must("oklch(0.74 0.15 165 / 0.5)").alpha).toBeCloseTo(0.5)
+    // Half white over black shows as mid gray, about #808080, blended in gamma-encoded sRGB: 0.214, not linear light's 0.5.
     const half = luminance(must("oklch(1 0 0 / 50%)"), must("oklch(0 0 0)"))
-    expect(half).toBeCloseTo(0.5, 2)
+    expect(half).toBeCloseTo(0.214, 3)
     expect(parseOklch("var(--color-primary)")).toBeNull()
   })
 })
@@ -63,6 +64,20 @@ const TEXT: [string, string][] = [
 // Things read by their color, as text or as a mark: a price, a link dot, a focus ring. They are used as text too, so 4.5 to 1.
 const MARKS = ["primary", "up", "down", "stale", "link-1", "link-2", "link-3", "link-4", "panel-sync", "expiring", "destructive", "ring"]
 const SURFACES = ["background", "card"]
+// The tints the items paint behind text, which is the foreground on every one: a badge's, a rule's, a countdown's, a
+// feed tier's, the ladder's own size. A token's own color on its tint drops below 4.5 to 1 in the light themes.
+const TINTS: [string, number][] = [["up-soft", 1], ["down-soft", 1], ["flat-soft", 1], ["stale-soft", 1], ["expiring-soft", 1], ["primary", 0.15], ["primary", 0.12], ["destructive", 0.15], ["destructive", 0.12]]
+// The tints a grid keeps colored text on, over its own background: the focused column's, and the depth ladder's mid row.
+const GRID_TINTS: [string, number][] = [["muted", 0.5], ["muted", 0.6]]
+// The marks a grid cell or a ladder rung can carry.
+const CELL_MARKS = ["up", "down", "stale", "expiring", "destructive", "primary"]
+
+/** The ratio between text and a tint laid over a surface, blended as a browser does. */
+const onTint = (text: Oklch, tint: Oklch, alpha: number, under: Oklch) => {
+  const a = luminance(text)
+  const b = luminance({ ...tint, alpha: tint.alpha * alpha }, under)
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+}
 
 describe("the themes", () => {
   it("are the three two-sided ones, amber first as the default", () => {
@@ -88,14 +103,15 @@ describe("the themes", () => {
         for (const mark of MARKS) for (const surface of SURFACES) expect(contrast(resolve(mark), resolve(surface)), `${mark} on ${surface}`).toBeGreaterThanOrEqual(4.5)
       })
 
-      it(`${theme.name} ${mode}: a soft tint stays a tint, and the value on it still reads`, () => {
-        for (const soft of ["up-soft", "down-soft", "flat-soft", "stale-soft", "expiring-soft"]) {
-          const tint = resolve(soft)
-          // The tint over the page has to stay close enough to the page that the foreground still clears 4.5 on it,
-          // whichever is the lighter of the two: over near-black the tint brightens, over white it darkens.
-          const over = luminance(tint, resolve("background"))
-          const fg = luminance(resolve("foreground"))
-          expect((Math.max(fg, over) + 0.05) / (Math.min(fg, over) + 0.05), `foreground on ${soft}`).toBeGreaterThanOrEqual(4.5)
+      it(`${theme.name} ${mode}: the foreground clears 4.5 to 1 on every tint an item paints behind text, over the background and a card`, () => {
+        for (const [tint, alpha] of TINTS) {
+          for (const surface of SURFACES) expect(onTint(resolve("foreground"), resolve(tint), alpha, resolve(surface)), `foreground on ${tint} at ${alpha} over ${surface}`).toBeGreaterThanOrEqual(4.5)
+        }
+      })
+
+      it(`${theme.name} ${mode}: every mark a grid cell carries clears 4.5 to 1 on the tints a grid keeps it on`, () => {
+        for (const [tint, alpha] of GRID_TINTS) {
+          for (const mark of CELL_MARKS) expect(onTint(resolve(mark), resolve(tint), alpha, resolve("background")), `${mark} on ${tint} at ${alpha}`).toBeGreaterThanOrEqual(4.5)
         }
       })
 
@@ -162,6 +178,11 @@ const SHADCN_SURFACES = {
   light: { white: "oklch(1 0 0)", muted: "oklch(0.97 0 0)" },
   dark: { background: "oklch(0.145 0 0)", card: "oklch(0.205 0 0)" },
 } as const
+// The rest of a fresh `shadcn init`'s neutral palette that the items' tints and text come from.
+const SHADCN = {
+  light: { background: "oklch(1 0 0)", card: "oklch(1 0 0)", foreground: "oklch(0.145 0 0)", muted: "oklch(0.97 0 0)", primary: "oklch(0.205 0 0)", destructive: "oklch(0.577 0.245 27.325)" },
+  dark: { background: "oklch(0.145 0 0)", card: "oklch(0.205 0 0)", foreground: "oklch(0.985 0 0)", muted: "oklch(0.269 0 0)", primary: "oklch(0.922 0 0)", destructive: "oklch(0.704 0.191 22.216)" },
+} as const
 
 describe("the default marks", () => {
   it("are slate's light marks on the light side, so a fresh project reads them on white", () => {
@@ -173,6 +194,17 @@ describe("the default marks", () => {
     it(`${mode}: every mark clears 4.5 to 1 on shadcn's ${mode} surfaces`, () => {
       for (const mark of DEFAULT_MARKS) {
         for (const [name, surface] of Object.entries(SHADCN_SURFACES[mode])) expect(contrast(must(tokens[mode][mark]!), must(surface)), `${mark} on ${name}`).toBeGreaterThanOrEqual(4.5)
+      }
+    })
+
+    it(`${mode}: on shadcn's surfaces, the foreground reads on every tint and every mark a grid cell carries on a grid's tints`, () => {
+      const shadcn = SHADCN[mode]
+      const token = (name: string) => must((shadcn as Record<string, string>)[name] ?? tokens[mode][name]!)
+      for (const [tint, alpha] of TINTS) {
+        for (const surface of ["background", "card"]) expect(onTint(token("foreground"), token(tint), alpha, token(surface)), `foreground on ${tint} at ${alpha} over ${surface}`).toBeGreaterThanOrEqual(4.5)
+      }
+      for (const [tint, alpha] of GRID_TINTS) {
+        for (const mark of CELL_MARKS) expect(onTint(token(mark), token(tint), alpha, token("background")), `${mark} on ${tint} at ${alpha}`).toBeGreaterThanOrEqual(4.5)
       }
     })
 

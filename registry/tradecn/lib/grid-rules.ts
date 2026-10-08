@@ -126,18 +126,20 @@ export const RULE_OP_LABELS: Record<RuleOp, string> = {
 
 export const RULE_TONES: readonly RuleTone[] = ["up", "down", "flat", "stale", "expiring", "primary", "destructive"]
 
-// The text takes the token and the background a tint of its soft variant, painted as a background
-// image rather than a background color so it layers over whatever color the element already has: a
-// frozen cell keeps its opaque `bg-background` under the tint and stays opaque as rows scroll beneath
-// it, and a selected row's `bg-accent` shows through. Literal strings, so Tailwind finds them.
+// A tone is a tint of the token's soft variant, painted as a background image rather than a background
+// color so it layers over whatever color the element already has: a frozen cell keeps its opaque
+// `bg-background` under the tint and stays opaque as rows scroll beneath it. Text on the tint is the
+// foreground, and up, down, and flat text inside takes the foreground too: a direction color on a tint
+// drops below 4.5 to 1 in the light themes, and a signed value still says its direction by its sign.
+const ON_TINT = "text-foreground [&_.text-up]:text-inherit [&_.text-down]:text-inherit [&_.text-flat]:text-inherit"
 export const RULE_TONE_CLASS: Record<RuleTone, string> = {
-  up: "text-up bg-[linear-gradient(var(--up-soft),var(--up-soft))]",
-  down: "text-down bg-[linear-gradient(var(--down-soft),var(--down-soft))]",
-  flat: "text-flat bg-[linear-gradient(var(--flat-soft),var(--flat-soft))]",
-  stale: "text-stale bg-[linear-gradient(var(--stale-soft),var(--stale-soft))]",
-  expiring: "text-expiring bg-[linear-gradient(var(--expiring-soft),var(--expiring-soft))]",
-  primary: "text-primary bg-[linear-gradient(color-mix(in_oklab,var(--primary)_12%,transparent),color-mix(in_oklab,var(--primary)_12%,transparent))]",
-  destructive: "text-destructive bg-[linear-gradient(color-mix(in_oklab,var(--destructive)_12%,transparent),color-mix(in_oklab,var(--destructive)_12%,transparent))]",
+  up: `${ON_TINT} bg-[linear-gradient(var(--up-soft),var(--up-soft))]`,
+  down: `${ON_TINT} bg-[linear-gradient(var(--down-soft),var(--down-soft))]`,
+  flat: `${ON_TINT} bg-[linear-gradient(var(--flat-soft),var(--flat-soft))]`,
+  stale: `${ON_TINT} bg-[linear-gradient(var(--stale-soft),var(--stale-soft))]`,
+  expiring: `${ON_TINT} bg-[linear-gradient(var(--expiring-soft),var(--expiring-soft))]`,
+  primary: `${ON_TINT} bg-[linear-gradient(color-mix(in_oklab,var(--primary)_12%,transparent),color-mix(in_oklab,var(--primary)_12%,transparent))]`,
+  destructive: `${ON_TINT} bg-[linear-gradient(color-mix(in_oklab,var(--destructive)_12%,transparent),color-mix(in_oklab,var(--destructive)_12%,transparent))]`,
 }
 
 /** What an applied rule puts on a cell or a row. */

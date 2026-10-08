@@ -63,15 +63,18 @@ export interface StatusBarUserProps extends Omit<ComponentProps<"span">, "childr
   prefix?: string
 }
 
-/** The environment badge's classes per tone. The label is always the word; the tone is the hint. */
+/**
+ * The environment badge's classes per tone: the tone's tint behind foreground text. The label is always the word; the
+ * tone is the hint. A tone's own color as text on its tint drops below 4.5 to 1 in the light themes.
+ */
 export const STATUS_TONE_CLASS: Record<StatusTone, string> = {
-  up: "text-up bg-up-soft",
-  down: "text-down bg-down-soft",
-  flat: "text-flat bg-flat-soft",
-  stale: "text-stale bg-stale-soft",
-  expiring: "text-expiring bg-expiring-soft",
-  primary: "text-primary bg-primary/15",
-  destructive: "text-destructive bg-destructive/15",
+  up: "text-foreground bg-up-soft",
+  down: "text-foreground bg-down-soft",
+  flat: "text-foreground bg-flat-soft",
+  stale: "text-foreground bg-stale-soft",
+  expiring: "text-foreground bg-expiring-soft",
+  primary: "text-foreground bg-primary/15",
+  destructive: "text-foreground bg-destructive/15",
 }
 
 const formats = new Map<string, Intl.DateTimeFormat | null>()

@@ -95,7 +95,7 @@ In development Strict Mode, effect replay can also start a flat flash on initial
 
 The layout effect observes values after React commits. The hook adds no React state updates and does no feed batching; it cannot display intermediate values that never reach a committed render. For message-at-a-time feeds, batch updates before rendering, for example with [`createFrameBatcher`](row-store.md).
 
-Each new flash cancels the previous animation on the same element and starts over without remounting it. `fill` animates the soft token to transparent; `ring` animates a one-pixel inset shadow from the solid token to transparent. Both use Web Animations with `ease-out`. `data-direction` stays set until the animation finishes, or until the fallback timer expires.
+Each new flash cancels the previous animation on the same element and starts over without remounting it. `fill` animates the soft token to transparent; `ring` animates a one-pixel inset shadow from the solid token to transparent. Direction-colored text on a fill reads below 4.5 to 1 in the light themes as the flash starts, until the tint fades. Both use Web Animations with `ease-out`. `data-direction` stays set until the animation finishes, or until the fallback timer expires.
 
 With reduced motion, or without `element.animate`, `FlashCell` shows its static direction color for the remaining window, then clears it. The reduced-motion preference is read on the first flash and cached; changing the system preference afterward does not update that cached value.
 

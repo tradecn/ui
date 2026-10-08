@@ -99,7 +99,8 @@ export type { Clock }
 const TIER_CLASS: Record<Tier, string> = {
   live: "text-foreground",
   aging: "text-stale",
-  stale: "bg-stale-soft text-stale",
+  // On its tint the word is the foreground: stale text on the stale tint drops below 4.5 to 1 in the light themes.
+  stale: "bg-stale-soft text-foreground",
   offline: "text-destructive",
   closed: "text-muted-foreground",
 }

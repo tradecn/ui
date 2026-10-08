@@ -257,6 +257,19 @@ test("a watchlist adds through the field, finds a symbol it already has, and rem
   await page.keyboard.press("Enter")
   await expect(grid).toHaveAttribute("aria-rowcount", "4")
   await expect(row("ZN")).toHaveAttribute("aria-selected", "true")
+  // Selected, the row isn't filled behind its up and down text: the bar at the start of its first cell marks it.
+  const marked = await row("ZN").evaluate((element) => {
+    const first = element.querySelector("[role='gridcell']")!
+    const probe = document.createElement("i")
+    probe.style.color = "var(--primary)"
+    document.body.append(probe)
+    const out = { row: getComputedStyle(element).backgroundColor, width: getComputedStyle(first, "::before").width, bar: getComputedStyle(first, "::before").backgroundColor, primary: getComputedStyle(probe).color }
+    probe.remove()
+    return out
+  })
+  expect(marked.row, "no fill behind a selected row").toBe("rgba(0, 0, 0, 0)")
+  expect(marked.width).toBe("2px")
+  expect(marked.bar, "the bar is the primary token").toBe(marked.primary)
   // One: the button on the row, which only shows on hover.
   await row("CL").hover()
   await row("CL").getByRole("button", { name: "Remove CL" }).click()
@@ -1486,9 +1499,10 @@ test("a hotkey editor recovers focus when resets disappear or become disabled", 
 })
 
 // Rules as data through the installed lib: the tone classes live in lib/grid-rules.ts, so this is where
-// it shows whether the consumer's Tailwind found them there. A price rule typed in 32nds colors its cell
-// with the up token and a tint, a row rule marks the row, the filter drops the small inquiry, the sort
-// runs largest first, and every decorated element says its rule in words.
+// it shows whether the consumer's Tailwind found them there. A price rule typed in 32nds tints its cell
+// with the up token behind foreground text, up text inside the tint takes the foreground too, a row rule
+// marks the row, the filter drops the small inquiry, the sort runs largest first, and every decorated
+// element says its rule in words.
 test("a grid under rules colors by the token, filters, orders, and says each rule in words", async ({ page }) => {
   await page.goto("/")
   const scene = page.locator("section[data-scene='grid-rules']")
@@ -1504,13 +1518,19 @@ test("a grid under rules colors by the token, filters, orders, and says each rul
   const painted = await page.evaluate(() => {
     const cell = document.querySelector("section[data-scene='grid-rules'] [data-row-id='rich'] [data-col='px']")!
     const probe = document.createElement("i")
-    probe.style.color = "var(--up)"
+    probe.style.color = "var(--foreground)"
     document.body.append(probe)
-    const out = { color: getComputedStyle(cell).color, up: getComputedStyle(probe).color, image: getComputedStyle(cell).backgroundImage }
+    // Signed text as a preset's change column renders it, inside the tinted cell.
+    const signed = document.createElement("span")
+    signed.className = "text-up"
+    cell.append(signed)
+    const out = { color: getComputedStyle(cell).color, signed: getComputedStyle(signed).color, foreground: getComputedStyle(probe).color, image: getComputedStyle(cell).backgroundImage }
+    signed.remove()
     probe.remove()
     return out
   })
-  expect(painted.color, "text-up from the installed lib resolves to the --up token").toBe(painted.up)
+  expect(painted.color, "the ruled cell's text is the foreground").toBe(painted.foreground)
+  expect(painted.signed, "up text inside the tint takes the foreground, from the installed lib's classes").toBe(painted.foreground)
   expect(painted.image, "the tint is painted as a background image").toContain("linear-gradient")
   const big = scene.locator("[data-row-id='big']")
   await expect(big).toHaveAttribute("data-rule", "large")

@@ -59,6 +59,8 @@ describe("StatusBar", () => {
     expect(env).toHaveTextContent("PRODUCTION")
     expect(env.dataset.tone).toBe("destructive")
     expect(env.className).toContain(STATUS_TONE_CLASS.destructive)
+    // Every tone is a tint behind foreground text: a tone's own color on its tint doesn't read at 4.5 to 1.
+    for (const tone of Object.values(STATUS_TONE_CLASS)) expect(tone).toMatch(/^text-foreground bg-[\w-]+(\/15)?$/)
     expect(within(env).getByText("Environment:")).toHaveClass("sr-only")
     const user = bar.querySelector<HTMLElement>("[data-status-user]")!
     expect(user).toHaveTextContent("jdoe")

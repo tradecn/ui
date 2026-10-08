@@ -113,6 +113,8 @@ describe("the ladder", () => {
     expect(bid).toHaveAttribute("data-side", "bid")
     expect(bid).toHaveAttribute("aria-colindex", "1")
     expect(bid.querySelector("[data-mine-size]")).toHaveTextContent("5 yours")
+    // The chip's tint carries the foreground: primary text on it drops below 4.5 to 1 in the amber light theme.
+    expect(bid.querySelector("[data-mine-size]")).toHaveClass("bg-primary/15", "text-foreground")
     expect(bid).toHaveTextContent("5 yours120")
     expect(rung(6368)).toHaveAttribute("data-mine", "bid")
     expect(cell(6368, "ask")).toHaveTextContent("")

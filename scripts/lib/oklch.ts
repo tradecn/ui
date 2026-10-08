@@ -27,13 +27,17 @@ export function toLinearSrgb({ l, c, h }: Oklch): [number, number, number] {
   return [clip(4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_), clip(-1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_), clip(-0.0041960863 * l_ - 0.7034186147 * m_ + 1.707614701 * s_)]
 }
 
+const encode = (v: number) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055)
+const decode = (v: number) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+
 /** WCAG relative luminance of `color` over `backdrop`. */
 export function luminance(color: Oklch, backdrop?: Oklch): number {
   let rgb = toLinearSrgb(color)
   if (color.alpha < 1 && backdrop) {
     const under = toLinearSrgb(backdrop)
-    // Compositing happens in gamma-encoded sRGB in a browser; this is linear, which is close enough for a threshold and errs low.
-    rgb = rgb.map((v, i) => v * color.alpha + under[i]! * (1 - color.alpha)) as [number, number, number]
+    // A browser composites in gamma-encoded sRGB, so the blend happens there and comes back to linear light. Blending
+    // in linear light reads a light tint lighter than it shows, and a dark one darker.
+    rgb = rgb.map((v, i) => decode(encode(v) * color.alpha + encode(under[i]!) * (1 - color.alpha))) as [number, number, number]
   }
   return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
 }

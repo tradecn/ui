@@ -63,7 +63,7 @@ Use `baseState` to initialize an uncontrolled grid and choose its reset defaults
 
 ## Selection and actions
 
-Set `selectionMode="multi"` to extend the RFQ preset's single selection. Use the checkboxes, Shift for a range, or Command/Ctrl to toggle rows. Right-click plain content in a selected row, or press Shift+F10 with the grid focused, to act on the selection; an unselected row targets just itself.
+Set `selectionMode="multi"` to extend the RFQ preset's single selection. Use the checkboxes, Shift for a range, or Command/Ctrl to toggle rows. A selected row is marked by a bar at the start of its first cell, the selection box's when there is one, rather than filled, so its up and down text keeps its contrast. Right-click plain content in a selected row, or press Shift+F10 with the grid focused, to act on the selection; an unselected row targets just itself.
 
 Enter on the grid or a double-click on plain cell content activates a row. The Inspect button acts on its own row and preserves selection. This example prints the requested action below the grid; your handler opens a ticket or sends a command.
 
