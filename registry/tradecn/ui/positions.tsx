@@ -133,8 +133,8 @@ export interface PositionsProps<T extends PositionRow = PositionRow> extends Omi
   renderContextMenu?: (rows: T[], ids: RowId[]) => ReactNode
 }
 
-// A row's name is its instrument and book, which hold while its mark and P&L tick.
-const positionLabel = (row: PositionRow) => [row.instrument, row.book].filter(Boolean).join(", ")
+// A row's name is its instrument, which holds while its mark and P&L tick. One grid per book keeps it unique.
+const positionLabel = (row: PositionRow) => row.instrument
 
 export function Positions<T extends PositionRow = PositionRow>({ columns, price, pnl, risk, riskHeader, label = "Positions", totals, renderContextMenu, className, store, getRowProps, getRowLabel = positionLabel, selectionMode = "single", ...grid }: PositionsProps<T>) {
   const options = useMemo<PositionsColumnOptions<T>>(() => ({ price, pnl, risk, riskHeader }), [price, pnl, risk, riskHeader])

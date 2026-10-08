@@ -111,7 +111,7 @@ Scroll down before receiving a batch to see the RFQ preset keep the first visibl
 | `onRowActivate` | `(row: T, id: RowId) => void` | None | Handle grid Enter or an unhandled double-click on plain row content, unless it opens an editor. |
 | `renderContextMenu` | `(rows: T[], ids: RowId[], target?: RowId \| null) => ReactNode` | None | Menu items opened from an owned row, for the selection or targeted row. `target` is the row the menu opened on, which can sit inside a larger selection, taken from the event that opened it. |
 | `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Row classes, state, tone, and accessible description. |
-| `getRowLabel` | `(row: T, id: RowId) => string` | None | A row's name that holds while its cells tick, such as its symbol. Keep its identity stable. |
+| `getRowLabel` | `((row: T, id: RowId) => string) \| null` | None | A row's name that holds while its cells tick, such as its symbol. `null` is the same as none. Keep its identity stable. |
 | `emptyState` | `ReactNode` | `"No rows"` | Empty-view content. |
 | `className` | `string` | None | Classes on the grid root. |
 | `initialRect` | `{ width: number; height: number }` | None | Viewport size in px before measurement, for tests or server rendering. |
@@ -273,7 +273,9 @@ Selection, focus, and context-menu targets use row ids, so a reorder preserves t
 
 With announcements enabled, a 1,000 ms timer reports the row count through a polite live region, for example "1,024 rows, 12 new". It starts on mount and restarts when the count changes. Continuous count changes delay the announcement.
 
-Without `getRowLabel`, a row is named by its cells, so a screen reader can read the focused row again at every update. With it, each row is named by what it returns, and the grid reads the focused row's cells once through a second polite live region when focus rests on the row for 400 ms: on a new row, or when the grid takes focus. A cell that changes never reads the row. Return a name that tells rows apart, and keep the function's identity stable, since a new one re-renders every row.
+Without `getRowLabel`, or with `null`, a row is named by its cells, so a screen reader can read the focused row again at every update. With it, each row is named by what it returns, and the grid reads the focused row's cells once through a polite live region of its own, 400 ms after focus rests on the row: on a new row, or when the grid takes focus. A cell that changes never reads the row, and an empty name leaves the row named by its cells, still read. Return a name that tells rows apart, and keep the function's identity stable, since a new one re-renders every row.
+
+The reading is each column's cell in order, joined with commas: a cell's text, an element with an `aria-label` read as its label, and elements side by side read as separate words. It leaves out content marked `aria-hidden` or `hidden`, and the selection checkbox. It doesn't read `aria-labelledby`, `alt` text, an input's value, a control's state, or content hidden only by CSS, and it doesn't name the columns.
 
 ### Pointer interactions
 

@@ -120,7 +120,7 @@ Omitting `columns` builds `blotterColumns({ price, time })`. The menu renderer r
 
 Other [DataGrid](data-grid.md) inputs pass through, including sorting, column state, filtering, editing, footer totals and activation. Store, preset, selection and focus come from the root.
 
-A row is named by its cells, so a screen reader reads the focused row again when a fill or a status changes it, which on a blotter is news. Pass `getRowLabel` for a name that holds, and the grid reads the row's cells once when focus rests on it instead.
+A row is named by its cells, so a screen reader reads the focused row again when a fill or a status changes it, which on a blotter is news. Pass `getRowLabel` for a name that holds, and the grid reads the row's cells once when focus rests on it instead; a fill or a status change on the focused row then goes unsaid until focus moves.
 
 The wrapper fills its parent's height and can flex within the root. Give a separate block wrapper a height when moving the grid into another layout.
 

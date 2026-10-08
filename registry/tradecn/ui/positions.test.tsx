@@ -76,14 +76,14 @@ describe("the position's words", () => {
 const idLabel = (row: PositionRow) => row.id
 
 describe("Positions", () => {
-  it("names each row by its instrument and book, which hold while its mark ticks, and takes your name instead", () => {
+  it("names each row by its instrument, which holds while its mark ticks, and takes your name instead", () => {
     const store = createRowStore<PositionRow>({ getRowId: (r) => r.id })
     store.applyDeltas({ upsert: [...ROWS, { id: "ub", instrument: "UB", position: 3, quantityUnit: "contracts" }] })
     const { rerender } = render(<Positions store={store} initialRect={RECT} />)
     const name = (id: string) => document.querySelector(`[role='row'][data-row-id='${id}']`)?.getAttribute("aria-label")
-    expect([name("zn"), name("ub")]).toEqual(["ZN, Rates", "UB"])
+    expect([name("zn"), name("ub")]).toEqual(["ZN", "UB"])
     act(() => store.applyDeltas({ patch: [{ id: "zn", fields: { mark: 111 } }] }))
-    expect(name("zn")).toBe("ZN, Rates")
+    expect(name("zn")).toBe("ZN")
     rerender(<Positions store={store} initialRect={RECT} getRowLabel={idLabel} />)
     expect(name("zn")).toBe("zn")
   })

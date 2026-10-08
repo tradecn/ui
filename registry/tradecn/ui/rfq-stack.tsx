@@ -65,8 +65,8 @@ const localTime = (ms: number) => (clockFormat ??= new Intl.DateTimeFormat(undef
 const SIDE_WORD: Record<RfqStackSide, string> = { buy: "BUY", sell: "SELL", "two-way": "2-WAY" }
 /** The side the way the desk says it; one outside the three prints as the server sent it. */
 const sideWord = (side: string) => (Object.prototype.hasOwnProperty.call(SIDE_WORD, side) ? SIDE_WORD[side as RfqStackSide] : side)
-// A row's name is who asks, which way, and for what, which hold while its market and status move.
-const inquiryLabel = (row: RfqStackRow) => [row.client, sideWord(row.side), row.instrument].filter(Boolean).join(", ")
+// A row's name is who asks, which way, for how much, and for what, which hold while its market and status move.
+const inquiryLabel = (row: RfqStackRow) => [row.client, sideWord(row.side), formatStackSize(row), row.instrument].filter(Boolean).join(", ")
 
 /** The size the way the desk says it: millions of notional, or a count of contracts. */
 export function formatStackSize(row: RfqStackRow): string {

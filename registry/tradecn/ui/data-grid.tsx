@@ -217,9 +217,10 @@ export interface DataGridProps<T> {
   /**
    * A row's name that holds while its cells tick, such as its symbol. Without it a row is named by its cells,
    * so a screen reader can read the focused row again at every update. With it, the grid reads the focused
-   * row's cells once, politely, when focus rests on the row. Keep its identity stable between renders, as with `filter`.
+   * row's cells once, politely, when focus rests on the row. `null` is the same as leaving it out, for a preset
+   * that names its rows. Keep its identity stable between renders, as with `filter`.
    */
-  getRowLabel?: (row: T, id: RowId) => string
+  getRowLabel?: ((row: T, id: RowId) => string) | null
   /**
    * Rules as data: cells and rows to color, rows to show, and the order, from `grid-rules`. The grid
    * wires them itself; `cell`, `getRowProps`, `filter`, and `sort` stay yours for what code has to do.
@@ -270,8 +271,19 @@ function spokenText(node: Node): string {
   const element = node as Element
   if (element.getAttribute("aria-hidden") === "true" || element.hasAttribute("hidden")) return ""
   const label = element.getAttribute("aria-label")?.trim()
-  if (label) return ` ${label} `
-  return Array.from(element.childNodes, spokenText).join("")
+  if (label) return label
+  // Elements side by side read as separate words, as their layout shows them ("Client A", "Tier 1"); text beside
+  // an element runs on, so a word split across inline elements stays one word.
+  let text = ""
+  let last: Node | null = null
+  for (const child of element.childNodes) {
+    const part = spokenText(child)
+    if (!part) continue
+    if (last?.nodeType === 1 && child.nodeType === 1) text += " "
+    text += part
+    last = child
+  }
+  return text
 }
 
 // A row's cells as one reading: each column's words in order, the selection box left out.
@@ -755,7 +767,7 @@ interface RowProps<T> {
   entered: Map<RowId, EnterMark>
   highlightEnter: boolean
   getRowProps?: (row: T, id: RowId) => RowDecoration | undefined
-  getRowLabel?: (row: T, id: RowId) => string
+  getRowLabel?: ((row: T, id: RowId) => string) | null
   rules: AppliedRules<T> | null
   edits: EditController | null
 }
@@ -1451,14 +1463,15 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   // A row named by `getRowLabel` keeps its name while its cells tick, so its cells are read here instead: once, when
   // focus rests on a row (another row, or the grid taking focus), and never because a cell changed.
-  const readsRows = getRowLabel !== undefined
+  const readsRows = typeof getRowLabel === "function"
   const [reading, setReading] = useState("")
   const [arrivals, setArrivals] = useState(0)
   useEffect(() => {
     if (!readsRows || focusedRowId === null) return
     const t = setTimeout(() => {
       const root = rootRef.current
-      if (!root || root.ownerDocument.activeElement !== root) return
+      // Inside a shadow root the document's active element is the host, so ask the root the grid is in.
+      if (!root || (root.getRootNode() as Document | ShadowRoot).activeElement !== root) return
       const id = `${uid}-${focusedRowId}`
       const row = Array.from(root.querySelectorAll<HTMLElement>('[role="row"][data-row-id]')).find((el) => el.id === id)
       const text = row ? rowReading(row) : ""

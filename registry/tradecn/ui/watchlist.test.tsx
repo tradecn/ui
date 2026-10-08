@@ -78,6 +78,10 @@ describe("Watchlist deletion keys", () => {
     expect(rowOf("ZN")).toHaveAttribute("aria-label", "ZN")
     rerender(<Watchlist store={store}><WatchlistGrid initialRect={RECT} getRowLabel={nameLabel} /></Watchlist>)
     expect(rowOf("ZN")).toHaveAttribute("aria-label", "ZN quote")
+    // null names rows by their cells and reads nothing, as v1 did.
+    rerender(<Watchlist store={store}><WatchlistGrid initialRect={RECT} getRowLabel={null} /></Watchlist>)
+    expect(rowOf("ZN")).not.toHaveAttribute("aria-label")
+    expect(document.querySelector("[data-grid-row-reading]")).toBeNull()
   })
 
   it.each(["Delete", "Backspace"])("leaves %s to controls, nested grids and portaled content", key => {

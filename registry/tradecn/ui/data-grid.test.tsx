@@ -1487,6 +1487,54 @@ describe("row names", () => {
     }
   })
 
+  it("takes null as no label: rows named by their cells, and nothing read", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={null} />)
+    expect(row("r1")).not.toHaveAttribute("aria-label")
+    expect(document.querySelector("[data-grid-row-reading]")).toBeNull()
+  })
+
+  it("reads the row a pointer focuses", () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={symbol} />)
+      const grid = screen.getByRole("grid")
+      // A press on a cell focuses the grid, the browser's default, and the row.
+      act(() => grid.focus())
+      fireEvent.pointerDown(row("r2").querySelector('[data-col="px"]')!, { button: 0, pointerType: "mouse" })
+      act(() => vi.advanceTimersByTime(400))
+      expect(reading()).toBe("S0002, 102.00, 20")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(["open", "closed"] as const)("reads the focused row inside a shadow root (%s)", (mode) => {
+    vi.useFakeTimers()
+    const host = document.createElement("div")
+    document.body.append(host)
+    const container = document.createElement("div")
+    host.attachShadow({ mode }).append(container)
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      const { unmount } = render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={symbol} />, { container })
+      const grid = container.querySelector<HTMLElement>('[role="grid"]')!
+      act(() => grid.focus())
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => vi.advanceTimersByTime(400))
+      expect(container.querySelector("[data-grid-row-reading]")!.textContent).toBe("S0001, 101.00, 10")
+      unmount()
+    } finally {
+      host.remove()
+      vi.useRealTimers()
+    }
+  })
+
   it("reads nothing while the grid does not have focus", () => {
     vi.useFakeTimers()
     try {
@@ -1510,7 +1558,7 @@ describe("row names", () => {
       seed(3, store)
       const marked: ColumnDef<Quote>[] = [
         ...columns,
-        { key: "dir", header: "Direction", width: 60, accessor: (r) => r.px, cell: () => <><span aria-hidden="true">▲</span><span aria-label="up">↑</span><span className="sr-only"> on the day</span></> },
+        { key: "dir", header: "Direction", width: 60, accessor: (r) => r.px, cell: () => <><span aria-hidden="true">▲</span><span hidden>held</span><span aria-label="up">↑</span><span className="sr-only">on the day</span></> },
       ]
       render(<DataGrid store={store} columns={marked} label="Quotes" initialRect={RECT} getRowLabel={symbol} selectionMode="multi" selectionColumn />)
       const grid = screen.getByRole("grid")
