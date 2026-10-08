@@ -66,7 +66,20 @@ function Harness({ store, onAdd, onRemove, normalize, validate, selection, onSel
 
 const rowOf = (symbol: string) => document.querySelector<HTMLElement>(`[data-row-id="${symbol}"]`)!
 
+// Module-level, so the rows keep their identity across renders.
+const nameLabel = (row: WatchlistRow) => `${row.symbol} quote`
+
 describe("Watchlist deletion keys", () => {
+  it("names each row by its symbol, which holds while its prices tick, and takes your name instead", () => {
+    const store = seeded()
+    const { rerender } = render(<Watchlist store={store}><WatchlistGrid initialRect={RECT} /></Watchlist>)
+    expect(rowOf("ZN")).toHaveAttribute("aria-label", "ZN")
+    act(() => store.applyDeltas({ patch: [{ id: "ZN", fields: { last: 110.75, bid: 110.71875 } }] }))
+    expect(rowOf("ZN")).toHaveAttribute("aria-label", "ZN")
+    rerender(<Watchlist store={store}><WatchlistGrid initialRect={RECT} getRowLabel={nameLabel} /></Watchlist>)
+    expect(rowOf("ZN")).toHaveAttribute("aria-label", "ZN quote")
+  })
+
   it.each(["Delete", "Backspace"])("leaves %s to controls, nested grids and portaled content", key => {
     const onRemove = vi.fn()
     const onKeyDown = vi.fn()

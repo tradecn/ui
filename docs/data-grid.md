@@ -111,6 +111,7 @@ Scroll down before receiving a batch to see the RFQ preset keep the first visibl
 | `onRowActivate` | `(row: T, id: RowId) => void` | None | Handle grid Enter or an unhandled double-click on plain row content, unless it opens an editor. |
 | `renderContextMenu` | `(rows: T[], ids: RowId[], target?: RowId \| null) => ReactNode` | None | Menu items opened from an owned row, for the selection or targeted row. `target` is the row the menu opened on, which can sit inside a larger selection, taken from the event that opened it. |
 | `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Row classes, state, tone, and accessible description. |
+| `getRowLabel` | `(row: T, id: RowId) => string` | None | A row's name that holds while its cells tick, such as its symbol. Keep its identity stable. |
 | `emptyState` | `ReactNode` | `"No rows"` | Empty-view content. |
 | `className` | `string` | None | Classes on the grid root. |
 | `initialRect` | `{ width: number; height: number }` | None | Viewport size in px before measurement, for tests or server rendering. |
@@ -271,6 +272,8 @@ For an available text-editable cell, `open()` opens and focuses the text editor 
 Selection, focus, and context-menu targets use row ids, so a reorder preserves their identity. The grid never prunes them: a removed or filtered-out row stays selected and counted until your application drops it, and a Shift range whose anchor has left the view starts from the top of the view. Prune selection as rows retire, as the watchlist layout demo does against the symbols its remove handler receives. `aria-activedescendant` names the focused row while its id is in the view; each data row's `aria-rowindex` is its zero-based view index plus two, accounting for the header.
 
 With announcements enabled, a 1,000 ms timer reports the row count through a polite live region, for example "1,024 rows, 12 new". It starts on mount and restarts when the count changes. Continuous count changes delay the announcement.
+
+Without `getRowLabel`, a row is named by its cells, so a screen reader can read the focused row again at every update. With it, each row is named by what it returns, and the grid reads the focused row's cells once through a second polite live region when focus rests on the row for 400 ms: on a new row, or when the grid takes focus. A cell that changes never reads the row. Return a name that tells rows apart, and keep the function's identity stable, since a new one re-renders every row.
 
 ### Pointer interactions
 

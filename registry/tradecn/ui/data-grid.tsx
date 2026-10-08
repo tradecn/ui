@@ -215,6 +215,12 @@ export interface DataGridProps<T> {
   emptyState?: ReactNode
   getRowProps?: (row: T, id: RowId) => RowDecoration | undefined
   /**
+   * A row's name that holds while its cells tick, such as its symbol. Without it a row is named by its cells,
+   * so a screen reader can read the focused row again at every update. With it, the grid reads the focused
+   * row's cells once, politely, when focus rests on the row. Keep its identity stable between renders, as with `filter`.
+   */
+  getRowLabel?: (row: T, id: RowId) => string
+  /**
    * Rules as data: cells and rows to color, rows to show, and the order, from `grid-rules`. The grid
    * wires them itself; `cell`, `getRowProps`, `filter`, and `sort` stay yours for what code has to do.
    * With a `view` of your own the grid ignores `rules.filter` and `rules.sort`, as it ignores `filter`.
@@ -254,6 +260,28 @@ type Resolved<T> = ColumnDef<T> & { width: number; minWidth: number }
 const EMPTY_SET: ReadonlySet<RowId> = new Set()
 const SELECT_WIDTH = 32
 const ENTER_WINDOW_MS = 1500
+// How long focus rests on a row before the grid reads a labelled row's cells.
+const ROW_READING_REST_MS = 400
+
+// What a screen reader says for a node: its text, with hidden parts left out and a labelled element said by its label.
+function spokenText(node: Node): string {
+  if (node.nodeType === 3) return node.textContent ?? ""
+  if (node.nodeType !== 1) return ""
+  const element = node as Element
+  if (element.getAttribute("aria-hidden") === "true" || element.hasAttribute("hidden")) return ""
+  const label = element.getAttribute("aria-label")?.trim()
+  if (label) return ` ${label} `
+  return Array.from(element.childNodes, spokenText).join("")
+}
+
+// A row's cells as one reading: each column's words in order, the selection box left out.
+function rowReading(row: Element): string {
+  return Array.from(row.children)
+    .filter((cell) => cell.hasAttribute("data-col"))
+    .map((cell) => spokenText(cell).replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(", ")
+}
 
 // When a mark's flash window begins: at arrival, or, for a mark a reorder hold
 // parked, when that hold lapses — frozen at `now` while the hold is still running.
@@ -727,6 +755,7 @@ interface RowProps<T> {
   entered: Map<RowId, EnterMark>
   highlightEnter: boolean
   getRowProps?: (row: T, id: RowId) => RowDecoration | undefined
+  getRowLabel?: (row: T, id: RowId) => string
   rules: AppliedRules<T> | null
   edits: EditController | null
 }
@@ -765,6 +794,7 @@ function RowInner<T>(p: RowProps<T>) {
       data-rule={extra?.["data-rule"] ?? rule?.["data-rule"]}
       data-tone={extra?.["data-tone"] ?? rule?.["data-tone"]}
       aria-description={extra?.["aria-description"] ?? rule?.["aria-description"]}
+      aria-label={p.getRowLabel?.(row, p.id) || undefined}
       data-focused={p.focused || undefined}
       aria-rowindex={p.index + 2}
       aria-selected={p.selected || undefined}
@@ -871,6 +901,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     className,
     emptyState,
     getRowProps,
+    getRowLabel,
     onRowActivate,
     renderContextMenu,
     footer,
@@ -1418,6 +1449,25 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     return () => clearTimeout(t)
   }, [ids.length, announceRowCount])
 
+  // A row named by `getRowLabel` keeps its name while its cells tick, so its cells are read here instead: once, when
+  // focus rests on a row (another row, or the grid taking focus), and never because a cell changed.
+  const readsRows = getRowLabel !== undefined
+  const [reading, setReading] = useState("")
+  const [arrivals, setArrivals] = useState(0)
+  useEffect(() => {
+    if (!readsRows || focusedRowId === null) return
+    const t = setTimeout(() => {
+      const root = rootRef.current
+      if (!root || root.ownerDocument.activeElement !== root) return
+      const id = `${uid}-${focusedRowId}`
+      const row = Array.from(root.querySelectorAll<HTMLElement>('[role="row"][data-row-id]')).find((el) => el.id === id)
+      const text = row ? rowReading(row) : ""
+      // The same words again would change nothing a live region hears, so a repeat differs by an invisible character.
+      if (text) setReading((was) => (was === text ? `${text}\u200b` : text))
+    }, ROW_READING_REST_MS)
+    return () => clearTimeout(t)
+  }, [readsRows, focusedRowId, arrivals, uid])
+
   // Selection and focus, by id.
   const select = useCallback(
     (targets: RowId[], mode: "replace" | "toggle" | "range") => {
@@ -1810,6 +1860,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
                 entered={entered}
                 highlightEnter={rowEnter.highlight}
                 getRowProps={getRowProps}
+                getRowLabel={getRowLabel}
                 rules={rules}
                 edits={edits}
               />
@@ -1836,6 +1887,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       aria-multiselectable={selectionMode === "multi" || undefined}
       aria-activedescendant={focusedRowId !== null && indexOf.has(focusedRowId) ? domId(focusedRowId) : undefined}
       onKeyDown={onKeyDown}
+      onFocus={readsRows ? (e) => { if (e.target === e.currentTarget) setArrivals((n) => n + 1) } : undefined}
       className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", preset.fontClass, className)}
       style={{ lineHeight: `${rowHeight}px` } as CSSProperties}
     >
@@ -1861,6 +1913,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       {announceRowCount !== "off" && (
         <div aria-live="polite" className="sr-only">
           {announcement}
+        </div>
+      )}
+      {readsRows && (
+        <div aria-live="polite" aria-atomic="true" className="sr-only" data-grid-row-reading="">
+          {reading}
         </div>
       )}
     </div>

@@ -1427,6 +1427,104 @@ describe("certification pins", () => {
   })
 })
 
+describe("row names", () => {
+  const symbol = (row: Quote) => row.sym
+  const reading = () => document.querySelector("[data-grid-row-reading]")!.textContent
+  const row = (id: string) => document.querySelector<HTMLElement>(`[role='row'][data-row-id='${id}']`)!
+
+  it("names each row by getRowLabel, and holds the name while its cells tick", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={symbol} />)
+    expect(row("r1")).toHaveAttribute("aria-label", "S0001")
+    act(() => store.applyDeltas({ patch: [{ id: "r1", fields: { px: 250 } }] }))
+    expect(row("r1")).toHaveTextContent("250.00")
+    expect(row("r1")).toHaveAttribute("aria-label", "S0001")
+  })
+
+  it("leaves a row named by its cells, and reads nothing, without getRowLabel", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} />)
+    expect(row("r1")).not.toHaveAttribute("aria-label")
+    expect(document.querySelector("[data-grid-row-reading]")).toBeNull()
+  })
+
+  it("reads the focused row's cells once, when focus rests on it, and never for a tick", () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={symbol} />)
+      const grid = screen.getByRole("grid")
+      act(() => grid.focus())
+      // Passing a row on the way to another reads nothing for it.
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => vi.advanceTimersByTime(200))
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => vi.advanceTimersByTime(399))
+      expect(reading()).toBe("")
+      act(() => vi.advanceTimersByTime(1))
+      expect(reading()).toBe("S0001, 101.00, 10")
+      // A tick changes the cells and not the reading.
+      act(() => store.applyDeltas({ patch: [{ id: "r1", fields: { px: 150 } }] }))
+      act(() => vi.advanceTimersByTime(2000))
+      expect(reading()).toBe("S0001, 101.00, 10")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => vi.advanceTimersByTime(400))
+      expect(reading()).toBe("S0002, 102.00, 20")
+      // Coming back reads the row as it is now.
+      fireEvent.keyDown(grid, { key: "ArrowUp" })
+      act(() => vi.advanceTimersByTime(400))
+      expect(reading()).toBe("S0001, 150.00, 10")
+      // The grid taking focus again reads its row again, the same words made new for the live region.
+      act(() => grid.blur())
+      act(() => grid.focus())
+      act(() => vi.advanceTimersByTime(400))
+      expect(reading()).toBe("S0001, 150.00, 10\u200b")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("reads nothing while the grid does not have focus", () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      const view = (focused: string) => <><button>Outside</button><DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={symbol} focusedRowId={focused} /></>
+      const { rerender } = render(view("r1"))
+      act(() => screen.getByRole("button", { name: "Outside" }).focus())
+      rerender(view("r2"))
+      act(() => vi.advanceTimersByTime(1000))
+      expect(reading()).toBe("")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("reads what a screen reader says in each cell: hidden marks left out, a labelled mark by its label, no selection box", () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      const marked: ColumnDef<Quote>[] = [
+        ...columns,
+        { key: "dir", header: "Direction", width: 60, accessor: (r) => r.px, cell: () => <><span aria-hidden="true">▲</span><span aria-label="up">↑</span><span className="sr-only"> on the day</span></> },
+      ]
+      render(<DataGrid store={store} columns={marked} label="Quotes" initialRect={RECT} getRowLabel={symbol} selectionMode="multi" selectionColumn />)
+      const grid = screen.getByRole("grid")
+      act(() => grid.focus())
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => vi.advanceTimersByTime(400))
+      expect(reading()).toBe("S0001, 101.00, 10, up on the day")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe("rules as data", () => {
   const thirtySeconds = { kind: "fraction", denominator: 32, half: "+" } as const
   const ruled: ColumnDef<Quote>[] = [

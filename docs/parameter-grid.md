@@ -85,6 +85,8 @@ Uses the data grid's `parameters` preset: 24 px rows, single selection, ring fla
 
 `parameterColumns(options)` returns `ColumnDef<T>[]` to add, drop, or reorder in your own list. Its `ParameterColumnOptions<T>` accepts `parameters`, `labels`, `time`, `changedSince`, `toggleAction`, and `editAction` with the defaults above. A supplied `columns` list replaces the generated columns and their formatting, permissions, and controls.
 
+A row is named by its cells, so a screen reader reads the focused row again when its value changes, which on this sheet follows an edit or a server change. Pass `getRowLabel`, such as the parameter's name, for a name that holds, and the grid reads the row's cells once when focus rests on it instead.
+
 The install shares byte-identical grid, store, and format files with `data-grid`, `watchlist`, `blotter`, and `rfq-stack`.
 
 ### Rows

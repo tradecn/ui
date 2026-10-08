@@ -133,7 +133,10 @@ export interface PositionsProps<T extends PositionRow = PositionRow> extends Omi
   renderContextMenu?: (rows: T[], ids: RowId[]) => ReactNode
 }
 
-export function Positions<T extends PositionRow = PositionRow>({ columns, price, pnl, risk, riskHeader, label = "Positions", totals, renderContextMenu, className, store, getRowProps, selectionMode = "single", ...grid }: PositionsProps<T>) {
+// A row's name is its instrument and book, which hold while its mark and P&L tick.
+const positionLabel = (row: PositionRow) => [row.instrument, row.book].filter(Boolean).join(", ")
+
+export function Positions<T extends PositionRow = PositionRow>({ columns, price, pnl, risk, riskHeader, label = "Positions", totals, renderContextMenu, className, store, getRowProps, getRowLabel = positionLabel, selectionMode = "single", ...grid }: PositionsProps<T>) {
   const options = useMemo<PositionsColumnOptions<T>>(() => ({ price, pnl, risk, riskHeader }), [price, pnl, risk, riskHeader])
   const all = useMemo(() => columns ?? positionsColumns<T>(options), [columns, options])
   const footer = useMemo(() => (totals === false ? undefined : (totals ?? positionsTotals<T>(options))), [totals, options])
@@ -149,7 +152,7 @@ export function Positions<T extends PositionRow = PositionRow>({ columns, price,
   return (
     <div data-slot="tradecn-positions" className={cn("flex h-full min-h-0 flex-col gap-1 lining-nums tabular-nums", className)}>
       <div className="min-h-0 flex-1">
-        <DataGrid<T> {...grid} store={store} preset="blotter" selectionMode={selectionMode} label={label} columns={all} footer={footer} getRowProps={rowProps} renderContextMenu={renderContextMenu} />
+        <DataGrid<T> {...grid} store={store} preset="blotter" selectionMode={selectionMode} label={label} columns={all} footer={footer} getRowProps={rowProps} getRowLabel={getRowLabel} renderContextMenu={renderContextMenu} />
       </div>
     </div>
   )

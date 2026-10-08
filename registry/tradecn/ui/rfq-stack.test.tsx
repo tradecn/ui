@@ -141,7 +141,20 @@ describe("the threshold and the order", () => {
   })
 })
 
+// Module-level, so the rows keep their identity across renders.
+const idLabel = (row: RfqStackRow) => row.id
+
 describe("RfqStack", () => {
+  it("names each row by who asks, which way, and for what, which hold while its market moves, and takes your name instead", () => {
+    const store = seeded()
+    const { rerender } = render(<Harness store={store} />)
+    expect([rowOf("q1"), rowOf("q4")].map((row) => row.getAttribute("aria-label"))).toEqual(["Client A, BUY, T 4 1/8 05/15/34", "Client D, 2-WAY, ZN"])
+    act(() => store.applyDeltas({ patch: [{ id: "q1", fields: { bid: 99.75, status: "Quoted" } }] }))
+    expect(rowOf("q1")).toHaveAttribute("aria-label", "Client A, BUY, T 4 1/8 05/15/34")
+    rerender(<Harness store={store} getRowLabel={idLabel} />)
+    expect(rowOf("q1")).toHaveAttribute("aria-label", "q1")
+  })
+
   it("is the rfq preset with the slot, marks the active row, and asks for a row in the ticket on Enter", () => {
     const onActivate = vi.fn()
     render(<Harness store={seeded()} activeId="q2" onActivate={onActivate} />)

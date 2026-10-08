@@ -65,6 +65,8 @@ const localTime = (ms: number) => (clockFormat ??= new Intl.DateTimeFormat(undef
 const SIDE_WORD: Record<RfqStackSide, string> = { buy: "BUY", sell: "SELL", "two-way": "2-WAY" }
 /** The side the way the desk says it; one outside the three prints as the server sent it. */
 const sideWord = (side: string) => (Object.prototype.hasOwnProperty.call(SIDE_WORD, side) ? SIDE_WORD[side as RfqStackSide] : side)
+// A row's name is who asks, which way, and for what, which hold while its market and status move.
+const inquiryLabel = (row: RfqStackRow) => [row.client, sideWord(row.side), row.instrument].filter(Boolean).join(", ")
 
 /** The size the way the desk says it: millions of notional, or a count of contracts. */
 export function formatStackSize(row: RfqStackRow): string {
@@ -286,6 +288,7 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
   store,
   onRowActivate,
   getRowProps,
+  getRowLabel = inquiryLabel,
   rules,
   ...grid
 }: RfqStackProps<T>) {
@@ -349,7 +352,7 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
     <div data-slot="tradecn-rfq-stack" data-active={activeId ?? undefined} className={cn("flex h-full min-h-0 flex-col gap-1 lining-nums tabular-nums", className)}>
       {showField && <ThresholdField value={threshold} unit={thresholdUnit} label={thresholdLabel} onChange={setThreshold} />}
       <div className="min-h-0 flex-1">
-        <DataGrid<T> {...grid} store={store} preset="rfq" label={label} columns={all} rules={rules} filter={combined} onRowActivate={activate} getRowProps={rowProps} renderContextMenu={hasOwnMenu ? menu : undefined} />
+        <DataGrid<T> {...grid} store={store} preset="rfq" label={label} columns={all} rules={rules} filter={combined} onRowActivate={activate} getRowProps={rowProps} getRowLabel={getRowLabel} renderContextMenu={hasOwnMenu ? menu : undefined} />
       </div>
     </div>
   )

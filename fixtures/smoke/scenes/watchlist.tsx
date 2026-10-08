@@ -25,7 +25,12 @@ export function WatchlistScene() {
       <div style={{ height: 160 }}>
         <Watchlist store={store} onAdd={(symbol) => store.applyDeltas({ upsert: [{ symbol, last: 1 }] })} onRemove={(symbols) => store.applyDeltas({ remove: symbols })}>
           <WatchlistAddForm><WatchlistAddInput /><WatchlistAddButton /></WatchlistAddForm>
-          <div className="h-32"><WatchlistGrid columns={columns} renderContextMenu={(_, ids) => <WatchlistRemoveMenuItem ids={ids} />} /></div>
+          {/* F7 ticks ZN without moving focus, so the spec can watch a focused row's name hold while its prices move. */}
+          <div className="h-32" onKeyDownCapture={(event) => {
+            if (event.key !== "F7") return
+            event.preventDefault()
+            store.applyDeltas({ patch: [{ id: "ZN", fields: { last: 110.75, bid: 110.71875, change: 0.5 } }] })
+          }}><WatchlistGrid columns={columns} renderContextMenu={(_, ids) => <WatchlistRemoveMenuItem ids={ids} />} /></div>
         </Watchlist>
       </div>
     </div>
