@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
+import type { ReadGridRules } from "@/registry/tradecn/lib/grid-rules"
 import type { ColumnDef } from "@/registry/tradecn/ui/data-grid"
 import {
   RulesEditor,
@@ -19,7 +19,7 @@ const columns: ColumnDef<Quote>[] = [
 ]
 
 export default function RulesEditorDemo() {
-  const [rules, setRules] = useState<GridRules>({
+  const [rules, setRules] = useState<ReadGridRules>({
     columns: [{ id: "price", column: "px", when: { op: "gte", value: "100" }, tone: "up" }],
   })
   return (

@@ -396,6 +396,12 @@ describe("reading rules a desk saved", () => {
     expect(ruleProblem(flattened as never, columns, "highlight")).toBe("The rule needs a comparison.")
     expect(describeRule(flattened as never, columns, "highlight")).toBe("Status")
     expect(ruleProblem({ column: "px", when: { op: "notNull" } } as never, columns, "highlight")).toBe("The rule needs a tone.")
+    // A column keyed "" is a column: only a missing key needs one.
+    const blank: RuleColumn<Rfq>[] = [{ key: "", header: "Blank", accessor: () => null }]
+    expect(ruleProblem({ column: "", op: "isNull" } as never, blank, "filter")).toBeNull()
+    expect(ruleProblem({ op: "isNull" } as never, blank, "filter")).toBe("The rule needs a column.")
+    // A condition saved as a list with an op on it is judged by that op alone.
+    expect(ruleProblem({ column: "px", when: Object.assign([], { op: "notNull" }), tone: "up" } as never, columns, "highlight")).toBeNull()
     const seven: RuleColumn<Rfq>[] = [{ key: "7", header: "Seven", accessor: () => null }]
     expect(describeRule({ column: 7, op: "isNull" } as never, seven, "filter")).toBe("Seven is empty")
   })

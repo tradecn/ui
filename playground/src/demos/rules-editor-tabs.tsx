@@ -1,7 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useState } from "react"
 import { NUMERIC_CLASS, createInstrumentFormatter, formatNotional } from "@/registry/tradecn/lib/format"
-import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
+import type { ReadGridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
 import { ColumnSettingsPanel } from "./column-chooser"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/registry/tradecn/ui/data-grid"
@@ -35,7 +35,7 @@ export default function RulesEditorTabsDemo() {
     s.applyDeltas({ upsert: rows })
     return s
   })
-  const [rules, setRules] = useState<GridRules>({
+  const [rules, setRules] = useState<ReadGridRules>({
     columns: [{ id: "threshold", column: "px", when: { op: "gte", value: "100-00" }, tone: "primary", label: "Price threshold" }],
     filter: [],
     sort: [],

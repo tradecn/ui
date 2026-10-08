@@ -403,12 +403,14 @@ function findColumn<T>(columns: readonly RuleColumn<T>[], key: string | undefine
 
 /**
  * Why a rule cannot apply, in a sentence, or null when it can: a column the grid does not have, a
- * value the column cannot read, a range without its two ends, a set with nothing in it.
+ * value the column cannot read, a range without its two ends, a set with nothing in it, a missing or
+ * unknown comparison or tone. `kind` says which list the rule is in; without it, a `when` or a `tone`
+ * key makes the rule a highlight.
  */
 export function ruleProblem<T>(rule: ReadColumnRule & ReadFilterRule, columns: readonly RuleColumn<T>[], kind?: RuleKind): string | null {
   if (typeof rule !== "object" || rule === null) return "The rule needs a column."
   const named = textOf(rule.column)
-  if (!named) return "The rule needs a column."
+  if (named === undefined) return "The rule needs a column."
   const column = findColumn(columns, named)
   if (!column) return `No column is named "${named}".`
   const highlight = kind ? kind === "highlight" : isHighlightShape(rule)
@@ -417,7 +419,7 @@ export function ruleProblem<T>(rule: ReadColumnRule & ReadFilterRule, columns: r
   if (op === undefined || op === null || op === "") return "The rule needs a comparison."
   if (!isRuleOp(op)) return `No comparison is named "${shown(op)}".`
   // The op is one this module knows, from here on.
-  const condition = readCondition(given)! as RuleCondition
+  const condition = (readCondition(given) ?? { op }) as RuleCondition
   const name = columnName(column)
   const unreadable = (raw: RuleValue | undefined) => raw !== undefined && raw !== null && raw !== "" && readRuleValue(column, raw) === null
   if (needsValue.has(condition.op)) {
@@ -440,7 +442,7 @@ export function ruleProblem<T>(rule: ReadColumnRule & ReadFilterRule, columns: r
   return null
 }
 
-/** The rule in words: "Price above 99-16+", "Client one of ALPHA, BETA", "Status is empty". */
+/** The rule in words: "Price above 99-16+", "Client one of ALPHA, BETA", "Status is empty". `kind` reads as for `ruleProblem`. */
 export function describeRule<T>(rule: ReadColumnRule & ReadFilterRule, columns: readonly RuleColumn<T>[], kind?: RuleKind): string {
   if (typeof rule !== "object" || rule === null) return ""
   const column = findColumn(columns, textOf(rule.column))

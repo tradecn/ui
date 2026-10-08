@@ -19,7 +19,6 @@ import {
   ruleProblem,
   type ColumnRule,
   type FilterRule,
-  type GridRules,
   type ReadColumnRule,
   type ReadCondition,
   type ReadFilterRule,
@@ -111,11 +110,12 @@ export const DEFAULT_RULES_EDITOR_LABELS: RulesEditorLabels = {
 
 export type RulesEditorKind = "highlights" | "filters" | "sort"
 
-export interface RulesEditorProps<T, R extends ReadGridRules = GridRules> extends ComponentProps<"div"> {
+export interface RulesEditorProps<T> extends ComponentProps<"div"> {
   columns: ColumnDef<T>[]
-  /** Rules as you hold them: written as `GridRules`, or read from saved data with `readRules`. Edits come back in the same type. */
-  rules: R
-  onRulesChange: (rules: R) => void
+  /** Rules as written, or read from saved data with `readRules`. */
+  rules: ReadGridRules
+  /** Each edit. An edit can leave a rule incomplete, as typing does, so it comes back in the read type the grid takes. */
+  onRulesChange: (rules: ReadGridRules) => void
   /** Rows for independent match counts and the combined filter total. */
   store?: RowStore<T>
   labels?: Partial<RulesEditorLabels>
@@ -146,16 +146,16 @@ export function valuesText(values: readonly RuleValue[] | undefined): string {
 }
 
 /** The condition with a new op: the typed values are kept when the new op wants the same shape and dropped otherwise. */
-export function withOp(condition: ReadCondition, op: RuleOp): ReadCondition {
+export function withOp(condition: ReadCondition, op: RuleOp): ReadCondition & { op: RuleOp } {
   // An op no version knows says nothing about the value's shape: keep what was typed, for the new op to read.
   if (valueShape(condition.op) === valueShape(op) || !isKnownOp(condition.op)) return { ...condition, op }
   return { ...withoutValues(condition), op }
 }
 
 /** The condition for a new column: its op if the column offers it, else the column's first, and the values dropped either way when the op changed. */
-export function withColumn<T>(condition: ReadCondition, column: ColumnDef<T> | undefined): ReadCondition {
-  const ops: readonly string[] = opsFor(column)
-  return condition.op !== undefined && ops.includes(condition.op) ? condition : { ...withoutValues(condition), op: ops[0]! }
+export function withColumn<T>(condition: ReadCondition, column: ColumnDef<T> | undefined): ReadCondition & { op: RuleOp } {
+  const ops = opsFor(column)
+  return isKnownOp(condition.op) && ops.includes(condition.op) ? (condition as ReadCondition & { op: RuleOp }) : { ...withoutValues(condition), op: ops[0]! }
 }
 
 /** A list with one item moved to another's index, the rest shifting to make room. */
@@ -365,7 +365,7 @@ function useEditorRef<T>(localRef: { current: T | null }, forwardedRef: Ref<T> |
   }, [localRef, forwardedRef])
 }
 
-export function RulesEditor<T, R extends ReadGridRules = GridRules>({ columns, rules: given, onRulesChange, store, labels: labelsProp, children, className, ref, ...props }: RulesEditorProps<T, R>) {
+export function RulesEditor<T>({ columns, rules: given, onRulesChange, store, labels: labelsProp, children, className, ref, ...props }: RulesEditorProps<T>) {
   // Rules that are not an object (a null from storage) are no rules; read saved rules with readRules first.
   const rules: ReadGridRules = typeof given === "object" && given !== null ? given : NO_RULES
   const labels = { ...DEFAULT_RULES_EDITOR_LABELS, ...labelsProp }
@@ -397,8 +397,7 @@ export function RulesEditor<T, R extends ReadGridRules = GridRules>({ columns, r
     if (!active || !root.current?.contains(active)) return
     focusAfter.current = { rules, kind, index, list, active, field: active.getAttribute("data-rule-field") ?? undefined }
   }
-  // Edits come back in the type the caller holds: what it wrote stays as written, and what it read stays read.
-  const change = (next: Partial<ReadGridRules>) => onRulesChange({ ...rules, ...next } as R)
+  const change = (next: Partial<ReadGridRules>) => onRulesChange({ ...rules, ...next })
   const value: RulesEditorState = {
     rules,
     labels,
@@ -502,7 +501,7 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
   }
   const state: RulesEditorItemState = {
     kind, index, name, columnKey, condition, highlight: highlight ?? null, sort: sort ?? null,
-    problem: highlight ? editor.problem(highlight, "highlight") : filter ? editor.problem(filter, "filter") : !columnKey ? "The rule needs a column." : editor.columns.some((c) => c.key === columnKey) ? null : `No column is named "${columnKey}".`,
+    problem: highlight ? editor.problem(highlight, "highlight") : filter ? editor.problem(filter, "filter") : sort && sort.key === undefined ? "The rule needs a column." : editor.columns.some((c) => c.key === columnKey) ? null : `No column is named "${columnKey}".`,
     setColumn: (key) => {
       if (sort) return replace({ ...sort, key })
       const ops = editor.columns.find((c) => c.key === key)?.ops ?? opsFor(undefined)
@@ -591,7 +590,7 @@ export function RulesEditorOperator({ onChange, className, ...props }: SelectPro
     if (!event.defaultPrevented) item.setCondition(withOp(condition, event.target.value as RuleOp))
   }}>
     {/* An op the column does not offer reads as its word; one no version knows reads quoted, apart from every word here. */}
-    {!(ops as readonly string[]).includes(current) && <NativeSelectOption value={current}>{isKnownOp(current) ? RULE_OP_LABELS[current] : `"${current}"`}</NativeSelectOption>}
+    {!(ops as readonly string[]).includes(current) && <NativeSelectOption value={current}>{isKnownOp(current) ? RULE_OP_LABELS[current] : current && `"${current}"`}</NativeSelectOption>}
     {ops.map((op) => <NativeSelectOption key={op} value={op}>{RULE_OP_LABELS[op]}</NativeSelectOption>)}
   </NativeSelect>
 }
@@ -638,7 +637,7 @@ export function RulesEditorTone({ onChange, className, ...props }: SelectProps) 
     onChange?.(event)
     if (!event.defaultPrevented) updateHighlight({ tone: event.target.value as RuleTone })
   }}>
-    {!isKnownTone(current) && <NativeSelectOption value={current}>{`"${current}"`}</NativeSelectOption>}
+    {!isKnownTone(current) && <NativeSelectOption value={current}>{current && `"${current}"`}</NativeSelectOption>}
     {RULE_TONES.map((tone) => <NativeSelectOption key={tone} value={tone}>{tone}</NativeSelectOption>)}
   </NativeSelect>
 }
@@ -700,7 +699,7 @@ export function RulesEditorFilterCount({ className, ...props }: ComponentProps<"
 
 export function RulesEditorRuleCount({ kind, className, ...props }: ComponentProps<"span"> & { kind: RulesEditorKind }) {
   const { rules } = useRulesEditor()
-  const n = listOf<unknown>(rules[LIST_KEY[kind]]).filter((entry) => typeof entry === "object" && entry !== null).length
+  const n = listOf<unknown>(rules[LIST_KEY[kind]]).filter((entry) => typeof entry === "object" && entry !== null && !Array.isArray(entry)).length
   return n ? <span className={cn("text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{n}</span> : null
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { createInstrumentFormatter, formatNotional } from "@/registry/tradecn/lib/format"
-import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
+import type { GridRules, ReadGridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createFrameBatcher, createRowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, type ColumnDef, type ColumnState } from "@/registry/tradecn/ui/data-grid"
 import { TabbedRulesEditor } from "@/demos/rules-editor-tabs"
@@ -77,7 +77,7 @@ function usePublisher() {
 
 export function RulesEditorScene() {
   const store = usePublisher()
-  const [rules, setRules] = useState<GridRules>(SEED)
+  const [rules, setRules] = useState<ReadGridRules>(SEED)
   const [columnState, setColumnState] = useState<ColumnState>({ order: [], widths: {}, hidden: [] })
   return (
     <main className="flex h-screen flex-col gap-3 p-4 font-(family-name:--tradecn-font-mono) text-xs">

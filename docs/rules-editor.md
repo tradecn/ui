@@ -6,7 +6,7 @@ Edit one grid's highlights, filters, and sort order, with live match counts.
 
 ```tsx
 import { useState } from "react"
-import type { GridRules } from "@/lib/grid-rules"
+import type { ReadGridRules } from "@/lib/grid-rules"
 import type { ColumnDef } from "@/components/ui/data-grid"
 import {
   RulesEditor,
@@ -26,7 +26,7 @@ const columns: ColumnDef<Quote>[] = [
 ]
 
 function QuoteRules() {
-  const [rules, setRules] = useState<GridRules>({
+  const [rules, setRules] = useState<ReadGridRules>({
     columns: [{ id: "price", column: "px", when: { op: "gte", value: "100" }, tone: "up" }],
   })
   return (
@@ -119,8 +119,8 @@ Move fields and actions into cards with your own headings and content.
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
 | `columns` | `ColumnDef<T>[]` | Required | Column definitions shared with the grid. |
-| `rules` | `R`, `GridRules` by default | Required | Controlled rules, written or read with [`readRules`](grid-rules.md#reading-saved-rules). Omitted lists are empty. |
-| `onRulesChange` | `(rules: R) => void` | Required | Receives each edit, in the type you hold. |
+| `rules` | `ReadGridRules` | Required | Controlled rules, written or read with [`readRules`](grid-rules.md#reading-saved-rules). Omitted lists are empty. |
+| `onRulesChange` | `(rules: ReadGridRules) => void` | Required | Receives each edit. An edit can leave a rule incomplete, as typing does, so hold the editor's rules as `ReadGridRules`, the type the grid takes. |
 | `children` | `ReactNode` | Required | Your sections, items, controls, and empty states. |
 | `store` | `RowStore<T>` | - | Rows for match counts. |
 | `labels` | `Partial<RulesEditorLabels>` | `DEFAULT_RULES_EDITOR_LABELS` | Field, action, count, and region labels. |
@@ -161,7 +161,7 @@ Item fields, move/remove actions, problems, and match counts require `RulesEdito
 
 ### Keyboard and focus
 
-Drag an item onto another item of the same kind, or use Alt+Up/Down from the item or its buttons. A select, a text field, or an item given an arrow-owning role keeps Alt with its arrows, so Alt+Down opens a select, and Alt with Shift, Ctrl, or Meta moves nothing. Each item names its keys in `aria-keyshortcuts`. Reordering uses source indices, even when you render items in a different order.
+Drag an item onto another item of the same kind, or use Alt+Up/Down from the item or its buttons. A select, a text field, or an item given an arrow-owning role keeps Alt with its arrows, so Alt+Down opens a select, and Alt with Shift, Ctrl, or Meta moves nothing. Each item names its keys in `aria-keyshortcuts`, unless its role or `contentEditable` keeps the arrows. Reordering uses source indices, even when you render items in a different order.
 
 Accepted moves keep focus on the corresponding field when available. Removal focuses the adjacent item or its remove action, then `RulesEditorAdd` when the list is empty.
 
@@ -195,8 +195,8 @@ Use `useRulesEditorItem()` inside an item to build a custom field.
 | `sort` | `ReadSortRule \| null` | Current sort key, as read, if applicable. |
 | `problem` | `string \| null` | Current validation message. |
 | `setColumn` | `(key: string) => void` | Changes the column and resets unsupported operators. |
-| `setCondition` | `(condition: RuleCondition) => void` | Changes a highlight or filter condition. |
-| `updateHighlight` | `(patch: Partial<ColumnRule>) => void` | Updates highlight properties. |
+| `setCondition` | `(condition: ReadCondition) => void` | Changes a highlight or filter condition. |
+| `updateHighlight` | `(patch: Partial<ReadColumnRule>) => void` | Updates highlight properties. |
 | `setDirection` | `(direction: "asc" \| "desc") => void` | Changes sort direction. |
 
 ### It produces rules and keeps nothing
@@ -228,7 +228,7 @@ The set field trims members and drops empties, without quoting or escaping. Ente
 
 ### Errors
 
-`RulesEditorProblem` reports missing columns, a missing or unknown comparison, missing values, unreadable values, a range whose low end is above its high end, and a missing or unknown tone, without blocking edits or evaluation. A stored op the column doesn't offer, or an op or tone this version doesn't know, shows in its select quoted, and a highlight with no condition gets a blank one to choose from. The editor reads each entry as the grid does, so an entry that isn't an object renders and counts nothing, and a name or a word saved as anything but text shows as its JSON. Read rules a desk saved or shared with [`readRules`](grid-rules.md#reading-saved-rules) before you hold them, so your own composition maps over rule objects.
+`RulesEditorProblem` reports missing columns, a missing or unknown comparison, missing values, unreadable values, a range whose low end is above its high end, and a missing or unknown tone, without blocking edits or evaluation. A stored op the column doesn't offer shows in its select under its word, an op or a tone this version doesn't know shows quoted, and a missing one shows blank, so a highlight with no condition gets a blank one to choose from. The editor reads each entry as the grid does, so an entry that isn't an object renders and counts nothing, and a name or a word saved as anything but text shows as its JSON. Read rules a desk saved or shared with [`readRules`](grid-rules.md#reading-saved-rules) before you hold them, so your own composition maps over rule objects.
 
 | Condition | Evaluation |
 |---|---|
