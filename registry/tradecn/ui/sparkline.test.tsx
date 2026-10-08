@@ -42,6 +42,45 @@ describe("Sparkline", () => {
     expect(chart.getAttribute("aria-valuetext")).not.toContain("up, last")
   })
 
+  it("keeps the crosshair on pointer leave while focused inside a shadow root", () => {
+    // In a shadow root the document's activeElement is the host, so the check must read the chart's own root.
+    for (const mode of ["open", "closed"] as const) {
+      const host = document.createElement("div")
+      document.body.append(host)
+      const container = document.createElement("div")
+      host.attachShadow({ mode }).append(container)
+      const view = render(<Sparkline values={[100, 99, 101.5]} label="Shadowed" interactive {...fixed} />, { container })
+      const chart = container.querySelector<HTMLElement>("[data-slot='tradecn-sparkline']")!
+      act(() => chart.focus())
+      fireEvent.pointerMove(chart, { clientX: 50, clientY: 10 })
+      fireEvent.pointerLeave(chart)
+      expect(chart.getAttribute("aria-valuetext")).not.toContain("up, last")
+      view.unmount()
+      host.remove()
+    }
+  })
+
+  it("forgets its crosshair when it stops being live, so readings that return draw none", () => {
+    const view = render(<Sparkline values={[100, 99, 101.5]} label="Book" interactive {...fixed} />)
+    const readout = () => document.querySelector("[data-sparkline-readout]")
+    act(() => slot().focus())
+    fireEvent.keyDown(slot(), { key: "Home" })
+    expect(readout()).toHaveTextContent("100")
+    // The series empties under the crosshair (a symbol switch, say), and focus leaves while nothing is live.
+    view.rerender(<Sparkline values={[]} label="Book" interactive {...fixed} />)
+    act(() => slot().blur())
+    view.rerender(<Sparkline values={[100, 99, 101.5]} label="Book" interactive {...fixed} />)
+    expect(readout()).toBeNull()
+    expect(slot().getAttribute("aria-valuetext")).toContain("up, last")
+    // The same for a chart turned off and on again under a crosshair.
+    act(() => slot().focus())
+    fireEvent.keyDown(slot(), { key: "Home" })
+    view.rerender(<Sparkline values={[100, 99, 101.5]} label="Book" {...fixed} />)
+    fireEvent.pointerLeave(slot())
+    view.rerender(<Sparkline values={[100, 99, 101.5]} label="Book" interactive {...fixed} />)
+    expect(readout()).toBeNull()
+  })
+
   it("speaks the real direction before the first measurement", () => {
     // No size yet: the geometry is empty, but the data is not, and the words come from the
     // data — server output and the pre-measurement frame say up for a rising series.
