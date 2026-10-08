@@ -97,7 +97,7 @@ Column state and keyboard behavior belong to the grid.
 | `parkedIds` | `ReadonlySet<RowId>` | None | Mutes parked rows. |
 | `parkedLabel` | `string` | `"Parked"` | A parked row's accessible description. |
 | `onActivate` | `(id: RowId, row: T) => void` | None | Requests a row for the ticket. |
-| `getRowLabel` | `((row: T, id: RowId) => string) \| null` | Client, side, size, and instrument | A row's name that holds while its market and status move. The grid reads the focused row's cells once when focus rests on it, and `null` names rows by their cells and reads nothing. Keep its identity stable. |
+| `getRowLabel` | `((row: T, id: RowId) => string) \| null` | Client, side, size, and instrument | A row's name that holds while its market and status move. The grid reads the focused row's cells once when focus rests on it, and `null` names rows by their cells and reads nothing; such a row's name changes as its time left counts down. Keep its identity stable. |
 | `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Supplies right-click actions. |
 | `className` | `string` | None | Styles the stack wrapper. |
 

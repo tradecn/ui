@@ -274,25 +274,26 @@ const takesName = (element: Element) => {
   return role ? !NAMELESS_ROLES.has(role) : NAMED_TAGS.has(element.tagName)
 }
 
-// What a screen reader says for a node inside a cell, after the accessible-name rules for content: the targets of
-// `aria-labelledby`, hidden ones included; a text field's or a select's value; an `aria-label` on an element that
-// takes a name; an image's `alt`; otherwise its content, with hidden parts left out.
+// What a screen reader says for a node inside a cell, after the accessible-name rules for content: a text field's or
+// a select's value, which is what the row holds; on an element that takes a name, the targets of `aria-labelledby`,
+// hidden ones included, else its `aria-label`; an image's `alt`; otherwise its content, with hidden parts left out.
 function spokenText(node: Node, referenced = false): string {
   if (node.nodeType === 3) return node.textContent ?? ""
   if (node.nodeType !== 1) return ""
   const element = node as Element
   if (!referenced && (element.getAttribute("aria-hidden") === "true" || element.hasAttribute("hidden"))) return ""
-  const ids = referenced ? null : element.getAttribute("aria-labelledby")?.trim()
-  if (ids) {
-    const root = element.getRootNode() as Document | ShadowRoot
-    const named = ids.split(/\s+/).map((id) => root.getElementById(id)).map((target) => (target ? spokenText(target, true).trim() : "")).filter(Boolean).join(" ")
-    if (named) return named
-  }
   const tag = element.tagName
   if (tag === "TEXTAREA" || (tag === "INPUT" && TEXT_INPUTS.has((element as HTMLInputElement).type))) return (element as HTMLInputElement).value
   if (tag === "SELECT") return Array.from((element as HTMLSelectElement).selectedOptions, (option) => option.text).join(" ")
+  const named = takesName(element)
+  const ids = referenced || !named ? null : element.getAttribute("aria-labelledby")?.trim()
+  if (ids) {
+    const root = element.getRootNode() as Document | ShadowRoot
+    const text = ids.split(/\s+/).map((id) => root.getElementById(id)).map((target) => (target ? spokenText(target, true).trim() : "")).filter(Boolean).join(" ")
+    if (text) return text
+  }
   const label = element.getAttribute("aria-label")?.trim()
-  if (label && takesName(element)) return label
+  if (label && named) return label
   if (tag === "IMG") return element.getAttribute("alt") ?? ""
   // Elements side by side read as separate words, as their layout shows them ("Client A", "Tier 1"); text beside
   // an element runs on, so a word split across inline elements stays one word.
