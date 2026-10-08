@@ -144,7 +144,7 @@ Supply a `PreferenceMigrator` when a slot's shape changes:
 
 ### The slots are the items' own shapes
 
-Envelope parsing checks JSON structure, not the value's domain schema. Use the owning item's parser, such as `parseWorkspaceLayout`, before passing a slot value to a controlled prop.
+Envelope parsing checks JSON structure, not the value's domain schema. Use the owning item's parser, such as `parseWorkspaceLayout`, or `readRules` for grid rules, before passing a slot value to a controlled prop.
 
 | Setting | Value shape |
 |---|---|

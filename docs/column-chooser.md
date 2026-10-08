@@ -197,7 +197,7 @@ Search, click, keyboard, and drag handlers run before the corresponding chooser 
 
 ### Hooks
 
-`useColumnChooser()` returns `ColumnChooserState`: full `rows`, filtered `shown`, normalized `presented`, `query`, `setQuery`, `labels`, `hiddenCount`, `isDefault`, and `reset`. Each `ColumnChooserEntry` has `key`, `name`, `visible`, `frozen`, `width`, `resized`, and `rules`. `resized` compares the width with `baseState`; each rule reading contains its source `rule` and computed `description`.
+`useColumnChooser()` returns `ColumnChooserState`: full `rows`, filtered `shown`, normalized `presented`, `query`, `setQuery`, `labels`, `hiddenCount`, `isDefault`, and `reset`. Each `ColumnChooserEntry` has `key`, `name`, `visible`, `frozen`, `width`, `resized`, and `rules`. `resized` compares the width with `baseState`; each rule reading contains the `rule` as the grid reads it, with every field you saved on it, and its computed `description`.
 
 `useColumnChooserItem()` returns `ColumnChooserItemState`: `row`, `canMoveUp`, `canMoveDown`, `dragging`, `setVisible(visible)`, `move(-1 | 1)`, `moveToEdge("start" | "end")`, and `resetWidth()`. Both hooks require their named owner. The item coordinates drag and focus even when you replace its controls.
 

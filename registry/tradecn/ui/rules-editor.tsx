@@ -141,14 +141,15 @@ export function valuesText(values: readonly RuleValue[] | undefined): string {
 
 /** The condition with a new op: the typed values are kept when the new op wants the same shape and dropped otherwise. */
 export function withOp(condition: RuleCondition, op: RuleOp): RuleCondition {
-  if (valueShape(condition.op) === valueShape(op)) return { ...condition, op }
-  return { op }
+  // An op no version knows says nothing about the value's shape: keep what was typed, for the new op to read.
+  if (valueShape(condition.op) === valueShape(op) || !(RULE_OPS as readonly string[]).includes(condition.op)) return { ...condition, op }
+  return { ...withoutValues(condition), op }
 }
 
 /** The condition for a new column: its op if the column offers it, else the column's first, and the values dropped either way when the op changed. */
 export function withColumn<T>(condition: RuleCondition, column: ColumnDef<T> | undefined): RuleCondition {
   const ops = opsFor(column)
-  return ops.includes(condition.op) ? condition : { op: ops[0]! }
+  return ops.includes(condition.op) ? condition : { ...withoutValues(condition), op: ops[0]! }
 }
 
 /** A list with one item moved to another's index, the rest shifting to make room. */
@@ -183,6 +184,13 @@ export function newFilter<T>(columns: readonly ColumnDef<T>[]): FilterRule {
 // so an entry that is not an object renders and counts nothing and keeps the source indices of the rest.
 const listOf = <R,>(value: readonly R[] | undefined): readonly R[] => (Array.isArray(value) ? value : [])
 const NO_CONDITION: RuleCondition = Object.freeze({}) as RuleCondition
+// A condition without its typed values, every other field it carries kept.
+function withoutValues(condition: RuleCondition): RuleCondition {
+  const rest = { ...condition }
+  delete rest.value
+  delete rest.values
+  return rest
+}
 
 /** A new sort key on the first column not yet in the list, ascending. */
 export function newSort<T>(columns: readonly ColumnDef<T>[], existing: readonly SortRule[] = []): SortRule {
@@ -217,6 +225,7 @@ function useThrottledVersion<T>(store: RowStore<T> | undefined, ms: number): num
 }
 
 // One empty list per kind, so a rules object without a list does not hand the memos a fresh array every render.
+const NO_RULES: GridRules = {}
 const NO_HIGHLIGHTS: ColumnRule[] = []
 const NO_FILTERS: FilterRule[] = []
 
@@ -297,6 +306,9 @@ const ARROW_OWNING_ROLES = new Set("application columnheader combobox grid gridc
 
 // Controls whose own keys matter: carets, selects, and ARIA widgets built on generic elements. A button owns no
 // arrows. The walk checks the item itself last and stays inside it, so an item given an arrow-owning role keeps its keys.
+// An item given an arrow-owning role keeps Alt with its arrows, so it names no keys for moving.
+const roleOwnsArrows = (role: string | undefined) => Boolean(role && role.toLowerCase().split(/[\t\n\f\r ]+/).some((token) => ARROW_OWNING_ROLES.has(token)))
+
 function arrowOwningTarget(target: EventTarget, item: HTMLElement) {
   if (!isElement(target)) return false
   for (let node: Element | null = target; node; node = node.parentElement) {
@@ -340,7 +352,9 @@ function useEditorRef<T>(localRef: { current: T | null }, forwardedRef: Ref<T> |
   }, [localRef, forwardedRef])
 }
 
-export function RulesEditor<T>({ columns, rules, onRulesChange, store, labels: labelsProp, children, className, ref, ...props }: RulesEditorProps<T>) {
+export function RulesEditor<T>({ columns, rules: given, onRulesChange, store, labels: labelsProp, children, className, ref, ...props }: RulesEditorProps<T>) {
+  // Rules that are not an object (a null from storage) are no rules; read saved rules with readRules first.
+  const rules: GridRules = typeof given === "object" && given !== null ? given : NO_RULES
   const labels = { ...DEFAULT_RULES_EDITOR_LABELS, ...labelsProp }
   const root = useRef<HTMLDivElement>(null)
   const rootRef = useEditorRef(root, ref)
@@ -449,9 +463,10 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
   }, [dragRef, dragType])
   // The entry as the grid reads it: names and words as text, and nothing for an entry that is not an object.
   const entry = listOf<unknown>(editor.rules[LIST_KEY[kind]])[index]
-  const highlight = kind === "highlights" ? readColumnRule(entry) : null
-  const filter = kind === "filters" ? readFilterRule(entry) : null
-  const sort = kind === "sort" ? readSortRule(entry) : null
+  const read = useMemo(() => (kind === "highlights" ? readColumnRule(entry) : kind === "filters" ? readFilterRule(entry) : readSortRule(entry)), [kind, entry])
+  const highlight = kind === "highlights" ? (read as ColumnRule | null) : null
+  const filter = kind === "filters" ? (read as FilterRule | null) : null
+  const sort = kind === "sort" ? (read as SortRule | null) : null
   const rule = highlight ?? filter ?? sort
   if (!rule) return null
   let columnKey = highlight?.column ?? sort?.key ?? ""
@@ -470,11 +485,11 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
   }
   const state: RulesEditorItemState = {
     kind, index, name, columnKey, condition, highlight: highlight ?? null, sort: sort ?? null,
-    problem: highlight ? editor.problem(highlight) : filter ? editor.problem(filter) : editor.columns.some((c) => c.key === columnKey) ? null : `No column is named "${columnKey}".`,
+    problem: highlight ? editor.problem({ ...highlight, when: highlight.when, tone: highlight.tone }) : filter ? editor.problem(filter) : !columnKey ? "The rule needs a column." : editor.columns.some((c) => c.key === columnKey) ? null : `No column is named "${columnKey}".`,
     setColumn: (key) => {
       if (sort) return replace({ ...sort, key })
       const ops = editor.columns.find((c) => c.key === key)?.ops ?? opsFor(undefined)
-      const next = ops.includes(condition!.op) ? condition! : { op: ops[0]! }
+      const next = ops.includes(condition!.op) ? condition! : { ...withoutValues(condition!), op: ops[0]! }
       replace(highlight ? { ...highlight, column: key, when: next } : { column: key, ...next })
     },
     setCondition: (next) => {
@@ -484,7 +499,7 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
     updateHighlight: (patch) => { if (highlight) replace({ ...highlight, ...patch }) },
     setDirection: (dir) => { if (sort) replace({ ...sort, dir }) },
   }
-  return <ItemContext value={state}><div role="group" tabIndex={0} draggable aria-label={props["aria-labelledby"] ? undefined : name} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-rule-kind={kind} data-rule-row={index} data-rule-id={highlight?.id} data-filter-index={filter ? index : undefined} data-sort-index={sort ? index : undefined} data-dragging={dragging || undefined} className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-sm border border-border/60 p-1.5 outline-none focus-visible:border-ring data-[dragging]:opacity-50", className)} {...props}
+  return <ItemContext value={state}><div role="group" tabIndex={0} draggable aria-label={props["aria-labelledby"] ? undefined : name} aria-keyshortcuts={roleOwnsArrows(props.role) ? undefined : "Alt+ArrowUp Alt+ArrowDown"} data-rule-kind={kind} data-rule-row={index} data-rule-id={highlight?.id} data-filter-index={filter ? index : undefined} data-sort-index={sort ? index : undefined} data-dragging={dragging || undefined} className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-sm border border-border/60 p-1.5 outline-none focus-visible:border-ring data-[dragging]:opacity-50", className)} {...props}
     onKeyDown={(event) => {
       onKeyDown?.(event)
       // Plain Alt with an arrow, from this item's own elements: a portaled popover's controls bubble here through React

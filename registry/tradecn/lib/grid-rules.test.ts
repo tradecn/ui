@@ -26,6 +26,7 @@ import {
   ruleDecoration,
   ruleProblem,
   type ColumnRule,
+  type GridRules,
   type RuleColumn,
   type RuleCondition,
 } from "@/registry/tradecn/lib/grid-rules"
@@ -343,8 +344,10 @@ describe("reading rules a desk saved", () => {
   const evil = { toString: 0 }
 
   it("reads any JSON into rules: lists as lists, names and words as text, values as text, numbers, booleans, or null, and an entry that is not an object dropped", () => {
-    expect(readRules(null)).toEqual({})
-    expect(readRules({ columns: { id: "x" }, filter: "bad", sort: 5 })).toEqual({})
+    expect(readRules(null)).toStrictEqual({})
+    // A list that is not a list is left out, so spreading the reading over defaults keeps the defaults.
+    expect(readRules({ columns: { id: "x" }, filter: "bad", sort: 5 })).toStrictEqual({})
+    expect({ sort: [{ key: "size", dir: "asc" }], ...readRules({ sort: "bad" }) }.sort).toEqual([{ key: "size", dir: "asc" }])
     const read = readRules({
       columns: [null, 5, "bad", { id: 7, column: { key: "px" }, when: { op: evil, value: { a: 1 }, values: "x" }, tone: ["up"], label: 9, target: "cell" }],
       filter: [{ column: "status", op: "eq", value: "Open", values: [1, {}, undefined, null] }],
@@ -354,10 +357,37 @@ describe("reading rules a desk saved", () => {
     expect(read.filter).toEqual([{ column: "status", op: "eq", value: "Open", values: [1, "{}", null] }])
     expect(read.sort).toEqual([{ key: '["px"]', dir: "asc" }, { key: "size", dir: "desc" }])
     expect(readColumnRule(null)).toBeNull()
-    expect(readFilterRule([])).toEqual({ column: "", op: undefined })
+    expect(readFilterRule([])).toStrictEqual({})
     expect(readSortRule("px")).toBeNull()
     expect(readCondition("gt")).toBeUndefined()
     expect(readColumnRule({ id: "r", column: "px", when: { op: "gt", value: 1n }, tone: "up" })?.when?.value).toBe("[object BigInt]")
+  })
+
+  it("keeps every other field an app saved on a rule, its condition, a filter, a sort key, and the rules, and leaves out a field it reads to nothing", () => {
+    const read = readRules({
+      version: 2,
+      columns: [{ id: "rich", column: "px", when: { op: "gte", value: "100-00", note: "desk" }, tone: "up", owner: "desk-a", label: 5 }],
+      filter: [{ id: "f1", column: "status", op: "eq", value: "Open", enabled: true }],
+      sort: [{ key: "size", dir: "desc", pinned: true }],
+    }) as GridRules & { version?: number }
+    expect(read.version).toBe(2)
+    expect(read.columns).toStrictEqual([{ id: "rich", column: "px", when: { op: "gte", value: "100-00", note: "desk" }, tone: "up", owner: "desk-a" }])
+    expect(read.filter).toStrictEqual([{ id: "f1", column: "status", op: "eq", value: "Open", enabled: true }])
+    expect(read.sort).toStrictEqual([{ key: "size", dir: "desc", pinned: true }])
+    // A rule with no id, column, or tone reads without them, not with empty text that a column keyed "" would match.
+    expect(readColumnRule({ when: { op: "notNull" } })).toStrictEqual({ when: { op: "notNull" } })
+    const decoration = ruleDecoration({ column: "px", when: { op: "notNull" } } as never, columns)
+    expect(decoration["data-rule"]).toBe("")
+    expect(decoration["data-tone"]).toBeUndefined()
+  })
+
+  it("judges and describes a rule that is not an object, a highlight in the filter's shape, and a number JSON cannot print", () => {
+    expect(ruleProblem(null as never, columns)).toBe("The rule needs a column.")
+    expect(describeRule(null as never, columns)).toBe("")
+    expect(describeRule(5 as never, columns)).toBe("")
+    // A tone makes it a highlight, whose condition lives in `when`, as the grid reads it.
+    expect(ruleProblem({ id: "flat", column: "px", op: "gt", value: "100-00", tone: "up" } as never, columns)).toBe("The rule needs a comparison.")
+    expect(ruleProblem({ column: "px", when: { op: Number.NaN } } as never, columns)).toBe('No comparison is named "NaN".')
   })
 
   it("compiles, decorates, describes, and judges such rules without throwing, and puts only text on the elements", () => {

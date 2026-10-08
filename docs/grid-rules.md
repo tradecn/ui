@@ -169,7 +169,7 @@ For a 32nds price column, use `parse: (text) => parsePrice(text, convention)` to
 
 If a required scalar comparison value parses to `null`, the condition matches no rows. As a highlight, it colors nothing; as a filter, it excludes every row. For `in` and `between`, compilation drops values that parse to `null`: `in` uses the remaining candidates, and `between` uses the first two remaining values, low then high. No candidates, or fewer than two endpoints, matches nothing.
 
-Rules arrive as data, so a rule that can't be read never throws. Read rules a desk saved or shared with `readRules` before you hold them: a list that isn't a list reads as none, an entry that isn't an object is dropped, every name and word reads as text, and a value that isn't text, a number, a boolean, or `null` reads as its JSON text, so the value the editor shows is the value compared. Reading decides nothing: an op or a tone this version doesn't know stays as its text for `ruleProblem` to name. The grid, the editor, the column chooser, and the helpers below read each entry the same way, so unread JSON doesn't throw either.
+Rules arrive as data, so a rule that can't be read never throws. Read rules a desk saved or shared with `readRules` before you hold them: a list that isn't a list reads as none, an entry that isn't an object is dropped, every name and word reads as text, and a value that isn't text, a number, a boolean, or `null` reads as its JSON text, so the value the editor shows is the value compared. Reading decides nothing: an op or a tone this version doesn't know stays as its text for `ruleProblem` to name, a field that reads to nothing is left out, so a read rule's `when` or `tone` can be missing, and every field the readers don't read passes through, so the fields your app keeps on a rule survive an edit. The grid, the editor, the column chooser, and the helpers below read each entry the same way, so unread JSON doesn't throw either.
 
 A condition that is missing, or names an op not in `RULE_OPS`, matches no rows, like an unreadable value, and so do `in` and `between` when their `values` aren't a list. A tone outside `RULE_TONES` paints nothing, and the rule's words still describe the cells it matches.
 
@@ -185,8 +185,8 @@ The text uses the token color. The background uses its soft variant, or a 12% ti
 
 | Field | Type | Value |
 |---|---|---|
-| `data-rule` | `string` | Rule `id`, as text. |
-| `data-tone` | `string` | Rule `tone`, as text. One outside `RULE_TONES` paints nothing. |
+| `data-rule` | `string` | Rule `id`, as text, or empty for a rule without one. |
+| `data-tone` | `string`, optional | Rule `tone`, as text, and absent for a rule without one. One outside `RULE_TONES` paints nothing. |
 | `aria-description` | `string` | Trimmed `label`, or `describeRule(rule, columns)` when the label is absent, blank, or not text. |
 | `className` | `string` | `RULE_TONE_CLASS[rule.tone]`, or empty for a tone outside `RULE_TONES`. |
 

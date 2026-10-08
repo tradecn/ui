@@ -101,6 +101,11 @@ export function chooserRows<T>(columns: ColumnDef<T>[], state: ColumnState, rule
     .map(({ column }) => column)
   const frozen = ordered.filter((column) => column.frozen === "left")
   const rest = ordered.filter((column) => column.frozen !== "left")
+  // Each entry as the grid reads it, once: one that is not an object is no rule, and its names and words are text.
+  const read = (Array.isArray(rules) ? rules : []).flatMap((entry) => {
+    const rule = readColumnRule(entry)
+    return rule ? [rule] : []
+  })
   return [...frozen, ...rest].map((column) => ({
     column,
     key: column.key,
@@ -109,11 +114,7 @@ export function chooserRows<T>(columns: ColumnDef<T>[], state: ColumnState, rule
     frozen: column.frozen === "left",
     width: state.widths[column.key] ?? column.width,
     resized: column.key in state.widths,
-    // Each entry as the grid reads it: one that is not an object is no rule, and its names and words are text.
-    rules: (Array.isArray(rules) ? rules : []).flatMap((entry) => {
-      const rule = readColumnRule(entry)
-      return rule && rule.column === column.key ? [rule] : []
-    }),
+    rules: read.filter((rule) => rule.column === column.key),
   }))
 }
 

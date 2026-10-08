@@ -203,7 +203,7 @@ Use `useRulesEditorItem()` inside an item to build a custom field.
 
 Accept each `onRulesChange` result into `rules` and share it with the grid. Keep a separate draft for a save step.
 
-Edits create a new object and edited list. Untouched lists and rules retain their references.
+Edits create a new object and edited list. Untouched lists and rules retain their references, and an edited rule keeps every field your app saved on it and on its condition.
 
 Replace changed arrays and objects. The editor retains transient drag and comma-field state, including unfinished text such as `ALPHA,`.
 
@@ -228,7 +228,7 @@ The set field trims members and drops empties, without quoting or escaping. Ente
 
 ### Errors
 
-`RulesEditorProblem` reports missing columns, a missing or unknown comparison, missing values, unreadable values, a range whose low end is above its high end, and an unknown tone, without blocking edits or evaluation. A stored op the column doesn't offer, or an op or tone this version doesn't know, shows in its select as it is, and a highlight with no condition gets a blank one to choose from. The editor reads each entry as the grid does, so an entry that isn't an object renders and counts nothing, and a name or a word saved as anything but text shows as its JSON. Read rules a desk saved or shared with [`readRules`](grid-rules.md#reading-saved-rules) before you hold them, so your own composition maps over rule objects.
+`RulesEditorProblem` reports missing columns, a missing or unknown comparison, missing values, unreadable values, a range whose low end is above its high end, and a missing or unknown tone, without blocking edits or evaluation. A stored op the column doesn't offer, or an op or tone this version doesn't know, shows in its select as it is, and a highlight with no condition gets a blank one to choose from. The editor reads each entry as the grid does, so an entry that isn't an object renders and counts nothing, and a name or a word saved as anything but text shows as its JSON. Read rules a desk saved or shared with [`readRules`](grid-rules.md#reading-saved-rules) before you hold them, so your own composition maps over rule objects.
 
 | Condition | Evaluation |
 |---|---|

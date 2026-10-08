@@ -4,13 +4,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RulesEditorSections, TabbedRulesEditor } from "@/demos/rules-editor-tabs"
 import RulesEditorDemo from "@/demos/rules-editor"
 import RulesEditorLayoutDemo from "@/demos/rules-editor-layout"
-import { act, fireEvent, render, screen, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { parsePrice } from "@/registry/tradecn/lib/format"
 import type { FilterRule, GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 import type { ColumnDef, ColumnState } from "@/registry/tradecn/ui/data-grid"
-import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorFilterCount, RulesEditorItem, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorRuleCount, RulesEditorTone, RulesEditorToneSwatch, RulesEditorValue, useRulesEditor, useRulesEditorItem, DEFAULT_RULES_EDITOR_LABELS, moveItem, newFilter, newHighlight, newSort, parseValues, valueShape, valuesText, withColumn, withOp } from "@/registry/tradecn/ui/rules-editor"
+import { RulesEditor, RulesEditorAdd, RulesEditorColumn, RulesEditorDirection, RulesEditorFilterCount, RulesEditorItem, RulesEditorMatchCount, RulesEditorMove, RulesEditorOperator, RulesEditorProblem, RulesEditorRemove, RulesEditorRuleCount, RulesEditorTone, RulesEditorToneSwatch, RulesEditorValue, useRulesEditor, useRulesEditorItem, DEFAULT_RULES_EDITOR_LABELS, moveItem, newFilter, newHighlight, newSort, parseValues, valueShape, valuesText, withColumn, withOp } from "@/registry/tradecn/ui/rules-editor"
 
 interface Rfq {
   id: string
@@ -736,6 +736,48 @@ describe("RulesEditor", () => {
     expect(latest?.filter).toEqual([expect.objectContaining({ column: expect.any(String) })])
   })
 
+  it("keeps every field an app saved on a rule through an edit: a highlight's, its condition's, a filter's, and a sort key's", () => {
+    let latest: GridRules | undefined
+    function Controlled() {
+      const [rules, setRules] = useState<GridRules>({
+        columns: [{ id: "rich", column: "px", when: { op: "gte", value: "100-00", note: "desk" }, tone: "up", label: "Rich", owner: "desk-a" } as never],
+        filter: [{ id: "f1", column: "status", op: "eq", value: "Open", enabled: true } as never],
+        sort: [{ key: "size", dir: "desc", pinned: true } as never],
+      })
+      return <RulesEditor columns={columns} rules={rules} onRulesChange={(next) => { latest = next; setRules(next) }}>
+        {rules.columns?.map((rule, index) => <RulesEditorItem key={rule.id} kind="highlights" index={index}><RulesEditorColumn /><RulesEditorTone /><RulesEditorValue /></RulesEditorItem>)}
+        {rules.filter?.map((_, index) => <RulesEditorItem key={index} kind="filters" index={index}><RulesEditorValue /></RulesEditorItem>)}
+        {rules.sort?.map((_, index) => <RulesEditorItem key={index} kind="sort" index={index}><RulesEditorDirection /></RulesEditorItem>)}
+      </RulesEditor>
+    }
+    render(<Controlled />)
+    fireEvent.change(screen.getByLabelText("Tone: Rich"), { target: { value: "down" } })
+    expect(latest?.columns?.[0]).toMatchObject({ owner: "desk-a", tone: "down", when: { note: "desk", op: "gte" } })
+    fireEvent.change(screen.getByLabelText("Value: Rich"), { target: { value: "101-00" } })
+    expect(latest?.columns?.[0]).toMatchObject({ owner: "desk-a", when: { note: "desk", value: "101-00" } })
+    fireEvent.change(screen.getByLabelText("Value: Filters 1"), { target: { value: "Quoted" } })
+    expect(latest?.filter?.[0]).toMatchObject({ id: "f1", enabled: true, value: "Quoted" })
+    fireEvent.change(screen.getByLabelText("Direction: Sort 1"), { target: { value: "asc" } })
+    expect(latest?.sort?.[0]).toMatchObject({ pinned: true, dir: "asc" })
+    // A text column does not offer "at or above": the comparison changes and its values go, the condition's own fields stay.
+    fireEvent.change(screen.getByLabelText("Column: Rich"), { target: { value: "client" } })
+    expect(latest?.columns?.[0]).toMatchObject({ owner: "desk-a", column: "client", when: { op: "eq", note: "desk" } })
+    expect(latest?.columns?.[0]?.when).not.toHaveProperty("value")
+  })
+
+  it("changes an op the column no longer offers, or one no version knows, keeping the condition's own fields, and the value too for an op no version knows", () => {
+    expect(withOp({ op: "gtx", value: "5", note: 1 } as never, "gt")).toEqual({ op: "gt", value: "5", note: 1 })
+    expect(withOp({ op: "gt", value: "5", note: 1 } as never, "between")).toEqual({ op: "between", note: 1 })
+    expect(withColumn({ op: "contains", value: "A", note: 1 } as never, columns[2])).toEqual({ op: "eq", note: 1 })
+  })
+
+  it("takes rules that are not an object as none, and a sort key with no key says it needs a column", () => {
+    render(<RulesEditor columns={columns} rules={null as never} onRulesChange={() => {}} store={seeded()}><RulesEditorFilterCount /></RulesEditor>)
+    cleanup()
+    render(<RulesEditor columns={columns} rules={{ sort: [{ dir: "asc" } as never] }} onRulesChange={() => {}}><RulesEditorItem kind="sort" index={0}><RulesEditorProblem /></RulesEditorItem></RulesEditor>)
+    expect(document.querySelector("[data-rule-kind='sort']")).toHaveTextContent("The rule needs a column.")
+  })
+
   it("moves a rule whose value JSON cannot print, a bigint a caller put there, without throwing", () => {
     function Controlled() {
       const [rules, setRules] = useState<GridRules>({ columns: [
@@ -779,6 +821,8 @@ describe("RulesEditor", () => {
     expect(order()).toEqual(["big", "rich"])
     unmount()
     render(<Controlled role="option" />)
+    // Its keys stay with its role, so it names none for moving.
+    expect(document.querySelector("[data-rule-id='rich']")).not.toHaveAttribute("aria-keyshortcuts")
     expect(fireEvent.keyDown(document.querySelector<HTMLElement>("[data-rule-id='rich']")!, { key: "ArrowDown", altKey: true })).toBe(true)
     expect(order()).toEqual(["rich", "big"])
   })
