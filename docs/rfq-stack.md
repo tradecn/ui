@@ -97,6 +97,7 @@ Column state and keyboard behavior belong to the grid.
 | `parkedIds` | `ReadonlySet<RowId>` | None | Mutes parked rows. |
 | `parkedLabel` | `string` | `"Parked"` | A parked row's accessible description. |
 | `onActivate` | `(id: RowId, row: T) => void` | None | Requests a row for the ticket. |
+| `getRowLabel` | `((row: T, id: RowId) => string) \| null` | Client, side, size, and instrument | A row's name that holds while its market and status move; exact repeats, the same client asking the same side and size of the same instrument, share a name. The grid reads the focused row's cells once when focus rests on it, and `null` names rows by their cells and reads nothing; such a row's name changes as its time left counts down. Keep its identity stable. |
 | `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Supplies right-click actions. |
 | `className` | `string` | None | Styles the stack wrapper. |
 
@@ -219,7 +220,7 @@ Parking keeps the row in the stack and skips it during automatic selection; park
 
 Parked rows are muted, use `data-state="parked"`, and have an accessible description of `parkedLabel`, and the active row one of `activeLabel`, joined after a row rule's description, unless `getRowProps` supplies one. An empty label adds nothing. The active mark takes precedence.
 
-Each row's timer is named by `Time left`, the inquiry id, and the time left, so a row read from its cells says how long is left.
+Each row's timer is named by `Time left`, the inquiry id, and the time left, and the reading of a focused row says that whole name, so it tells apart repeats whose row names match.
 
 Render the stack on the client. Its countdowns share a clock that advances only while something in a browser subscribes, so server-rendered time left and tiers go stale and mismatch on hydration.
 

@@ -126,6 +126,7 @@ Apply callbacks when controlling selection or focus. With internal state, callba
 | `price` | `(value: number, row: T) => string` | Two decimals | Format default last, bid and ask cells; unused with explicit columns. |
 | `label` | `string` | `"Watchlist"` | Accessible name of the grid. |
 | `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Row decoration, merged with `group/row`. Memoize it: the wrapper follows your function, so a new one re-renders every row and a memoized one is free. |
+| `getRowLabel` | `((row: T, id: RowId) => string) \| null` | The symbol | A row's name that holds while its prices tick. The grid reads the focused row's cells once when focus rests on it, and `null` names rows by their cells and reads nothing. Keep its identity stable. |
 | `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Complete menu content, including any removal action. |
 | `className` | `string` | None | Classes on the grid's sizing wrapper. |
 | `ref` | `Ref<HTMLDivElement>` | None | Ref to the sizing wrapper. |

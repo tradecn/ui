@@ -155,7 +155,7 @@ Calls the required `onExport(csv)` callback with the current history. Inherits p
 
 ### Accessibility
 
-`AuditTrailGrid` supplies grid navigation and selection semantics. Use Shift, Ctrl or Cmd, or the optional checkbox column to select several events. The changes section is a named region; its headings and collection semantics belong to your composition.
+`AuditTrailGrid` supplies grid navigation and selection semantics. A row is named by its cells, and an event doesn't change once written, so its name holds; pass `getRowLabel` for a shorter one. Use Shift, Ctrl or Cmd, or the optional checkbox column to select several events. The changes section is a named region; its headings and collection semantics belong to your composition.
 
 `AuditChangesTable` uses a native table with column headers for Field, From and To and row headers for each field. Keep those header associations when adapting the table. Card layouts can use lists and definition lists, as shown in Custom Layout. Before values retain a strikethrough so the distinction does not depend on color.
 

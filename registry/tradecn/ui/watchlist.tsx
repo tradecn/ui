@@ -160,7 +160,10 @@ export interface WatchlistGridProps<T extends WatchlistRow = WatchlistRow> exten
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void
 }
 
-export function WatchlistGrid<T extends WatchlistRow = WatchlistRow>({ columns, price, label = "Watchlist", renderContextMenu, getRowProps, className, ref, onKeyDown, ...grid }: WatchlistGridProps<T>) {
+// A row's name is its symbol, which holds while its prices tick.
+const symbolLabel = (row: WatchlistRow) => row.symbol
+
+export function WatchlistGrid<T extends WatchlistRow = WatchlistRow>({ columns, price, label = "Watchlist", renderContextMenu, getRowProps, getRowLabel = symbolLabel, className, ref, onKeyDown, ...grid }: WatchlistGridProps<T>) {
   const source = useContext(StoreContext)
   if (!source) throw new Error("WatchlistGrid must be inside Watchlist.")
   const store = source as RowStore<T>
@@ -182,7 +185,7 @@ export function WatchlistGrid<T extends WatchlistRow = WatchlistRow>({ columns, 
     remove(targets)
   }
   return <div ref={ref} onKeyDown={keyDown} data-slot="tradecn-watchlist-grid" className={cn("h-full min-h-0 flex-1", className)}>
-    <DataGrid<T> {...grid} store={store} preset="watchlist" label={label} columns={all} selection={selection} onSelectionChange={select} focusedRowId={focusedRowId} onFocusedRowChange={focus} getRowProps={rowProps} renderContextMenu={renderContextMenu} />
+    <DataGrid<T> {...grid} store={store} preset="watchlist" label={label} columns={all} selection={selection} onSelectionChange={select} focusedRowId={focusedRowId} onFocusedRowChange={focus} getRowProps={rowProps} getRowLabel={getRowLabel} renderContextMenu={renderContextMenu} />
   </div>
 }
 

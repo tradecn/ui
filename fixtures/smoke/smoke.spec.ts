@@ -515,6 +515,31 @@ for (const dark of [false, true]) for (const change of ["Remove custom column", 
   expect(errors).toEqual([])
 })
 
+test("a watchlist row keeps its symbol as its name while it ticks, and the grid reads its cells once when focus rests on it", async ({ page }) => {
+  const errors: string[] = []
+  page.on("pageerror", error => errors.push(error.message))
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='watchlist']")
+  const grid = scene.locator("[data-slot='tradecn-watchlist']").getByRole("grid")
+  const row = grid.locator('[data-row-id="ZN"]')
+  const reading = grid.locator("[data-grid-row-reading]")
+  await expect(row).toHaveAttribute("aria-label", "ZN")
+  await grid.focus()
+  await grid.press("ArrowDown")
+  await expect(reading).toHaveText(/^ZN, /)
+  const first = await reading.textContent()
+  const last = await row.locator('[data-col="last"]').textContent()
+  // A tick moves the focused row's prices; its name holds, and nothing reads the row again.
+  await grid.press("F7")
+  await expect(row.locator('[data-col="last"]')).not.toHaveText(last!)
+  await expect(row).toHaveAttribute("aria-label", "ZN")
+  await page.waitForTimeout(1000)
+  await expect(reading).toHaveText(first!)
+  await grid.press("ArrowDown")
+  await expect(reading).toHaveText(/^ES, /)
+  expect(errors).toEqual([])
+})
+
 test("a watchlist grid remains virtual inside a plain bounded container", async ({ page }) => {
   await page.goto("/")
   await page.getByRole("button", { name: "Load 500 quotes" }).click()

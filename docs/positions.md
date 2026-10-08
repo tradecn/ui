@@ -71,6 +71,7 @@ The final state stays visible until Restore book replaces the original rows. Sel
 | `selectionColumn` | `boolean` | `false` | Show checkboxes when selection is `"multi"`. |
 | `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Menu items for the selection or targeted row. |
 | `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | Side decorations | Add row classes or override the side's state and accessible description. Memoize it: the wrapper follows your function, so a new one re-renders every row and a memoized one is free. |
+| `getRowLabel` | `((row: T, id: RowId) => string) \| null` | The instrument | A row's name that holds while its mark and P&L tick; add the book when one grid holds several books. The grid reads the focused row's cells once when focus rests on it, and `null` names rows by their cells and reads nothing. Keep its identity stable. |
 | `className` | `string` | None | Classes on the outer `tradecn-positions` container, not the grid. |
 
 Sorting, filtering, a supplied `view`, column state, row callbacks, and keyboard behavior follow [`DataGrid`](data-grid.md). `preset` and `footer` are excluded; use `totals` for the footer. `PositionsColumnOptions<T>` is the shared options type for `price`, `pnl`, `risk`, and `riskHeader`.

@@ -1427,6 +1427,162 @@ describe("certification pins", () => {
   })
 })
 
+describe("row names", () => {
+  const symbol = (row: Quote) => row.sym
+  const reading = () => document.querySelector("[data-grid-row-reading]")!.textContent
+  const row = (id: string) => document.querySelector<HTMLElement>(`[role='row'][data-row-id='${id}']`)!
+
+  it("names each row by getRowLabel, and holds the name while its cells tick", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={symbol} />)
+    expect(row("r1")).toHaveAttribute("aria-label", "S0001")
+    act(() => store.applyDeltas({ patch: [{ id: "r1", fields: { px: 250 } }] }))
+    expect(row("r1")).toHaveTextContent("250.00")
+    expect(row("r1")).toHaveAttribute("aria-label", "S0001")
+  })
+
+  it("leaves a row named by its cells, and reads nothing, without getRowLabel", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} />)
+    expect(row("r1")).not.toHaveAttribute("aria-label")
+    expect(document.querySelector("[data-grid-row-reading]")).toBeNull()
+  })
+
+  it("reads the focused row's cells once, when focus rests on it, and never for a tick", () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={symbol} />)
+      const grid = screen.getByRole("grid")
+      act(() => grid.focus())
+      // Passing a row on the way to another reads nothing for it.
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => vi.advanceTimersByTime(200))
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => vi.advanceTimersByTime(399))
+      expect(reading()).toBe("")
+      act(() => vi.advanceTimersByTime(1))
+      expect(reading()).toBe("S0001, 101.00, 10")
+      // A tick changes the cells and not the reading.
+      act(() => store.applyDeltas({ patch: [{ id: "r1", fields: { px: 150 } }] }))
+      act(() => vi.advanceTimersByTime(2000))
+      expect(reading()).toBe("S0001, 101.00, 10")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => vi.advanceTimersByTime(400))
+      expect(reading()).toBe("S0002, 102.00, 20")
+      // Coming back reads the row as it is now.
+      fireEvent.keyDown(grid, { key: "ArrowUp" })
+      act(() => vi.advanceTimersByTime(400))
+      expect(reading()).toBe("S0001, 150.00, 10")
+      // The grid taking focus again reads its row again, the same words made new for the live region.
+      act(() => grid.blur())
+      act(() => grid.focus())
+      act(() => vi.advanceTimersByTime(400))
+      expect(reading()).toBe("S0001, 150.00, 10\u200b")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("takes null as no label: rows named by their cells, and nothing read", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={null} />)
+    expect(row("r1")).not.toHaveAttribute("aria-label")
+    expect(document.querySelector("[data-grid-row-reading]")).toBeNull()
+  })
+
+  it("reads the row a pointer focuses", () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={symbol} />)
+      const grid = screen.getByRole("grid")
+      // A press on a cell focuses the grid, the browser's default, and the row.
+      act(() => grid.focus())
+      fireEvent.pointerDown(row("r2").querySelector('[data-col="px"]')!, { button: 0, pointerType: "mouse" })
+      act(() => vi.advanceTimersByTime(400))
+      expect(reading()).toBe("S0002, 102.00, 20")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(["open", "closed"] as const)("reads the focused row inside a shadow root (%s)", (mode) => {
+    vi.useFakeTimers()
+    const host = document.createElement("div")
+    document.body.append(host)
+    const container = document.createElement("div")
+    host.attachShadow({ mode }).append(container)
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      const { unmount } = render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={symbol} />, { container })
+      const grid = container.querySelector<HTMLElement>('[role="grid"]')!
+      act(() => grid.focus())
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => vi.advanceTimersByTime(400))
+      expect(container.querySelector("[data-grid-row-reading]")!.textContent).toBe("S0001, 101.00, 10")
+      unmount()
+    } finally {
+      host.remove()
+      vi.useRealTimers()
+    }
+  })
+
+  it("reads nothing while the grid does not have focus", () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      const view = (focused: string) => <><button>Outside</button><DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowLabel={symbol} focusedRowId={focused} /></>
+      const { rerender } = render(view("r1"))
+      act(() => screen.getByRole("button", { name: "Outside" }).focus())
+      rerender(view("r2"))
+      act(() => vi.advanceTimersByTime(1000))
+      expect(reading()).toBe("")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("reads what a screen reader says in each cell, after the accessible-name rules, and no selection box", () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      const marked: ColumnDef<Quote>[] = [
+        ...columns,
+        // Hidden marks are left out, a labelled image reads its label, and a generic span's label is no name, by
+        // `aria-label` or by `aria-labelledby`.
+        { key: "dir", header: "Direction", width: 60, accessor: (r) => r.px, cell: ({ row }) => <><span aria-hidden="true">▲</span><span hidden>held</span><span role="img" aria-label="up">↑</span><span aria-label="not a name">on the day</span><span id={`why-${row.id}`} hidden>no name either</span><span aria-labelledby={`why-${row.id}`}>since the open</span></> },
+        // A timer named by its hidden label and its digits, as Countdown is.
+        { key: "left", header: "Left", width: 80, accessor: (r) => r.id, cell: ({ row }) => <span role="timer" aria-labelledby={`label-${row.id} digits-${row.id}`}><span id={`label-${row.id}`} hidden>Time left</span><span id={`digits-${row.id}`}>0:59</span></span> },
+        // A field reads its value and a select its chosen option, labelled or not and whatever their role, a combobox built
+        // on a button reads its label, and an image its alt.
+        { key: "note", header: "Note", width: 120, accessor: () => "", cell: ({ row }) => <><span id={`cap-${row.id}`} hidden>Caption</span><input aria-label="Note" defaultValue={`note ${row.id}`} /><input aria-labelledby={`cap-${row.id}`} defaultValue="held" /><select aria-labelledby={`cap-${row.id}`} defaultValue="b"><option value="a">Alpha</option><option value="b">Beta</option></select><input role="combobox" aria-label="Venue" defaultValue="NYSE" /><button role="combobox" aria-label="Side">Buy</button><img alt="flag" src="" /></> },
+      ]
+      // A heading takes no name, a link and anything with a role that takes one do, and a target is read whole, its
+      // hidden content included.
+      marked.push({ key: "kinds", header: "Kinds", width: 120, accessor: () => "", cell: ({ row }) => <><h3 aria-label="no name">heading</h3><a aria-label="link name">link</a><span role="combobox" aria-label="span name">span</span><span id={`whole-${row.id}`}>Up<span aria-hidden="true"> ▲</span></span><button aria-labelledby={`whole-${row.id}`}>×</button></> })
+      render(<DataGrid store={store} columns={marked} label="Quotes" initialRect={RECT} getRowLabel={symbol} selectionMode="multi" selectionColumn />)
+      const grid = screen.getByRole("grid")
+      act(() => grid.focus())
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      act(() => vi.advanceTimersByTime(400))
+      expect(reading()).toBe("S0001, 101.00, 10, up on the day since the open, Time left 0:59, note r1 held Beta NYSE Side flag, heading link name span name Up Up ▲")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe("rules as data", () => {
   const thirtySeconds = { kind: "fraction", denominator: 32, half: "+" } as const
   const ruled: ColumnDef<Quote>[] = [

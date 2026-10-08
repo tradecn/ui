@@ -99,7 +99,7 @@ describe("rfqStackColumns", () => {
     expect(within(rowOf("q8")).getByText("__proto__")).toBeInTheDocument()
   })
 
-  it("names each row's timer with the time left, so a row read from its cells says it", () => {
+  it("names each row's timer with the time left, for a screen reader on the timer", () => {
     render(<Harness store={seeded()} />)
     expect(within(rowOf("q1")).getByRole("timer")).toHaveAccessibleName(/^Time left q1 \d+:\d\d$/)
   })
@@ -141,7 +141,39 @@ describe("the threshold and the order", () => {
   })
 })
 
+// Module-level, so the rows keep their identity across renders.
+const idLabel = (row: RfqStackRow) => row.id
+
+it("reads a focused inquiry's cells as separate words, its client and tier included", () => {
+  vi.useFakeTimers()
+  try {
+    render(<Harness store={seeded()} />)
+    const grid = screen.getByRole("grid")
+    act(() => grid.focus())
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    act(() => vi.advanceTimersByTime(400))
+    const focused = document.getElementById(grid.getAttribute("aria-activedescendant")!)!.dataset.rowId
+    const reading = document.querySelector("[data-grid-row-reading]")!.textContent!
+    expect(focused).toBe("q1")
+    expect(reading).toContain("Client A Tier 1")
+    // The countdown is named by its hidden label and its digits, and reads so.
+    expect(reading).toMatch(/Time left q1 \d+:\d\d/)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
 describe("RfqStack", () => {
+  it("names each row by who asks, which way, for how much, and for what, which hold while its market moves, and takes your name instead", () => {
+    const store = seeded()
+    const { rerender } = render(<Harness store={store} />)
+    expect([rowOf("q1"), rowOf("q4")].map((row) => row.getAttribute("aria-label"))).toEqual(["Client A, BUY, 5mm, T 4 1/8 05/15/34", "Client D, 2-WAY, 250, ZN"])
+    act(() => store.applyDeltas({ patch: [{ id: "q1", fields: { bid: 99.75, status: "Quoted" } }] }))
+    expect(rowOf("q1")).toHaveAttribute("aria-label", "Client A, BUY, 5mm, T 4 1/8 05/15/34")
+    rerender(<Harness store={store} getRowLabel={idLabel} />)
+    expect(rowOf("q1")).toHaveAttribute("aria-label", "q1")
+  })
+
   it("is the rfq preset with the slot, marks the active row, and asks for a row in the ticket on Enter", () => {
     const onActivate = vi.fn()
     render(<Harness store={seeded()} activeId="q2" onActivate={onActivate} />)
