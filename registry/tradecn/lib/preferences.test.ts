@@ -81,6 +81,28 @@ describe("the envelope", () => {
     expect(parsePreferences({ tradecn: "preferences", version: 1 })).toBeNull()
     expect(parsePreferences(null)).toBeNull()
   })
+
+  it("keeps a slot named by an Object.prototype member like any other", () => {
+    const names = ["__proto__", "constructor", "toString"]
+    const empty = createPreferences()
+    for (const name of names) {
+      expect(getSlot(empty, name), name).toBeUndefined()
+      expect(readSlot(empty, name), name).toBeUndefined()
+      expect(removeSlot(empty, name), name).toBe(empty)
+    }
+    let prefs = empty
+    for (const name of names) prefs = setSlot(prefs, name, { name }, 2)
+    expect(diffPreferences(empty, prefs).added).toEqual(names)
+    // Through its own text and back, each is still a slot, and none became the envelope's prototype.
+    const back = parsePreferences(exportPreferences(prefs))!
+    expect(Object.getPrototypeOf(back.slots)).toBe(Object.prototype)
+    for (const name of names) expect(getSlot(back, name), name).toEqual({ version: 2, value: { name } })
+    expect(diffPreferences(prefs, back).same).toEqual(names)
+    expect(getSlot(removeSlot(back, "__proto__"), "__proto__")).toBeUndefined()
+    // A migrator for a name no slot has leaves the envelope alone.
+    const migrators: PreferenceMigrators = { constructor: { version: 3, migrate: () => { throw new Error("no slot to migrate") } } }
+    expect(migratePreferences(empty, migrators)).toBe(empty)
+  })
 })
 
 describe("boundaries", () => {
@@ -156,6 +178,18 @@ describe("versions", () => {
     expect(migratePreferences(moved, migrators)).toBe(moved)
     const dropped = migratePreferences(setSlot(prefs, "threshold", 5, 2), migrators)
     expect(dropped.slots.threshold).toBeUndefined()
+  })
+
+  it("writes a value read through a migrator at the migrator's version when given the migrator", () => {
+    const migrator = migrators["columns:blotter"]!
+    const stored = setSlot(createPreferences(), "columns:blotter", { order: [], widths: [["px", 120]], hidden: [] }, 1)
+    const read = readSlot<{ order: string[]; widths: Record<string, number>; hidden: string[] }>(stored, "columns:blotter", migrator)!
+    const edited = { ...read, hidden: ["px"] }
+    const written = setSlot(stored, "columns:blotter", edited, migrator)
+    expect(written.slots["columns:blotter"]).toEqual({ version: 2, value: edited })
+    // Read again at that version, it is the value written, not migrated a second time.
+    expect(readSlot(written, "columns:blotter", migrator)).toEqual(edited)
+    expect(migratePreferences(written, migrators).slots["columns:blotter"]).toEqual({ version: 2, value: edited })
   })
 
   it("reads one slot at the version the consumer reads, without writing the envelope", () => {

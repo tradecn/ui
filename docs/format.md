@@ -25,7 +25,7 @@ The preview groups quote conventions, instrument details, and scalar values. It 
 
 Pure functions with no React dependency. Numeric formatters accept `Nullable` (`number | null | undefined`) and return `NULL_TOKEN` (`–`, an en dash) for null, undefined, NaN, and infinities. Negative numeric output uses the typographic minus (`−`, U+2212).
 
-`Locale` is `{ locale?: string }`, with `"en-US"` as the default. Decimal and date output can use another locale, such as `{ locale: "de-DE" }`; fraction notation stays fixed. Parsing is not locale-aware: `parsePrice` and `parseQuote` accept a decimal point, remove commas, trim whitespace, and accept either minus sign.
+`Locale` is `{ locale?: string }`, with `"en-US"` as the default. Decimal and date output can use another locale, such as `{ locale: "de-DE" }`; fraction notation stays fixed. Parsing is not locale-aware, a bound locale included: `parsePrice` and `parseQuote` read a decimal point, trim whitespace, accept either minus sign, and read commas only as thousands separators in the whole part (`1,234.5`). A comma anywhere else, as in `99,5` typed on a decimal-comma keyboard, `1,0,0`, or among the 32nds, reads as no price rather than a price ten times too big.
 
 ### Prices
 
@@ -37,7 +37,7 @@ Pure functions with no React dependency. Numeric formatters accept `Nullable` (`
 | `"tick"` | `tick: number` | Snap to the tick grid and derive decimal places from the tick; `100.0049` with `tick: 0.005` is `100.005` |
 | `"fraction"` | `denominator: 32 \| 64`, `half: "+" \| "5"`, optional `eighths: boolean` (default `false`) | Round to halves of a 32nd or 64th, or eighths when enabled |
 
-In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `eighths: true`, the trailing digit counts eighths: `99.5078125` is `99-162` and `99.515625` is `99-164`. A denominator of 64 uses the same notation in 64ths.
+In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `eighths: true`, the trailing digit counts eighths: `99.5078125` is `99-162` and `99.515625` is `99-164`. A denominator of 64 uses the same notation in 64ths. From 1e21, where a whole part would print in exponent form, fraction notation prints `NULL_TOKEN`, and `parsePrice` returns `null` for a value in that range.
 
 | Function | Result |
 |---|---|
@@ -68,11 +68,11 @@ In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `ei
 | Bound member | Equivalent |
 |---|---|
 | `tick`, `basis`, `quoteStep` | `convention.tick`, `quoteBasisOf(convention)`, `quoteStepOf(convention)` |
-| `price(value)`, `parsePrice(text)` | `formatPrice` and `parsePrice` with `convention.price` |
+| `price(value)`, `parsePrice(text)` | `formatPrice` and `parsePrice` with `convention.price`; the bound locale applies to output only |
 | `yield(value)` | `formatYield` with `yieldDecimals` |
 | `quantity(value)` | `formatQuantity` |
 | `step(value, steps)` | `stepByTick` with `convention.tick` |
-| `quote(value)`, `parseQuote(text)`, `stepQuote(value, steps)` | Quote functions below with the bound convention |
+| `quote(value)`, `parseQuote(text)`, `stepQuote(value, steps)` | Quote functions below with the bound convention; the bound locale applies to output only, so `quote` in `de-DE` prints text `parseQuote` doesn't read back |
 
 ### The quote basis
 

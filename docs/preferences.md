@@ -64,14 +64,14 @@ Restore the receiving desk between imports to compare them. Importing a template
 
 `slots` is a `Record<string, PreferenceSlot>`. Each slot has its own numeric `version` and a `value` of type `PreferencesJson`: a JSON primitive, array, or object. The item that owns the value defines its shape and version, separately from the envelope version.
 
-In the functions below, `prefs`, `target`, `a`, and `b` are `Preferences`; slot names are strings.
+In the functions below, `prefs`, `target`, `a`, and `b` are `Preferences`. A slot name is any string, including `constructor` and `__proto__`.
 
 | Function | Inputs / defaults | Result |
 |---|---|---|
 | `createPreferences(boundaries?)` | Partial `PreferenceBoundaries`; omitted lists default to `[]` | Empty envelope with copied boundary lists. |
 | `parsePreferences(value)` | `unknown`; object or JSON text | A checked copy, or `null` for an invalid envelope. |
 | `getSlot(prefs, name)` | Slot name | Stored `PreferenceSlot`, or `undefined`. |
-| `setSlot(prefs, name, value, version?)` | `value: unknown`; numeric version defaults to the existing slot's version, then `1` | Envelope with a JSON copy of the value. |
+| `setSlot(prefs, name, value, version?)` | `value: unknown`; `version` is a number or the `PreferenceMigrator` you read with, and defaults to the existing slot's version, then `1` | Envelope with a JSON copy of the value. Pass the migrator when the value came through `readSlot` with it: the value is at the migrator's version, and written under the slot's older one it would be migrated again on the next read. |
 | `removeSlot(prefs, name)` | Slot name | Envelope without that slot; leaves boundary lists intact. |
 | `diffPreferences(a, b)` | Before and after envelopes | `PreferencesDiff`: sorted name lists in `added`, `removed`, `changed`, and `same`. |
 | `toJson(value)` | `unknown` | JSON round-trip copy, or `null` when serialization fails. |

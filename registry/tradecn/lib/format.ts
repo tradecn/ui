@@ -104,6 +104,9 @@ function decomposeFraction(v: number, c: Extract<PriceConvention, { kind: "fract
 export function formatFraction(v: Nullable, c: Extract<PriceConvention, { kind: "fraction" }>): string {
   if (isNil(v)) return NULL_TOKEN
   const { negative, whole, ticks, subticks, sub } = decomposeFraction(v, c)
+  // From 1e21 a whole part prints in exponent form, and further up the scaling overflows: neither is the notation,
+  // and parsePrice refuses the same range.
+  if (!(whole < 1e21)) return NULL_TOKEN
   let tail = ""
   if (subticks !== 0) {
     if (c.eighths) tail = String(subticks)
@@ -125,12 +128,21 @@ export function formatPrice(v: Nullable, c: PriceConvention, l?: Locale): string
   }
 }
 
+// Commas group thousands in the whole part or they are not read: a first group of one to three digits with no
+// leading zero, then groups of three, and none after the point or among the 32nds. "99,5" from a decimal-comma
+// keyboard reads as no number, never as 995.
+function ungrouped(text: string): string | null {
+  if (!text.includes(",")) return text
+  const m = /^([+-]?)([1-9]\d{0,2}(?:,\d{3})+)((?:[.-].*)?)$/.exec(text)
+  return m ? m[1]! + m[2]!.replace(/,/g, "") + m[3]! : null
+}
+
 /**
  * Inverse of formatPrice for ticket entry. Accepts the convention's own notation and a plain decimal.
  * Returns null when the text is not a price. Fraction input: "99-16+", "99-165", "99-162", "99-16", "99".
  */
 export function parsePrice(s: string, c: PriceConvention): number | null {
-  const text = s.trim().replace(/−/g, "-").replace(/,/g, "")
+  const text = ungrouped(s.trim().replace(/−/g, "-"))
   if (!text) return null
   if (c.kind === "fraction") {
     const m = /^([+-]?)(\d+)(?:-(\d{1,2})([+0-9])?)?$/.exec(text)
@@ -363,8 +375,8 @@ export function formatQuote(v: Nullable, c: InstrumentConvention, l?: Locale): s
 /** Inverse of formatQuote for a quote field. A price takes its notation or a decimal; the others take a decimal and snap to the quote step. Null when the text is not a quote. */
 export function parseQuote(s: string, c: InstrumentConvention): number | null {
   if (quoteBasisOf(c) === "price") return parsePrice(s, c.price)
-  const text = s.trim().replace(/−/g, "-").replace(/,/g, "")
-  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) return null
+  const text = ungrouped(s.trim().replace(/−/g, "-"))
+  if (text === null || !/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) return null
   const n = Number(text)
   if (!Number.isFinite(n)) return null
   // Snapping divides by the step, which can overflow where the raw number does not; what

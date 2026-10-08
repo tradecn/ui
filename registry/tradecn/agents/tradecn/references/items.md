@@ -1,6 +1,6 @@
 # Items
 
-Every tradecn item at this tag, by kind. Install one with `bun x shadcn@4.21.0 add -y -o -c <app dir> https://tradecn.dev/r/<tag>/<name>.json`, one URL per argument, and read its page at `https://tradecn.dev/<tag>/docs/<name>/`. The list is generated from the registry, so it names what the tag has.
+Every tradecn item at this tag, by kind. Install one as the skill's step 3 says: preview with `bun x shadcn@4.21.0 add --dry-run -c <app dir> https://tradecn.dev/r/<tag>/<name>.json`, then install with `add -y -o` only when it would overwrite no file the app has edited, one URL per argument. Read its page at `https://tradecn.dev/<tag>/docs/<name>/`. The list is generated from the registry, so it names what the tag has.
 
 ## Components
 
