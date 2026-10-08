@@ -164,7 +164,7 @@ Numeric readings keep the price notation's font outside the header — mono for 
 
 `PriceChartPlot` sets its role, accessible name, tab stop, and value attributes.
 
-Its `onKeyDown`, `onFocus`, and `onBlur` call your handler first. Call `preventDefault()` to cancel the built-in behavior for that event.
+Its `onKeyDown`, `onFocus`, and `onBlur` call your handler first. Call `preventDefault()` to cancel the built-in behavior for that event; on focus and blur that is the cursor's move, and the plot still holds its readings on focus and lets them go on blur.
 
 ### usePriceChart
 
@@ -292,7 +292,7 @@ The last close determines direction against the reference. Equal prices are `fla
 
 The root, `PriceChartLast`, and `PriceChartChange` carry `data-direction`.
 
-The plot's accessible name includes the direction, last price, change, range, and bar count. While the plot has focus, the name keeps the reading it took focus with, and the value text keeps the selected bar's readout as it was when the selection reached that bar, or the held reading with no bar selected, so a live feed doesn't make a screen reader read either again; moving the selection, or taking focus, reads the bar as it is then. Both are read afresh when the store, label, kind, notation, baseline, zone, locale, or labels change, and once more at the store's next batch, so bars that land after their label are read too. They are read once when the series changes, which the plot knows by its first bar's time and open, or when another bar comes under the selection, known by its place, time, and open: a reload, a window that drops old bars, a correction, and a late print earlier than a bar's first tick each can do that. A reload that keeps the first bar and the selected bar is held like a tick. To have every load read afresh, clear the store in the same update that changes the label. With no bar selected, the slider's value rests where the last reading left it. Without focus, the value text is the selection's readout as it is:
+The plot's accessible name includes the direction, last price, change, range, and bar count. While the plot has focus, the name keeps the reading it took focus with, and the value text keeps the selected bar's readout as it was when the selection reached that bar, or the held reading with no bar selected, so a live feed doesn't make a screen reader read either again; moving the selection, or taking focus, reads the bar as it is then. Both are read afresh when the store, label, kind, notation, baseline, zone, locale, or labels change, and once more at the store's next batch, so bars that land after their label are read too. Both are read once when the series changes, which the plot knows by its first bar's time and open, and the value text alone when another bar comes under the selection, known by its place, time, and open: a reload, a window that drops old bars, a correction, and a late print earlier than a bar's first tick each can do either. A reload that keeps the first bar and the selected bar is held like a tick. To have every load read afresh, clear the store in the same update that changes the label. With no bar selected, the slider's value rests at the bar the held name was read at, inside the bars there are. Without focus, the value text is the selection's readout as it is:
 
 ```text
 ZN, today: up, last 110-18, +0-02 (+0.06%), low 110-15, high 110-19, 3 bars

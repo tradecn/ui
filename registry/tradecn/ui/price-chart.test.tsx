@@ -575,12 +575,14 @@ describe("PriceChart composition", () => {
     render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
     const plot = screen.getByRole("slider")
     act(() => plot.focus())
+    const name = plot.getAttribute("aria-label")
     // A tick on the selected bar leaves its open alone, so the reading holds.
     act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
     expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
-    // A correction that replaces the bar, its open with it, is read.
+    // A correction that replaces the bar, its open with it, is read: the value text, while the name holds.
     act(() => store.applyDeltas({ upsert: [bar(2, 110.25, 110.25)] }))
     expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-08 V 30")
+    expect(plot.getAttribute("aria-label")).toBe(name)
   })
 
   it("keeps the value text live while the plot does not have focus", () => {
@@ -665,6 +667,54 @@ describe("PriceChart composition", () => {
     expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
     rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="America/Chicago"><PriceChartPlot /></PriceChart>)
     expect(plot).toHaveAttribute("aria-valuetext", "08:32:00 110-18 V 30")
+    // So does a change of labels, or of locale.
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="America/Chicago" labels={{ volume: "Vol" }}><PriceChartPlot /></PriceChart>)
+    expect(plot).toHaveAttribute("aria-valuetext", "08:32:00 110-18 Vol 30")
+    rerender(<PriceChart store={store} convention={ZN} label="ZN" zone="America/Chicago" labels={{ volume: "Vol" }} locale="ar-EG"><PriceChartPlot /></PriceChart>)
+    expect(plot.getAttribute("aria-valuetext")).not.toBe("08:32:00 110-18 Vol 30")
+    expect(plot.getAttribute("aria-valuetext")).toMatch(/ 110-18 Vol 30$/)
+  })
+
+  it("reads the value text once more at the batch after a switch, even when every new bar opens where the old one did", () => {
+    const store = seeded()
+    // The new bars open where the old ones did, so only the batch after the label can tell them apart.
+    const sameOpens = [bar(0, 110.5, 110.25), bar(1, 110.53125, 110.25), bar(2, 110.5, 110.25)]
+    function Chart({ symbol }: { symbol: "ZN" | "ZF" }) {
+      useEffect(() => {
+        if (symbol === "ZF") store.applyDeltas({ upsert: sameOpens })
+      }, [symbol])
+      return <PriceChart store={store} convention={ZN} label={symbol} zone="UTC"><PriceChartPlot /></PriceChart>
+    }
+    const { rerender } = render(<Chart symbol="ZN" />)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    rerender(<Chart symbol="ZF" />)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-08 V 30")
+  })
+
+  it("holds a focused plot's readings through a convention change that leaves its notation alone", () => {
+    const store = seeded()
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    act(() => store.applyDeltas({ upsert: [bar(2, 110.5, 110.75)] }))
+    const name = plot.getAttribute("aria-label")
+    // A finer tick changes the convention but not how a price reads, so nothing is read again.
+    rerender(<PriceChart store={store} convention={{ ...ZN, tick: 1 / 128 }} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    expect(plot).toHaveAttribute("aria-valuetext", "14:32:00 110-18 V 30")
+    expect(plot.getAttribute("aria-label")).toBe(name)
+  })
+
+  it("keeps the read owed to the batch after a switch when the selection moves before the bars land", () => {
+    const store = seeded()
+    const sameOpens = [bar(0, 110.5, 110.25), bar(1, 110.53125, 110.25), bar(2, 110.5, 110.25)]
+    const { rerender } = render(<PriceChart store={store} convention={ZN} label="ZN" zone="UTC"><PriceChartPlot /></PriceChart>)
+    const plot = screen.getByRole("slider")
+    act(() => plot.focus())
+    rerender(<PriceChart store={store} convention={ZN} label="ZF" zone="UTC"><PriceChartPlot /></PriceChart>)
+    fireEvent.keyDown(plot, { key: "ArrowLeft" })
+    act(() => store.applyDeltas({ upsert: sameOpens }))
+    expect(plot).toHaveAttribute("aria-valuetext", "14:31:00 110-08 V 20")
   })
 
   it("keeps a focused plot's tab stop when its crosshair turns off, until focus leaves", () => {

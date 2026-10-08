@@ -574,25 +574,25 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
 
   // What a screen reader is told while it is on the plot: the summary as of the moment it took focus, and the
   // selected bar's readout as of the moment the selection reached that bar. Ticks move the picture and the visible
-  // readings, never these, so a focused plot is not read again at every update. Both are read afresh when what the
-  // plot shows changes: its store, label, kind, notation, baseline, or wording, and then once more at the store's next batch,
-  // so bars that land after their label are read too; and once for another series, known by its first bar's time
-  // and open, or another bar under the selection, known by its place, time, and open.
+  // readings, never these, so a focused plot is not read again at every update. Both are read afresh when the plot's
+  // frame changes, its store, label, kind, notation, baseline, or wording, and then once more at the store's next batch,
+  // so bars that land after their label are read too; both once when the series changes, known by its first bar's
+  // time and open; and the value text alone when another bar comes under the selection, known by its place, time, and open.
   const count = columns.bars.length
   const first = columns.bars[0]
-  const subject: PlotSubject = { store, label, kind, notation: JSON.stringify(convention), baseline, wording: JSON.stringify([zone ?? null, locale ?? null, labels]), series: first ? `${first.time}\u0000${first.open}` : "" }
+  const subject: PlotSubject = { store, label, kind, notation: JSON.stringify(priceOf(convention)), baseline, wording: JSON.stringify([zone ?? null, locale ?? null, labels]), series: first ? `${first.time}\u0000${first.open}` : "" }
   // The frame is everything but the series: a reading taken as the frame changed is taken again at the next batch.
   const isFrame = (s: PlotSubject) => s.store === subject.store && s.label === subject.label && s.kind === subject.kind && s.notation === subject.notation && s.baseline === subject.baseline && s.wording === subject.wording
   const isSubject = (s: PlotSubject) => isFrame(s) && s.series === subject.series
   const unsettled = (s: { settle: BarColumns | null }) => s.settle !== null && s.settle !== columns
   const [held, setHeld] = useState<(PlotSubject & { name: string; now: number; settle: BarColumns | null }) | null>(null)
-  if (held !== null && (!isSubject(held) || unsettled(held))) setHeld({ ...subject, name: sentence, now: cursor ?? count - 1, settle: isFrame(held) ? null : columns })
+  if (held !== null && (!isSubject(held) || unsettled(held))) setHeld({ ...subject, name: sentence, now: cursor ?? count - 1, settle: !isFrame(held) || held.settle === columns ? columns : null })
   const heldName = held?.name ?? null
-  // With no bar selected, the slider rests where the last reading left it, inside the bars there are; the keys step from there.
+  // With no bar selected, the slider rests at the bar the held name was read at, inside the bars there are; the keys step from there.
   const rest = held === null ? count - 1 : clamp(held.now, count - 1)
   const heardKey = cursor === null || !bar ? null : `${cursor}\u0000${bar.time}\u0000${bar.open}`
   const [heard, setHeard] = useState<PlotSubject & { key: string | null; text: string; settle: BarColumns | null }>({ ...subject, key: null, text: "", settle: null })
-  if (heard.key !== heardKey || !isSubject(heard) || unsettled(heard)) setHeard({ ...subject, key: heardKey, text: readout, settle: isFrame(heard) ? null : columns })
+  if (heard.key !== heardKey || !isSubject(heard) || unsettled(heard)) setHeard({ ...subject, key: heardKey, text: readout, settle: !isFrame(heard) || heard.settle === columns ? columns : null })
   useLayoutEffect(() => {
     live.current.summary = summary
     live.current.baseline = baseline
@@ -759,9 +759,10 @@ export function PriceChartPlot({ className, children, ref: forwardedRef, onKeyDo
       onKeyDown={onKeyDown}
       onFocus={(event) => {
         onFocus?.(event)
-        setHeld({ ...subject, name: sentence, now: cursor ?? count - 1, settle: null })
+        // A read still owed to the batch after a frame change stays owed through a refocus.
+        setHeld({ ...subject, name: sentence, now: cursor ?? count - 1, settle: heard.settle === columns ? columns : null })
         // A selection the pointer made before focus is read as it is now.
-        setHeard({ ...subject, key: heardKey, text: readout, settle: null })
+        setHeard({ ...subject, key: heardKey, text: readout, settle: heard.settle === columns ? columns : null })
         if (!event.defaultPrevented && interactive && cursor === null) moveCursor(count - 1)
       }}
       onBlur={(event) => {
