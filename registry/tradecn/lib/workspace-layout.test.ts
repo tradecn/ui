@@ -135,6 +135,16 @@ describe("toPanelState", () => {
     expect(toPanelState(shifty)).toEqual({})
     // Even reading toJSON can throw; that yields nothing too, never a throw.
     expect(toPanelState({ secret: "x", get toJSON(): never { throw new Error("x") } })).toEqual({})
+    // A value JSON can't walk whose `in` check throws yields nothing rather than throwing.
+    const cyclic: Record<string, unknown> = { a: 1 }
+    cyclic.self = cyclic
+    expect(toPanelState(new Proxy(cyclic, { has() { throw new Error("x") } }))).toEqual({})
+    // A toJSON that returns undefined stores nothing, even on a value whose `in` check denies having one.
+    const hiding = new Proxy({ secret: "x" }, {
+      get: (target, key) => (key === "toJSON" ? () => undefined : Reflect.get(target, key)),
+      has: (target, key) => key !== "toJSON" && Reflect.has(target, key),
+    })
+    expect(toPanelState(hiding)).toEqual({})
   })
 })
 

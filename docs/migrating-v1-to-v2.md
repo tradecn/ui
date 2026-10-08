@@ -989,6 +989,8 @@ Unmounting a provider isolates its completion from a new provider but does not c
 
 Keep the fallback target outside conditional content. Surrounding drafts remain mounted, while authentication fields inside the dialog follow the installed primitive's normal close lifecycle.
 
+While a request is out, `SessionGuardReauthenticate` is held with `aria-disabled` rather than disabled, so it keeps focus through an awaited sign-in; a press then does nothing and goes no further. A test that asserted `toBeDisabled()` on it while pending reads `aria-disabled` now. When the banner closes with focus inside it, focus moves to `fallbackFocusRef`, or back where it came from, where v1 left it on the page.
+
 ## Workspace
 
 Existing `Workspace` calls keep the title-and-close tab, panel API and version-1 saved layouts. No API migration is required.
@@ -1025,6 +1027,8 @@ Tab parts accept native props and refs, and Workspace now forwards its outer div
 Dockview still owns the outer tab's accessible name, selection, focus navigation and keyboard closing. Use `setTitle` to rename it. Removing a close button does not disable other close paths.
 
 Popout tab clicks and `focusPanel` now focus the adopted panel body correctly. See the [Workspace reference](workspace.md) for composition, overflow and window limits.
+
+A panel id that names an `Object.prototype` member, such as `constructor` or `__proto__`, is no id the dock can hold: `addPanel` opens such a panel under its default id, and a layout naming one doesn't load, where v1 threw from inside the dock or lost the panel's record. A `layoutChangeDelay` that isn't a finite number at or above zero reads as 250, and one past 2,147,483,647 is capped there, where v1 handed it to the timer, which fires such a delay at once.
 
 ## Sparkline
 

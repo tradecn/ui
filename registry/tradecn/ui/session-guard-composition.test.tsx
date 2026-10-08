@@ -30,16 +30,17 @@ describe("composed session requests", () => {
     function Custom() {
       const { reauthenticate, pending } = useSessionGuard()
       useLayoutEffect(() => { invoke.current = reauthenticate }, [reauthenticate])
-      return <button disabled={pending}>Custom renewal</button>
+      // Held the way the docs advise for a custom control, so it keeps focus through the request.
+      return <button aria-disabled={pending || undefined} onClick={() => { if (!pending) void reauthenticate() }}>Custom renewal</button>
     }
     render(<SessionGuardProvider expiresAt={NOW + 1000} clock={{ now: () => NOW, subscribe: () => () => {} }} onReauthenticate={authenticate}><Controls /><Custom /></SessionGuardProvider>)
     act(() => { void invoke.current(); void invoke.current() })
     expect(authenticate).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole("button", { name: "Signing in…" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Custom renewal" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Signing in…" })).toHaveAttribute("aria-disabled", "true")
+    expect(screen.getByRole("button", { name: "Custom renewal" })).toHaveAttribute("aria-disabled", "true")
     await act(async () => response.resolve(false))
     expect(screen.getByRole("alert")).toHaveTextContent("That did not work. Try again.")
-    expect(screen.getByRole("button", { name: "Custom renewal" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Custom renewal" })).not.toHaveAttribute("aria-disabled")
   })
 
   it("keeps the same pending request through every phase, expiry, clock and callback replacement", async () => {
@@ -51,7 +52,7 @@ describe("composed session requests", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stay signed in" }))
     for (const expiresAt of [NOW - 1, NOW + 600_000, null, NOW + 1000]) {
       view.rerender(<SessionGuardProvider expiresAt={expiresAt} clock={{ now: () => NOW, subscribe: () => () => {} }} onReauthenticate={next}><Controls /></SessionGuardProvider>)
-      expect(screen.getByRole("button", { name: "Signing in…" })).toBeDisabled()
+      expect(screen.getByRole("button", { name: "Signing in…" })).toHaveAttribute("aria-disabled", "true")
     }
     expect(next).not.toHaveBeenCalled()
     await act(async () => response.resolve(false))
@@ -86,7 +87,7 @@ describe("composed session requests", () => {
     }
     const view = render(<StrictMode><SessionGuardProvider expiresAt={0} onReauthenticate={first}><LayoutRequest attempt={1} /></SessionGuardProvider></StrictMode>)
     expect(first).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole("button", { name: "Signing in…" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Signing in…" })).toHaveAttribute("aria-disabled", "true")
     await act(async () => response.resolve(true))
     view.rerender(<StrictMode><SessionGuardProvider expiresAt={0} onReauthenticate={next}><LayoutRequest attempt={2} /></SessionGuardProvider></StrictMode>)
     await act(async () => {})

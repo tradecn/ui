@@ -1,9 +1,9 @@
-import { useRef } from "react"
+import { StrictMode, useRef } from "react"
 import { SessionNotice, type SessionNoticeProps } from "@/demos/session-guard"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createClock } from "@/registry/tradecn/lib/clock"
-import { DEFAULT_SESSION_GUARD_LABELS, DEFAULT_WARN_MS, SessionGuardProvider, SessionStatus, sessionStatus, useSessionGuard } from "@/registry/tradecn/ui/session-guard"
+import { DEFAULT_SESSION_GUARD_LABELS, DEFAULT_WARN_MS, SessionGuardProvider, SessionGuardReauthenticate, SessionGuardWarning, SessionStatus, sessionStatus, useSessionGuard } from "@/registry/tradecn/ui/session-guard"
 
 function SessionGuard(props: Omit<SessionNoticeProps, "fallbackFocusRef">) {
   const fallback = useRef<HTMLInputElement>(null)
@@ -148,7 +148,9 @@ describe("the guard", () => {
     fireEvent.click(button)
     expect(onReauthenticate).toHaveBeenCalledTimes(1)
     expect(button).toHaveTextContent("Signing in…")
-    expect(button).toBeDisabled()
+    // Held, not disabled, so it keeps focus through the request.
+    expect(button).toHaveAttribute("aria-disabled", "true")
+    expect(button).toBeEnabled()
     expect(button).toHaveAttribute("data-pending", "true")
     fireEvent.click(button)
     expect(onReauthenticate).toHaveBeenCalledTimes(1)
@@ -157,12 +159,203 @@ describe("the guard", () => {
       await Promise.resolve()
     })
     expect(button).toHaveTextContent("Stay signed in")
-    expect(button).toBeEnabled()
+    expect(button).not.toHaveAttribute("aria-disabled")
     expect(screen.queryByRole("alert")).toBeNull()
     // The session is what closes the banner: a new end, well ahead.
     rerender(<SessionGuard expiresAt={t + 10 * MINUTE} clock={clock} onReauthenticate={onReauthenticate} />)
     expect(root()).toHaveAttribute("data-session-phase", "live")
     expect(screen.queryByRole("status")).toBeNull()
+  })
+
+  it("hands focus to the fallback when renewing from the banner's own button removes the banner", async () => {
+    const clock = createClock(1000, () => t)
+    const onReauthenticate = vi.fn(async () => true)
+    const { rerender } = render(<SessionGuard expiresAt={T0 + MINUTE} clock={clock} onReauthenticate={onReauthenticate} />)
+    const stay = screen.getByRole("button", { name: "Stay signed in" })
+    act(() => stay.focus())
+    // The session renews, and the banner goes with its focused button; focus moves once it has gone.
+    rerender(<SessionGuard expiresAt={t + 10 * MINUTE} clock={clock} onReauthenticate={onReauthenticate} />)
+    await act(async () => {})
+    expect(screen.queryByRole("status")).toBeNull()
+    expect(screen.getByRole("textbox", { name: "Draft" })).toHaveFocus()
+  })
+
+  it("hands focus back where it came from when the banner closes with focus inside and no fallback", async () => {
+    const clock = createClock(1000, () => t)
+    const scene = (expiresAt: number) => (
+      <SessionGuardProvider expiresAt={expiresAt} clock={clock} onReauthenticate={async () => true}>
+        <button type="button">Before</button>
+        <SessionGuardWarning><SessionGuardReauthenticate>Stay</SessionGuardReauthenticate></SessionGuardWarning>
+      </SessionGuardProvider>
+    )
+    const { rerender } = render(scene(T0 + MINUTE))
+    const before = screen.getByRole("button", { name: "Before" })
+    act(() => before.focus())
+    act(() => screen.getByRole("button", { name: "Stay" }).focus())
+    rerender(scene(t + 10 * MINUTE))
+    await act(async () => {})
+    expect(screen.queryByRole("button", { name: "Stay" })).toBeNull()
+    expect(before).toHaveFocus()
+  })
+
+  it("keeps the action focused through the request, and a press while it is out runs nothing, your onClick included", async () => {
+    const clock = createClock(1000, () => t)
+    let settle: (ok: boolean) => void = () => {}
+    const onReauthenticate = vi.fn(() => new Promise<boolean>((resolve) => (settle = resolve)))
+    const onClick = vi.fn()
+    render(
+      <SessionGuardProvider expiresAt={T0 + MINUTE} clock={clock} onReauthenticate={onReauthenticate}>
+        <SessionGuardWarning><SessionGuardReauthenticate onClick={onClick}>Stay</SessionGuardReauthenticate></SessionGuardWarning>
+      </SessionGuardProvider>,
+    )
+    const stay = screen.getByRole("button", { name: "Stay" })
+    act(() => stay.focus())
+    fireEvent.click(stay)
+    expect(onClick).toHaveBeenCalledTimes(1)
+    expect(stay).toHaveAttribute("aria-disabled", "true")
+    expect(stay).not.toBeDisabled()
+    expect(stay).toHaveFocus()
+    fireEvent.click(stay)
+    expect(onClick).toHaveBeenCalledTimes(1)
+    expect(onReauthenticate).toHaveBeenCalledTimes(1)
+    // Refused, it is pressable again where it was.
+    await act(async () => {
+      settle(false)
+      await Promise.resolve()
+    })
+    expect(stay).not.toHaveAttribute("aria-disabled")
+    expect(stay).toHaveFocus()
+  })
+
+  it("tries where focus came from when the fallback can't take focus", async () => {
+    const clock = createClock(1000, () => t)
+    function Scene({ expiresAt }: { expiresAt: number }) {
+      const fallback = useRef<HTMLInputElement>(null)
+      return (
+        <SessionGuardProvider expiresAt={expiresAt} clock={clock} onReauthenticate={async () => true}>
+          <button type="button">Before</button>
+          <input ref={fallback} aria-label="Hidden draft" />
+          <SessionGuardWarning fallbackFocusRef={fallback}><SessionGuardReauthenticate>Stay</SessionGuardReauthenticate></SessionGuardWarning>
+        </SessionGuardProvider>
+      )
+    }
+    const { rerender } = render(<Scene expiresAt={T0 + MINUTE} />)
+    // A field hidden by a style takes no focus, though nothing in its markup says so.
+    vi.spyOn(screen.getByRole("textbox", { name: "Hidden draft" }), "focus").mockImplementation(() => {})
+    const before = screen.getByRole("button", { name: "Before" })
+    act(() => before.focus())
+    act(() => screen.getByRole("button", { name: "Stay" }).focus())
+    rerender(<Scene expiresAt={t + 10 * MINUTE} />)
+    await act(async () => {})
+    expect(before).toHaveFocus()
+  })
+
+  it("forgets where focus came from once it arrives again from no element", async () => {
+    const clock = createClock(1000, () => t)
+    const scene = (expiresAt: number) => (
+      <SessionGuardProvider expiresAt={expiresAt} clock={clock} onReauthenticate={async () => true}>
+        <button type="button">Before</button>
+        <SessionGuardWarning><SessionGuardReauthenticate>Stay</SessionGuardReauthenticate></SessionGuardWarning>
+      </SessionGuardProvider>
+    )
+    const { rerender } = render(scene(T0 + MINUTE))
+    const before = screen.getByRole("button", { name: "Before" })
+    const stay = screen.getByRole("button", { name: "Stay" })
+    act(() => before.focus())
+    act(() => stay.focus())
+    // Focus comes back into the banner from another window, which names no element.
+    fireEvent.focusIn(stay, { relatedTarget: null })
+    rerender(scene(t + 10 * MINUTE))
+    await act(async () => {})
+    expect(before).not.toHaveFocus()
+  })
+
+  it("keeps a press on the held action from everything above it, as a disabled button would", async () => {
+    const clock = createClock(1000, () => t)
+    let settle: (ok: boolean) => void = () => {}
+    const onReauthenticate = vi.fn(() => new Promise<boolean>((resolve) => (settle = resolve)))
+    const above = vi.fn()
+    render(
+      <SessionGuardProvider expiresAt={T0 + MINUTE} clock={clock} onReauthenticate={onReauthenticate}>
+        <div onClick={above}><SessionGuardWarning><SessionGuardReauthenticate>Stay</SessionGuardReauthenticate></SessionGuardWarning></div>
+      </SessionGuardProvider>,
+    )
+    const stay = screen.getByRole("button", { name: "Stay" })
+    fireEvent.click(stay)
+    expect(above).toHaveBeenCalledTimes(1)
+    fireEvent.click(stay)
+    expect(above).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      settle(false)
+      await Promise.resolve()
+    })
+  })
+
+  it("counts focus the fallback hands on to something inside it", async () => {
+    const clock = createClock(1000, () => t)
+    function Scene({ expiresAt }: { expiresAt: number }) {
+      const fallback = useRef<HTMLDivElement>(null)
+      return (
+        <SessionGuardProvider expiresAt={expiresAt} clock={clock} onReauthenticate={async () => true}>
+          <button type="button">Before</button>
+          <div ref={fallback} tabIndex={-1} data-testid="panel"><input aria-label="Inner" /></div>
+          <SessionGuardWarning fallbackFocusRef={fallback}><SessionGuardReauthenticate>Stay</SessionGuardReauthenticate></SessionGuardWarning>
+        </SessionGuardProvider>
+      )
+    }
+    const { rerender } = render(<Scene expiresAt={T0 + MINUTE} />)
+    const inner = screen.getByRole("textbox", { name: "Inner" })
+    // A panel that sends focus on to its first field.
+    vi.spyOn(screen.getByTestId("panel"), "focus").mockImplementation(() => inner.focus())
+    act(() => screen.getByRole("button", { name: "Before" }).focus())
+    act(() => screen.getByRole("button", { name: "Stay" }).focus())
+    rerender(<Scene expiresAt={t + 10 * MINUTE} />)
+    await act(async () => {})
+    expect(inner).toHaveFocus()
+  })
+
+  it("skips a fallback in another document for where focus came from", async () => {
+    const clock = createClock(1000, () => t)
+    const away = document.implementation.createHTMLDocument("away")
+    const elsewhere = away.createElement("input")
+    away.body.append(elsewhere)
+    const fallback = { current: elsewhere }
+    const scene = (expiresAt: number) => (
+      <SessionGuardProvider expiresAt={expiresAt} clock={clock} onReauthenticate={async () => true}>
+        <button type="button">Before</button>
+        <SessionGuardWarning fallbackFocusRef={fallback}><SessionGuardReauthenticate>Stay</SessionGuardReauthenticate></SessionGuardWarning>
+      </SessionGuardProvider>
+    )
+    const { rerender } = render(scene(T0 + MINUTE))
+    const before = screen.getByRole("button", { name: "Before" })
+    act(() => before.focus())
+    act(() => screen.getByRole("button", { name: "Stay" }).focus())
+    rerender(scene(t + 10 * MINUTE))
+    await act(async () => {})
+    expect(before).toHaveFocus()
+  })
+
+  it("leaves focus where the banner's own content put it when StrictMode replays its effects", async () => {
+    const clock = createClock(1000, () => t)
+    function Scene({ expiresAt }: { expiresAt: number }) {
+      const fallback = useRef<HTMLInputElement>(null)
+      return (
+        <StrictMode>
+          <SessionGuardProvider expiresAt={expiresAt} clock={clock} onReauthenticate={async () => true}>
+            <input ref={fallback} aria-label="Fallback" />
+            <SessionGuardWarning fallbackFocusRef={fallback}><input aria-label="Code" autoFocus /></SessionGuardWarning>
+          </SessionGuardProvider>
+        </StrictMode>
+      )
+    }
+    // Live first, so the fallback is already mounted when the banner arrives, as on a desk.
+    const { rerender } = render(<Scene expiresAt={T0 + 10 * MINUTE} />)
+    expect(screen.queryByRole("status")).toBeNull()
+    // Into the warning window: the banner mounts and its content takes focus, and the replay runs the banner's cleanup on
+    // a banner that stays, so nothing moves.
+    rerender(<Scene expiresAt={T0 + MINUTE} />)
+    await act(async () => {})
+    expect(screen.getByRole("textbox", { name: "Code" })).toHaveFocus()
   })
 
   it("prints a refusal, and a rejection, as an alert beside the button, and forgets it once the session is live again", async () => {

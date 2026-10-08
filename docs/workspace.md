@@ -117,7 +117,7 @@ Serve an empty same-origin `/popout.html` page, such as `public/popout.html` in 
 | `seed` | `(api: WorkspaceApi) => void` | None | Builds the initial layout when none can be restored. |
 | `onReady` | `(api: WorkspaceApi) => void` | None | Receives the API after the initial load or seed call returns. |
 | `onLayoutChange` | `(layout: WorkspaceLayout) => void` | None | Receives layouts for you to save. |
-| `layoutChangeDelay` | `number` | `250` | Debounce interval in milliseconds, captured at initialization. |
+| `layoutChangeDelay` | `number` | `250` | Debounce interval in milliseconds, captured at initialization. A value that isn't a finite number at or above zero reads as the default, and one above 2,147,483,647, the longest delay a timer takes, reads as that. |
 | `onLayoutError` | `(reason: unknown) => void` | None | Receives load failures and synchronous errors while producing or saving a layout. |
 | `watermark` | `ReactNode` | `null` | Content shown when the main grid has no visible groups, including when all panels float or pop out. |
 | `locked` | `boolean` | `false` | Disables resizing with grid splitters. |
@@ -186,7 +186,7 @@ An unregistered kind renders a placeholder and uses the same tab component, so o
 | Option | Type | Default | Purpose |
 |---|---|---|---|
 | `kind` | `string` | Required | Selects the registered component. |
-| `id` | `string` | Lowest free `<kind>-N`, starting at 1 | Identifies the panel. |
+| `id` | `string` | Lowest free `<kind>-N`, starting at 1 | Identifies the panel. An id that names an `Object.prototype` member, such as `constructor` or `__proto__`, gets the default instead, since the dock keys its panels by plain objects. Keep the id `addPanel` returns: asking for such an id again opens another panel. |
 | `title` | `string` | `kind` | Names the panel and tab. |
 | `state` | `WorkspacePanelState` | `{}` | Initial JSON state. |
 | `position` | `{ reference?: string; direction: "left" \| "right" \| "above" \| "below" \| "within" }` | Active group | Places the panel beside a reference panel, or tabs it with `within`. Without `reference`, the direction is relative to the whole dock. |
@@ -228,9 +228,11 @@ The payload records these persistence boundaries so saved templates can travel b
 | `globalScoped` | Hotkey remaps, palette recents, theme, instrument conventions. | Store as the person's preferences. |
 | `excluded` | Market data, orders and status, positions, feed health, live link-group symbols. | Keep out of saved state. |
 
+Default ids are reused: once `ticket-1` closes, the next ticket opened is `ticket-1` again, so data you store by panel id outlives its panel and reaches the next one. Give a panel that keeps data outside the layout an id of its own when you open it, such as `ticket-${orderId}`.
+
 These boundaries document a policy; they do not filter panel state. You must keep session data out of `state` to make a layout portable. A panel's saved symbol is a starting value, separate from a link group's live symbol.
 
-`parseWorkspaceLayout(value)` accepts an object or JSON text and returns a copy, or `null`. It checks the version-1 envelope and basic dock structure, requires a nonempty kind for every panel, drops orphan records, defaults missing or empty titles to the kind, and cleans state. Valid recorded boundaries are preserved; missing or malformed boundaries use the current defaults. It does not fully validate dockview's internal layout. Only version 1 is currently supported.
+`parseWorkspaceLayout(value)` accepts an object or JSON text and returns a copy, or `null`. It checks the version-1 envelope and basic dock structure, refuses a panel id that names an `Object.prototype` member (`isReservedPanelId(id)` tells you whether an id does, and the dock's own `addPanel` throws on one), requires a nonempty kind for every panel, drops orphan records, defaults missing or empty titles to the kind, and cleans state. Valid recorded boundaries are preserved; missing or malformed boundaries use the current defaults. It does not fully validate dockview's internal layout. Only version 1 is currently supported.
 
 Both `defaultLayout` and `api.load` use this parser. If parsing fails or dockview refuses the layout, `api.load` clears the workspace, calls `onLayoutError`, and returns `false`. At initialization, a missing or failed layout falls back to `seed(api)`; later `api.load` calls do not seed.
 
@@ -253,7 +255,7 @@ const BINDINGS: HotkeyBinding[] = [
 useHotkey("workspace.next", () => api.focusNext())
 ```
 
-`focusPanel(id)` activates the panel and moves keyboard focus inside it; clicking ordinary header tab contents does the same. Its `panel:<kind>` bindings can then answer. Use `focusNext()` or `focusNext(-1)` to move in dockview's order, and bind `addPanel` or `closePanel` as needed. Dockview's optional enterprise keymap is not enabled; the registry supplies the binding list for your palette or help overlay.
+`focusPanel(id)` activates the panel and moves keyboard focus inside it; clicking ordinary header tab contents does the same. For a popped-out panel it focuses the panel's element in the popout but doesn't raise that window. Its `panel:<kind>` bindings can then answer. Use `focusNext()` or `focusNext(-1)` to move in dockview's order, and bind `addPanel` or `closePanel` as needed. Dockview's optional enterprise keymap is not enabled; the registry supplies the binding list for your palette or help overlay.
 
 For newly created panels, `addPanel`'s default `focus: true` waits for the panel to render. Explicit focus calls in `onReady` or a child's first layout effect can activate a panel before its body has registered a focus target.
 

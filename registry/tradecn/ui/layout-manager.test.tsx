@@ -211,6 +211,11 @@ describe("LayoutManager", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }))
     expect(screen.getByRole("alert")).toHaveTextContent("That is not a workspace layout.")
     expect(onTemplatesChange).not.toHaveBeenCalled()
+    // A panel named by an Object.prototype member is one no workspace can show, so the layout is refused up front.
+    fireEvent.change(paste, { target: { value: JSON.stringify(THREE).replaceAll('"book-1"', '"__proto__"') } })
+    fireEvent.click(screen.getByRole("button", { name: "Add" }))
+    expect(screen.getByRole("alert")).toHaveTextContent("That is not a workspace layout.")
+    expect(onTemplatesChange).not.toHaveBeenCalled()
     fireEvent.change(paste, { target: { value: JSON.stringify(THREE) } })
     fireEvent.change(screen.getByRole("textbox", { name: "Imported layout name" }), { target: { value: "Pasted" } })
     fireEvent.click(screen.getByRole("button", { name: "Add" }))

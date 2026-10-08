@@ -15,7 +15,10 @@ export const WORKSPACE_LAYOUT_VERSION = 1
 export const WORKSPACE_PERSISTENCE_BOUNDARIES = {
   /** In the layout. `onLayoutChange` hands over a fresh one when any of these changes. */
   autosave: ["dock-arrangement", "floating-and-popout-positions", "panel-kinds", "panel-titles", "panel-state"],
-  /** Belongs to one workspace and is not in the layout. Store it beside the layout, keyed by panel id. */
+  /**
+   * Belongs to one workspace and is not in the layout. Store it beside the layout, keyed by panel id. Default ids are
+   * reused once a panel closes, so give a panel that keeps such data an id of its own.
+   */
   workspaceScoped: ["grid-column-state", "selection", "scroll-position", "ticket-drafts"],
   /** Belongs to the person, whichever workspace is open. */
   globalScoped: ["hotkey-remaps", "palette-recents", "theme", "instrument-conventions"],
@@ -135,6 +138,9 @@ export function parseWorkspaceLayout(value: unknown): WorkspaceLayout | null {
   if (!isObject(raw) || raw.kind !== WORKSPACE_LAYOUT_KIND || raw.version !== WORKSPACE_LAYOUT_VERSION) return null
   const dock = raw.dockview
   if (!isObject(dock) || !isObject(dock.grid) || !("root" in dock.grid) || !isObject(dock.panels) || !isObject(raw.panels)) return null
+  // The dock keys its panels by plain objects, so an id that names an Object.prototype member breaks it, and a record
+  // under `__proto__` would set this object's prototype: such a layout is not one the workspace can show.
+  if (Object.keys(dock.panels).some(isReservedPanelId)) return null
   const panels: Record<string, WorkspacePanelRecord> = {}
   for (const id of Object.keys(dock.panels)) {
     const record = raw.panels[id]
@@ -154,6 +160,11 @@ export function parseWorkspaceLayout(value: unknown): WorkspaceLayout | null {
 export function unknownPanelKinds(layout: WorkspaceLayout, kinds: Iterable<string>): string[] {
   const known = new Set(kinds)
   return [...new Set(Object.values(layout.panels).map((record) => record.kind))].filter((kind) => !known.has(kind)).sort()
+}
+
+/** Whether an id names an `Object.prototype` member (`__proto__`, `constructor`, `toString`, …), which no panel can carry: the dock keys its panels by plain objects. */
+export function isReservedPanelId(id: string): boolean {
+  return id in Object.prototype
 }
 
 /** `book-1`, then `book-2`: the lowest number not taken. */

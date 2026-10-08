@@ -697,6 +697,72 @@ describe("Workspace", () => {
     expect(screen.getByText("No panel is registered for the kind “constructor”.")).toBeInTheDocument()
   })
 
+  it.each([Number.NaN, -1, Number.POSITIVE_INFINITY])("reads a save delay of %s, which isn't a finite number at or above zero, as the default", async (layoutChangeDelay) => {
+    const { api, onLayoutChange } = await mount({ layoutChangeDelay })
+    act(() => vi.advanceTimersByTime(1000))
+    onLayoutChange.mockClear()
+    act(() => {
+      api.addPanel({ kind: "chart" })
+    })
+    act(() => vi.advanceTimersByTime(249))
+    expect(onLayoutChange).not.toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(1))
+    expect(onLayoutChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("caps a save delay past 2^31 - 1 ms there, where a timer would fire at once", async () => {
+    const { api, onLayoutChange } = await mount({ layoutChangeDelay: 2 ** 31 })
+    act(() => vi.advanceTimersByTime(1000))
+    onLayoutChange.mockClear()
+    act(() => {
+      api.addPanel({ kind: "chart" })
+    })
+    act(() => vi.advanceTimersByTime(60_000))
+    expect(onLayoutChange).not.toHaveBeenCalled()
+  })
+
+  it("opens a panel asked for under a null id under its default id", async () => {
+    const { api } = await mount()
+    let opened = ""
+    act(() => {
+      opened = api.addPanel({ kind: "book", id: null as never })
+    })
+    expect(opened).toBe("book-2")
+  })
+
+  it.each(["__proto__", "constructor", "toString", "hasOwnProperty"])("opens a panel asked for under the id %s under its default id instead", async (id) => {
+    // The dock keys its panels by plain objects: an id naming an Object.prototype member would break it.
+    const { api } = await mount()
+    let opened = ""
+    act(() => {
+      opened = api.addPanel({ kind: "book", id, title: "Odd book" })
+    })
+    // The mounted desk already holds book-1.
+    expect(opened).toBe("book-2")
+    expect(document.querySelector("[data-workspace-panel='book-2'] [data-slot='tradecn-panel']")).not.toBeNull()
+  })
+
+  it("refuses a layout that names a panel by an Object.prototype member, in the parser and in a load", async () => {
+    const { api, onLayoutError } = await mount()
+    const saved = JSON.parse(JSON.stringify(api.toLayout()))
+    for (const id of ["__proto__", "constructor"]) {
+      const odd = JSON.parse(JSON.stringify(saved).replaceAll('"book-1"', JSON.stringify(id)))
+      expect(Object.keys(odd.dockview.panels)).toContain(id)
+      expect(parseWorkspaceLayout(odd)).toBeNull()
+      expect(parseWorkspaceLayout(JSON.stringify(odd))).toBeNull()
+    }
+    expect(parseWorkspaceLayout(saved)).not.toBeNull()
+    // A load refuses it as it refuses any layout it can't read: the workspace is cleared and the error reported.
+    const odd = JSON.parse(JSON.stringify(saved).replaceAll('"book-1"', '"constructor"'))
+    let loaded = true
+    act(() => {
+      loaded = api.load(odd)
+    })
+    expect(loaded).toBe(false)
+    expect(onLayoutError).toHaveBeenCalledTimes(1)
+    expect(api.panels()).toEqual([])
+  })
+
   it("keeps the keyboard where it is when an ensure-open call repeats an id with focus false", async () => {
     const { api } = await mount()
     act(() => {

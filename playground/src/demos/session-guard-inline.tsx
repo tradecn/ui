@@ -10,7 +10,7 @@ export default function SessionGuardInlineDemo() {
     <SessionGuardProvider expiresAt={expiresAt} onReauthenticate={async () => { setExpiresAt(Date.now() + 300_000); return true }}>
       <div className="w-sm max-w-full space-y-3 text-xs">
         <label className="flex flex-col gap-1.5">Desk note<textarea ref={draft} value={note} onChange={event => setNote(event.target.value)} className="min-h-20 rounded border border-input bg-background p-2" /></label>
-        <SessionGuardWarning className="grid gap-3 p-3">
+        <SessionGuardWarning fallbackFocusRef={draft} className="grid gap-3 p-3">
           <p className="font-medium">Trading desk session</p>
           <div className="flex flex-wrap items-center justify-between gap-3"><RenewSession /><SessionGuardRemaining /></div>
           <SessionGuardError />
@@ -27,5 +27,5 @@ export default function SessionGuardInlineDemo() {
 
 function RenewSession() {
   const { pending, reauthenticate } = useSessionGuard()
-  return <button type="button" disabled={pending} onClick={() => void reauthenticate()} className="rounded border border-border bg-background px-3 py-1.5 disabled:opacity-50">{pending ? "Connecting…" : "Renew session"}</button>
+  return <button type="button" aria-disabled={pending || undefined} onClick={() => { if (!pending) void reauthenticate() }} className="rounded border border-border bg-background px-3 py-1.5 aria-disabled:opacity-50">{pending ? "Connecting…" : "Renew session"}</button>
 }

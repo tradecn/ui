@@ -3370,6 +3370,30 @@ test("a timed session dialog keeps keyboard focus and returns it to the persiste
   await expect(scene.locator("[data-session-phase]")).toHaveAttribute("data-session-phase", "none")
 })
 
+// The banner's own action renews through a sign-in that takes 100 ms: a disabled button would lose focus to the page
+// as the request went out, so the action is held instead. A refusal leaves focus on it, and a renewal hands focus to
+// the fallback as the banner closes.
+test("a session banner's own action keeps focus through an awaited sign-in and hands it to the fallback on renewal", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='session-guard']")
+  const guard = scene.locator("[data-session-phase]")
+  const asked = scene.locator("[data-session-asked]")
+  const note = scene.getByRole("textbox", { name: "A half-typed note" })
+  await expect(guard).toHaveAttribute("data-session-phase", "warning")
+  const banner = guard.getByRole("status")
+  const action = banner.locator("[data-slot='tradecn-session-guard-reauthenticate']")
+  await scene.getByRole("button", { name: "refuse the next sign-in" }).click()
+  await action.focus()
+  await page.keyboard.press("Enter")
+  await expect(asked).toHaveText("1")
+  await expect(banner.getByRole("alert")).toHaveText("That did not work. Try again.")
+  await expect(action).toBeFocused()
+  await page.keyboard.press("Enter")
+  await expect(asked).toHaveText("2")
+  await expect(guard).toHaveAttribute("data-session-phase", "live")
+  await expect(note).toBeFocused()
+})
+
 // The installed window set over a pretend shell in the scene: restore opens the main window first and the blotters after
 // it, a snapshot carries the bounds the shell reports and parses back as a set, a close through the set and one the
 // shell made on its own both leave it, and an empty set snapshots as nothing.

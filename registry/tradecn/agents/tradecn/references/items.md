@@ -318,4 +318,4 @@ Exports: `LINK_GROUPS`, `cycleLinkGroup`, `normalizeSymbol`, `isLinkMessage`, `c
 
 Installed with `layout-manager`, `workspace`.
 
-Exports: `WORKSPACE_LAYOUT_KIND`, `WORKSPACE_LAYOUT_VERSION`, `WORKSPACE_PERSISTENCE_BOUNDARIES`, `toPanelState`, `parseWorkspaceLayout`, `unknownPanelKinds`, `nextPanelId`, `createWorkspacePanelStore`, `debounce`.
+Exports: `WORKSPACE_LAYOUT_KIND`, `WORKSPACE_LAYOUT_VERSION`, `WORKSPACE_PERSISTENCE_BOUNDARIES`, `toPanelState`, `parseWorkspaceLayout`, `unknownPanelKinds`, `isReservedPanelId`, `nextPanelId`, `createWorkspacePanelStore`, `debounce`.
