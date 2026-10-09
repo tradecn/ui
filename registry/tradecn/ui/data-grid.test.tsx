@@ -742,6 +742,12 @@ describe("DataGrid", () => {
       scroller.scrollLeft = 0
       act(() => set({ ...EMPTY_COLUMN_STATE, hidden: ["c1"] }))
       expect(scroller.scrollLeft).toBe(0)
+      // Nor when the parent puts c6 there in another order, c1 and c2 swapped.
+      act(() => set({ ...EMPTY_COLUMN_STATE, order: ["c0", "c2", "c1", "c3", "c4", "c6", "c5", "c7"] }))
+      expect(scroller.scrollLeft).toBe(0)
+      // The order it asked for lands, and c6, at 500 to 600, comes into view.
+      act(() => set({ ...EMPTY_COLUMN_STATE, order: ["c0", "c1", "c2", "c3", "c4", "c6", "c5", "c7"] }))
+      expect(scroller.scrollLeft).toBe(300)
     })
 
     it("brings a column into view for an open() a cell calls from its own layout effect, in the commit that shows its column", () => {
