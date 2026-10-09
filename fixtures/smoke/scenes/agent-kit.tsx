@@ -134,9 +134,10 @@ export function AgentKitScene() {
             </tr>
           </tbody>
         </table>
-        {/* A control labelled by its own child says what that child says: only a row's own cells are left out. */}
+        {/* A control labelled by its own child says what that child says, a hidden child that no text shows included: only a
+            row's own cells are left out. */}
         <button type="button" aria-labelledby={`${id}-own-buy ${id}-own-px`} className={cn(NUMERIC_CLASS, "text-up")}>
-          <span id={`${id}-own-buy`} className="sr-only">
+          <span id={`${id}-own-buy`} hidden>
             Buy
           </span>
           <span id={`${id}-own-px`} data-cue="own-label">

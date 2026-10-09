@@ -297,7 +297,7 @@ Move and remove actions use `<label>: <rule>`. Match their visible text to `labe
 
 Fields use `<field>: <rule>`, such as `Value: Rich to the market`. Highlights use their nonblank label, while unnamed items use kind and position.
 
-Use `useRulesEditor().labels` for your tab text, action children, empty states, and drag hint. A count's label is a template, with `{n}` for the matches and `{m}` for all the rows, or a function of those counts, for a language whose plurals a template can't hold; the defaults put one in the singular, as in `1 row matches`.
+Use `useRulesEditor().labels` for your tab text, action children, empty states, and drag hint. A count's label is a template or a function, for a language whose plurals a template can't hold: `matches` takes `{n}`, the rows that match, or `(n) => string`, and `shown` takes `{n}`, the rows shown, and `{m}`, all the rows, or `(n, m) => string`. The defaults put one in the singular, as in `1 row matches`.
 
 Operator words use `RULE_OP_LABELS`. Tone names, validation messages, and `ColumnChooser` labels have separate owners.
 

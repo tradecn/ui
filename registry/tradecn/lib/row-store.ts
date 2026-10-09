@@ -477,6 +477,9 @@ export function createFrameBatcher<T>(
   let handle: number | null = null
   // A hidden document runs no frames, so a timer stands in: whichever comes first flushes, and the other is cancelled.
   let timer: ReturnType<typeof setTimeout> | null = null
+  // The frame scheduled now. A frame the flush cancelled can still run where it can't be cancelled, as with a `raf`
+  // passed without its `caf`, and it finds another frame scheduled, or none, and flushes nothing.
+  let scheduled: object | null = null
 
   function reset() {
     upserts.clear()
@@ -487,6 +490,7 @@ export function createFrameBatcher<T>(
   }
 
   function flush() {
+    scheduled = null
     if (handle !== null) {
       caf(handle)
       handle = null
@@ -541,18 +545,26 @@ export function createFrameBatcher<T>(
         if (!gapMentioned) delete (meta as { gap?: boolean }).gap
       }
       if (handle === null && timer === null) {
-        handle = raf(() => {
+        const frame = {}
+        scheduled = frame
+        const requested = raf(() => {
+          if (scheduled !== frame) return
           handle = null
           flush()
         })
-        timer = setTimeout(() => {
-          timer = null
-          flush()
-        }, FRAME_FALLBACK_MS)
+        // A frame that ran as it was requested has flushed already, and leaves nothing to hold.
+        if (scheduled === frame) {
+          handle = requested
+          timer = setTimeout(() => {
+            timer = null
+            flush()
+          }, FRAME_FALLBACK_MS)
+        }
       }
     },
     flush,
     cancel() {
+      scheduled = null
       if (handle !== null) caf(handle)
       if (timer !== null) clearTimeout(timer)
       handle = null

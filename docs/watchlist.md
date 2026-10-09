@@ -204,7 +204,7 @@ Focus the grid itself, then press Delete or Backspace to request removal of the 
 
 `watchlistRemoveColumn` adds a `×` that shows on hover and requests removal of only that row. Buttons, menu items and grid deletion keys call `onRemove` with symbols; none changes the store.
 
-The grid passes the current selection, falling back to the focused row, to your menu renderer. Right-clicking plain row content requests focus for that row and, when selection is enabled, replaces the selection if that row was not already selected. Apply these requests when controlling selection or focus; until then, the menu uses the existing values.
+The grid passes the current selection to your menu renderer, or with nothing selected the row the menu opened on, which it keeps while the menu stays open, even after that row leaves. Right-clicking plain row content requests focus for that row and, when selection is enabled, replaces the selection if that row was not already selected. Apply these requests when controlling selection or focus; until then, a selection that doesn't hold the row stays what the menu acts on.
 
 The `×` is out of the tab order on purpose. The grid itself and its header controls have separate tab stops.
 

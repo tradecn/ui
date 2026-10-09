@@ -230,9 +230,9 @@ Set `hasCustom` when a supplied renderer can return `undefined`. Explicit `null`
 
 The renderer receives the grid's target rows and ids without action-permission filtering.
 
-Right-clicking plain row content requests focus for that row and, when selection is enabled, replaces the selection if that row was not already selected. The menu uses the resulting selection, falling back to row focus.
+The menu acts on the selection, or with nothing selected on the row it opened on, which it keeps while it stays open, even after that row leaves the view. Right-clicking plain row content requests focus for that row and, when selection is enabled, replaces the selection if that row was not already selected.
 
-Apply these requests when controlling selection or focus. Until then, the menu uses the existing values.
+Apply these requests when controlling selection or focus. Until then, a selection that doesn't hold the row stays what the menu acts on.
 
 Action invocation rechecks the store even if the displayed count has become stale.
 

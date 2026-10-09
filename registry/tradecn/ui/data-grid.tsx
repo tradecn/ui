@@ -662,10 +662,15 @@ function cellDomId(uid: string, rowId: RowId, index: number): string {
 }
 
 function messageOf(error: unknown, fallback: string): string {
-  // An Error with no words, as `new Error(response.statusText)` is over HTTP/2, says the fallback too.
-  if (error instanceof Error) return String(error.message ?? "").trim() || fallback
+  // An Error with no words, as `new Error(response.statusText)` is over HTTP/2, says the fallback too, and so does
+  // one whose message can't become text: the cell leaves pending whatever the rejection carries.
   if (typeof error === "string") return error.trim() || fallback
-  return fallback
+  if (!(error instanceof Error)) return fallback
+  try {
+    return String(error.message ?? "").trim() || fallback
+  } catch {
+    return fallback
+  }
 }
 
 function canEditCell<T>(col: ColumnDef<T> | undefined, row: T | undefined): col is ColumnDef<T> & { edit: CellEdit<T> } {

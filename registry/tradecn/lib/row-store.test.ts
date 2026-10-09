@@ -396,6 +396,47 @@ describe("frame batcher", () => {
     }
   }
 
+  it("lets a frame the timer's flush left behind flush nothing, so a newer batch waits for its own", () => {
+    vi.useFakeTimers()
+    try {
+      const apply = vi.fn()
+      // A raf with no caf: the frame a flush cancels stays queued and runs late.
+      const queue: (() => void)[] = []
+      const batcher = createFrameBatcher<Quote>(apply, { getRowId: (r) => r.id, raf: (cb) => queue.push(cb), caf: () => {} })
+      batcher.push({ upsert: [q("a", 1)] })
+      vi.advanceTimersByTime(250)
+      expect(apply).toHaveBeenCalledExactlyOnceWith({ upsert: [q("a", 1)] })
+      batcher.push({ upsert: [q("b", 2)] })
+      queue.shift()!()
+      expect(apply).toHaveBeenCalledTimes(1)
+      expect(batcher.pending()).toBe(true)
+      queue.shift()!()
+      expect(apply).toHaveBeenCalledTimes(2)
+      expect(apply).toHaveBeenLastCalledWith({ upsert: [q("b", 2)] })
+      // Its own timer then finds nothing left.
+      vi.advanceTimersByTime(1000)
+      expect(apply).toHaveBeenCalledTimes(2)
+      expect(batcher.pending()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("holds nothing after a frame that runs as it is requested", () => {
+    vi.useFakeTimers()
+    try {
+      const apply = vi.fn()
+      const batcher = createFrameBatcher<Quote>(apply, { getRowId: (r) => r.id, raf: (cb) => (cb(), 1) })
+      batcher.push({ upsert: [q("a", 1)] })
+      expect(apply).toHaveBeenCalledExactlyOnceWith({ upsert: [q("a", 1)] })
+      expect(batcher.pending()).toBe(false)
+      batcher.push({ upsert: [q("b", 2)] })
+      expect(apply).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("flushes on a timer when no frame comes, as in a hidden tab, and once", () => {
     vi.useFakeTimers()
     try {

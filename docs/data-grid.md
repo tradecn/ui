@@ -348,7 +348,7 @@ To handle a grid shortcut in a parent, call `preventDefault()` from `onKeyDownCa
 | Escape | Clear selection, once per press. |
 | Ctrl or Cmd+A | Select all rows in the view in multi mode, once per press. |
 | Alt+Left / Right | Move the focused column, keeping it in view, even when a controlled `columnState` takes the move later. Does nothing past either end or across the frozen columns, which lead whatever the order says. |
-| Alt+Shift+Left / Right | Resize the focused column by 8 px, keeping it in view. Does nothing at its minimum width. |
+| Alt+Shift+Left / Right | Resize the focused column by 8 px, keeping it in view. Alt+Shift+Left does nothing at the column's minimum width. |
 | Alt+S | Cycle a sortable column: ascending, descending, off, one step per press. Option+S on a Mac, by the key's place, as Alt+H is. |
 | Alt+H | Hide the focused column, once per press. |
 | Shift+F10 / Menu | Open the context menu on the focused row, once per press: at the focused cell, scrolled into view, or 8 px into the row's visible left edge before a column is chosen. |
@@ -396,7 +396,7 @@ Watchlist, Blotter, Positions, RfqStack, and AuditTrailGrid pass `labels` throug
 
 ### Exporting CSV
 
-`exportCsv(store, columns, ids)` returns the rows `ids` names as CSV text, quoted as RFC 4180 has it, with a header row of each column's title and a column for each definition except one whose definition says `hidden`. Pass `resolveColumns(columns, columnState)` for the columns as the grid shows them, in its order and without the ones the column state hides. A cell is the column's `format` of its value, else the value as text, and nothing for null. A number's typographic minus goes out as the hyphen-minus where the cell then reads as one number, so a spreadsheet sums the negatives; one with a unit, as in −2.5mm, keeps its own. A cell a spreadsheet would run as a formula, one led by `=`, `+`, `-`, `@`, a tab, or a carriage return, goes out behind an apostrophe, unless the whole cell reads as one number.
+`exportCsv(store, columns, ids)` returns the rows `ids` names as CSV text, quoted as RFC 4180 has it, with a header row of each column's title and a column for each definition except one whose definition says `hidden`. Pass `resolveColumns(columns, columnState)` for the columns as the grid shows them, in its order and without the ones the column state hides. A cell is the column's `format` of its value, else the value as text, and nothing for null. A number's typographic minus goes out as the hyphen-minus where the cell then reads as one number, so a spreadsheet sums the negatives; one with a unit, as in −2.5mm, keeps its own. A cell a spreadsheet would run as a formula, one led by `=`, `+`, `-`, `@`, a tab, or a carriage return, goes out behind an apostrophe, unless a sign leads a cell that is wholly one plain number, digits with an optional point and exponent, which in a column whose value is a number may also group its thousands with commas.
 
 ### What it does not do
 

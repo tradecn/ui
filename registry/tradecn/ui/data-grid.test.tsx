@@ -1078,6 +1078,27 @@ describe("DataGrid", () => {
     expect(cell).not.toHaveAttribute("data-pending")
   })
 
+  it.each([
+    ["has no way to become text", Object.create(null)],
+    ["throws on the way", { toString: () => { throw new Error("no") } }],
+  ])("says the grid's word for a refusal whose error's message %s, never leaving the cell pending", async (_, message) => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(1, store)
+    const odd = new Error("x")
+    ;(odd as unknown as { message: unknown }).message = message
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: (r) => r.px, edit: { parse: (t) => Number(t) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => Promise.reject(odd)} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "7" })
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Price" }), { key: "Enter" })
+    await act(async () => {})
+    const cell = document.querySelector('[data-row-id="r0"] [data-col="px"]')
+    expect(cell).toHaveAttribute("data-rejected", "Rejected")
+    expect(cell).not.toHaveAttribute("data-pending")
+  })
+
   it("says the grid's word for a refusal whose error is empty", async () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     seed(1, store)
