@@ -352,7 +352,11 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     const unheard = (node: Element) => Boolean(node.closest("[aria-hidden=true]"))
     // A row named by its own cells says only what each cell says, and the cells are read one by one; any other element
     // labelled by its own child, a button by its "Buy", says what that child says.
-    const isRow = (node: Element) => roleOf(node) === "row" || (!node.hasAttribute("role") && node.tagName === "TR")
+    // A row as rowOf finds one: by its role, or by its tag where no role it carries is known, an empty one included.
+    const isRow = (node: Element) => {
+      const role = roleOf(node)
+      return role ? role === "row" : node.tagName === "TR"
+    }
     // An accessible label or description that states the direction: its own, one it points to, or a native label.
     const says = (node: Element | null) =>
       Boolean(

@@ -2,7 +2,7 @@ import { act, fireEvent, render, renderHook, screen, within } from "@testing-lib
 import { StrictMode, useLayoutEffect } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useActiveInquiry } from "@/registry/tradecn/hooks/use-active-inquiry"
-import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
+import { columnName, type GridRules } from "@/registry/tradecn/lib/grid-rules"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
 import { RfqStack, byArrival, bySize, byTimeLeft, formatStackSize, rfqStackColumns, rfqThresholdFilter, stackOrder, useRfqStackView, type RfqStackProps, type RfqStackRow } from "@/registry/tradecn/ui/rfq-stack"
 
@@ -59,6 +59,10 @@ const rows = () => document.querySelectorAll("[data-row-id]")
 describe("rfqStackColumns", () => {
   it("is the inquiry's columns, in order, as a list to spread", () => {
     expect(rfqStackColumns().map((c) => c.key)).toEqual(["time", "client", "instrument", "side", "size", "bid", "ask", "status", "timeLeft", "auto"])
+  })
+
+  it("names the auto column in words, where its header is markup", () => {
+    expect(columnName(rfqStackColumns().find((c) => c.key === "auto")!)).toBe("Auto")
   })
 
   it("prints the null token for an arrival time that is not an instant, and never hands one to a formatter", () => {

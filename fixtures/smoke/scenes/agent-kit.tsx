@@ -8,15 +8,17 @@ import { NUMERIC_CLASS } from "@/lib/format"
 // out, a file picker and screen-reader-only small print among it. The unseen one says its direction only to a screen
 // reader, through a description it points to, a native label, a faded sign, a sign painted transparent, a grid rule's
 // highlight that its description explains, a description on the run around the value, a label on an element that
-// takes its role from a fallback token, a cell marked with its side, a row whose label says the direction and a value
-// hidden from a screen reader in a cell marked with its side: that passes by default and fails under visibleCue.
+// takes its role from a fallback token, a cell marked with its side, a row whose label says the direction, a value
+// hidden from a screen reader in a cell marked with its side, and a button labelled by its own hidden "Buy": that
+// passes by default and fails under visibleCue.
 // The broken one breaks three rules on purpose: numbers colored up with nothing else saying so (in text, in a field,
 // in SVG text, with units, on a fill four boxes out, in a price split across two spans at its dash, behind a
 // description that points at nothing, a label that names no direction, a label on a plain span, which no screen
 // reader hears, a side marked on a container rather than on the value, a marker whose value names no direction,
 // empty or unknown, a highlight from a rule whose tone is no direction, a highlight from a rule whose tone is the
 // other direction, on text and on a fill, a hidden sign, and a faded sign, a description and a marker under
-// aria-hidden, which reach nobody); an icon button and a field with no name; and text under the floor, an SVG label
+// aria-hidden, which reach nobody, and a row, by its role or by its tag under an empty one, named by its own cells,
+// whose side in one cell is no cue for the next); an icon button and a field with no name; and text under the floor, an SVG label
 // drawn at half size and small print the spec shrinks at run time, a select's, a placeholder's, a file picker's and a
 // file picker's button alone among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
 
@@ -156,6 +158,19 @@ export function AgentKitScene() {
             </span>
           </span>
         </div>
+        {/* The same row as a table row whose role is empty, which a browser reads as the row its tag makes it. */}
+        <table>
+          <tbody>
+            <tr role="" aria-labelledby={`${id}-tr-side ${id}-tr-size`}>
+              <td id={`${id}-tr-side`}>BUY</td>
+              <td id={`${id}-tr-size`}>
+                <span data-cue="own-cells-tr" className={cn(NUMERIC_CLASS, "text-down")}>
+                  3,000
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
         <input readOnly value="0-02" className={cn(NUMERIC_CLASS, "w-14 bg-transparent text-up")} />
         <svg width="40" height="14">
           <text x="0" y="11" className="fill-up">

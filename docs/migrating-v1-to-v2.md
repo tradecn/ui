@@ -426,7 +426,7 @@ Open shadow roots use the same ownership rules. For a closed shadow root, mark i
 
 Both exclude this grid's row actions and row menu. Without a marker, the hidden content is indistinguishable from its plain host.
 
-Row context menus now open only from plain content in a current row. Controls retain their own menus, while headers, footers and empty space no longer open the menu for the previous selection. With nothing selected, the menu acts on the row it opened on where v1 used the focused row, so a parent that controls focus gets the row under the pointer before it applies the right-click's request, and the menu keeps that row while it stays open.
+Row context menus now open only from plain content in a current row. Controls retain their own menus, while headers, footers and empty space no longer open the menu for the previous selection. With nothing selected, the menu acts on the row it opened on where v1 used the focused row, so with focus controlled, the menu acts on the row under the pointer before the parent applies the right-click's request, and keeps that row while it stays open.
 
 With `renderContextMenu`, rejected starts stop React bubbling at the grid body after child handlers run. This covers `contextmenu`, non-mouse `pointerdown`, and single-touch `touchstart` events.
 

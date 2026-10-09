@@ -389,7 +389,7 @@ Opening an editor selects its text unless you opened it by typing a character.
 | `resetColumns` | `Reset columns`, then `(2 hidden)` while columns are hidden | The header menu's reset item; `{n}` the hidden columns |
 | `rowCount` | `1 row`, `12 rows`, then `, 3 new` when rows arrived | What a screen reader hears once the count settles; `{n}` the rows, `{m}` the arrivals |
 | `newRows` | `3 new` | The button that takes a paused tape back to its end; `{n}` the arrivals |
-| `rejected` | `Rejected` | A refused edit whose error carries no message of its own, or an empty one |
+| `rejected` | `Rejected` | A refused edit whose error is an `Error` with no message, a blank string, or anything else |
 | `noRows` | `No rows` | An empty view, unless `emptyState` says otherwise; the grid's description while it is empty |
 
 Watchlist, Blotter, Positions, RfqStack, and AuditTrailGrid pass `labels` through to the grid, and ParameterGrid's and QuotePanel's `labels` take these beside their own.

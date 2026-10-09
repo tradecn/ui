@@ -3829,6 +3829,7 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
     "direction tradecn-agent-kit span[data-cue=named]",
     "direction tradecn-agent-kit span[data-cue=odd-side][data-side=left]",
     "direction tradecn-agent-kit span[data-cue=other-rule]",
+    "direction tradecn-agent-kit span[data-cue=own-cells-tr]",
     "direction tradecn-agent-kit span[data-cue=own-cells]",
     "direction tradecn-agent-kit span[data-cue=side]",
     "direction tradecn-agent-kit span[data-cue=ticks]",

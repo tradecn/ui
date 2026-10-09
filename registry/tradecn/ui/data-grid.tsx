@@ -937,6 +937,8 @@ function RowInner<T>(p: RowProps<T>) {
   // A row rule paints under whatever your own props say: yours are read last, so they win a class.
   const rule = p.rules?.getRowProps(row)
   const rowLabel = p.getRowLabel?.(row, p.id) || undefined
+  // Each cell's id once per render, for the row's label and the cell alike.
+  const cellIds = p.columns.map((_, i) => cellDomId(p.uid, p.id, i))
   return (
     <div
       ref={ref}
@@ -949,7 +951,7 @@ function RowInner<T>(p: RowProps<T>) {
       aria-description={extra?.["aria-description"] ?? rule?.["aria-description"]}
       aria-label={rowLabel}
       // Without a label of its own a row is named by its data cells, never by its selection box.
-      aria-labelledby={rowLabel ? undefined : p.columns.map((_, i) => cellDomId(p.uid, p.id, i)).join(" ") || undefined}
+      aria-labelledby={rowLabel ? undefined : cellIds.join(" ") || undefined}
       data-focused={p.focused || undefined}
       aria-rowindex={p.index + 2}
       aria-selected={p.selectable ? p.selected : undefined}
@@ -973,7 +975,7 @@ function RowInner<T>(p: RowProps<T>) {
           col={col}
           row={row}
           rowId={p.id}
-          id={cellDomId(p.uid, p.id, i)}
+          id={cellIds[i]!}
           colIndex={i + (p.selectionColumn ? 1 : 0)}
           left={p.lefts[i]}
           memory={p.memory}
