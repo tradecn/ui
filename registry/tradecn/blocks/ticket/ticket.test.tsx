@@ -56,9 +56,9 @@ describe("Ticket", () => {
     expect(lastDraft(onDraftChange).price).toBe(99.53125)
     fireEvent.keyDown(price(), { key: "ArrowDown", shiftKey: true })
     expect(price().value).toBe("99-12")
-    fireEvent.click(screen.getByRole("button", { name: "Price up one tick" }))
+    fireEvent.click(screen.getByRole("button", { name: "Price up one step" }))
     expect(price().value).toBe("99-12+")
-    fireEvent.click(screen.getByRole("button", { name: "Price down one tick" }))
+    fireEvent.click(screen.getByRole("button", { name: "Price down one step" }))
     expect(price().value).toBe("99-12")
     // A decimal is taken too, and comes back in the notation.
     type(price(), "99.75")
@@ -182,14 +182,14 @@ describe("Ticket", () => {
     expect(screen.queryByText("This order type needs a price.")).toBeNull()
   })
 
-  it("checks the draft as the action runs: a quantity above zero, a price when the type takes one", () => {
+  it("checks the draft as the action runs: a whole quantity above zero, a price when the type takes one", () => {
     const { run } = mount()
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
     expect(run).not.toHaveBeenCalled()
-    expect(screen.getByText("Enter a quantity above zero.")).toBeInTheDocument()
+    expect(screen.getByText("Enter a whole number above zero.")).toBeInTheDocument()
     expect(screen.getByText("This order type needs a price.")).toBeInTheDocument()
     type(quantity(), "5")
-    expect(screen.queryByText("Enter a quantity above zero.")).toBeNull()
+    expect(screen.queryByText("Enter a whole number above zero.")).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
     expect(run).not.toHaveBeenCalled()
     type(price(), "99-16+")
@@ -211,16 +211,26 @@ describe("Ticket", () => {
     expect(screen.getByRole("button", { name: "Sell it" })).toBeInTheDocument()
   })
 
-  it("prints the status and the message as given, and rings once in primary when acknowledged", () => {
-    const { rerender } = mount({ status: "Sent" })
+  it("prints the status and the message as given, says them from a region there since the first render, and rings once in primary when acknowledged", () => {
+    const { rerender } = mount()
     const root = screen.getByRole("group", { name: "Order ticket ZN" })
-    expect(screen.getByText("Sent")).toBeInTheDocument()
+    // The region is in the page before the server says anything, so its first word after a send is heard.
+    const said = screen.getByRole("status")
+    expect(said).toBeEmptyDOMElement()
+    rerender({ status: "Sent" })
+    expect(screen.getByRole("status")).toBe(said)
+    expect(said).toHaveTextContent("Sent")
+    // The line a sighted trader reads is hidden from a screen reader, which reads the region instead.
+    const shown = document.querySelector("[data-ticket-status]")!
+    expect(shown).toHaveTextContent("Sent")
+    expect(shown.closest("[aria-hidden='true']")).not.toBeNull()
     expect(root).toHaveAttribute("data-status", "Sent")
     expect(HTMLElement.prototype.animate).not.toHaveBeenCalled()
     rerender({ status: "Rejected", message: "Price outside the band" })
-    expect(screen.getByText("Rejected")).toBeInTheDocument()
+    expect(said).toHaveTextContent("Rejected")
+    expect(said).toHaveTextContent("Price outside the band")
     expect(root).toHaveAttribute("data-status", "Rejected")
-    expect(screen.getByText("Price outside the band")).toBeInTheDocument()
+    expect(document.querySelector("[data-ticket-message]")).toHaveTextContent("Price outside the band")
     expect(HTMLElement.prototype.animate).not.toHaveBeenCalled()
     rerender({ status: "Acknowledged", acknowledged: "ORD-1" })
     expect(HTMLElement.prototype.animate).toHaveBeenCalledTimes(1)
@@ -232,6 +242,94 @@ describe("Ticket", () => {
     expect(HTMLElement.prototype.animate).toHaveBeenCalledTimes(2)
     rerender({ status: undefined, acknowledged: "ORD-2" })
     expect(root).not.toHaveAttribute("data-status")
+    expect(said).toBeEmptyDOMElement()
+    // A count rings with no direction: the ring is an acknowledgement, never an up.
+    rerender({ acknowledged: 1 })
+    rerender({ acknowledged: 2 })
+    expect(HTMLElement.prototype.animate).toHaveBeenCalledTimes(4)
+    expect(document.querySelector("[data-ticket-announcer]")!.parentElement).toHaveAttribute("data-direction", "flat")
+  })
+
+  it("keeps the default for a word given as undefined", () => {
+    mount({ labels: { buy: undefined, ticket: undefined } })
+    expect(screen.getByRole("group", { name: "Order ticket ZN" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Buy" })).toBeInTheDocument()
+  })
+
+  it("shows a choice still to make where the draft holds no option of a list, and asks for it as the action runs", () => {
+    const { run, rerender } = mount({ defaultDraft: draftOf() })
+    // Accounts load after the ticket mounts: the draft holds none of them, and the field says so rather than showing the first.
+    rerender({ accounts: [{ id: "A-1", label: "Main" }, { id: "A-2", label: "Hedge" }] })
+    const account = screen.getByLabelText("Account") as HTMLSelectElement
+    expect(account.selectedOptions[0]).toHaveTextContent("Choose…")
+    expect(account.selectedOptions[0]).toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(run).not.toHaveBeenCalled()
+    expect(screen.getByText("Choose an account.")).toHaveAttribute("role", "alert")
+    expect(account).toHaveAttribute("aria-invalid", "true")
+    expect(account).toHaveAccessibleDescription("Choose an account.")
+    fireEvent.change(account, { target: { value: "A-2" } })
+    expect(screen.queryByText("Choose an account.")).toBeNull()
+    expect(account.selectedOptions[0]).toHaveTextContent("Hedge")
+    expect(within(account).queryByText("Choose…")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(run).toHaveBeenLastCalledWith(draftOf({ account: "A-2" }), ZN)
+    // A type list that reloads without the draft's type asks for one the same way.
+    rerender({ accounts: [{ id: "A-1", label: "Main" }, { id: "A-2", label: "Hedge" }], orderTypes: [{ id: "stop", label: "Stop" }] })
+    const kind = screen.getByLabelText("Type") as HTMLSelectElement
+    expect(kind.selectedOptions[0]).toHaveTextContent("Choose…")
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(screen.getByText("Choose an order type.")).toBeInTheDocument()
+    fireEvent.change(kind, { target: { value: "stop" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(run).toHaveBeenLastCalledWith(draftOf({ account: "A-2", type: "stop" }), ZN)
+  })
+
+  it("says a refusal again when a press meets the problem a field already shows", () => {
+    const { run } = mount()
+    const announcer = document.querySelector<HTMLElement>("[data-ticket-announcer]")!
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    // The first press: each field's alert says its own problem, and the announcer stays quiet rather than say it twice.
+    expect(screen.getByText("Enter a whole number above zero.")).toHaveAttribute("role", "alert")
+    expect(announcer).toBeEmptyDOMElement()
+    // The second press: the alerts hold the same words and are not heard again, so the announcer says them.
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(announcer).toHaveTextContent("Enter a whole number above zero. This order type needs a price.")
+    const first = announcer.firstElementChild
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(announcer.firstElementChild).not.toBe(first)
+    expect(run).not.toHaveBeenCalled()
+    // Typing answers the quantity's problem: the next press says only the price's.
+    type(quantity(), "5")
+    expect(announcer).toBeEmptyDOMElement()
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(announcer).toHaveTextContent(/^This order type needs a price\.$/)
+  })
+
+  it("says each word a trader reads from labels, and draws a destructive action in its color on the outline button", () => {
+    const cancel = vi.fn()
+    mount({
+      reference: { bid: 99.5 },
+      defaultDraft: { type: "market" },
+      actions: [{ id: "send", label: "Send", run: vi.fn(), primary: true }, { id: "cancel", label: "Cancel order", run: cancel, destructive: true, checked: false }],
+      allowedActions: ["send", "cancel"],
+      labels: { unpriced: "au marché", takeReference: "Prendre {name} à {price}", stepUp: "{label} : un pas de plus", stepDown: "{label} : un pas de moins" },
+    })
+    expect(price()).toHaveAttribute("placeholder", "au marché")
+    expect(screen.getByRole("button", { name: "Prendre Bid à 99-16" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Price : un pas de plus" })).toBeInTheDocument()
+    const destructive = screen.getByRole("button", { name: "Cancel order" })
+    expect(destructive).toHaveAttribute("data-destructive", "true")
+    // The outline button, never the destructive variant's tint, which the destructive color reads below 4.5 to 1 on.
+    expect(destructive.classList).toContain("text-destructive")
+    expect(destructive.classList).toContain("border-border")
+    expect(destructive.className).not.toContain("bg-destructive")
+    expect(screen.getByRole("button", { name: /^Send/ }).classList).toContain("bg-primary")
+    // The quantity takes the numeric keypad: a quantity is whole, and neither a point nor a sign belongs in it.
+    expect(quantity()).toHaveAttribute("inputmode", "numeric")
+    // A focus parked on the ticket draws a ring that holds 3 to 1, not the faint ring of the token.
+    expect(screen.getByRole("group", { name: "Order ticket ZN" }).className).toContain("focus-visible:ring-foreground/60")
   })
 
   it("tells the draft after it changed, not on the first render", () => {
@@ -656,12 +754,25 @@ describe("describeDraft, checkDraft, parseQuantity", () => {
     expect(describeDraft(draftOf({ side: "sell", quantity: 5000, type: "market", price: null }), ZN)).toBe("Sell 5,000 ZN at market")
     expect(describeDraft(draftOf({ quantity: null, price: null }), ES)).toBe("Buy ES")
     expect(describeDraft(draftOf({ price: 5012.25 }), ES)).toBe("Buy 5 ES @ 5,012.25")
+    expect(describeDraft(draftOf({ type: "market", price: null }), ZN, undefined, { buy: "Achat", sell: "Vente", atMarket: "au marché" })).toBe("Achat 5 ZN au marché")
   })
 
   it("names what stops a draft", () => {
     expect(checkDraft(draftOf(), [{ id: "limit", label: "Limit" }])).toEqual({})
-    expect(checkDraft(draftOf({ quantity: 0, price: null }), [{ id: "limit", label: "Limit" }])).toEqual({ quantity: "Enter a quantity above zero.", price: "This order type needs a price." })
+    expect(checkDraft(draftOf({ quantity: 0, price: null }), [{ id: "limit", label: "Limit" }])).toEqual({ quantity: "Enter a whole number above zero.", price: "This order type needs a price." })
     expect(checkDraft(draftOf({ price: null, type: "market" }), [{ id: "market", label: "Market", priced: false }])).toEqual({})
+    // A quantity is whole: a fraction, a non-finite one, or one past the safe-integer limit is no quantity.
+    for (const q of [2.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53, -1]) expect(checkDraft(draftOf({ quantity: q }), [{ id: "limit", label: "Limit" }]).quantity, String(q)).toBe("Enter a whole number above zero.")
+    // Every choice comes from its list: a type, a time in force, or an account the lists don't hold is asked for.
+    const types = [{ id: "limit", label: "Limit" }]
+    const tifs = [{ id: "day", label: "Day" }]
+    const accounts = [{ id: "A-1", label: "A-1" }]
+    expect(checkDraft(draftOf({ type: "stop", price: 99.5 }), types).type).toBe("Choose an order type.")
+    expect(checkDraft(draftOf({ tif: "gtc" }), types, undefined, { timeInForces: tifs })).toEqual({ tif: "Choose a time in force." })
+    expect(checkDraft(draftOf({ account: null }), types, undefined, { accounts })).toEqual({ account: "Choose an account." })
+    expect(checkDraft(draftOf({ account: "A-1" }), types, undefined, { timeInForces: tifs, accounts })).toEqual({})
+    // An empty or missing list asks for nothing, as an empty account list draws no field.
+    expect(checkDraft(draftOf({ account: null, tif: "x" }), types, undefined, { timeInForces: [], accounts: [] })).toEqual({})
   })
 
   it("reads whole numbers only", () => {
@@ -1055,6 +1166,28 @@ describe("quick sizes", () => {
     expect(TICKET_BINDINGS.filter((b) => b.id.startsWith("ticket.size-")).map((b) => b.keys)).toEqual(["mod+1", "mod+2", "mod+3", "mod+4", "mod+5", "mod+6", "mod+7", "mod+8", "mod+9"])
   })
 
+  it("offers whole sizes above zero, each once, and starts a fractional default quantity blank", () => {
+    const { run, onDraftChange } = mount({ quickSizes: [0.5, 1, 1, -5, Number.NaN, 2], defaultDraft: { quantity: 2.5, price: 99.5 } })
+    const row = screen.getByRole("group", { name: "Quick sizes" })
+    expect(within(row).getAllByRole("button").map((b) => b.textContent)).toEqual(["1", "2"])
+    // mod+2 is the second size offered.
+    fireEvent.keyDown(price(), { key: "2", ctrlKey: true })
+    expect(lastDraft(onDraftChange).quantity).toBe(2)
+    type(quantity(), "")
+    // A default that is no whole number shows as nothing and holds nothing, so what is shown is what would be sent.
+    const { run: second } = mount({ defaultDraft: { quantity: 2.5, price: 99.5 } })
+    const fields = screen.getAllByLabelText("Quantity") as HTMLInputElement[]
+    expect(fields[1]).toHaveValue("")
+    fireEvent.click(screen.getAllByRole("button", { name: "Send" })[1]!)
+    expect(second).not.toHaveBeenCalled()
+    // A typed fraction is refused in words that say why.
+    type(fields[1]!, "2.5")
+    fireEvent.click(screen.getAllByRole("button", { name: "Send" })[1]!)
+    expect(second).not.toHaveBeenCalled()
+    expect(screen.getAllByText("Enter a whole number above zero.").length).toBeGreaterThan(0)
+    expect(run).not.toHaveBeenCalled()
+  })
+
   it("prints millions when the convention quotes notional, and draws no row without quickSizes", () => {
     const notional: TicketInstrument = { symbol: "T10", convention: { ...ZN.convention, quantityUnit: "notional" } }
     const { view } = mount({ instrument: notional, quickSizes: [1_000_000, 5_000_000] })
@@ -1062,6 +1195,7 @@ describe("quick sizes", () => {
     expect(within(row).getAllByRole("button").map((b) => b.textContent)).toEqual(["1mm", "5mm"])
     expect(formatQuickSize(2_500_000, notional.convention)).toBe("2.5mm")
     expect(formatQuickSize(250, ZN.convention)).toBe("250")
+    expect(formatQuickSize(2_500_000, notional.convention, " M")).toBe("2.5 M")
     view.unmount()
     mount()
     expect(screen.queryByRole("group", { name: "Quick sizes" })).toBeNull()

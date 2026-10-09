@@ -1,5 +1,8 @@
 import { formatQuantity, formatTicks, quoteBasisOf, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 
+// An undefined word keeps its default, as DataGrid's labels do.
+const defined = <W extends object>(words: W | undefined): Partial<W> => Object.fromEntries(Object.entries(words ?? {}).filter(([, word]) => word !== undefined)) as Partial<W>
+
 // Fat-finger checks are universal: a size above a line, a level too far from the market, a side the
 // book may not take. The tickets already stop a missing level and a crossed market; this gives them a
 // limits table, as data, and returns problems in the shape they already print. A `block` stops the
@@ -49,8 +52,14 @@ export interface LimitsLabels {
   sideNotAllowed: string
   buy: string
   sell: string
-  ticks: string
-  bps: string
+  /** The level's field in `{field}`: a ticket's price, a two-sided quote's bid and ask. */
+  price: string
+  bid: string
+  ask: string
+  /** The unit after a distance in ticks: a word, or a function of the count, for a plural a word can't hold. */
+  ticks: string | ((n: number) => string)
+  /** The unit after a distance in basis points: a word, or a function of the count. */
+  bps: string | ((n: number) => string)
 }
 
 export const DEFAULT_LIMITS_LABELS: LimitsLabels = {
@@ -63,7 +72,10 @@ export const DEFAULT_LIMITS_LABELS: LimitsLabels = {
   sideNotAllowed: "The book does not take a {side}.",
   buy: "buy",
   sell: "sell",
-  ticks: "ticks",
+  price: "price",
+  bid: "bid",
+  ask: "ask",
+  ticks: (n) => (n === 1 ? "tick" : "ticks"),
   bps: "bp",
 }
 
@@ -125,7 +137,7 @@ export function distanceFromMarket(level: number, market: number, convention: In
  */
 export function checkLimits(draft: LimitsDraft, limits: Limits | undefined, context: LimitsContext = {}): Problem[] {
   if (!limits) return []
-  const labels = { ...DEFAULT_LIMITS_LABELS, ...context.labels }
+  const labels = { ...DEFAULT_LIMITS_LABELS, ...defined(context.labels) }
   const problems: Problem[] = []
   const quantity = draft.quantity
   // A fractional size prints exactly, or the prompt would round the trader's own number and
@@ -150,8 +162,11 @@ export function checkLimits(draft: LimitsDraft, limits: Limits | undefined, cont
       if (against === null) continue
       const distance = distanceFromMarket(value, against, context.convention)
       if (distance.unit !== max.unit || !(distance.value > max.value)) continue
-      const unit = labels[max.unit]
-      const words = { field, distance: `${formatTicks(distance.value, { signed: false })} ${unit}`, max: `${formatTicks(max.value, { signed: false })} ${unit}` }
+      const unit = (n: number) => {
+        const word = labels[max.unit]
+        return typeof word === "function" ? word(n) : word
+      }
+      const words = { field: labels[field], distance: `${formatTicks(distance.value, { signed: false })} ${unit(distance.value)}`, max: `${formatTicks(max.value, { signed: false })} ${unit(max.value)}` }
       problems.push({ field, level, rule: "maxDistance", message: fill(level === "block" ? labels.tooFar : labels.tooFarConfirm, words) })
     }
   }

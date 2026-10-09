@@ -51,6 +51,21 @@ describe("checkLimits", () => {
     expect(checkLimits({ side: "buy", quantity: 1, price: 105 }, { maxDistance: { ticks: 4 } }, { convention: ust })).toEqual([])
   })
 
+  it("says one tick in the singular, names a level's field in its own word, and takes a unit as a word or a function of the count", () => {
+    // A buyer at 99-17+ against an offer of 99-16+ is two ticks away, past a line of one.
+    expect(checkLimits({ side: "buy", quantity: 1, price: 99.546875 }, { maxDistance: { ticks: 1 } }, { market, convention: ust })[0]?.message).toBe("The price is 2 ticks from the market; the limit is 1 tick.")
+    // A two-sided quote names the side: the bid at 99-12 is eight ticks under the bid.
+    const words = { bid: "Geld", ticks: "Ticks", tooFar: "{field}: {distance} vom Markt, Grenze {max}." }
+    expect(checkLimits({ bid: 99.375, ask: null }, { maxDistance: { ticks: 4 } }, { market, convention: ust, labels: words })[0]?.message).toBe("Geld: 8 Ticks vom Markt, Grenze 4 Ticks.")
+    expect(checkLimits({ bid: null, ask: 99.625 }, { maxDistance: { ticks: 4 } }, { market, convention: ust, labels: { ask: "offer" } })[0]?.message).toBe("The offer is 7 ticks from the market; the limit is 4 ticks.")
+    const billMarket = { bid: 4.26, ask: 4.25 }
+    expect(checkLimits({ side: "buy", quantity: 1, price: 4.3 }, { maxDistance: { bps: 1 } }, { market: billMarket, convention: bill, labels: { bps: (n) => (n === 1 ? "basis point" : "basis points") } })[0]?.message).toBe("The price is 5 basis points from the market; the limit is 1 basis point.")
+  })
+
+  it("keeps the default for a word given as undefined", () => {
+    expect(checkLimits({ side: "buy", quantity: 1, price: 99.625 }, { maxDistance: { ticks: 4 } }, { market, convention: ust, labels: { tooFar: undefined, price: undefined } })[0]?.message).toBe("The price is 7 ticks from the market; the limit is 4 ticks.")
+  })
+
   it("refuses a side the book does not take: a ticket's side, and for a quote a bid is a buy and an offer a sell", () => {
     expect(checkLimits({ side: "sell", quantity: 1 }, { sides: ["buy"] })).toEqual([{ field: "side", level: "block", rule: "sides", message: "The book does not take a sell." }])
     expect(checkLimits({ side: "buy", quantity: 1 }, { sides: ["buy"] })).toEqual([])

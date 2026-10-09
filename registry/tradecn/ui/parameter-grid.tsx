@@ -1,10 +1,13 @@
 import { cn } from "cn"
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, useSyncExternalStore } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
 import { NULL_TOKEN, NUMERIC_CLASS, formatPrice, stripGrouping } from "@/registry/tradecn/lib/format"
 import type { RowId, RowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, editProblem, type CellEdit, type CellEditHandle, type ColumnDef, type DataGridLabels, type DataGridProps, type EditChange, type EditProblem } from "@/registry/tradecn/ui/data-grid"
+
+// An undefined word keeps its default, as DataGrid's labels do.
+const defined = <W extends object>(words: W | undefined): Partial<W> => Object.fromEntries(Object.entries(words ?? {}).filter(([, word]) => word !== undefined)) as Partial<W>
 
 // A parameter table: the data grid in its parameters preset, one row per instrument, tier, or pair,
 // a frozen name, a server-owned enable box, the values typed in place, and when the server last
@@ -54,10 +57,8 @@ export interface ParameterGridLabels {
   name: string
   /** The enable column's header. */
   enabled: string
-  /** The box's name while the row is off. `{name}` is the row's. */
+  /** The enable box's name, on or off: the box says which. `{name}` is the row's. */
   enable: string
-  /** The box's name while the row is on. */
-  disable: string
   /** The updated column's header. */
   updated: string
   /** Said of a row changed since `changedSince`. */
@@ -74,7 +75,6 @@ export const DEFAULT_PARAMETER_GRID_LABELS: ParameterGridLabels = {
   name: "Name",
   enabled: "On",
   enable: "Enable {name}",
-  disable: "Disable {name}",
   updated: "Updated",
   changed: "Changed",
   asOf: "As of {time}",
@@ -96,8 +96,15 @@ export function allowsAction(row: ParameterRow, action: string): boolean {
   return row.allowedActions?.includes(action) === true
 }
 
+// A whole number of places from 0 to 20, which every engine's number formatting takes; a server's precision outside
+// that, or not a number at all, would throw while the sheet renders.
+function placesOf<T extends ParameterRow>(def: ParameterDef<T>): number {
+  const places = def.decimals ?? 2
+  return Number.isFinite(places) ? Math.min(20, Math.max(0, Math.trunc(places))) : 2
+}
+
 function defaultFormat<T extends ParameterRow>(def: ParameterDef<T>): (value: unknown, row: T) => string {
-  const decimals = def.decimals ?? 2
+  const decimals = placesOf(def)
   return (value) => {
     if (value === null || value === undefined) return NULL_TOKEN
     if (typeof value === "number") return formatPrice(value, { kind: "decimal", decimals })
@@ -108,7 +115,7 @@ function defaultFormat<T extends ParameterRow>(def: ParameterDef<T>): (value: un
 // The default format groups thousands, so a parameter printed with no decimals reads one group as thousands, and one
 // printed with decimals refuses a comma with no point after it, which reads either way. "1,5" is never 15.
 function defaultParse<T extends ParameterRow>(def: ParameterDef<T>, labels: ParameterGridLabels): (text: string) => unknown {
-  const decimals = (def.decimals ?? 2) > 0
+  const decimals = placesOf(def) > 0
   return (text) => {
     if (text.trim() === "") return null
     const clean = stripGrouping(text, { decimals })
@@ -176,18 +183,23 @@ function EnableBox({ row, value, edit, allowed, labels }: EnableBoxProps) {
   return (
     <Checkbox
       checked={value}
-      disabled={!edit || !allowed || pending}
+      // Held, not disabled, while a request is out: a pressed box keeps focus rather than drop it to the page.
+      aria-disabled={!edit || !allowed || pending || undefined}
+      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
       tabIndex={-1}
-      aria-label={fill(value ? labels.disable : labels.enable, { name: row.name })}
+      // One name whatever its state, which the box says itself: "Enable ZN, checked" is on.
+      aria-label={fill(labels.enable, { name: row.name })}
       data-parameter-enabled={String(value)}
-      onCheckedChange={() => edit?.commit(!value)}
+      onCheckedChange={() => {
+        if (edit && allowed && !pending) edit.commit(!value)
+      }}
     />
   )
 }
 
 /** Name, the enable box, one column per parameter, and the updated time. Spread them into your own list to add, drop, or reorder. */
 export function parameterColumns<T extends ParameterRow>(options: ParameterColumnOptions<T>): ColumnDef<T>[] {
-  const labels = { ...DEFAULT_PARAMETER_GRID_LABELS, ...options.labels }
+  const labels = { ...DEFAULT_PARAMETER_GRID_LABELS, ...defined(options.labels) }
   const time = options.time ?? localTime
   const since = options.changedSince ?? null
   const toggleAction = options.toggleAction ?? "toggle"
@@ -237,7 +249,8 @@ export function parameterColumns<T extends ParameterRow>(options: ParameterColum
     key: "updated",
     header: labels.updated,
     width: 140,
-    flash: "fill",
+    // A time moves on without a direction: the row's Changed mark says it changed.
+    flash: false,
     sortable: true,
     accessor: (r) => r.updatedAt ?? null,
     cell: ({ row }) =>
@@ -267,10 +280,14 @@ export interface ParameterGridProps<T extends ParameterRow = ParameterRow> exten
   asOf?: boolean
 }
 
+const subscribeNothing = () => () => {}
+
 // Its own component on the store's meta, so the line ticks once per applied batch and the grid around it does not.
+// The time shows once mounted: a server's store stamps its own batches, so its time never matches the browser's.
 function AsOf<T>({ store, time, labels }: { store: RowStore<T>; time: (ms: number) => string; labels: ParameterGridLabels }) {
   const meta = useStoreMeta(store)
-  const at = meta.producedAt ?? meta.lastBatchAt
+  const mounted = useSyncExternalStore(subscribeNothing, () => true, () => false)
+  const at = mounted ? (meta.producedAt ?? meta.lastBatchAt) : null
   return (
     <div data-parameter-asof={at ?? ""} className="shrink-0 text-xs text-muted-foreground lining-nums tabular-nums">
       {at === null ? NULL_TOKEN : fill(labels.asOf, { time: isInstant(at) ? time(at) : NULL_TOKEN })}
@@ -279,7 +296,7 @@ function AsOf<T>({ store, time, labels }: { store: RowStore<T>; time: (ms: numbe
 }
 
 export function ParameterGrid<T extends ParameterRow = ParameterRow>({ parameters, labels: labelsProp, time, changedSince = null, toggleAction = "toggle", editAction = "edit", columns, label = "Parameters", onEdit, asOf = true, className, store, getRowProps, ...grid }: ParameterGridProps<T>) {
-  const labels = useMemo(() => ({ ...DEFAULT_PARAMETER_GRID_LABELS, ...labelsProp }), [labelsProp])
+  const labels = useMemo(() => ({ ...DEFAULT_PARAMETER_GRID_LABELS, ...defined(labelsProp) }), [labelsProp])
   const timeFn = time ?? localTime
   const all = useMemo(() => columns ?? parameterColumns<T>({ parameters, labels, time: timeFn, changedSince, toggleAction, editAction }), [columns, parameters, labels, timeFn, changedSince, toggleAction, editAction])
   // A changed row says so to a screen reader; the dot in its name cell is the mark

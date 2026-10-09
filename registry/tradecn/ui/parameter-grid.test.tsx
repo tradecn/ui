@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
+import { renderToString } from "react-dom/server"
 import { useLayoutEffect, useState } from "react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -57,12 +58,53 @@ function setup(onEdit: (change: EditChange<Sheet>) => void | Promise<unknown> = 
   return { store, grid, cell }
 }
 
+describe("ParameterGrid's edges", () => {
+  it("renders the as-of time only once mounted, so a server's render matches the browser's first", () => {
+    const store = createRowStore<Sheet>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: ROWS, meta: { producedAt: 1_700_000_200_000 } })
+    const html = renderToString(<ParameterGrid store={store} parameters={PARAMETERS} onEdit={vi.fn()} initialRect={RECT} time={(ms) => `t${ms}`} />)
+    expect(html).not.toContain("t1700000200000")
+    render(<ParameterGrid store={store} parameters={PARAMETERS} onEdit={vi.fn()} initialRect={RECT} time={(ms) => `t${ms}`} />)
+    expect(document.querySelector("[data-parameter-asof]")).toHaveTextContent("t1700000200000")
+  })
+
+  it("keeps a pressed enable box focused while its request is out, and takes no second press", async () => {
+    const onEdit = vi.fn(() => new Promise(() => {}))
+    setup(onEdit)
+    const box = screen.getByRole("checkbox", { name: "Enable ZN" })
+    box.focus()
+    fireEvent.click(box)
+    await act(async () => {})
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(box).toHaveAttribute("aria-disabled", "true")
+    expect(box).not.toHaveAttribute("disabled")
+    expect(box).toHaveFocus()
+    fireEvent.click(box)
+    expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
+  it("prints a parameter whose places aren't a whole number from 0 to 20, and gives Updated no flash", () => {
+    const odd: ParameterDef<Sheet>[] = [-1, Number.NaN, 100].map((decimals, i) => ({ key: `odd${i}`, header: `Odd ${i}`, accessor: (r) => r.skew, decimals }))
+    const columns = parameterColumns<Sheet>({ parameters: odd })
+    for (const column of columns.filter((c) => c.key.startsWith("odd"))) expect(() => column.format!(1.5, ROWS[0]!)).not.toThrow()
+    expect(columns.find((c) => c.key === "updated")!.flash).toBe(false)
+  })
+})
+
 describe("ParameterGrid labels", () => {
   it("takes the grid's words beside its own", () => {
     const store = createRowStore<Sheet>({ getRowId: (r) => r.id })
     store.applyDeltas({ upsert: ROWS })
     render(<ParameterGrid store={store} parameters={PARAMETERS} onEdit={vi.fn()} initialRect={RECT} labels={{ name: "Parameter", columnMenu: "Menü {name}" }} />)
     expect(screen.getByRole("button", { name: "Menü Parameter" })).toBeInTheDocument()
+  })
+
+  it("keeps the default for a word given as undefined", () => {
+    const store = createRowStore<Sheet>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: ROWS })
+    render(<ParameterGrid store={store} parameters={PARAMETERS} onEdit={vi.fn()} initialRect={RECT} changedSince={1_700_000_000_000} labels={{ name: undefined, changed: undefined }} />)
+    expect(screen.getByRole("button", { name: "Name column menu" })).toBeInTheDocument()
+    expect(document.querySelector('[role="row"][data-row-id="zn"]')).toHaveAttribute("aria-description", "Changed")
   })
 })
 
@@ -220,11 +262,11 @@ describe("ParameterGrid", () => {
     expect(cell("zn", "updated")).toHaveTextContent("t1700000000000desk")
     expect(cell("tu", "updated")).toHaveTextContent("–")
     // The box: checked as the row says, named for what a press asks, disabled where the server allows no toggle.
-    const zn = screen.getByRole("checkbox", { name: "Disable ZN" })
+    const zn = screen.getByRole("checkbox", { name: "Enable ZN" })
     expect(zn).toHaveAttribute("data-parameter-enabled", "true")
     expect(disabled(zn)).toBe(false)
     expect(disabled(screen.getByRole("checkbox", { name: "Enable ZB" }))).toBe(true)
-    expect(disabled(screen.getByRole("checkbox", { name: "Disable TU" }))).toBe(true)
+    expect(disabled(screen.getByRole("checkbox", { name: "Enable TU" }))).toBe(true)
   })
 
   it("prints the null token for an updated or as-of time that is not an instant, and never hands one to a formatter", () => {
@@ -266,7 +308,7 @@ describe("ParameterGrid", () => {
     fireEvent.doubleClick(cell("zn", "skew").firstElementChild!)
     fireEvent.change(screen.getByRole("textbox", { name: "Skew" }), { target: { value: "7" } })
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Skew" }), { key: "Enter" })
-    expect(screen.getByRole("textbox", { name: "Skew" })).toHaveAttribute("aria-description", "7.00 is above the maximum of 5.00.")
+    expect(screen.getByRole("textbox", { name: "Skew" })).toHaveAccessibleDescription("7.00 is above the maximum of 5.00.")
     fireEvent.change(screen.getByRole("textbox", { name: "Skew" }), { target: { value: "4" } })
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Skew" }), { key: "Enter" })
     await act(async () => {
@@ -281,13 +323,13 @@ describe("ParameterGrid", () => {
   it("the box asks the server and never flips itself; a text parameter takes its text", () => {
     const onEdit = vi.fn()
     const { store, cell } = setup(onEdit)
-    const box = screen.getByRole("checkbox", { name: "Disable ZN" })
+    const box = screen.getByRole("checkbox", { name: "Enable ZN" })
     fireEvent.click(box)
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ rowId: "zn", key: "enabled", value: false, previous: true }))
     // Still the server's word, now pending and disabled until the row comes back.
     expect(box).toHaveAttribute("data-parameter-enabled", "true")
     expect(cell("zn", "enabled")).toHaveAttribute("data-pending")
-    expect(disabled(screen.getByRole("checkbox", { name: "Disable ZN" }))).toBe(true)
+    expect(disabled(screen.getByRole("checkbox", { name: "Enable ZN" }))).toBe(true)
     act(() => store.applyDeltas({ patch: [{ id: "zn", fields: { enabled: false } }] }))
     expect(cell("zn", "enabled")).not.toHaveAttribute("data-pending")
     expect(screen.getByRole("checkbox", { name: "Enable ZN" })).toHaveAttribute("data-parameter-enabled", "false")

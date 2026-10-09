@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Input } from "@/components/ui/input"
 import { useView } from "@/registry/tradecn/hooks/use-row-store"
 import { NULL_TOKEN, formatNotional, formatPrice, formatQuantity } from "@/registry/tradecn/lib/format"
-import { applyRules, compileComparator, compileFilter, ON_TINT_CLASS, type ReadGridRules, type RuleColumn } from "@/registry/tradecn/lib/grid-rules"
+import { compileComparator, compileFilter, ON_TINT_CLASS, type ReadGridRules, type RuleColumn } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 import { Countdown, type CountdownThresholds } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, type ColumnDef, type DataGridProps } from "@/registry/tradecn/ui/data-grid"
@@ -320,10 +320,6 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
     const byThreshold = rfqThresholdFilter<T>(threshold)
     return filter ? (row: T) => byThreshold(row) && filter(row) : byThreshold
   }, [threshold, filter])
-  // The row rules the grid applies, compiled the same way, so the stack's word on a row joins a rule's instead of
-  // replacing the one thing that carries the rule's meaning besides its color.
-  const ruleColumns = rules?.columns
-  const ruled = useMemo(() => (ruleColumns?.length ? applyRules(ruleColumns, all) : null), [ruleColumns, all])
   const activate = useCallback((row: T, id: RowId) => {
     latest.current.onActivate?.(id, row)
     latest.current.onRowActivate?.(row, id)
@@ -339,12 +335,13 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
       return {
         ...own,
         "data-state": active ? "active" : parked ? "parked" : own?.["data-state"],
-        "aria-description": own?.["aria-description"] ?? (mark ? [ruled?.getRowProps(row)?.["aria-description"], mark].filter(Boolean).join(", ") : undefined),
+        // The grid says a rule's words after these.
+        "aria-description": own?.["aria-description"] ?? mark,
         // The active row's tint carries the foreground, a soon countdown's digits included.
         className: cn(active && cn("bg-primary/10 shadow-[inset_2px_0_0_var(--primary)]", ON_TINT_CLASS), parked && "text-muted-foreground", own?.className),
       }
     },
-    [activeId, parkedIds, getRowProps, activeLabel, parkedLabel, ruled],
+    [activeId, parkedIds, getRowProps, activeLabel, parkedLabel],
   )
   const hasOwnMenu = Boolean(renderContextMenu)
   const menu = useCallback((rows: T[], ids: RowId[]) => latest.current.renderContextMenu?.(rows, ids), [])

@@ -341,6 +341,29 @@ describe("composition and shared behavior", () => {
     expect(screen.getAllByRole("listitem").map(item => item.textContent)).toEqual(["status", "price"])
   })
 
+  it("says a comparison can't be made when one of its events is outside the trail's view, never that nothing differs", () => {
+    const store = seeded()
+    const view = store.createView({ filter: (event) => event.id !== "e3" })
+    render(<AuditTrail store={store} view={view} selection={new Set(["e1", "e3"])}><AuditTrailChanges><Reading /></AuditTrailChanges></AuditTrail>)
+    expect(screen.getByRole("status")).toHaveTextContent(DEFAULT_AUDIT_TRAIL_LABELS.outside)
+    expect(screen.getByRole("status")).not.toHaveTextContent(DEFAULT_AUDIT_TRAIL_LABELS.same)
+    view.dispose()
+  })
+
+  it("prints a value JSON can't hold as text, never throwing", () => {
+    const cyclic: Record<string, unknown> = { a: 1 }
+    cyclic.self = cyclic
+    expect(formatAuditValue({ size: 10n })).toBe('{"size":"10"}')
+    expect(formatAuditValue(cyclic)).toBe("[object Object]")
+    expect(formatAuditValue(5n)).toBe("5")
+  })
+
+  it("counts the changed fields with a function, for a plural a template can't hold", () => {
+    const [, , , , changes] = auditTrailColumns({ labels: { fields: (n) => `${n} ${n === 1 ? "field" : "fields"}` } })
+    expect(changes!.format!(1, EVENTS[1]!)).toBe("1 field")
+    expect(changes!.format!(3, EVENTS[0]!)).toBe("3 fields")
+  })
+
   it("lets callers select without a grid, keeps controlled selection authoritative and shares localized empty readings", () => {
     const store = seeded()
     const selected = vi.fn()
@@ -349,7 +372,11 @@ describe("composition and shared behavior", () => {
       return <button onClick={() => select(new Set(["e5"]))}>Choose heartbeat</button>
     }
     const parts = <><Select /><AuditTrailChanges><Reading /></AuditTrailChanges></>
-    const { rerender } = render(<AuditTrail store={store} onSelectionChange={selected} labels={{ noChanges: "No fields" }}>{parts}</AuditTrail>)
+    const { rerender } = render(<AuditTrail store={store} onSelectionChange={selected} labels={{ noChanges: undefined }}>{parts}</AuditTrail>)
+    // An undefined word keeps its default.
+    fireEvent.click(screen.getByRole("button"))
+    expect(screen.getByRole("status")).toHaveTextContent(DEFAULT_AUDIT_TRAIL_LABELS.noChanges)
+    rerender(<AuditTrail store={store} onSelectionChange={selected} labels={{ noChanges: "No fields" }}>{parts}</AuditTrail>)
     fireEvent.click(screen.getByRole("button"))
     expect(selected).toHaveBeenCalledWith(new Set(["e5"]))
     expect(screen.getByRole("status")).toHaveTextContent("No fields")

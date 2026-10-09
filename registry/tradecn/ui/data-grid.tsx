@@ -99,6 +99,8 @@ export interface EditCommit {
   repeat: boolean
   /** One number per opening of an editor, unique across every grid on the page, so a check that asks a question can keep its answer to that opening. Value commits share session 0. */
   session: number
+  /** The value another cell of this row has sent and not yet had back, by column key, so a check reads the row as it shows; undefined while nothing is out there. */
+  pending?: (key: string) => unknown
 }
 
 // Numbered across every grid, so answers kept per opening never cross from one grid to another, or from a
@@ -213,6 +215,10 @@ export interface DataGridLabels {
   newRows: string | ((n: number) => string)
   /** A refused edit whose error carries no message of its own. */
   rejected: string
+  /** An open editor's commit after the cell stopped taking edits: the text stays until Escape. */
+  notEditable: string
+  /** What a screen reader hears on a cell whose edit is sent and not yet back. */
+  pending: string
   /** An empty view, unless `emptyState` says otherwise. */
   noRows: string
 }
@@ -232,6 +238,8 @@ export const DEFAULT_DATA_GRID_LABELS: DataGridLabels = {
   rowCount: (rows, arrived) => `${rows.toLocaleString()} ${rows === 1 ? "row" : "rows"}${arrived ? `, ${arrived.toLocaleString()} new` : ""}`,
   newRows: (n) => `${n.toLocaleString()} new`,
   rejected: "Rejected",
+  notEditable: "This cell can't be edited now.",
+  pending: "Pending",
   noRows: "No rows",
 }
 
@@ -327,6 +335,9 @@ const SELECT_WIDTH = 32
 const ENTER_WINDOW_MS = 1500
 // How long focus rests on a row before the grid reads a labelled row's cells.
 const ROW_READING_REST_MS = 400
+// What a live region said stays only as long as a screen reader takes to say it: left in the grid, it would meet a
+// reader browsing the rows later with words the grid no longer stands by.
+const SPOKEN_MS = 5000
 
 // ARIA roles that take no name from an author, and the elements that take one without a role.
 const NAMELESS_ROLES = new Set(["generic", "presentation", "none", "caption", "code", "deletion", "emphasis", "insertion", "paragraph", "strong", "subscript", "superscript", "time"])
@@ -673,6 +684,18 @@ function messageOf(error: unknown, fallback: string): string {
   }
 }
 
+/** The tree an element's focus is read in: its shadow root's, else its document's, whose active element is a shadow host while focus is inside one. */
+function focusRoot(el: Node): Document | ShadowRoot {
+  return el.getRootNode() as Document | ShadowRoot
+}
+
+/** Focus fell when the element that held it left: to the body, or to a shadow root's host with nothing in that root focused. */
+function focusFell(root: Document | ShadowRoot, doc: Document, gone?: Element): boolean {
+  const active = doc.activeElement
+  if (active === null || active === doc.body || (gone !== undefined && active === gone)) return true
+  return root !== doc && active === (root as ShadowRoot).host && (root.activeElement === null || root.activeElement === gone)
+}
+
 function canEditCell<T>(col: ColumnDef<T> | undefined, row: T | undefined): col is ColumnDef<T> & { edit: CellEdit<T> } {
   return Boolean(col?.edit) && row !== undefined && (col!.edit!.canEdit?.(row) ?? true)
 }
@@ -708,8 +731,12 @@ interface CellProps<T> {
   rules: AppliedRules<T> | null
   /** The row's own rule, for a frozen cell to paint: its opaque background would otherwise cut a gap in the row's tint. */
   rowRule: RuleDecoration | undefined
+  rowClassName: string | undefined
   /** The grid's editing, or null when it has no `onEdit`. */
   edits: EditController | null
+  pendingLabel: string
+  /** The focused row's cell in the focused column: the keyboard's cell. */
+  active: boolean
 }
 
 interface CellEditorProps {
@@ -726,6 +753,7 @@ interface CellEditorProps {
 // and move along the row, bare Up and Down step. With a modifier held the arrows are not its business:
 // they belong to whoever listens above it, the way a ticket's mod+up reaches its registry from a field.
 function CellEditor({ rowId, colKey, label, status, numeric, className, edits }: CellEditorProps) {
+  const problemId = useId()
   const ref = useRef<HTMLInputElement>(null)
   const selectAll = status.selectAll
   useLayoutEffect(() => {
@@ -772,27 +800,35 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
     }
   }
   return (
-    <input
-      ref={ref}
-      data-cell-editor=""
-      data-numeric={numeric ? "" : undefined}
-      aria-label={label}
-      aria-invalid={status.problem ? true : undefined}
-      aria-description={status.problem ?? undefined}
-      title={status.problem ?? undefined}
-      value={status.text}
-      autoComplete="off"
-      spellCheck={false}
-      inputMode={numeric ? "decimal" : undefined}
-      className={cn("h-full w-full min-w-0 bg-background px-2 text-inherit outline-none ring-1 ring-inset ring-ring aria-invalid:ring-destructive", numeric && "text-right", className)}
-      onChange={(e) => edits.type(rowId, colKey, e.target.value)}
-      onKeyDown={onKeyDown}
-      onBlur={() => edits.blur(rowId, colKey)}
-    />
+    <>
+      <input
+        ref={ref}
+        data-cell-editor=""
+        data-numeric={numeric ? "" : undefined}
+        aria-label={label}
+        aria-invalid={status.problem ? true : undefined}
+        aria-describedby={status.problem ? problemId : undefined}
+        title={status.problem ?? undefined}
+        value={status.text}
+        autoComplete="off"
+        spellCheck={false}
+        // The text keyboard, not the decimal pad: a phone's pad has no minus, and a numeric column can go below zero.
+        className={cn("h-full w-full min-w-0 bg-background px-2 text-inherit outline-none ring-2 ring-inset ring-foreground aria-invalid:ring-destructive", numeric && "text-right", className)}
+        onChange={(e) => edits.type(rowId, colKey, e.target.value)}
+        onKeyDown={onKeyDown}
+        onBlur={() => edits.blur(rowId, colKey)}
+      />
+      {/* The problem in words, over the cell above, where a keyboard user sees it: the ring alone says only that something is wrong. */}
+      {status.problem && (
+        <span id={problemId} data-cell-problem="" className="pointer-events-none absolute bottom-full left-0 z-10 mb-px w-max max-w-[min(24rem,80vw)] rounded-sm border border-destructive bg-background px-1.5 py-0.5 text-xs font-normal whitespace-normal text-destructive not-italic shadow-sm">
+          {status.problem}
+        </span>
+      )}
+    </>
   )
 }
 
-function Cell<T>({ col, row, rowId, id, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol, selectedBar, rules, rowRule, edits }: CellProps<T>) {
+function Cell<T>({ col, row, rowId, id, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol, selectedBar, rules, rowRule, rowClassName, edits, pendingLabel, active }: CellProps<T>) {
   const value = col.accessor(row)
   const ref = useRef<HTMLDivElement>(null)
   const flash = col.flash ?? (col.numeric ? flashVariant : false)
@@ -840,7 +876,8 @@ function Cell<T>({ col, row, rowId, id, colIndex, left, memory, flashVariant, fl
       id={id}
       role="gridcell"
       aria-colindex={colIndex + 1}
-      aria-description={rejected ?? rule?.["aria-description"]}
+      // A pending edit says so beside a rule's words: the italics and dotted underline are what a sighted reader sees.
+      aria-description={rejected ?? ([status?.kind === "pending" ? pendingLabel : undefined, rule?.["aria-description"]].filter(Boolean).join(", ") || undefined)}
       aria-readonly={editable ? !canEditCell(col, row) : undefined}
       data-col={col.key}
       data-numeric={col.numeric ? "" : undefined}
@@ -853,8 +890,8 @@ function Cell<T>({ col, row, rowId, id, colIndex, left, memory, flashVariant, fl
       data-rejected={rejected ?? undefined}
       title={rejected ?? (typeof content === "string" ? content : undefined)}
       className={cn(
-        "flex h-full min-w-0 items-center truncate",
-        !editing && "px-2",
+        "flex h-full min-w-0 items-center",
+        editing ? "relative overflow-visible" : "truncate px-2",
         alignClass(col),
         col.numeric && cn("justify-end", numericClass),
         col.align === "center" && "justify-center",
@@ -864,9 +901,14 @@ function Cell<T>({ col, row, rowId, id, colIndex, left, memory, flashVariant, fl
         left !== undefined && "sticky z-10 bg-background",
         // On a frozen cell the column's tint is a background image, so the cell keeps its opaque background under it.
         focusedCol && (left !== undefined ? "bg-[linear-gradient(color-mix(in_oklab,var(--muted)_50%,transparent),color-mix(in_oklab,var(--muted)_50%,transparent))]" : "bg-muted/50"),
-        status?.kind === "pending" && "text-muted-foreground italic",
+        // The underline outlasts a rule's tint, which sets the text color.
+        status?.kind === "pending" && "text-muted-foreground italic underline decoration-dotted underline-offset-2",
         rejected !== null && "text-destructive",
-        rule?.className || (left !== undefined ? rowRule?.className : undefined),
+        // A frozen cell paints an opaque background over the row's, so it takes the row's own decoration too: a rule's
+        // tint, and your class from getRowProps, a tint or a mark, or the row would show a hole at the frozen columns.
+        rule?.className || (left !== undefined ? cn(rowRule?.className, rowClassName) : undefined),
+        // The keyboard's cell carries its own mark: the column's tint is too faint to find it by.
+        active && !editing && "outline-2 -outline-offset-2 outline-foreground",
       )}
       style={left !== undefined ? { left } : undefined}
     >
@@ -910,6 +952,7 @@ interface RowProps<T> {
   getRowLabel?: ((row: T, id: RowId) => string) | null
   rules: AppliedRules<T> | null
   edits: EditController | null
+  pendingLabel: string
 }
 
 function RowInner<T>(p: RowProps<T>) {
@@ -948,7 +991,8 @@ function RowInner<T>(p: RowProps<T>) {
       data-state={extra?.["data-state"]}
       data-rule={extra?.["data-rule"] ?? rule?.["data-rule"]}
       data-tone={extra?.["data-tone"] ?? rule?.["data-tone"]}
-      aria-description={extra?.["aria-description"] ?? rule?.["aria-description"]}
+      // Your words for the row, then a rule's, so neither hides the other.
+      aria-description={[extra?.["aria-description"], rule?.["aria-description"]].filter(Boolean).join(", ") || undefined}
       aria-label={rowLabel}
       // Without a label of its own a row is named by its data cells, never by its selection box.
       aria-labelledby={rowLabel ? undefined : cellIds.join(" ") || undefined}
@@ -956,9 +1000,12 @@ function RowInner<T>(p: RowProps<T>) {
       aria-rowindex={p.index + 2}
       aria-selected={p.selectable ? p.selected : undefined}
       className={cn(
-        "absolute top-0 left-0 grid items-stretch border-b border-border/60",
+        // An editor's problem shows over the row above, the sticky header included.
+        "absolute top-0 left-0 grid items-stretch border-b border-border/60 has-[[data-cell-problem]]:z-40",
         FILL_CLASSES,
-        p.focused && "outline-1 -outline-offset-1 outline-ring",
+        // Focus marks in the foreground, which clears 3 to 1 on every surface in every palette; shadcn's default ring
+        // doesn't against white.
+        p.focused && "outline-1 -outline-offset-1 outline-foreground",
         rule?.className,
         extra?.className,
       )}
@@ -985,7 +1032,10 @@ function RowInner<T>(p: RowProps<T>) {
           selectedBar={p.selected && !p.selectionColumn && i === 0}
           rules={p.rules}
           rowRule={rule}
+          rowClassName={extra?.className}
           edits={p.edits}
+          pendingLabel={p.pendingLabel}
+          active={p.focused && p.focusedColKey === col.key}
         />
       ))}
     </div>
@@ -1188,9 +1238,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
-  const editLatest = useRef({ columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId), rejected: labels.rejected })
+  const editLatest = useRef({ columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId), rejected: labels.rejected, notEditable: labels.notEditable })
   useInsertionEffect(() => {
-    editLatest.current = { columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId), rejected: labels.rejected }
+    editLatest.current = { columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId), rejected: labels.rejected, notEditable: labels.notEditable }
   })
   const editable = Boolean(onEdit)
   const edits = useMemo<EditController | null>(() => {
@@ -1200,6 +1250,15 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const cellsByKey = new Map<string, RowId>()
     const column = (key: string) => editLatest.current.columns.find((c) => c.key === key)
     const focusGrid = () => rootRef.current?.focus({ preventScroll: true })
+    // A check reads the row as it shows: a value another of its cells sent is the one in view until the row brings it back.
+    const withPending = (rowId: RowId, how: EditCommit): EditCommit => ({
+      ...how,
+      pending: (key) => {
+        const now = tracker.get(cellKey(rowId, key))
+        const out = now?.kind === "editing" ? now.prior : now
+        return out?.kind === "pending" ? out.value : undefined
+      },
+    })
     const send = (rowId: RowId, col: ColumnDef<T> & { edit: CellEdit<T> }, row: T, value: unknown) => {
       const previous = col.accessor(row)
       const k = cellKey(rowId, col.key)
@@ -1304,7 +1363,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       },
       unmountEditor(key, input) {
         const doc = input.ownerDocument
-        if (doc.activeElement !== input) return
+        // Asked of the input's own tree: inside a shadow root the document's active element is the host.
+        const root = focusRoot(input)
+        if (root.activeElement !== input) return
         controller.editorFocusFell.current = true
         const check = { key, unavailable: !visibleEditColumns.current.has(key) }
         editorFocusChecks.current.add(check)
@@ -1313,7 +1374,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
           editorFocusChecks.current.delete(check)
           const grid = rootRef.current
           if (input.isConnected || !check.unavailable || !grid?.isConnected || grid.ownerDocument !== doc) return
-          if (doc.activeElement !== doc.body && doc.activeElement !== input) return
+          if (!focusFell(root, doc, input)) return
           focusGrid()
         })
       },
@@ -1347,12 +1408,15 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const col = column(key)
         const row = store.getRow(rowId)
         if (!canEditCell(col, row)) {
+          // The row is still here and the server stopped allowing the edit: the typed text stays, saying so, until
+          // Escape or the edit is allowed again. A row or column that left takes the editor with it.
+          if (row !== undefined && col?.edit) return tracker.set(k, { ...now, problem: editLatest.current.notEditable })
           cellsByKey.delete(k)
           tracker.set(k, now.prior)
           return focusGrid()
         }
         const parsed = col.edit.parse(now.text, row!)
-        const problem = isEditProblem(parsed) ? parsed : col.edit.validate?.(parsed, row!, how)
+        const problem = isEditProblem(parsed) ? parsed : col.edit.validate?.(parsed, row!, withPending(rowId, how))
         if (problem) {
           tracker.set(k, { ...now, problem: problem.problem })
           return
@@ -1365,7 +1429,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const col = column(key)
         const row = store.getRow(rowId)
         if (!canEditCell(col, row)) return
-        const problem = col.edit.validate?.(value, row!, { via: "value", repeat, session: 0 })
+        const problem = col.edit.validate?.(value, row!, withPending(rowId, { via: "value", repeat, session: 0 }))
         if (problem) {
           tracker.set(cellKey(rowId, key), { kind: "rejected", value: col.accessor(row!), message: problem.problem })
           return
@@ -1400,7 +1464,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const row = store.getRow(rowId)
         if (!canEditCell(col, row)) return tracker.set(k, now.prior)
         const parsed = col.edit.parse(now.text, row!)
-        if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!, { via: "blur", repeat: false, session: now.session ?? 0 })) return tracker.set(k, now.prior)
+        if (isEditProblem(parsed) || col.edit.validate?.(parsed, row!, withPending(rowId, { via: "blur", repeat: false, session: now.session ?? 0 }))) return tracker.set(k, now.prior)
         send(rowId, col, row!, parsed)
       },
       settle(rowId, key) {
@@ -1442,8 +1506,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const covered = edits.tracker.get(k)
       edits.forget(k)
       edits.tracker.set(k, covered?.kind === "editing" ? covered.prior : undefined)
-      const doc = rootRef.current?.ownerDocument
-      if (fell && doc && doc.activeElement === doc.body) rootRef.current?.focus({ preventScroll: true })
+      const grid = rootRef.current
+      if (fell && grid && focusFell(focusRoot(grid), grid.ownerDocument)) grid.focus({ preventScroll: true })
     }
   }, [edits, indexOf])
   // The row whose editor is open, so the grid renders again when an editor opens on another row, or closes.
@@ -1492,6 +1556,12 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       if (i !== undefined) virtualizer.scrollToIndex(i, { align: "auto" })
     }
   })
+  // A row focus moves to, by the keys, a parent, or a hand-off, comes into view, as does a row focus waited for when it
+  // arrives; a row already in view stays where it is.
+  const focusedInView = focusedRowId !== null && indexOf.has(focusedRowId)
+  useLayoutEffect(() => {
+    if (focusedRowId !== null && focusedInView) revealRow.current(focusedRowId)
+  }, [focusedRowId, focusedInView])
   useLayoutEffect(() => {
     const pending = columnToReveal.current
     if (pending !== null) {
@@ -1513,8 +1583,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // handlers, so the effect below only reads them.
   const followTail = Boolean(rowEnter.followTail)
   const [following, setFollowing] = useState(true)
-  const [anchor, setAnchor] = useState(0)
-  const behind = followTail && !following ? Math.max(0, ids.length - anchor) : 0
+  // The store's rows when following stopped: the button counts the rows in view since that the store didn't hold, so a
+  // filter letting rows back in, or rows leaving, never reads as news.
+  const [pausedStore, setPausedStore] = useState<ReadonlySet<RowId> | null>(null)
+  const behind = useMemo(() => (followTail && !following && pausedStore ? ids.reduce((n, id) => (pausedStore.has(id) ? n : n + 1), 0) : 0), [followTail, following, pausedStore, ids])
   useLayoutEffect(() => {
     if (followTail && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [followTail])
@@ -1597,18 +1669,36 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const newSinceAnnounce = useRef(0)
   // One diff per commit: the insertion effect computes it and the layout effect
   // consumes it, so an order change builds two id sets, not four.
-  const diffRef = useRef<{ prev: readonly RowId[]; arrived: RowId[]; departed: RowId[] } | null>(null)
+  const diffRef = useRef<{ prev: readonly RowId[]; entering: RowId[]; arrived: RowId[]; departed: RowId[] } | null>(null)
+  // The rows the store has held, from mount on: a row entering the view is an arrival only when the store didn't hold
+  // it, so a row a filter lets back in neither flashes nor counts as new. Every row entering still moves the viewport.
+  const knownIds = useRef<{ store: RowStore<T>; ids: Set<RowId> } | null>(null)
   useInsertionEffect(() => {
     const prev = markIdsRef.current
+    // Another store starts known as it stands, so its rows don't all read as arrivals.
+    if (knownIds.current?.store !== store) knownIds.current = { store, ids: new Set(store.getIds()) }
+    const known = knownIds.current.ids
     if (prev === ids) return
     markIdsRef.current = ids
     const prevSet = new Set(prev)
     const nowSet = new Set(ids)
+    const entering: RowId[] = []
     const arrived: RowId[] = []
-    for (const id of ids) if (!prevSet.has(id)) arrived.push(id)
+    for (const id of ids) {
+      if (prevSet.has(id)) continue
+      entering.push(id)
+      if (!known.has(id)) arrived.push(id)
+      known.add(id)
+    }
     const departed: RowId[] = []
-    for (const id of prev) if (!nowSet.has(id)) departed.push(id)
-    diffRef.current = { prev, arrived, departed }
+    for (const id of prev) {
+      if (nowSet.has(id)) continue
+      departed.push(id)
+      if (store.getRow(id) === undefined) known.delete(id)
+    }
+    // A row the store let go of while out of view stays known: past twice the store, start again from what it holds.
+    if (known.size > 2 * store.getIds().length + 64) knownIds.current = { store, ids: new Set(store.getIds()) }
+    diffRef.current = { prev, entering, arrived, departed }
     if (!rowEnter.highlight) return
     const at = Date.now()
     const until = view.isHeld() ? (view.holdExpiresAt?.() ?? null) : null
@@ -1618,7 +1708,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       else if (at - enterStart(mark, at) >= ENTER_WINDOW_MS) entered.delete(id)
     }
     if (until !== null) scheduleReleaseSweep()
-  }, [ids, rowEnter.highlight, entered, view])
+  }, [ids, rowEnter.highlight, entered, view, store])
 
   // The scroll work stays in the layout phase, where refs belong to this commit:
   // pin the viewport, follow the tail, count arrivals, forget departed flashes.
@@ -1629,24 +1719,26 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     // the early return above, so a stale stash is never consumed twice.
     const stash = diffRef.current
     const fresh = stash !== null && stash.prev === prev
+    const entering = fresh ? stash.entering : []
+    // Without this commit's diff there's no telling arrivals from rows let back in, so none is counted as new.
     const arrived = fresh ? stash.arrived : []
     const departed = fresh ? stash.departed : []
     if (!fresh) {
       const prevSet = new Set(prev)
       const nowSet = new Set(ids)
-      for (const id of ids) if (!prevSet.has(id)) (arrived as RowId[]).push(id)
+      for (const id of ids) if (!prevSet.has(id)) (entering as RowId[]).push(id)
       for (const id of prev) if (!nowSet.has(id)) (departed as RowId[]).push(id)
     }
     diffRef.current = null
     for (const id of departed) memory.forget(`${id}\u0000`)
-    if ((arrived.length || departed.length) && rowEnter.pinViewport && scrollRef.current) {
+    if ((entering.length || departed.length) && rowEnter.pinViewport && scrollRef.current) {
       const el = scrollRef.current
       const firstIndex = Math.floor(el.scrollTop / rowHeight)
       const firstId = prev[firstIndex]
       const nextIndex = firstId !== undefined ? indexOf.get(firstId) : undefined
       if (nextIndex !== undefined && nextIndex !== firstIndex) el.scrollTop += (nextIndex - firstIndex) * rowHeight
     }
-    if (arrived.length && followTail && following && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    if (entering.length && followTail && following && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     newSinceAnnounce.current += arrived.length
     prevIdsRef.current = ids
   }, [ids, indexOf, rowHeight, rowEnter.pinViewport, followTail, following, memory])
@@ -1654,7 +1746,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const stopFollowing = () => {
     if (!followTail || !following) return
     setFollowing(false)
-    setAnchor(ids.length)
+    setPausedStore(new Set(store.getIds()))
   }
   const toTail = (e: MouseEvent<HTMLButtonElement>) => {
     // The button goes once following resumes: focus on it moves to the grid first, rather than fall to the page.
@@ -1685,6 +1777,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     }, 1000)
     return () => clearTimeout(t)
   }, [ids.length, announceRowCount])
+  useEffect(() => {
+    if (!announcement) return
+    const t = setTimeout(() => setAnnouncement(""), SPOKEN_MS)
+    return () => clearTimeout(t)
+  }, [announcement])
 
   // A row named by `getRowLabel` keeps its name while its cells tick, so its cells are read here instead: once, when
   // focus rests on a row (another row, or the grid taking focus), and never because a cell changed.
@@ -1705,6 +1802,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     }, ROW_READING_REST_MS)
     return () => clearTimeout(t)
   }, [readsRows, focusedRowId, arrivals, domId])
+  useEffect(() => {
+    if (!reading) return
+    const t = setTimeout(() => setReading(""), SPOKEN_MS)
+    return () => clearTimeout(t)
+  }, [reading])
 
   // Selection and focus, by id.
   const select = useCallback(
@@ -2148,6 +2250,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
                 selectionColumn={selectionColumn}
                 selectable={selectionMode !== "none"}
                 selectLabel={labels.selectRow}
+                pendingLabel={labels.pending}
                 onToggle={toggle}
                 memory={memory}
                 flashVariant={preset.flash}
@@ -2184,7 +2287,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       aria-describedby={ids.length === 0 ? `${uid}-empty` : undefined}
       onKeyDown={onKeyDown}
       onFocus={readsRows ? (e) => { if (e.target === e.currentTarget) setArrivals((n) => n + 1) } : undefined}
-      className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", preset.fontClass, className)}
+      // Focus leaving the grid takes the row's reading with it.
+      onBlur={readsRows ? (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setReading("") } : undefined}
+      className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 lining-nums tabular-nums", preset.fontClass, className)}
       style={{ lineHeight: `${rowHeight}px` } as CSSProperties}
     >
       {renderContextMenu ? (
@@ -2252,13 +2357,18 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
     const menu = menuRef.current
     const grid = gridRef.current
     const doc = trigger?.ownerDocument
-    const active = doc?.activeElement
-    if (!trigger || !grid || !doc || !active || (active !== trigger && !menu?.contains(active))) return
+    if (!trigger || !grid || !doc) return
+    // Focus read in each tree it can be in: the trigger's, which inside a shadow root isn't the document's, and the
+    // menu's, wherever it was portaled.
+    const root = focusRoot(trigger)
+    const inMenu = menu ? focusRoot(menu).activeElement : null
+    const active = root.activeElement === trigger ? trigger : inMenu && menu?.contains(inMenu) ? inMenu : null
+    if (!active) return
     // Wait for removal and the menu's cleanup. A surviving trigger (including effect replay) owns its focus.
     queueMicrotask(() => {
       if (trigger.isConnected || !grid.isConnected) return
-      const current = doc.activeElement
-      if (!current || current === doc.body || current === active || menu?.contains(current)) grid.focus({ preventScroll: true })
+      const current = menu ? focusRoot(menu).activeElement : null
+      if (focusFell(root, doc, trigger) || (current !== null && (current === active || menu?.contains(current)))) grid.focus({ preventScroll: true })
     })
   }, [gridRef])
   const startResize = (e: PointerEvent<HTMLDivElement>) => {

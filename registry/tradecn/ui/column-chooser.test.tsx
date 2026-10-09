@@ -98,6 +98,15 @@ describe("chooserRows and the state helpers", () => {
   })
 })
 
+describe("ColumnChooser marks", () => {
+  it("keeps a dragged item's text opaque and marks focus with the foreground", () => {
+    render(<ColumnChooserInlineDemo />)
+    const item = document.querySelector<HTMLElement>("[data-slot='tradecn-column-chooser-item']")!
+    expect(item.className).not.toContain("opacity-50")
+    expect(item).toHaveClass("data-[dragging]:border-dashed", "focus-visible:border-foreground")
+  })
+})
+
 describe("ColumnSettingsPanel", () => {
   const listed = () => [...document.querySelectorAll<HTMLElement>("[data-column]")].map((li) => li.dataset.column)
 
@@ -208,6 +217,12 @@ describe("ColumnSettingsPanel", () => {
     expect(screen.getByRole("group", { name: "Spalten" })).toBeInTheDocument()
     expect(screen.getByRole("checkbox", { name: "Zeige Price" })).toBeInTheDocument()
     expect(screen.getByRole("textbox", { name: "Spalte finden" })).toBeInTheDocument()
+  })
+
+  it("keeps the default for a word given as undefined", () => {
+    render(<ColumnSettingsPanel columns={columns} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={() => {}} labels={{ title: undefined, show: undefined }} />)
+    expect(screen.getByRole("group", { name: "Columns" })).toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "Show Price" })).toBeInTheDocument()
   })
 })
 
@@ -358,7 +373,9 @@ describe("public composition", () => {
     expect(screen.getByRole("group", { name: "Price" })).toHaveAttribute("draggable", "true")
     expect(screen.getByRole("textbox", { name: "Find a column" })).toBeVisible()
     expect(screen.getByRole("checkbox", { name: "Show Price" })).toBeVisible()
-    expect(screen.getByLabelText("Width 140")).toHaveTextContent("140 px")
+    // Read as words in the span, which a screen reader reaches where a label on a bare span may be passed over.
+    expect(document.querySelector("[data-column-width='140']")).toHaveTextContent("Width 140 px")
+    expect(document.querySelector("[data-column-width='140']")).not.toHaveAttribute("aria-label")
     expect(screen.getByRole("button", { name: "Move down: Price" })).toBeEnabled()
     const reset = screen.getByRole("button", { name: "Reset width: Price" })
     reset.focus()

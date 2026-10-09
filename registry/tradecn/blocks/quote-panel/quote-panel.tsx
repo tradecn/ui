@@ -4,9 +4,12 @@ import { Button } from "@/components/ui/button"
 import { ContextMenuGroup, ContextMenuItem, ContextMenuLabel } from "@/components/ui/context-menu"
 import { useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
 import { NULL_TOKEN, NUMERIC_CLASS, formatQuantity, formatQuote, quoteInvertedOf, formatTicks, numericFontClass, parseQuote, stepQuote, stripGrouping, type InstrumentConvention } from "@/registry/tradecn/lib/format"
-import { blocks, checkLimits, confirms, type Limits, type LimitsDraft } from "@/registry/tradecn/lib/limits"
+import { blocks, checkLimits, confirms, type Limits, type LimitsDraft, type LimitsLabels } from "@/registry/tradecn/lib/limits"
 import type { RowId } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, editProblem, type CellEdit, type ColumnDef, type DataGridLabels, type DataGridProps, type EditChange, type EditCommit, type EditProblem } from "@/registry/tradecn/ui/data-grid"
+
+// An undefined word keeps its default, as DataGrid's labels do.
+const defined = <W extends object>(words: W | undefined): Partial<W> => Object.fromEntries(Object.entries(words ?? {}).filter(([, word]) => word !== undefined)) as Partial<W>
 
 // A market maker's two-way panel: one row per instrument with the market's bid and ask, the desk's bid and
 // ask, the skew and the width, a size per side, the server's status word, and the actions the server allows
@@ -141,6 +144,8 @@ export interface QuoteColumnOptions<T extends QuoteRow> {
   editAction?: string
   /** The fat-finger lines every edit is checked against, for every row or per row. */
   limits?: Limits | ((row: T) => Limits | undefined)
+  /** The limit sentences' words, over `DEFAULT_LIMITS_LABELS`. */
+  limitsLabels?: Partial<LimitsLabels>
   /** The family the price columns set in. Default: the mono stack for a fraction convention, the numeric one otherwise. */
   font?: "numeric" | "mono"
   /**
@@ -190,7 +195,7 @@ function withdraw<T extends QuoteRow>(options: QuoteColumnOptions<T>): null {
 function limitProblem<T extends QuoteRow>(draft: LimitsDraft, row: T, key: string, value: unknown, options: QuoteColumnOptions<T>, labels: QuotePanelLabels, commit?: EditCommit): EditProblem | null {
   const limits = limitsOf(options.limits, row)
   if (!limits) return withdraw(options)
-  const problems = checkLimits(draft, limits, { market: { bid: row.marketBid, ask: row.marketAsk }, convention: conventionOf(options.convention, row) })
+  const problems = checkLimits(draft, limits, { market: { bid: row.marketBid, ask: row.marketAsk }, convention: conventionOf(options.convention, row), labels: options.limitsLabels })
   const stop = blocks(problems)[0]
   if (stop) {
     withdraw(options)
@@ -214,7 +219,7 @@ function limitProblem<T extends QuoteRow>(draft: LimitsDraft, row: T, key: strin
 
 /** The grid's `edit` for one field: its notation, its step, the crossed check, and the limits. */
 export function quoteEdit<T extends QuoteRow>(field: QuoteField, options: QuoteColumnOptions<T>): CellEdit<T> {
-  const labels = { ...DEFAULT_QUOTE_PANEL_LABELS, ...options.labels }
+  const labels = { ...DEFAULT_QUOTE_PANEL_LABELS, ...defined(options.labels) }
   const editAction = options.editAction ?? "edit"
   const canEdit = (row: T) => allowsQuoteAction(row, editAction)
   if (field === "bid" || field === "ask") {
@@ -229,8 +234,12 @@ export function quoteEdit<T extends QuoteRow>(field: QuoteField, options: QuoteC
         if (!isNumber(value)) return withdraw(options)
         // Crossing reads the instrument's quote direction, as the RFQ ticket does: where a
         // higher quote means a lower price, the bid sits above the offer in a normal market.
+        // The other side is the one in view: a level sent and not yet back counts over the row's.
         const inverted = quoteInvertedOf(conventionOf(options.convention, row))
-        const crossed = field === "bid" ? isNumber(row.ask) && (inverted ? value <= row.ask : value >= row.ask) : isNumber(row.bid) && (inverted ? value >= row.bid : value <= row.bid)
+        const otherKey = field === "bid" ? "ask" : "bid"
+        const sent = commit?.pending?.(otherKey)
+        const other = sent !== undefined ? sent : row[otherKey]
+        const crossed = isNumber(other) && (field === "bid" ? (inverted ? value <= other : value >= other) : inverted ? value >= other : value <= other)
         if (crossed) {
           withdraw(options)
           return editProblem(field === "bid" ? labels.bidCrosses : labels.askCrosses)
@@ -268,8 +277,12 @@ export function quoteEdit<T extends QuoteRow>(field: QuoteField, options: QuoteC
       return n
     },
     format: (value) => (isNumber(value) ? formatTicks(value, { signed: field === "skew", grouping: false }) : ""),
-    // Skew and width count in quote steps; half steps are common, so the arrows move by one and ten with Shift.
-    step: (value, dir, big) => Number(((isNumber(value) ? value : 0) + dir * (big ? 10 : 1)).toFixed(10)),
+    // Skew and width count in quote steps; half steps are common, so the arrows move by one and ten with Shift. A
+    // width stops at zero, as a size does, so a step never lands on a value the parse refuses.
+    step: (value, dir, big) => {
+      const next = Number(((isNumber(value) ? value : 0) + dir * (big ? 10 : 1)).toFixed(10))
+      return field === "width" ? Math.max(0, next) : next
+    },
     canEdit,
   }
 }
@@ -302,6 +315,9 @@ function createPendingRuns(): PendingRuns {
 }
 
 const PendingRunsContext = createContext<PendingRuns | null>(null)
+
+// A row's name is its instrument: named by its cells, a focused row would be read again at every market tick.
+const instrumentOf = (row: QuoteRow) => row.instrument
 
 // A popout's elements come from another window, where instanceof against this one's classes fails.
 const isElement = (node: unknown): node is Element => typeof node === "object" && node !== null && (node as Node).nodeType === 1
@@ -403,8 +419,10 @@ function RowActions<T extends QuoteRow>({ row, rowId, actions }: RowActionsProps
         if (deliberateBlur(e)) focused.current = null
       }}
     >
+      {/* A destructive action says so in the destructive color on the ghost button, which holds 4.5 to 1 at rest and
+          turns to the foreground under the pointer: the destructive variant puts that color on its own tint, below it. */}
       {allowed.length === 0 ? <span className="text-muted-foreground">{NULL_TOKEN}</span> : allowed.map((action) => (
-        <Button key={action.id} type="button" size="sm" variant={action.destructive ? "destructive" : "ghost"} className="h-5 px-1.5 text-xs" tabIndex={-1} disabled={pending !== null} data-action={action.id} data-pending={pending === action.id || undefined} onKeyDown={press.onKeyDown} onKeyUp={press.onKeyUp} onBlur={press.onBlur} onClick={(event) => {
+        <Button key={action.id} type="button" size="sm" variant="ghost" className={cn("h-5 px-1.5 text-xs", action.destructive && "text-destructive")} tabIndex={-1} data-destructive={action.destructive || undefined} disabled={pending !== null} data-action={action.id} data-pending={pending === action.id || undefined} onKeyDown={press.onKeyDown} onKeyUp={press.onKeyUp} onBlur={press.onBlur} onClick={(event) => {
             if (press.fresh(event)) runQuoteAction(row, action, pending !== null, hold)
           }}>
           {action.label}
@@ -438,7 +456,10 @@ function RowMenu<T extends QuoteRow>({ id, store, actions, noActions }: RowMenuP
           <ContextMenuItem
             key={action.id}
             data-action={action.id}
-            variant={action.destructive ? "destructive" : undefined}
+            // The destructive color at rest; highlighted, the item takes the menu's accent, as the destructive
+            // variant's tint behind the same color reads below 4.5 to 1.
+            data-destructive={action.destructive || undefined}
+            className={action.destructive ? "text-destructive" : undefined}
             disabled={pending !== null}
             onClick={(event) => {
               if (!event.defaultPrevented) runQuoteAction(row, action, pending !== null, hold)
@@ -453,7 +474,7 @@ function RowMenu<T extends QuoteRow>({ id, store, actions, noActions }: RowMenuP
 
 /** Instrument, status, the market's two-way, the desk's, skew, width, the sizes, and the actions. Spread them into your own list to add, drop, or reorder. */
 export function quotePanelColumns<T extends QuoteRow>(options: QuoteColumnOptions<T>): ColumnDef<T>[] {
-  const labels = { ...DEFAULT_QUOTE_PANEL_LABELS, ...options.labels }
+  const labels = { ...DEFAULT_QUOTE_PANEL_LABELS, ...defined(options.labels) }
   const font = options.font ?? (typeof options.convention === "function" ? "numeric" : numericFontClass(options.convention) === NUMERIC_CLASS ? "numeric" : "mono")
   const quote = (value: unknown, row: T) => (isNumber(value) ? formatQuote(value, conventionOf(options.convention, row)) : NULL_TOKEN)
   const price = (key: "marketBid" | "marketAsk", header: string): ColumnDef<T> => ({ key, header, width: 88, numeric: true, font, sortable: true, flash: "fill", accessor: (r) => r[key] ?? null, format: quote })
@@ -499,8 +520,8 @@ export interface QuotePanelProps<T extends QuoteRow = QuoteRow> extends Omit<Dat
   pullAction?: string
 }
 
-export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, labels: labelsProp, actions, editAction = "edit", limits, font, columns, label = "Quotes", onEdit, onPullAll, pullAction = "pull", className, renderContextMenu, ...grid }: QuotePanelProps<T>) {
-  const labels = useMemo(() => ({ ...DEFAULT_QUOTE_PANEL_LABELS, ...labelsProp }), [labelsProp])
+export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, labels: labelsProp, actions, editAction = "edit", limits, limitsLabels, font, columns, label = "Quotes", onEdit, onPullAll, pullAction = "pull", className, renderContextMenu, getRowLabel = instrumentOf, ...grid }: QuotePanelProps<T>) {
+  const labels = useMemo(() => ({ ...DEFAULT_QUOTE_PANEL_LABELS, ...defined(labelsProp) }), [labelsProp])
   const [asked] = useState(() => new Set<string>())
   const [question, setQuestion] = useState<string | null>(null)
   const [runs] = useState(createPendingRuns)
@@ -528,8 +549,8 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
   const generate = columns === undefined
   const fromFunction = useMemo(() => columnsFrom?.({ asked, onQuestion: setQuestion }), [columnsFrom, asked])
   const generated = useMemo(
-    () => (generate ? quotePanelColumns<T>({ convention, labels, actions, editAction, limits, font, asked, onQuestion: setQuestion }) : undefined),
-    [generate, convention, labels, actions, editAction, limits, font, asked],
+    () => (generate ? quotePanelColumns<T>({ convention, labels, actions, editAction, limits, limitsLabels, font, asked, onQuestion: setQuestion }) : undefined),
+    [generate, convention, labels, actions, editAction, limits, limitsLabels, font, asked],
   )
   const all = fromFunction ?? (Array.isArray(columns) ? columns : generated) ?? []
   const edit = useCallback((change: EditChange<T>) => latest.current.onEdit(change), [])
@@ -562,6 +583,8 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
     return rows
   }, [store, ids, meta.version, pullAction])
   const [confirming, setConfirming] = useState(false)
+  // A question about nothing pullable no longer stands: when a row becomes pullable again, the button asks again.
+  if (confirming && pullable.length === 0) setConfirming(false)
   const pullPress = useFreshPress()
   const [pulling, setPulling] = useState(false)
   const pullAll = () => {
@@ -640,7 +663,7 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
               {question}
             </p>
             {onPullAll && (
-              <Button type="button" size="sm" variant={confirming ? "destructive" : "outline"} className="h-7" disabled={pulling || pullable.length === 0} data-quote-pull-all={pullable.length} data-confirming={confirming || undefined} onKeyDown={pullPress.onKeyDown} onKeyUp={pullPress.onKeyUp} onBlur={pullPress.onBlur} onClick={(event) => {
+              <Button type="button" size="sm" variant="outline" className={cn("h-7", confirming && "text-destructive")} disabled={pulling || pullable.length === 0} data-quote-pull-all={pullable.length} data-confirming={confirming || undefined} onKeyDown={pullPress.onKeyDown} onKeyUp={pullPress.onKeyUp} onBlur={pullPress.onBlur} onClick={(event) => {
                 if (pullPress.fresh(event)) pullAll()
               }}>
                 {confirming ? labels.pullAllAnyway : labels.pullAll}
@@ -649,7 +672,7 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
           </div>
         )}
         <div className="min-h-0 flex-1">
-          <DataGrid<T> {...grid} store={store} preset="parameters" label={label} labels={labelsProp} columns={all} onEdit={edit} renderContextMenu={hasMenu ? menu : undefined} />
+          <DataGrid<T> {...grid} store={store} preset="parameters" label={label} labels={labelsProp} getRowLabel={getRowLabel} columns={all} onEdit={edit} renderContextMenu={hasMenu ? menu : undefined} />
         </div>
       </div>
     </PendingRunsContext.Provider>

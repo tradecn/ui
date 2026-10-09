@@ -6,7 +6,6 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
 import {
   RULE_OPS,
-  RULE_OP_LABELS,
   RULE_TONES,
   RULE_TONE_CLASS,
   columnName,
@@ -17,6 +16,7 @@ import {
   readFilterRule,
   readSortRule,
   ruleProblem,
+  ruleWords,
   type ColumnRule,
   type FilterRule,
   type ReadColumnRule,
@@ -28,10 +28,15 @@ import {
   type RuleOp,
   type RuleTone,
   type RuleValue,
+  type RuleWords,
+  type RuleWordsInput,
   type SortRule,
 } from "@/registry/tradecn/lib/grid-rules"
 import type { RowStore } from "@/registry/tradecn/lib/row-store"
 import type { ColumnDef } from "@/registry/tradecn/ui/data-grid"
+
+// An undefined word keeps its default, as DataGrid's labels do.
+const defined = <W extends object>(words: W | undefined): Partial<W> => Object.fromEntries(Object.entries(words ?? {}).filter(([, word]) => word !== undefined)) as Partial<W>
 
 // Callers own the sections and row markup. Items coordinate editing and reordering;
 // the counts provider isolates feed updates from the editable fields.
@@ -72,6 +77,10 @@ export interface RulesEditorLabels {
   noFilters: string
   noSort: string
   dragHint: string
+  /** An unnamed rule's name: `{kind}` the section's word, `{n}` its place. */
+  itemName: string
+  /** The comparisons', tones', and problems' words, as grid-rules writes them; a partial map keeps the rest. */
+  ruleWords: RuleWordsInput
 }
 
 export const DEFAULT_RULES_EDITOR_LABELS: RulesEditorLabels = {
@@ -106,6 +115,8 @@ export const DEFAULT_RULES_EDITOR_LABELS: RulesEditorLabels = {
   noFilters: "No filters. Every row shows.",
   noSort: "No sort keys. Rows keep their arrival order, or the order a header sets.",
   dragHint: "Drag a rule, or hold Alt with an arrow key, to reorder. The first rule that applies wins.",
+  itemName: "{kind} {n}",
+  ruleWords: {},
 }
 
 export type RulesEditorKind = "highlights" | "filters" | "sort"
@@ -368,7 +379,7 @@ function useEditorRef<T>(localRef: { current: T | null }, forwardedRef: Ref<T> |
 export function RulesEditor<T>({ columns, rules: given, onRulesChange, store, labels: labelsProp, children, className, ref, ...props }: RulesEditorProps<T>) {
   // Rules that are not an object (a null from storage) are no rules; read saved rules with readRules first.
   const rules: ReadGridRules = typeof given === "object" && given !== null ? given : NO_RULES
-  const labels = { ...DEFAULT_RULES_EDITOR_LABELS, ...labelsProp }
+  const labels = { ...DEFAULT_RULES_EDITOR_LABELS, ...defined(labelsProp) }
   const root = useRef<HTMLDivElement>(null)
   const rootRef = useEditorRef(root, ref)
   const dragging = useRef<{ kind: RulesEditorKind; index: number; list: readonly AnyRule[]; type: string; clear: () => void } | null>(null)
@@ -402,7 +413,7 @@ export function RulesEditor<T>({ columns, rules: given, onRulesChange, store, la
     rules,
     labels,
     columns: columns.map((column) => ({ key: column.key, name: columnName(column), ops: opsFor(column) })),
-    problem: (rule, kind) => ruleProblem(rule, columns, kind),
+    problem: (rule, kind) => ruleProblem(rule, columns, kind, labels.ruleWords),
     change,
     add: (kind) => {
       if (kind === "highlights") change({ columns: [...listOf(rules.columns), newHighlight(columns)] })
@@ -454,6 +465,10 @@ export interface RulesEditorItemState {
   /** The sort key as read: its key can be missing. */
   sort: ReadSortRule | null
   problem: string | null
+  /** The problem line's id, which the item and its fields point to while there's a problem. */
+  problemId: string
+  /** The editor's rule words, with yours over the defaults. */
+  words: RuleWords
   setColumn: (key: string) => void
   setCondition: (condition: ReadCondition) => void
   updateHighlight: (patch: Partial<ReadColumnRule>) => void
@@ -486,6 +501,7 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
   const filter = kind === "filters" ? (read as ReadFilterRule | null) : null
   const sort = kind === "sort" ? (read as ReadSortRule | null) : null
   const rule = highlight ?? filter ?? sort
+  const problemId = useId()
   if (!rule) return null
   let columnKey = highlight?.column ?? sort?.key ?? ""
   // A highlight whose condition is missing or not an object edits from a blank one, as a filter with no op does; an op
@@ -497,14 +513,17 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
     columnKey = column ?? ""
     condition = rest
   }
-  const name = highlight?.label?.trim() || `${editor.labels[kind]} ${index + 1}`
+  const name = highlight?.label?.trim() || editor.labels.itemName.replace("{kind}", editor.labels[kind]).replace("{n}", (index + 1).toLocaleString())
+  const words = ruleWords(editor.labels.ruleWords)
   const replace = (next: AnyRule) => {
     const key = LIST_KEY[kind]
     editor.change({ [key]: listOf<AnyRule>(editor.rules[key]).map((item, i) => i === index ? next : item) })
   }
   const state: RulesEditorItemState = {
     kind, index, name, columnKey, condition, highlight: highlight ?? null, filter: filter ?? null, sort: sort ?? null,
-    problem: highlight ? editor.problem(highlight, "highlight") : filter ? editor.problem(filter, "filter") : sort && sort.key === undefined ? "The rule needs a column." : editor.columns.some((c) => c.key === columnKey) ? null : `No column is named "${columnKey}".`,
+    problem: highlight ? editor.problem(highlight, "highlight") : filter ? editor.problem(filter, "filter") : sort && sort.key === undefined ? words.needsColumn : editor.columns.some((c) => c.key === columnKey) ? null : words.noColumn.replace("{name}", columnKey),
+    problemId,
+    words,
     setColumn: (key) => {
       if (sort) return replace({ ...sort, key })
       const ops = editor.columns.find((c) => c.key === key)?.ops ?? opsFor(undefined)
@@ -519,7 +538,7 @@ export function RulesEditorItem({ kind, index, className, onKeyDown, onDragStart
     updateHighlight: (patch) => { if (highlight) replace({ ...highlight, ...patch }) },
     setDirection: (dir) => { if (sort) replace({ ...sort, dir }) },
   }
-  return <ItemContext value={state}><div role="group" tabIndex={0} draggable aria-label={props["aria-labelledby"] ? undefined : name} aria-keyshortcuts={roleOwnsArrows(props.role) || (props.contentEditable !== undefined && props.contentEditable !== false && props.contentEditable !== "false") ? undefined : "Alt+ArrowUp Alt+ArrowDown"} data-rule-kind={kind} data-rule-row={index} data-rule-id={highlight?.id} data-filter-index={filter ? index : undefined} data-sort-index={sort ? index : undefined} data-dragging={dragging || undefined} className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-sm border border-border/60 p-1.5 outline-none focus-visible:border-ring data-[dragging]:opacity-50", className)} {...props}
+  return <ItemContext value={state}><div role="group" tabIndex={0} draggable aria-label={props["aria-labelledby"] ? undefined : name} aria-invalid={state.problem ? true : undefined} aria-describedby={state.problem ? state.problemId : undefined} aria-keyshortcuts={roleOwnsArrows(props.role) || (props.contentEditable !== undefined && props.contentEditable !== false && props.contentEditable !== "false") ? undefined : "Alt+ArrowUp Alt+ArrowDown"} data-rule-kind={kind} data-rule-row={index} data-rule-id={highlight?.id} data-filter-index={filter ? index : undefined} data-sort-index={sort ? index : undefined} data-dragging={dragging || undefined} className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-sm border border-border/60 p-1.5 outline-none focus-visible:border-foreground data-[dragging]:border-dashed data-[dragging]:border-foreground", className)} {...props}
     onKeyDown={(event) => {
       onKeyDown?.(event)
       // Plain Alt with an arrow, from this item's own elements: a portaled popover's controls bubble here through React
@@ -586,6 +605,7 @@ export function RulesEditorColumn({ onChange, className, ...props }: SelectProps
 export function RulesEditorOperator({ onChange, className, ...props }: SelectProps) {
   const { columns, labels } = useRulesEditor()
   const item = useRulesEditorItem()
+  const { words } = item
   if (!item.condition) return null
   const condition = item.condition
   const ops = columns.find((c) => c.key === item.columnKey)?.ops ?? opsFor(undefined)
@@ -597,8 +617,8 @@ export function RulesEditorOperator({ onChange, className, ...props }: SelectPro
     if (!event.defaultPrevented) item.setCondition(withOp(condition, event.target.value as RuleOp))
   }}>
     {/* An op the column does not offer reads as its word; one no version knows reads quoted, apart from every word here. */}
-    {!(ops as readonly string[]).includes(current) && <NativeSelectOption value={current}>{isKnownOp(current) ? RULE_OP_LABELS[current] : current && `"${current}"`}</NativeSelectOption>}
-    {ops.map((op) => <NativeSelectOption key={op} value={op}>{RULE_OP_LABELS[op]}</NativeSelectOption>)}
+    {!(ops as readonly string[]).includes(current) && <NativeSelectOption value={current}>{isKnownOp(current) ? words.ops[current] : current && `"${current}"`}</NativeSelectOption>}
+    {ops.map((op) => <NativeSelectOption key={op} value={op}>{words.ops[op]}</NativeSelectOption>)}
   </NativeSelect>
 }
 
@@ -613,7 +633,7 @@ export function RulesEditorValue({ field = "value", ...props }: RulesEditorValue
 
 function ValueInput({ field, onChange, className, ...props }: InputProps & { field: NonNullable<RulesEditorValueProps["field"]> }) {
   const { labels } = useRulesEditor()
-  const { condition, name, setCondition } = useRulesEditorItem()
+  const { condition, name, setCondition, problem, problemId } = useRulesEditorItem()
   const values = condition!.values
   // Keep a trailing comma under the hand, but accept a different controlled value immediately.
   const [draft, setDraft] = useState(() => valuesText(values))
@@ -623,7 +643,7 @@ function ValueInput({ field, onChange, className, ...props }: InputProps & { fie
     if (valuesText(parseValues(draft)) !== valuesText(values)) setDraft(valuesText(values))
   }
   const value = field === "values" ? draft : field === "value" ? condition!.value : values?.[field === "low" ? 0 : 1]
-  return <Input aria-label={`${labels[field]}: ${name}`} placeholder={labels[field]} spellCheck={false} autoComplete="off" data-rule-field={field} className={cn("h-6 px-1.5 text-xs md:text-xs", field === "values" ? "w-40" : field === "value" ? "w-28" : "w-24", className)} {...props} value={value == null ? "" : String(value)} onChange={(event) => {
+  return <Input aria-label={`${labels[field]}: ${name}`} aria-describedby={problem ? problemId : undefined} placeholder={labels[field]} spellCheck={false} autoComplete="off" data-rule-field={field} className={cn("h-6 px-1.5 text-xs md:text-xs", field === "values" ? "w-40" : field === "value" ? "w-28" : "w-24", className)} {...props} value={value == null ? "" : String(value)} onChange={(event) => {
     onChange?.(event)
     if (event.defaultPrevented) return
     const text = event.target.value
@@ -637,7 +657,7 @@ function ValueInput({ field, onChange, className, ...props }: InputProps & { fie
 
 export function RulesEditorTone({ onChange, className, ...props }: SelectProps) {
   const { labels } = useRulesEditor()
-  const { highlight, name, updateHighlight } = useRulesEditorItem()
+  const { highlight, name, updateHighlight, words } = useRulesEditorItem()
   if (!highlight) return null
   const current = highlight.tone ?? ""
   return <NativeSelect size="sm" aria-label={`${labels.tone}: ${name}`} data-rule-field="tone" className={cn(SELECT_SIZE, className)} {...props} value={current} onChange={(event) => {
@@ -645,14 +665,14 @@ export function RulesEditorTone({ onChange, className, ...props }: SelectProps) 
     if (!event.defaultPrevented) updateHighlight({ tone: event.target.value as RuleTone })
   }}>
     {!isKnownTone(current) && <NativeSelectOption value={current}>{current && `"${current}"`}</NativeSelectOption>}
-    {RULE_TONES.map((tone) => <NativeSelectOption key={tone} value={tone}>{tone}</NativeSelectOption>)}
+    {RULE_TONES.map((tone) => <NativeSelectOption key={tone} value={tone}>{words.tones[tone]}</NativeSelectOption>)}
   </NativeSelect>
 }
 
 export function RulesEditorToneSwatch({ className, ...props }: ComponentProps<"span">) {
-  const { highlight } = useRulesEditorItem()
+  const { highlight, words } = useRulesEditorItem()
   if (!highlight) return null
-  return <span aria-hidden data-rule-swatch={highlight.tone} className={cn("rounded-sm px-1.5 py-0.5", isKnownTone(highlight.tone) && RULE_TONE_CLASS[highlight.tone], className)} {...props}>{highlight.tone}</span>
+  return <span aria-hidden data-rule-swatch={highlight.tone} className={cn("rounded-sm px-1.5 py-0.5", isKnownTone(highlight.tone) && RULE_TONE_CLASS[highlight.tone], className)} {...props}>{isKnownTone(highlight.tone) ? words.tones[highlight.tone] : highlight.tone}</span>
 }
 
 export function RulesEditorTarget({ onChange, className, ...props }: SelectProps) {
@@ -686,8 +706,8 @@ export function RulesEditorDirection({ onChange, className, ...props }: SelectPr
 }
 
 export function RulesEditorProblem({ className, ...props }: ComponentProps<"p">) {
-  const { problem } = useRulesEditorItem()
-  return problem ? <p data-rule-problem className={cn("basis-full text-destructive", className)} {...props}>{problem}</p> : null
+  const { problem, problemId } = useRulesEditorItem()
+  return problem ? <p id={problemId} data-rule-problem className={cn("basis-full text-destructive", className)} {...props}>{problem}</p> : null
 }
 
 export function RulesEditorMatchCount({ className, ...props }: ComponentProps<"span">) {

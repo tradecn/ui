@@ -31,6 +31,16 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
+describe("Positions descriptions", () => {
+  it("says its side and then a row rule's words, neither hiding the other", () => {
+    const store = createRowStore<PositionRow>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: ROWS })
+    render(<Positions store={store} initialRect={RECT} rules={{ columns: [{ id: "big", column: "risk", when: { op: "lt", value: "0" }, tone: "down", target: "row", label: "Short risk" }] }} />)
+    expect(document.querySelector("[data-row-id='ty']")).toHaveAttribute("aria-description", "short, Short risk")
+    expect(document.querySelector("[data-row-id='zn']")).toHaveAttribute("aria-description", "long")
+  })
+})
+
 describe("the position's words", () => {
   it("prints the position signed in its unit, millions of notional or a count, and zero flat with no sign", () => {
     expect(formatPosition(ROWS[0]!)).toBe("+120")

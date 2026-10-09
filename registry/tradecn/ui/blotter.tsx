@@ -52,6 +52,14 @@ let clock: Intl.DateTimeFormat | null = null
 const isInstant = (ms: unknown): ms is number => Number.isFinite(ms) && Math.abs(ms as number) <= 8.64e15
 const localTime = (ms: number) => (clock ??= new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })).format(ms)
 
+// Buy and sell in any case take their direction; any other side the server sends prints as sent, with no direction.
+function SideWord({ side }: { side: unknown }) {
+  const word = typeof side === "string" ? side.trim().toLowerCase() : ""
+  if (word === "buy") return <span className="text-up">BUY</span>
+  if (word === "sell") return <span className="text-down">SELL</span>
+  return <span>{side === null || side === undefined ? NULL_TOKEN : String(side)}</span>
+}
+
 /** Time, symbol, side, quantity, filled, price, status, account. Spread them into your own list to add, drop, or reorder. */
 export function blotterColumns<T extends BlotterRow>(options: BlotterColumnOptions<T> = {}): ColumnDef<T>[] {
   const price = options.price ?? twoDecimals
@@ -60,7 +68,7 @@ export function blotterColumns<T extends BlotterRow>(options: BlotterColumnOptio
     { key: "time", header: "Time", width: 76, sortable: true, flash: false, accessor: (r) => r.time, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
     { key: "symbol", header: "Symbol", width: 76, sortable: true, accessor: (r) => r.symbol, cell: ({ row }) => <span className="font-semibold">{row.symbol}</span> },
     // The word is always there, so the color is not the only thing saying which side.
-    { key: "side", header: "Side", width: 56, sortable: true, accessor: (r) => r.side, cell: ({ row }) => <span className={row.side === "buy" ? "text-up" : "text-down"}>{row.side === "buy" ? "BUY" : "SELL"}</span> },
+    { key: "side", header: "Side", width: 56, sortable: true, accessor: (r) => r.side, cell: ({ row }) => <SideWord side={row.side} /> },
     { key: "quantity", header: "Qty", width: 84, numeric: true, sortable: true, flash: false, accessor: (r) => r.quantity, format: (v) => formatQuantity(v as number) },
     { key: "filled", header: "Filled", width: 84, numeric: true, sortable: true, accessor: (r) => r.filled ?? null, format: (v) => formatQuantity(v as number | null) },
     { key: "price", header: "Price", width: 84, numeric: true, sortable: true, accessor: (r) => r.price ?? null, format: (v, row) => (typeof v === "number" ? price(v, row) : NULL_TOKEN) },
@@ -302,7 +310,9 @@ export function BlotterActionButton({ action: id, children, disabled, onClick, t
   const { ids, actions, run } = useBlotterActions()
   const action = actions.find(action => action.id === id)
   const allowed = Boolean(action?.allowedIds.length)
-  return <Button type={type} variant={variant === undefined ? (action?.destructive ? "destructive" : "outline") : variant} size={size === undefined ? "sm" : size} data-action={id} {...props} className={cn(size === undefined && "h-6 px-2 text-xs", className)} disabled={disabled || !allowed} onClick={event => {
+  // A destructive action says so in the destructive color on the outline button, which holds 4.5 to 1 at rest and turns
+  // to the accent's text under the pointer: the destructive variant puts that color on its own tint, below it.
+  return <Button type={type} variant={variant === undefined ? "outline" : variant} size={size === undefined ? "sm" : size} data-action={id} data-destructive={action?.destructive || undefined} {...props} className={cn(size === undefined && "h-6 px-2 text-xs", variant === undefined && action?.destructive && "text-destructive", className)} disabled={disabled || !allowed} onClick={event => {
     onClick?.(event)
     if (!event.defaultPrevented && !disabled && allowed) run(id)
   }}>{children === undefined ? actionLabel(action, id, ids.length) : children}</Button>

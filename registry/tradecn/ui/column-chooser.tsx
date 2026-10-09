@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
-import { RULE_TONES, RULE_TONE_CLASS, columnName, describeRule, readColumnRule, type ReadColumnRule, type RuleTone } from "@/registry/tradecn/lib/grid-rules"
+import { RULE_TONES, RULE_TONE_CLASS, columnName, describeRule, readColumnRule, type ReadColumnRule, type RuleTone, type RuleWordsInput } from "@/registry/tradecn/lib/grid-rules"
 import { EMPTY_COLUMN_STATE, type ColumnDef, type ColumnState } from "@/registry/tradecn/ui/data-grid"
+
+// An undefined word keeps its default, as DataGrid's labels do.
+const defined = <W extends object>(words: W | undefined): Partial<W> => Object.fromEntries(Object.entries(words ?? {}).filter(([, word]) => word !== undefined)) as Partial<W>
 
 // The root coordinates controlled grid edits, search, drag ownership and focus.
 // Callers own the collection, row contents and any surrounding dialog.
@@ -18,9 +21,14 @@ export interface ColumnChooserLabels {
   /** Prefix of a checkbox's name: "Show Price". */
   show: string
   frozen: string
-  /** After a count, "2 hidden", and alone as a hidden item's spoken state. */
+  /** A hidden item's spoken state. */
   hidden: string
+  /** How many columns are hidden: a template with `{n}`, or a function of the count, for a plural a template can't hold. */
+  hiddenCount: string | ((n: number) => string)
+  /** Said before an item's width, which it shows in px. */
   width: string
+  /** The rule badges' words, as grid-rules writes them; a partial map keeps the rest. */
+  ruleWords: RuleWordsInput
   resetWidth: string
   moveUp: string
   moveDown: string
@@ -43,7 +51,9 @@ export const DEFAULT_COLUMN_CHOOSER_LABELS: Required<ColumnChooserLabels> = {
   show: "Show",
   frozen: "frozen",
   hidden: "hidden",
+  hiddenCount: (n) => `${n.toLocaleString()} hidden`,
   width: "Width",
+  ruleWords: {},
   resetWidth: "Reset width",
   moveUp: "Move up",
   moveDown: "Move down",
@@ -385,7 +395,8 @@ function editAnnouncement(edit: ChooserEdit, rows: readonly ColumnChooserEntry[]
 }
 
 export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, baseState = EMPTY_COLUMN_STATE, presented, rules, labels: labelsProp, children, className, ref, role = "group", tabIndex = -1, "aria-label": ariaLabel, onFocusCapture, onBlurCapture, ...props }: ColumnChooserProps<T>) {
-  const labels = { ...DEFAULT_COLUMN_CHOOSER_LABELS, ...labelsProp }
+  const labels = { ...DEFAULT_COLUMN_CHOOSER_LABELS, ...defined(labelsProp) }
+  const ruleWords = labels.ruleWords
   // Definition-hidden columns keep their settings if application policy exposes them later.
   const knownColumns = useMemo(() => columns.map((column) => column.hidden ? { ...column, hidden: false } : column), [columns])
   const stateRows = useMemo(() => chooserRows(knownColumns, columnState, rules), [knownColumns, columnState, rules])
@@ -393,8 +404,8 @@ export function ColumnChooser<T>({ columns, columnState, onColumnStateChange, ba
   const rows = useMemo(() => {
     const editable = new Set(columns.filter((column) => !column.hidden).map((column) => column.key))
     const baseByKey = new Map(baseRows.map((row) => [row.key, row]))
-    return stateRows.filter((row) => editable.has(row.key)).map(({ column, rules, ...row }) => ({ ...row, resized: !Object.is(row.width, baseByKey.get(row.key)?.width), rules: rules.map((rule) => ({ rule, description: describeRule(rule, [column], "highlight") })) }))
-  }, [columns, stateRows, baseRows])
+    return stateRows.filter((row) => editable.has(row.key)).map(({ column, rules, ...row }) => ({ ...row, resized: !Object.is(row.width, baseByKey.get(row.key)?.width), rules: rules.map((rule) => ({ rule, description: describeRule(rule, [column], "highlight", ruleWords) })) }))
+  }, [columns, stateRows, baseRows, ruleWords])
   const [query, setQuery] = useState("")
   const [dragging, setDragging] = useState<string | null>(null)
   const drag = useRef<{ key: string; frozen: boolean } | null>(null)
@@ -674,7 +685,7 @@ export function ColumnChooserSearch({ onChange, className, "aria-label": ariaLab
 
 export function ColumnChooserHiddenCount({ className, ...props }: Omit<ComponentProps<"span">, "children">) {
   const { hiddenCount, labels } = useColumnChooser()
-  return <span data-column-hidden-count={hiddenCount} className={cn("text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{hiddenCount} {labels.hidden}</span>
+  return <span data-column-hidden-count={hiddenCount} className={cn("text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{typeof labels.hiddenCount === "function" ? labels.hiddenCount(hiddenCount) : labels.hiddenCount.replace("{n}", hiddenCount.toLocaleString())}</span>
 }
 
 type ActionProps = Omit<ComponentProps<typeof Button>, "children"> & { children: ReactNode }
@@ -797,7 +808,7 @@ function ChooserItem({ item, className, ref, role = "group", tabIndex, draggable
       }
     }
   }, [row.key, endDrag, focusFallback])
-  return <ItemContext value={item}><ControlsContext value={registerControl}><div role={role} tabIndex={tabIndex ?? (itemKeyless || isOwner ? 0 : -1)} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-description={row.visible ? undefined : labels.hidden} aria-keyshortcuts={itemKeyless ? undefined : `${controls.visibility.length ? "Space " : ""}Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End${controls.resetWidth.length ? " Delete Backspace" : ""}`} data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-ring data-[dragging]:opacity-50", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
+  return <ItemContext value={item}><ControlsContext value={registerControl}><div role={role} tabIndex={tabIndex ?? (itemKeyless || isOwner ? 0 : -1)} draggable={draggable} aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : row.name)} aria-description={row.visible ? undefined : labels.hidden} aria-keyshortcuts={itemKeyless ? undefined : `${controls.visibility.length ? "Space " : ""}Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End${controls.resetWidth.length ? " Delete Backspace" : ""}`} data-column={row.key} data-visible={row.visible ? "true" : "false"} data-frozen={row.frozen || undefined} data-dragging={dragging || undefined} className={cn("group flex min-w-0 items-center gap-2 rounded-sm border border-transparent px-1.5 py-1 outline-none focus-visible:border-foreground data-[dragging]:border-dashed data-[dragging]:border-foreground", !row.visible && "text-muted-foreground", className)} {...props} data-slot="tradecn-column-chooser-item" ref={rootRef} onFocusCapture={(event) => {
     onFocusCapture?.(event)
     if (ownsItemEvent(event)) {
       focused.current = event.target
@@ -914,7 +925,8 @@ export function ColumnChooserRule({ ruleIndex, className, ...props }: Omit<Compo
 export function ColumnChooserWidth({ className, "aria-label": ariaLabel, ...props }: Omit<ComponentProps<"span">, "children">) {
   const { row } = useColumnChooserItem()
   const { labels } = useColumnChooser()
-  return <span aria-label={ariaLabel ?? (props["aria-labelledby"] ? undefined : `${labels.width} ${row.width}`)} data-column-width={row.width} className={cn("w-14 shrink-0 text-right text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{row.width} px</span>
+  // Words in the span rather than a label on it: a screen reader can pass over a label on an element with no role.
+  return <span aria-label={ariaLabel} data-column-width={row.width} className={cn("w-14 shrink-0 text-right text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{ariaLabel || props["aria-labelledby"] ? null : <span className="sr-only">{labels.width} </span>}{row.width} px</span>
 }
 
 export function ColumnChooserResetWidth({ type = "button", variant = "ghost", size, disabled, onClick, className, tabIndex = -1, ref, "aria-label": ariaLabel, ...props }: ActionProps) {

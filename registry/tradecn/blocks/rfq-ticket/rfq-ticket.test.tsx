@@ -64,6 +64,7 @@ describe("the pure parts", () => {
   it("says the size the way the desk does", () => {
     expect(formatSize(5_000_000, T32)).toBe("5mm")
     expect(formatSize(250, { ...T32, quantityUnit: "contracts" })).toBe("250")
+    expect(formatSize(2_500_000, T32, " Mio.")).toBe("2.5 Mio.")
   })
   it("names what stops a quote", () => {
     expect(checkQuote(draftOf({ ask: 99.5 }), inquiry())).toEqual({})
@@ -72,6 +73,8 @@ describe("the pure parts", () => {
     expect(checkQuote(draftOf({ bid: 99.5 }), inquiry({ side: "two-way" }))).toEqual({ ask: "An offer is needed." })
     expect(checkQuote(draftOf({ bid: 99.53125, ask: 99.5 }), inquiry({ side: "two-way" }))).toEqual({ ask: "The quote is crossed." })
     expect(checkQuote(draftOf({ bid: 99.5, ask: 99.5 }), inquiry({ side: "two-way" }))).toEqual({})
+    // A side the client did not ask for is never checked, so it can never cross the one that is.
+    expect(checkQuote(draftOf({ bid: 99.5, ask: 99.484375 }), inquiry({ side: "sell" }))).toEqual({})
   })
   it("says a quote in words", () => {
     expect(describeQuote(draftOf({ ask: 99.515625 }), inquiry())).toBe("Offer 5mm T 4 1/8 05/15/34 @ 99-16+")
@@ -86,6 +89,7 @@ describe("the pure parts", () => {
     expect(quoteDistance(112.5, 113, CREDIT)).toEqual({ value: -0.5, text: "−0.5 bp" })
     expect(quoteDistance(null, 99.5, T32)).toBeNull()
     expect(quoteDistance(99.5, undefined, T32)).toBeNull()
+    expect(quoteDistance(4.26, 4.25, BILL, "Bp.")).toEqual({ value: 1, text: "+1.0 Bp." })
   })
 })
 
@@ -348,7 +352,7 @@ describe("RfqTicket keys", () => {
     const { onDraftChange } = mount({ inquiry: inquiry({ side: "two-way" }) })
     const offer = screen.getByLabelText("Offer")
     const offerField = offer.closest("[data-slot='tradecn-quote-field']") as HTMLElement
-    const up = within(offerField).getByRole("button", { name: /up one tick/ })
+    const up = within(offerField).getByRole("button", { name: /up one step/ })
     act(() => up.focus())
     fireEvent.keyDown(up, { key: "ArrowUp", ctrlKey: true })
     // The offer moves from the market's own side; the bid stands untouched.
@@ -696,7 +700,7 @@ describe("limits", () => {
     fireEvent.click(button)
     expect(quote).not.toHaveBeenCalled()
     expect(button).toHaveTextContent("Quote anyway?")
-    expect(document.querySelector("[data-rfq-limits='confirm']")).toHaveTextContent("The ask is 7 ticks from the market, past 4 ticks. Send it anyway?")
+    expect(document.querySelector("[data-rfq-limits='confirm']")).toHaveTextContent("The offer is 7 ticks from the market, past 4 ticks. Send it anyway?")
     type(field("Offer"), "99-19")
     expect(button).toHaveTextContent("Quote")
     expect(document.querySelector("[data-rfq-limits]")).toBeNull()
@@ -747,7 +751,7 @@ describe("limits", () => {
     expect(announcer).toBeEmptyDOMElement()
     type(field("Offer"), "99-20")
     fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
-    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market, past 4 ticks. Send it anyway?")
+    expect(announcer).toHaveTextContent("The offer is 7 ticks from the market, past 4 ticks. Send it anyway?")
     const said = announcer.firstElementChild
     rerender({ inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.53125 } }) })
     expect(document.querySelector("[data-rfq-limits='confirm']")).toHaveTextContent("6 ticks")
@@ -766,7 +770,7 @@ describe("limits", () => {
     expect(shown()).toHaveAttribute("role", "none")
     expect(field("Offer")).not.toHaveAttribute("aria-describedby")
     fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
-    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market; the limit is 4 ticks.")
+    expect(announcer).toHaveTextContent("The offer is 7 ticks from the market; the limit is 4 ticks.")
     const said = announcer.firstElementChild
     rerender({ inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.53125 } }) })
     expect(shown()).toHaveTextContent("6 ticks")
@@ -782,7 +786,7 @@ describe("limits", () => {
     expect(shown()).toHaveTextContent("7 ticks")
     expect(announcer).toBeEmptyDOMElement()
     fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
-    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market; the limit is 4 ticks.")
+    expect(announcer).toHaveTextContent("The offer is 7 ticks from the market; the limit is 4 ticks.")
   })
 
   it("says the question again for every press that asks it, a second action's included", () => {
@@ -793,12 +797,12 @@ describe("limits", () => {
     type(field("Offer"), "99-20")
     fireEvent.click(screen.getByRole("button", { name: /^Firm/ }))
     const first = announcer.firstElementChild
-    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market, past 4 ticks. Send it anyway?")
+    expect(announcer).toHaveTextContent("The offer is 7 ticks from the market, past 4 ticks. Send it anyway?")
     // The send key runs Quote, which has not asked yet: it asks, and is heard asking.
     fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
     expect(quote).not.toHaveBeenCalled()
     expect(announcer.firstElementChild).not.toBe(first)
-    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market, past 4 ticks. Send it anyway?")
+    expect(announcer).toHaveTextContent("The offer is 7 ticks from the market, past 4 ticks. Send it anyway?")
     fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
     expect(quote).toHaveBeenCalledTimes(1)
     expect(firm).not.toHaveBeenCalled()
@@ -831,10 +835,10 @@ describe("limits", () => {
     const view = render(ui(["quote"]))
     const announcer = document.querySelector<HTMLElement>("[data-rfq-announcer]")!
     // A block present at mount is shown, and nothing is said until a press meets it.
-    expect(screen.getByText("The ask is 7 ticks from the market; the limit is 4 ticks.", { selector: "[data-slot='field-error']" })).toHaveAttribute("role", "none")
+    expect(screen.getByText("The offer is 7 ticks from the market; the limit is 4 ticks.", { selector: "[data-slot='field-error']" })).toHaveAttribute("role", "none")
     expect(announcer).toBeEmptyDOMElement()
     fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
-    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market; the limit is 4 ticks.")
+    expect(announcer).toHaveTextContent("The offer is 7 ticks from the market; the limit is 4 ticks.")
     type(field("Offer"), "99-17")
     expect(announcer).toBeEmptyDOMElement()
     fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
@@ -874,7 +878,7 @@ describe("limits", () => {
     const announcer = document.querySelector<HTMLElement>("[data-rfq-announcer]")!
     type(field("Offer"), "99-20")
     fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
-    expect(announcer).toHaveTextContent("The ask is 7 ticks from the market; the limit is 4 ticks.")
+    expect(announcer).toHaveTextContent("The offer is 7 ticks from the market; the limit is 4 ticks.")
     expect(announcer).toHaveTextContent("Desk policy blocks this quote.")
     // The market comes to the offer: the desk still blocks, but what was said is no longer true, so it goes.
     rerender({ inquiry: inquiry({ market: { label: "Composite", bid: 99.5, ask: 99.59375 } }) })
@@ -918,7 +922,7 @@ describe("limits", () => {
   it("blocks under the field and holds the actions that send a quote, while a pass still runs", () => {
     const { quote, pass } = mount({ limits: { maxDistance: { ticks: 4 } } })
     type(field("Offer"), "99-20")
-    const shown = screen.getByText("The ask is 7 ticks from the market; the limit is 4 ticks.", { selector: "[data-slot='field-error']" })
+    const shown = screen.getByText("The offer is 7 ticks from the market; the limit is 4 ticks.", { selector: "[data-slot='field-error']" })
     expect(shown).toHaveAttribute("role", "none")
     const button = screen.getByRole("button", { name: /^Quote/ })
     expect(button).toHaveAttribute("aria-disabled", "true")
@@ -927,7 +931,7 @@ describe("limits", () => {
     expect(pass).toHaveBeenCalledTimes(1)
     fireEvent.click(button)
     expect(quote).not.toHaveBeenCalled()
-    expect(document.querySelector("[data-rfq-announcer]")).toHaveTextContent("The ask is 7 ticks from the market; the limit is 4 ticks.")
+    expect(document.querySelector("[data-rfq-announcer]")).toHaveTextContent("The offer is 7 ticks from the market; the limit is 4 ticks.")
     type(field("Offer"), "99-17")
     expect(button).not.toHaveAttribute("aria-disabled")
     fireEvent.click(button)
@@ -1021,3 +1025,114 @@ describe("binding ownership and the fence", () => {
   })
 })
 
+describe("what the ticket sends and says", () => {
+  it("quotes for the inquiry's size as it stands, a resize under the same id included, unless a quick size was taken", () => {
+    const { quote, onDraftChange, rerender } = mount({ defaultDraft: { ask: 99.515625 }, quickSizes: [1_000_000] })
+    rerender({ inquiry: inquiry({ quantity: 10_000_000 }) })
+    expect(lastDraft(onDraftChange).quantity).toBe(10_000_000)
+    expect(screen.getByRole("button", { name: "For 10mm" })).toHaveAttribute("aria-pressed", "true")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).toHaveBeenLastCalledWith(draftOf({ ask: 99.515625, quantity: 10_000_000 }), inquiry({ quantity: 10_000_000 }))
+    // A quick size the dealer took holds through a resize; the inquiry's own size follows it again.
+    fireEvent.click(screen.getByRole("button", { name: "For 1mm" }))
+    rerender({ inquiry: inquiry({ quantity: 7_000_000 }) })
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).toHaveBeenLastCalledWith(draftOf({ ask: 99.515625, quantity: 1_000_000 }), inquiry({ quantity: 7_000_000 }))
+    fireEvent.click(screen.getByRole("button", { name: "For 7mm" }))
+    rerender({ inquiry: inquiry({ quantity: 8_000_000 }) })
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).toHaveBeenLastCalledWith(draftOf({ ask: 99.515625, quantity: 8_000_000 }), inquiry({ quantity: 8_000_000 }))
+  })
+
+  it("withdraws a standing question when the venue resizes the inquiry, so the next press asks again", () => {
+    const { quote, rerender } = mount({ limits: { maxDistance: { ticks: 4, level: "confirm" } } })
+    type(field("Offer"), "99-20")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(screen.getByRole("button", { name: /^Quote anyway\?/ })).toBeInTheDocument()
+    rerender({ inquiry: inquiry({ quantity: 10_000_000 }) })
+    const button = screen.getByRole("button", { name: /^Quote/ })
+    expect(button).toHaveTextContent(/^Quote/)
+    expect(button).not.toHaveTextContent("anyway")
+    fireEvent.click(button)
+    expect(quote).not.toHaveBeenCalled()
+    fireEvent.click(button)
+    expect(quote).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps the default for a word given as undefined, the offer in its limit sentences included", () => {
+    mount({ labels: { ask: undefined }, limits: { maxDistance: { ticks: 4 } }, limitsLabels: { ask: undefined } })
+    type(field("Offer"), "99-20")
+    expect(screen.getByText("The offer is 7 ticks from the market; the limit is 4 ticks.", { selector: "[data-slot='field-error']" })).toBeInTheDocument()
+  })
+
+  it("holds only the sides the client asked for, so a default for another side never reaches a check or a send", () => {
+    const { quote, onDraftChange } = mount({ inquiry: inquiry({ side: "sell" }), defaultDraft: { bid: 99.5, ask: 99.484375 } })
+    expect(screen.queryByLabelText("Offer")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).toHaveBeenCalledWith(draftOf({ bid: 99.5, ask: null }), inquiry({ side: "sell" }))
+    expect(onDraftChange).not.toHaveBeenCalled()
+  })
+
+  it("shows a block on a side it doesn't draw on the limits line, so whatever holds Quote is on screen", () => {
+    const { quote } = mount({ defaultDraft: { ask: 99.515625 }, limits: { custom: () => [{ field: "bid", level: "block", rule: "no-bids", message: "No bids from this book." }] } })
+    expect(document.querySelector("[data-rfq-limits='block']")).toHaveTextContent("No bids from this book.")
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).not.toHaveBeenCalled()
+  })
+
+  it("reads the market and the quoted levels as a table, a toned context value in words beside its color, and the server's message from a region there from the start", () => {
+    const { rerender } = mount({ inquiry: inquiry({ side: "two-way", quoted: { bid: 99.484375, ask: 99.53125 }, context: [{ label: "Position", value: "12mm", tone: "up" }, { label: "Risk", value: "4k", tone: "flat" }] }) })
+    const table = screen.getByRole("table")
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Bid", "Offer"])
+    expect(within(table).getByRole("rowheader", { name: "Composite" })).toBeInTheDocument()
+    expect(within(table).getByRole("rowheader", { name: "Quoted" })).toBeInTheDocument()
+    expect(within(table).getAllByRole("cell").map((c) => c.textContent)).toEqual(["", "99-16", "99-16+", "99-15+", "99-17"])
+    const [position, risk] = [...document.querySelectorAll("[data-rfq-context] dd")]
+    expect(position).toHaveAttribute("data-direction", "up")
+    expect(position).toHaveTextContent("12mm, up")
+    expect(position!.querySelector(".sr-only")).toHaveTextContent(", up")
+    expect(risk).toHaveAttribute("data-direction", "flat")
+    expect(risk).toHaveTextContent(/^4k$/)
+    const said = document.querySelector("[data-rfq-reply]")!
+    expect(said).toHaveAttribute("role", "status")
+    expect(said).toBeEmptyDOMElement()
+    rerender({ inquiry: inquiry({ message: "Cover 99-15" }) })
+    expect(document.querySelector("[data-rfq-reply]")).toBe(said)
+    expect(said).toHaveTextContent("Cover 99-15")
+    expect(document.querySelector("[data-rfq-message]")).toHaveAttribute("aria-hidden", "true")
+  })
+
+  it("says a refusal again when a press meets the problem a field already shows", () => {
+    mount()
+    const announcer = document.querySelector<HTMLElement>("[data-rfq-announcer]")!
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(screen.getByText("An offer is needed.")).toHaveAttribute("role", "alert")
+    expect(announcer).toBeEmptyDOMElement()
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(announcer).toHaveTextContent("An offer is needed.")
+    const first = announcer.firstElementChild
+    fireEvent.keyDown(field("Offer"), { key: "Enter", ctrlKey: true })
+    expect(announcer.firstElementChild).not.toBe(first)
+    expect(announcer).toHaveTextContent("An offer is needed.")
+  })
+
+  it("says each word a dealer reads from labels, offers whole quick sizes once each, and draws a destructive action in its color on the outline button", () => {
+    mount({
+      inquiry: inquiry({ side: "two-way", context: [{ label: "Position", value: "12mm", tone: "down" }], market: { label: "Composite", bid: 4.26, ask: 4.25 }, instrument: { symbol: "B3M", convention: BILL } }),
+      defaultDraft: { bid: 4.27 },
+      quickSizes: [1_000_000, 1_000_000, 0.5, -2, 2_500_000],
+      labels: { millions: " Mio.", bp: "Bp.", toneDown: "abwärts", stepUp: "{label}: ein Schritt mehr", stepDown: "{label}: ein Schritt weniger" },
+    })
+    expect(screen.getByRole("group", { name: "Inquiry Q-1" })).toHaveTextContent("5 Mio.")
+    expect(within(screen.getByRole("group", { name: "For" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["5 Mio.", "1 Mio.", "2.5 Mio."])
+    expect(document.querySelector("[data-rfq-distance='bid']")).toHaveTextContent("+1.0 Bp. vs market")
+    expect(document.querySelector("[data-rfq-context] dd")).toHaveTextContent("12mm, abwärts")
+    expect(screen.getByRole("button", { name: "Bid: ein Schritt mehr" })).toBeInTheDocument()
+    const pass = screen.getByRole("button", { name: "Pass" })
+    expect(pass).toHaveAttribute("data-destructive", "true")
+    expect(pass.classList).toContain("text-destructive")
+    expect(pass.className).not.toContain("bg-destructive")
+    expect(screen.getByRole("group", { name: "Inquiry Q-1" }).className).toContain("focus-visible:ring-foreground/60")
+    expect(RFQ_TICKET_BINDINGS.find((b) => b.id === "rfq.tick-up")?.description).toBe("Level up one step")
+  })
+})

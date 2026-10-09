@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { createRowStore, type RowStore } from "@/registry/tradecn/lib/row-store"
-import { Blotter, BlotterActionScope, BlotterGrid, allowedRows, blotterColumns, type BlotterAction, type BlotterGridProps, type BlotterProps, type BlotterRow } from "@/registry/tradecn/ui/blotter"
+import { Blotter, BlotterActionButton, BlotterActionScope, BlotterGrid, allowedRows, blotterColumns, type BlotterAction, type BlotterGridProps, type BlotterProps, type BlotterRow } from "@/registry/tradecn/ui/blotter"
 import { OrderMenu, OrderToolbar } from "@/demos/blotter-actions"
 
 const RECT = { width: 900, height: 240 }
@@ -130,6 +130,20 @@ describe("Blotter deletion keys", () => {
     expect(run).toHaveBeenCalledTimes(1)
   })
 
+  it("draws a destructive action as an outline button with destructive text, which holds its contrast", () => {
+    render(<Blotter store={seeded()} selection={new Set(["o1"])} actions={[cancel(), { id: "note", label: "Note", run: vi.fn() }]}>
+      <BlotterActionScope ids={["o1"]}>
+        <BlotterActionButton action="cancel" />
+        <BlotterActionButton action="note" />
+      </BlotterActionScope>
+    </Blotter>)
+    const destructive = screen.getByRole("button", { name: /^Cancel/ })
+    expect(destructive).toHaveAttribute("data-destructive")
+    expect(destructive).toHaveClass("text-destructive")
+    expect(destructive.className).not.toMatch(/(^|\s)bg-destructive/)
+    expect(screen.getByRole("button", { name: /^Note/ })).not.toHaveClass("text-destructive")
+  })
+
   it("runs the delete action once for a held key", () => {
     const run = vi.fn()
     render(<Blotter store={seeded()} selection={new Set(["o1"])} actions={[cancel(run)]}>
@@ -142,6 +156,20 @@ describe("Blotter deletion keys", () => {
 })
 
 describe("blotterColumns", () => {
+  it("reads buy and sell in any case as a direction, and prints any other side as sent with none", () => {
+    const side = blotterColumns()[2]!
+    const word = (value: unknown) => {
+      const { container } = render(<>{side.cell!({ row: { ...ORDERS[0]!, side: value } as BlotterRow, value, rowId: "x" })}</>)
+      const span = container.querySelector("span")!
+      const out = [span.textContent, span.className]
+      container.remove()
+      return out
+    }
+    expect(word("BUY")).toEqual(["BUY", "text-up"])
+    expect(word("Sell")).toEqual(["SELL", "text-down"])
+    expect(word("short")).toEqual(["short", ""])
+  })
+
   it("prints an order: time and price your way, the side as a word, nothing for a missing price", () => {
     render(<Harness store={seeded()} price={(v) => `$${v}`} />)
     const zn = within(rowOf("o1"))

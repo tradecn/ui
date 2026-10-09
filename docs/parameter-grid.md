@@ -74,7 +74,7 @@ Uses the data grid's `parameters` preset: 24 px rows, single selection, ring fla
 | `onEdit` | `(change: EditChange<T>) => void \| Promise<unknown>` | Required | Send a value or enable request to the server. |
 | `columns` | `ColumnDef<T>[]` | `parameterColumns(options)` | Replace the generated column list. |
 | `label` | `string` | `"Parameters"` | Accessible name for the grid. |
-| `labels` | `Partial<ParameterGridLabels & DataGridLabels>` | `DEFAULT_PARAMETER_GRID_LABELS` | Override the labels listed below, and the grid's own, [DataGrid's labels](data-grid.md#labels). |
+| `labels` | `Partial<ParameterGridLabels & DataGridLabels>` | `DEFAULT_PARAMETER_GRID_LABELS` | Override the labels listed below, and the grid's own, [DataGrid's labels](data-grid.md#labels). A word given as `undefined` keeps its default. |
 | `time` | `(ms: number) => string` | Local 24-hour `HH:MM:SS` | Format updated and as-of times. A time a `Date` can't hold, such as `NaN`, prints `–` instead of calling it. The default reads the runtime's time zone, so server-rendered times use the server's. |
 | `changedSince` | `number \| null` | `null` | Mark rows updated at or after this epoch time in milliseconds. |
 | `toggleAction` | `string` | `"toggle"` | Permission id for the enable checkbox. |
@@ -125,7 +125,7 @@ Each `ParameterDef<T>` defines one column:
 | `validate` | `(value: unknown, row: T) => EditProblem \| null \| undefined` | None | Return a problem to refuse a value after range checks. |
 | `step` | `number \| ((value: unknown, dir: 1 \| -1, big: boolean, row: T) => unknown)` | None | Change the editor value with Up or Down. |
 | `min` / `max` | `number` | No bounds | Inclusive limits for numeric values. |
-| `decimals` | `number` | `2` | Decimal places in the default formatter. Above zero, the default parser also reads one comma with no point after it, as in `1,234`, as no number, whatever your own `format` prints. |
+| `decimals` | `number` | `2` | Decimal places in the default formatter, a whole number from 0 to 20; another number is clamped to that range and one that isn't finite uses 2. Above zero, the default parser also reads one comma with no point after it, as in `1,234`, as no number, whatever your own `format` prints. |
 | `numeric` | `boolean` | `true` | Right alignment, numeric font, decimal input mode, and directional flashes. |
 | `font` | `"numeric" \| "mono"` | `"numeric"` | Font family for numeric cells; both use tabular figures. |
 | `readOnly` | `boolean` | `false` | Omit editing for this parameter on every row. |
@@ -148,7 +148,7 @@ Up and Down step when configured. Ctrl, Cmd, or Alt with those arrows passes thr
 
 ### The enable box
 
-The checkbox stays checked according to the store's `enabled` value. Pressing it calls `onEdit` with `key: "enabled"` and the opposite boolean. It is disabled while pending; the acknowledgement and error rules above apply. The grid's Space, Enter, and F2 keys on that cell can send the same request, including while pending, once per press: a held key sends one request, so it can't toggle the value back once the server takes it.
+The checkbox stays checked according to the store's `enabled` value. Pressing it calls `onEdit` with `key: "enabled"` and the opposite boolean. It is held while pending, with `aria-disabled`, so a pressed box keeps focus and further presses send nothing; the acknowledgement and error rules above apply. The grid's Space, Enter, and F2 keys on that cell can send the same request, including while pending, once per press: a held key sends one request, so it can't toggle the value back once the server takes it.
 
 The checkbox uses your installed checkbox component and stays outside the tab order. Its accessible name describes the request, such as `Enable ZN` or `Disable ZN`.
 
@@ -160,11 +160,11 @@ Cells blocked by permissions carry `aria-readonly="true"` when they have an edit
 
 ### Changed since
 
-Rows with a present `updatedAt` at or after `changedSince` show a dot beside their name and receive the `Changed` accessible description, unless `getRowProps` supplies one. A null or omitted `changedSince` disables the mark.
+Rows with a present `updatedAt` at or after `changedSince` show a dot beside their name and receive the `Changed` accessible description, unless `getRowProps` supplies one; the grid joins it with a row rule's words. A null or omitted `changedSince` disables the mark.
 
-The updated column shows `updatedAt` and a nonempty `updatedBy`, with a fill flash when the timestamp changes. A missing timestamp, or one a `Date` can't hold, displays `–`.
+The updated column shows `updatedAt` and a nonempty `updatedBy`, with no flash: a time moves on without a direction, and the Changed mark says the row changed. A missing timestamp, or one a `Date` can't hold, displays `–`.
 
-The as-of line shows the store's latest supplied `producedAt`, falling back to `lastBatchAt` when none has been supplied. Before either exists, it shows `–`, and a time a `Date` can't hold reads `As of –`. Both timestamps are milliseconds since the epoch and use the `time` formatter. Set `asOf={false}` to hide the line.
+The as-of line shows the store's latest supplied `producedAt`, falling back to `lastBatchAt` when none has been supplied. Before either exists, it shows `–`, and a time a `Date` can't hold reads `As of –`. Both timestamps are milliseconds since the epoch and use the `time` formatter. The time shows once mounted, so a server's render, whose store stamps its own batches, matches the browser's first. Set `asOf={false}` to hide the line.
 
 ### Labels
 
@@ -173,7 +173,7 @@ The as-of line shows the store's latest supplied `producedAt`, falling back to `
 | Label | Default | Substitutions |
 |---|---|---|
 | `name` / `enabled` / `updated` | `Name` / `On` / `Updated` | None |
-| `enable` / `disable` | `Enable {name}` / `Disable {name}` | Row name |
+| `enable` | `Enable {name}` | Row name; the enable box's name on or off, since the box says which |
 | `changed` | `Changed` | None |
 | `asOf` | `As of {time}` | Formatted batch time |
 | `notANumber` | `Not a number.` | None |

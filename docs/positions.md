@@ -69,7 +69,7 @@ The final state stays visible until Restore book replaces the original rows. Sel
 | `label` | `string` | `"Positions"` | Accessible name of the grid. |
 | `selectionMode` | `"none" \| "single" \| "multi"` | `"single"` | Choose selection behavior. |
 | `selectionColumn` | `boolean` | `false` | Show checkboxes when selection is `"multi"`. |
-| `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Menu items for the selection or targeted row. |
+| `renderContextMenu` | `(rows: T[], ids: RowId[], target?: RowId \| null) => ReactNode` | None | Menu items for the selection or targeted row; `target` is the row the menu opened on. |
 | `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | Side decorations | Add row classes or override the side's state and accessible description. Memoize it: the wrapper follows your function, so a new one re-renders every row and a memoized one is free. |
 | `getRowLabel` | `((row: T, id: RowId) => string) \| null` | The instrument | A row's name that holds while its mark and P&L tick; add the book when one grid holds several books. The grid reads the focused row's cells once when focus rests on it, and `null` names rows by their cells and reads nothing. Keep its identity stable. |
 | `className` | `string` | None | Classes on the outer `tradecn-positions` container, not the grid. |
@@ -99,7 +99,7 @@ Default position, P&L, and risk cells use `up` for positive finite values, `down
 
 P&L and risk round to whole numbers by default. A small negative value such as `-0.1` prints `0`, while `0.1` prints `+0`; the color still follows the unrounded value. Supply a formatter with enough precision when those small values need to remain distinguishable without color. Zero itself prints without a sign.
 
-The position span carries `data-side="long"`, `"short"`, or `"flat"`. The row defaults to the same `data-state`, with an `aria-description` of `long` or `short`; flat rows have no default description. Your `getRowProps` can override either row attribute.
+The position span carries `data-side="long"`, `"short"`, or `"flat"`. The row defaults to the same `data-state`, with an `aria-description` of `long` or `short`, which the grid joins with a row rule's words; flat rows have no default description. Your `getRowProps` can override either row attribute.
 
 | Helper | Behavior |
 |---|---|

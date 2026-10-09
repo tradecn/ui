@@ -34,7 +34,7 @@ function QuoteRules() {
       {rules.columns?.length ? (
         <ul className="space-y-2">
           {rules.columns?.map((rule, index) => (
-            <li key={rule.id}>
+            <li key={rule.id ?? index}>
               <RulesEditorItem kind="highlights" index={index}>
                 <RulesEditorColumn />
                 <RulesEditorOperator />
@@ -123,7 +123,7 @@ Move fields and actions into cards with your own headings and content.
 | `onRulesChange` | `(rules: ReadGridRules) => void` | Required | Receives each edit. An edit can leave a rule incomplete, as typing does, so hold the editor's rules as `ReadGridRules`, the type the grid takes. |
 | `children` | `ReactNode` | Required | Your sections, items, controls, and empty states. |
 | `store` | `RowStore<T>` | - | Rows for match counts. |
-| `labels` | `Partial<RulesEditorLabels>` | `DEFAULT_RULES_EDITOR_LABELS` | Field, action, count, and region labels. |
+| `labels` | `Partial<RulesEditorLabels>` | `DEFAULT_RULES_EDITOR_LABELS` | Field, action, count, and region labels. A word given as `undefined` keeps its default. |
 | `className` | `string` | - | Additional classes on the root. |
 
 `RulesEditorKind` is `"highlights" | "filters" | "sort"`.
@@ -297,7 +297,7 @@ Move and remove actions use `<label>: <rule>`. Match their visible text to `labe
 
 Fields use `<field>: <rule>`, such as `Value: Rich to the market`. Highlights use their nonblank label, while unnamed items use kind and position.
 
-Use `useRulesEditor().labels` for your tab text, action children, empty states, and drag hint. A count's label is a template or a function, for a language whose plurals a template can't hold: `matches` takes `{n}`, the rows that match, or `(n) => string`, and `shown` takes `{n}`, the rows shown, and `{m}`, all the rows, or `(n, m) => string`. The defaults put one in the singular, as in `1 row matches`.
+Use `useRulesEditor().labels` for your tab text, action children, empty states, and drag hint. `labels.ruleWords` writes the comparison and tone choices and every problem in your words, as grid-rules' `RuleWords`, and `labels.itemName` names a rule with no label, `{kind}` its section's word and `{n}` its place. A rule with a problem marks its item invalid, and the item and its value fields point to `RulesEditorProblem`'s line. A count's label is a template or a function, for a language whose plurals a template can't hold: `matches` takes `{n}`, the rows that match, or `(n) => string`, and `shown` takes `{n}`, the rows shown, and `{m}`, all the rows, or `(n, m) => string`. The defaults put one in the singular, as in `1 row matches`.
 
 Operator words use `RULE_OP_LABELS`. Tone names, validation messages, and `ColumnChooser` labels have separate owners.
 

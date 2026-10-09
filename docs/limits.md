@@ -132,7 +132,7 @@ A confirm changes the invoked action's label to ask again. A second click on the
 
 ### Labels
 
-Pass `context.labels` to `checkLimits` to override any string in `DEFAULT_LIMITS_LABELS`:
+Pass `context.labels` to `checkLimits` to override any string in `DEFAULT_LIMITS_LABELS`; a word given as `undefined` keeps its default:
 
 | Label | Default |
 |---|---|
@@ -144,11 +144,12 @@ Pass `context.labels` to `checkLimits` to override any string in `DEFAULT_LIMITS
 | `tooFarConfirm` | `The {field} is {distance} from the market, past {max}. Send it anyway?` |
 | `sideNotAllowed` | `The book does not take a {side}.` |
 | `buy`, `sell` | `buy`, `sell` |
-| `ticks`, `bps` | `ticks`, `bp` |
+| `price`, `bid`, `ask` | `price`, `bid`, `ask` |
+| `ticks`, `bps` | `(n) => n === 1 ? "tick" : "ticks"`, `bp` |
 
-Quantity templates receive `{n}` and `{max}` or `{min}` — whole sizes print with digit grouping through `formatQuantity`, fractional sizes exactly. Distance templates receive the raw field name (`price`, `bid`, or `ask`), plus `{distance}` and `{max}` formatted by `formatTicks` without a positive sign and with the translated unit appended. `{side}` uses the `buy` or `sell` label. RfqTicket's Offer field therefore reads as `ask` in the default English messages, and only a direct `checkLimits` caller can supply templates — shared by every distance field, so renaming one side means dropping `{field}`, checking each side in its own call, or rewriting messages by `problem.field`.
+Quantity templates receive `{n}` and `{max}` or `{min}` — whole sizes print with digit grouping through `formatQuantity`, fractional sizes exactly. Distance templates receive `{field}`, the `price`, `bid`, or `ask` label for the level, plus `{distance}` and `{max}` formatted by `formatTicks` without a positive sign, each with its unit appended: `ticks` and `bps` are each a word, or a function of the count for a plural a word can't hold, so the default says `1 tick`. `{side}` uses the `buy` or `sell` label.
 
-Custom messages are returned unchanged. Ticket and RfqTicket do not pass labels into `checkLimits`; their own `labels` props control ticket text, not these templates.
+Custom messages are returned unchanged. [`ticket`](ticket.md), [`rfq-ticket`](rfq-ticket.md), and [`quote-panel`](quote-panel.md) pass their `limitsLabels` prop as these labels; RfqTicket's own default calls the ask the offer, as its field does.
 
 ### What it does not do
 

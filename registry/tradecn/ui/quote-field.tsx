@@ -4,6 +4,9 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { QUOTE_BASIS_LABELS, formatQuote, numericFontClass, parseQuote, quoteBasisOf, stepQuote, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 
+// An undefined word keeps its default, as DataGrid's labels do.
+const defined = <W extends object>(words: W | undefined): Partial<W> => Object.fromEntries(Object.entries(words ?? {}).filter(([, word]) => word !== undefined)) as Partial<W>
+
 // A field that types a quote the way the instrument quotes it: 99-16+ for a note on price, 4.253
 // for a bill on discount, 12.6 for credit on a spread. It parses on every keystroke and hands the
 // number up, marks what is not a quote on blur and prints a good one back in the notation, and steps
@@ -14,6 +17,20 @@ import { QUOTE_BASIS_LABELS, formatQuote, numericFontClass, parseQuote, quoteBas
 // It is controlled, so the value is the parent's. When the parent moves it (a step from a key, a click
 // on a reference price, a reset) the text follows; when the text already reads as the new value, as it
 // does while someone is typing, the text is left alone under the cursor.
+
+export interface QuoteFieldLabels {
+  /** The step buttons' names, `{label}` the field's label. */
+  stepUp: string
+  stepDown: string
+}
+
+export const DEFAULT_QUOTE_FIELD_LABELS: QuoteFieldLabels = {
+  stepUp: "{label} up one step",
+  stepDown: "{label} down one step",
+}
+
+/** What the field says of text that is not a quote, unless `invalidText` says otherwise. */
+export const DEFAULT_INVALID_QUOTE = "Not a quote in this instrument's notation."
 
 export interface QuoteFieldProps {
   /** How the quote prints, parses, and steps, and in what basis. */
@@ -33,7 +50,7 @@ export interface QuoteFieldProps {
    * read again at every change. Default true.
    */
   announceError?: boolean
-  /** Said under the field when the text is not a quote. Default names the basis. */
+  /** Said under the field when the text is not a quote. Default `DEFAULT_INVALID_QUOTE`. */
   invalidText?: string
   /** Default: zero in the notation. */
   placeholder?: string
@@ -44,12 +61,14 @@ export interface QuoteFieldProps {
   /** The side of a two-sided quote this field is, as `data-side` on the root. */
   side?: "bid" | "ask"
   inputRef?: RefObject<HTMLInputElement | null>
+  labels?: Partial<QuoteFieldLabels>
   className?: string
 }
 
-export function QuoteField({ convention, value: rawValue, onValueChange, stepFrom = null, label, error, announceError = true, invalidText, placeholder, id: idProp, disabled = false, shiftMultiplier = 10, side, inputRef, className }: QuoteFieldProps) {
+export function QuoteField({ convention, value: rawValue, onValueChange, stepFrom = null, label, error, announceError = true, invalidText, placeholder, id: idProp, disabled = false, shiftMultiplier = 10, side, inputRef, labels: labelsProp, className }: QuoteFieldProps) {
   const basis = quoteBasisOf(convention)
   const word = label ?? QUOTE_BASIS_LABELS[basis]
+  const labels = { ...DEFAULT_QUOTE_FIELD_LABELS, ...defined(labelsProp) }
   const generated = useId()
   const id = idProp ?? generated
   // A feed warming up hands out NaN, and nothing non-finite prints or steps: such a value is
@@ -99,7 +118,7 @@ export function QuoteField({ convention, value: rawValue, onValueChange, stepFro
     step((event.key === "ArrowUp" ? 1 : -1) * (event.shiftKey ? shiftMultiplier : 1))
   }
 
-  const problem = error ?? (invalid ? (invalidText ?? `Not a ${word.toLowerCase()} in this instrument's notation.`) : undefined)
+  const problem = error ?? (invalid ? (invalidText ?? DEFAULT_INVALID_QUOTE) : undefined)
   // The field's own reading of the text is always said; your error is, unless you say it yourself.
   const announced = error === undefined || announceError
 
@@ -113,7 +132,7 @@ export function QuoteField({ convention, value: rawValue, onValueChange, stepFro
             id={id}
             value={text}
             placeholder={placeholder ?? formatQuote(0, convention)}
-            inputMode="decimal"
+            // The text keyboard, not the decimal pad: a phone's pad has no minus or plus, which a negative quote and 99-16+ need.
             autoComplete="off"
             spellCheck={false}
             disabled={disabled}
@@ -126,10 +145,10 @@ export function QuoteField({ convention, value: rawValue, onValueChange, stepFro
             onKeyDown={keyDown}
           />
           <InputGroupAddon align="inline-end" className="gap-0">
-            <InputGroupButton type="button" size="icon-xs" aria-label={`${word} down one tick`} disabled={disabled} data-step="-1" onClick={() => step(-1)}>
+            <InputGroupButton type="button" size="icon-xs" aria-label={labels.stepDown.replace("{label}", word)} disabled={disabled} data-step="-1" onClick={() => step(-1)}>
               −
             </InputGroupButton>
-            <InputGroupButton type="button" size="icon-xs" aria-label={`${word} up one tick`} disabled={disabled} data-step="1" onClick={() => step(1)}>
+            <InputGroupButton type="button" size="icon-xs" aria-label={labels.stepUp.replace("{label}", word)} disabled={disabled} data-step="1" onClick={() => step(1)}>
               +
             </InputGroupButton>
           </InputGroupAddon>

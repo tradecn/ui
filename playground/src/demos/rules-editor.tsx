@@ -27,7 +27,7 @@ export default function RulesEditorDemo() {
       {rules.columns?.length ? (
         <ul className="space-y-2">
           {rules.columns?.map((rule, index) => (
-            <li key={rule.id}>
+            <li key={rule.id ?? index}>
               <RulesEditorItem kind="highlights" index={index}>
                 <RulesEditorColumn />
                 <RulesEditorOperator />

@@ -76,10 +76,12 @@ In Bid size, `60000000` asks for confirmation above 50 million; `150000000` is b
 | `pullAction` | `string` | `"pull"` | The id Pull all looks for in `allowedActions`. |
 | `editAction` | `string` | `"edit"` | The id that lets a row's values be typed. |
 | `limits` | `Limits \| ((row: T) => Limits \| undefined)` | None | Checks for bid, ask, and size edits. |
+| `limitsLabels` | `Partial<LimitsLabels>` | `DEFAULT_LIMITS_LABELS` | The words of the limits' sentences, inside a block or a question. |
+| `getRowLabel` | `((row: T, id: RowId) => string) \| null` | The row's `instrument` | A row's name that holds while its prices tick, so a focused row is read once, not at every update; `null` names a row by its cells, as DataGrid does. |
 | `font` | `"numeric" \| "mono"` | See below | Font family for the market and desk bid/ask columns. |
 | `columns` | `ColumnDef<T>[] \| ((question: QuotePanelQuestion) => ColumnDef<T>[])` | `quotePanelColumns(options)` | Replace the generated column list. A function keeps the panel's question line; see [Columns](#columns). |
 | `label` | `string` | `"Quotes"` | Accessible name for the grid. |
-| `labels` | `Partial<QuotePanelLabels & DataGridLabels>` | `DEFAULT_QUOTE_PANEL_LABELS` | Override the words listed below, and the grid's own, [DataGrid's labels](data-grid.md#labels). |
+| `labels` | `Partial<QuotePanelLabels & DataGridLabels>` | `DEFAULT_QUOTE_PANEL_LABELS` | Override the words listed below, and the grid's own, [DataGrid's labels](data-grid.md#labels), among them the column menus, the resize handles, and `notEditable`. A word given as `undefined` keeps its default. |
 | `className` | `string` | None | Classes on the outer wrapper. |
 
 Keep `labels`, `actions`, `limits`, and a fixed `convention` stable between renders: a new object rebuilds every generated column.
@@ -118,10 +120,12 @@ The cell shows the committed value as pending until the store matches it (`Objec
 | Field | Typed as | Steps by | Blank means |
 |---|---|---|---|
 | `bid`, `ask` | The instrument's notation (`99-16+`, `4.125`) through `parseQuote`; a typed decimal snaps to the printable grid | One quote step, ten with Shift; from the market's same side when the side is empty | No level on that side |
-| `skew`, `width` | A plain decimal number of quote steps, including fractional steps; a width is zero or more | One step, ten with Shift; from zero when empty | Null |
+| `skew`, `width` | A plain decimal number of quote steps, including fractional steps; a width is zero or more | One step, ten with Shift; from zero when empty, a width never below zero | Null |
 | `bidSize`, `askSize` | A whole number from zero to `Number.MAX_SAFE_INTEGER` | One, ten with Shift; from zero when empty, never below zero | Null |
 
-Numbers are plain decimals: `1e3` and `0x10` are refused. A crossed edit is refused in the editor before it is sent, read through the instrument's quote direction: a bid at or above the desk's ask, or an ask at or below its bid, normally — the reverse where the direction inverts.
+Numbers are plain decimals: `1e3` and `0x10` are refused. A crossed edit is refused in the editor before it is sent, read through the instrument's quote direction: a bid at or above the desk's ask, or an ask at or below its bid, normally — the reverse where the direction inverts. The other side is the one the row shows: a level sent and not yet back counts over the stored one, through the grid's `commit.pending`, so lowering the ask and then raising the bid past it is refused before the server has answered either.
+
+A row the server stops allowing `editAction` on while its editor is open keeps the typed text: Enter says `labels.notEditable` on the editor rather than closing it, and sends once the action is allowed again; Escape discards the text.
 
 ### Limits
 
@@ -140,7 +144,7 @@ Each `QuoteAction<T>` defines a row button:
 | `id` | `string` | Required | Permission id in `allowedActions`. |
 | `label` | `string` | Required | Button text. |
 | `run` | `(row: T) => void \| Promise<unknown>` | Required | Handle the action for the rendered row. |
-| `destructive` | `boolean` | `false` | Use destructive button styling; adds no confirmation. |
+| `destructive` | `boolean` | `false` | Draws the action in the destructive color, on the row's ghost button and in the row menu, where a highlighted item takes the menu's accent; adds no confirmation. |
 
 Buttons follow your `actions` order and appear only when `allowedActions` includes their ids. A click rechecks permission against the rendered row, and a press counts once: a double-click's second click and a held Enter's repeats run nothing. While a returned promise is pending, every action button on that row is disabled. Fulfillment or rejection re-enables them; rejection shows no built-in error. The status changes only when the store changes.
 
@@ -150,7 +154,7 @@ When the control under focus leaves, focus moves to the grid so its keys keep wo
 
 Action buttons and the gaps between them preserve row selection and logical focus, including while a command is pending.
 
-Pull all appears when `onPullAll` is given. The first press changes its label to `Pull all anyway?`; a click elsewhere inside the panel, Escape within it, or focus leaving the panel cancels the question. The second press — a fresh one, not a double-click's second click or a held Enter's repeat — rereads the store and passes every row whose `allowedActions` includes `pullAction`, regardless of the grid's filter or selection. The button is disabled when no row allows the action or its returned promise is pending. Fulfillment or rejection clears the pending state without an error message. `data-quote-pull-all` carries the eligible row count.
+Pull all appears when `onPullAll` is given. The first press changes its label to `Pull all anyway?` in the destructive color on the outline button; a click elsewhere inside the panel, Escape within it, focus leaving the panel, or no row left to pull cancels the question, so a row that becomes pullable again is asked about again. The second press — a fresh one, not a double-click's second click or a held Enter's repeat — rereads the store and passes every row whose `allowedActions` includes `pullAction`, regardless of the grid's filter or selection. The button is disabled when no row allows the action or its returned promise is pending. Fulfillment or rejection clears the pending state without an error message. `data-quote-pull-all` carries the eligible row count.
 
 ### Columns
 

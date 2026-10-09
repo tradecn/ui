@@ -31,16 +31,17 @@ The preview compares a note on price, a bill on discount, and credit on spread. 
 | `value` | `number \| null` | Required | Parent-owned quote; `null` for blank or invalid text |
 | `onValueChange` | `(value: number \| null) => void` | Required | Receives parsed edits and stepped values |
 | `stepFrom` | `number \| null` | `null` | Starting value for a step when `value` is `null` |
-| `label` | `string` | Basis label below | Visible label and word used in button names |
+| `label` | `string` | Basis label below | Visible label and the `{label}` in the step buttons' names |
 | `error` | `string` | Unset | Parent validation message; takes precedence over the field's own error. Shown in an alert with the id `${id}-error`, which the input's `aria-describedby` names, as the field's own message for unreadable text is |
 | `announceError` | `boolean` | `true` | `false` shows `error` without an alert and without tying it to the input, when you say it yourself: for an error whose words change on their own, such as a distance from a moving market, which would otherwise be read again at every change. The field's own message for unreadable text stays an alert and the input's description |
-| `invalidText` | `string` | Message using the lowercase label | Text shown after invalid input loses focus |
+| `invalidText` | `string` | `DEFAULT_INVALID_QUOTE` | Text shown after invalid input loses focus |
 | `placeholder` | `string` | `formatQuote(0, convention)` | Empty-input hint, such as `0-00` or `0.000` |
 | `id` | `string` | Generated with `useId` | Input ID associated with the label |
 | `disabled` | `boolean` | `false` | Disables the input and both step buttons |
 | `shiftMultiplier` | `number` | `10` | Multiplier for Shift+Up and Shift+Down |
 | `side` | `"bid" \| "ask"` | Unset | Root `data-side` for styling |
 | `inputRef` | `RefObject<HTMLInputElement \| null>` | Unset | Ref to the input |
+| `labels` | `Partial<QuoteFieldLabels>` | `DEFAULT_QUOTE_FIELD_LABELS` | The step buttons' names, `stepUp` and `stepDown`, each with a `{label}` placeholder; a word given as `undefined` keeps its default |
 | `className` | `string` | Unset | Classes on the outer wrapper |
 
 ### The basis
@@ -62,9 +63,9 @@ Parsing trims whitespace and accepts either minus sign; decimal input uses a poi
 
 ### Typing and stepping
 
-Each text edit calls `onValueChange` with the parsed number, or `null` for blank or invalid text. Keep that value in parent state. Blur formats valid text (`99.75` becomes `99-24` for 32nds) or marks invalid text with `aria-invalid` and a message below the field. Blur does not call `onValueChange`; it does not need to, since parsing already snapped the value to the printable grid — for a decimal convention that holds when its places can show the step.
+Each text edit calls `onValueChange` with the parsed number, or `null` for blank or invalid text. The input opens a phone's text keyboard, not its decimal pad, which has no minus or plus for a negative quote or `99-16+`. Keep that value in parent state. Blur formats valid text (`99.75` becomes `99-24` for 32nds) or marks invalid text with `aria-invalid` and a message below the field. Blur does not call `onValueChange`; it does not need to, since parsing already snapped the value to the printable grid — for a decimal convention that holds when its places can show the step.
 
-The default message is `Not a <lowercase label> in this instrument's notation.` Typing clears the field's own error; blank text is not marked invalid. A supplied `error` remains until the parent clears it. `error=""` suppresses the field's message and invalid mark, as does `invalidText=""` when `error` is unset.
+The default message is `DEFAULT_INVALID_QUOTE`, `Not a quote in this instrument's notation.`, the same for every label, so no label is lowercased or given an article. Typing clears the field's own error; blank text is not marked invalid. A supplied `error` remains until the parent clears it. `error=""` suppresses the field's message and invalid mark, as does `invalidText=""` when `error` is unset.
 
 | Control | Behavior |
 |---|---|
@@ -73,7 +74,7 @@ The default message is `Not a <lowercase label> in this instrument's notation.` 
 | Minus / plus buttons | Subtract or add one step, including when Shift is held |
 | Ctrl, Meta, or Alt + arrow | Leave the event to listeners above the field |
 
-The buttons are named `<label> down one tick` and `<label> up one tick`. A step uses `value ?? stepFrom`, snaps to the nearest quote grid value, then moves by the requested steps. Choose a last price, mid, or available side for `stepFrom`; it applies whenever `value` is null, including invalid text. A non-finite `value` or `stepFrom` — a feed still warming up — counts as `null` on its own: a non-finite `value` leaves the field empty while a finite `stepFrom` still steps, and a non-finite `stepFrom` drops out while a finite `value` still shows and steps. Stepping waits only while neither supplies a finite start, and bare and Shift arrows still prevent their default behavior.
+The buttons are named `<label> down one step` and `<label> up one step` by default, from `labels`. A step uses `value ?? stepFrom`, snaps to the nearest quote grid value, then moves by the requested steps. Choose a last price, mid, or available side for `stepFrom`; it applies whenever `value` is null, including invalid text. A non-finite `value` or `stepFrom` — a feed still warming up — counts as `null` on its own: a non-finite `value` leaves the field empty while a finite `stepFrom` still steps, and a non-finite `stepFrom` drops out while a finite `value` still shows and steps. Stepping waits only while neither supplies a finite start, and bare and Shift arrows still prevent their default behavior.
 
 When `value` changes and differs from the parsed text, the field replaces the text and clears its own error. If the text already parses to the new value, it stays as typed until blur. Passing the same value again does not reset the text: setting an already-null value to null leaves invalid text in place. Changing only `convention` does not reformat the current text either; remount the field when you need to reset that local state.
 

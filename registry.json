@@ -3509,7 +3509,7 @@
           },
           {
             "title": "DEFAULT_QUOTE_PANEL_LABELS",
-            "description": "Every word the panel says."
+            "description": "The panel's own words: its headers, Pull all, and the editors' problems and questions. The grid's words come through the same labels prop, and the limits' sentences through limitsLabels."
           }
         ]
       },

@@ -56,8 +56,8 @@ export interface GridRules {
   sort?: SortRule[]
 }
 
-// The types above are rules as you write them. Rules read from saved data are looser: any field can be missing,
-// and an op or a tone can be text this version doesn't know, for `ruleProblem` to name. The readers return these,
+// The types above are rules as you write them. Rules read from saved data are looser: any field can be missing but
+// a sort key's direction, which reads as ascending unless it says descending, and an op or a tone can be text this version doesn't know, for `ruleProblem` to name. The readers return these,
 // and every helper, the grid, and the editor take them, so code that reads a rule's fields checks them first.
 
 /** A condition as read from saved data: its op can be missing or unknown text. */
@@ -128,6 +128,55 @@ export const RULE_OP_LABELS: Record<RuleOp, string> = {
   notNull: "is not empty",
 }
 
+/** The words a rule and its problems are written in. Templates fill `{name}`, `{op}`, `{value}`, `{column}`, `{tone}`, `{low}`, and `{high}`. */
+export interface RuleWords {
+  ops: Record<RuleOp, string>
+  tones: Record<RuleTone, string>
+  /** The two ends of a range, `{low}` and `{high}`. */
+  range: string
+  needsColumn: string
+  noColumn: string
+  needsComparison: string
+  noComparison: string
+  needsValue: string
+  unreadable: string
+  rangeNeedsEnds: string
+  rangeOrder: string
+  setNeedsValue: string
+  needsTone: string
+  noTone: string
+}
+
+/** Words to replace: any of them, a partial map of comparisons or tones included. */
+export type RuleWordsInput = Partial<Omit<RuleWords, "ops" | "tones">> & { ops?: Partial<Record<RuleOp, string>>; tones?: Partial<Record<RuleTone, string>> }
+
+export const DEFAULT_RULE_WORDS: RuleWords = {
+  ops: RULE_OP_LABELS,
+  tones: { up: "up", down: "down", flat: "flat", stale: "stale", expiring: "expiring", primary: "primary", destructive: "destructive" },
+  range: "{low} and {high}",
+  needsColumn: "The rule needs a column.",
+  noColumn: 'No column is named "{name}".',
+  needsComparison: "The rule needs a comparison.",
+  noComparison: 'No comparison is named "{op}".',
+  needsValue: "{op} needs a value.",
+  unreadable: '"{value}" is not a value {column} reads.',
+  rangeNeedsEnds: "{op} needs a low value and a high value.",
+  rangeOrder: "{op} needs a low value at or below the high value.",
+  setNeedsValue: "{op} needs at least one value.",
+  needsTone: "The rule needs a tone.",
+  noTone: 'No tone is named "{tone}".',
+}
+
+/** The defaults with yours over them, maps merged key by key. */
+// An undefined word keeps its default, as DataGrid's labels do.
+const defined = <W extends object>(words: W | undefined): Partial<W> => Object.fromEntries(Object.entries(words ?? {}).filter(([, word]) => word !== undefined)) as Partial<W>
+
+export function ruleWords(words?: RuleWordsInput): RuleWords {
+  return { ...DEFAULT_RULE_WORDS, ...defined(words), ops: { ...DEFAULT_RULE_WORDS.ops, ...defined(words?.ops) }, tones: { ...DEFAULT_RULE_WORDS.tones, ...defined(words?.tones) } }
+}
+
+const fillWords = (template: string, values: Record<string, string>) => template.replace(/\{(\w+)\}/g, (match, key: string) => values[key] ?? match)
+
 export const RULE_TONES: readonly RuleTone[] = ["up", "down", "flat", "stale", "expiring", "primary", "destructive"]
 
 /**
@@ -135,7 +184,7 @@ export const RULE_TONES: readonly RuleTone[] = ["up", "down", "flat", "stale", "
  * taking it too. A state color on a tint can drop below 4.5 to 1 in the light themes, and every state the library
  * colors also says itself another way, by a sign, a word, or a description. Put it beside every tint behind text.
  */
-export const ON_TINT_CLASS = "text-foreground [&_.text-up]:text-inherit [&_.text-down]:text-inherit [&_.text-flat]:text-inherit [&_.text-stale]:text-inherit [&_.text-expiring]:text-inherit [&_.text-destructive]:text-inherit [&_.text-primary]:text-inherit"
+export const ON_TINT_CLASS = "text-foreground [&_.text-up]:text-inherit [&_.text-down]:text-inherit [&_.text-flat]:text-inherit [&_.text-stale]:text-inherit [&_.text-expiring]:text-inherit [&_.text-destructive]:text-inherit [&_.text-primary]:text-inherit [&_.text-muted-foreground]:text-inherit"
 
 // A tone is a tint of the token's soft variant, painted as a background image rather than a background
 // color so it layers over whatever color the element already has: a frozen cell keeps its opaque
@@ -427,51 +476,53 @@ function findColumn<T>(columns: readonly RuleColumn<T>[], key: string | undefine
  * unknown comparison or tone. `kind` says which list the rule is in; without it, a `when` or a `tone`
  * key makes the rule a highlight.
  */
-export function ruleProblem<T>(rule: ReadColumnRule & ReadFilterRule, columns: readonly RuleColumn<T>[], kind?: RuleKind): string | null {
-  if (typeof rule !== "object" || rule === null) return "The rule needs a column."
+export function ruleProblem<T>(rule: ReadColumnRule & ReadFilterRule, columns: readonly RuleColumn<T>[], kind?: RuleKind, words?: RuleWordsInput): string | null {
+  const w = ruleWords(words)
+  if (typeof rule !== "object" || rule === null) return w.needsColumn
   const named = textOf(rule.column)
-  if (named === undefined) return "The rule needs a column."
+  if (named === undefined) return w.needsColumn
   const column = findColumn(columns, named)
-  if (!column) return `No column is named "${named}".`
+  if (!column) return fillWords(w.noColumn, { name: named })
   const highlight = kind ? kind === "highlight" : isHighlightShape(rule)
   // The condition as the grid reads it: one saved as anything but an object that is not a list is none.
   const read = readCondition(highlight ? rule.when : rule)
   const op = read?.op
-  if (op === undefined || op === "") return "The rule needs a comparison."
-  if (!isRuleOp(op)) return `No comparison is named "${op}".`
+  if (op === undefined || op === "") return w.needsComparison
+  if (!isRuleOp(op)) return fillWords(w.noComparison, { op })
   // The op is one this module knows, from here on.
   const condition = read as RuleCondition
   const name = columnName(column)
   const unreadable = (raw: RuleValue | undefined) => raw !== undefined && raw !== null && raw !== "" && readRuleValue(column, raw) === null
   if (needsValue.has(condition.op)) {
-    if (condition.value === undefined || condition.value === null || condition.value === "") return `${RULE_OP_LABELS[condition.op]} needs a value.`
-    if (unreadable(condition.value)) return `"${shown(condition.value)}" is not a value ${name} reads.`
+    if (condition.value === undefined || condition.value === null || condition.value === "") return fillWords(w.needsValue, { op: w.ops[condition.op] })
+    if (unreadable(condition.value)) return fillWords(w.unreadable, { value: shown(condition.value), column: name })
   }
   if (condition.op === "between") {
     const values = valuesOf(condition)
-    if (values.length !== 2) return "between needs a low value and a high value."
-    for (const raw of values) if (unreadable(raw) || raw === "" || raw === null) return `"${raw === null ? "" : shown(raw)}" is not a value ${name} reads.`
-    if (compareValues(readRuleValue(column, values[0]), readRuleValue(column, values[1])) > 0) return "between needs a low value at or below the high value."
+    if (values.length !== 2) return fillWords(w.rangeNeedsEnds, { op: w.ops.between })
+    for (const raw of values) if (unreadable(raw) || raw === "" || raw === null) return fillWords(w.unreadable, { value: raw === null ? "" : shown(raw), column: name })
+    if (compareValues(readRuleValue(column, values[0]), readRuleValue(column, values[1])) > 0) return fillWords(w.rangeOrder, { op: w.ops.between })
   }
   if (condition.op === "in") {
     const values = valuesOf(condition).filter((raw) => raw !== null && raw !== "")
-    if (!values.length) return "one of needs at least one value."
-    for (const raw of values) if (unreadable(raw)) return `"${shown(raw)}" is not a value ${name} reads.`
+    if (!values.length) return fillWords(w.setNeedsValue, { op: w.ops.in })
+    for (const raw of values) if (unreadable(raw)) return fillWords(w.unreadable, { value: shown(raw), column: name })
   }
   // A highlight named as one always needs a tone; one only inferred from its keys is judged by the tone it carries.
   const tone = textOf(rule.tone)
-  if (highlight && (kind || "tone" in rule) && !isRuleTone(tone)) return tone === undefined || tone === "" ? "The rule needs a tone." : `No tone is named "${tone}".`
+  if (highlight && (kind || "tone" in rule) && !isRuleTone(tone)) return tone === undefined || tone === "" ? w.needsTone : fillWords(w.noTone, { tone })
   return null
 }
 
 /** The rule in words: "Price above 99-16+", "Client one of ALPHA, BETA", "Status is empty". `kind` reads as for `ruleProblem`. */
-export function describeRule<T>(rule: ReadColumnRule & ReadFilterRule, columns: readonly RuleColumn<T>[], kind?: RuleKind): string {
+export function describeRule<T>(rule: ReadColumnRule & ReadFilterRule, columns: readonly RuleColumn<T>[], kind?: RuleKind, words?: RuleWordsInput): string {
   if (typeof rule !== "object" || rule === null) return ""
+  const w = ruleWords(words)
   const column = findColumn(columns, textOf(rule.column))
   const highlight = kind ? kind === "highlight" : isHighlightShape(rule)
   const condition: Partial<ReadCondition> = readCondition(highlight ? rule.when : rule) ?? {}
   const name = columnName(column, rule.column)
-  const word = isRuleOp(condition.op) ? RULE_OP_LABELS[condition.op] : (condition.op ?? "")
+  const word = isRuleOp(condition.op) ? w.ops[condition.op] : (condition.op ?? "")
   // A string threshold reads through the column's parse, so the words print what the rule
   // compares: a decimal typed into a fraction column describes, as it matches, on the grid.
   const text = (raw: RuleValue | undefined) => {
@@ -494,19 +545,22 @@ export function describeRule<T>(rule: ReadColumnRule & ReadFilterRule, columns: 
   if (condition.op === "isNull" || condition.op === "notNull") return `${name} ${word}`
   if (condition.op === "between") {
     const [lo, hi] = valuesOf(condition)
-    return `${name} ${word} ${text(lo)} and ${text(hi)}`
+    return `${name} ${word} ${fillWords(w.range, { low: text(lo), high: text(hi) })}`
   }
   if (condition.op === "in") return `${name} ${word} ${valuesOf(condition).map(text).join(", ")}`
   return `${name} ${word} ${text(condition.value)}`.trim()
 }
 
-/** Every rule has to hold. A rule on a column the grid does not have is skipped, so a stale rule hides nothing. */
+/**
+ * Every rule has to hold. A rule that can't apply is skipped, so it hides nothing: one on a column the grid does not
+ * have, and one `ruleProblem` names, with a comparison it doesn't know or a value its column can't read.
+ */
 export function compileFilter<T>(rules: readonly ReadFilterRule[], columns: readonly RuleColumn<T>[]): (row: T) => boolean {
   const tests: ((row: T) => boolean)[] = []
   for (const entry of listOf(rules)) {
     const rule = readFilterRule(entry)
     const column = rule ? findColumn(columns, rule.column) : undefined
-    if (rule && column) tests.push(compileCondition(rule, column))
+    if (rule && column && ruleProblem(rule as ReadColumnRule & ReadFilterRule, columns, "filter") === null) tests.push(compileCondition(rule, column))
   }
   if (!tests.length) return () => true
   if (tests.length === 1) return tests[0]!

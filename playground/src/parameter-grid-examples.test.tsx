@@ -31,7 +31,7 @@ it("holds a pending request until its reply, then restores edits after acceptanc
   fireEvent.keyDown(grid, { key: "Enter" })
   expect(screen.queryByRole("textbox", { name: "Width" })).not.toBeInTheDocument()
   expect(width).toHaveTextContent("4.00")
-  const toggle = screen.getByRole("checkbox", { name: "Disable ZN" })
+  const toggle = screen.getByRole("checkbox", { name: "Enable ZN" })
   expect(toggle.hasAttribute("disabled") || toggle.getAttribute("aria-disabled") === "true").toBe(true)
   await reply()
   expect(width).not.toHaveAttribute("data-pending")

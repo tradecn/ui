@@ -9,9 +9,12 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { NUMERIC_CLASS, formatNotional, formatQuantity, formatQuote, numericFontClass, stepQuote, stripGrouping, type InstrumentConvention } from "@/registry/tradecn/lib/format"
-import { blocks, checkLimits, confirms, problemsByField, type Limits, type Problem as LimitProblem } from "@/registry/tradecn/lib/limits"
+import { blocks, checkLimits, confirms, problemsByField, type Limits, type LimitsLabels, type Problem as LimitProblem } from "@/registry/tradecn/lib/limits"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
+
+// An undefined word keeps its default, as DataGrid's labels do.
+const defined = <W extends object>(words: W | undefined): Partial<W> => Object.fromEntries(Object.entries(words ?? {}).filter(([, word]) => word !== undefined)) as Partial<W>
 
 // An order ticket. Its price field is a quote-field, so it types a price the way the instrument
 // quotes it and steps it by the quote step, and it hands a draft to whatever you named as an action. Two things it never does: work out a status, and
@@ -86,9 +89,25 @@ export interface TicketLabels {
   quantityInvalid: string
   priceInvalid: string
   priceRequired: string
+  /** What a select shows while the draft holds none of its options, as after a list reloads without it. */
+  choose: string
+  typeRequired: string
+  tifRequired: string
+  accountRequired: string
   nothingAllowed: string
   /** The primary action's words while a limit asks again; `{action}` is its label. */
   anyway: string
+  /** The price field's placeholder while the order type takes no price. */
+  unpriced: string
+  /** `describeDraft`'s words for an order type that takes no price. */
+  atMarket: string
+  /** A reference price's button: `{name}` its label, `{price}` the level. */
+  takeReference: string
+  /** A quick size's unit where the convention quotes notional. */
+  millions: string
+  /** The price field's step buttons, `{label}` the price's label. */
+  stepUp: string
+  stepDown: string
 }
 
 export const DEFAULT_TICKET_LABELS: TicketLabels = {
@@ -104,12 +123,24 @@ export const DEFAULT_TICKET_LABELS: TicketLabels = {
   bid: "Bid",
   ask: "Ask",
   last: "Last",
-  quantityInvalid: "Enter a quantity above zero.",
+  quantityInvalid: "Enter a whole number above zero.",
   priceInvalid: "Not a price in this instrument's notation.",
   priceRequired: "This order type needs a price.",
+  choose: "Choose…",
+  typeRequired: "Choose an order type.",
+  tifRequired: "Choose a time in force.",
+  accountRequired: "Choose an account.",
   nothingAllowed: "Nothing can be done with this ticket right now.",
   anyway: "{action} anyway?",
+  unpriced: "market",
+  atMarket: "at market",
+  takeReference: "{name} {price}, use it",
+  millions: "mm",
+  stepUp: "{label} up one step",
+  stepDown: "{label} down one step",
 }
+
+const fill = (template: string, values: Record<string, string>) => template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "")
 
 export const DEFAULT_ORDER_TYPES: readonly TicketOption[] = [
   { id: "limit", label: "Limit" },
@@ -134,9 +165,9 @@ export const TICKET_BINDINGS: readonly HotkeyBinding[] = [
   ...QUICK_SIZE_KEYS.map((keys, i) => ({ id: `ticket.size-${i + 1}`, keys, scope: "editing" as const, description: `Quick size ${i + 1}`, group: "Ticket" })),
 ]
 
-/** A quick size the way the desk says it: millions of notional when the convention quotes notional, a count otherwise. */
-export function formatQuickSize(size: number, convention: InstrumentConvention): string {
-  return convention.quantityUnit === "notional" ? formatNotional(size, { unit: "mm" }) : formatQuantity(size)
+/** A quick size the way the desk says it: millions of notional when the convention quotes notional, in `millions` as the unit, a count otherwise. */
+export function formatQuickSize(size: number, convention: InstrumentConvention, millions = "mm"): string {
+  return convention.quantityUnit === "notional" ? formatNotional(size, { unit: "mm" }).replace(/mm$/, millions) : formatQuantity(size)
 }
 
 export interface TicketProps {
@@ -146,7 +177,7 @@ export interface TicketProps {
   orderTypes?: readonly TicketOption[]
   /** Default: day, GTC, IOC. */
   timeInForces?: readonly TicketOption[]
-  /** Left out, there is no account field. */
+  /** Left out or empty, there is no account field. Given, a draft must hold one of them to be sent. */
   accounts?: readonly TicketOption[]
   /** Where the ticket starts. Change the `key` to start again. */
   defaultDraft?: Partial<TicketDraft>
@@ -156,7 +187,9 @@ export interface TicketProps {
   allowedActions?: readonly string[]
   /** The desk's lines, from `limits`: a block shows under its field and holds the actions that send the draft; a confirm makes the action ask again. Checked against `reference` as the market. */
   limits?: Limits
-  /** Sizes a press or `mod+1` to `mod+9` puts in the quantity, as buttons under the field, printed in the convention's unit. */
+  /** The limit sentences' words, over `DEFAULT_LIMITS_LABELS`. */
+  limitsLabels?: Partial<LimitsLabels>
+  /** Sizes a press or `mod+1` to `mod+9` puts in the quantity, as buttons under the field, printed in the convention's unit. Whole numbers above zero, each once; any other is left out. */
   quickSizes?: readonly number[]
   /** The server's word for where the order stands. Printed as it is. */
   status?: string
@@ -174,23 +207,37 @@ export interface TicketProps {
 const isPriced = (types: readonly TicketOption[], id: string) => types.find((t) => t.id === id)?.priced !== false
 
 /** "Buy 5 ZN @ 99-16+", or "Buy 5 ZN at market" for a type that takes no price. The level prints in the instrument's quote basis, as the field shows it. */
-export function describeDraft(draft: TicketDraft, instrument: TicketInstrument, orderTypes: readonly TicketOption[] = DEFAULT_ORDER_TYPES, labels: Pick<TicketLabels, "buy" | "sell"> = DEFAULT_TICKET_LABELS): string {
+export function describeDraft(draft: TicketDraft, instrument: TicketInstrument, orderTypes: readonly TicketOption[] = DEFAULT_ORDER_TYPES, labels: Pick<TicketLabels, "buy" | "sell"> & Partial<Pick<TicketLabels, "atMarket">> = DEFAULT_TICKET_LABELS): string {
   const side = draft.side === "buy" ? labels.buy : labels.sell
   const quantity = draft.quantity === null ? "" : ` ${formatQuantity(draft.quantity)}`
-  const price = !isPriced(orderTypes, draft.type) ? " at market" : draft.price === null ? "" : ` @ ${formatQuote(draft.price, instrument.convention)}`
+  const price = !isPriced(orderTypes, draft.type) ? ` ${labels.atMarket ?? DEFAULT_TICKET_LABELS.atMarket}` : draft.price === null ? "" : ` @ ${formatQuote(draft.price, instrument.convention)}`
   return `${side}${quantity} ${instrument.symbol}${price}`
 }
 
 export interface TicketProblems {
   quantity?: string
   price?: string
+  type?: string
+  tif?: string
+  account?: string
 }
 
-/** What stops a draft from being sent. Empty when nothing does. */
-export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption[], labels: TicketLabels = DEFAULT_TICKET_LABELS): TicketProblems {
+/** The lists a draft's choices must come from, beside the order types. An empty or missing list asks nothing. */
+export interface TicketChoices {
+  timeInForces?: readonly TicketOption[]
+  accounts?: readonly TicketOption[]
+}
+
+const listed = (options: readonly TicketOption[] | undefined, id: string | null) => !options?.length || options.some((option) => option.id === id)
+
+/** What stops a draft from being sent: a quantity that is not a whole number above zero, a price its order type needs, or a choice not among its options. Empty when nothing does. */
+export function checkDraft(draft: TicketDraft, orderTypes: readonly TicketOption[], labels: TicketLabels = DEFAULT_TICKET_LABELS, choices: TicketChoices = {}): TicketProblems {
   const problems: TicketProblems = {}
-  if (draft.quantity === null || !(draft.quantity > 0)) problems.quantity = labels.quantityInvalid
+  if (draft.quantity === null || !Number.isSafeInteger(draft.quantity) || draft.quantity <= 0) problems.quantity = labels.quantityInvalid
+  if (!listed(orderTypes, draft.type)) problems.type = labels.typeRequired
   if (isPriced(orderTypes, draft.type) && (draft.price === null || !Number.isFinite(draft.price))) problems.price = labels.priceRequired
+  if (!listed(choices.timeInForces, draft.tif)) problems.tif = labels.tifRequired
+  if (!listed(choices.accounts, draft.account)) problems.account = labels.accountRequired
   return problems
 }
 
@@ -249,6 +296,12 @@ export function parseQuantity(text: string): number | null {
   return Number.isSafeInteger(n) ? n : null
 }
 
+/** The quick sizes a ticket offers: whole numbers above zero, each once, in order. */
+const wholeSizes = (sizes: readonly number[] | undefined): readonly number[] => [...new Set((sizes ?? []).filter((size) => Number.isSafeInteger(size) && size > 0))]
+
+// The acknowledgement ring has no direction, whatever the value that rings it.
+const noDirection = () => null
+
 const noop = () => () => {}
 const guardKey = (fn: () => void) => (event: KeyboardEvent | globalThis.KeyboardEvent) => {
   event.preventDefault()
@@ -268,6 +321,7 @@ export function Ticket({
   actions,
   allowedActions,
   limits,
+  limitsLabels,
   quickSizes,
   status,
   message,
@@ -277,30 +331,33 @@ export function Ticket({
   labels: labelsProp,
   className,
 }: TicketProps) {
-  const labels = { ...DEFAULT_TICKET_LABELS, ...labelsProp }
+  const labels = { ...DEFAULT_TICKET_LABELS, ...defined(labelsProp) }
   const id = useId()
   const { convention } = instrument
   // Quantities are whole: a step that is not a whole number from 1 to the safe-integer limit steps by one.
   const quantityStep = Number.isSafeInteger(instrument.quantityStep) && instrument.quantityStep! > 0 ? instrument.quantityStep! : 1
   const [draft, setDraft] = useState<TicketDraft>(() => ({
     side: "buy",
-    quantity: null,
     type: orderTypes[0]?.id ?? "",
     tif: timeInForces[0]?.id ?? "",
     account: accounts?.[0]?.id ?? null,
     ...defaultDraft,
+    // A quantity is whole, so a default that is not one starts the field blank, as text that is not one reads.
+    quantity: typeof defaultDraft?.quantity === "number" && Number.isSafeInteger(defaultDraft.quantity) && defaultDraft.quantity >= 0 ? defaultDraft.quantity : null,
     // Snapped to the quote grid, as a reference click is: the field prints the grid value.
-    price: typeof defaultDraft?.price === "number" && Number.isFinite(defaultDraft.price) ? stepQuote(defaultDraft.price, convention, 0) : (defaultDraft?.price ?? null),
+    price: typeof defaultDraft?.price === "number" && Number.isFinite(defaultDraft.price) ? stepQuote(defaultDraft.price, convention, 0) : null,
   }))
   const [quantityText, setQuantityText] = useState(() => (draft.quantity === null ? "" : formatQuantity(draft.quantity)))
   const [problems, setProblems] = useState<TicketProblems>({})
-  // The action a limit asked again about; the next click on it sends. Any change to the draft withdraws the question.
+  // The action a limit asked about: a fresh press on it sends, unless the market has added a reason since, which asks
+  // again. Any change to the draft withdraws the question.
   const [confirming, setConfirming] = useState<string | null>(null)
+  const sizes = useMemo(() => wholeSizes(quickSizes), [quickSizes])
   const press = useFreshPress()
   const priced = isPriced(orderTypes, draft.type)
 
   // The limits, live: a block shows under its field and holds the actions that send the draft; a confirm waits for the click.
-  const limitProblems = limits ? checkLimits({ side: draft.side, quantity: draft.quantity, price: priced ? draft.price : null }, limits, { market: reference, convention }) : []
+  const limitProblems = limits ? checkLimits({ side: draft.side, quantity: draft.quantity, price: priced ? draft.price : null }, limits, { market: reference, convention, labels: limitsLabels }) : []
   const blocking = blocks(limitProblems)
   const blockedBy = problemsByField(blocking)
   const blocked = blocking.length > 0
@@ -323,11 +380,11 @@ export function Ticket({
 
   const box = useRef<HTMLDivElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
-  const latest = useRef({ onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming, quickSizes })
+  const latest = useRef({ onDraftChange, actions, allowedActions, draft, orderTypes, timeInForces, accounts, labels, instrument, disabled, limits, limitsLabels, reference, confirming, quickSizes: sizes, problems })
   // Layout phase, not passive: a keydown can land between the commit that removed a button
   // and the passive effects, and the check at run time must see what the trader sees.
   useLayoutEffect(() => {
-    latest.current = { onDraftChange, actions, allowedActions, draft, orderTypes, labels, instrument, disabled, limits, reference, confirming, quickSizes }
+    latest.current = { onDraftChange, actions, allowedActions, draft, orderTypes, timeInForces, accounts, labels, instrument, disabled, limits, limitsLabels, reference, confirming, quickSizes: sizes, problems }
   })
 
   // The draft is told after it changed, never on the first render.
@@ -338,8 +395,9 @@ export function Ticket({
     latest.current.onDraftChange?.(draft)
   }, [draft])
 
-  // The acknowledgement: a ring in primary, once, when the server says so. No direction, because it has none.
-  useFlash(box, acknowledged, { variant: "ring", color: "var(--primary)" })
+  // The acknowledgement: a ring in primary, once, when the server says so, with no direction even when what rings it is a
+  // count.
+  useFlash(box, acknowledged, { variant: "ring", color: "var(--primary)", compare: noDirection })
 
   // When the control under focus leaves — a sent action's button unmounts or disables with
   // the acknowledgement — focus falls to body, outside every fence, and the shortcuts go
@@ -363,10 +421,17 @@ export function Ticket({
   function update(patch: Partial<TicketDraft>) {
     setDraft((d) => ({ ...d, ...patch }))
     setProblems((p) => {
-      if (patch.quantity !== undefined && p.quantity) return { ...p, quantity: undefined }
+      let next = p
+      const answer = (field: keyof TicketProblems) => {
+        if (next[field]) next = { ...next, [field]: undefined }
+      }
+      if (patch.quantity !== undefined) answer("quantity")
       // A new price, or a type that takes none, answers the price problem.
-      if (p.price && (patch.price !== undefined || (patch.type !== undefined && !isPriced(orderTypes, patch.type)))) return { ...p, price: undefined }
-      return p
+      if (patch.price !== undefined || (patch.type !== undefined && !isPriced(orderTypes, patch.type))) answer("price")
+      if (patch.type !== undefined) answer("type")
+      if (patch.tif !== undefined) answer("tif")
+      if (patch.account !== undefined) answer("account")
+      return next
     })
     setConfirming(null)
   }
@@ -438,7 +503,7 @@ export function Ticket({
 
   function run(action: TicketAction) {
     // Checked as the click lands, against the props as they are now: an action can stop being allowed.
-    const { draft: current, allowedActions: allowedNow, orderTypes: types, labels: words, instrument: inst, disabled: off, limits: lines, reference: market, confirming: asked } = latest.current
+    const { draft: current, allowedActions: allowedNow, orderTypes: types, timeInForces: tifs, accounts: books, labels: words, instrument: inst, disabled: off, limits: lines, limitsLabels: lineWords, reference: market, confirming: asked, problems: shown } = latest.current
     if (off || !allowedNow?.includes(action.id)) return
     const price = isPriced(types, current.type) ? current.price : null
     const send = () => {
@@ -446,13 +511,18 @@ export function Ticket({
       action.run({ ...current, price }, inst)
     }
     if (action.checked === false) return send()
-    const found = checkDraft(current, types, words)
-    // The limits, as the click lands: a block stops here and shows under its field; a confirm asks once, and the next click on the same action sends.
-    const over = lines ? checkLimits({ side: current.side, quantity: current.quantity, price }, lines, { market, convention: inst.convention }) : []
+    const found = checkDraft(current, types, words, { timeInForces: tifs, accounts: books })
+    // The limits, as the click lands: a block stops here and shows under its field; a confirm asks, and a fresh press
+    // on the same action sends unless the market has added a reason since.
+    const over = lines ? checkLimits({ side: current.side, quantity: current.quantity, price }, lines, { market, convention: inst.convention, labels: lineWords }) : []
     const blocking = blocks(over)
-    setProblems({ quantity: found.quantity, price: found.price })
-    if (blocking.length) setSaid((now) => ({ text: blocking.map((p) => p.message).join(" "), revision: now.revision + 1, draft: current, action: null, rules: blocking.map(ruleOf) }))
-    if (found.quantity || found.price || blocking.length) return
+    setProblems(found)
+    // A field's new problem is an alert under it. One it already shows holds the same words, which a screen reader
+    // does not hear again, so the announcer says it, beside the blocks.
+    const again = (Object.keys(found) as (keyof TicketProblems)[]).filter((field) => found[field] === shown[field]).map((field) => found[field]!)
+    const refused = [...again, ...blocking.map((p) => p.message)]
+    if (refused.length) setSaid((now) => ({ text: refused.join(" "), revision: now.revision + 1, draft: current, action: null, rules: blocking.map(ruleOf) }))
+    if (Object.keys(found).length || blocking.length) return
     const reasons = confirms(over)
     if (reasons.length && (asked !== action.id || !reasons.every((p) => askedRules.current.has(ruleOf(p))))) {
       askedRules.current = new Set(reasons.map(ruleOf))
@@ -489,7 +559,7 @@ export function Ticket({
       quick,
     }
   })
-  const quickCount = quickSizes?.length ?? 0
+  const quickCount = sizes.length
   // Fenced to the scope root, so the shortcuts run from the symbol, the status, and the padding too.
   const within = useMemo(() => ({ scope: "editing", element: () => (box.current ? box.current.parentElement ?? box.current : null) }), [])
   useEffect(() => {
@@ -541,10 +611,35 @@ export function Ticket({
     // the field will show.
     const quote = stepQuote(value, convention, 0)
     return (
-      <Button key={name} type="button" variant="ghost" size="sm" className={cn("h-5 gap-1 px-1 text-xs", numericFontClass(convention))} disabled={disabled || !priced} aria-label={`${label} ${formatQuote(quote, convention)}, use it`} data-reference={name} onClick={() => setPrice(quote)}>
+      <Button key={name} type="button" variant="ghost" size="sm" className={cn("h-5 gap-1 px-1 text-xs", numericFontClass(convention))} disabled={disabled || !priced} aria-label={fill(labels.takeReference, { name: label, price: formatQuote(quote, convention) })} data-reference={name} onClick={() => setPrice(quote)}>
         <span className="text-muted-foreground">{label}</span>
         {formatQuote(quote, convention)}
       </Button>
+    )
+  }
+
+  // A select shows what the draft holds. A value its options no longer list, as after a list loads or reloads under
+  // the ticket, shows as a choice still to make, and a press asks for one, rather than showing the first option while
+  // the draft sends another.
+  const choice = (field: "type" | "tif" | "account", label: string, options: readonly TicketOption[], value: string | null, className?: string) => {
+    const unlisted = !options.some((option) => option.id === value)
+    return (
+      <Field className={className} data-invalid={problems[field] ? true : undefined}>
+        <FieldLabel htmlFor={`${id}-${field}`}>{label}</FieldLabel>
+        <NativeSelect id={`${id}-${field}`} value={value ?? ""} disabled={disabled} className="w-full" aria-invalid={problems[field] ? true : undefined} aria-describedby={problems[field] ? `${id}-${field}-error` : undefined} onChange={(event) => update({ [field]: event.target.value })}>
+          {unlisted && (
+            <NativeSelectOption value={value ?? ""} disabled>
+              {labels.choose}
+            </NativeSelectOption>
+          )}
+          {options.map((option) => (
+            <NativeSelectOption key={option.id} value={option.id}>
+              {option.label}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+        {problems[field] && <FieldError id={`${id}-${field}-error`}>{problems[field]}</FieldError>}
+      </Field>
     )
   }
 
@@ -568,7 +663,7 @@ export function Ticket({
   )
 
   return (
-    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", className)}>
+    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${instrument.symbol}`} data-slot="tradecn-ticket" data-side={draft.side} data-status={status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 lining-nums tabular-nums", className)}>
       <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }} onBlurCapture={(event) => {
         // Focus moving somewhere outside the ticket on purpose: the leaving control is still
         // in the document and enabled, so there is nothing to recover from. A window switch
@@ -598,18 +693,18 @@ export function Ticket({
         <div className="grid grid-cols-2 gap-2">
           <Field data-invalid={shownProblems.quantity ? true : undefined}>
             <FieldLabel htmlFor={`${id}-quantity`}>{labels.quantity}</FieldLabel>
-            <Input id={`${id}-quantity`} value={quantityText} inputMode="decimal" autoComplete="off" spellCheck={false} disabled={disabled} aria-invalid={shownProblems.quantity ? true : undefined} aria-describedby={problems.quantity ? `${id}-quantity-error` : undefined} data-numeric="" className={cn("h-7 text-xs md:text-xs", NUMERIC_CLASS)} onChange={(event) => onQuantityChange(event.target.value)} onBlur={onQuantityBlur} onKeyDown={stepper(stepQuantity)} />
+            <Input id={`${id}-quantity`} value={quantityText} inputMode="numeric" autoComplete="off" spellCheck={false} disabled={disabled} aria-invalid={shownProblems.quantity ? true : undefined} aria-describedby={problems.quantity ? `${id}-quantity-error` : undefined} data-numeric="" className={cn("h-7 text-xs md:text-xs", NUMERIC_CLASS)} onChange={(event) => onQuantityChange(event.target.value)} onBlur={onQuantityBlur} onKeyDown={stepper(stepQuantity)} />
             {/* A press's own problem is an alert tied to the field; a live limit block is said when a press meets it. */}
             {shownProblems.quantity && (
               <FieldError id={`${id}-quantity-error`} {...(problems.quantity ? {} : { role: "none" })}>
                 {shownProblems.quantity}
               </FieldError>
             )}
-            {quickSizes && quickSizes.length > 0 && (
+            {sizes.length > 0 && (
               <div role="group" aria-label={labels.quickSizes} data-ticket-quick-sizes="" className="flex flex-wrap gap-1">
-                {quickSizes.map((size, i) => (
-                  <Button key={size} type="button" variant="outline" size="sm" className={cn("h-6 px-1.5 text-xs aria-pressed:bg-accent aria-pressed:text-accent-foreground dark:aria-pressed:bg-accent dark:aria-pressed:text-accent-foreground", NUMERIC_CLASS)} disabled={disabled} aria-pressed={draft.quantity === size} aria-label={`${labels.quantity} ${formatQuickSize(size, convention)}`} data-quick-size={size} onClick={() => quick(i + 1)}>
-                    {formatQuickSize(size, convention)}
+                {sizes.map((size, i) => (
+                  <Button key={size} type="button" variant="outline" size="sm" className={cn("h-6 px-1.5 text-xs aria-pressed:bg-accent aria-pressed:text-accent-foreground dark:aria-pressed:bg-accent dark:aria-pressed:text-accent-foreground", NUMERIC_CLASS)} disabled={disabled} aria-pressed={draft.quantity === size} aria-label={`${labels.quantity} ${formatQuickSize(size, convention, labels.millions)}`} data-quick-size={size} onClick={() => quick(i + 1)}>
+                    {formatQuickSize(size, convention, labels.millions)}
                   </Button>
                 ))}
               </div>
@@ -623,44 +718,16 @@ export function Ticket({
             onValueChange={setPrice}
             stepFrom={priceToStepFrom()}
             disabled={disabled || !priced}
-            placeholder={priced ? undefined : "market"}
+            placeholder={priced ? undefined : labels.unpriced}
             error={shownProblems.price}
             announceError={problems.price !== undefined}
             invalidText={labels.priceInvalid}
+            labels={{ stepUp: labels.stepUp, stepDown: labels.stepDown }}
             inputRef={priceInput}
           />
-          <Field>
-            <FieldLabel htmlFor={`${id}-type`}>{labels.type}</FieldLabel>
-            <NativeSelect id={`${id}-type`} value={draft.type} disabled={disabled} className="w-full" onChange={(event) => update({ type: event.target.value })}>
-              {orderTypes.map((option) => (
-                <NativeSelectOption key={option.id} value={option.id}>
-                  {option.label}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor={`${id}-tif`}>{labels.tif}</FieldLabel>
-            <NativeSelect id={`${id}-tif`} value={draft.tif} disabled={disabled} className="w-full" onChange={(event) => update({ tif: event.target.value })}>
-              {timeInForces.map((option) => (
-                <NativeSelectOption key={option.id} value={option.id}>
-                  {option.label}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
-          {accounts && accounts.length > 0 && (
-            <Field className="col-span-2">
-              <FieldLabel htmlFor={`${id}-account`}>{labels.account}</FieldLabel>
-              <NativeSelect id={`${id}-account`} value={draft.account ?? ""} disabled={disabled} className="w-full" onChange={(event) => update({ account: event.target.value })}>
-                {accounts.map((option) => (
-                  <NativeSelectOption key={option.id} value={option.id}>
-                    {option.label}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </Field>
-          )}
+          {choice("type", labels.type, orderTypes, draft.type)}
+          {choice("tif", labels.tif, timeInForces, draft.tif)}
+          {accounts && accounts.length > 0 && choice("account", labels.account, accounts, draft.account, "col-span-2")}
         </div>
 
         <div className="flex items-center gap-2" data-ticket-actions={allowed.length}>
@@ -671,12 +738,16 @@ export function Ticket({
               <Button
                 key={action.id}
                 type="button"
-                variant={action.destructive ? "destructive" : action === primary ? "default" : "outline"}
+                // A destructive action says so in the destructive color on the outline button, which holds 4.5 to 1 at
+                // rest and turns to the foreground under the pointer: the destructive variant puts that color on its
+                // own tint, below it.
+                variant={action === primary && !action.destructive ? "default" : "outline"}
                 size="sm"
-                className="h-7 gap-2 aria-disabled:opacity-50"
+                className={cn("h-7 gap-2 aria-disabled:opacity-50", action.destructive && "text-destructive")}
                 disabled={disabled}
                 aria-disabled={heldByLimit(action) || undefined}
                 data-action={action.id}
+                data-destructive={action.destructive || undefined}
                 data-confirming={confirming === action.id || undefined}
                 onKeyDown={press.onKeyDown}
                 onKeyUp={press.onKeyUp}
@@ -707,12 +778,19 @@ export function Ticket({
           {heard && <span key={heard.revision}>{heard.text}</span>}
         </span>
 
+        {/* The server's words, said as they change. The region is in the page from the first render, so the first status
+            after a send is heard too, and a screen reader reads the words from it; the line a sighted trader reads is
+            hidden from it, or each word would be read twice. */}
+        <div role="status" className="sr-only" data-ticket-reply>
+          {status && <p>{status}</p>}
+          {message && <p>{message}</p>}
+        </div>
         {(status || message) && (
-          <div className="flex flex-wrap items-baseline gap-x-2 border-t border-border pt-1.5">
+          <div aria-hidden className="flex flex-wrap items-baseline gap-x-2 border-t border-border pt-1.5">
             {status && (
-              <output className="font-medium" data-ticket-status>
+              <span className="font-medium" data-ticket-status>
                 {status}
-              </output>
+              </span>
             )}
             {message && (
               <span className="text-muted-foreground" data-ticket-message>

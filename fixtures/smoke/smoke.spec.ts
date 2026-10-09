@@ -2652,7 +2652,7 @@ test("a parameter grid types a value in place, waits for the server, prints a re
   await skew.fill("9")
   await page.keyboard.press("Enter")
   await expect(skew).toHaveAttribute("aria-invalid", "true")
-  await expect(skew).toHaveAttribute("aria-description", "9.00 is above the maximum of 5.00.")
+  await expect(skew).toHaveAccessibleDescription("9.00 is above the maximum of 5.00.")
   await page.keyboard.press("Escape")
   await expect(skew).toHaveCount(0)
   await expect(cell("zn", "skew")).toHaveText("1.25")
@@ -2664,7 +2664,7 @@ test("a parameter grid types a value in place, waits for the server, prints a re
   await expect(grid.getByRole("textbox")).toHaveCount(0)
   await expect(grid).toBeFocused()
   // The box asks the server: still the server's word while pending, then the row comes back off.
-  const box = grid.getByRole("checkbox", { name: "Disable ZN" })
+  const box = grid.getByRole("checkbox", { name: "Enable ZN" })
   await box.click()
   await expect(cell("zn", "enabled")).toHaveAttribute("data-pending", "true")
   await expect(box).toHaveAttribute("data-parameter-enabled", "true")
@@ -2672,7 +2672,7 @@ test("a parameter grid types a value in place, waits for the server, prints a re
   await expect(cell("zn", "enabled")).not.toHaveAttribute("data-pending")
   // The server allows nothing on TU: its cells are read-only and its box is disabled.
   await expect(cell("tu", "skew")).toHaveAttribute("aria-readonly", "true")
-  await expect(grid.getByRole("checkbox", { name: "Disable TU" })).toBeDisabled()
+  await expect(grid.getByRole("checkbox", { name: "Enable TU" })).toBeDisabled()
   await cell("tu", "skew").dblclick()
   await expect(grid.getByRole("textbox")).toHaveCount(0)
   expect(errors).toEqual([])
@@ -3258,7 +3258,7 @@ test("a quote panel types levels in the instrument's notation, asks past a limit
   await cell("2Y", "bid").dblclick()
   await bid.fill("100-04")
   await bid.press("Enter")
-  await expect(bid).toHaveAttribute("aria-description", asked)
+  await expect(bid).toHaveAccessibleDescription(asked)
   await expect(question).toBeVisible()
   await expect(question).toHaveText(asked)
   await cell("2Y", "instrument").click()
@@ -3291,7 +3291,7 @@ test("a quote panel types levels in the instrument's notation, asks past a limit
   const size = grid.getByRole("textbox", { name: "Bid size" })
   await size.fill("150000000")
   await size.press("Enter")
-  await expect(size).toHaveAttribute("aria-description", "150,000,000 is above the size limit of 100,000,000.")
+  await expect(size).toHaveAccessibleDescription("150,000,000 is above the size limit of 100,000,000.")
   await size.press("Escape")
   await expect(cell("2Y", "bidSize")).toHaveText("25,000,000")
   // An ask at or under the desk's bid is refused before anything is sent.
@@ -3299,7 +3299,7 @@ test("a quote panel types levels in the instrument's notation, asks past a limit
   const ask = grid.getByRole("textbox", { name: "Ask" })
   await ask.fill("100-03")
   await ask.press("Enter")
-  await expect(ask).toHaveAttribute("aria-description", "The ask would cross the bid.")
+  await expect(ask).toHaveAccessibleDescription("The ask would cross the bid.")
   await ask.press("Escape")
   await expect(log).toHaveText("edit 2Y bid 100.125")
   // A row's action: the server's word and its buttons move when the server answers, not on the click.
