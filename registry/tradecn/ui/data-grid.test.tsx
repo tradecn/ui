@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { StrictMode, Suspense, startTransition, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { createPortal } from "react-dom"
+import { createPortal, flushSync } from "react-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatPrice, parsePrice } from "@/registry/tradecn/lib/format"
 import type { GridRules } from "@/registry/tradecn/lib/grid-rules"
@@ -382,6 +382,318 @@ describe("DataGrid", () => {
     expect(onSelection.mock.lastCall![0].size).toBe(10)
     fireEvent.keyDown(grid, { key: "Escape" })
     expect(onSelection.mock.lastCall![0].size).toBe(0)
+  })
+
+  it("selects on Space once while the key is held, as a checkbox does", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    const onSelection = vi.fn()
+    render(<DataGrid store={store} columns={columns} label="Quotes" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} onSelectionChange={onSelection} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: " " })
+    expect([...onSelection.mock.lastCall![0]]).toEqual(["r0"])
+    const calls = onSelection.mock.calls.length
+    fireEvent.keyDown(grid, { key: " ", repeat: true })
+    fireEvent.keyDown(grid, { key: " ", repeat: true })
+    expect(onSelection.mock.calls.length).toBe(calls)
+  })
+
+  it("announces the row count a second after it settles, in the singular for one row", () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(1, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} />)
+      // The region appears with its first announcement.
+      const region = () => screen.getByRole("grid").querySelector('[aria-live="polite"]:not([data-grid-row-reading])')
+      act(() => void vi.advanceTimersByTime(1000))
+      expect(region()).toHaveTextContent(/^1 row$/)
+      act(() => seed(2, store))
+      act(() => void vi.advanceTimersByTime(1000))
+      expect(region()).toHaveTextContent(/^2 rows/)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("brings a column the keys move to into view sideways, clear of the frozen ones, and the column an editor opens in", () => {
+    type Wide = { id: string } & Record<string, string | number>
+    const store = createRowStore<Wide>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: [{ id: "a", ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`c${i}`, i])) }] })
+    // Eight columns, 100px wide but for c7's 250px; the first is frozen and c6 is editable.
+    const wide: ColumnDef<Wide>[] = Array.from({ length: 8 }, (_, i) => ({
+      key: `c${i}`,
+      header: `C${i}`,
+      width: i === 7 ? 250 : 100,
+      accessor: (r: Wide) => r[`c${i}`] ?? null,
+      ...(i === 0 ? { frozen: "left" as const } : {}),
+      ...(i === 6 ? { edit: { parse: (t: string) => Number(t) } } : {}),
+    }))
+    render(<DataGrid store={store} columns={wide} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => {}} />)
+    const grid = screen.getByRole("grid")
+    const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+    // A 300px viewport: c0 stays in its first 100px, so the other columns show between 100 and 300.
+    Object.defineProperty(scroller, "clientWidth", { configurable: true, get: () => 300 })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    for (let i = 0; i < 5; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+    // c4 spans 400 to 500: its right edge meets the viewport's.
+    expect(scroller.scrollLeft).toBe(200)
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(scroller.scrollLeft).toBe(200)
+    // c2 spans 200 to 300: its left edge comes clear of the frozen c0.
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(scroller.scrollLeft).toBe(100)
+    // c1 spans 100 to 200, right after c0.
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(scroller.scrollLeft).toBe(0)
+    // The frozen column is always in view, so focusing it moves nothing.
+    scroller.scrollLeft = 150
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(scroller.scrollLeft).toBe(150)
+    // Focus c6, scroll away, and type: the editor opens with its column in view, 600 to 700.
+    for (let i = 0; i < 6; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+    scroller.scrollLeft = 0
+    fireEvent.keyDown(grid, { key: "5" })
+    expect(screen.getByRole("textbox")).toHaveValue("5")
+    expect(scroller.scrollLeft).toBe(400)
+    // c7, 700 to 950, is wider than the 200px past c0: its left edge shows first.
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    expect(scroller.scrollLeft).toBe(600)
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(scroller.scrollLeft).toBe(500)
+    // Moved one place right, past c7, c6 lands at 850 to 950, and comes into view where it now sits.
+    fireEvent.keyDown(grid, { key: "ArrowRight", altKey: true })
+    expect(scroller.scrollLeft).toBe(650)
+  })
+
+  describe("a sheet wider than its viewport", () => {
+    type Wide = { id: string } & Record<string, string | number | boolean>
+    // Eight columns, 100px wide but for c7's 250px; c0 is frozen, c5 a toggle, and c6 editable as text.
+    const wideColumns: ColumnDef<Wide>[] = Array.from({ length: 8 }, (_, i) => ({
+      key: `c${i}`,
+      header: `C${i}`,
+      width: i === 7 ? 250 : 100,
+      accessor: (r: Wide) => r[`c${i}`] ?? null,
+      ...(i === 0 ? { frozen: "left" as const } : {}),
+      ...(i === 5 ? { edit: { parse: (t: string) => t === "true", toggle: (v: unknown) => !v } } : {}),
+      ...(i === 6 ? { edit: { parse: (t: string) => Number(t) } } : {}),
+    }))
+    const wideStore = () => {
+      const store = createRowStore<Wide>({ getRowId: (r) => r.id })
+      store.applyDeltas({ upsert: [{ id: "a", ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`c${i}`, i === 5 ? true : i])) }] })
+      return store
+    }
+    const scrollerOf = () => {
+      const scroller = screen.getByRole("grid").querySelector<HTMLElement>(".overflow-auto")!
+      Object.defineProperty(scroller, "clientWidth", { configurable: true, get: () => 300 })
+      return scroller
+    }
+
+    it("counts the selection column in front of the frozen ones", () => {
+      render(<DataGrid store={wideStore()} columns={wideColumns} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} selectionMode="multi" selectionColumn />)
+      const grid = screen.getByRole("grid")
+      const scroller = scrollerOf()
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      for (let i = 0; i < 5; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+      // After the 32px box, c4 spans 432 to 532: its right edge meets the viewport's.
+      expect(scroller.scrollLeft).toBe(232)
+      // c2 spans 232 to 332; the box and c0 stick over the first 132px.
+      fireEvent.keyDown(grid, { key: "ArrowLeft" })
+      fireEvent.keyDown(grid, { key: "ArrowLeft" })
+      expect(scroller.scrollLeft).toBe(100)
+    })
+
+    it("brings a moved column into view when a controlled parent applies the move later, and not once focus or a pointer has moved on", () => {
+      const store = wideStore()
+      store.applyDeltas({ upsert: [{ id: "b", ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`c${i}`, i === 5 ? false : i * 10])) }] })
+      let apply = () => {}
+      function Deferred() {
+        const [state, setState] = useState<ColumnState>(EMPTY_COLUMN_STATE)
+        return <DataGrid store={store} columns={wideColumns} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => {}} columnState={state} onColumnStateChange={(next) => { apply = () => setState(next) }} />
+      }
+      render(<Deferred />)
+      const grid = screen.getByRole("grid")
+      const scroller = scrollerOf()
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      for (let i = 0; i < 7; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+      expect(scroller.scrollLeft).toBe(400)
+      // The parent hasn't taken the move yet, and a commit that moves no column, the next row's focus, reveals nothing.
+      fireEvent.keyDown(grid, { key: "ArrowRight", altKey: true })
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      expect(scroller.scrollLeft).toBe(400)
+      // It takes it later: c6 lands after c7, at 850 to 950, and comes into view.
+      act(() => apply())
+      expect(scroller.scrollLeft).toBe(650)
+      // Moved back left, but focus moves on to c7 and the sheet scrolls away before the parent answers: no reveal.
+      fireEvent.keyDown(grid, { key: "ArrowLeft", altKey: true })
+      fireEvent.keyDown(grid, { key: "ArrowLeft" })
+      scroller.scrollLeft = 0
+      act(() => apply())
+      expect(scroller.scrollLeft).toBe(0)
+      // c7, now last, moved left, and a pointer presses its own cell before the parent answers: focus stays, and the
+      // press still leaves no reveal behind.
+      fireEvent.keyDown(grid, { key: "ArrowLeft", altKey: true })
+      fireEvent.pointerDown(document.querySelector<HTMLElement>('[data-row-id="a"] [data-focused-col]')!, { button: 0 })
+      scroller.scrollLeft = 0
+      act(() => apply())
+      expect(scroller.scrollLeft).toBe(0)
+    })
+
+    it("commits a toggle with its column in view", () => {
+      const onEdit = vi.fn()
+      render(<DataGrid store={wideStore()} columns={wideColumns} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={onEdit} />)
+      const grid = screen.getByRole("grid")
+      const scroller = scrollerOf()
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      for (let i = 0; i < 6; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+      // c5 spans 500 to 600; scrolled away, Space brings it back before it commits, and so does Enter.
+      scroller.scrollLeft = 0
+      fireEvent.keyDown(grid, { key: " " })
+      expect(scroller.scrollLeft).toBe(300)
+      expect(onEdit).toHaveBeenCalledTimes(1)
+      scroller.scrollLeft = 0
+      fireEvent.keyDown(grid, { key: "Enter" })
+      expect(scroller.scrollLeft).toBe(300)
+      expect(onEdit).toHaveBeenCalledTimes(2)
+    })
+
+    it("reveals a moved column only in the layout the key asked for: a parent's other change, or a move across the frozen column, scrolls nothing", () => {
+      const store = wideStore()
+      let requested: ColumnState = EMPTY_COLUMN_STATE
+      let set: (state: ColumnState) => void = () => {}
+      function Rejecting() {
+        const [state, setState] = useState<ColumnState>(EMPTY_COLUMN_STATE)
+        set = setState
+        return <DataGrid store={store} columns={wideColumns} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} columnState={state} onColumnStateChange={(next) => { requested = next }} />
+      }
+      render(<Rejecting />)
+      const grid = screen.getByRole("grid")
+      const scroller = scrollerOf()
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      for (let i = 0; i < 7; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+      expect(scroller.scrollLeft).toBe(400)
+      // c6 asks to move past c7; the parent keeps the order and widens c1 instead, and the sheet, scrolled away, stays.
+      fireEvent.keyDown(grid, { key: "ArrowRight", altKey: true })
+      scroller.scrollLeft = 0
+      act(() => set({ ...EMPTY_COLUMN_STATE, widths: { c1: 120 } }))
+      expect(scroller.scrollLeft).toBe(0)
+      // The move lands: c6 spans 850 to 950 and comes into view.
+      act(() => set(requested))
+      expect(scroller.scrollLeft).toBe(650)
+      // Back at c1, beside the frozen c0, Alt+Left asks for a place the frozen column keeps, so nothing moves; c0
+      // hidden later puts c1 first, and the sheet stays where it was scrolled.
+      for (let i = 0; i < 6; i++) fireEvent.keyDown(grid, { key: "ArrowLeft" })
+      expect(scroller.scrollLeft).toBe(0)
+      fireEvent.keyDown(grid, { key: "ArrowLeft", altKey: true })
+      scroller.scrollLeft = 300
+      act(() => set({ ...EMPTY_COLUMN_STATE, hidden: ["c0"] }))
+      expect(scroller.scrollLeft).toBe(300)
+    })
+
+    it("brings a moved column into view when the parent applies the move before the key's handler returns", () => {
+      const store = wideStore()
+      function Flushing() {
+        const [state, setState] = useState<ColumnState>(EMPTY_COLUMN_STATE)
+        return <DataGrid store={store} columns={wideColumns} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} columnState={state} onColumnStateChange={(next) => flushSync(() => setState(next))} />
+      }
+      render(<Flushing />)
+      const grid = screen.getByRole("grid")
+      const scroller = scrollerOf()
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      for (let i = 0; i < 7; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+      // Scrolled away, c6 moves past c7 in a commit the parent flushes at once, and comes into view at 850 to 950.
+      scroller.scrollLeft = 0
+      fireEvent.keyDown(grid, { key: "ArrowRight", altKey: true })
+      expect(scroller.scrollLeft).toBe(650)
+    })
+
+    it("resizes the focused column into view, and scrolls nothing for a resize its minimum width refuses", () => {
+      const floored = wideColumns.map<ColumnDef<Wide>>((c) => (c.key === "c6" ? { ...c, minWidth: 96 } : c))
+      render(<DataGrid store={wideStore()} columns={floored} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} />)
+      const grid = screen.getByRole("grid")
+      const scroller = scrollerOf()
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      for (let i = 0; i < 7; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+      // Scrolled away, c6 narrows to its 96px floor, short of the 8px asked, and comes into view at 600 to 696.
+      scroller.scrollLeft = 0
+      fireEvent.keyDown(grid, { key: "ArrowLeft", altKey: true, shiftKey: true })
+      expect(scroller.scrollLeft).toBe(396)
+      // At the floor it can't narrow again: scrolled away, the sheet stays.
+      scroller.scrollLeft = 0
+      fireEvent.keyDown(grid, { key: "ArrowLeft", altKey: true, shiftKey: true })
+      expect(scroller.scrollLeft).toBe(0)
+      // Widened to 104px, it spans 600 to 704 and comes into view.
+      fireEvent.keyDown(grid, { key: "ArrowRight", altKey: true, shiftKey: true })
+      expect(scroller.scrollLeft).toBe(404)
+    })
+
+    it("opens an editor from a cell control with its column in view, and an open that asks for focus again does the same", () => {
+      let handle: CellEditHandle | undefined
+      const controlled = wideColumns.map<ColumnDef<Wide>>((c) => (c.key === "c6" ? { ...c, cell: ({ edit, value }) => { handle = edit; return String(value) } } : c))
+      render(<DataGrid store={wideStore()} columns={controlled} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => {}} />)
+      const scroller = scrollerOf()
+      const retained = handle!
+      // c6 spans 600 to 700: the control's open brings it into view with its editor.
+      act(() => retained.open())
+      expect(screen.getByRole("textbox", { name: "C6" })).toBeInTheDocument()
+      expect(scroller.scrollLeft).toBe(400)
+      // Scrolled away with the editor still open, a second open keeps the draft and brings the column back.
+      scroller.scrollLeft = 0
+      act(() => retained.open())
+      expect(scroller.scrollLeft).toBe(400)
+    })
+
+    it("opens Shift+F10's menu at the focused cell, brought back into view, or at the grid's visible left edge when the row runs off to the left", () => {
+      const seen: number[] = []
+      // c1 holds an element that claims c4's column, as a nested grid's cell would; the menu still finds the row's own c4.
+      const nested = wideColumns.map<ColumnDef<Wide>>((c) => (c.key === "c1" ? { ...c, cell: () => <span data-col="c4" data-nested="">nested</span> } : c))
+      render(<DataGrid store={wideStore()} columns={nested} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} renderContextMenu={() => <div>menu</div>} />)
+      const grid = screen.getByRole("grid")
+      const scroller = scrollerOf()
+      const row = document.querySelector<HTMLElement>('[role="row"][data-row-id="a"]')!
+      row.addEventListener("contextmenu", (e) => seen.push(e.clientX))
+      // Laid out as the sheet scrolls: the row's left edge at minus scrollLeft, each cell 100px further on, the grid at 0.
+      const box = (left: number) => ({ left, top: 0, right: left + 100, bottom: 20, width: 100, height: 20, x: left, y: 0, toJSON() {} }) as DOMRect
+      const rects = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        if (this.hasAttribute("data-nested")) return box(-1000)
+        const col = this.getAttribute("data-col")
+        if (col && this.closest('[role="row"]')) return box(Number(col.slice(1)) * 100 - scroller.scrollLeft)
+        if (this.getAttribute("role") === "row") return box(-scroller.scrollLeft)
+        return box(0)
+      })
+      try {
+        fireEvent.keyDown(grid, { key: "ArrowDown" })
+        scroller.scrollLeft = 400
+        fireEvent.keyDown(grid, { key: "F10", shiftKey: true })
+        expect(seen.at(-1)).toBe(8)
+        // c4 spans 400 to 500; the keys bring it to 200, and the menu opens 8px into it.
+        for (let i = 0; i < 5; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+        fireEvent.keyDown(grid, { key: "F10", shiftKey: true })
+        expect(seen.at(-1)).toBe(208)
+        // A wheel scrolls it away and moves no focus: the menu brings c4 back before it opens there.
+        scroller.scrollLeft = 0
+        fireEvent.keyDown(grid, { key: "F10", shiftKey: true })
+        expect(scroller.scrollLeft).toBe(200)
+        expect(seen.at(-1)).toBe(208)
+      } finally {
+        rects.mockRestore()
+      }
+    })
+  })
+
+  it("activates a row once for a held Enter", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    const onActivate = vi.fn()
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} onRowActivate={onActivate} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "Enter" })
+    fireEvent.keyDown(grid, { key: "Enter", repeat: true })
+    fireEvent.keyDown(grid, { key: "Enter", repeat: true })
+    expect(onActivate).toHaveBeenCalledTimes(1)
   })
 
   it("marks a selected row by a bar at the start of its first cell, never a fill behind its text", () => {
@@ -2408,11 +2720,12 @@ describe("editing", () => {
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     fireEvent.keyDown(grid, { key: " " })
     expect(commit()).toEqual({ via: "value", repeat: false, session: 0 })
-    // A held Space or Enter on a toggle says so, as a held key in an editor does.
+    // A held Space or Enter on a toggle commits once: its repeats send nothing, as a native checkbox's do, so a held key
+    // can't flip the value the server just acknowledged back again.
+    const calls = validate.mock.calls.length
     fireEvent.keyDown(grid, { key: " ", repeat: true })
-    expect(commit()).toEqual({ via: "value", repeat: true, session: 0 })
     fireEvent.keyDown(grid, { key: "Enter", repeat: true })
-    expect(commit()).toEqual({ via: "value", repeat: true, session: 0 })
+    expect(validate.mock.calls.length).toBe(calls)
   })
 
   it("passes a held key's repeat from a cell control's commit to validate", () => {

@@ -83,6 +83,24 @@ describe("parameterColumns and parameterEdit", () => {
     expect(cellRenders).toBe(before)
   })
 
+  it("sends one request for a held Space on the enable box, even after the server acknowledges it", () => {
+    const onEdit = vi.fn<(change: EditChange<Sheet>) => Promise<void>>(() => Promise.resolve())
+    const { store, grid } = setup(onEdit)
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: " " })
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(onEdit.mock.lastCall![0].value).toBe(false)
+    // The server takes it: the store holds the new value and the cell settles.
+    act(() => {
+      store.applyDeltas({ patch: [{ id: "zn", fields: { enabled: false } }] })
+    })
+    // The key is still down: its repeats would toggle the acknowledged value back.
+    for (let i = 0; i < 3; i++) fireEvent.keyDown(grid, { key: " ", repeat: true })
+    expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
   it("withdrawing the action while pending refuses the keyboard retry that a disabled checkbox lets through", () => {
     // The docs' one-in-flight recipe, both halves: the grid's Space still sends
     // while the cell is pending — disabling the checkbox blocks only the pointer —

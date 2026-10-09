@@ -102,7 +102,7 @@ Price quotes format and parse through `convention.price`. Other bases snap to `q
 |---|---|---|
 | `formatCoupon(value, options?)` | `Nullable`; `style: "fraction" \| "decimal"` (default `"fraction"`), `decimals: number` (default `3`), `locale` | `4.125` → `4 1/8`; decimal style → `4.125%` |
 | `formatMaturity(date, options?)` | `DateLike \| null \| undefined`; `year: "2-digit" \| "numeric"` (default `"2-digit"`), `locale` | `"2034-05-15"` → `05/15/34`; numeric year → `05/15/2034` |
-| `isInstant(value)` | True for a time a `Date` can hold: a finite number of milliseconds within 8.64e15 of the epoch either way; guard a server's timestamp with it before formatting |
+| `isInstant(value)` | Any value; true for a time a `Date` can hold, a finite number of milliseconds within 8.64e15 of the epoch either way. Guard a server's timestamp with it before formatting | `Date.now()` → `true`; `NaN`, `Infinity`, `"1700000000000"` → `false` |
 | `daysToMaturity(date, now?)` | `DateLike \| null \| undefined`; `now: DateLike` defaults to the current time | Whole UTC calendar days to maturity; `0` on the same day, negative on later days, `null` if either date is invalid |
 | `formatNotional(value, { unit: "mm" })` | `Nullable`; optional `decimals: number` (default `2`) and `locale` | `5e6` → `5mm`; `1.25e9` → `1,250mm` |
 

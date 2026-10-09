@@ -108,7 +108,7 @@ Each piece has a `data-slot` matching its kebab-case name with the `tradecn-` pr
 
 ### AlertActionButton
 
-`AlertActionButton` accepts Button props, including children and a ref, except `onClick`. It renders only when `alert.allowedActions` contains `action`. Missing or empty permissions render nothing. It defaults to `type="button"`, `variant="outline"`, and `size="sm"`, with `data-alert-action` set to the action ID. It doesn't hold repeated presses: a handler that waits for the server should ignore presses while its request is out, or remove the action from `allowedActions` first, or a held Enter sends one request per key repeat.
+`AlertActionButton` accepts Button props, including children and a ref, except `onClick`. It renders only when `alert.allowedActions` contains `action`. Missing or empty permissions render nothing. It defaults to `type="button"`, `variant="outline"`, and `size="sm"`, with `data-alert-action` set to the action ID. It doesn't hold repeated presses: a handler that waits for the server should ignore presses while its request is out; otherwise a held Enter sends one request per key repeat. Removing the action from `allowedActions` instead unmounts the focused button, so move focus first, as [Removal never moves focus](#it-never-takes-focus) describes.
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
@@ -167,7 +167,7 @@ The history's view owns its order, so the grid renders without sort affordances,
 | `announceRowCount` | `"off" \| "debounced"` | Preset's setting | The embedded grid's row-count announcements. |
 | `label` | `string` | `labels.title` | Accessible grid name. |
 | `labels` | `Partial<AlertHistoryLabels>` | `DEFAULT_ALERT_HISTORY_LABELS` | Empty state, grid name, and default column labels. |
-| `renderContextMenu` | `(rows: Alert[], ids: RowId[], target?: RowId \| null) => ReactNode` | Unset | Caller-composed context menu. The grid reads the rows when the menu opens, so check `allowedActions` again when an item runs, and find each notice by its id rather than pairing `rows` and `ids` by index: `ids` can still hold a notice the store has since removed. |
+| `renderContextMenu` | `(rows: Alert[], ids: RowId[], target?: RowId \| null) => ReactNode` | Unset | Caller-composed context menu. `target` is the notice the menu opened on, which can sit inside a larger selection, and can also name a notice the store has since removed. The grid reads the rows when the menu opens, so check `allowedActions` again when an item runs, and find each notice by its id rather than pairing `rows` and `ids` by index: `ids` can still hold a notice the store has since removed. |
 | `className` | `string` | Unset | History wrapper classes. |
 
 Keep `labels` referentially stable when the grid builds its default columns, since they rebuild whenever it changes, and keep a custom `columns` array stable for the same reason; with custom columns, a `labels` change deliberately rebuilds nothing.

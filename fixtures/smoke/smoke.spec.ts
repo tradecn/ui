@@ -2678,6 +2678,35 @@ test("a parameter grid types a value in place, waits for the server, prints a re
   expect(errors).toEqual([])
 })
 
+// A sheet wider than its panel: the keys move column focus off the right edge, and the grid scrolls the column into
+// view, clear of the frozen Name column on the left, as a layout engine lays it out.
+test("a parameter grid wider than its panel scrolls the column the keys move to into view, clear of its frozen column", async ({ page }) => {
+  await page.goto("/")
+  const scene = page.locator("section[data-scene='parameter-grid']")
+  const grid = scene.getByRole("grid", { name: "Parameters" })
+  await expect(grid.locator("[data-row-id='zn']")).toHaveCount(1)
+  // Name is 160px and frozen; the rest run 56, 96, 96, 96, and 140 past it, more than a 360px panel shows.
+  await scene.evaluate((s) => {
+    const panel = s.querySelector<HTMLElement>("div[class*='w-[44rem]']")!
+    panel.style.width = "360px"
+  })
+  await grid.focus()
+  await page.keyboard.press("ArrowDown")
+  const focused = () =>
+    grid.evaluate((g) => {
+      const scroller = g.querySelector<HTMLElement>(".overflow-auto")!
+      const view = scroller.getBoundingClientRect()
+      const cell = g.querySelector("[data-row-id='zn'] [data-focused-col]")!
+      const box = cell.getBoundingClientRect()
+      const frozen = g.querySelector("[data-row-id='zn'] [data-col='name']")!.getBoundingClientRect()
+      return { col: cell.getAttribute("data-col"), clearOfFrozen: box.left >= frozen.right - 0.5, insideRight: box.right <= view.left + scroller.clientWidth + 0.5 }
+    })
+  for (let i = 0; i < 6; i++) await page.keyboard.press("ArrowRight")
+  expect(await focused()).toEqual({ col: "updated", clearOfFrozen: true, insideRight: true })
+  for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowLeft")
+  expect(await focused()).toEqual({ col: "skew", clearOfFrozen: true, insideRight: true })
+})
+
 // A book through the installed grid: the position printed with its sign and its side named, a loss painted with
 // the down token through the installed hook's class, the totals under the body, and a mark moving on the
 // server carrying the P&L and the total with it.

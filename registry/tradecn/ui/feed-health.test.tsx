@@ -108,7 +108,7 @@ describe("FeedHealth", () => {
     expect(live()).toHaveTextContent("Market data aging, 2s")
     tick(5000)
     expect(item().dataset.tier).toBe("stale")
-    // The stale tint carries the foreground, and a lane's stale gap inside it takes the foreground too.
+    // The stale tint carries the foreground, and a lane's stale gap, its drop count, and the pending mark inside it take it too.
     expect(item().querySelector("button")!.className).toContain("var(--stale-soft)")
     expect(item().querySelector("button")).toHaveClass("text-foreground", "[&_.text-stale]:text-inherit", "[&_.text-muted-foreground]:text-inherit")
     expect(item().querySelector("button")).not.toHaveClass("text-stale")
