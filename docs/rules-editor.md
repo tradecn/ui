@@ -299,7 +299,7 @@ Fields use `<field>: <rule>`, such as `Value: Rich to the market`. Highlights us
 
 Use `useRulesEditor().labels` for your tab text, action children, empty states, and drag hint. `labels.ruleWords` writes the comparison and tone choices and every problem in your words, as grid-rules' `RuleWords`, and `labels.itemName` names a rule with no label, `{kind}` its section's word and `{n}` its place. A rule with a problem marks its item invalid, and the item and its value fields point to `RulesEditorProblem`'s line. A count's label is a template or a function, for a language whose plurals a template can't hold: `matches` takes `{n}`, the rows that match, or `(n) => string`, and `shown` takes `{n}`, the rows shown, and `{m}`, all the rows, or `(n, m) => string`. The defaults put one in the singular, as in `1 row matches`.
 
-Operator words use `RULE_OP_LABELS`. Tone names, validation messages, and `ColumnChooser` labels have separate owners.
+Operator words, tone names, and problems default to grid-rules' `DEFAULT_RULE_WORDS`, which `labels.ruleWords` overrides; `ColumnChooser` takes its own `labels.ruleWords`.
 
 ### What it does not do
 

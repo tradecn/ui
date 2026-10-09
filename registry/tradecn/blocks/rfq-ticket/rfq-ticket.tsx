@@ -349,7 +349,10 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   // what the quote is for.
   const [size, setSize] = useState<number | null>(null)
   const quantity = size ?? inquiry.quantity
-  const draft = useMemo<RfqQuoteDraft>(() => ({ inquiryId: inquiry.id, bid: levels.bid, ask: levels.ask, quantity }), [inquiry.id, levels, quantity])
+  // Only the sides the inquiry asks for now: a level typed for a side it no longer asks for stays out of the draft.
+  const asksBid = sides.includes("bid")
+  const asksAsk = sides.includes("ask")
+  const draft = useMemo<RfqQuoteDraft>(() => ({ inquiryId: inquiry.id, bid: asksBid ? levels.bid : null, ask: asksAsk ? levels.ask : null, quantity }), [inquiry.id, levels, quantity, asksBid, asksAsk])
   const sizes = useMemo(() => wholeSizes(quickSizes), [quickSizes])
   const [problems, setProblems] = useState<RfqQuoteProblems>({})
   // The action a limit asked about: a fresh press on it sends, unless the market has added a reason since, which asks

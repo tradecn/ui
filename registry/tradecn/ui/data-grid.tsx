@@ -906,7 +906,8 @@ function Cell<T>({ col, row, rowId, id, colIndex, left, memory, flashVariant, fl
         rejected !== null && "text-destructive",
         // A frozen cell paints an opaque background over the row's, so it takes the row's own decoration too: a rule's
         // tint, and your class from getRowProps, a tint or a mark, or the row would show a hole at the frozen columns.
-        rule?.className || (left !== undefined ? cn(rowRule?.className, rowClassName) : undefined),
+        // A cell rule's own decoration comes last, so it wins over the row's where both set the same thing.
+        left !== undefined ? cn(rowRule?.className, rowClassName, rule?.className) : rule?.className,
         // The keyboard's cell carries its own mark: the column's tint is too faint to find it by.
         active && !editing && "outline-2 -outline-offset-2 outline-foreground",
       )}

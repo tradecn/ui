@@ -1057,7 +1057,7 @@ test("a ticket types a price in 32nds, steps it, sends from a key, and shows onl
   await expect(price).toHaveValue("99-17")
   await page.keyboard.press("Shift+ArrowDown")
   await expect(price).toHaveValue("99-12")
-  await ticket.getByRole("button", { name: "Price up one tick" }).click()
+  await ticket.getByRole("button", { name: "Price up one step" }).click()
   await expect(price).toHaveValue("99-12+")
   // Not a price: said under the field, through the consumer's field.
   await price.fill("abc")
@@ -1217,7 +1217,7 @@ test("a quote field reads a quote in the instrument's basis, snaps it, steps it,
   await expect(field).toHaveValue("4.254")
   await page.keyboard.press("Shift+ArrowDown")
   await expect(field).toHaveValue("4.244")
-  await scene.getByRole("button", { name: "Discount up one tick" }).click()
+  await scene.getByRole("button", { name: "Discount up one step" }).click()
   await expect(field).toHaveValue("4.245")
   await field.fill("4-16")
   await field.blur()
@@ -1574,9 +1574,9 @@ test("a column chooser hides, reorders, and resets through the grid's own column
   await expect(headers).toHaveText(["RFQ", "Client", "Size", "Price", "Status"])
   const priceHeader = grid.locator("[role='columnheader'][data-col='px']")
   const wide = (await priceHeader.boundingBox())!.width
-  await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("120 px")
+  await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("Width 120 px")
   await panel.getByRole("button", { name: "Reset width: Price" }).click()
-  await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("100 px")
+  await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("Width 100 px")
   expect((await priceHeader.boundingBox())!.width, "the grid's header narrowed with the reset").toBeLessThan(wide)
   await panel.locator("[data-column='size']").focus()
   await page.keyboard.press("Alt+ArrowDown")
@@ -1611,7 +1611,7 @@ test("grid reset shares chooser defaults and restores keyboard focus when its op
   const trigger = grid.getByRole("button", { name: "Price column menu" })
   await trigger.click()
   await page.getByRole("menuitem", { name: /^Reset columns/ }).click()
-  await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("100 px")
+  await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("Width 100 px")
   await expect(panel.getByRole("button", { name: "Reset all" })).toBeDisabled()
   await expect(grid.locator("[role='columnheader'][data-col='px']")).toHaveCSS("width", "100px")
   await scene.getByRole("button", { name: "use compact defaults" }).click()
@@ -1655,7 +1655,7 @@ test("the column chooser holds one tab stop and runs every command from the focu
   await panel.locator("[data-column='px']").focus()
   await page.keyboard.press("Delete")
   await expect.poll(async () => (await state()).widths).toEqual({ px: 100 })
-  await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("100 px")
+  await expect(panel.locator("[data-column='px'] [data-column-width]")).toHaveText("Width 100 px")
 })
 
 for (const dark of [false, true]) {

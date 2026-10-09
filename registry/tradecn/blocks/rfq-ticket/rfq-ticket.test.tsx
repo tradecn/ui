@@ -1073,6 +1073,15 @@ describe("what the ticket sends and says", () => {
     expect(onDraftChange).not.toHaveBeenCalled()
   })
 
+  it("leaves out a level for a side the inquiry no longer asks for, after it changes under the same id", () => {
+    const { quote, rerender } = mount({ inquiry: inquiry({ side: "two-way" }) })
+    type(field("Bid"), "99-16")
+    type(field("Offer"), "99-17")
+    rerender({ inquiry: inquiry({ side: "buy" }) })
+    fireEvent.click(screen.getByRole("button", { name: /^Quote/ }))
+    expect(quote).toHaveBeenCalledWith(draftOf({ bid: null, ask: 99.53125 }), inquiry({ side: "buy" }))
+  })
+
   it("shows a block on a side it doesn't draw on the limits line, so whatever holds Quote is on screen", () => {
     const { quote } = mount({ defaultDraft: { ask: 99.515625 }, limits: { custom: () => [{ field: "bid", level: "block", rule: "no-bids", message: "No bids from this book." }] } })
     expect(document.querySelector("[data-rfq-limits='block']")).toHaveTextContent("No bids from this book.")

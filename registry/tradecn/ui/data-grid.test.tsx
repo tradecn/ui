@@ -2375,6 +2375,16 @@ describe("row names", () => {
     expect(document.querySelector('[data-row-id="r2"] [data-col="sym"]')!.classList).not.toContain("bg-primary/10")
   })
 
+  it("keeps the row's decoration on a frozen cell a cell rule also paints, the rule's own last", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    const marked = (row: Quote) => (row.id === "r1" ? { className: "shadow-[inset_2px_0_0_var(--primary)]" } : undefined)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowProps={marked} rules={{ columns: [{ id: "s1", column: "sym", when: { op: "eq", value: "S0001" }, tone: "up" }] }} />)
+    const frozen = document.querySelector('[data-row-id="r1"] [data-col="sym"]')!
+    expect(frozen).toHaveAttribute("data-rule")
+    expect(frozen.classList).toContain("shadow-[inset_2px_0_0_var(--primary)]")
+  })
+
   it.each(["document", "open", "closed"] as const)("hands focus to the grid when a focused header menu trigger leaves with its column (%s)", async (where) => {
     const host = document.createElement("div")
     document.body.append(host)
