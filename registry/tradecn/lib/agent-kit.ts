@@ -182,14 +182,27 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
   // element pointed at counts even when hidden, and a reference to nothing reads as nothing. The referring element met
   // inside a target says nothing, so a field wrapped by the label it points to takes no name from its own value; pointed
   // at itself, it is read for itself, its value or its content, as Chromium reads it.
-  // `outside` leaves out the targets an element holds itself, for a row named by its own cells.
+  // The cell a node sits in, by role, or by tag where it carries no known role.
+  const cellHolding = (node: Element): Element | null => {
+    for (let at: Element | null = node; at; at = at.parentElement) {
+      const role = roleOf(at)
+      if (role ? /^(gridcell|cell|columnheader|rowheader)$/.test(role) : /^(TD|TH)$/.test(at.tagName)) return at
+    }
+    return null
+  }
+  // `outside` leaves out the targets in the element's own cells, for a row named by its cells; a label of its own that is
+  // no cell still counts.
   const refs = (el: Element, attribute: string, outside = false): string =>
     (el.getAttribute(attribute) ?? "")
       .split(/\s+/)
       .filter(Boolean)
       .map((id) => {
         const target = byId(el, id)
-        if (!target || (outside && target !== el && el.contains(target))) return ""
+        if (!target) return ""
+        if (outside && target !== el) {
+          const cell = cellHolding(target)
+          if (cell && el.contains(cell)) return ""
+        }
         const hiddenOk = target.getAttribute("aria-hidden") === "true" || hidden(target)
         return textAlternative(target, target === el ? { referenced: true, hiddenOk } : { referenced: true, hiddenOk, self: el })
       })

@@ -3806,6 +3806,7 @@ test("the agent kit's check passes the kept sample, finds each rule the broken o
     "direction tradecn-agent-kit span[data-cue=row-label]",
     "direction tradecn-agent-kit span[data-cue=hidden-in-cell]",
     "direction tradecn-agent-kit span[data-cue=own-label]",
+    "direction tradecn-agent-kit span[data-cue=row-own-label]",
   ])
   const broken = await page.evaluate(checkContract, { root: "[data-contract-sample='broken']", ignore: "" })
   // Direction in text, in a field and in SVG text by its fill, with units, on a fill four boxes out, in a price split

@@ -9,8 +9,8 @@ import { NUMERIC_CLASS } from "@/lib/format"
 // reader, through a description it points to, a native label, a faded sign, a sign painted transparent, a grid rule's
 // highlight that its description explains, a description on the run around the value, a label on an element that
 // takes its role from a fallback token, a cell marked with its side, a row whose label says the direction, a value
-// hidden from a screen reader in a cell marked with its side, and a button labelled by its own hidden "Buy": that
-// passes by default and fails under visibleCue.
+// hidden from a screen reader in a cell marked with its side, a button labelled by its own hidden "Buy", and a row
+// labelled by a word of its own that is no cell: that passes by default and fails under visibleCue.
 // The broken one breaks three rules on purpose: numbers colored up with nothing else saying so (in text, in a field,
 // in SVG text, with units, on a fill four boxes out, in a price split across two spans at its dash, behind a
 // description that points at nothing, a label that names no direction, a label on a plain span, which no screen
@@ -85,7 +85,7 @@ export function AgentKitScene() {
           ↻
         </button>
       </div>
-      <div data-contract-sample="unseen" className="flex items-center gap-3">
+      <div data-contract-sample="unseen" className="flex flex-wrap items-center gap-3">
         <span id={`${id}-up`} className="sr-only">
           Up
         </span>
@@ -146,8 +146,19 @@ export function AgentKitScene() {
             0-18
           </span>
         </button>
+        {/* A row labelled by a word of its own that is no cell says that word for its cells. */}
+        <div role="row" aria-labelledby={`${id}-row-word`} className="flex gap-1">
+          <span id={`${id}-row-word`} className="sr-only">
+            Buy
+          </span>
+          <span role="gridcell">
+            <span data-cue="row-own-label" className={cn(NUMERIC_CLASS, "text-up")}>
+              0-19
+            </span>
+          </span>
+        </div>
       </div>
-      <div data-contract-sample="broken" data-contract-ignore="" className="flex items-center gap-3">
+      <div data-contract-sample="broken" data-contract-ignore="" className="flex flex-wrap items-center gap-3">
         <span className={cn(NUMERIC_CLASS, "text-up")}>0-01</span>
         {/* A row named by its own cells, as a grid row with no label is: the side in one cell is no cue for the next. */}
         <div role="row" aria-labelledby={`${id}-own-side ${id}-own-size`} className="flex gap-1">
