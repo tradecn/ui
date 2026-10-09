@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useInsertionEffect, useLayoutEf
 import { Button } from "@/components/ui/button"
 import { ContextMenuGroup, ContextMenuItem, ContextMenuLabel } from "@/components/ui/context-menu"
 import { useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
-import { NULL_TOKEN, NUMERIC_CLASS, formatQuantity, formatQuote, quoteInvertedOf, formatTicks, numericFontClass, parseQuote, stepQuote, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NULL_TOKEN, NUMERIC_CLASS, formatQuantity, formatQuote, quoteInvertedOf, formatTicks, numericFontClass, parseQuote, stepQuote, stripGrouping, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { blocks, checkLimits, confirms, type Limits, type LimitsDraft } from "@/registry/tradecn/lib/limits"
 import type { RowId } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, editProblem, type CellEdit, type ColumnDef, type DataGridProps, type EditChange, type EditCommit, type EditProblem } from "@/registry/tradecn/ui/data-grid"
@@ -116,9 +116,13 @@ function isNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v)
 }
 
-function readNumber(text: string): number | null | "bad" {
-  const clean = text.trim().replace(/−/g, "-").replace(/,/g, "")
-  if (clean === "") return null
+// A size prints whole and grouped, "5,000", so one group reads as thousands; skew and width print decimals, so one
+// comma with no point after it reads either way and is refused, and their editor opens on text without separators.
+// Any other comma is refused: "2,5" is never 25.
+function readNumber(text: string, decimals: boolean): number | null | "bad" {
+  if (text.trim() === "") return null
+  const clean = stripGrouping(text, { decimals })
+  if (clean === null) return "bad"
   // Plain decimals only: Number would also read 0x10 and 1e3, which no cell prints, and a run of digits too
   // long to hold reads as Infinity.
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(clean)) return "bad"
@@ -244,7 +248,7 @@ export function quoteEdit<T extends QuoteRow>(field: QuoteField, options: QuoteC
   if (field === "bidSize" || field === "askSize") {
     return {
       parse: (text) => {
-        const n = readNumber(text)
+        const n = readNumber(text, false)
         if (n === "bad") return editProblem(labels.notANumber)
         // A fraction is refused from the text, before Number can round it away near the safe-integer limit.
         if (n !== null && (!Number.isSafeInteger(n) || n < 0 || /\.\d*[1-9]/.test(text.replace(/,/g, "")))) return editProblem(labels.notASize)
@@ -258,12 +262,12 @@ export function quoteEdit<T extends QuoteRow>(field: QuoteField, options: QuoteC
   }
   return {
     parse: (text) => {
-      const n = readNumber(text)
+      const n = readNumber(text, true)
       if (n === "bad") return editProblem(labels.notANumber)
       if (field === "width" && n !== null && n < 0) return editProblem(labels.notAWidth)
       return n
     },
-    format: (value) => (isNumber(value) ? formatTicks(value, { signed: field === "skew" }) : ""),
+    format: (value) => (isNumber(value) ? formatTicks(value, { signed: field === "skew", grouping: false }) : ""),
     // Skew and width count in quote steps; half steps are common, so the arrows move by one and ten with Shift.
     step: (value, dir, big) => Number(((isNumber(value) ? value : 0) + dir * (big ? 10 : 1)).toFixed(10)),
     canEdit,

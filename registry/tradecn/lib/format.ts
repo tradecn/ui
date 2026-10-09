@@ -128,17 +128,22 @@ export function formatPrice(v: Nullable, c: PriceConvention, l?: Locale): string
   }
 }
 
-// Commas group thousands in the whole part or they are not read: a first group of one to three digits with no
-// leading zero, then groups of three, and none after the point or among the 32nds. "99,5" from a decimal-comma
-// keyboard reads as no number, never as 995. Where the convention prints decimals, one comma with nothing after the
-// whole part reads either way, "4,253" as 4253 grouped or as 4.253 typed with a decimal comma, so it reads as neither;
-// two or more groups, or a point after them, can only be grouping.
-function ungrouped(text: string, decimals: boolean): string | null {
+/**
+ * Numeric text, trimmed and with either minus sign read as "-", with its thousands separators removed, or null when a
+ * comma in it isn't one. A comma groups
+ * thousands in the whole part only: a first group of one to three digits with no leading zero, then groups of three,
+ * and none after the point or among the 32nds, so "99,5" from a decimal-comma keyboard is no number, never 995. With
+ * `decimals`, for text whose notation prints digits after the point, one comma with nothing after the whole part is
+ * no number either, since "4,253" reads as 4253 grouped or as 4.253 typed with a decimal comma; two or more groups,
+ * or a point or a fraction's dash after them, can only be grouping. Text without a comma comes back as it is.
+ */
+export function stripGrouping(input: string, options: { decimals: boolean }): string | null {
+  const text = input.trim().replace(/−/g, "-")
   if (!text.includes(",")) return text
   const m = /^([+-]?)([1-9]\d{0,2}(?:,\d{3})+)((?:[.-].*)?)$/.exec(text)
-  if (!m) return null
+  if (!m || m[3]!.includes(",")) return null
   const whole = m[2]!
-  if (decimals && !m[3] && whole.indexOf(",") === whole.lastIndexOf(",")) return null
+  if (options.decimals && !m[3] && whole.indexOf(",") === whole.lastIndexOf(",")) return null
   return m[1]! + whole.replace(/,/g, "") + m[3]!
 }
 
@@ -150,7 +155,7 @@ const printsDecimals = (c: PriceConvention) => (c.kind === "fraction" ? true : c
  * Returns null when the text is not a price. Fraction input: "99-16+", "99-165", "99-162", "99-16", "99".
  */
 export function parsePrice(s: string, c: PriceConvention): number | null {
-  const text = ungrouped(s.trim().replace(/−/g, "-"), printsDecimals(c))
+  const text = stripGrouping(s, { decimals: printsDecimals(c) })
   if (!text) return null
   if (c.kind === "fraction") {
     const m = /^([+-]?)(\d+)(?:-(\d{1,2})([+0-9])?)?$/.exec(text)
@@ -317,9 +322,9 @@ export function ticksBetween(a: number, b: number, tick: number): number {
 }
 
 /** A count of ticks: "+1", "−0.5", "0", up to three decimals and no trailing zeros. Signed unless told otherwise; `unit` adds a word. */
-export function formatTicks(v: Nullable, o: { signed?: boolean; unit?: string } & Locale = {}): string {
+export function formatTicks(v: Nullable, o: { signed?: boolean; unit?: string; grouping?: boolean } & Locale = {}): string {
   if (isNil(v)) return NULL_TOKEN
-  const body = typographicMinus(numberFormat(o.locale, { minimumFractionDigits: 0, maximumFractionDigits: 3, signDisplay: o.signed === false ? "auto" : "exceptZero" }).format(v))
+  const body = typographicMinus(numberFormat(o.locale, { minimumFractionDigits: 0, maximumFractionDigits: 3, signDisplay: o.signed === false ? "auto" : "exceptZero", ...(o.grouping === false ? { useGrouping: false } : {}) }).format(v))
   return o.unit ? `${body} ${o.unit}` : body
 }
 
@@ -383,7 +388,7 @@ export function formatQuote(v: Nullable, c: InstrumentConvention, l?: Locale): s
 /** Inverse of formatQuote for a quote field. A price takes its notation or a decimal; the others take a decimal and snap to the quote step. Null when the text is not a quote. */
 export function parseQuote(s: string, c: InstrumentConvention): number | null {
   if (quoteBasisOf(c) === "price") return parsePrice(s, c.price)
-  const text = ungrouped(s.trim().replace(/−/g, "-"), quoteDecimalsOf(c) > 0)
+  const text = stripGrouping(s, { decimals: quoteDecimalsOf(c) > 0 })
   if (text === null || !/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) return null
   const n = Number(text)
   if (!Number.isFinite(n)) return null

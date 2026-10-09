@@ -3,10 +3,12 @@
 //
 // A rule names a column by its key and reads a row through that column's own accessor. A value typed
 // into a rule is read in the column's own format through its `parse`, so a price rule on a 32nds
-// column is written the way the column prints, "99-16+". Tones are token names, never a literal
+// column is written the way the column prints, "99-16+"; a numeric column without one reads a plain
+// number with commas only between thousands. Tones are token names, never a literal
 // color, and an applied rule carries its meaning in a channel besides the color: `data-rule` names
 // the rule on the element and the rule's words go in the element's accessible description (contract
 // rule 15). Nothing here decides a value; it only compares what the row says with what the rule says.
+import { stripGrouping } from "@/registry/tradecn/lib/format"
 
 export type RuleOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between" | "in" | "contains" | "startsWith" | "isNull" | "notNull"
 
@@ -195,8 +197,8 @@ export function compareDirected(a: unknown, b: unknown, dir: "asc" | "desc"): nu
 }
 
 /**
- * A value as typed into a rule, read for a column: a string goes through the column's `parse`, or
- * `Number` for a numeric column, and stays text otherwise; a number or boolean is used as it is.
+ * A value as typed into a rule, read for a column: a string goes through the column's `parse`, or for
+ * a numeric column through `stripGrouping` and `Number`, and stays text otherwise; a number or boolean is used as it is.
  * Null when there is nothing to read, and null never matches anything but `isNull`.
  */
 export function readRuleValue<T>(column: RuleColumn<T> | undefined, raw: RuleValue | undefined): unknown {
@@ -206,8 +208,11 @@ export function readRuleValue<T>(column: RuleColumn<T> | undefined, raw: RuleVal
   if (typeof raw !== "string") return null
   if (column?.parse) return normalizeValue(column.parse(raw))
   if (column?.numeric) {
-    const text = raw.trim().replace(/−/g, "-").replace(/,/g, "")
-    return text === "" ? null : normalizeValue(Number(text))
+    // The column's notation is unknown here, so a comma reads only as a thousands separator and one comma with no
+    // point after it, which reads either way, is no number: "1,5" is never 15, and "4,253" never 4253.
+    if (raw.trim() === "") return null
+    const text = stripGrouping(raw, { decimals: true })
+    return text === null ? null : normalizeValue(Number(text))
   }
   return raw
 }

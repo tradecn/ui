@@ -2,7 +2,7 @@ import { cn } from "cn"
 import { useCallback, useMemo } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
-import { NULL_TOKEN, NUMERIC_CLASS, formatPrice } from "@/registry/tradecn/lib/format"
+import { NULL_TOKEN, NUMERIC_CLASS, formatPrice, stripGrouping } from "@/registry/tradecn/lib/format"
 import type { RowId, RowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, editProblem, type CellEdit, type CellEditHandle, type ColumnDef, type DataGridProps, type EditChange, type EditProblem } from "@/registry/tradecn/ui/data-grid"
 
@@ -32,7 +32,7 @@ export interface ParameterDef<T extends ParameterRow> {
   accessor: (row: T) => unknown
   /** Prints the value. Default: a number to `decimals` places, the null token for null, the text for the rest. */
   format?: (value: unknown, row: T) => string
-  /** Reads what was typed. Default: a number, with separators allowed, blank for null. */
+  /** Reads what was typed. Default: a number with commas only between thousands, blank for null; see `decimals`. */
   parse?: (text: string, row: T) => unknown
   /** A check before the commit, after `min` and `max`. */
   validate?: (value: unknown, row: T) => EditProblem | null | undefined
@@ -40,7 +40,7 @@ export interface ParameterDef<T extends ParameterRow> {
   step?: number | ((value: unknown, dir: 1 | -1, big: boolean, row: T) => unknown)
   min?: number
   max?: number
-  /** Places for the default format. Default 2. */
+  /** Places for the default format, and how the default parser reads a comma: above zero, one comma with no point after it is no number. Default 2. */
   decimals?: number
   /** Numeric by default: right-aligned, tabular figures, flashing by direction. False for a text parameter. */
   numeric?: boolean
@@ -105,10 +105,14 @@ function defaultFormat<T extends ParameterRow>(def: ParameterDef<T>): (value: un
   }
 }
 
-function defaultParse(labels: ParameterGridLabels): (text: string) => unknown {
+// The default format groups thousands, so a parameter printed with no decimals reads one group as thousands, and one
+// printed with decimals refuses a comma with no point after it, which reads either way. "1,5" is never 15.
+function defaultParse<T extends ParameterRow>(def: ParameterDef<T>, labels: ParameterGridLabels): (text: string) => unknown {
+  const decimals = (def.decimals ?? 2) > 0
   return (text) => {
-    const clean = text.trim().replace(/−/g, "-").replace(/,/g, "")
-    if (clean === "") return null
+    if (text.trim() === "") return null
+    const clean = stripGrouping(text, { decimals })
+    if (clean === null) return editProblem(labels.notANumber)
     const n = Number(clean)
     return Number.isFinite(n) ? n : editProblem(labels.notANumber)
   }
@@ -117,7 +121,7 @@ function defaultParse(labels: ParameterGridLabels): (text: string) => unknown {
 /** The grid's `edit` for one parameter: its parse, its format, the range check, and the step. */
 export function parameterEdit<T extends ParameterRow>(def: ParameterDef<T>, editAction: string, labels: ParameterGridLabels = DEFAULT_PARAMETER_GRID_LABELS): CellEdit<T> {
   const format = def.format ?? defaultFormat(def)
-  const parse = def.parse ?? defaultParse(labels)
+  const parse = def.parse ?? defaultParse(def, labels)
   const step = typeof def.step === "number" ? (def.step as number) : null
   return {
     parse,

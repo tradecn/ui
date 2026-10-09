@@ -116,14 +116,38 @@ describe("quotePanelColumns and quoteEdit", () => {
     expect(size.parse("-5", ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notASize })
     expect(size.parse("1.5", ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notASize })
     expect(size.parse("x", ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notANumber })
+    // A size prints whole and grouped, so one group reads as thousands; any other comma is no number, never 25 for "2,5".
+    expect(size.parse("5,000", ROWS[0]!)).toBe(5000)
+    for (const text of ["2,5", "10,00", "1,0,0", "0,500"]) expect(size.parse(text, ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notANumber })
     expect(size.step?.(0, -1, false, ROWS[0]!)).toBe(0)
     expect(size.step?.(5, 1, true, ROWS[0]!)).toBe(15)
     const skew = quoteEdit<QuoteRow>("skew", { convention: T32 })
     expect(skew.parse("−1.5", ROWS[0]!)).toBe(-1.5)
+    // Skew and width print decimals, so one comma with no point after it reads either way and is refused.
+    for (const text of ["1,5", "1,234"]) expect(skew.parse(text, ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notANumber })
+    expect(quoteEdit<QuoteRow>("width", { convention: T32 }).parse("1,234.5", ROWS[0]!)).toBe(1234.5)
     expect(skew.format?.(1.5, ROWS[0]!)).toBe("+1.5")
     expect(quoteEdit<QuoteRow>("width", { convention: T32 }).format?.(3, ROWS[0]!)).toBe("3")
     expect(skew.step?.(0.5, 1, false, ROWS[0]!)).toBe(1.5)
     expect(skew.validate).toBeUndefined()
+  })
+
+  it("reads back the text each field's editor opens with, and steps past a thousand", () => {
+    const size = quoteEdit<QuoteRow>("bidSize", { convention: T32 })
+    const skew = quoteEdit<QuoteRow>("skew", { convention: T32 })
+    const width = quoteEdit<QuoteRow>("width", { convention: T32 })
+    for (const n of [0, 1, 999, 1000, 5000, 25_000_000, 9007199254740991]) expect(size.parse(size.format!(n, ROWS[0]!), ROWS[0]!), String(n)).toBe(n)
+    for (const v of [0, 0.5, -1.5, 999, 1000, 1234, -1500, 1234.5, 999_999, 1_000_000, -1234.125]) {
+      expect(skew.parse(skew.format!(v, ROWS[0]!), ROWS[0]!), `skew ${v}`).toBe(v)
+      if (v >= 0) expect(width.parse(width.format!(v, ROWS[0]!), ROWS[0]!), `width ${v}`).toBe(v)
+    }
+    // The editor opens on text without separators, so stepping up from 999 reads its own text at every step.
+    expect(width.format!(1000, ROWS[0]!)).toBe("1000")
+    let text = width.format!(999, ROWS[0]!)
+    for (const want of [1000, 1001]) {
+      text = width.format!(width.step!(width.parse(text, ROWS[0]!), 1, false, ROWS[0]!), ROWS[0]!)
+      expect(width.parse(text, ROWS[0]!)).toBe(want)
+    }
   })
 
   it("reads plain decimals only, and never a negative width", () => {
@@ -144,7 +168,8 @@ describe("quotePanelColumns and quoteEdit", () => {
     expect(size.parse("9007199254740991", ROWS[0]!)).toBe(9007199254740991)
     // A fraction is refused from the text, even where Number would round it away.
     expect(size.parse("9007199254740991.1", ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notASize })
-    expect(size.parse("9007199254740991.0,1", ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notASize })
+    // A comma after the point is no grouping, so the text is no number at all.
+    expect(size.parse("9007199254740991.0,1", ROWS[0]!)).toEqual({ problem: DEFAULT_QUOTE_PANEL_LABELS.notANumber })
     expect(size.parse("5.0", ROWS[0]!)).toBe(5)
   })
 

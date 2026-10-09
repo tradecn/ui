@@ -151,6 +151,15 @@ describe("parameterColumns and parameterEdit", () => {
     expect(edit.parse("  ", ROWS[0]!)).toBeNull()
     expect(edit.parse("−0.25", ROWS[0]!)).toBe(-0.25)
     expect(edit.parse("abc", ROWS[0]!)).toEqual(editProblem("Not a number."))
+    // The parameter prints decimals, so one comma with no point after it reads either way and is refused; "1,5" is never 15.
+    for (const text of ["1,5", "1,234", "1,0,0"]) expect(edit.parse(text, ROWS[0]!)).toEqual(editProblem("Not a number."))
+    // With no decimals it prints "1,234", and reads that back.
+    const whole = parameterEdit({ ...PARAMETERS[0]!, decimals: 0 }, "edit")
+    expect(whole.parse("1,234", ROWS[0]!)).toBe(1234)
+    expect(whole.parse("1,5", ROWS[0]!)).toEqual(editProblem("Not a number."))
+    // Each reads back what its default format prints.
+    for (const v of [0, 1234.5, -0.25, 1_000_000.75]) expect(edit.parse(edit.format!(v, ROWS[0]!), ROWS[0]!), String(v)).toBe(v)
+    for (const v of [0, 999, 1234, -1500, 1_000_000]) expect(whole.parse(whole.format!(v, ROWS[0]!), ROWS[0]!), String(v)).toBe(v)
     expect(edit.validate?.(6, ROWS[0]!)).toEqual(editProblem("6.00 is above the maximum of 5.00."))
     expect(edit.validate?.(-6, ROWS[0]!)).toEqual(editProblem("−6.00 is below the minimum of −5.00."))
     expect(edit.validate?.(2, ROWS[0]!)).toBeNull()
