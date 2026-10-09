@@ -265,7 +265,7 @@ A thrown error or rejection of a still-pending promise displays the store value 
 
 A custom `cell` receives `edit: { status, commit(value, how?), open() }` when editing is enabled for its column. It sees `status` as absent or an object whose `kind` is `pending` or `rejected`. While a text editor is open, the grid renders its built-in editor instead of calling `cell`. The renderer chooses its content and can disable its control while pending; `commit(value)` validates and sends the value without parsing text. Pass `{ repeat: true }` as `how` for a commit a held key repeats, so `validate` sees it as one.
 
-For an available text-editable cell, `open()` opens and focuses the text editor and scrolls its row into view. It does nothing for a row outside the view, and on the cell already being edited it keeps the draft and asks for focus again. It does not select the row or change the grid's logical row or chosen column. To return grid navigation to that row after editing, control `focusedRowId` and update it in the action handler before calling `open()`. Column shortcuts still use the previously chosen column; choose a column with grid navigation or its header.
+For an available text-editable cell, `open()` opens and focuses the text editor and scrolls its row and its column into view. It does nothing for a row outside the view, and on the cell already being edited it keeps the draft and asks for focus again. It does not select the row or change the grid's logical row or chosen column. To return grid navigation to that row after editing, control `focusedRowId` and update it in the action handler before calling `open()`. Column shortcuts still use the previously chosen column; choose a column with grid navigation or its header.
 
 ### Identity
 
@@ -291,7 +291,7 @@ Fallback ARIA role lists use the first recognized role: `role="unsupported butto
 
 Use native controls with accessible names in custom cells. A custom handler can also claim a press or double-click with `preventDefault()` or `stopPropagation()`. Row actions run during bubbling, after the child handler. To claim one from a parent, use its capture handler.
 
-With `renderContextMenu`, right-clicking plain content in a selected row keeps the selection; another row becomes the target. Either way the row under the pointer is the menu's `target`, even while a parent that controls `focusedRowId` has not moved focus there; a touch's long press opens it on the touched row, and Shift+F10 or the Menu key on the focused row. Controls, nested grids, content portaled outside this grid, headers, footers and empty space do not open its row menu. Controls retain their own context menus, including the browser's default when the application leaves it available.
+With `renderContextMenu`, right-clicking plain content in a selected row keeps the selection; another row becomes the target. Either way the row under the pointer is the menu's `target`, even while a parent that controls `focusedRowId` has not moved focus there; a touch's long press opens it on the touched row, and Shift+F10 or the Menu key on the focused row, the menu opening at the focused cell. Controls, nested grids, content portaled outside this grid, headers, footers and empty space do not open its row menu. Controls retain their own context menus, including the browser's default when the application leaves it available.
 
 When a row menu is installed, rejected `contextmenu`, non-mouse `pointerdown`, and single-touch `touchstart` events stop React bubbling after child handlers run. Use capture handlers on ancestors to observe them. Multiple-touch `touchstart` events reach the menu so it can cancel a pending long press.
 
@@ -340,12 +340,12 @@ To handle a grid shortcut in a parent, call `preventDefault()` from `onKeyDownCa
 | Shift + a row navigation key | Extend selection in multi-select mode. |
 | Left / Right | Move column focus, scrolling the column into view sideways, clear of the frozen columns. |
 | Space | Toggle selection in multi mode; select in single mode. On an editable toggle cell, commit its toggle instead. A held Space acts once, as a checkbox's does. Does nothing while the focused row is outside the view. |
-| Enter | Edit the focused editable cell, including toggles, whose held Enter commits once; otherwise activate the row. An editor opens with its column scrolled into view. Does nothing while the focused row is outside the view. |
+| Enter | Edit the focused editable cell, including toggles, whose held Enter commits once; otherwise activate the row, once per press. An editor opens, and a toggle commits, with its column scrolled into view. Does nothing while the focused row is outside the view. |
 | F2 | Edit the focused editable cell, including toggles. Does nothing while the focused row is outside the view. |
 | Type a character other than Space | Open an editable text cell with that character. Toggle cells and Ctrl, Cmd, or Alt combinations do not open an editor, and nothing opens while the focused row is outside the view. |
 | Escape | Clear selection. |
 | Ctrl or Cmd+A | Select all rows in the view in multi mode. |
-| Alt+Left / Right | Move the focused column, keeping it in view. |
+| Alt+Left / Right | Move the focused column, keeping it in view, even when a controlled `columnState` takes the move later. |
 | Alt+Shift+Left / Right | Resize the focused column by 8 px, keeping it in view. |
 | Alt+S | Cycle a sortable column: ascending, descending, off. |
 | Alt+H | Hide the focused column. |

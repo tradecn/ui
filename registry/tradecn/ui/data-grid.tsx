@@ -90,7 +90,7 @@ export function isEditProblem(value: unknown): value is EditProblem {
 /** How a commit came: the editor's Enter or Tab, leaving the editor, or a toggle or cell control committing a value; whether the key was held; and which opening of the editor it came from. */
 export interface EditCommit {
   via: "enter" | "tab" | "blur" | "value"
-  /** True for a held key's repeats: Enter or Tab in an editor, Space or Enter on a toggle, or a cell control's commit that passes `{ repeat: true }`. False for a blur. */
+  /** True for a held key's repeats: Enter or Tab in an editor, or a cell control's commit that passes `{ repeat: true }`. False for a blur, and for a toggle, whose held Space or Enter commits once. */
   repeat: boolean
   /** One number per opening of an editor, unique across every grid on the page, so a check that asks a question can keep its answer to that opening. Value commits share session 0. */
   session: number
@@ -1003,6 +1003,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   }, [resolved, selectionColumn])
   const template = useMemo(() => (selectionColumn ? `${SELECT_WIDTH}px ` : "") + resolved.map((c) => `${c.width}px`).join(" "), [resolved, selectionColumn])
   const totalWidth = useMemo(() => resolved.reduce((s, c) => s + c.width, selectionColumn ? SELECT_WIDTH : 0), [resolved, selectionColumn])
+  // The order and widths, so a commit can tell whether the columns moved or resized since a key asked them to.
+  const layoutKey = useMemo(() => resolved.map((c) => `${c.key}:${c.width}`).join("|"), [resolved])
 
   const memory = useMemo(() => createFlashMemory(), [])
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -1013,8 +1015,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // Scrolls a row into view. Set once the virtualizer exists; the controller calls it when an editor opens.
   const revealRow = useRef<(rowId: RowId) => void>(() => {})
   const revealColumn = useRef<(key: string) => void>(() => {})
-  // A column the keys moved or resized, brought into view once the commit has laid it out.
-  const columnToReveal = useRef<string | null>(null)
+  // A column the keys moved or resized, with the layout it was asked under: the first commit whose layout differs,
+  // however late a controlled parent applies the change, brings it into view.
+  const columnToReveal = useRef<{ key: string; from: string } | null>(null)
 
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
@@ -1088,6 +1091,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const row = store.getRow(rowId)
       if (!canEditCell(col, row) || col.edit.toggle) return
       cellsByKey.set(cellKey(rowId, key), rowId)
+      // Sideways as the row is below: an editor never opens, or commits, in a column out of sight.
+      revealColumn.current(key)
       const k = cellKey(rowId, key)
       const before = tracker.editing()
       if (before && before !== k) {
@@ -1104,7 +1109,6 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         activeColumn = key
         tracker.set(k, { ...now, selectAll: true, focused: false })
         revealRow.current(rowId)
-        revealColumn.current(key)
         return
       }
       const text = now?.kind === "pending" ? now.text : editText(col, col.accessor(row!), row!)
@@ -1117,10 +1121,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const prior = covered?.kind === "pending" && !covered.tracked ? undefined : covered
       tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false, prior, session: ++editorOpenings })
       // The editing row is always rendered (see `keep` below), so its editor mounts and takes focus now; bring it
-      // to where the keys are, which for a row scrolled out of the window is not where the viewport is, and the same
-      // sideways, so an editor never opens, or commits, in a column out of sight.
+      // to where the keys are, which for a row scrolled out of the window is not where the viewport is.
       revealRow.current(rowId)
-      revealColumn.current(key)
     }
     const controller: EditController = {
       tracker,
@@ -1339,8 +1341,11 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       else if (el.scrollLeft < end) el.scrollLeft = Math.min(end, start)
     }
     const pending = columnToReveal.current
-    columnToReveal.current = null
-    if (pending !== null) revealColumn.current(pending)
+    if (pending !== null && pending.key !== focusedColKey) columnToReveal.current = null
+    else if (pending !== null && pending.from !== layoutKey) {
+      columnToReveal.current = null
+      revealColumn.current(pending.key)
+    }
   })
   const uid = useId()
   const domId = (id: RowId) => `${uid}-${id}`
@@ -1688,10 +1693,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         if (e.altKey && focusedColKey) {
           if (e.shiftKey) resizeColumn(focusedColKey, (resolved[ci]?.width ?? 0) + delta * 8)
           else moveColumn(focusedColKey, delta)
-          // The move lands in this key's commit, which brings the column into view where it now sits; a move that
-          // changes nothing leaves no reveal waiting for some later commit.
-          columnToReveal.current = focusedColKey
-          queueMicrotask(() => { columnToReveal.current = null })
+          // The move lands in whichever commit lays it out, which brings the column into view where it now sits; a
+          // focus or pointer moving on first, or the move never landing, leaves no reveal behind.
+          columnToReveal.current = { key: focusedColKey, from: layoutKey }
           return
         }
         const next = resolved[Math.max(0, Math.min(resolved.length - 1, ci < 0 ? (delta > 0 ? 0 : resolved.length - 1) : ci + delta))]
@@ -1709,6 +1713,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const col = editableFocus()
         if (col?.edit.toggle) {
           const row = store.getRow(focusedRowId!)!
+          // A toggle commits where it can be seen, as an editor opens.
+          revealColumn.current(col.key)
           edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row), false)
           return
         }
@@ -1723,14 +1729,17 @@ export function DataGrid<T>(props: DataGridProps<T>) {
           e.preventDefault()
           const row = store.getRow(focusedRowId!)!
           if (col.edit.toggle) {
-            if (!e.repeat) edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row), false)
+            if (e.repeat) return
+            revealColumn.current(col.key)
+            edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row), false)
           } else edits!.open(focusedRowId!, col.key)
           return
         }
         if (e.key === "F2") return
         if (focusedRowId !== null) {
           const row = store.getRow(focusedRowId)
-          if (row !== undefined) onRowActivate?.(row, focusedRowId)
+          // A held Enter activates the row once, as a press counts once everywhere in the library.
+          if (row !== undefined && !e.repeat) onRowActivate?.(row, focusedRowId)
         }
         return
       }
@@ -1778,7 +1787,12 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const ownerWindow = el?.ownerDocument.defaultView
     if (!el || !ownerWindow || !gridTarget(root, el)) return
     const r = el.getBoundingClientRect()
-    el.dispatchEvent(new ownerWindow.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 8, clientY: r.top + r.height / 2, button: 2 }))
+    // At the focused cell, which the keys keep in view, else the row's visible left edge: scrolled sideways, the row's
+    // own left edge sits off to the left of the grid.
+    const cell = focusedColKey === null ? null : el.querySelector<HTMLElement>(`[data-col="${focusedColKey.replace(/["\\]/g, "\\$&")}"]`)
+    const view = scrollRef.current?.getBoundingClientRect()
+    const left = cell ? cell.getBoundingClientRect().left : Math.max(r.left, view?.left ?? r.left)
+    el.dispatchEvent(new ownerWindow.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: left + 8, clientY: r.top + r.height / 2, button: 2 }))
   }
 
   const rowTarget = (event: { target: EventTarget; nativeEvent: Event }, includeShadowTarget = false) => {
@@ -1819,6 +1833,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   const onPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
     if (!gridTarget(rootRef.current, e.target, e.nativeEvent.composedPath())) return
+    columnToReveal.current = null
     view.touch()
     refreshParkedMarks()
     stopFollowing()
