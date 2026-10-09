@@ -275,7 +275,7 @@ export function WatchlistRemoveMenuItem({ ids, children, disabled, onClick, ...p
 
 /** The ordinary row removal control; include or position it in your own column list. */
 export function watchlistRemoveColumn<T extends WatchlistRow>(): ColumnDef<T> {
-  return { key: "__remove", header: <span className="sr-only">Remove</span>, width: 28, align: "center", flash: false, accessor: () => null, cell: ({ row }) => (
+  return { key: "__remove", header: <span className="sr-only">Remove</span>, title: "Remove", width: 28, align: "center", flash: false, accessor: () => null, cell: ({ row }) => (
     <WatchlistRemoveButton ids={[row.symbol]} tabIndex={-1} aria-label={`Remove ${row.symbol}`} className="size-4 rounded-sm leading-none text-muted-foreground opacity-0 outline-none group-hover/row:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100">×</WatchlistRemoveButton>
   ) }
 }

@@ -844,6 +844,134 @@ describe("DataGrid", () => {
     expect(opened).toHaveLength(1)
   })
 
+  it("hands focus to the row now at the focused row's place when it leaves the view, the last row if it was last", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(5, store)
+    const onFocus = vi.fn()
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} onFocusedRowChange={onFocus} />)
+    const grid = screen.getByRole("grid")
+    for (let i = 0; i < 4; i++) fireEvent.keyDown(grid, { key: "ArrowDown" })
+    expect(onFocus).toHaveBeenLastCalledWith("r3")
+    act(() => store.applyDeltas({ remove: ["r3"] }))
+    expect(onFocus).toHaveBeenLastCalledWith("r4")
+    expect(grid.getAttribute("aria-activedescendant")).toBe(document.querySelector('[data-row-id="r4"]')!.id)
+    // r4 was last: focus goes to the row that is last now, and Down goes on from there.
+    act(() => store.applyDeltas({ remove: ["r4"] }))
+    expect(onFocus).toHaveBeenLastCalledWith("r2")
+    fireEvent.keyDown(grid, { key: "ArrowUp" })
+    expect(onFocus).toHaveBeenLastCalledWith("r1")
+  })
+
+  it("asks a parent that keeps a departed focused row once, not on every commit", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(5, store)
+    const onFocus = vi.fn()
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} focusedRowId="r3" onFocusedRowChange={onFocus} />)
+    act(() => store.applyDeltas({ remove: ["r3"] }))
+    expect(onFocus).toHaveBeenCalledExactlyOnceWith("r4")
+    act(() => store.applyDeltas({ patch: [{ id: "r1", fields: { px: 1 } }] }))
+    act(() => store.applyDeltas({ upsert: [{ id: "r9", sym: "S0009", px: 109, qty: 90 }] }))
+    expect(onFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it("sorts with Option+S on a Mac, by the key's place, and leaves AltGr's typing alone", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    const onSort = vi.fn()
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} onSortChange={onSort} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    // happy-dom reports AltGraph whenever Alt is down; a Mac's Option is not AltGr.
+    const press = (altGraph: boolean) => {
+      const event = new KeyboardEvent("keydown", { key: "ß", code: "KeyS", altKey: true, bubbles: true, cancelable: true })
+      Object.defineProperty(event, "getModifierState", { value: (key: string) => key === "AltGraph" ? altGraph : key === "Alt" })
+      fireEvent(grid, event)
+    }
+    press(true)
+    expect(onSort).not.toHaveBeenCalled()
+    press(false)
+    expect(onSort).toHaveBeenCalledExactlyOnceWith({ key: "px", dir: "asc" })
+  })
+
+  it("clears the selection once for a held Escape", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    const onSelection = vi.fn()
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} selectionMode="multi" selection={new Set(["r1"])} onSelectionChange={onSelection} />)
+    const grid = screen.getByRole("grid")
+    // The repeats of an Escape that closed an editor land on the grid.
+    fireEvent.keyDown(grid, { key: "Escape", repeat: true })
+    expect(onSelection).not.toHaveBeenCalled()
+    fireEvent.keyDown(grid, { key: "Escape" })
+    expect(onSelection).toHaveBeenCalledExactlyOnceWith(new Set())
+  })
+
+  it("keeps the selection boxes out of the Tab order, and names a row by its data cells and a header by its column", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(2, store)
+    const titled = columns.map<ColumnDef<Quote>>((c) => (c.key === "qty" ? { ...c, header: <span aria-hidden>#</span>, title: "Quantity" } : c))
+    render(<DataGrid store={store} columns={titled} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} selectionMode="multi" selectionColumn />)
+    for (const box of screen.getAllByRole("checkbox", { name: "Select row" })) expect(box).toHaveAttribute("tabindex", "-1")
+    expect(screen.getByRole("row", { name: "S0001 101.00 10" })).toHaveAttribute("data-row-id", "r1")
+    expect(screen.getByRole("columnheader", { name: "Price" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Quantity" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Quantity column menu" })).toBeInTheDocument()
+    expect(screen.getByRole("separator", { name: "Resize Quantity" })).toBeInTheDocument()
+  })
+
+  it("describes an empty grid by its empty state", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    const { rerender } = render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} />)
+    expect(screen.getByRole("grid")).toHaveAccessibleDescription("No rows")
+    rerender(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} labels={{ noRows: "Keine Zeilen" }} />)
+    expect(screen.getByRole("grid")).toHaveAccessibleDescription("Keine Zeilen")
+    rerender(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} emptyState="Nothing working" />)
+    expect(screen.getByRole("grid")).toHaveAccessibleDescription("Nothing working")
+    act(() => seed(1, store))
+    expect(screen.getByRole("grid")).not.toHaveAttribute("aria-describedby")
+  })
+
+  it("takes a non-finite or negative flash window as the default, and flashes without throwing", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(2, store)
+    // As a browser does, the animation refuses a duration that isn't a finite length of zero or more.
+    const durations: unknown[] = []
+    const animate = vi.spyOn(HTMLElement.prototype, "animate").mockImplementation((_keyframes, options) => {
+      const duration = typeof options === "number" ? options : options?.duration
+      durations.push(duration)
+      if (typeof duration === "number" && (Number.isNaN(duration) || duration < 0)) throw new TypeError("Invalid duration")
+      return { cancel: vi.fn(), currentTime: 0, onfinish: null } as unknown as Animation
+    })
+    try {
+      let px = 200
+      for (const flashWindowMs of [Number.NaN, -1, Infinity]) {
+        const view = render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} flashWindowMs={flashWindowMs} />)
+        expect(() => act(() => store.applyDeltas({ patch: [{ id: "r1", fields: { px: ++px } }] }))).not.toThrow()
+        view.unmount()
+      }
+      expect(durations.length).toBeGreaterThan(0)
+      expect(durations.every((d) => d === 900)).toBe(true)
+    } finally {
+      animate.mockRestore()
+    }
+  })
+
+  it("says a refusal with no message of its own in the grid's words", async () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(1, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: (r) => r.px, edit: { parse: (t) => Number(t) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} labels={{ rejected: "Abgelehnt" }} onEdit={() => Promise.reject(42)} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "7" })
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Price" }), { key: "Enter" })
+    await act(async () => {})
+    expect(document.querySelector('[data-row-id="r0"] [data-col="px"]')).toHaveAttribute("data-rejected", "Abgelehnt")
+  })
+
   it("activates a row once for a held Enter", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     seed(3, store)
@@ -1738,7 +1866,7 @@ describe("certification pins", () => {
     expect(screen.queryByRole("textbox")).toBeNull()
   })
 
-  it("does not activate a hidden focused row through Enter on a non-editable grid", () => {
+  it("never activates a hidden focused row: focus has gone to the row now at its place, and Enter activates that one", () => {
     const store = createRowStore<Quote>({ getRowId: row => row.id })
     seed(3, store)
     const activate = vi.fn()
@@ -1749,10 +1877,7 @@ describe("certification pins", () => {
     fireEvent.keyDown(grid, { key: "ArrowDown" })
     view.rerender(ui((row) => row.id !== "r1"))
     fireEvent.keyDown(grid, { key: "Enter" })
-    expect(activate).not.toHaveBeenCalled()
-    view.rerender(ui())
-    fireEvent.keyDown(grid, { key: "Enter" })
-    expect(activate).toHaveBeenCalledTimes(1)
+    expect(activate).toHaveBeenCalledExactlyOnceWith(store.getRow("r2"), "r2")
   })
 
   it("lets no keyboard command act on a focused row the view no longer holds", () => {
@@ -1760,11 +1885,10 @@ describe("certification pins", () => {
     seed(3, store)
     const activate = vi.fn(), selection = vi.fn(), onEdit = vi.fn()
     const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: row => row.px, edit: { parse: text => Number(text) } }]
-    const ui = (filter?: (row: Quote) => boolean) => <DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} filter={filter} onRowActivate={activate} onSelectionChange={selection} onEdit={onEdit} />
+    // A parent that controls focus and keeps it on r1 after the view lets r1 go.
+    const ui = (filter?: (row: Quote) => boolean) => <DataGrid store={store} columns={cols} label="Quotes" preset="parameters" rowHeight={ROW_HEIGHT} initialRect={RECT} filter={filter} focusedRowId="r1" onFocusedRowChange={() => {}} onRowActivate={activate} onSelectionChange={selection} onEdit={onEdit} />
     const view = render(ui())
     const grid = screen.getByRole("grid")
-    fireEvent.keyDown(grid, { key: "ArrowDown" })
-    fireEvent.keyDown(grid, { key: "ArrowDown" })
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     activate.mockClear()
     selection.mockClear()
@@ -1918,6 +2042,15 @@ describe("certification pins", () => {
     // Signed numeric text that does not read as one number is not data either.
     const payload: ColumnDef<{ id: string; v: number }>[] = [{ key: "v", header: "P&L", width: 80, numeric: true, accessor: row => row.v, format: () => "-2+3+cmd" }]
     expect(exportCsv(pnl, payload, ["a"]).split("\r\n")[1]).toBe("'-2+3+cmd")
+    // A formatter's typographic minus goes out as the hyphen-minus a spreadsheet sums; text keeps its own.
+    const loss = createRowStore<{ id: string; v: number; note: string }>({ getRowId: row => row.id })
+    loss.applyDeltas({ upsert: [{ id: "a", v: -62500, note: "\u2212 hedge" }] })
+    const typographic: ColumnDef<{ id: string; v: number; note: string }>[] = [
+      { key: "v", header: "P&L", width: 80, numeric: true, accessor: row => row.v, format: value => `\u2212${Math.abs(value as number).toLocaleString("en-US")}` },
+      { key: "note", header: "Note", width: 80, accessor: row => row.note },
+      { key: "flag", header: <span aria-hidden>!</span>, title: "Flag", width: 20, accessor: () => "x" },
+    ]
+    expect(exportCsv(loss, typographic, ["a"]).split("\r\n").slice(0, 2)).toEqual(["P&L,Note,Flag", '"-62,500",\u2212 hedge,x'])
   })
 })
 
@@ -2262,6 +2395,20 @@ describe("footer totals and the tape", () => {
     expect(screen.getByRole("grid").querySelector("[data-grid-behind]")).toHaveTextContent(/^2 neue Zeilen$/)
   })
 
+  it("hands focus to the grid when the tail button it was on goes", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(5, store)
+    render(<DataGrid store={store} columns={columns} label="Tape" preset="tape" rowHeight={ROW_HEIGHT} initialRect={RECT} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.pointerDown(screen.getAllByRole("row")[1]!)
+    act(() => store.applyDeltas({ upsert: [{ id: "r6", sym: "S0006", px: 106, qty: 60 }] }))
+    const pill = grid.querySelector<HTMLButtonElement>("[data-grid-behind]")!
+    pill.focus()
+    fireEvent.click(pill)
+    expect(grid.querySelector("[data-grid-behind]")).toBeNull()
+    expect(grid).toHaveFocus()
+  })
+
   it("a tape follows the tail and counts arrivals on a pill after a touch, and the pill returns to the tail", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     seed(5, store)
@@ -2556,6 +2703,23 @@ describe("editing", () => {
     }, [edit, enabled, commit])
     return <span>Value</span>
   }
+
+  it("scrolls to a row a cell opens its editor on from its own layout effect, in the commit that adds the row", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(12, store)
+    // The new row lands in the overscan band, rendered below the viewport's ten rows, and opens its editor as it mounts.
+    const custom = editable.map<ColumnDef<Quote>>(column => column.key === "px" ? { ...column, cell: ({ edit, rowId }) => <OpenFromLayout edit={edit} enabled={rowId === "new"} /> } : column)
+    render(<DataGrid store={store} columns={custom} label="Sheet" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => {}} />)
+    // The virtualizer clamps a scroll to the scroller's extent, which has no layout here: give it the header and 13 rows.
+    const scroller = screen.getByRole("grid").querySelector<HTMLElement>(".overflow-auto")!
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 14 * ROW_HEIGHT })
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: RECT.height })
+    const scrollTo = vi.spyOn(Element.prototype, "scrollTo")
+    act(() => store.applyDeltas({ upsert: [{ id: "new", sym: "NEW", px: 1, qty: 1 }] }))
+    expect(screen.getByRole("textbox", { name: "Price" })).toBeInTheDocument()
+    // Row 12 ends at 280, under the header's 20: the viewport's 200 end there.
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 80 }))
+  })
 
   it.each(["initial", "restored", "strict"])("supports a custom cell opening in layout on %s mount", async mode => {
     const store = createRowStore<Quote>({ getRowId: row => row.id })

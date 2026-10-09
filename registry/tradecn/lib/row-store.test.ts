@@ -176,6 +176,32 @@ describe("views", () => {
     expect(cb).toHaveBeenCalledTimes(2)
   })
 
+  it("holds as long as a timer can for a hold of Infinity, and not at all for one that isn't a number", () => {
+    let t = 0
+    const now = () => t
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id, now })
+    store.applyDeltas({ upsert: [q("a", 3), q("b", 2), q("c", 1)] })
+    const forever = store.createView({ comparator: (x, y) => y.px - x.px, reorderHoldMs: Infinity, now })
+    const never = store.createView({ comparator: (x, y) => y.px - x.px, reorderHoldMs: Number.NaN, now })
+    forever.subscribe(() => {})
+    never.subscribe(() => {})
+    forever.touch()
+    never.touch()
+    expect(never.isHeld()).toBe(false)
+    store.applyDeltas({ patch: [{ id: "c", fields: { px: 100 } }] })
+    // A timer told to wait longer than it can fires at once: an hour on, the hold still holds.
+    t = 60 * 60 * 1000
+    vi.advanceTimersByTime(60 * 60 * 1000)
+    expect(forever.isHeld()).toBe(true)
+    expect(forever.getIds()).toEqual(["a", "b", "c"])
+    expect(never.getIds()).toEqual(["c", "a", "b"])
+    // It lapses at the longest a timer can wait, about 24.8 days.
+    t = 2 ** 31 - 1
+    vi.advanceTimersByTime(2 ** 31 - 1 - 60 * 60 * 1000)
+    expect(forever.isHeld()).toBe(false)
+    expect(forever.getIds()).toEqual(["c", "a", "b"])
+  })
+
   it("reports no hold deadline before any hold, then a wall-clock one from its own clock", () => {
     let t = 0
     const now = () => t
@@ -369,6 +395,29 @@ describe("frame batcher", () => {
       },
     }
   }
+
+  it("flushes on a timer when no frame comes, as in a hidden tab, and once", () => {
+    vi.useFakeTimers()
+    try {
+      const apply = vi.fn()
+      const { raf, frame } = fakeRaf()
+      const batcher = createFrameBatcher<Quote>(apply, { getRowId: (r) => r.id, raf })
+      batcher.push({ upsert: [q("a", 1)] })
+      vi.advanceTimersByTime(249)
+      expect(apply).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(1)
+      expect(apply).toHaveBeenCalledExactlyOnceWith({ upsert: [q("a", 1)] })
+      expect(batcher.pending()).toBe(false)
+      // The frame that comes late finds nothing left, and a frame that comes first leaves the timer nothing.
+      frame()
+      batcher.push({ upsert: [q("b", 2)] })
+      frame()
+      vi.advanceTimersByTime(1000)
+      expect(apply).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 
   it("keeps a recorded gap when later frames never mention one", () => {
     // Omitted fields keep their previous values all the way through: a frame that

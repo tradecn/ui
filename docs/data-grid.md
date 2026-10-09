@@ -104,8 +104,8 @@ Scroll down before receiving a batch to see the RFQ preset keep the first visibl
 | `reorderHoldMs` | `number` | Preset | Delay in ms before the internally owned view reorders after interaction. |
 | `announceRowCount` | `"off" \| "debounced"` | Preset | Enable the polite row-count announcement. |
 | `selectionMode` | `"none" \| "single" \| "multi"` | Preset | Selection behavior. |
-| `selectionColumn` | `boolean` | `false` | Show checkboxes in multi-select mode. |
-| `flashWindowMs` | `number` | `900` | Cell flash duration in ms. |
+| `selectionColumn` | `boolean` | `false` | Show checkboxes in multi-select mode. They take a pointer, not Tab: the grid stays one Tab stop, and Space on it toggles the focused row. |
+| `flashWindowMs` | `number` | `900` | Cell flash duration in ms. A value that isn't a finite length of zero or more uses the default. |
 | `footer` | `Record<string, (rows: T[]) => string>` | None | Totals keyed by column key. |
 | `onEdit` | `(change: EditChange<T>) => void \| Promise<unknown>` | None | Handle commits; enables columns with `edit`. |
 | `onRowActivate` | `(row: T, id: RowId) => void` | None | Handle grid Enter or an unhandled double-click on plain row content, unless it opens an editor. |
@@ -163,6 +163,7 @@ Each `ColumnDef<T>` describes one column. Frozen columns stay on the left, befor
 |---|---|---|---|
 | `key` | `string` | Required | Column identity for state, rules, and edits. |
 | `header` | `ReactNode` | Required | Header content. |
+| `title` | `string` | The header, when it is a string | The column's name in words: the header's name to a screen reader, its menu button and resize handle, the editor, the column chooser, and the CSV header. Give one to a column whose header is an icon or other markup. |
 | `width` | `number` | Required | Initial width in px. |
 | `accessor` | `(row: T) => unknown` | Required | Value used for display, sorting, rules, and flash direction. |
 | `minWidth` | `number` | `48` | Minimum width in px. |
@@ -274,7 +275,7 @@ Selection, focus, and context-menu targets use row ids, so a reorder preserves t
 
 With announcements enabled, a 1,000 ms timer reports the row count through a polite live region, for example "1,024 rows, 12 new". It starts on mount and restarts when the count changes. Continuous count changes delay the announcement.
 
-Without `getRowLabel`, or with `null`, a row is named by its cells, so a screen reader can read the focused row again at every update. With it, each row is named by what it returns, and the grid reads the focused row's cells once through a polite live region of its own, 400 ms after focus rests on the row: on a new row, or when the grid takes focus. A cell that changes never reads the row, and an empty name leaves the row named by its cells, still read. Return a name that tells rows apart, and keep the function's identity stable, since a new one re-renders every row.
+Without `getRowLabel`, or with `null`, a row is named by its data cells, never its selection box, so a screen reader can read the focused row again at every update. With it, each row is named by what it returns, and the grid reads the focused row's cells once through a polite live region of its own, 400 ms after focus rests on the row: on a new row, or when the grid takes focus. A cell that changes never reads the row, and an empty name leaves the row named by its cells, still read. Return a name that tells rows apart, and keep the function's identity stable, since a new one re-renders every row.
 
 The reading is each column's cell in order, joined with commas, and approximates the accessible-name rules for content: a text field's value and a select's chosen option, labelled or not and whatever their role, so an `<input role="combobox">` reads its value; on an element that takes a name, the targets of `aria-labelledby`, each read whole, a hidden target and hidden content inside a target included, or else its `aria-label`; an image's `alt`; otherwise the text, with elements side by side read as separate words. An element takes a name when the first word of its `role` is anything but `generic`, `presentation`, `none`, `caption`, `code`, `deletion`, `emphasis`, `insertion`, `paragraph`, `strong`, `subscript`, `superscript`, or `time`, or, with no `role`, when it is an `a`, `area`, `button`, `iframe`, `img`, `input`, `meter`, `output`, `progress`, `select`, `textarea`, or `svg` element; any other element but an image, a `span`, a heading, or a table included, is read by its content. So any other labelled control, such as a slider or a combobox built on a button, reads its label rather than its value. Outside those targets it leaves out content marked `aria-hidden` or `hidden`, and it leaves out the selection checkbox. It reads content hidden only by CSS, such as `display: none` or `visibility: hidden`, which a screen reader skips, so mark such content `aria-hidden` or `hidden` as well. It doesn't read content inside a shadow root, a `title` attribute, a cell's rule description, a control's state, or the column names.
 
@@ -344,15 +345,15 @@ To handle a grid shortcut in a parent, call `preventDefault()` from `onKeyDownCa
 | Enter | Edit the focused editable cell, including toggles, once per press; otherwise activate the row, once per press. An editor opens, and a toggle commits, with its column scrolled into view. Does nothing while the focused row is outside the view. |
 | F2 | Edit the focused editable cell, including toggles, once per press. An editor opens, and a toggle commits, with its column scrolled into view. Does nothing while the focused row is outside the view. |
 | Type a character other than Space | Open an editable text cell with that character, once per press; the editor takes the repeats. Toggle cells and Ctrl, Cmd, or Alt combinations do not open an editor, and nothing opens while the focused row is outside the view. |
-| Escape | Clear selection. |
+| Escape | Clear selection, once per press. |
 | Ctrl or Cmd+A | Select all rows in the view in multi mode, once per press. |
 | Alt+Left / Right | Move the focused column, keeping it in view, even when a controlled `columnState` takes the move later. Does nothing past either end or across the frozen columns, which lead whatever the order says. |
 | Alt+Shift+Left / Right | Resize the focused column by 8 px, keeping it in view. Does nothing at its minimum width. |
-| Alt+S | Cycle a sortable column: ascending, descending, off, one step per press. |
+| Alt+S | Cycle a sortable column: ascending, descending, off, one step per press. Option+S on a Mac, by the key's place, as Alt+H is. |
 | Alt+H | Hide the focused column, once per press. |
 | Shift+F10 / Menu | Open the context menu on the focused row, once per press: at the focused cell, scrolled into view, or 8 px into the row's visible left edge before a column is chosen. |
 
-Row navigation also selects the focused row in single-select mode. Each column header has move, hide, and reset controls, plus a resize handle. Sort controls appear only when the column has `sortable: true`. Move left and Move right are disabled at either end and beside the frozen columns, and a move brings the column into view, as Alt+Left and Right do.
+Row navigation also selects the focused row in single-select mode. When the focused row leaves the view, focus goes to the row now at its place, or to the last row, and the keys go on from there; a parent that controls `focusedRowId` is asked once, and while it keeps the departed row, the keys that act on a row do nothing. Each column header has move, hide, and reset controls, plus a resize handle. Sort controls appear only when the column has `sortable: true`. Move left and Move right are disabled at either end and beside the frozen columns, and a move brings the column into view, as Alt+Left and Right do.
 
 When a column disappears while its menu trigger or menu owns focus, focus returns to the grid. A surviving menu trigger retains the menu's normal close-focus behavior.
 
@@ -387,9 +388,17 @@ Opening an editor selects its text unless you opened it by typing a character.
 | `resetColumns` | `Reset columns`, then `(2 hidden)` while columns are hidden | The header menu's reset item; `{n}` the hidden columns |
 | `rowCount` | `1 row`, `12 rows`, then `, 3 new` when rows arrived | What a screen reader hears once the count settles; `{n}` the rows, `{m}` the arrivals |
 | `newRows` | `3 new` | The button that takes a paused tape back to its end; `{n}` the arrivals |
+| `rejected` | `Rejected` | A refused edit whose error carries no message of its own |
+| `noRows` | `No rows` | An empty view, unless `emptyState` says otherwise; the grid's description while it is empty |
 
 A preset that wraps the grid passes `labels` through, and ParameterGrid's and QuotePanel's `labels` take these beside their own.
+
+### Exporting CSV
+
+`exportCsv(store, columns, ids)` returns the rows `ids` names as CSV text, quoted as RFC 4180 has it, with a header row of each column's title and a column for each definition except one whose definition says `hidden`. Pass `resolveColumns(columns, columnState)` for the columns as the grid shows them, in its order and without the ones the column state hides. A cell is the column's `format` of its value, else the value as text, and nothing for null. A number's typographic minus goes out as the hyphen-minus, so a spreadsheet sums the negatives. A cell a spreadsheet would run as a formula, one led by `=`, `+`, `-`, `@`, a tab, or a carriage return, goes out behind an apostrophe, unless the whole cell reads as one number.
 
 ### What it does not do
 
 The grid does not fetch data, group rows, render trees, paste multiple cells, support variable row heights, or persist state. Feed the store and save state through the callbacks; edits remain commands for your application to handle.
+
+It lays out left to right only: frozen columns and the selection box stick to the left, and the keys scroll sideways as in a left-to-right document. Under `dir="rtl"` the frozen columns sit on the wrong side.

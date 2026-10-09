@@ -215,6 +215,12 @@ describe("Watchlist", () => {
     expect(field).not.toHaveAttribute("aria-invalid")
   })
 
+  it("names its remove column in words", () => {
+    render(<Harness store={seeded()} onRemove={vi.fn()} />)
+    expect(screen.getByRole("columnheader", { name: "Remove" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Remove column menu" })).toBeInTheDocument()
+  })
+
   it("removes the focused row on Delete, and the whole selection when there is one", () => {
     const onRemove = vi.fn()
     const view = render(<Harness store={seeded()} onRemove={onRemove} focusedRowId="ES" />)

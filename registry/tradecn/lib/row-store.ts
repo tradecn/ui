@@ -9,6 +9,11 @@
 // Views sit on top: a filtered, sorted list of ids with an optional reorder hold so rows do not
 // move under a trader's cursor while they work.
 
+// setTimeout's longest delay; a longer one fires at once.
+const MAX_TIMER_MS = 2 ** 31 - 1
+// How long a batch waits for a frame before a timer flushes it: a hidden tab runs no frames.
+const FRAME_FALLBACK_MS = 250
+
 export type RowId = string
 
 /** How the lane loses data. `coalesced` drops stale ticks and counts them; `ordered` never drops. */
@@ -344,7 +349,10 @@ class ViewImpl<T> implements PreparedRowView<T> {
 
   touch() {
     if (this.disposed) return
-    const hold = this.opts.reorderHoldMs ?? 0
+    // A hold that isn't a positive number holds nothing, and one longer than a timer can wait, Infinity included, holds
+    // as long as one can, about 24.8 days: past that a timer fires at once.
+    const asked = this.opts.reorderHoldMs ?? 0
+    const hold = asked > 0 ? Math.min(asked, MAX_TIMER_MS) : 0
     if (hold <= 0) return
     if (!this.connections) this.getIds()
     this.holdUntil = this.now() + hold
@@ -467,6 +475,8 @@ export function createFrameBatcher<T>(
   let order: readonly RowId[] | undefined
   let meta: NonNullable<DeltaBatch<T>["meta"]> | undefined
   let handle: number | null = null
+  // A hidden document runs no frames, so a timer stands in: whichever comes first flushes, and the other is cancelled.
+  let timer: ReturnType<typeof setTimeout> | null = null
 
   function reset() {
     upserts.clear()
@@ -480,6 +490,10 @@ export function createFrameBatcher<T>(
     if (handle !== null) {
       caf(handle)
       handle = null
+    }
+    if (timer !== null) {
+      clearTimeout(timer)
+      timer = null
     }
     if (!upserts.size && !patches.size && !removes.size && !order && !meta) return
     const batch: DeltaBatch<T> = {}
@@ -526,19 +540,25 @@ export function createFrameBatcher<T>(
         }
         if (!gapMentioned) delete (meta as { gap?: boolean }).gap
       }
-      if (handle === null) {
+      if (handle === null && timer === null) {
         handle = raf(() => {
           handle = null
           flush()
         })
+        timer = setTimeout(() => {
+          timer = null
+          flush()
+        }, FRAME_FALLBACK_MS)
       }
     },
     flush,
     cancel() {
       if (handle !== null) caf(handle)
+      if (timer !== null) clearTimeout(timer)
       handle = null
+      timer = null
       reset()
     },
-    pending: () => handle !== null,
+    pending: () => handle !== null || timer !== null,
   }
 }

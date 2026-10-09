@@ -44,6 +44,11 @@ import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 export interface ColumnDef<T> {
   key: string
   header: ReactNode
+  /**
+   * The column's name in words, for its header's name, its menu and resize handle, and the column chooser. By default
+   * the header when that is a string; give one to a column whose header is an icon or other markup.
+   */
+  title?: string
   width: number
   minWidth?: number
   align?: "left" | "right" | "center"
@@ -204,6 +209,10 @@ export interface DataGridLabels {
   rowCount: string | ((rows: number, arrived: number) => string)
   /** The button that takes a paused tape back to its end, `{n}` the rows that arrived since. */
   newRows: string | ((n: number) => string)
+  /** A refused edit whose error carries no message of its own. */
+  rejected: string
+  /** An empty view, unless `emptyState` says otherwise. */
+  noRows: string
 }
 
 export const DEFAULT_DATA_GRID_LABELS: DataGridLabels = {
@@ -219,6 +228,8 @@ export const DEFAULT_DATA_GRID_LABELS: DataGridLabels = {
   resetColumns: (hidden) => (hidden ? `Reset columns (${hidden.toLocaleString()} hidden)` : "Reset columns"),
   rowCount: (rows, arrived) => `${rows.toLocaleString()} ${rows === 1 ? "row" : "rows"}${arrived ? `, ${arrived.toLocaleString()} new` : ""}`,
   newRows: (n) => `${n.toLocaleString()} new`,
+  rejected: "Rejected",
+  noRows: "No rows",
 }
 
 /** A label's text: a template filled with names and counts, a count's in the reader's locale. */
@@ -498,7 +509,11 @@ export function resolveColumns<T>(columns: ColumnDef<T>[], state: ColumnState): 
   })
 }
 
-/** CSV of the given rows and visible columns, RFC 4180 quoting. */
+/**
+ * CSV of the given rows and columns, RFC 4180 quoting, leaving out a column whose definition says `hidden`. Pass
+ * `resolveColumns(columns, columnState)` to export the columns as the grid shows them, in its order and without the
+ * ones the column state hides.
+ */
 export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: readonly RowId[]): string {
   const cols = columns.filter((c) => !c.hidden)
   // Spreadsheets execute cells led by = + - @ or a tab or carriage return: free-text
@@ -517,7 +532,7 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
     const t = numeric ? (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !numberShaped.test(s)) ? `'${s}` : s) : neutral(s)
     return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
   }
-  const header = cols.map((c) => esc(typeof c.header === "string" ? c.header : c.key)).join(",")
+  const header = cols.map((c) => esc(c.title ?? (typeof c.header === "string" ? c.header : c.key))).join(",")
   const lines: string[] = []
   for (const id of ids) {
     const row = store.getRow(id)
@@ -527,7 +542,10 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
         .map((c) => {
           const v = c.accessor(row)
           const numeric = typeof v === "number" && Number.isFinite(v)
-          return esc(c.format ? c.format(v, row) : v === null || v === undefined ? "" : String(v), numeric)
+          const text = c.format ? c.format(v, row) : v === null || v === undefined ? "" : String(v)
+          // The library's formatters print a typographic minus, which a spreadsheet reads as text: a number's sign goes
+          // out as the hyphen-minus, so a sum over the column counts every negative.
+          return esc(numeric ? text.replace(/\u2212/g, "-") : text, numeric)
         })
         .join(","),
     )
@@ -615,10 +633,19 @@ function editText<T>(col: ColumnDef<T>, value: unknown, row: T): string {
   return col.format ? col.format(value, row) : String(value)
 }
 
-function messageOf(error: unknown): string {
+// Alt with a letter: the letter typed, or the key's place where Option composes another character, as "ß" for Option+S on
+// a Mac. AltGr typing a character is typing, not a shortcut.
+function altLetter(e: KeyboardEvent<HTMLElement>): string | null {
+  if (!e.altKey) return null
+  if (/^[a-z]$/i.test(e.key)) return e.key.toLowerCase()
+  if (e.getModifierState("AltGraph")) return null
+  return /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : null
+}
+
+function messageOf(error: unknown, fallback: string): string {
   if (error instanceof Error) return error.message
   if (typeof error === "string") return error
-  return "Rejected"
+  return fallback
 }
 
 function canEditCell<T>(col: ColumnDef<T> | undefined, row: T | undefined): col is ColumnDef<T> & { edit: CellEdit<T> } {
@@ -644,6 +671,7 @@ interface CellProps<T> {
   col: Resolved<T>
   row: T
   rowId: RowId
+  id: string
   colIndex: number
   left: number | undefined
   memory: FlashMemory
@@ -739,7 +767,7 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
   )
 }
 
-function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol, selectedBar, rules, rowRule, edits }: CellProps<T>) {
+function Cell<T>({ col, row, rowId, id, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol, selectedBar, rules, rowRule, edits }: CellProps<T>) {
   const value = col.accessor(row)
   const ref = useRef<HTMLDivElement>(null)
   const flash = col.flash ?? (col.numeric ? flashVariant : false)
@@ -764,7 +792,7 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
     [editable, status, edits, rowId, col.key],
   )
   const numericClass = col.numeric ? (col.font === "mono" ? MONO_NUMERIC_CLASS : NUMERIC_CLASS) : ""
-  const header = typeof col.header === "string" ? col.header : col.key
+  const header = col.title ?? (typeof col.header === "string" ? col.header : col.key)
   const editing = status?.kind === "editing"
   const pendingText = status?.kind === "pending" && !col.cell ? status.text : null
   const content = editing
@@ -784,6 +812,7 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
   return (
     <div
       ref={ref}
+      id={id}
       role="gridcell"
       aria-colindex={colIndex + 1}
       aria-description={rejected ?? rule?.["aria-description"]}
@@ -842,6 +871,7 @@ interface RowProps<T> {
   focused: boolean
   focusedColKey: string | null
   selectionColumn: boolean
+  selectable: boolean
   selectLabel: string
   onToggle: (id: RowId) => void
   memory: FlashMemory
@@ -879,6 +909,7 @@ function RowInner<T>(p: RowProps<T>) {
   const extra = p.getRowProps?.(row, p.id)
   // A row rule paints under whatever your own props say: yours are read last, so they win a class.
   const rule = p.rules?.getRowProps(row)
+  const rowLabel = p.getRowLabel?.(row, p.id) || undefined
   return (
     <div
       ref={ref}
@@ -889,10 +920,12 @@ function RowInner<T>(p: RowProps<T>) {
       data-rule={extra?.["data-rule"] ?? rule?.["data-rule"]}
       data-tone={extra?.["data-tone"] ?? rule?.["data-tone"]}
       aria-description={extra?.["aria-description"] ?? rule?.["aria-description"]}
-      aria-label={p.getRowLabel?.(row, p.id) || undefined}
+      aria-label={rowLabel}
+      // Without a label of its own a row is named by its data cells, never by its selection box.
+      aria-labelledby={rowLabel ? undefined : p.columns.map((_, i) => `${p.domId}-c${i}`).join(" ") || undefined}
       data-focused={p.focused || undefined}
       aria-rowindex={p.index + 2}
-      aria-selected={p.selected || undefined}
+      aria-selected={p.selectable ? p.selected : undefined}
       className={cn(
         "absolute top-0 left-0 grid items-stretch border-b border-border/60",
         FILL_CLASSES,
@@ -904,7 +937,7 @@ function RowInner<T>(p: RowProps<T>) {
     >
       {p.selectionColumn && (
         <div role="gridcell" aria-colindex={1} className={cn("sticky left-0 z-10 flex items-center justify-center bg-background", p.selected && SELECTED_BAR)}>
-          <Checkbox checked={p.selected} onCheckedChange={() => p.onToggle(p.id)} aria-label={p.selectLabel} />
+          <Checkbox tabIndex={-1} checked={p.selected} onCheckedChange={() => p.onToggle(p.id)} aria-label={p.selectLabel} />
         </div>
       )}
       {p.columns.map((col, i) => (
@@ -913,6 +946,7 @@ function RowInner<T>(p: RowProps<T>) {
           col={col}
           row={row}
           rowId={p.id}
+          id={`${p.domId}-c${i}`}
           colIndex={i + (p.selectionColumn ? 1 : 0)}
           left={p.lefts[i]}
           memory={p.memory}
@@ -1011,7 +1045,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const selectionColumn = Boolean(props.selectionColumn) && selectionMode === "multi"
   const rowEnter = { ...preset.rowEnter, ...props.rowEnter }
   const announceRowCount = props.announceRowCount ?? preset.announceRowCount
-  const flashWindowMs = props.flashWindowMs ?? 900
+  // A window that isn't a finite length of zero or more would throw from the flash animation: the default stands in.
+  const flashWindowMs = Number.isFinite(props.flashWindowMs) && props.flashWindowMs! >= 0 ? props.flashWindowMs! : 900
   const labels = useMemo(() => ({ ...DEFAULT_DATA_GRID_LABELS, ...props.labels }), [props.labels])
   // The words a timer says later, read when it fires.
   const latestLabels = useRef(labels)
@@ -1046,6 +1081,23 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const view = props.view ?? ownView!
   const ids = useRowIds(view)
   const indexOf = useMemo(() => new Map(ids.map((id, i) => [id, i] as const)), [ids])
+  // A focused row the view lets go of hands focus to the row now at its place, the last row if it was last, so the keys
+  // go on from where the trader was and a screen reader hears where focus went. Once per departure: a parent that keeps
+  // the departed id is not asked again on every commit.
+  const focusedAt = useRef(-1)
+  const handedOff = useRef<RowId | null>(null)
+  useLayoutEffect(() => {
+    if (focusedRowId === null) return
+    const at = indexOf.get(focusedRowId)
+    if (at !== undefined) {
+      focusedAt.current = at
+      handedOff.current = null
+      return
+    }
+    if (focusedAt.current < 0 || ids.length === 0 || handedOff.current === focusedRowId) return
+    handedOff.current = focusedRowId
+    setFocusedRowId(ids[Math.min(focusedAt.current, ids.length - 1)]!)
+  })
 
   const resolved = useMemo(() => resolveColumns(columns, columnState), [columns, columnState])
   if (focusedColKey !== null && !resolved.some(column => column.key === focusedColKey)) setFocusedColKey(null)
@@ -1101,9 +1153,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
-  const editLatest = useRef({ columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId) })
+  const editLatest = useRef({ columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId), rejected: labels.rejected })
   useInsertionEffect(() => {
-    editLatest.current = { columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId) }
+    editLatest.current = { columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId), rejected: labels.rejected }
   })
   const editable = Boolean(onEdit)
   const edits = useMemo<EditController | null>(() => {
@@ -1125,7 +1177,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       try {
         result = editLatest.current.onEdit?.({ rowId, key: col.key, value, previous, row })
       } catch (error) {
-        tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error) })
+        tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error, editLatest.current.rejected) })
         return
       }
       if (result && typeof (result as Promise<unknown>).then === "function") {
@@ -1142,8 +1194,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
           },
           (error: unknown) => {
             const now = tracker.get(k)
-            if (now?.kind === "pending" && Object.is(now.value, value)) tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error) })
-            else if (now?.kind === "editing" && now.prior?.kind === "pending" && Object.is(now.prior.value, value)) tracker.set(k, { ...now, prior: { kind: "rejected", value: previous, message: messageOf(error) } })
+            if (now?.kind === "pending" && Object.is(now.value, value)) tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error, editLatest.current.rejected) })
+            else if (now?.kind === "editing" && now.prior?.kind === "pending" && Object.is(now.prior.value, value)) tracker.set(k, { ...now, prior: { kind: "rejected", value: previous, message: messageOf(error, editLatest.current.rejected) } })
           },
         )
       }
@@ -1397,11 +1449,15 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     scrollPaddingEnd: footer ? rowHeight : 0,
   })
   const items = virtualizer.getVirtualItems()
-  useLayoutEffect(() => {
+  // Published before any layout effect runs, so an editor a cell opens from its own layout effect, in the commit that
+  // adds its row, scrolls to where the row now is.
+  useInsertionEffect(() => {
     revealRow.current = (rowId) => {
       const i = indexOf.get(rowId)
       if (i !== undefined) virtualizer.scrollToIndex(i, { align: "auto" })
     }
+  })
+  useLayoutEffect(() => {
     const pending = columnToReveal.current
     if (pending !== null) {
       const i = resolved.findIndex((c) => c.key === pending.key)
@@ -1564,7 +1620,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     setFollowing(false)
     setAnchor(ids.length)
   }
-  const toTail = () => {
+  const toTail = (e: MouseEvent<HTMLButtonElement>) => {
+    // The button goes once following resumes: focus on it moves to the grid first, rather than fall to the page.
+    if (e.currentTarget.ownerDocument.activeElement === e.currentTarget) rootRef.current?.focus({ preventScroll: true })
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
     setFollowing(true)
@@ -1752,6 +1810,16 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         return
       }
     }
+    const letter = altLetter(e)
+    if ((letter === "s" || letter === "h") && focusedColKey) {
+      e.preventDefault()
+      // Once per press: a held Alt+S would cycle the sort on every repeat, and a parent that hasn't applied a hide yet
+      // would be asked again on every repeat.
+      if (e.repeat) return
+      if (letter === "s") cycleSort(focusedColKey)
+      else hideColumn(focusedColKey)
+      return
+    }
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault()
@@ -1840,29 +1908,14 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         return
       }
       case "Escape":
-        if (selectionMode !== "none" && selection.size) setSelection(EMPTY_SET)
+        // Once per press: the repeats of an Escape that closed an editor land here and would clear the selection.
+        if (!e.repeat && selectionMode !== "none" && selection.size) setSelection(EMPTY_SET)
         return
       case "a":
       case "A":
         if (mod && selectionMode === "multi") {
           e.preventDefault()
           if (!e.repeat) setSelection(new Set(ids))
-        }
-        return
-      case "s":
-      case "S":
-        if (e.altKey && focusedColKey) {
-          e.preventDefault()
-          // Once per press: a held Alt+S would cycle the sort on every repeat.
-          if (!e.repeat) cycleSort(focusedColKey)
-        }
-        return
-      case "h":
-      case "H":
-        if (e.altKey && focusedColKey) {
-          e.preventDefault()
-          // Once per press: a parent that hasn't applied the hide yet would be asked again on every repeat.
-          if (!e.repeat) hideColumn(focusedColKey)
         }
         return
       case "ContextMenu":
@@ -2028,7 +2081,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         ))}
       </div>
       {ids.length === 0 ? (
-        <div className="p-4 text-muted-foreground">{emptyState ?? "No rows"}</div>
+        <div id={`${uid}-empty`} className="p-4 text-muted-foreground">{emptyState ?? labels.noRows}</div>
       ) : (
         <div role="rowgroup" className="relative shrink-0" style={{ height: virtualizer.getTotalSize(), width: totalWidth }}>
           {items.map((v) => {
@@ -2050,6 +2103,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
                 focused={focusedRowId === id}
                 focusedColKey={focusedColKey}
                 selectionColumn={selectionColumn}
+                selectable={selectionMode !== "none"}
                 selectLabel={labels.selectRow}
                 onToggle={toggle}
                 memory={memory}
@@ -2084,6 +2138,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       aria-colcount={resolved.length + (selectionColumn ? 1 : 0)}
       aria-multiselectable={selectionMode === "multi" || undefined}
       aria-activedescendant={focusedRowId !== null && indexOf.has(focusedRowId) ? domId(focusedRowId) : undefined}
+      aria-describedby={ids.length === 0 ? `${uid}-empty` : undefined}
       onKeyDown={onKeyDown}
       onFocus={readsRows ? (e) => { if (e.target === e.currentTarget) setArrivals((n) => n + 1) } : undefined}
       className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", preset.fontClass, className)}
@@ -2222,10 +2277,12 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
     // Synthetic events may not have an active browser pointer to capture.
     try { handle.setPointerCapture?.(pointerId) } catch { /* Window listeners still end the gesture. */ }
   }
-  const title = typeof col.header === "string" ? col.header : undefined
+  const title = col.title ?? (typeof col.header === "string" ? col.header : undefined)
   return (
     <div
       role="columnheader"
+      // Named by the column alone: the menu button and resize handle inside have names of their own.
+      aria-label={title ?? col.key}
       aria-colindex={p.colIndex + 1}
       aria-sort={p.sort === "asc" ? "ascending" : p.sort === "desc" ? "descending" : col.sortable ? "none" : undefined}
       data-col={col.key}

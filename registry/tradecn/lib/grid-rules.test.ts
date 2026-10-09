@@ -272,6 +272,8 @@ describe("the words", () => {
     expect(describeRule({ column: "missing", when: { op: "eq", value: 1 } }, columns)).toBe("missing is 1")
     expect(columnName(columns[0])).toBe("Client")
     expect(columnName({ key: "k", header: 3, accessor: () => 0 })).toBe("k")
+    expect(columnName({ key: "k", header: 3, title: "Quantity", accessor: () => 0 })).toBe("Quantity")
+    expect(columnName({ key: "k", header: "Qty", title: "Quantity", accessor: () => 0 })).toBe("Quantity")
   })
 
   it("says why a rule cannot apply", () => {
