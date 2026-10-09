@@ -201,3 +201,12 @@ it("announces forwarded notices through the bridge readout without repeating a f
   expect(screen.getAllByRole("status")).toHaveLength(1)
   expect(screen.queryByRole("alert")).toBeNull()
 })
+
+it("prints the null token for a notice time a Date can't hold, where the recipe would throw", () => {
+  const alerts = alertStore.createAlertStore({ now: () => Number.NaN })
+  alerts.push({ severity: "info", title: "Plain" })
+  render(<DeskAlerts alerts={alerts} actions={[]} />)
+  const item = screen.getByText("Plain").closest("[data-alert-id]")!
+  expect(item.querySelector("time")).toBeNull()
+  expect(item).toHaveTextContent("–")
+})

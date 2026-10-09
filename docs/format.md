@@ -44,7 +44,7 @@ In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `ei
 | `formatPrice(value, convention, locale?)` | Format a `Nullable` price; the third argument is a `Locale` object |
 | `formatFraction(value, convention)` | Format a `Nullable` price with the fraction variant of `PriceConvention` |
 | `parsePrice(text, convention)` | Read a string in the convention's notation or as a plain decimal; return a number, or `null` for unreadable text or a value too large to print back in the convention's notation |
-| `stripGrouping(text, { decimals })` | Trim numeric text, read either minus sign as `-`, and remove its thousands separators; return `null` when a comma isn't one, and with `decimals` also for one comma with nothing after the whole part, such as `4,253`; exponent text after a group, such as `1,000e3`, is refused too |
+| `stripGrouping(text, { decimals })` | Trim numeric text, read either minus sign as `-`, and remove its thousands separators; return `null` when a comma isn't one, and with `decimals` also for one comma with nothing after the whole part, such as `4,253`; exponent text right after its last group, such as `1,000e3`, is refused too; the rest of the text is left to the caller's own pattern |
 | `decimalsFromTick(tick, max = 8)` | Decimal places needed for a numeric tick, capped at `max`; `0.005` gives `3`, `1 / 32` gives `5`; nonpositive or nonfinite ticks give `0` |
 | `roundToTick(value, tick)` | Snap a number to the nearest tick and clean float noise; return `value` unchanged if it or the tick is nonfinite, or the tick is nonpositive |
 | `stepByTick(value, tick, steps)` | Snap to the grid, move by `steps` ticks, then snap again; all inputs are numbers and negative steps are allowed |
@@ -102,6 +102,7 @@ Price quotes format and parse through `convention.price`. Other bases snap to `q
 |---|---|---|
 | `formatCoupon(value, options?)` | `Nullable`; `style: "fraction" \| "decimal"` (default `"fraction"`), `decimals: number` (default `3`), `locale` | `4.125` → `4 1/8`; decimal style → `4.125%` |
 | `formatMaturity(date, options?)` | `DateLike \| null \| undefined`; `year: "2-digit" \| "numeric"` (default `"2-digit"`), `locale` | `"2034-05-15"` → `05/15/34`; numeric year → `05/15/2034` |
+| `isInstant(value)` | True for a time a `Date` can hold: a finite number of milliseconds within 8.64e15 of the epoch either way; guard a server's timestamp with it before formatting |
 | `daysToMaturity(date, now?)` | `DateLike \| null \| undefined`; `now: DateLike` defaults to the current time | Whole UTC calendar days to maturity; `0` on the same day, negative on later days, `null` if either date is invalid |
 | `formatNotional(value, { unit: "mm" })` | `Nullable`; optional `decimals: number` (default `2`) and `locale` | `5e6` → `5mm`; `1.25e9` → `1,250mm` |
 

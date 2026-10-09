@@ -216,6 +216,23 @@ describe("useAlert", () => {
     expect(document.activeElement).toBe(document.body)
   })
 
+  it("schedules no expiry when the time or the clock isn't a finite number, so the notice stays", () => {
+    vi.useFakeTimers()
+    for (const now of [() => Number.NaN, () => Infinity]) {
+      const alerts = createAlertStore({ now, nextId: () => "a" })
+      alerts.push({ severity: "info", title: "Plain" })
+      function Row() {
+        useAlert(alerts, "a", { ttlMs: 5000, now })
+        return null
+      }
+      const view = render(<Row />)
+      act(() => void vi.advanceTimersByTime(60_000))
+      expect(alerts.size()).toBe(1)
+      view.unmount()
+    }
+    vi.useRealTimers()
+  })
+
   it("keeps hidden rows, cleans up timers on unmount, and follows store and ID replacements", () => {
     vi.useFakeTimers()
     const c = clock()

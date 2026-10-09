@@ -19,6 +19,7 @@ import {
   formatQuote,
   formatSigned,
   formatTicks,
+  isInstant,
   formatYield,
   numberFormat,
   parsePrice,
@@ -273,6 +274,10 @@ describe("stripGrouping", () => {
     expect(stripGrouping(" 1,234 ", { decimals: false })).toBe("1234")
     expect(stripGrouping(" 1,234 ", { decimals: true })).toBeNull()
     expect(stripGrouping(" −1234.5 ", { decimals: true })).toBe("-1234.5")
+    // An exponent right after the last group is refused, whether or not decimals print; after a point it is the caller's.
+    expect(stripGrouping("1,000e3", { decimals: false })).toBeNull()
+    expect(stripGrouping("1,000,000e3", { decimals: true })).toBeNull()
+    expect(stripGrouping("1,000.5e3", { decimals: true })).toBe("1000.5e3")
     for (const text of ["99,5", "1,0,0", "0,995", ",995", "1234,567", "01,234", "1,234.5,6", "1 ,234"]) {
       expect(stripGrouping(text, { decimals: false })).toBeNull()
       expect(stripGrouping(text, { decimals: true })).toBeNull()
@@ -286,6 +291,13 @@ describe("formatTicks without grouping", () => {
     expect(formatTicks(1234, { grouping: false })).toBe("+1234")
     expect(formatTicks(-1500.5, { signed: false, grouping: false })).toBe("−1500.5")
     expect(formatTicks(0, { grouping: false })).toBe("0")
+  })
+})
+
+describe("isInstant", () => {
+  it("is true for a time a Date can hold, and false for anything else", () => {
+    for (const ms of [0, -1, 1_700_000_000_000, 8.64e15, -8.64e15]) expect(isInstant(ms), String(ms)).toBe(true)
+    for (const ms of [Number.NaN, Infinity, -Infinity, 8.64e15 + 1, -8.64e15 - 1, "1700000000000", null, undefined]) expect(isInstant(ms), String(ms)).toBe(false)
   })
 })
 
