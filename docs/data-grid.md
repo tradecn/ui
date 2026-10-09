@@ -163,7 +163,7 @@ Each `ColumnDef<T>` describes one column. Frozen columns stay on the left, befor
 |---|---|---|---|
 | `key` | `string` | Required | Column identity for state, rules, and edits. |
 | `header` | `ReactNode` | Required | Header content. |
-| `title` | `string` | The header, when it is a nonblank string | The column's name in words: the header's name to a screen reader, its menu button and resize handle, the editor, the column chooser, and the CSV header. Without one, a header of markup is named by what it shows and a blank one by the key; menus and the CSV use the key. |
+| `title` | `string` | The header, when it is a nonblank string | The column's name in words: the header's name to a screen reader, its menu button and resize handle, the editor, the column chooser, and the CSV header. Without one, a header of markup or a blank one is named by the key, as menus and the CSV are. |
 | `width` | `number` | Required | Initial width in px. |
 | `accessor` | `(row: T) => unknown` | Required | Value used for display, sorting, rules, and flash direction. |
 | `minWidth` | `number` | `48` | Minimum width in px. |

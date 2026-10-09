@@ -2313,19 +2313,14 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
     // Synthetic events may not have an active browser pointer to capture.
     try { handle.setPointerCapture?.(pointerId) } catch { /* Window listeners still end the gesture. */ }
   }
-  // The column's name in words, for the menu button, the handle, and a header without words of its own.
+  // The column's name in words: its title, its header when that is words, else its key. A header is named by it alone,
+  // never by the menu button and resize handle inside, which have names of their own; give a header of markup a title.
   const name = columnName(col)
   const words = col.title?.trim() || (typeof col.header === "string" ? col.header.trim() : "")
-  // A header of markup with no title is named by what it shows, never by the controls beside it.
-  const markup = !words && col.header !== null && col.header !== undefined && typeof col.header === "object"
-  const labelId = useId()
   return (
     <div
       role="columnheader"
-      // Named by the column alone: the menu button and resize handle inside have names of their own.
-      // A header of markup that draws no words still has the column's name to fall back on.
-      aria-label={words || name}
-      aria-labelledby={markup ? labelId : undefined}
+      aria-label={name}
       aria-colindex={p.colIndex + 1}
       aria-sort={p.sort === "asc" ? "ascending" : p.sort === "desc" ? "descending" : col.sortable ? "none" : undefined}
       data-col={col.key}
@@ -2335,7 +2330,6 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
       onPointerDown={p.onFocus}
     >
       <span
-        id={labelId}
         className={cn("min-w-0 flex-1 truncate", col.sortable && "cursor-pointer hover:text-foreground")}
         title={words || undefined}
         onClick={col.sortable ? p.onSort : undefined}

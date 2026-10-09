@@ -1020,7 +1020,7 @@ describe("DataGrid", () => {
     expect(screen.getByRole("grid").getAttribute("aria-activedescendant")).toBe(document.querySelector('[data-row-id="new"]')!.id)
   })
 
-  it("names a blank header by its key and a header of markup by what it shows, never by the controls beside it", () => {
+  it("names a blank header and a header of markup with no title by the key, never by the controls beside it", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     seed(1, store)
     const odd: ColumnDef<Quote>[] = [
@@ -1029,7 +1029,7 @@ describe("DataGrid", () => {
     ]
     render(<DataGrid store={store} columns={odd} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => {}} />)
     expect(screen.getByRole("columnheader", { name: "sym" })).toBeInTheDocument()
-    expect(screen.getByRole("columnheader", { name: "Price" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "px" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "sym column menu" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "px column menu" })).toBeInTheDocument()
     const grid = screen.getByRole("grid")
