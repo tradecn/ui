@@ -182,13 +182,15 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
   // element pointed at counts even when hidden, and a reference to nothing reads as nothing. The referring element met
   // inside a target says nothing, so a field wrapped by the label it points to takes no name from its own value; pointed
   // at itself, it is read for itself, its value or its content, as Chromium reads it.
-  const refs = (el: Element, attribute: string): string =>
+  // `outside` leaves out the targets an element holds itself: a row named by its own cells says only what each cell
+  // says, and the cells are read one by one.
+  const refs = (el: Element, attribute: string, outside = false): string =>
     (el.getAttribute(attribute) ?? "")
       .split(/\s+/)
       .filter(Boolean)
       .map((id) => {
         const target = byId(el, id)
-        if (!target) return ""
+        if (!target || (outside && target !== el && el.contains(target))) return ""
         const hiddenOk = target.getAttribute("aria-hidden") === "true" || hidden(target)
         return textAlternative(target, target === el ? { referenced: true, hiddenOk } : { referenced: true, hiddenOk, self: el })
       })
@@ -354,7 +356,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
       Boolean(
         node &&
           !unheard(node) &&
-          [nameable(node) ? node.getAttribute("aria-label") : null, nameable(node) ? refs(node, "aria-labelledby") : "", node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)),
+          [nameable(node) ? node.getAttribute("aria-label") : null, nameable(node) ? refs(node, "aria-labelledby", true) : "", node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)),
       )
     // A grid rule's tone is the rule's color, not a direction. The rule names itself in data-rule and data-tone and says
     // what it matched in its description, the channel scripts/color.test.ts records for it. Only the rule nearest the

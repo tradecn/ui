@@ -104,7 +104,7 @@ Scroll down before receiving a batch to see the RFQ preset keep the first visibl
 | `reorderHoldMs` | `number` | Preset | Delay in ms before the internally owned view reorders after interaction. |
 | `announceRowCount` | `"off" \| "debounced"` | Preset | Enable the polite row-count announcement. |
 | `selectionMode` | `"none" \| "single" \| "multi"` | Preset | Selection behavior. |
-| `selectionColumn` | `boolean` | `false` | Show checkboxes in multi-select mode. They take a pointer, not Tab: the grid stays one Tab stop, and Space on it toggles the focused row. |
+| `selectionColumn` | `boolean` | `false` | Show checkboxes in multi-select mode. They take a pointer, not Tab: they add no Tab stops, and Space on the grid toggles the focused row. The header menu buttons keep theirs. |
 | `flashWindowMs` | `number` | `900` | Cell flash duration in ms. A value that isn't a finite length of zero or more uses the default. |
 | `footer` | `Record<string, (rows: T[]) => string>` | None | Totals keyed by column key. |
 | `onEdit` | `(change: EditChange<T>) => void \| Promise<unknown>` | None | Handle commits; enables columns with `edit`. |
@@ -163,7 +163,7 @@ Each `ColumnDef<T>` describes one column. Frozen columns stay on the left, befor
 |---|---|---|---|
 | `key` | `string` | Required | Column identity for state, rules, and edits. |
 | `header` | `ReactNode` | Required | Header content. |
-| `title` | `string` | The header, when it is a string | The column's name in words: the header's name to a screen reader, its menu button and resize handle, the editor, the column chooser, and the CSV header. Give one to a column whose header is an icon or other markup. |
+| `title` | `string` | The header, when it is a nonblank string | The column's name in words: the header's name to a screen reader, its menu button and resize handle, the editor, the column chooser, and the CSV header. Without one, a header of markup is named by what it shows and a blank one by the key; menus and the CSV use the key. |
 | `width` | `number` | Required | Initial width in px. |
 | `accessor` | `(row: T) => unknown` | Required | Value used for display, sorting, rules, and flash direction. |
 | `minWidth` | `number` | `48` | Minimum width in px. |
@@ -353,7 +353,7 @@ To handle a grid shortcut in a parent, call `preventDefault()` from `onKeyDownCa
 | Alt+H | Hide the focused column, once per press. |
 | Shift+F10 / Menu | Open the context menu on the focused row, once per press: at the focused cell, scrolled into view, or 8 px into the row's visible left edge before a column is chosen. |
 
-Row navigation also selects the focused row in single-select mode. When the focused row leaves the view, focus goes to the row now at its place, or to the last row, and the keys go on from there; a parent that controls `focusedRowId` is asked once, and while it keeps the departed row, the keys that act on a row do nothing. Each column header has move, hide, and reset controls, plus a resize handle. Sort controls appear only when the column has `sortable: true`. Move left and Move right are disabled at either end and beside the frozen columns, and a move brings the column into view, as Alt+Left and Right do.
+Row navigation also selects the focused row in single-select mode. When the focused row leaves the view, focus goes to the row now at its place, or to the last row, and the keys go on from there; focus set on a row that hasn't arrived yet waits for it, and an open row menu keeps the row it opened on; a parent that controls `focusedRowId` is asked once, and while it keeps the departed row, the keys that act on a row do nothing. Each column header has move, hide, and reset controls, plus a resize handle. Sort controls appear only when the column has `sortable: true`. Move left and Move right are disabled at either end and beside the frozen columns, and a move brings the column into view, as Alt+Left and Right do.
 
 When a column disappears while its menu trigger or menu owns focus, focus returns to the grid. A surviving menu trigger retains the menu's normal close-focus behavior.
 
@@ -382,13 +382,14 @@ Opening an editor selects its text unless you opened it by typing a character.
 | Label | Default | Where |
 |---|---|---|
 | `selectRow` | `Select row` | A row's selection box |
+| `selection` | `Selection` | The selection boxes' column header |
 | `columnMenu` / `resizeColumn` | `{name} column menu` / `Resize {name}` | A header's menu button and resize handle |
 | `sortAscending` / `sortDescending` / `clearSort` | `Sort ascending` / `Sort descending` / `Clear sort` | The header menu's sort item |
 | `moveLeft` / `moveRight` / `hideColumn` | `Move left` / `Move right` / `Hide column` | The header menu |
 | `resetColumns` | `Reset columns`, then `(2 hidden)` while columns are hidden | The header menu's reset item; `{n}` the hidden columns |
 | `rowCount` | `1 row`, `12 rows`, then `, 3 new` when rows arrived | What a screen reader hears once the count settles; `{n}` the rows, `{m}` the arrivals |
 | `newRows` | `3 new` | The button that takes a paused tape back to its end; `{n}` the arrivals |
-| `rejected` | `Rejected` | A refused edit whose error carries no message of its own |
+| `rejected` | `Rejected` | A refused edit whose error carries no message of its own, or an empty one |
 | `noRows` | `No rows` | An empty view, unless `emptyState` says otherwise; the grid's description while it is empty |
 
 A preset that wraps the grid passes `labels` through, and ParameterGrid's and QuotePanel's `labels` take these beside their own.

@@ -883,16 +883,23 @@ describe("DataGrid", () => {
     fireEvent.keyDown(grid, { key: "ArrowDown" })
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     fireEvent.keyDown(grid, { key: "ArrowRight" })
-    // happy-dom reports AltGraph whenever Alt is down; a Mac's Option is not AltGr.
-    const press = (altGraph: boolean) => {
-      const event = new KeyboardEvent("keydown", { key: "ß", code: "KeyS", altKey: true, bubbles: true, cancelable: true })
-      Object.defineProperty(event, "getModifierState", { value: (key: string) => key === "AltGraph" ? altGraph : key === "Alt" })
+    // Windows reports AltGr as Ctrl and Alt with AltGraph; Firefox on a Mac reports AltGraph for Option alone.
+    const press = (altGraph: boolean, ctrlKey: boolean) => {
+      const event = new KeyboardEvent("keydown", { key: "ß", code: "KeyS", altKey: true, ctrlKey, bubbles: true, cancelable: true })
+      Object.defineProperty(event, "getModifierState", { value: (key: string) => key === "AltGraph" ? altGraph : key === "Alt" || (key === "Control" && ctrlKey) })
       fireEvent(grid, event)
     }
-    press(true)
+    press(true, true)
     expect(onSort).not.toHaveBeenCalled()
-    press(false)
+    // An AltGr whose key leaves the plain letter is AltGr still.
+    const plain = new KeyboardEvent("keydown", { key: "s", code: "KeyS", altKey: true, ctrlKey: true, bubbles: true, cancelable: true })
+    Object.defineProperty(plain, "getModifierState", { value: (key: string) => key === "AltGraph" || key === "Alt" || key === "Control" })
+    fireEvent(grid, plain)
+    expect(onSort).not.toHaveBeenCalled()
+    press(true, false)
     expect(onSort).toHaveBeenCalledExactlyOnceWith({ key: "px", dir: "asc" })
+    press(false, false)
+    expect(onSort).toHaveBeenLastCalledWith({ key: "px", dir: "desc" })
   })
 
   it("clears the selection once for a held Escape", () => {
@@ -970,6 +977,73 @@ describe("DataGrid", () => {
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Price" }), { key: "Enter" })
     await act(async () => {})
     expect(document.querySelector('[data-row-id="r0"] [data-col="px"]')).toHaveAttribute("data-rejected", "Abgelehnt")
+  })
+
+  it("keeps an open row menu on the row it opened on when focus moves off that row as it leaves", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(5, store)
+    const menu = vi.fn((_rows: Quote[], ids: string[]) => <div data-testid="menu">{ids.join(",")}</div>)
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} selectionMode="none" renderContextMenu={menu} />)
+    fireEvent.contextMenu(document.querySelector<HTMLElement>('[data-row-id="r3"]')!.firstElementChild!)
+    expect(menu).toHaveBeenLastCalledWith([expect.objectContaining({ id: "r3" })], ["r3"], "r3")
+    act(() => store.applyDeltas({ remove: ["r3"] }))
+    expect(menu).toHaveBeenLastCalledWith([], ["r3"], "r3")
+  })
+
+  it("waits for a row a parent focuses before it arrives, rather than handing focus elsewhere", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    const onFocus = vi.fn()
+    const view = (focusedRowId: string) => <DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} focusedRowId={focusedRowId} onFocusedRowChange={onFocus} />
+    const { rerender } = render(view("r1"))
+    rerender(view("new"))
+    expect(onFocus).not.toHaveBeenCalled()
+    act(() => store.applyDeltas({ upsert: [{ id: "new", sym: "NEW", px: 1, qty: 1 }] }))
+    expect(onFocus).not.toHaveBeenCalled()
+    expect(screen.getByRole("grid").getAttribute("aria-activedescendant")).toBe(document.querySelector('[data-row-id="new"]')!.id)
+  })
+
+  it("names a blank header by its key and a header of markup by what it shows, never by the controls beside it", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(1, store)
+    const odd: ColumnDef<Quote>[] = [
+      { key: "sym", header: "", width: 80, accessor: (r) => r.sym, edit: { parse: (t) => t } },
+      { key: "px", header: <span><span aria-hidden>$</span> Price</span>, width: 80, accessor: (r) => r.px, edit: { parse: (t) => Number(t) } },
+    ]
+    render(<DataGrid store={store} columns={odd} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => {}} />)
+    expect(screen.getByRole("columnheader", { name: "sym" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Price" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "sym column menu" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "px column menu" })).toBeInTheDocument()
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    expect(screen.getByRole("textbox", { name: "sym" })).toBeInTheDocument()
+  })
+
+  it("keeps one IDREF for a row id with a space, and names the selection column", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: [{ id: "ES Z5", sym: "ES", px: 5000, qty: 1 }] })
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} selectionMode="multi" selectionColumn labels={{ selectRow: undefined, selection: "Auswahl" }} />)
+    expect(screen.getByRole("row", { name: "ES 5000.00 1" })).toHaveAttribute("data-row-id", "ES Z5")
+    expect(screen.getByRole("columnheader", { name: "Auswahl" })).toBeInTheDocument()
+    // A word left undefined keeps its default.
+    expect(screen.getByRole("checkbox", { name: "Select row" })).toBeInTheDocument()
+  })
+
+  it("says the grid's word for a refusal whose error is empty", async () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(1, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: (r) => r.px, edit: { parse: (t) => Number(t) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => Promise.reject(new Error(""))} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "7" })
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Price" }), { key: "Enter" })
+    await act(async () => {})
+    expect(document.querySelector('[data-row-id="r0"] [data-col="px"]')).toHaveAttribute("data-rejected", "Rejected")
   })
 
   it("activates a row once for a held Enter", () => {
@@ -2051,6 +2125,9 @@ describe("certification pins", () => {
       { key: "flag", header: <span aria-hidden>!</span>, title: "Flag", width: 20, accessor: () => "x" },
     ]
     expect(exportCsv(loss, typographic, ["a"]).split("\r\n").slice(0, 2)).toEqual(["P&L,Note,Flag", '"-62,500",\u2212 hedge,x'])
+    // A negative with a unit isn't one number either way: it keeps its minus rather than earn an apostrophe.
+    const sized: ColumnDef<{ id: string; v: number; note: string }>[] = [{ key: "v", header: "Size", width: 80, numeric: true, accessor: row => row.v, format: () => "\u22122.5mm" }]
+    expect(exportCsv(loss, sized, ["a"]).split("\r\n")[1]).toBe("\u22122.5mm")
   })
 })
 

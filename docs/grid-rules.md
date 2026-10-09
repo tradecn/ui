@@ -137,7 +137,7 @@ For `eq`, `ne`, and `in`, two strings compare without regard to case; a string a
 | `NUMBER_OPS`, `TEXT_OPS` | The numeric and other-column choices listed above. |
 | `RULE_OP_LABELS` | Human-readable wording for each operator. |
 | `opsFor(column)` | `NUMBER_OPS` when `column.numeric` is true, otherwise `TEXT_OPS`, including for `undefined`. This is an editor choice list; compilation does not restrict operators by column kind. |
-| `columnName(column, key?)` | A nonblank string header, otherwise the column key. Without a column, uses `key` or `""`. |
+| `columnName(column, key?)` | A nonblank `title`, else a nonblank string header, otherwise the column key. Without a column, uses `key` or `""`. |
 | `describeRule(rule, columns, kind?)` | Words for a highlight or a filter rule, written or read, judged as `kind` as `ruleProblem` judges it: `Price above 99-16+`, `Client one of ALPHA, BETA`, `Status is empty`. A string value prints through the column's `format` over its parsed, normalized reading when the column has both `parse` and `format`, so the words say what the rule compares; it stays as typed otherwise. |
 
 ### Values are typed in the column's format
@@ -148,6 +148,7 @@ For `eq`, `ne`, and `in`, two strings compare without regard to case; a string a
 |---|---|---|---|
 | `key` | `string` | Required | Name used by rules. |
 | `header` | `unknown` | Falls back to `key` | A nonblank string names the column in descriptions and problems. |
+| `title` | `string` | None | Names the column before its header, in descriptions and problems. |
 | `accessor` | `(row: T) => unknown` | Required | Reads the row value to compare. |
 | `numeric` | `boolean` | `false` | Selects numeric parsing and the numeric operator list. |
 | `parse` | `(text: string) => unknown` | Numeric or text fallback | Reads a string entered in a rule. |

@@ -27,7 +27,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { createFlashMemory, playFlash, useFlash, type FlashMemory } from "@/registry/tradecn/hooks/use-flash"
 import { useRow, useRowIds, useStoreMeta, useView } from "@/registry/tradecn/hooks/use-row-store"
 import { MONO_NUMERIC_CLASS, NULL_TOKEN, NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
-import { applyRules, compareDirected, compareValues, compileComparator, compileFilter, type AppliedRules, type ReadGridRules, type RuleDecoration } from "@/registry/tradecn/lib/grid-rules"
+import { applyRules, columnName, compareDirected, compareValues, compileComparator, compileFilter, type AppliedRules, type ReadGridRules, type RuleDecoration } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 
 // A virtualized grid fed by a RowStore one row at a time.
@@ -193,6 +193,8 @@ export const EMPTY_COLUMN_STATE: ColumnState = { order: [], widths: {}, hidden: 
 export interface DataGridLabels {
   /** A row's selection box. */
   selectRow: string
+  /** The selection boxes' column header. */
+  selection: string
   /** A header's menu button, `{name}` the column's title. */
   columnMenu: string
   /** A header's resize handle, `{name}` the column's title. */
@@ -217,6 +219,7 @@ export interface DataGridLabels {
 
 export const DEFAULT_DATA_GRID_LABELS: DataGridLabels = {
   selectRow: "Select row",
+  selection: "Selection",
   columnMenu: "{name} column menu",
   resizeColumn: "Resize {name}",
   sortAscending: "Sort ascending",
@@ -532,7 +535,7 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
     const t = numeric ? (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !numberShaped.test(s)) ? `'${s}` : s) : neutral(s)
     return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
   }
-  const header = cols.map((c) => esc(c.title ?? (typeof c.header === "string" ? c.header : c.key))).join(",")
+  const header = cols.map((c) => esc(columnName(c))).join(",")
   const lines: string[] = []
   for (const id of ids) {
     const row = store.getRow(id)
@@ -545,7 +548,9 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
           const text = c.format ? c.format(v, row) : v === null || v === undefined ? "" : String(v)
           // The library's formatters print a typographic minus, which a spreadsheet reads as text: a number's sign goes
           // out as the hyphen-minus, so a sum over the column counts every negative.
-          return esc(numeric ? text.replace(/\u2212/g, "-") : text, numeric)
+          // Only where the cell then reads as one number: a unit after it, as in -2.5mm, would be text either way.
+          const ascii = numeric ? text.replace(/\u2212/g, "-") : text
+          return esc(numeric && numberShaped.test(ascii) ? ascii : text, numeric)
         })
         .join(","),
     )
@@ -637,14 +642,17 @@ function editText<T>(col: ColumnDef<T>, value: unknown, row: T): string {
 // a Mac. AltGr typing a character is typing, not a shortcut.
 function altLetter(e: KeyboardEvent<HTMLElement>): string | null {
   if (!e.altKey) return null
+  // Windows reports AltGr as Ctrl and Alt, whatever letter its key leaves; Firefox on a Mac reports AltGraph for Option
+  // alone, which is no typing key.
+  if (e.getModifierState("AltGraph") && e.ctrlKey) return null
   if (/^[a-z]$/i.test(e.key)) return e.key.toLowerCase()
-  if (e.getModifierState("AltGraph")) return null
   return /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : null
 }
 
 function messageOf(error: unknown, fallback: string): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === "string") return error
+  // An Error with no words, as `new Error(response.statusText)` is over HTTP/2, says the fallback too.
+  if (error instanceof Error) return error.message.trim() || fallback
+  if (typeof error === "string") return error.trim() || fallback
   return fallback
 }
 
@@ -792,7 +800,7 @@ function Cell<T>({ col, row, rowId, id, colIndex, left, memory, flashVariant, fl
     [editable, status, edits, rowId, col.key],
   )
   const numericClass = col.numeric ? (col.font === "mono" ? MONO_NUMERIC_CLASS : NUMERIC_CLASS) : ""
-  const header = col.title ?? (typeof col.header === "string" ? col.header : col.key)
+  const header = columnName(col)
   const editing = status?.kind === "editing"
   const pendingText = status?.kind === "pending" && !col.cell ? status.text : null
   const content = editing
@@ -861,6 +869,8 @@ interface RowProps<T> {
   id: RowId
   index: number
   domId: string
+  /** The grid's id, which its cells' ids start with. */
+  uid: string
   columns: Resolved<T>[]
   template: string
   lefts: (number | undefined)[]
@@ -922,7 +932,7 @@ function RowInner<T>(p: RowProps<T>) {
       aria-description={extra?.["aria-description"] ?? rule?.["aria-description"]}
       aria-label={rowLabel}
       // Without a label of its own a row is named by its data cells, never by its selection box.
-      aria-labelledby={rowLabel ? undefined : p.columns.map((_, i) => `${p.domId}-c${i}`).join(" ") || undefined}
+      aria-labelledby={rowLabel ? undefined : p.columns.map((_, i) => `${p.uid}-c${i}-${encodeURIComponent(p.id)}`).join(" ") || undefined}
       data-focused={p.focused || undefined}
       aria-rowindex={p.index + 2}
       aria-selected={p.selectable ? p.selected : undefined}
@@ -946,7 +956,7 @@ function RowInner<T>(p: RowProps<T>) {
           col={col}
           row={row}
           rowId={p.id}
-          id={`${p.domId}-c${i}`}
+          id={`${p.uid}-c${i}-${encodeURIComponent(p.id)}`}
           colIndex={i + (p.selectionColumn ? 1 : 0)}
           left={p.lefts[i]}
           memory={p.memory}
@@ -1047,7 +1057,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const announceRowCount = props.announceRowCount ?? preset.announceRowCount
   // A window that isn't a finite length of zero or more would throw from the flash animation: the default stands in.
   const flashWindowMs = Number.isFinite(props.flashWindowMs) && props.flashWindowMs! >= 0 ? props.flashWindowMs! : 900
-  const labels = useMemo(() => ({ ...DEFAULT_DATA_GRID_LABELS, ...props.labels }), [props.labels])
+  // A word left undefined keeps its default.
+  const labels = useMemo(() => ({ ...DEFAULT_DATA_GRID_LABELS, ...Object.fromEntries(Object.entries(props.labels ?? {}).filter(([, word]) => word !== undefined)) }) as DataGridLabels, [props.labels])
   // The words a timer says later, read when it fires.
   const latestLabels = useRef(labels)
   useInsertionEffect(() => {
@@ -1084,19 +1095,21 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // A focused row the view lets go of hands focus to the row now at its place, the last row if it was last, so the keys
   // go on from where the trader was and a screen reader hears where focus went. Once per departure: a parent that keeps
   // the departed id is not asked again on every commit.
-  const focusedAt = useRef(-1)
+  // Only a row the view held: focus a parent sets on a row that hasn't arrived yet waits for it.
+  const focusedAt = useRef<{ id: RowId; index: number } | null>(null)
   const handedOff = useRef<RowId | null>(null)
   useLayoutEffect(() => {
     if (focusedRowId === null) return
     const at = indexOf.get(focusedRowId)
     if (at !== undefined) {
-      focusedAt.current = at
+      focusedAt.current = { id: focusedRowId, index: at }
       handedOff.current = null
       return
     }
-    if (focusedAt.current < 0 || ids.length === 0 || handedOff.current === focusedRowId) return
+    const was = focusedAt.current
+    if (was?.id !== focusedRowId || ids.length === 0 || handedOff.current === focusedRowId) return
     handedOff.current = focusedRowId
-    setFocusedRowId(ids[Math.min(focusedAt.current, ids.length - 1)]!)
+    setFocusedRowId(ids[Math.min(was.index, ids.length - 1)]!)
   })
 
   const resolved = useMemo(() => resolveColumns(columns, columnState), [columns, columnState])
@@ -1469,7 +1482,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     }
   })
   const uid = useId()
-  const domId = (id: RowId) => `${uid}-${id}`
+  // Encoded, so a row id with a space still makes one IDREF, and prefixed apart from the cells' ids, so none collide.
+  const domId = useCallback((id: RowId) => `${uid}-r-${encodeURIComponent(id)}`, [uid])
 
   // A tape follows its tail: new rows land at the end and the viewport goes there after every commit,
   // until a key, a pointer, or a scroll away from the end stops it. Then the arrivals count up on a
@@ -1527,13 +1541,13 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const id = el.dataset.rowId
         const elapsed = id !== undefined ? due.get(id) : undefined
         // A nested grid's rows can share ids with this one: the DOM id says whose row this is.
-        if (id !== undefined && elapsed !== undefined && el.id === `${uid}-${id}`) {
+        if (id !== undefined && elapsed !== undefined && el.id === domId(id)) {
           entered.delete(id)
           playFlash(el, "flat", { windowMs: ENTER_WINDOW_MS, variant: "fill", elapsed })
         }
       }
     }
-  }, [entered, uid])
+  }, [entered, domId])
   const scheduleReleaseSweep = useCallback(() => {
     if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current)
     sweepTimerRef.current = null
@@ -1660,14 +1674,14 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const root = rootRef.current
       // Inside a shadow root the document's active element is the host, so ask the root the grid is in.
       if (!root || (root.getRootNode() as Document | ShadowRoot).activeElement !== root) return
-      const id = `${uid}-${focusedRowId}`
+      const id = domId(focusedRowId)
       const row = Array.from(root.querySelectorAll<HTMLElement>('[role="row"][data-row-id]')).find((el) => el.id === id)
       const text = row ? rowReading(row) : ""
       // The same words again would change nothing a live region hears, so a repeat differs by an invisible character.
       if (text) setReading((was) => (was === text ? `${text}\u200b` : text))
     }, ROW_READING_REST_MS)
     return () => clearTimeout(t)
-  }, [readsRows, focusedRowId, arrivals, uid])
+  }, [readsRows, focusedRowId, arrivals, domId])
 
   // Selection and focus, by id.
   const select = useCallback(
@@ -1739,7 +1753,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     (key: string, width: number) => {
       const col = resolved.find((c) => c.key === key)
       if (!col) return
-      updateColumns((s) => ({ ...s, widths: { ...s.widths, [key]: Math.max(col.minWidth, Math.round(width)) } }))
+      // A drag or a key that leaves the width as it is, at the minimum, changes nothing.
+      const next = Math.max(col.minWidth, Math.round(width))
+      if (next === col.width) return
+      updateColumns((s) => ({ ...s, widths: { ...s.widths, [key]: next } }))
     },
     [resolved, updateColumns],
   )
@@ -2031,7 +2048,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // A rapid reopen must get fresh content even while the previous popup is still exiting.
   const [menuOpening, setMenuOpening] = useState(0)
   const contextRows = useMemo(() => {
-    const targets = selection.size ? [...selection] : focusedRowId !== null ? [focusedRowId] : []
+    // With nothing selected the menu acts on the row it opened on, even when focus has since moved off a row that left.
+    const opened = menuRow ?? focusedRowId
+    const targets = selection.size ? [...selection] : opened !== null ? [opened] : []
     return { opening: menuOpening, ids: targets, target: menuRow ?? focusedRowId, rows: targets.map((id) => store.getRow(id)).filter((r): r is T => r !== undefined) }
   }, [selection, focusedRowId, store, menuOpening, menuRow])
 
@@ -2057,7 +2076,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         className="sticky top-0 z-20 grid border-b border-border bg-background text-muted-foreground"
         style={{ gridTemplateColumns: template, width: totalWidth, height: rowHeight }}
       >
-        {selectionColumn && <div role="columnheader" aria-colindex={1} className="sticky left-0 z-30 bg-background" />}
+        {selectionColumn && <div role="columnheader" aria-colindex={1} aria-label={labels.selection} className="sticky left-0 z-30 bg-background" />}
         {resolved.map((col, i) => (
           <HeaderCell
             key={col.key}
@@ -2093,6 +2112,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
                 id={id}
                 index={v.index}
                 domId={domId(id)}
+                uid={uid}
                 columns={resolved}
                 template={template}
                 lefts={lefts}
@@ -2277,12 +2297,18 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
     // Synthetic events may not have an active browser pointer to capture.
     try { handle.setPointerCapture?.(pointerId) } catch { /* Window listeners still end the gesture. */ }
   }
-  const title = col.title ?? (typeof col.header === "string" ? col.header : undefined)
+  // The column's name in words, for the menu button, the handle, and a header without words of its own.
+  const name = columnName(col)
+  const words = col.title?.trim() || (typeof col.header === "string" ? col.header.trim() : "")
+  // A header of markup with no title is named by what it shows, never by the controls beside it.
+  const markup = !words && col.header !== null && col.header !== undefined && typeof col.header === "object"
+  const labelId = useId()
   return (
     <div
       role="columnheader"
       // Named by the column alone: the menu button and resize handle inside have names of their own.
-      aria-label={title ?? col.key}
+      aria-label={markup ? undefined : words || name}
+      aria-labelledby={markup ? labelId : undefined}
       aria-colindex={p.colIndex + 1}
       aria-sort={p.sort === "asc" ? "ascending" : p.sort === "desc" ? "descending" : col.sortable ? "none" : undefined}
       data-col={col.key}
@@ -2292,8 +2318,9 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
       onPointerDown={p.onFocus}
     >
       <span
+        id={labelId}
         className={cn("min-w-0 flex-1 truncate", col.sortable && "cursor-pointer hover:text-foreground")}
-        title={title}
+        title={words || undefined}
         onClick={col.sortable ? p.onSort : undefined}
       >
         {col.header}
@@ -2302,7 +2329,7 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
       <DropdownMenu>
         <DropdownMenuTrigger
           ref={triggerRef}
-          aria-label={fillLabel(p.labels.columnMenu, { name: title ?? col.key })}
+          aria-label={fillLabel(p.labels.columnMenu, { name })}
           className="rounded px-1 text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[popup-open]:opacity-100 data-[state=open]:opacity-100"
         >
           <svg aria-hidden width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
@@ -2327,7 +2354,7 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label={fillLabel(p.labels.resizeColumn, { name: title ?? col.key })}
+        aria-label={fillLabel(p.labels.resizeColumn, { name })}
         onPointerDown={startResize}
         className="absolute top-0 right-0 h-full w-1.5 touch-none cursor-col-resize hover:bg-ring/40"
       />

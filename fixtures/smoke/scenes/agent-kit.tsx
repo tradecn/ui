@@ -137,6 +137,15 @@ export function AgentKitScene() {
       </div>
       <div data-contract-sample="broken" data-contract-ignore="" className="flex items-center gap-3">
         <span className={cn(NUMERIC_CLASS, "text-up")}>0-01</span>
+        {/* A row named by its own cells, as a grid row with no label is: the side in one cell is no cue for the next. */}
+        <div role="row" aria-labelledby={`${id}-own-side ${id}-own-size`} className="flex gap-1">
+          <span role="gridcell" id={`${id}-own-side`}>BUY</span>
+          <span role="gridcell" id={`${id}-own-size`}>
+            <span data-cue="own-cells" className={cn(NUMERIC_CLASS, "text-down")}>
+              2,000
+            </span>
+          </span>
+        </div>
         <input readOnly value="0-02" className={cn(NUMERIC_CLASS, "w-14 bg-transparent text-up")} />
         <svg width="40" height="14">
           <text x="0" y="11" className="fill-up">

@@ -41,6 +41,17 @@ describe("DataGrid resizing", () => {
     expect(props.onColumnStateChange).not.toHaveBeenCalled()
   })
 
+  it("asks nothing for a drag that leaves the width as it is, past the minimum", () => {
+    const props = setup()
+    render(<DataGrid {...props} />)
+    fireEvent.pointerDown(handle(), pointer)
+    fireEvent.pointerMove(window, { ...pointer, clientX: 0 })
+    expect(props.onColumnStateChange).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_COLUMN_STATE, widths: { px: 60 } })
+    fireEvent.pointerMove(window, { ...pointer, clientX: -40 })
+    fireEvent.pointerMove(window, { ...pointer, clientX: -80 })
+    expect(props.onColumnStateChange).toHaveBeenCalledTimes(1)
+  })
+
   it.each(["cancel", "capture loss", "blur", "unmount", "hidden column", "Activity hide"])("ends a gesture on %s without reverting accepted widths", end => {
     const props = setup()
     const layout = (hidden: boolean) => <StrictMode><Activity mode={hidden && end === "Activity hide" ? "hidden" : "visible"}><DataGrid {...props} columns={hidden && end === "hidden column" ? columns.slice(0, 1) : columns} /></Activity></StrictMode>

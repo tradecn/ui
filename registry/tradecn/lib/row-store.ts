@@ -449,7 +449,7 @@ class ViewImpl<T> implements PreparedRowView<T> {
 }
 
 export interface FrameBatcher<T> {
-  /** Queue a delta; the merged batch applies on the next animation frame. */
+  /** Queue a delta; the merged batch applies on the next animation frame, or after 250 ms when no frame comes. */
   push(delta: DeltaBatch<T>): void
   /** Apply now, without waiting for the frame. */
   flush(): void
