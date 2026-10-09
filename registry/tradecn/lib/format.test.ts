@@ -22,6 +22,7 @@ import {
   formatYield,
   numberFormat,
   parsePrice,
+  stripGrouping,
   parseQuote,
   quoteInvertedOf,
   quoteStepOf,
@@ -256,6 +257,21 @@ describe("null sentinel", () => {
   ]
   it.each([null, undefined, NaN, Infinity, -Infinity])("every formatter returns the sentinel for %s", (v) => {
     for (const fn of fns) expect(fn(v as number)).toBe(NULL_TOKEN)
+  })
+})
+
+describe("stripGrouping", () => {
+  it("removes thousands separators and refuses any other comma, and one group with nothing after it where decimals print", () => {
+    expect(stripGrouping("1,234.5", { decimals: true })).toBe("1234.5")
+    expect(stripGrouping("-12,345,678", { decimals: true })).toBe("-12345678")
+    expect(stripGrouping("1,234-16+", { decimals: true })).toBe("1234-16+")
+    expect(stripGrouping("1234.5", { decimals: true })).toBe("1234.5")
+    expect(stripGrouping("5,012", { decimals: false })).toBe("5012")
+    expect(stripGrouping("5,012", { decimals: true })).toBeNull()
+    for (const text of ["99,5", "1,0,0", "0,995", ",995", "1234,567", "01,234", "1,234.5,6", " 1,234"]) {
+      expect(stripGrouping(text, { decimals: false })).toBeNull()
+      expect(stripGrouping(text, { decimals: true })).toBeNull()
+    }
   })
 })
 

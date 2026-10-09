@@ -3833,15 +3833,24 @@
         {
           "path": "registry/tradecn/lib/grid-rules.ts",
           "type": "registry:lib"
+        },
+        {
+          "path": "registry/tradecn/lib/format.ts",
+          "type": "registry:lib"
         }
       ],
-      "docs": "Pure functions, no dependencies. Hand a GridRules object to the data grid's rules prop, or compile it yourself with compileFilter, compileComparator, and applyRules. Adds the soft variants of the up, down, flat, stale, and expiring tokens, which the tones tint with.",
+      "docs": "Pure functions, with format installed alongside to read typed numbers. Hand a GridRules object to the data grid's rules prop, or compile it yourself with compileFilter, compileComparator, and applyRules. Adds the soft variants of the up, down, flat, stale, and expiring tokens, which the tones tint with.",
       "cssVars": {
         "light": {
           "down-soft": "oklch(0.46 0.19 40 / 18%)",
           "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
           "stale-soft": "oklch(0.52 0.13 75 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up-soft": "oklch(0.52 0.13 165 / 18%)"
         },
         "dark": {
@@ -3849,7 +3858,18 @@
           "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
           "stale-soft": "oklch(0.8 0.15 80 / 16%)",
+          "tradecn-font-accessible": "'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif",
+          "tradecn-font-accessible-mono": "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          "tradecn-font-numeric": "var(--tradecn-font-sans)",
+          "tradecn-font-sans": "'Inter', ui-sans-serif, system-ui, sans-serif",
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
+        }
+      },
+      "css": {
+        ":root[data-accessibility=\"hyperlegible\"], [data-accessibility=\"hyperlegible\"]": {
+          "--tradecn-font-sans": "var(--tradecn-font-accessible)",
+          "--tradecn-font-mono": "var(--tradecn-font-accessible-mono)"
         }
       }
     },

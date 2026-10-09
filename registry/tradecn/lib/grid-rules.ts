@@ -7,6 +7,7 @@
 // color, and an applied rule carries its meaning in a channel besides the color: `data-rule` names
 // the rule on the element and the rule's words go in the element's accessible description (contract
 // rule 15). Nothing here decides a value; it only compares what the row says with what the rule says.
+import { stripGrouping } from "@/registry/tradecn/lib/format"
 
 export type RuleOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between" | "in" | "contains" | "startsWith" | "isNull" | "notNull"
 
@@ -206,8 +207,12 @@ export function readRuleValue<T>(column: RuleColumn<T> | undefined, raw: RuleVal
   if (typeof raw !== "string") return null
   if (column?.parse) return normalizeValue(column.parse(raw))
   if (column?.numeric) {
-    const text = raw.trim().replace(/−/g, "-").replace(/,/g, "")
-    return text === "" ? null : normalizeValue(Number(text))
+    // The column's notation is unknown here, so a comma reads only as a thousands separator and one comma with no
+    // point after it, which reads either way, is no number: "1,5" is never 15, and "4,253" never 4253.
+    const trimmed = raw.trim()
+    if (trimmed === "") return null
+    const text = stripGrouping(trimmed.replace(/−/g, "-"), { decimals: true })
+    return text === null ? null : normalizeValue(Number(text))
   }
   return raw
 }

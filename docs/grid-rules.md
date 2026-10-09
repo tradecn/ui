@@ -158,7 +158,7 @@ For `eq`, `ne`, and `in`, two strings compare without regard to case; a string a
 | Input | Reading |
 |---|---|
 | String with a column `parse` | Calls `parse(text)` and normalizes its result. |
-| String on a numeric column without `parse` | Trims whitespace, removes commas, replaces Unicode minus (`−`) with `-`, then calls `Number`. Empty or invalid numeric text becomes `null`. |
+| String on a numeric column without `parse` | Trims whitespace, replaces Unicode minus (`−`) with `-`, reads commas only between thousands, then calls `Number`. One comma with no point after it, as in `4,253`, could be a decimal comma and becomes `null`, as do empty and invalid numeric text; give the column a `parse` to read its own notation. |
 | Any other string | Keeps the text, including `""`. |
 | Number or boolean | Keeps the value, except nonfinite numbers become `null`. |
 | `null` or `undefined` | Returns `null`. |
@@ -238,4 +238,4 @@ The helpers compare row values with rule values. Your application owns storage a
 
 ### Tokens
 
-The install adds the soft variants of the `up`, `down`, `flat`, `stale`, and `expiring` tokens, which the tones tint with, if you do not have them. `primary` and `destructive` are shadcn's own.
+The install adds the soft variants of the `up`, `down`, `flat`, `stale`, and `expiring` tokens, which the tones tint with, if you do not have them. `primary` and `destructive` are shadcn's own. [`format`](format.md), installed alongside to read typed numbers, brings its font tokens and the hyperlegible remap.

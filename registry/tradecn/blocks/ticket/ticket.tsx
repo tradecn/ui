@@ -8,7 +8,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
-import { NUMERIC_CLASS, formatNotional, formatQuantity, formatQuote, numericFontClass, stepQuote, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { NUMERIC_CLASS, formatNotional, formatQuantity, formatQuote, numericFontClass, stepQuote, stripGrouping, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { blocks, checkLimits, confirms, problemsByField, type Limits, type Problem as LimitProblem } from "@/registry/tradecn/lib/limits"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
@@ -240,10 +240,11 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
   }
 }
 
-/** Whole numbers, with or without separators. A quantity is contracts or units of notional, never a fraction. */
+/** Whole numbers, with commas only between thousands. A quantity is contracts or units of notional, never a fraction. */
 export function parseQuantity(text: string): number | null {
-  const clean = text.trim().replace(/,/g, "")
-  if (!/^\d+$/.test(clean)) return null
+  // "2,5" from a decimal-comma keyboard is no quantity, never 25.
+  const clean = stripGrouping(text.trim(), { decimals: false })
+  if (clean === null || !/^\d+$/.test(clean)) return null
   const n = Number(clean)
   return Number.isSafeInteger(n) ? n : null
 }

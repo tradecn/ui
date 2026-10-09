@@ -666,6 +666,9 @@ describe("describeDraft, checkDraft, parseQuantity", () => {
   it("reads whole numbers only", () => {
     expect(parseQuantity("5")).toBe(5)
     expect(parseQuantity(" 5,000 ")).toBe(5000)
+    expect(parseQuantity("1,000,000")).toBe(1_000_000)
+    // A comma reads only between thousands: "2,5" from a decimal-comma keyboard is no quantity, never 25.
+    for (const text of ["2,5", "10,00", "1,0,0", "0,500", ",500", "5,00,000", "1234,567"]) expect(parseQuantity(text)).toBeNull()
     expect(parseQuantity("2.5")).toBeNull()
     expect(parseQuantity("-1")).toBeNull()
     expect(parseQuantity("")).toBeNull()

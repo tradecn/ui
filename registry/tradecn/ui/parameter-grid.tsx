@@ -2,7 +2,7 @@ import { cn } from "cn"
 import { useCallback, useMemo } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
-import { NULL_TOKEN, NUMERIC_CLASS, formatPrice } from "@/registry/tradecn/lib/format"
+import { NULL_TOKEN, NUMERIC_CLASS, formatPrice, stripGrouping } from "@/registry/tradecn/lib/format"
 import type { RowId, RowStore } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, editProblem, type CellEdit, type CellEditHandle, type ColumnDef, type DataGridProps, type EditChange, type EditProblem } from "@/registry/tradecn/ui/data-grid"
 
@@ -105,10 +105,15 @@ function defaultFormat<T extends ParameterRow>(def: ParameterDef<T>): (value: un
   }
 }
 
-function defaultParse(labels: ParameterGridLabels): (text: string) => unknown {
+// The default format groups thousands, so a parameter printed with no decimals reads one group as thousands, and one
+// printed with decimals refuses a comma with no point after it, which reads either way. "1,5" is never 15.
+function defaultParse<T extends ParameterRow>(def: ParameterDef<T>, labels: ParameterGridLabels): (text: string) => unknown {
+  const decimals = (def.decimals ?? 2) > 0
   return (text) => {
-    const clean = text.trim().replace(/−/g, "-").replace(/,/g, "")
-    if (clean === "") return null
+    const trimmed = text.trim()
+    if (trimmed === "") return null
+    const clean = stripGrouping(trimmed.replace(/−/g, "-"), { decimals })
+    if (clean === null) return editProblem(labels.notANumber)
     const n = Number(clean)
     return Number.isFinite(n) ? n : editProblem(labels.notANumber)
   }
@@ -117,7 +122,7 @@ function defaultParse(labels: ParameterGridLabels): (text: string) => unknown {
 /** The grid's `edit` for one parameter: its parse, its format, the range check, and the step. */
 export function parameterEdit<T extends ParameterRow>(def: ParameterDef<T>, editAction: string, labels: ParameterGridLabels = DEFAULT_PARAMETER_GRID_LABELS): CellEdit<T> {
   const format = def.format ?? defaultFormat(def)
-  const parse = def.parse ?? defaultParse(labels)
+  const parse = def.parse ?? defaultParse(def, labels)
   const step = typeof def.step === "number" ? (def.step as number) : null
   return {
     parse,

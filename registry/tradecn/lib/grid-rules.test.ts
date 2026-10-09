@@ -65,6 +65,10 @@ describe("reading a typed value", () => {
     expect(readRuleValue(columns[2], "99-16+")).toBe(99.515625)
     expect(readRuleValue(columns[1], "5,000,000")).toBe(5_000_000)
     expect(readRuleValue(columns[1], "−3")).toBe(-3)
+    // A numeric column without parse reads a comma only between thousands, and refuses one comma with no point after
+    // it, which could be a decimal comma: "1,5" is never 15, "4,253" never 4253.
+    for (const text of ["1,5", "4,253", "1,0,0", "0,500"]) expect(readRuleValue(columns[1], text)).toBeNull()
+    expect(readRuleValue(columns[1], "4,253.5")).toBe(4253.5)
     expect(readRuleValue(columns[0], "alpha")).toBe("alpha")
     expect(readRuleValue(columns[4], "yes")).toBe(true)
   })

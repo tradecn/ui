@@ -130,7 +130,7 @@ Each `ParameterDef<T>` defines one column:
 | `font` | `"numeric" \| "mono"` | `"numeric"` | Font family for numeric cells; both use tabular figures. |
 | `readOnly` | `boolean` | `false` | Omit editing for this parameter on every row. |
 
-The default formatter prints finite numbers to `decimals` places, null, undefined, or nonfinite numbers as `–`, and other values as text. The default parser trims whitespace, removes commas, accepts the typographic minus `−`, and reads a finite number; blank input becomes null. `numeric: false` changes presentation but keeps this parser. For text, supply a parser such as `parse: (text) => text.trim()`.
+The default formatter prints finite numbers to `decimals` places, null, undefined, or nonfinite numbers as `–`, and other values as text. The default parser trims whitespace, accepts the typographic minus `−`, reads commas only between thousands, and reads a finite number; blank input becomes null. A parameter with `decimals` above zero prints a point after its groups, so there one comma with no point after it, as in `1,234`, could be a decimal comma and is not a number; with `decimals: 0` it reads as 1234. `numeric: false` changes presentation but keeps this parser. For text, supply a parser such as `parse: (text) => text.trim()`.
 
 `min` and `max` apply only to numeric values and use the column's formatter in error messages. `validate` runs after those checks. A numeric `step` moves by that amount, ten times with Shift, starting from zero for a nonnumeric value. A function receives direction `1` or `-1` and `big: true` with Shift; it returns the next value. Stepping does not clamp to bounds; validation runs when committing. Without `step`, Up and Down leave the editor value unchanged.
 
