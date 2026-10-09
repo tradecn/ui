@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
 import { NULL_TOKEN, NUMERIC_CLASS, formatPrice, stripGrouping } from "@/registry/tradecn/lib/format"
 import type { RowId, RowStore } from "@/registry/tradecn/lib/row-store"
-import { DataGrid, editProblem, type CellEdit, type CellEditHandle, type ColumnDef, type DataGridProps, type EditChange, type EditProblem } from "@/registry/tradecn/ui/data-grid"
+import { DataGrid, editProblem, type CellEdit, type CellEditHandle, type ColumnDef, type DataGridLabels, type DataGridProps, type EditChange, type EditProblem } from "@/registry/tradecn/ui/data-grid"
 
 // A parameter table: the data grid in its parameters preset, one row per instrument, tier, or pair,
 // a frozen name, a server-owned enable box, the values typed in place, and when the server last
@@ -255,7 +255,9 @@ export function parameterColumns<T extends ParameterRow>(options: ParameterColum
   return [name, enabled, ...values, updated]
 }
 
-export interface ParameterGridProps<T extends ParameterRow = ParameterRow> extends Omit<DataGridProps<T>, "columns" | "preset" | "label" | "onEdit">, ParameterColumnOptions<T> {
+export interface ParameterGridProps<T extends ParameterRow = ParameterRow> extends Omit<DataGridProps<T>, "columns" | "preset" | "label" | "onEdit" | "labels">, ParameterColumnOptions<T> {
+  /** The grid's words beside its own: `ParameterGridLabels` and DataGrid's `DataGridLabels`. */
+  labels?: Partial<ParameterGridLabels & DataGridLabels>
   /** `parameterColumns(options)` by default. */
   columns?: ColumnDef<T>[]
   label?: string
@@ -298,7 +300,7 @@ export function ParameterGrid<T extends ParameterRow = ParameterRow>({ parameter
     <div data-slot="tradecn-parameter-grid" className={cn("flex h-full min-h-0 flex-col gap-1 lining-nums tabular-nums", className)}>
       {asOf && <AsOf store={store} time={timeFn} labels={labels} />}
       <div className="min-h-0 flex-1">
-        <DataGrid<T> {...grid} store={store} preset="parameters" label={label} columns={all} onEdit={onEdit} getRowProps={rowProps} />
+        <DataGrid<T> {...grid} store={store} preset="parameters" label={label} labels={labelsProp} columns={all} onEdit={onEdit} getRowProps={rowProps} />
       </div>
     </div>
   )

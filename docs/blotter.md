@@ -230,9 +230,9 @@ Set `hasCustom` when a supplied renderer can return `undefined`. Explicit `null`
 
 The renderer receives the grid's target rows and ids without action-permission filtering.
 
-Right-clicking plain row content requests focus for that row and, when selection is enabled, replaces the selection if that row was not already selected. The menu uses the resulting selection, falling back to row focus.
+The menu acts on the selection, or with nothing selected on the row it opened on, which it keeps while it stays open, even after that row leaves the view. Right-clicking plain row content requests focus for that row and, when selection is enabled, replaces the selection if that row was not already selected.
 
-Apply these requests when controlling selection or focus. Until then, the menu uses the existing values.
+Apply these requests when controlling selection or focus. Until then, a selection that doesn't hold the row stays what the menu acts on.
 
 Action invocation rechecks the store even if the displayed count has become stale.
 
@@ -240,7 +240,7 @@ Action invocation rechecks the store even if the displayed count has become stal
 
 ### Delete cancels nothing by default
 
-`deleteAction="cancel"` runs the matching action when Delete or Backspace is pressed on the focused grid. It uses the selection, or the focused row when the selection is empty, and rechecks permissions before dispatch.
+`deleteAction="cancel"` runs the matching action when Delete or Backspace is pressed on the focused grid. It uses the selection, or the focused row when the selection is empty, rechecks permissions before dispatch, and runs once per press: a held key's repeats run nothing more. When the focused order leaves the view, as a fill can take it, focus goes to the order now at its place, so with nothing selected a Delete pressed after that acts on that order; a selection, which the grid never prunes, stays what Delete acts on, the departed order included.
 
 Deletion keys are off by default. Nothing runs when the event was prevented, no rows are in hand, no matching action exists or no target still allows it.
 

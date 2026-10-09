@@ -200,11 +200,11 @@ Submitting with Enter leaves focus in the input for the next symbol. Clicking Ad
 
 ### Removing
 
-Focus the grid itself, then press Delete or Backspace to request removal of the selection, or the focused row when nothing is selected. It does nothing without `onRemove`, without a target, or when the event was already prevented. Keys from cell editors, custom controls, header controls, selection checkboxes, nested grids and portaled content do not request removal. `WatchlistGrid` still passes their bubbling events to your `onKeyDown` handler.
+Focus the grid itself, then press Delete or Backspace to request removal of the selection, or the focused row when nothing is selected, once per press: a held key's repeats remove nothing more. Focus then goes to the row now at the removed row's place, so the next Delete asks for that one; prune your selection as `onRemove` lands, or a selected symbol that's gone is asked for again. It does nothing without `onRemove`, without a target, or when the event was already prevented. Keys from cell editors, custom controls, header controls, selection checkboxes, nested grids and portaled content do not request removal. `WatchlistGrid` still passes their bubbling events to your `onKeyDown` handler.
 
 `watchlistRemoveColumn` adds a `×` that shows on hover and requests removal of only that row. Buttons, menu items and grid deletion keys call `onRemove` with symbols; none changes the store.
 
-The grid passes the current selection, falling back to the focused row, to your menu renderer. Right-clicking plain row content requests focus for that row and, when selection is enabled, replaces the selection if that row was not already selected. Apply these requests when controlling selection or focus; until then, the menu uses the existing values.
+The grid passes the current selection to your menu renderer, or with nothing selected the row the menu opened on, which it keeps while the menu stays open, even after that row leaves. Right-clicking plain row content requests focus for that row and, when selection is enabled, replaces the selection if that row was not already selected. Apply these requests when controlling selection or focus; until then, a selection that doesn't hold the row stays what the menu acts on.
 
 The `×` is out of the tab order on purpose. The grid itself and its header controls have separate tab stops.
 

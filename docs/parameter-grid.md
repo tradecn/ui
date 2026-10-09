@@ -74,7 +74,7 @@ Uses the data grid's `parameters` preset: 24 px rows, single selection, ring fla
 | `onEdit` | `(change: EditChange<T>) => void \| Promise<unknown>` | Required | Send a value or enable request to the server. |
 | `columns` | `ColumnDef<T>[]` | `parameterColumns(options)` | Replace the generated column list. |
 | `label` | `string` | `"Parameters"` | Accessible name for the grid. |
-| `labels` | `Partial<ParameterGridLabels>` | `DEFAULT_PARAMETER_GRID_LABELS` | Override the labels listed below. |
+| `labels` | `Partial<ParameterGridLabels & DataGridLabels>` | `DEFAULT_PARAMETER_GRID_LABELS` | Override the labels listed below, and the grid's own, [DataGrid's labels](data-grid.md#labels). |
 | `time` | `(ms: number) => string` | Local 24-hour `HH:MM:SS` | Format updated and as-of times. A time a `Date` can't hold, such as `NaN`, prints `–` instead of calling it. The default reads the runtime's time zone, so server-rendered times use the server's. |
 | `changedSince` | `number \| null` | `null` | Mark rows updated at or after this epoch time in milliseconds. |
 | `toggleAction` | `string` | `"toggle"` | Permission id for the enable checkbox. |

@@ -224,7 +224,7 @@ The chooser emits complete `ColumnState` snapshots without applying or persistin
 
 `chooserRows(columns, columnState, rules)` returns `ChooserRow<T>[]`: frozen columns first, then the rest, ordered by `columnState.order` within each group. Unlisted keys follow in definition order. State-hidden columns keep their places; definition-hidden columns are excluded. The helper retains the source column definition for headless consumers.
 
-Search matches the column name or key by case-insensitive substring, ignoring surrounding query spaces. A nonblank string header supplies the name; otherwise the key does. Search filters the collection without changing column state. The ordinary dialog mounts the root inside `DialogContent`, so reopening a closed dialog starts with an empty query.
+Search matches the column name or key by case-insensitive substring, ignoring surrounding query spaces. A column's nonblank `title` supplies the name, else a nonblank string header, otherwise the key. Search filters the collection without changing column state. The ordinary dialog mounts the root inside `DialogContent`, so reopening a closed dialog starts with an empty query.
 
 ### Show and hide
 

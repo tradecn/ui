@@ -208,7 +208,8 @@ export function BlotterGrid<T extends BlotterRow = BlotterRow>({ columns, price,
     // The direct DataGrid root owns action keys; its controls and portals keep theirs.
     if (event.target !== event.currentTarget.firstElementChild || !targets.length) return
     event.preventDefault()
-    run(deleteAction, targets)
+    // Once per press: a held key would go on to run the action on the row focus lands on next.
+    if (!event.repeat) run(deleteAction, targets)
   }
   return <div ref={ref} onKeyDown={keyDown} data-slot="tradecn-blotter-grid" className={cn("h-full min-h-0 min-w-0 flex-1", className)}>
     <DataGrid<T> {...grid} store={store} preset="blotter" label={label} columns={all} selectionColumn={selectionColumn} selection={selection} onSelectionChange={select} focusedRowId={focusedRowId} onFocusedRowChange={focus} />

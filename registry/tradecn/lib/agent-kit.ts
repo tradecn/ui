@@ -182,13 +182,27 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
   // element pointed at counts even when hidden, and a reference to nothing reads as nothing. The referring element met
   // inside a target says nothing, so a field wrapped by the label it points to takes no name from its own value; pointed
   // at itself, it is read for itself, its value or its content, as Chromium reads it.
-  const refs = (el: Element, attribute: string): string =>
+  // The cell a node sits in, by role, or by tag where it carries no known role.
+  const cellHolding = (node: Element): Element | null => {
+    for (let at: Element | null = node; at; at = at.parentElement) {
+      const role = roleOf(at)
+      if (role ? /^(gridcell|cell|columnheader|rowheader)$/.test(role) : /^(TD|TH)$/.test(at.tagName)) return at
+    }
+    return null
+  }
+  // `outside` leaves out the targets in the element's own cells, for a row named by its cells; a label of its own that is
+  // no cell still counts.
+  const refs = (el: Element, attribute: string, outside = false): string =>
     (el.getAttribute(attribute) ?? "")
       .split(/\s+/)
       .filter(Boolean)
       .map((id) => {
         const target = byId(el, id)
         if (!target) return ""
+        if (outside && target !== el) {
+          const cell = cellHolding(target)
+          if (cell && el.contains(cell)) return ""
+        }
         const hiddenOk = target.getAttribute("aria-hidden") === "true" || hidden(target)
         return textAlternative(target, target === el ? { referenced: true, hiddenOk } : { referenced: true, hiddenOk, self: el })
       })
@@ -349,12 +363,19 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     }
     // A screen reader skips everything under aria-hidden, its labels and descriptions with its text.
     const unheard = (node: Element) => Boolean(node.closest("[aria-hidden=true]"))
+    // A row named by its own cells says only what each cell says, and the cells are read one by one; any other element
+    // labelled by its own child, a button by its "Buy", says what that child says.
+    // A row as rowOf finds one: by its role, or by its tag where no role it carries is known, an empty one included.
+    const isRow = (node: Element) => {
+      const role = roleOf(node)
+      return role ? role === "row" : node.tagName === "TR"
+    }
     // An accessible label or description that states the direction: its own, one it points to, or a native label.
     const says = (node: Element | null) =>
       Boolean(
         node &&
           !unheard(node) &&
-          [nameable(node) ? node.getAttribute("aria-label") : null, nameable(node) ? refs(node, "aria-labelledby") : "", node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)),
+          [nameable(node) ? node.getAttribute("aria-label") : null, nameable(node) ? refs(node, "aria-labelledby", isRow(node)) : "", node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)),
       )
     // A grid rule's tone is the rule's color, not a direction. The rule names itself in data-rule and data-tone and says
     // what it matched in its description, the channel scripts/color.test.ts records for it. Only the rule nearest the

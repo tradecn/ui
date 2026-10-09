@@ -120,7 +120,7 @@ Renders [`DataGrid`](data-grid.md) with the `tape` preset and multi-selection. G
 | `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | - | Menu items for the selection or the row under the pointer. |
 | `className` | `string` | - | Additional classes to apply to the grid wrapper. |
 
-Sorting, filtering, column state, row height, focus, keyboard navigation and row callbacks follow [`DataGridProps`](data-grid.md). Store, view, columns and selection come from the root. The preset and selection mode are fixed. For extended event rows, use the same row type on `<AuditTrail<T>>` and `<AuditTrailGrid<T>>` when supplying row callbacks.
+Sorting, filtering, column state, row height, focus, keyboard navigation, `labels`, and row callbacks follow [`DataGridProps`](data-grid.md). Store, view, columns and selection come from the root. The preset and selection mode are fixed. For extended event rows, use the same row type on `<AuditTrail<T>>` and `<AuditTrailGrid<T>>` when supplying row callbacks.
 
 ### AuditTrailChanges
 

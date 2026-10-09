@@ -160,7 +160,7 @@
         "blotter",
         "watchlist"
       ],
-      "docs": "Feed it a RowStore (installed alongside) and column definitions. Fixed row height; the grid positions rows itself. Adds @tanstack/react-virtual and the up, down, and flat tokens with the soft variants the grid tints with. Composes your checkbox, context-menu, and dropdown-menu.",
+      "docs": "Feed it a RowStore (installed alongside) and column definitions. Fixed row height; the grid positions rows itself. Adds @tanstack/react-virtual and the up, down, and flat tokens, and the soft variants of those three and of stale and expiring. Composes your checkbox, context-menu, and dropdown-menu.",
       "meta": {
         "components": [
           {
@@ -700,7 +700,7 @@
         "watchlist",
         "grid"
       ],
-      "docs": "Installs the data grid, the row store, and format alongside, and adds @tanstack/react-virtual and the up, down, and flat tokens with the soft variants the grid tints with. Composes your input, button, and context-menu, plus the checkbox and dropdown-menu the grid uses. Rows are keyed by symbol: createRowStore({ getRowId: (r) => r.symbol }).",
+      "docs": "Installs the data grid, the row store, and format alongside, and adds @tanstack/react-virtual and the up, down, and flat tokens, and the soft variants of those three and of stale and expiring. Composes your input, button, and context-menu, plus the checkbox and dropdown-menu the grid uses. Rows are keyed by symbol: createRowStore({ getRowId: (r) => r.symbol }).",
       "meta": {
         "components": [
           {
@@ -837,7 +837,7 @@
         "blotter",
         "grid"
       ],
-      "docs": "Installs the data grid, the row store, and format alongside, and adds @tanstack/react-virtual and the up, down, and flat tokens with the soft variants the grid tints with. Composes your button and context-menu, plus the checkbox and dropdown-menu the grid uses. Delete cancels nothing until you name the action it runs.",
+      "docs": "Installs the data grid, the row store, and format alongside, and adds @tanstack/react-virtual and the up, down, and flat tokens, and the soft variants of those three and of stale and expiring. Composes your button and context-menu, plus the checkbox and dropdown-menu the grid uses. Delete cancels nothing until you name the action it runs.",
       "meta": {
         "components": [
           {
@@ -2563,7 +2563,7 @@
         "grid",
         "ticket"
       ],
-      "docs": "Installs the data grid, the row store, and format alongside, adds @tanstack/react-virtual and the up, down, and flat tokens with the soft variants the grid tints with, and composes your checkbox plus the context-menu and dropdown-menu the grid uses. An edit is a command: onEdit sends it, and the cell waits for the server's row.",
+      "docs": "Installs the data grid, the row store, and format alongside, adds @tanstack/react-virtual and the up, down, and flat tokens, and the soft variants of those three and of stale and expiring, and composes your checkbox plus the context-menu and dropdown-menu the grid uses. An edit is a command: onEdit sends it, and the cell waits for the server's row.",
       "meta": {
         "components": [
           {
@@ -2675,7 +2675,7 @@
         "grid",
         "blotter"
       ],
-      "docs": "Installs the data grid, the row store, and format alongside, adds @tanstack/react-virtual and the up, down, and flat tokens with the soft variants the grid tints with, and composes the checkbox, context-menu, and dropdown-menu the grid uses. The P&L and the risk are the server's numbers; pass price, pnl, and risk formatters for the desk's notation.",
+      "docs": "Installs the data grid, the row store, and format alongside, adds @tanstack/react-virtual and the up, down, and flat tokens, and the soft variants of those three and of stale and expiring, and composes the checkbox, context-menu, and dropdown-menu the grid uses. The P&L and the risk are the server's numbers; pass price, pnl, and risk formatters for the desk's notation.",
       "meta": {
         "components": [
           {
@@ -2788,7 +2788,7 @@
         "grid",
         "blotter"
       ],
-      "docs": "Compose AuditTrailGrid, AuditTrailChanges and AuditTrailExportButton inside AuditTrail. Supply change markup through the changes render callback or useAuditTrailChanges. Installs DataGrid, RowStore, format helpers, cn and @tanstack/react-virtual; adds the up, down, and flat tokens with the soft variants the grid tints with and your style’s Button, checkbox, context-menu and dropdown-menu primitives.",
+      "docs": "Compose AuditTrailGrid, AuditTrailChanges and AuditTrailExportButton inside AuditTrail. Supply change markup through the changes render callback or useAuditTrailChanges. Installs DataGrid, RowStore, format helpers, cn and @tanstack/react-virtual; adds the up, down, and flat tokens, and the soft variants of those three and of stale and expiring, and composes your style’s Button, checkbox, context-menu and dropdown-menu primitives.",
       "meta": {
         "components": [
           {

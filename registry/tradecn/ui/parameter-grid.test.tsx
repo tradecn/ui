@@ -57,6 +57,15 @@ function setup(onEdit: (change: EditChange<Sheet>) => void | Promise<unknown> = 
   return { store, grid, cell }
 }
 
+describe("ParameterGrid labels", () => {
+  it("takes the grid's words beside its own", () => {
+    const store = createRowStore<Sheet>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: ROWS })
+    render(<ParameterGrid store={store} parameters={PARAMETERS} onEdit={vi.fn()} initialRect={RECT} labels={{ name: "Parameter", columnMenu: "Menü {name}" }} />)
+    expect(screen.getByRole("button", { name: "Menü Parameter" })).toBeInTheDocument()
+  })
+})
+
 describe("parameterColumns and parameterEdit", () => {
   it("does not re-render rows when the parent re-renders with a memoized getRowProps", async () => {
     const user = userEvent.setup()

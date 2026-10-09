@@ -8,15 +8,17 @@ import { NUMERIC_CLASS } from "@/lib/format"
 // out, a file picker and screen-reader-only small print among it. The unseen one says its direction only to a screen
 // reader, through a description it points to, a native label, a faded sign, a sign painted transparent, a grid rule's
 // highlight that its description explains, a description on the run around the value, a label on an element that
-// takes its role from a fallback token, a cell marked with its side, a row whose label says the direction and a value
-// hidden from a screen reader in a cell marked with its side: that passes by default and fails under visibleCue.
+// takes its role from a fallback token, a cell marked with its side, a row whose label says the direction, a value
+// hidden from a screen reader in a cell marked with its side, a button labelled by its own hidden "Buy", and a row
+// labelled by a word of its own that is no cell: that passes by default and fails under visibleCue.
 // The broken one breaks three rules on purpose: numbers colored up with nothing else saying so (in text, in a field,
 // in SVG text, with units, on a fill four boxes out, in a price split across two spans at its dash, behind a
 // description that points at nothing, a label that names no direction, a label on a plain span, which no screen
 // reader hears, a side marked on a container rather than on the value, a marker whose value names no direction,
 // empty or unknown, a highlight from a rule whose tone is no direction, a highlight from a rule whose tone is the
 // other direction, on text and on a fill, a hidden sign, and a faded sign, a description and a marker under
-// aria-hidden, which reach nobody); an icon button and a field with no name; and text under the floor, an SVG label
+// aria-hidden, which reach nobody, and a row, by its role or by its tag under an empty one, named by its own cells,
+// whose side in one cell is no cue for the next); an icon button and a field with no name; and text under the floor, an SVG label
 // drawn at half size and small print the spec shrinks at run time, a select's, a placeholder's, a file picker's and a
 // file picker's button alone among it. It is marked data-contract-ignore, so the page-wide check leaves it out.
 
@@ -83,7 +85,7 @@ export function AgentKitScene() {
           ↻
         </button>
       </div>
-      <div data-contract-sample="unseen" className="flex items-center gap-3">
+      <div data-contract-sample="unseen" className="flex flex-wrap items-center gap-3">
         <span id={`${id}-up`} className="sr-only">
           Up
         </span>
@@ -134,9 +136,52 @@ export function AgentKitScene() {
             </tr>
           </tbody>
         </table>
+        {/* A control labelled by its own child says what that child says, a hidden child that no text shows included: only a
+            row's own cells are left out. */}
+        <button type="button" aria-labelledby={`${id}-own-buy ${id}-own-px`} className={cn(NUMERIC_CLASS, "text-up")}>
+          <span id={`${id}-own-buy`} hidden>
+            Buy
+          </span>
+          <span id={`${id}-own-px`} data-cue="own-label">
+            0-18
+          </span>
+        </button>
+        {/* A row labelled by a word of its own that is no cell says that word for its cells. */}
+        <div role="row" aria-labelledby={`${id}-row-word`} className="flex gap-1">
+          <span id={`${id}-row-word`} className="sr-only">
+            Buy
+          </span>
+          <span role="gridcell">
+            <span data-cue="row-own-label" className={cn(NUMERIC_CLASS, "text-up")}>
+              0-19
+            </span>
+          </span>
+        </div>
       </div>
-      <div data-contract-sample="broken" data-contract-ignore="" className="flex items-center gap-3">
+      <div data-contract-sample="broken" data-contract-ignore="" className="flex flex-wrap items-center gap-3">
         <span className={cn(NUMERIC_CLASS, "text-up")}>0-01</span>
+        {/* A row named by its own cells, as a grid row with no label is: the side in one cell is no cue for the next. */}
+        <div role="row" aria-labelledby={`${id}-own-side ${id}-own-size`} className="flex gap-1">
+          <span role="gridcell" id={`${id}-own-side`}>BUY</span>
+          <span role="gridcell" id={`${id}-own-size`}>
+            <span data-cue="own-cells" className={cn(NUMERIC_CLASS, "text-down")}>
+              2,000
+            </span>
+          </span>
+        </div>
+        {/* The same row as a table row whose role is empty, which a browser reads as the row its tag makes it. */}
+        <table>
+          <tbody>
+            <tr role="" aria-labelledby={`${id}-tr-side ${id}-tr-size`}>
+              <td id={`${id}-tr-side`}>BUY</td>
+              <td id={`${id}-tr-size`}>
+                <span data-cue="own-cells-tr" className={cn(NUMERIC_CLASS, "text-down")}>
+                  3,000
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
         <input readOnly value="0-02" className={cn(NUMERIC_CLASS, "w-14 bg-transparent text-up")} />
         <svg width="40" height="14">
           <text x="0" y="11" className="fill-up">

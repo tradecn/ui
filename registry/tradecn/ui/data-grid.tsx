@@ -27,7 +27,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { createFlashMemory, playFlash, useFlash, type FlashMemory } from "@/registry/tradecn/hooks/use-flash"
 import { useRow, useRowIds, useStoreMeta, useView } from "@/registry/tradecn/hooks/use-row-store"
 import { MONO_NUMERIC_CLASS, NULL_TOKEN, NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
-import { applyRules, compareDirected, compareValues, compileComparator, compileFilter, type AppliedRules, type ReadGridRules, type RuleDecoration } from "@/registry/tradecn/lib/grid-rules"
+import { applyRules, columnName, compareDirected, compareValues, compileComparator, compileFilter, type AppliedRules, type ReadGridRules, type RuleDecoration } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 
 // A virtualized grid fed by a RowStore one row at a time.
@@ -44,6 +44,11 @@ import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 export interface ColumnDef<T> {
   key: string
   header: ReactNode
+  /**
+   * The column's name in words, for its header's name, its menu and resize handle, and the column chooser. By default
+   * the header when that is a string; give one to a column whose header is an icon or other markup.
+   */
+  title?: string
   width: number
   minWidth?: number
   align?: "left" | "right" | "center"
@@ -90,7 +95,7 @@ export function isEditProblem(value: unknown): value is EditProblem {
 /** How a commit came: the editor's Enter or Tab, leaving the editor, or a toggle or cell control committing a value; whether the key was held; and which opening of the editor it came from. */
 export interface EditCommit {
   via: "enter" | "tab" | "blur" | "value"
-  /** True for a held key's repeats: Enter or Tab in an editor, or a cell control's commit that passes `{ repeat: true }`. False for a blur, and for a toggle, whose held Space or Enter commits once. */
+  /** True for a held key's repeats: Enter or Tab in an editor, or a cell control's commit that passes `{ repeat: true }`. False for a blur, and for a toggle, whose held Space, Enter, or F2 commits once. */
   repeat: boolean
   /** One number per opening of an editor, unique across every grid on the page, so a check that asks a question can keep its answer to that opening. Value commits share session 0. */
   session: number
@@ -181,6 +186,63 @@ export const DATA_GRID_PRESETS: Record<DataGridPreset, DataGridPresetConfig> = {
 
 export const EMPTY_COLUMN_STATE: ColumnState = { order: [], widths: {}, hidden: [] }
 
+/**
+ * The grid's own words. A template fills `{name}` with a column's title and `{n}` and `{m}` with counts; a label that
+ * holds a count also takes a function of it, for a plural a template can't hold.
+ */
+export interface DataGridLabels {
+  /** A row's selection box. */
+  selectRow: string
+  /** The selection boxes' column header. */
+  selection: string
+  /** A header's menu button, `{name}` the column's title. */
+  columnMenu: string
+  /** A header's resize handle, `{name}` the column's title. */
+  resizeColumn: string
+  sortAscending: string
+  sortDescending: string
+  clearSort: string
+  moveLeft: string
+  moveRight: string
+  hideColumn: string
+  /** The header menu's reset item, `{n}` the hidden columns. */
+  resetColumns: string | ((hidden: number) => string)
+  /** What a screen reader hears once the row count settles, `{n}` the rows in view and `{m}` the rows that arrived since. */
+  rowCount: string | ((rows: number, arrived: number) => string)
+  /** The button that takes a paused tape back to its end, `{n}` the rows that arrived since. */
+  newRows: string | ((n: number) => string)
+  /** A refused edit whose error carries no message of its own. */
+  rejected: string
+  /** An empty view, unless `emptyState` says otherwise. */
+  noRows: string
+}
+
+export const DEFAULT_DATA_GRID_LABELS: DataGridLabels = {
+  selectRow: "Select row",
+  selection: "Selection",
+  columnMenu: "{name} column menu",
+  resizeColumn: "Resize {name}",
+  sortAscending: "Sort ascending",
+  sortDescending: "Sort descending",
+  clearSort: "Clear sort",
+  moveLeft: "Move left",
+  moveRight: "Move right",
+  hideColumn: "Hide column",
+  resetColumns: (hidden) => (hidden ? `Reset columns (${hidden.toLocaleString()} hidden)` : "Reset columns"),
+  rowCount: (rows, arrived) => `${rows.toLocaleString()} ${rows === 1 ? "row" : "rows"}${arrived ? `, ${arrived.toLocaleString()} new` : ""}`,
+  newRows: (n) => `${n.toLocaleString()} new`,
+  rejected: "Rejected",
+  noRows: "No rows",
+}
+
+/** A label's text: a template filled with names and counts, a count's in the reader's locale. */
+function fillLabel(template: string, values: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (match, name: string) => {
+    const value = values[name]
+    return value === undefined ? match : typeof value === "number" ? value.toLocaleString() : value
+  })
+}
+
 export interface DataGridProps<T> {
   store: RowStore<T>
   /** A view you own (your comparator, your filter). Without it the grid makes one from `sort` and `filter`. */
@@ -212,6 +274,8 @@ export interface DataGridProps<T> {
   announceRowCount?: "off" | "debounced"
   /** Accessible name for the grid. */
   label: string
+  /** The grid's own words, for another language or house style. */
+  labels?: Partial<DataGridLabels>
   emptyState?: ReactNode
   getRowProps?: (row: T, id: RowId) => RowDecoration | undefined
   /**
@@ -448,7 +512,11 @@ export function resolveColumns<T>(columns: ColumnDef<T>[], state: ColumnState): 
   })
 }
 
-/** CSV of the given rows and visible columns, RFC 4180 quoting. */
+/**
+ * CSV of the given rows and columns, RFC 4180 quoting, leaving out a column whose definition says `hidden`. Pass
+ * `resolveColumns(columns, columnState)` to export the columns as the grid shows them, in its order and without the
+ * ones the column state hides.
+ */
 export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: readonly RowId[]): string {
   const cols = columns.filter((c) => !c.hidden)
   // Spreadsheets execute cells led by = + - @ or a tab or carriage return: free-text
@@ -467,7 +535,7 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
     const t = numeric ? (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !numberShaped.test(s)) ? `'${s}` : s) : neutral(s)
     return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
   }
-  const header = cols.map((c) => esc(typeof c.header === "string" ? c.header : c.key)).join(",")
+  const header = cols.map((c) => esc(columnName(c))).join(",")
   const lines: string[] = []
   for (const id of ids) {
     const row = store.getRow(id)
@@ -477,7 +545,12 @@ export function exportCsv<T>(store: RowStore<T>, columns: ColumnDef<T>[], ids: r
         .map((c) => {
           const v = c.accessor(row)
           const numeric = typeof v === "number" && Number.isFinite(v)
-          return esc(c.format ? c.format(v, row) : v === null || v === undefined ? "" : String(v), numeric)
+          const text = c.format ? c.format(v, row) : v === null || v === undefined ? "" : String(v)
+          // The library's formatters print a typographic minus, which a spreadsheet reads as text: a number's sign goes
+          // out as the hyphen-minus, so a sum over the column counts every negative.
+          // Only where the cell then reads as one number: a unit after it, as in -2.5mm, would be text either way.
+          const ascii = numeric ? text.replace(/\u2212/g, "-") : text
+          return esc(numeric && numberShaped.test(ascii) ? ascii : text, numeric)
         })
         .join(","),
     )
@@ -565,10 +638,39 @@ function editText<T>(col: ColumnDef<T>, value: unknown, row: T): string {
   return col.format ? col.format(value, row) : String(value)
 }
 
-function messageOf(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === "string") return error
-  return "Rejected"
+// Alt with a letter: the letter typed, or the key's place where Option composes another character, as "ß" for Option+S on
+// a Mac. AltGr typing a character is typing, not a shortcut.
+function altLetter(e: KeyboardEvent<HTMLElement>): string | null {
+  if (!e.altKey) return null
+  // Windows reports AltGr as Ctrl and Alt, whatever letter its key leaves; Firefox on a Mac reports AltGraph for Option
+  // alone, which is no typing key.
+  if (e.getModifierState("AltGraph") && e.ctrlKey) return null
+  if (/^[a-z]$/i.test(e.key)) return e.key.toLowerCase()
+  return /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : null
+}
+
+// A row id as an id attribute can carry it: letters, digits, and hyphens as they stand, anything else, an underscore
+// included, as an underscore and its four hex digits. No space splits an IDREF list, no two row ids meet, and no
+// string, a lone surrogate included, throws.
+function idPart(id: RowId): string {
+  return id.replace(/[^A-Za-z0-9-]/g, (unit) => `_${unit.charCodeAt(0).toString(16).padStart(4, "0")}`)
+}
+
+/** A data cell's DOM id: the grid's, the column's place, and the row's. */
+function cellDomId(uid: string, rowId: RowId, index: number): string {
+  return `${uid}-c${index}-${idPart(rowId)}`
+}
+
+function messageOf(error: unknown, fallback: string): string {
+  // An Error with no words, as `new Error(response.statusText)` is over HTTP/2, says the fallback too, and so does
+  // one whose message can't become text: the cell leaves pending whatever the rejection carries.
+  if (typeof error === "string") return error.trim() || fallback
+  if (!(error instanceof Error)) return fallback
+  try {
+    return String(error.message ?? "").trim() || fallback
+  } catch {
+    return fallback
+  }
 }
 
 function canEditCell<T>(col: ColumnDef<T> | undefined, row: T | undefined): col is ColumnDef<T> & { edit: CellEdit<T> } {
@@ -594,6 +696,7 @@ interface CellProps<T> {
   col: Resolved<T>
   row: T
   rowId: RowId
+  id: string
   colIndex: number
   left: number | undefined
   memory: FlashMemory
@@ -689,7 +792,7 @@ function CellEditor({ rowId, colKey, label, status, numeric, className, edits }:
   )
 }
 
-function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol, selectedBar, rules, rowRule, edits }: CellProps<T>) {
+function Cell<T>({ col, row, rowId, id, colIndex, left, memory, flashVariant, flashWindowMs, focusedCol, selectedBar, rules, rowRule, edits }: CellProps<T>) {
   const value = col.accessor(row)
   const ref = useRef<HTMLDivElement>(null)
   const flash = col.flash ?? (col.numeric ? flashVariant : false)
@@ -714,7 +817,7 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
     [editable, status, edits, rowId, col.key],
   )
   const numericClass = col.numeric ? (col.font === "mono" ? MONO_NUMERIC_CLASS : NUMERIC_CLASS) : ""
-  const header = typeof col.header === "string" ? col.header : col.key
+  const header = columnName(col)
   const editing = status?.kind === "editing"
   const pendingText = status?.kind === "pending" && !col.cell ? status.text : null
   const content = editing
@@ -734,6 +837,7 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
   return (
     <div
       ref={ref}
+      id={id}
       role="gridcell"
       aria-colindex={colIndex + 1}
       aria-description={rejected ?? rule?.["aria-description"]}
@@ -782,6 +886,8 @@ interface RowProps<T> {
   id: RowId
   index: number
   domId: string
+  /** The grid's id, which its cells' ids start with. */
+  uid: string
   columns: Resolved<T>[]
   template: string
   lefts: (number | undefined)[]
@@ -792,6 +898,8 @@ interface RowProps<T> {
   focused: boolean
   focusedColKey: string | null
   selectionColumn: boolean
+  selectable: boolean
+  selectLabel: string
   onToggle: (id: RowId) => void
   memory: FlashMemory
   flashVariant: "fill" | "ring"
@@ -828,6 +936,9 @@ function RowInner<T>(p: RowProps<T>) {
   const extra = p.getRowProps?.(row, p.id)
   // A row rule paints under whatever your own props say: yours are read last, so they win a class.
   const rule = p.rules?.getRowProps(row)
+  const rowLabel = p.getRowLabel?.(row, p.id) || undefined
+  // Each cell's id once per render, for the row's label and the cell alike.
+  const cellIds = p.columns.map((_, i) => cellDomId(p.uid, p.id, i))
   return (
     <div
       ref={ref}
@@ -838,10 +949,12 @@ function RowInner<T>(p: RowProps<T>) {
       data-rule={extra?.["data-rule"] ?? rule?.["data-rule"]}
       data-tone={extra?.["data-tone"] ?? rule?.["data-tone"]}
       aria-description={extra?.["aria-description"] ?? rule?.["aria-description"]}
-      aria-label={p.getRowLabel?.(row, p.id) || undefined}
+      aria-label={rowLabel}
+      // Without a label of its own a row is named by its data cells, never by its selection box.
+      aria-labelledby={rowLabel ? undefined : cellIds.join(" ") || undefined}
       data-focused={p.focused || undefined}
       aria-rowindex={p.index + 2}
-      aria-selected={p.selected || undefined}
+      aria-selected={p.selectable ? p.selected : undefined}
       className={cn(
         "absolute top-0 left-0 grid items-stretch border-b border-border/60",
         FILL_CLASSES,
@@ -853,7 +966,7 @@ function RowInner<T>(p: RowProps<T>) {
     >
       {p.selectionColumn && (
         <div role="gridcell" aria-colindex={1} className={cn("sticky left-0 z-10 flex items-center justify-center bg-background", p.selected && SELECTED_BAR)}>
-          <Checkbox checked={p.selected} onCheckedChange={() => p.onToggle(p.id)} aria-label="Select row" />
+          <Checkbox tabIndex={-1} checked={p.selected} onCheckedChange={() => p.onToggle(p.id)} aria-label={p.selectLabel} />
         </div>
       )}
       {p.columns.map((col, i) => (
@@ -862,6 +975,7 @@ function RowInner<T>(p: RowProps<T>) {
           col={col}
           row={row}
           rowId={p.id}
+          id={cellIds[i]!}
           colIndex={i + (p.selectionColumn ? 1 : 0)}
           left={p.lefts[i]}
           memory={p.memory}
@@ -960,7 +1074,15 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const selectionColumn = Boolean(props.selectionColumn) && selectionMode === "multi"
   const rowEnter = { ...preset.rowEnter, ...props.rowEnter }
   const announceRowCount = props.announceRowCount ?? preset.announceRowCount
-  const flashWindowMs = props.flashWindowMs ?? 900
+  // A window that isn't a finite length of zero or more would throw from the flash animation: the default stands in.
+  const flashWindowMs = Number.isFinite(props.flashWindowMs) && props.flashWindowMs! >= 0 ? props.flashWindowMs! : 900
+  // A word left undefined keeps its default.
+  const labels = useMemo(() => ({ ...DEFAULT_DATA_GRID_LABELS, ...Object.fromEntries(Object.entries(props.labels ?? {}).filter(([, word]) => word !== undefined)) }) as DataGridLabels, [props.labels])
+  // The words a timer says later, read when it fires.
+  const latestLabels = useRef(labels)
+  useInsertionEffect(() => {
+    latestLabels.current = labels
+  })
   const reorderHoldMs = props.reorderHoldMs ?? preset.reorderHoldMs
 
   const [sort, setSort] = useControllable(props.sort, props.onSortChange, null as SortState)
@@ -989,6 +1111,28 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const view = props.view ?? ownView!
   const ids = useRowIds(view)
   const indexOf = useMemo(() => new Map(ids.map((id, i) => [id, i] as const)), [ids])
+  // A focused row the view lets go of hands focus to the row now at its place, the last row if it was last, so the keys
+  // go on from where the trader was and a screen reader hears where focus went. Only a row the view held: focus a parent
+  // sets on a row that hasn't arrived yet waits for it.
+  const focusedAt = useRef<{ id: RowId; index: number } | null>(null)
+  useLayoutEffect(() => {
+    if (focusedRowId === null) {
+      focusedAt.current = null
+      return
+    }
+    const at = indexOf.get(focusedRowId)
+    if (at !== undefined) {
+      focusedAt.current = { id: focusedRowId, index: at }
+      return
+    }
+    const was = focusedAt.current
+    if (was?.id !== focusedRowId || ids.length === 0) return
+    const index = Math.min(was.index, ids.length - 1)
+    // The row asked for is the one recorded now: a parent that keeps the departed id is asked once, and one that applies
+    // the row asked for after it has left too gets another.
+    focusedAt.current = { id: ids[index]!, index }
+    setFocusedRowId(ids[index]!)
+  })
 
   const resolved = useMemo(() => resolveColumns(columns, columnState), [columns, columnState])
   if (focusedColKey !== null && !resolved.some(column => column.key === focusedColKey)) setFocusedColKey(null)
@@ -1012,16 +1156,41 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   // Scrolls a row into view. Set once the virtualizer exists; the controller calls it when an editor opens.
   const revealRow = useRef<(rowId: RowId) => void>(() => {})
-  const revealColumn = useRef<(key: string) => void>(() => {})
-  // A column the keys moved or resized, with the place and width the request gives it: the commit that lays the column
-  // out there, however late a controlled parent applies the change, brings it into view, and no other commit does.
-  const columnToReveal = useRef<{ key: string; index: number; width: number } | null>(null)
+  // The column layout as of this commit, published before any layout effect runs, so a reveal called from a cell's own
+  // layout effect, in the commit that adds or moves its column, measures the new layout.
+  const layout = useRef({ resolved, selectionColumn })
+  useInsertionEffect(() => {
+    layout.current = { resolved, selectionColumn }
+  })
+  // Sideways, a column comes clear of the frozen ones on the left and inside the viewport's right edge, its left edge
+  // first when it is wider than the space between. A frozen column is always in view.
+  const revealColumn = useRef((key: string) => {
+    const el = scrollRef.current
+    const { resolved, selectionColumn } = layout.current
+    const i = resolved.findIndex((c) => c.key === key)
+    if (!el || i < 0 || resolved[i]!.frozen === "left") return
+    const lead = selectionColumn ? SELECT_WIDTH : 0
+    let x = lead
+    let stuck = lead
+    for (let j = 0; j < resolved.length; j++) {
+      if (j < i) x += resolved[j]!.width
+      if (resolved[j]!.frozen === "left") stuck += resolved[j]!.width
+    }
+    const start = x - stuck
+    const end = x + resolved[i]!.width - el.clientWidth
+    if (el.scrollLeft > start) el.scrollLeft = start
+    else if (el.scrollLeft < end) el.scrollLeft = Math.min(end, start)
+  })
+  // A column moved or resized by the keys or its header menu, with the order and width the request gives the columns
+  // and the column focus it was asked under: the commit that lays the columns out exactly so, however late a controlled
+  // parent applies the change, brings the column into view, and no other commit does.
+  const columnToReveal = useRef<{ key: string; order: readonly string[]; width: number; focus: string | null } | null>(null)
 
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
-  const editLatest = useRef({ columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId) })
+  const editLatest = useRef({ columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId), rejected: labels.rejected })
   useInsertionEffect(() => {
-    editLatest.current = { columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId) }
+    editLatest.current = { columns, resolved, onEdit, inView: (rowId: RowId) => indexOf.has(rowId), rejected: labels.rejected }
   })
   const editable = Boolean(onEdit)
   const edits = useMemo<EditController | null>(() => {
@@ -1043,7 +1212,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       try {
         result = editLatest.current.onEdit?.({ rowId, key: col.key, value, previous, row })
       } catch (error) {
-        tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error) })
+        tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error, editLatest.current.rejected) })
         return
       }
       if (result && typeof (result as Promise<unknown>).then === "function") {
@@ -1060,8 +1229,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
           },
           (error: unknown) => {
             const now = tracker.get(k)
-            if (now?.kind === "pending" && Object.is(now.value, value)) tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error) })
-            else if (now?.kind === "editing" && now.prior?.kind === "pending" && Object.is(now.prior.value, value)) tracker.set(k, { ...now, prior: { kind: "rejected", value: previous, message: messageOf(error) } })
+            if (now?.kind === "pending" && Object.is(now.value, value)) tracker.set(k, { kind: "rejected", value: previous, message: messageOf(error, editLatest.current.rejected) })
+            else if (now?.kind === "editing" && now.prior?.kind === "pending" && Object.is(now.prior.value, value)) tracker.set(k, { ...now, prior: { kind: "rejected", value: previous, message: messageOf(error, editLatest.current.rejected) } })
           },
         )
       }
@@ -1315,41 +1484,28 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     scrollPaddingEnd: footer ? rowHeight : 0,
   })
   const items = virtualizer.getVirtualItems()
-  useLayoutEffect(() => {
+  // Published before any layout effect runs, so an editor a cell opens from its own layout effect, in the commit that
+  // adds its row, scrolls to where the row now is.
+  useInsertionEffect(() => {
     revealRow.current = (rowId) => {
       const i = indexOf.get(rowId)
       if (i !== undefined) virtualizer.scrollToIndex(i, { align: "auto" })
     }
-    // Sideways, a column comes clear of the frozen ones on the left and inside the viewport's right edge, its left
-    // edge first when it is wider than the space between. A frozen column is always in view.
-    revealColumn.current = (key) => {
-      const el = scrollRef.current
-      const i = resolved.findIndex((c) => c.key === key)
-      if (!el || i < 0 || resolved[i]!.frozen === "left") return
-      const lead = selectionColumn ? SELECT_WIDTH : 0
-      let x = lead
-      let stuck = lead
-      for (let j = 0; j < resolved.length; j++) {
-        if (j < i) x += resolved[j]!.width
-        if (resolved[j]!.frozen === "left") stuck += resolved[j]!.width
-      }
-      const start = x - stuck
-      const end = x + resolved[i]!.width - el.clientWidth
-      if (el.scrollLeft > start) el.scrollLeft = start
-      else if (el.scrollLeft < end) el.scrollLeft = Math.min(end, start)
-    }
+  })
+  useLayoutEffect(() => {
     const pending = columnToReveal.current
     if (pending !== null) {
       const i = resolved.findIndex((c) => c.key === pending.key)
-      if (pending.key !== focusedColKey || i < 0) columnToReveal.current = null
-      else if (i === pending.index && resolved[i]!.width === pending.width) {
+      if (pending.focus !== focusedColKey || i < 0) columnToReveal.current = null
+      else if (resolved.length === pending.order.length && resolved.every((c, k) => c.key === pending.order[k]) && resolved[i]!.width === pending.width) {
         columnToReveal.current = null
         revealColumn.current(pending.key)
       }
     }
   })
   const uid = useId()
-  const domId = (id: RowId) => `${uid}-${id}`
+  // Escaped, so any row id makes one IDREF, and prefixed apart from the cells' ids, so none collide.
+  const domId = useCallback((id: RowId) => `${uid}-r-${idPart(id)}`, [uid])
 
   // A tape follows its tail: new rows land at the end and the viewport goes there after every commit,
   // until a key, a pointer, or a scroll away from the end stops it. Then the arrivals count up on a
@@ -1407,13 +1563,13 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const id = el.dataset.rowId
         const elapsed = id !== undefined ? due.get(id) : undefined
         // A nested grid's rows can share ids with this one: the DOM id says whose row this is.
-        if (id !== undefined && elapsed !== undefined && el.id === `${uid}-${id}`) {
+        if (id !== undefined && elapsed !== undefined && el.id === domId(id)) {
           entered.delete(id)
           playFlash(el, "flat", { windowMs: ENTER_WINDOW_MS, variant: "fill", elapsed })
         }
       }
     }
-  }, [entered, uid])
+  }, [entered, domId])
   const scheduleReleaseSweep = useCallback(() => {
     if (sweepTimerRef.current !== null) clearTimeout(sweepTimerRef.current)
     sweepTimerRef.current = null
@@ -1500,7 +1656,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     setFollowing(false)
     setAnchor(ids.length)
   }
-  const toTail = () => {
+  const toTail = (e: MouseEvent<HTMLButtonElement>) => {
+    // The button goes once following resumes: focus on it moves to the grid first, rather than fall to the page.
+    // Inside a shadow root the document's active element is the host, so ask the root the button is in.
+    if ((e.currentTarget.getRootNode() as Document | ShadowRoot).activeElement === e.currentTarget) rootRef.current?.focus({ preventScroll: true })
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
     setFollowing(true)
@@ -1521,7 +1680,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const t = setTimeout(() => {
       const fresh = newSinceAnnounce.current
       newSinceAnnounce.current = 0
-      setAnnouncement(`${ids.length.toLocaleString()} ${ids.length === 1 ? "row" : "rows"}${fresh ? `, ${fresh.toLocaleString()} new` : ""}`)
+      const { rowCount } = latestLabels.current
+      setAnnouncement(typeof rowCount === "function" ? rowCount(ids.length, fresh) : fillLabel(rowCount, { n: ids.length, m: fresh }))
     }, 1000)
     return () => clearTimeout(t)
   }, [ids.length, announceRowCount])
@@ -1537,14 +1697,14 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const root = rootRef.current
       // Inside a shadow root the document's active element is the host, so ask the root the grid is in.
       if (!root || (root.getRootNode() as Document | ShadowRoot).activeElement !== root) return
-      const id = `${uid}-${focusedRowId}`
+      const id = domId(focusedRowId)
       const row = Array.from(root.querySelectorAll<HTMLElement>('[role="row"][data-row-id]')).find((el) => el.id === id)
       const text = row ? rowReading(row) : ""
       // The same words again would change nothing a live region hears, so a repeat differs by an invisible character.
       if (text) setReading((was) => (was === text ? `${text}\u200b` : text))
     }, ROW_READING_REST_MS)
     return () => clearTimeout(t)
-  }, [readsRows, focusedRowId, arrivals, uid])
+  }, [readsRows, focusedRowId, arrivals, domId])
 
   // Selection and focus, by id.
   const select = useCallback(
@@ -1616,12 +1776,40 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     (key: string, width: number) => {
       const col = resolved.find((c) => c.key === key)
       if (!col) return
-      updateColumns((s) => ({ ...s, widths: { ...s.widths, [key]: Math.max(col.minWidth, Math.round(width)) } }))
+      // A drag or a key that leaves the width as it is, at the minimum, changes nothing.
+      const next = Math.max(col.minWidth, Math.round(width))
+      if (next === col.width) return
+      updateColumns((s) => ({ ...s, widths: { ...s.widths, [key]: next } }))
     },
     [resolved, updateColumns],
   )
   const hideColumn = useCallback((key: string) => updateColumns((s) => ({ ...s, hidden: [...new Set([...s.hidden, key])] })), [updateColumns])
   const resetColumns = useCallback(() => setColumnState(baseState), [baseState, setColumnState])
+  // A move or resize the keys or a header menu ask for. A request that can't change the layout changes nothing: past
+  // either end, across the frozen boundary (frozen columns lead whatever the order says), or under the minimum width.
+  // Otherwise it's recorded before the state changes, so a commit the change flushes at once still finds it.
+  const requestColumn = (key: string, change: { move: -1 | 1 } | { widen: number }) => {
+    const i = resolved.findIndex((c) => c.key === key)
+    const at = resolved[i]
+    if (!at) return
+    const order = resolved.map((c) => c.key)
+    if ("move" in change) {
+      const beside = resolved[i + change.move]
+      if (!beside || (beside.frozen === "left") !== (at.frozen === "left")) return
+      ;[order[i], order[i + change.move]] = [beside.key, at.key]
+      columnToReveal.current = { key, order, width: at.width, focus: focusedColKey }
+      moveColumn(key, change.move)
+    } else {
+      const width = Math.max(at.minWidth, Math.round(at.width + change.widen))
+      if (width === at.width) return
+      columnToReveal.current = { key, order, width, focus: focusedColKey }
+      resizeColumn(key, width)
+    }
+  }
+  // A key that moves row focus brings the focused column back too, should a wheel have scrolled it away.
+  const revealFocusedColumn = () => {
+    if (focusedColKey !== null) revealColumn.current(focusedColKey)
+  }
 
   // The sticky header and footer each cover one row of the viewport.
   const visibleCount = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? initialRect?.height ?? rowHeight * 10) / rowHeight) - 1 - (footer ? 1 : 0))
@@ -1654,7 +1842,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     // silently activated, edited, selected, or menued.
     const focusedInView = fi >= 0
     // Typing on an editable cell opens its editor with the character typed.
-    if (focusedInView && e.key.length === 1 && e.key !== " " && !mod && !e.altKey) {
+    if (focusedInView && !e.repeat && e.key.length === 1 && e.key !== " " && !mod && !e.altKey) {
       const col = editableFocus()
       if (col && !col.edit.toggle) {
         e.preventDefault()
@@ -1662,50 +1850,55 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         return
       }
     }
+    const letter = altLetter(e)
+    if ((letter === "s" || letter === "h") && focusedColKey) {
+      e.preventDefault()
+      // Once per press: a held Alt+S would cycle the sort on every repeat, and a parent that hasn't applied a hide yet
+      // would be asked again on every repeat.
+      if (e.repeat) return
+      if (letter === "s") cycleSort(focusedColKey)
+      else hideColumn(focusedColKey)
+      return
+    }
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault()
         focusIndex(fi + 1, e.shiftKey)
+        revealFocusedColumn()
         return
       case "ArrowUp":
         e.preventDefault()
         focusIndex(fi <= 0 ? 0 : fi - 1, e.shiftKey)
+        revealFocusedColumn()
         return
       case "PageDown":
         e.preventDefault()
         focusIndex(fi + visibleCount, e.shiftKey)
+        revealFocusedColumn()
         return
       case "PageUp":
         e.preventDefault()
         focusIndex(fi - visibleCount, e.shiftKey)
+        revealFocusedColumn()
         return
       case "Home":
         e.preventDefault()
         focusIndex(0, e.shiftKey)
+        revealFocusedColumn()
         return
       case "End":
         e.preventDefault()
         focusIndex(ids.length - 1, e.shiftKey)
+        revealFocusedColumn()
         return
       case "ArrowLeft":
       case "ArrowRight": {
         e.preventDefault()
         const delta = e.key === "ArrowLeft" ? -1 : 1
         if (e.altKey && focusedColKey) {
-          const at = resolved[ci]
-          // Recorded before the state changes, so a commit the change flushes at once still finds it, and only when the
-          // request can change the layout: past either end, across the frozen boundary, or under the minimum width,
-          // nothing moves. The commit that lays the column out as asked brings it into view; focus or a pointer moving
-          // on first drops the request, and a parent that never applies it never scrolls the grid for it.
-          if (at && e.shiftKey) {
-            const width = Math.max(at.minWidth, Math.round(at.width + delta * 8))
-            if (width !== at.width) columnToReveal.current = { key: at.key, index: ci, width }
-            resizeColumn(focusedColKey, at.width + delta * 8)
-          } else if (at) {
-            const beside = resolved[ci + delta]
-            if (beside && (beside.frozen === "left") === (at.frozen === "left")) columnToReveal.current = { key: at.key, index: ci + delta, width: at.width }
-            moveColumn(focusedColKey, delta)
-          }
+          // The commit that lays the columns out as asked brings the column into view; focus or a pointer moving on
+          // first drops the request, and a layout the parent changes or never applies doesn't scroll the grid for it.
+          requestColumn(focusedColKey, e.shiftKey ? { widen: delta * 8 } : { move: delta })
           return
         }
         const next = resolved[Math.max(0, Math.min(resolved.length - 1, ci < 0 ? (delta > 0 ? 0 : resolved.length - 1) : ci + delta))]
@@ -1737,9 +1930,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         const col = editableFocus()
         if (col) {
           e.preventDefault()
+          // Once per press: a held key would commit a toggle again, or close and reopen an editor on each repeat.
+          if (e.repeat) return
           const row = store.getRow(focusedRowId!)!
           if (col.edit.toggle) {
-            if (e.repeat) return
             revealColumn.current(col.key)
             edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row), false)
           } else edits!.open(focusedRowId!, col.key)
@@ -1754,34 +1948,21 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         return
       }
       case "Escape":
-        if (selectionMode !== "none" && selection.size) setSelection(EMPTY_SET)
+        // Once per press: the repeats of an Escape that closed an editor land here and would clear the selection.
+        if (!e.repeat && selectionMode !== "none" && selection.size) setSelection(EMPTY_SET)
         return
       case "a":
       case "A":
         if (mod && selectionMode === "multi") {
           e.preventDefault()
-          setSelection(new Set(ids))
-        }
-        return
-      case "s":
-      case "S":
-        if (e.altKey && focusedColKey) {
-          e.preventDefault()
-          cycleSort(focusedColKey)
-        }
-        return
-      case "h":
-      case "H":
-        if (e.altKey && focusedColKey) {
-          e.preventDefault()
-          hideColumn(focusedColKey)
+          if (!e.repeat) setSelection(new Set(ids))
         }
         return
       case "ContextMenu":
       case "F10":
         if (e.key === "F10" && !e.shiftKey) return
         e.preventDefault()
-        openContextMenuAtFocus()
+        if (!e.repeat) openContextMenuAtFocus()
         return
     }
   }
@@ -1890,7 +2071,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // A rapid reopen must get fresh content even while the previous popup is still exiting.
   const [menuOpening, setMenuOpening] = useState(0)
   const contextRows = useMemo(() => {
-    const targets = selection.size ? [...selection] : focusedRowId !== null ? [focusedRowId] : []
+    // With nothing selected the menu acts on the row it opened on, even when focus has since moved off a row that left.
+    const opened = menuRow ?? focusedRowId
+    const targets = selection.size ? [...selection] : opened !== null ? [opened] : []
     return { opening: menuOpening, ids: targets, target: menuRow ?? focusedRowId, rows: targets.map((id) => store.getRow(id)).filter((r): r is T => r !== undefined) }
   }, [selection, focusedRowId, store, menuOpening, menuRow])
 
@@ -1916,7 +2099,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         className="sticky top-0 z-20 grid border-b border-border bg-background text-muted-foreground"
         style={{ gridTemplateColumns: template, width: totalWidth, height: rowHeight }}
       >
-        {selectionColumn && <div role="columnheader" aria-colindex={1} className="sticky left-0 z-30 bg-background" />}
+        {selectionColumn && <div role="columnheader" aria-colindex={1} aria-label={labels.selection} className="sticky left-0 z-30 bg-background" />}
         {resolved.map((col, i) => (
           <HeaderCell
             key={col.key}
@@ -1926,20 +2109,21 @@ export function DataGrid<T>(props: DataGridProps<T>) {
             left={lefts[i]}
             sort={sort?.key === col.key ? sort.dir : null}
             focused={focusedColKey === col.key}
-            canMoveLeft={i > 0}
-            canMoveRight={i < resolved.length - 1}
+            canMoveLeft={i > 0 && (resolved[i - 1]!.frozen === "left") === (col.frozen === "left")}
+            canMoveRight={i < resolved.length - 1 && (resolved[i + 1]!.frozen === "left") === (col.frozen === "left")}
             onSort={() => cycleSort(col.key)}
             onFocus={() => setFocusedColKey(col.key)}
             onHide={() => hideColumn(col.key)}
-            onMove={(d) => moveColumn(col.key, d)}
+            onMove={(d) => requestColumn(col.key, { move: d })}
             onReset={resetColumns}
             onResize={(w) => resizeColumn(col.key, w)}
             hiddenCount={columnState.hidden.length}
+            labels={labels}
           />
         ))}
       </div>
       {ids.length === 0 ? (
-        <div className="p-4 text-muted-foreground">{emptyState ?? "No rows"}</div>
+        <div id={`${uid}-empty`} className="p-4 text-muted-foreground">{emptyState ?? labels.noRows}</div>
       ) : (
         <div role="rowgroup" className="relative shrink-0" style={{ height: virtualizer.getTotalSize(), width: totalWidth }}>
           {items.map((v) => {
@@ -1951,6 +2135,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
                 id={id}
                 index={v.index}
                 domId={domId(id)}
+                uid={uid}
                 columns={resolved}
                 template={template}
                 lefts={lefts}
@@ -1961,6 +2146,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
                 focused={focusedRowId === id}
                 focusedColKey={focusedColKey}
                 selectionColumn={selectionColumn}
+                selectable={selectionMode !== "none"}
+                selectLabel={labels.selectRow}
                 onToggle={toggle}
                 memory={memory}
                 flashVariant={preset.flash}
@@ -1994,6 +2181,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       aria-colcount={resolved.length + (selectionColumn ? 1 : 0)}
       aria-multiselectable={selectionMode === "multi" || undefined}
       aria-activedescendant={focusedRowId !== null && indexOf.has(focusedRowId) ? domId(focusedRowId) : undefined}
+      aria-describedby={ids.length === 0 ? `${uid}-empty` : undefined}
       onKeyDown={onKeyDown}
       onFocus={readsRows ? (e) => { if (e.target === e.currentTarget) setArrivals((n) => n + 1) } : undefined}
       className={cn("relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", preset.fontClass, className)}
@@ -2015,7 +2203,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
           className="absolute left-1/2 z-30 -translate-x-1/2 rounded-full bg-primary px-2.5 py-0.5 text-primary-foreground shadow-sm hover:bg-primary/90"
           style={{ bottom: (footer ? rowHeight : 0) + 8 }}
         >
-          {behind.toLocaleString()} new
+          {typeof labels.newRows === "function" ? labels.newRows(behind) : fillLabel(labels.newRows, { n: behind })}
         </button>
       )}
       {announceRowCount !== "off" && (
@@ -2042,6 +2230,7 @@ interface HeaderCellProps<T> {
   canMoveLeft: boolean
   canMoveRight: boolean
   hiddenCount: number
+  labels: DataGridLabels
   onSort: () => void
   onFocus: () => void
   onHide: () => void
@@ -2131,10 +2320,14 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
     // Synthetic events may not have an active browser pointer to capture.
     try { handle.setPointerCapture?.(pointerId) } catch { /* Window listeners still end the gesture. */ }
   }
-  const title = typeof col.header === "string" ? col.header : undefined
+  // The column's name in words: its title, its header when that is words, else its key. A header is named by it alone,
+  // never by the menu button and resize handle inside, which have names of their own; give a header of markup a title.
+  const name = columnName(col)
+  const words = col.title?.trim() || (typeof col.header === "string" ? col.header.trim() : "")
   return (
     <div
       role="columnheader"
+      aria-label={name}
       aria-colindex={p.colIndex + 1}
       aria-sort={p.sort === "asc" ? "ascending" : p.sort === "desc" ? "descending" : col.sortable ? "none" : undefined}
       data-col={col.key}
@@ -2145,7 +2338,7 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
     >
       <span
         className={cn("min-w-0 flex-1 truncate", col.sortable && "cursor-pointer hover:text-foreground")}
-        title={title}
+        title={words || undefined}
         onClick={col.sortable ? p.onSort : undefined}
       >
         {col.header}
@@ -2154,7 +2347,7 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
       <DropdownMenu>
         <DropdownMenuTrigger
           ref={triggerRef}
-          aria-label={`${title ?? col.key} column menu`}
+          aria-label={fillLabel(p.labels.columnMenu, { name })}
           className="rounded px-1 text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[popup-open]:opacity-100 data-[state=open]:opacity-100"
         >
           <svg aria-hidden width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
@@ -2164,22 +2357,22 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
           </svg>
         </DropdownMenuTrigger>
         <DropdownMenuContent ref={menuRef} align="end">
-          {col.sortable && <DropdownMenuItem onClick={p.onSort}>{p.sort === "asc" ? "Sort descending" : p.sort === "desc" ? "Clear sort" : "Sort ascending"}</DropdownMenuItem>}
+          {col.sortable && <DropdownMenuItem onClick={p.onSort}>{p.sort === "asc" ? p.labels.sortDescending : p.sort === "desc" ? p.labels.clearSort : p.labels.sortAscending}</DropdownMenuItem>}
           <DropdownMenuItem disabled={!p.canMoveLeft} onClick={() => p.onMove(-1)}>
-            Move left
+            {p.labels.moveLeft}
           </DropdownMenuItem>
           <DropdownMenuItem disabled={!p.canMoveRight} onClick={() => p.onMove(1)}>
-            Move right
+            {p.labels.moveRight}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={p.onHide}>Hide column</DropdownMenuItem>
+          <DropdownMenuItem onClick={p.onHide}>{p.labels.hideColumn}</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={p.onReset}>Reset columns{p.hiddenCount ? ` (${p.hiddenCount} hidden)` : ""}</DropdownMenuItem>
+          <DropdownMenuItem onClick={p.onReset}>{typeof p.labels.resetColumns === "function" ? p.labels.resetColumns(p.hiddenCount) : fillLabel(p.labels.resetColumns, { n: p.hiddenCount })}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label={`Resize ${title ?? col.key}`}
+        aria-label={fillLabel(p.labels.resizeColumn, { name })}
         onPointerDown={startResize}
         className="absolute top-0 right-0 h-full w-1.5 touch-none cursor-col-resize hover:bg-ring/40"
       />

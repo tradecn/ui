@@ -129,6 +129,16 @@ describe("Blotter deletion keys", () => {
     expect(fireEvent.keyDown(grid, { key })).toBe(false)
     expect(run).toHaveBeenCalledTimes(1)
   })
+
+  it("runs the delete action once for a held key", () => {
+    const run = vi.fn()
+    render(<Blotter store={seeded()} selection={new Set(["o1"])} actions={[cancel(run)]}>
+      <BlotterGrid deleteAction="cancel" initialRect={RECT} />
+    </Blotter>)
+    const grid = screen.getByRole("grid")
+    for (const repeat of [false, true, true]) expect(fireEvent.keyDown(grid, { key: "Delete", repeat })).toBe(false)
+    expect(run).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe("blotterColumns", () => {

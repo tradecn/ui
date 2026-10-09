@@ -182,7 +182,8 @@ export function WatchlistGrid<T extends WatchlistRow = WatchlistRow>({ columns, 
     // The direct DataGrid root owns removal keys; its controls and portals keep theirs.
     if (event.target !== event.currentTarget.firstElementChild || !targets.length) return
     event.preventDefault()
-    remove(targets)
+    // Once per press: a held key would go on to remove the row focus lands on next.
+    if (!event.repeat) remove(targets)
   }
   return <div ref={ref} onKeyDown={keyDown} data-slot="tradecn-watchlist-grid" className={cn("h-full min-h-0 flex-1", className)}>
     <DataGrid<T> {...grid} store={store} preset="watchlist" label={label} columns={all} selection={selection} onSelectionChange={select} focusedRowId={focusedRowId} onFocusedRowChange={focus} getRowProps={rowProps} getRowLabel={getRowLabel} renderContextMenu={renderContextMenu} />
@@ -274,7 +275,7 @@ export function WatchlistRemoveMenuItem({ ids, children, disabled, onClick, ...p
 
 /** The ordinary row removal control; include or position it in your own column list. */
 export function watchlistRemoveColumn<T extends WatchlistRow>(): ColumnDef<T> {
-  return { key: "__remove", header: <span className="sr-only">Remove</span>, width: 28, align: "center", flash: false, accessor: () => null, cell: ({ row }) => (
+  return { key: "__remove", header: <span className="sr-only">Remove</span>, title: "Remove", width: 28, align: "center", flash: false, accessor: () => null, cell: ({ row }) => (
     <WatchlistRemoveButton ids={[row.symbol]} tabIndex={-1} aria-label={`Remove ${row.symbol}`} className="size-4 rounded-sm leading-none text-muted-foreground opacity-0 outline-none group-hover/row:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100">×</WatchlistRemoveButton>
   ) }
 }

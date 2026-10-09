@@ -79,7 +79,7 @@ In Bid size, `60000000` asks for confirmation above 50 million; `150000000` is b
 | `font` | `"numeric" \| "mono"` | See below | Font family for the market and desk bid/ask columns. |
 | `columns` | `ColumnDef<T>[] \| ((question: QuotePanelQuestion) => ColumnDef<T>[])` | `quotePanelColumns(options)` | Replace the generated column list. A function keeps the panel's question line; see [Columns](#columns). |
 | `label` | `string` | `"Quotes"` | Accessible name for the grid. |
-| `labels` | `Partial<QuotePanelLabels>` | `DEFAULT_QUOTE_PANEL_LABELS` | Override the words listed below. |
+| `labels` | `Partial<QuotePanelLabels & DataGridLabels>` | `DEFAULT_QUOTE_PANEL_LABELS` | Override the words listed below, and the grid's own, [DataGrid's labels](data-grid.md#labels). |
 | `className` | `string` | None | Classes on the outer wrapper. |
 
 Keep `labels`, `actions`, `limits`, and a fixed `convention` stable between renders: a new object rebuilds every generated column.

@@ -14,6 +14,8 @@ Replace render-time `store.createView(...)`, including calls inside `useMemo` or
 | Hook cleanup calls terminal `dispose()` | Cleanup releases the connection. Feed work and timers stop, and effect replay reconnects the same handle. `isDisposed()` remains `false` unless explicitly disposed. |
 | Custom `RowStore` supplies `createView` | Every structural `RowStore` must also supply pure `prepareView`, including stores passed only to row-reading consumers. |
 | Imperative `createView` and caller-supplied `RowView` | Retained. Create outside render and dispose when your application finishes with it. Borrowing grids do not dispose supplied views. |
+| `createFrameBatcher` waits for an animation frame | It flushes on the next frame, or after 250 ms when no frame comes, so a hidden tab, which runs no frames, still applies its feed. |
+| `reorderHoldMs` past 2,147,483,647 ms, or `Infinity`, fires at once and then holds forever | It holds that long, the longest a timer waits; a value that isn't a positive number holds nothing. |
 
 `useAlertView` and `useRfqStackView` use the same connection lifecycle. Remove cleanup that disposes their returned handles. Observe your component's own lifecycle when you need an unmount signal, rather than polling `isDisposed()`.
 
@@ -311,6 +313,8 @@ Rule data that can't be read no longer throws, and `readRules` reads rules a des
 
 Fixed `rules-tab-*` and `rules-panel-*` IDs and the root's `data-tab` marker are removed. Your installed `Tabs` owns tab IDs and state. You can use role/name locators or set explicit IDs on your Tabs parts.
 
+The `matches` and `shown` labels take a function of the counts as well as a template, and their defaults are now functions that put one in the singular, `1 row matches` and `1 of 1 row shows`, where v1's templates said `1 rows match`. A template of your own still works; code that reads `DEFAULT_RULES_EDITOR_LABELS.matches` or `.shown` as a string calls it instead.
+
 ## HotkeyEditor
 
 `HotkeyEditor` now requires `children`. Compose an item for one binding, or map `useHotkeyEditor().groups` into your own sections and items.
@@ -422,7 +426,7 @@ Open shadow roots use the same ownership rules. For a closed shadow root, mark i
 
 Both exclude this grid's row actions and row menu. Without a marker, the hidden content is indistinguishable from its plain host.
 
-Row context menus now open only from plain content in a current row. Controls retain their own menus, while headers, footers and empty space no longer open the menu for the previous selection.
+Row context menus now open only from plain content in a current row. Controls retain their own menus, while headers, footers and empty space no longer open the menu for the previous selection. With nothing selected, the menu acts on the row it opened on where v1 used the focused row, so with focus controlled, the menu acts on the row under the pointer before the parent applies the right-click's request, and keeps that row while it stays open.
 
 With `renderContextMenu`, rejected starts stop React bubbling at the grid body after child handlers run. This covers `contextmenu`, non-mouse `pointerdown`, and single-touch `touchstart` events.
 
@@ -438,7 +442,9 @@ The handle is pointer-only. Use Alt+Shift+Left or Right with the grid focused to
 
 A selected row is marked by a bar at the start of its first cell, the selection box's when there is one, where v1 filled the row with `bg-accent`, which could put up or down text below 4.5 to 1 in light mode. A rule's tone paints foreground text on its tint, and up, down, flat, stale, expiring, destructive, and primary text inside takes the foreground too, where v1 colored the text with the tone. A frozen cell in the focused column keeps its opaque background, where v1 let rows scrolling beneath show through it.
 
-A held key acts once per press: Space, Enter, or F2 on a toggle cell commits once, Space selects or toggles a row once, and Enter activates a row once, where v1 acted again on every key repeat. Left and Right, the Alt moves and resizes, an opening editor, and a toggle's commit scroll the grid sideways to bring their column into view, clear of the frozen columns, where v1 left a sheet wider than its panel where it was scrolled. Shift+F10 and the Menu key open the menu at the focused cell, where v1 opened it 8 px in from the row's left edge, off to the side of a grid scrolled sideways. The row count announces `1 row`, where v1 said `1 rows`.
+A held key acts once per press, where v1 acted again on every key repeat: Space, Enter, or F2 on a toggle cell commits once, Enter, F2, or a typed character opens an editor once, Space selects or toggles a row once, Enter activates a row once, Ctrl or Cmd+A selects all once, Alt+S takes one sort step, Alt+H hides once, Shift+F10 opens the menu once, and Watchlist's and Blotter's Delete and Backspace remove or run their action once. Left and Right, the keys that move row focus, the Alt moves and resizes, a header menu's move, an opening editor, and a toggle's commit scroll the grid sideways to bring their column into view, clear of the frozen columns, where v1 left a sheet wider than its panel where it was scrolled. A move across the frozen columns, which v1 offered in the header menu and took from Alt+Left and Right, now changes nothing, where v1 stored an order the layout never showed, and a resize that leaves a width as it is, by key or by dragging past the minimum, no longer calls `onColumnStateChange`. Shift+F10 and the Menu key open the menu at the focused cell, where v1 opened it 8 px in from the row's left edge, off to the side of a grid scrolled sideways. The row count announces `1 row`, where v1 said `1 rows`.
+
+When the focused row leaves the view, focus goes to the row now at its place, or to the last row, where v1 left it on the row that went and Down started again at the first row. The selection checkboxes are no longer Tab stops, where v1 added one in every rendered row; Space on the grid toggles the focused row. Every selectable row says whether it is selected, `aria-selected="false"` included, where v1 marked only the selected ones. A row with no `getRowLabel` is named by its data cells, where v1's name began with its selection box's `Select row`, and a header is named by its column alone, where v1's took in its menu button and resize handle. A column whose header is markup takes `title` for its name in words: the header's name to a screen reader, its menus, the editor, the column chooser, and the CSV, which otherwise use its key. Option+S and Option+H work on a Mac, by the key's place. `exportCsv` writes a number's typographic minus as the hyphen-minus where the cell then reads as one number, where v1's file held text a spreadsheet left out of a sum; one with a unit keeps its own. `DataGridProps` gains `labels`, so a wrapper of your own that declares a `labels` prop of another type omits the grid's (`Omit<DataGridProps<T>, "labels">`) or widens its own, as ParameterGrid and QuotePanel do.
 
 ## DepthLadder
 
@@ -630,7 +636,7 @@ A row is named by its instrument through `getRowLabel`, where v1 named it by its
 
 ## ParameterGrid
 
-The same `getRowProps` change as Positions, and `onEdit` passes straight to the grid, which reads it current on every commit: a commit from a mount-time layout effect lands in this render's handler, not the last one's.
+The same `getRowProps` change as Positions, and `onEdit` passes straight to the grid, which reads it current on every commit: a commit from a mount-time layout effect lands in this render's handler, not the last one's. A held Space or Enter on the enable box sends one request, where v1 sent one on every key repeat, each flipping the value the server had just acknowledged; see the [DataGrid entry](#datagrid).
 
 ## RfqStack
 

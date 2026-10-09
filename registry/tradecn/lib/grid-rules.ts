@@ -96,8 +96,10 @@ export type RuleKind = "highlight" | "filter"
 /** What a rule needs of a column. The grid's `ColumnDef` satisfies it. */
 export interface RuleColumn<T> {
   key: string
-  /** Named in a rule's words when it is a string; the key otherwise. */
+  /** Named in a rule's words when it is a string, unless `title` names it; the key otherwise. */
   header?: unknown
+  /** The column's name in words, before its header. */
+  title?: string
   accessor: (row: T) => unknown
   numeric?: boolean
   /** Reads a value typed into a rule in this column's own format. Default: a number for a numeric column, the text itself for the rest. */
@@ -163,8 +165,9 @@ export function opsFor(column: { numeric?: boolean } | undefined): readonly Rule
   return column?.numeric ? NUMBER_OPS : TEXT_OPS
 }
 
-/** The column's name in words: its header when that is a string, else its key. */
+/** The column's name in words: its title, else its header when that is a string, else its key. */
 export function columnName<T>(column: RuleColumn<T> | undefined, key?: string): string {
+  if (column && typeof column.title === "string" && column.title.trim()) return column.title
   if (column && typeof column.header === "string" && column.header.trim()) return column.header
   return column?.key ?? textOf(key) ?? ""
 }

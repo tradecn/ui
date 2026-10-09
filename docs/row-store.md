@@ -107,7 +107,7 @@ You own the feed and call `applyDeltas` once per frame. `useRow(store, id)` subs
 Choose the path that matches your feed:
 
 - **Already batched per frame:** call `applyDeltas` from the event listener, as with a desktop app's native process. Another animation-frame wait adds latency.
-- **One message at a time:** push deltas into `createFrameBatcher(store.applyDeltas, { getRowId })`, as with WebSocket or polling. It coalesces row writes, merging patch fields with later values winning, and applies the result on the next animation frame.
+- **One message at a time:** push deltas into `createFrameBatcher(store.applyDeltas, { getRowId })`, as with WebSocket or polling. It coalesces row writes, merging patch fields with later values winning, and applies the result on the next animation frame, or after 250 ms when no frame comes, as in a hidden tab, where a browser runs no frames and slows its timers to about one a second.
 
 ### Views
 
@@ -117,7 +117,7 @@ Choose the path that matches your feed:
 |---|---|---|---|
 | `comparator` | `(a: T, b: T) => number` | Store order | Sort rows by your prioritization rule. |
 | `filter` | `(row: T) => boolean` | All rows | Include rows that pass. |
-| `reorderHoldMs` | `number` | `0` | Hold duration in milliseconds after `touch()`; `0` disables it. |
+| `reorderHoldMs` | `number` | `0` | Hold duration in milliseconds after `touch()`. A value that isn't a positive number disables it, and one past 2,147,483,647 ms, about 24.8 days, Infinity included, holds that long, the longest a timer waits. |
 | `now` | `() => number` | `Date.now` | Clock in milliseconds for the hold. |
 
 Grid key and pointer handling calls `view.touch()` to start or extend the hold. Remaining rows keep their relative order; new matches append, while removed rows and rows that fail the filter disappear. When the hold expires, the view settles to the comparator's order (or store order), even on a quiet feed.

@@ -466,9 +466,9 @@ describe("DataGrid pointer ownership", () => {
     fireEvent.pointerDown(cell(grid, "b"), pointer)
     expect(props.onSelectionChange).toHaveBeenCalledExactlyOnceWith(new Set(["b"]))
     expect(cell(grid, "a").parentElement).toHaveAttribute("aria-selected", "true")
-    expect(cell(grid, "b").parentElement).not.toHaveAttribute("aria-selected")
+    expect(cell(grid, "b").parentElement).toHaveAttribute("aria-selected", "false")
     rerender(<DataGrid {...props} selection={new Set(["b"])} renderContextMenu={menu} />)
-    expect(cell(grid, "a").parentElement).not.toHaveAttribute("aria-selected")
+    expect(cell(grid, "a").parentElement).toHaveAttribute("aria-selected", "false")
     expect(cell(grid, "b").parentElement).toHaveAttribute("aria-selected", "true")
   })
 
