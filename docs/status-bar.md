@@ -82,7 +82,7 @@ The root has `role="group"` and `data-slot="tradecn-status-bar"`. Use `aria-labe
 
 The prefix appears in screen-reader text and supplies the default `title`. The badge carries `data-status-environment` and, when supplied, `data-tone`. Set `data-environment` on the root yourself if your selectors use it, as in Usage.
 
-`StatusTone` is `"up" | "down" | "flat" | "stale" | "expiring" | "primary" | "destructive"`. `STATUS_TONE_CLASS: Record<StatusTone, string>` exports each tone's classes: its tint behind foreground text, since a tone's own color on its tint falls below 4.5 to 1 in light mode. The tint is a background image, so a badge style's own dark background can't cover it. Omitting the tone adds no status-tone classes.
+`StatusTone` is `"up" | "down" | "flat" | "stale" | "expiring" | "primary" | "destructive"`. `STATUS_TONE_CLASS: Record<StatusTone, string>` exports each tone's classes: its tint behind foreground text, since a tone's own color on its tint can fall below 4.5 to 1 in light mode. The tint is a background image, so a badge style's own dark background can't cover it. Omitting the tone adds no status-tone classes.
 
 The `StatusBarEnvironment` descriptor type retains its `label` and optional `tone` fields. Spread it onto `StatusBarEnvironmentBadge` when storing environment options as data.
 

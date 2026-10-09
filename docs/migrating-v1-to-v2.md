@@ -839,7 +839,7 @@ Each clock readout retains its local subscription, including when used outside t
 
 Use stable keys when reordering clock descriptors. The helpers, tone classes, descriptor types and default labels remain available.
 
-`STATUS_TONE_CLASS` puts each tone's tint behind foreground text, where v1 colored the text with the tone too, below 4.5 to 1 on its tint in light mode. The tint is a background image, which an outline badge's own dark background no longer covers. A fresh install of `status-bar` no longer adds the `--up`, `--down`, `--flat`, `--stale`, or `--expiring` variables, only their soft variants, and the grid items that bundle grid rules no longer add `--stale` or `--expiring`; an existing install keeps its variables, and an app that colors its own text with them installs an item that adds them, such as `feed-health` or `countdown`.
+`STATUS_TONE_CLASS` puts each tone's tint behind foreground text, where v1 colored the text with the tone too, below 4.5 to 1 on its tint in light mode. The tint is a background image, which an outline badge's own dark background no longer covers. A fresh install of `status-bar` no longer adds the `--up`, `--down`, `--flat`, `--stale`, or `--expiring` variables, only their soft variants. Grid Rules and the grid items that bundle it, Data Grid, Watchlist, Blotter, Positions, Parameter Grid, Audit Trail, Quote Panel, Column Chooser, and Rules Editor, no longer add `--stale` or `--expiring`; RFQ Stack no longer adds `--stale` and keeps `--expiring` for its countdown, and Alerts keeps both for its tones; an existing install keeps its variables, and an app that colors its own text with them installs an item that adds them, such as `feed-health` or `countdown`.
 
 ## ColumnChooser
 

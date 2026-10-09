@@ -141,7 +141,7 @@ Parts forward refs, classes, and native attributes to their element or the corre
 | `RulesEditorOperator` | `NativeSelect` | Operators supported by the current column. |
 | `RulesEditorValue` | `Input` | Optional `field: "value" \| "low" \| "high" \| "values"`, default `"value"`. Renders only for its operator shape. |
 | `RulesEditorTone` | `NativeSelect` | Highlight tone. |
-| `RulesEditorToneSwatch` | `span` | Decorative tone name in its color. |
+| `RulesEditorToneSwatch` | `span` | Decorative tone name in foreground text on the tone's tint. |
 | `RulesEditorTarget` | `NativeSelect` | Highlight target, `"cell"` or `"row"`. |
 | `RulesEditorLabel` | `Input` | Highlight description. |
 | `RulesEditorDirection` | `NativeSelect` | Sort direction, `"asc"` or `"desc"`. |
