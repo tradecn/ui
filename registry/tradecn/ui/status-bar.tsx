@@ -65,7 +65,7 @@ export interface StatusBarUserProps extends Omit<ComponentProps<"span">, "childr
 
 /**
  * The environment badge's classes per tone: the tone's tint behind foreground text. The label is always the word; the
- * tone is the hint. A tone's own color as text on its tint drops below 4.5 to 1 in the light themes. The tint is a
+ * tone is the hint. A tone's own color as text on its tint can drop below 4.5 to 1 in the light themes. The tint is a
  * background image, so a badge style's own `dark:` background can't paint over it.
  */
 export const STATUS_TONE_CLASS: Record<StatusTone, string> = {

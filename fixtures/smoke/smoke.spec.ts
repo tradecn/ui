@@ -2300,6 +2300,8 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   for (const item of await strip.locator("li[data-tone]").all()) {
     await expect(item.locator("[data-alert-severity]")).toHaveText(await item.getAttribute("data-severity") ?? "")
     await expect(item.locator("[data-alert-severity]")).toBeVisible()
+    // A toned chip sits on the card itself: no style's outline fill under the tone's color.
+    expect(await item.locator("[data-alert-severity]").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)")
     await expect(item.locator("time")).toHaveText(/^\d{2}:\d{2}:\d{2}$/)
     const at = await item.locator("time").getAttribute("datetime")
     const local = await page.evaluate((value) => new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(value!)), at)

@@ -581,7 +581,7 @@ const undefinedStatus = () => undefined
 const FILL_CLASSES = "data-[direction=up]:bg-up-soft data-[direction=down]:bg-down-soft data-[direction=flat]:bg-flat-soft"
 const RING_CLASSES = "data-[direction=up]:shadow-[inset_0_0_0_1px_var(--up)] data-[direction=down]:shadow-[inset_0_0_0_1px_var(--down)] data-[direction=flat]:shadow-[inset_0_0_0_1px_var(--flat)]"
 // A selected row is marked by a bar at the start of its first cell, not filled: a fill behind a row's up and down text
-// drops it below 4.5 to 1 in the light themes. The first cell is the selection box's when there is one, and a frozen
+// can drop it below 4.5 to 1 in the light themes. The first cell is the selection box's when there is one, and a frozen
 // first column keeps the bar in view as the grid scrolls sideways.
 const SELECTED_BAR = "before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-primary"
 

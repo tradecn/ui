@@ -99,7 +99,7 @@ All presentation parts accept their underlying element's props, including `child
 | `AlertBody` | `div` | Wrapping content; accepts block elements and links. |
 | `AlertActions` | `div` | Wrapping controls. |
 | `AlertsEmpty` | `p` | Muted text; visibility and content belong to you. |
-| `AlertSeverity` | Your `Badge` | Optional `tone: AlertTone`; default `variant="outline"`; `data-alert-severity` marker. |
+| `AlertSeverity` | Your `Badge` | Optional `tone: AlertTone`; default `variant="outline"`; `data-alert-severity` marker. With a tone, the text takes the tone's color on the surface beneath the chip, which clears any fill your style gives an outline badge. |
 | `AlertDismiss` | Your `Button` | `type="button"`, `variant="ghost"`, `size="sm"`, and a × child. The default icon is named "Dismiss" unless `aria-labelledby` is supplied. Custom children provide their own name; explicit naming props take precedence. Supply `onClick` and a notice-specific name for icon buttons. |
 
 Each piece has a `data-slot` matching its kebab-case name with the `tradecn-` prefix, such as `tradecn-alert-header`.

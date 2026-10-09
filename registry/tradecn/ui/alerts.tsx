@@ -53,8 +53,10 @@ export interface AlertSeverityProps extends ComponentProps<typeof Badge> {
   tone?: AlertTone
 }
 
+// A toned chip clears any fill a style gives an outline badge: the tones clear 4.5 to 1 on the page and a card, and can
+// fall below on such a fill.
 export function AlertSeverity({ tone, className, ...props }: AlertSeverityProps) {
-  return <Badge variant="outline" data-slot="tradecn-alert-severity" data-alert-severity="" className={cn("h-auto shrink-0 px-1.5 text-xs", tone && ALERT_TONE_TEXT[tone], className)} {...props} />
+  return <Badge variant="outline" data-slot="tradecn-alert-severity" data-alert-severity="" className={cn("h-auto shrink-0 px-1.5 text-xs", tone && ALERT_TONE_TEXT[tone], tone && "bg-transparent dark:bg-transparent", className)} {...props} />
 }
 
 export interface AlertActionButtonProps extends Omit<ComponentProps<typeof Button>, "onClick"> {

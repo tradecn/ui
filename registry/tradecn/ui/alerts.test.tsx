@@ -118,6 +118,13 @@ describe("notice composition", () => {
     expect(screen.queryByRole("button", { name: "Clear all" })).toBeNull()
   })
 
+  it("clears a style's outline fill under a toned severity, and keeps the badge as it is with no tone", () => {
+    render(<><AlertSeverity tone="down">critical</AlertSeverity><AlertSeverity>plain</AlertSeverity></>)
+    // A tone's color clears 4.5 to 1 on the page and a card, and can fall below on a style's outline fill.
+    expect(screen.getByText("critical")).toHaveClass("text-down", "bg-transparent", "dark:bg-transparent")
+    expect(screen.getByText("plain")).not.toHaveClass("bg-transparent")
+  })
+
   it("names the default dismiss icon and respects the caller's naming props", () => {
     const { rerender } = render(<AlertDismiss />)
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument()

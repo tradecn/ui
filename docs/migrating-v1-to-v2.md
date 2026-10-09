@@ -436,7 +436,7 @@ Resize handles now start only from an unhandled primary-button press by a primar
 
 The handle is pointer-only. Use Alt+Shift+Left or Right with the grid focused to resize the chosen column.
 
-A selected row is marked by a bar at the start of its first cell, the selection box's when there is one, where v1 filled the row with `bg-accent`, which put up and down text below 4.5 to 1 in light mode. A rule's tone paints foreground text on its tint, and up, down, flat, stale, expiring, destructive, and primary text inside takes the foreground too, where v1 colored the text with the tone. A frozen cell in the focused column keeps its opaque background, where v1 let rows scrolling beneath show through it.
+A selected row is marked by a bar at the start of its first cell, the selection box's when there is one, where v1 filled the row with `bg-accent`, which could put up or down text below 4.5 to 1 in light mode. A rule's tone paints foreground text on its tint, and up, down, flat, stale, expiring, destructive, and primary text inside takes the foreground too, where v1 colored the text with the tone. A frozen cell in the focused column keeps its opaque background, where v1 let rows scrolling beneath show through it.
 
 ## DepthLadder
 
@@ -839,7 +839,7 @@ Each clock readout retains its local subscription, including when used outside t
 
 Use stable keys when reordering clock descriptors. The helpers, tone classes, descriptor types and default labels remain available.
 
-`STATUS_TONE_CLASS` puts each tone's tint behind foreground text, where v1 colored the text with the tone too, below 4.5 to 1 on its tint in light mode. The tint is a background image, which an outline badge's own dark background no longer covers. A fresh install of `status-bar` no longer adds the `--up`, `--down`, `--flat`, `--stale`, or `--expiring` variables, only their soft variants. Grid Rules and the grid items that bundle it, Data Grid, Watchlist, Blotter, Positions, Parameter Grid, Audit Trail, Quote Panel, Column Chooser, and Rules Editor, no longer add `--stale` or `--expiring`; RFQ Stack no longer adds `--stale` and keeps `--expiring` for its countdown, and Alerts keeps both for its tones; an existing install keeps its variables, and an app that colors its own text with them installs an item that adds them, such as `feed-health` or `countdown`.
+`STATUS_TONE_CLASS` puts each tone's tint behind foreground text, where v1 colored the text with the tone too, which can fall below 4.5 to 1 on its tint in light mode. The tint is a background image, which an outline badge's own dark background no longer covers. A fresh install of `status-bar` or `grid-rules` no longer adds the `--up`, `--down`, `--flat`, `--stale`, or `--expiring` variables, only their soft variants. The grid items that bundle grid rules, Data Grid, Watchlist, Blotter, Positions, Parameter Grid, Audit Trail, Quote Panel, Column Chooser, and Rules Editor, keep `--up`, `--down`, and `--flat` and no longer add `--stale` or `--expiring`; RFQ Stack no longer adds `--stale` and keeps `--expiring` for its countdown, and Alerts keeps both for its tones. An existing install keeps its variables, and an app that colors its own text with them installs an item that adds them, such as `flash-cell` for `--up`, `--down`, and `--flat`, `feed-health` for `--stale`, or `countdown` for `--expiring`.
 
 ## ColumnChooser
 

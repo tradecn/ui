@@ -128,7 +128,7 @@ export const RULE_TONES: readonly RuleTone[] = ["up", "down", "flat", "stale", "
 
 /**
  * The text on a tint: the foreground, with any up, down, flat, stale, expiring, destructive, or primary text inside
- * taking it too. A state color on a tint drops below 4.5 to 1 in the light themes, and every state the library
+ * taking it too. A state color on a tint can drop below 4.5 to 1 in the light themes, and every state the library
  * colors also says itself another way, by a sign, a word, or a description. Put it beside every tint behind text.
  */
 export const ON_TINT_CLASS = "text-foreground [&_.text-up]:text-inherit [&_.text-down]:text-inherit [&_.text-flat]:text-inherit [&_.text-stale]:text-inherit [&_.text-expiring]:text-inherit [&_.text-destructive]:text-inherit [&_.text-primary]:text-inherit"
