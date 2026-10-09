@@ -147,7 +147,7 @@ ColumnChooser normalizes its edits and suppresses effective no-ops; share defaul
 
 Keep an external chooser or application reset control when a snapshot can hide every column: an empty header has no menu to reopen columns.
 
-A move from the header or Alt+arrows rebuilds the order from visible columns, so a hidden column loses its place and returns at the end when shown; [ColumnChooser](column-chooser.md) keeps hidden columns in place when the same state matters. Move is also offered across the frozen boundary, where it changes state without changing what is visible.
+A move from the header or Alt+arrows rebuilds the order from visible columns, so a hidden column loses its place and returns at the end when shown; [ColumnChooser](column-chooser.md) keeps hidden columns in place when the same state matters. A move across the frozen boundary changes nothing, and the header menu disables it.
 
 Drag a column's right edge to resize it. Movement is measured from its starting width, rounded to pixels, and clamped to `minWidth`. Other column settings and the change callback come from the latest committed props.
 
@@ -271,7 +271,7 @@ For an available text-editable cell, `open()` opens and focuses the text editor 
 
 ### Identity
 
-Selection, focus, and context-menu targets use row ids, so a reorder preserves their identity. The grid never prunes them: a removed or filtered-out row stays selected and counted until your application drops it, and a Shift range whose anchor has left the view starts from the top of the view. Prune selection as rows retire, as the watchlist layout demo does against the symbols its remove handler receives. `aria-activedescendant` names the focused row while its id is in the view; each data row's `aria-rowindex` is its zero-based view index plus two, accounting for the header.
+Selection, focus, and context-menu targets use row ids, so a reorder preserves their identity. The grid never prunes selection or a menu's targets: a removed or filtered-out row stays selected and counted until your application drops it, and a Shift range whose anchor has left the view starts from the top of the view. Prune selection as rows retire, as the watchlist layout demo does against the symbols its remove handler receives. `aria-activedescendant` names the focused row while its id is in the view; each data row's `aria-rowindex` is its zero-based view index plus two, accounting for the header.
 
 With announcements enabled, a 1,000 ms timer reports the row count through a polite live region, for example "1,024 rows, 12 new". It starts on mount and restarts when the count changes. Continuous count changes delay the announcement.
 
@@ -392,11 +392,11 @@ Opening an editor selects its text unless you opened it by typing a character.
 | `rejected` | `Rejected` | A refused edit whose error carries no message of its own, or an empty one |
 | `noRows` | `No rows` | An empty view, unless `emptyState` says otherwise; the grid's description while it is empty |
 
-A preset that wraps the grid passes `labels` through, and ParameterGrid's and QuotePanel's `labels` take these beside their own.
+Watchlist, Blotter, Positions, RfqStack, and AuditTrailGrid pass `labels` through to the grid, and ParameterGrid's and QuotePanel's `labels` take these beside their own.
 
 ### Exporting CSV
 
-`exportCsv(store, columns, ids)` returns the rows `ids` names as CSV text, quoted as RFC 4180 has it, with a header row of each column's title and a column for each definition except one whose definition says `hidden`. Pass `resolveColumns(columns, columnState)` for the columns as the grid shows them, in its order and without the ones the column state hides. A cell is the column's `format` of its value, else the value as text, and nothing for null. A number's typographic minus goes out as the hyphen-minus, so a spreadsheet sums the negatives. A cell a spreadsheet would run as a formula, one led by `=`, `+`, `-`, `@`, a tab, or a carriage return, goes out behind an apostrophe, unless the whole cell reads as one number.
+`exportCsv(store, columns, ids)` returns the rows `ids` names as CSV text, quoted as RFC 4180 has it, with a header row of each column's title and a column for each definition except one whose definition says `hidden`. Pass `resolveColumns(columns, columnState)` for the columns as the grid shows them, in its order and without the ones the column state hides. A cell is the column's `format` of its value, else the value as text, and nothing for null. A number's typographic minus goes out as the hyphen-minus where the cell then reads as one number, so a spreadsheet sums the negatives; one with a unit, as in −2.5mm, keeps its own. A cell a spreadsheet would run as a formula, one led by `=`, `+`, `-`, `@`, a tab, or a carriage return, goes out behind an apostrophe, unless the whole cell reads as one number.
 
 ### What it does not do
 

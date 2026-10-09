@@ -649,9 +649,21 @@ function altLetter(e: KeyboardEvent<HTMLElement>): string | null {
   return /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : null
 }
 
+// A row id as an id attribute can carry it: letters, digits, and hyphens as they stand, anything else, an underscore
+// included, as an underscore and its four hex digits. No space splits an IDREF list, no two row ids meet, and no
+// string, a lone surrogate included, throws.
+function idPart(id: RowId): string {
+  return id.replace(/[^A-Za-z0-9-]/g, (unit) => `_${unit.charCodeAt(0).toString(16).padStart(4, "0")}`)
+}
+
+/** A data cell's DOM id: the grid's, the column's place, and the row's. */
+function cellDomId(uid: string, rowId: RowId, index: number): string {
+  return `${uid}-c${index}-${idPart(rowId)}`
+}
+
 function messageOf(error: unknown, fallback: string): string {
   // An Error with no words, as `new Error(response.statusText)` is over HTTP/2, says the fallback too.
-  if (error instanceof Error) return error.message.trim() || fallback
+  if (error instanceof Error) return String(error.message ?? "").trim() || fallback
   if (typeof error === "string") return error.trim() || fallback
   return fallback
 }
@@ -932,7 +944,7 @@ function RowInner<T>(p: RowProps<T>) {
       aria-description={extra?.["aria-description"] ?? rule?.["aria-description"]}
       aria-label={rowLabel}
       // Without a label of its own a row is named by its data cells, never by its selection box.
-      aria-labelledby={rowLabel ? undefined : p.columns.map((_, i) => `${p.uid}-c${i}-${encodeURIComponent(p.id)}`).join(" ") || undefined}
+      aria-labelledby={rowLabel ? undefined : p.columns.map((_, i) => cellDomId(p.uid, p.id, i)).join(" ") || undefined}
       data-focused={p.focused || undefined}
       aria-rowindex={p.index + 2}
       aria-selected={p.selectable ? p.selected : undefined}
@@ -956,7 +968,7 @@ function RowInner<T>(p: RowProps<T>) {
           col={col}
           row={row}
           rowId={p.id}
-          id={`${p.uid}-c${i}-${encodeURIComponent(p.id)}`}
+          id={cellDomId(p.uid, p.id, i)}
           colIndex={i + (p.selectionColumn ? 1 : 0)}
           left={p.lefts[i]}
           memory={p.memory}
@@ -1099,7 +1111,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const focusedAt = useRef<{ id: RowId; index: number } | null>(null)
   const handedOff = useRef<RowId | null>(null)
   useLayoutEffect(() => {
-    if (focusedRowId === null) return
+    if (focusedRowId === null) {
+      focusedAt.current = null
+      return
+    }
     const at = indexOf.get(focusedRowId)
     if (at !== undefined) {
       focusedAt.current = { id: focusedRowId, index: at }
@@ -1109,7 +1124,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const was = focusedAt.current
     if (was?.id !== focusedRowId || ids.length === 0 || handedOff.current === focusedRowId) return
     handedOff.current = focusedRowId
-    setFocusedRowId(ids[Math.min(was.index, ids.length - 1)]!)
+    const index = Math.min(was.index, ids.length - 1)
+    // The row asked for is the one recorded now, so a parent that applies it after it has left too gets another.
+    focusedAt.current = { id: ids[index]!, index }
+    setFocusedRowId(ids[index]!)
   })
 
   const resolved = useMemo(() => resolveColumns(columns, columnState), [columns, columnState])
@@ -1482,8 +1500,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     }
   })
   const uid = useId()
-  // Encoded, so a row id with a space still makes one IDREF, and prefixed apart from the cells' ids, so none collide.
-  const domId = useCallback((id: RowId) => `${uid}-r-${encodeURIComponent(id)}`, [uid])
+  // Escaped, so any row id makes one IDREF, and prefixed apart from the cells' ids, so none collide.
+  const domId = useCallback((id: RowId) => `${uid}-r-${idPart(id)}`, [uid])
 
   // A tape follows its tail: new rows land at the end and the viewport goes there after every commit,
   // until a key, a pointer, or a scroll away from the end stops it. Then the arrivals count up on a
@@ -1636,7 +1654,8 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   }
   const toTail = (e: MouseEvent<HTMLButtonElement>) => {
     // The button goes once following resumes: focus on it moves to the grid first, rather than fall to the page.
-    if (e.currentTarget.ownerDocument.activeElement === e.currentTarget) rootRef.current?.focus({ preventScroll: true })
+    // Inside a shadow root the document's active element is the host, so ask the root the button is in.
+    if ((e.currentTarget.getRootNode() as Document | ShadowRoot).activeElement === e.currentTarget) rootRef.current?.focus({ preventScroll: true })
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
     setFollowing(true)
@@ -2307,7 +2326,8 @@ function HeaderCell<T>(p: HeaderCellProps<T>) {
     <div
       role="columnheader"
       // Named by the column alone: the menu button and resize handle inside have names of their own.
-      aria-label={markup ? undefined : words || name}
+      // A header of markup that draws no words still has the column's name to fall back on.
+      aria-label={words || name}
       aria-labelledby={markup ? labelId : undefined}
       aria-colindex={p.colIndex + 1}
       aria-sort={p.sort === "asc" ? "ascending" : p.sort === "desc" ? "descending" : col.sortable ? "none" : undefined}

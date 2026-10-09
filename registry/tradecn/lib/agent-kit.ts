@@ -182,8 +182,7 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
   // element pointed at counts even when hidden, and a reference to nothing reads as nothing. The referring element met
   // inside a target says nothing, so a field wrapped by the label it points to takes no name from its own value; pointed
   // at itself, it is read for itself, its value or its content, as Chromium reads it.
-  // `outside` leaves out the targets an element holds itself: a row named by its own cells says only what each cell
-  // says, and the cells are read one by one.
+  // `outside` leaves out the targets an element holds itself, for a row named by its own cells.
   const refs = (el: Element, attribute: string, outside = false): string =>
     (el.getAttribute(attribute) ?? "")
       .split(/\s+/)
@@ -351,12 +350,15 @@ export function checkContract(options: ContractOptions = {}): ContractReport {
     }
     // A screen reader skips everything under aria-hidden, its labels and descriptions with its text.
     const unheard = (node: Element) => Boolean(node.closest("[aria-hidden=true]"))
+    // A row named by its own cells says only what each cell says, and the cells are read one by one; any other element
+    // labelled by its own child, a button by its "Buy", says what that child says.
+    const isRow = (node: Element) => roleOf(node) === "row" || (!node.hasAttribute("role") && node.tagName === "TR")
     // An accessible label or description that states the direction: its own, one it points to, or a native label.
     const says = (node: Element | null) =>
       Boolean(
         node &&
           !unheard(node) &&
-          [nameable(node) ? node.getAttribute("aria-label") : null, nameable(node) ? refs(node, "aria-labelledby", true) : "", node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)),
+          [nameable(node) ? node.getAttribute("aria-label") : null, nameable(node) ? refs(node, "aria-labelledby", isRow(node)) : "", node.getAttribute("aria-description"), node.getAttribute("title"), refs(node, "aria-describedby"), nativeLabels(node)].some((text) => text && cued(text)),
       )
     // A grid rule's tone is the rule's color, not a direction. The rule names itself in data-rule and data-tone and says
     // what it matched in its description, the channel scripts/color.test.ts records for it. Only the rule nearest the

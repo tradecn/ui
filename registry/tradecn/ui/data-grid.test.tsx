@@ -652,9 +652,12 @@ describe("DataGrid", () => {
       scroller.scrollLeft = 0
       fireEvent.keyDown(grid, { key: "ArrowLeft", altKey: true, shiftKey: true })
       expect(scroller.scrollLeft).toBe(396)
-      // At the floor it can't narrow again: scrolled away, the sheet stays.
+      // At the floor it can't narrow again: scrolled away, the sheet stays, and a later commit finds nothing to reveal.
       scroller.scrollLeft = 0
       fireEvent.keyDown(grid, { key: "ArrowLeft", altKey: true, shiftKey: true })
+      expect(scroller.scrollLeft).toBe(0)
+      // Space selects the row: a commit of the grid's own that scrolls nothing by itself.
+      fireEvent.keyDown(grid, { key: " " })
       expect(scroller.scrollLeft).toBe(0)
       // Widened to 104px, it spans 600 to 704 and comes into view.
       fireEvent.keyDown(grid, { key: "ArrowRight", altKey: true, shiftKey: true })
@@ -862,6 +865,20 @@ describe("DataGrid", () => {
     expect(onFocus).toHaveBeenLastCalledWith("r1")
   })
 
+  it("hands focus on again when a parent applies the row it was given after that row has left too", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(5, store)
+    const onFocus = vi.fn()
+    const view = (focusedRowId: string) => <DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} focusedRowId={focusedRowId} onFocusedRowChange={onFocus} />
+    const { rerender } = render(view("r2"))
+    act(() => store.applyDeltas({ remove: ["r2"] }))
+    expect(onFocus).toHaveBeenLastCalledWith("r3")
+    act(() => store.applyDeltas({ remove: ["r3"] }))
+    rerender(view("r3"))
+    expect(onFocus).toHaveBeenLastCalledWith("r4")
+    expect(onFocus).toHaveBeenCalledTimes(2)
+  })
+
   it("asks a parent that keeps a departed focused row once, not on every commit", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     seed(5, store)
@@ -1022,6 +1039,17 @@ describe("DataGrid", () => {
     expect(screen.getByRole("textbox", { name: "sym" })).toBeInTheDocument()
   })
 
+  it("gives every row id its own DOM ids, one that would throw or meet another's included", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: [{ id: "a\uD800b", sym: "LONE", px: 1, qty: 1 }, { id: "a b", sym: "SPACE", px: 2, qty: 2 }, { id: "a_0020b", sym: "UNDER", px: 3, qty: 3 }] })
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} />)
+    const rowIds = [...document.querySelectorAll<HTMLElement>("[data-row-id]")].map((row) => row.id)
+    expect(new Set(rowIds).size).toBe(3)
+    for (const id of rowIds) expect(id).toMatch(/^[^\s]+$/)
+    expect(screen.getByRole("row", { name: "LONE 1.00 1" })).toBeInTheDocument()
+    expect(screen.getByRole("row", { name: "UNDER 3.00 3" })).toBeInTheDocument()
+  })
+
   it("keeps one IDREF for a row id with a space, and names the selection column", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     store.applyDeltas({ upsert: [{ id: "ES Z5", sym: "ES", px: 5000, qty: 1 }] })
@@ -1030,6 +1058,24 @@ describe("DataGrid", () => {
     expect(screen.getByRole("columnheader", { name: "Auswahl" })).toBeInTheDocument()
     // A word left undefined keeps its default.
     expect(screen.getByRole("checkbox", { name: "Select row" })).toBeInTheDocument()
+  })
+
+  it("says a refusal whose error's message isn't text as text, never leaving the cell pending", async () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(1, store)
+    const odd = new Error("x")
+    ;(odd as unknown as { message: unknown }).message = 42
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, accessor: (r) => r.px, edit: { parse: (t) => Number(t) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => Promise.reject(odd)} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "7" })
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Price" }), { key: "Enter" })
+    await act(async () => {})
+    const cell = document.querySelector('[data-row-id="r0"] [data-col="px"]')
+    expect(cell).toHaveAttribute("data-rejected", "42")
+    expect(cell).not.toHaveAttribute("data-pending")
   })
 
   it("says the grid's word for a refusal whose error is empty", async () => {
@@ -2213,6 +2259,29 @@ describe("row names", () => {
       expect(reading()).toBe("S0002, 102.00, 20")
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  it.each(["open", "closed"] as const)("hands focus to the grid when the tail button it was on goes, inside a shadow root (%s)", (mode) => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const container = document.createElement("div")
+    host.attachShadow({ mode }).append(container)
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(5, store)
+      const { unmount } = render(<DataGrid store={store} columns={columns} label="Tape" preset="tape" rowHeight={ROW_HEIGHT} initialRect={RECT} />, { container })
+      const grid = container.querySelector<HTMLElement>('[role="grid"]')!
+      fireEvent.pointerDown(container.querySelectorAll('[role="row"]')[1]!)
+      act(() => store.applyDeltas({ upsert: [{ id: "r6", sym: "S0006", px: 106, qty: 60 }] }))
+      const pill = grid.querySelector<HTMLButtonElement>("[data-grid-behind]")!
+      pill.focus()
+      fireEvent.click(pill)
+      expect(grid.querySelector("[data-grid-behind]")).toBeNull()
+      expect((grid.getRootNode() as ShadowRoot).activeElement).toBe(grid)
+      unmount()
+    } finally {
+      host.remove()
     }
   })
 
