@@ -67,6 +67,8 @@ describe("the guard", () => {
     expect(root()).toHaveAttribute("data-session-phase", "warning")
     const banner = screen.getByRole("status")
     expect(banner).toHaveTextContent("Your session ends in 2:00.")
+    // On the expiring tint the soon countdown and a refusal take the foreground.
+    expect(banner).toHaveClass("bg-expiring-soft", "text-foreground", "[&_.text-expiring]:text-inherit", "[&_.text-destructive]:text-inherit")
     expect(banner.querySelector("[data-slot='tradecn-session-guard-remaining']")).toHaveAttribute("data-tier", "soon")
     expect(banner.querySelector("[data-countdown-digits]")).toHaveAttribute("data-countdown-digits", "true")
     expect(screen.getByRole("button", { name: "Stay signed in" })).toBeEnabled()

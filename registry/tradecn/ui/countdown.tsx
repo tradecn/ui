@@ -147,7 +147,8 @@ export function Countdown({ expiresAt, startsAt, thresholds = PROVISIONAL_COUNTD
       aria-labelledby={`${id}-label ${id}-digits`}
       data-slot="tradecn-countdown"
       data-tier={tier}
-      className={cn(compact ? "inline-flex items-baseline" : "inline-flex min-w-16 flex-col gap-0.5 rounded px-1", "text-xs lining-nums tabular-nums", tier === "soon" && !compact && "bg-expiring-soft", TIER_CLASS[tier], className)}
+      // Soon, the full countdown sits on the expiring tint with foreground digits, which read there in every theme.
+      className={cn(compact ? "inline-flex items-baseline" : "inline-flex min-w-16 flex-col gap-0.5 rounded px-1", "text-xs lining-nums tabular-nums", TIER_CLASS[tier], tier === "soon" && !compact && "bg-expiring-soft text-foreground", className)}
     >
       <span id={`${id}-label`} hidden>
         {label}

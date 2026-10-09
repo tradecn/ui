@@ -13,7 +13,7 @@ export type RuleOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between" | "in
 /** What a rule compares against, as typed. A string is read in the column's format; a number or boolean is used as it is. */
 export type RuleValue = string | number | boolean | null
 
-/** A token name. The soft variant tints the background; the token itself colors the text. */
+/** A token name. The soft variant, or a 12% tint for primary and destructive, tints the background; the text on it is the foreground. */
 export type RuleTone = "up" | "down" | "flat" | "stale" | "expiring" | "primary" | "destructive"
 
 export interface RuleCondition {
@@ -126,18 +126,25 @@ export const RULE_OP_LABELS: Record<RuleOp, string> = {
 
 export const RULE_TONES: readonly RuleTone[] = ["up", "down", "flat", "stale", "expiring", "primary", "destructive"]
 
-// The text takes the token and the background a tint of its soft variant, painted as a background
-// image rather than a background color so it layers over whatever color the element already has: a
-// frozen cell keeps its opaque `bg-background` under the tint and stays opaque as rows scroll beneath
-// it, and a selected row's `bg-accent` shows through. Literal strings, so Tailwind finds them.
+/**
+ * The text on a tint: the foreground, with any up, down, flat, stale, expiring, destructive, or primary text inside
+ * taking it too. A state color on a tint can drop below 4.5 to 1 in the light themes, and every state the library
+ * colors also says itself another way, by a sign, a word, or a description. Put it beside every tint behind text.
+ */
+export const ON_TINT_CLASS = "text-foreground [&_.text-up]:text-inherit [&_.text-down]:text-inherit [&_.text-flat]:text-inherit [&_.text-stale]:text-inherit [&_.text-expiring]:text-inherit [&_.text-destructive]:text-inherit [&_.text-primary]:text-inherit"
+
+// A tone is a tint of the token's soft variant, painted as a background image rather than a background
+// color so it layers over whatever color the element already has: a frozen cell keeps its opaque
+// `bg-background` under the tint and stays opaque as rows scroll beneath it. Literal strings, so Tailwind finds them.
+const ON_TINT = ON_TINT_CLASS
 export const RULE_TONE_CLASS: Record<RuleTone, string> = {
-  up: "text-up bg-[linear-gradient(var(--up-soft),var(--up-soft))]",
-  down: "text-down bg-[linear-gradient(var(--down-soft),var(--down-soft))]",
-  flat: "text-flat bg-[linear-gradient(var(--flat-soft),var(--flat-soft))]",
-  stale: "text-stale bg-[linear-gradient(var(--stale-soft),var(--stale-soft))]",
-  expiring: "text-expiring bg-[linear-gradient(var(--expiring-soft),var(--expiring-soft))]",
-  primary: "text-primary bg-[linear-gradient(color-mix(in_oklab,var(--primary)_12%,transparent),color-mix(in_oklab,var(--primary)_12%,transparent))]",
-  destructive: "text-destructive bg-[linear-gradient(color-mix(in_oklab,var(--destructive)_12%,transparent),color-mix(in_oklab,var(--destructive)_12%,transparent))]",
+  up: `${ON_TINT} bg-[linear-gradient(var(--up-soft),var(--up-soft))]`,
+  down: `${ON_TINT} bg-[linear-gradient(var(--down-soft),var(--down-soft))]`,
+  flat: `${ON_TINT} bg-[linear-gradient(var(--flat-soft),var(--flat-soft))]`,
+  stale: `${ON_TINT} bg-[linear-gradient(var(--stale-soft),var(--stale-soft))]`,
+  expiring: `${ON_TINT} bg-[linear-gradient(var(--expiring-soft),var(--expiring-soft))]`,
+  primary: `${ON_TINT} bg-[linear-gradient(color-mix(in_oklab,var(--primary)_12%,transparent),color-mix(in_oklab,var(--primary)_12%,transparent))]`,
+  destructive: `${ON_TINT} bg-[linear-gradient(color-mix(in_oklab,var(--destructive)_12%,transparent),color-mix(in_oklab,var(--destructive)_12%,transparent))]`,
 }
 
 /** What an applied rule puts on a cell or a row. */

@@ -139,7 +139,7 @@ A div that supplies one feed's readings and pending state to its children.
 | `feed` | `FeedDescriptor` | Required | This item's readings. |
 | `pending` | `PendingFeedAction \| null` | — | Request state from `useFeedActions`. |
 
-The item sets small text and `data-feed`, `data-state`, `data-tier`, `data-pending`. Tier colors belong to the badge and tooltip trigger, leaving application content untinted.
+The item sets small text and `data-feed`, `data-state`, `data-tier`, `data-pending`. Tier colors belong to the badge and tooltip trigger, leaving application content untinted. On the stale tier's tint, state-colored text inside the trigger, a lane's gap included, takes the foreground; muted text, a coalesced lane's drop count and the pending marker, stays muted.
 
 ### `<FeedHealthList />`
 

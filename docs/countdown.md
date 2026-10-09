@@ -24,7 +24,7 @@ Set `compact` for the digits alone, inline and without the bar, and give each it
 
 ## Thresholds
 
-`thresholds.soonMs` sets how far out the `soon` tier begins, when the digits and the bar turn `expiring`. The same deadline under the default and under a desk that counts the last thirty seconds as soon; the demo starts it over at zero.
+`thresholds.soonMs` sets how far out the `soon` tier begins, when the bar turns `expiring` and the digits sit on the `expiring` tint in the foreground color, or, compact, turn `expiring` themselves. The same deadline under the default and under a desk that counts the last thirty seconds as soon; the demo starts it over at zero.
 
 <!-- demo: countdown-thresholds -->
 

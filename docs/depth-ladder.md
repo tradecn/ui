@@ -290,7 +290,7 @@ The ladder sends nothing. A ticket or your application decides what a staged pri
 | `data-side="bid" \| "ask"` | Size cells | The side the size rests on. Bid sizes print in `up` and ask sizes in `down`. Headers belong to the caller. `DepthLadderColumnHeader` defaults to `labels.bid` and `labels.ask`. |
 | `data-mine="bid" \| "ask" \| "both"` | Rungs | The desk has size on this rung. The own size prints in a `primary` chip before the market's, followed by `yours` for a screen reader. |
 | `data-mid` | One rung | The market's mid. |
-| `data-focused` and `data-focused-col` | A rung and a cell | The keyboard focus. |
+| `data-focused` and `data-focused-col` | A rung and a cell | The keyboard focus. A focused cell is tinted, except a size cell on the mid row, which is ringed, since a second tint would darken the row's own under its up or down text; a focused price cell there keeps its tint under foreground text. |
 | `data-direction` | Size cells | `up` or `down` between nonzero market sizes. `flat` when changing to or from blank. |
 
 Each mounted bid and ask cell flashes independently when its normalized market size changes. The first value, an unchanged size, and own-size-only changes do not flash.

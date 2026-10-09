@@ -428,7 +428,7 @@ export function DepthLadderOwnSize({ side, className, ...props }: Omit<Component
   const row = useRowContext()
   const value = side === "bid" ? row.myBid : row.myAsk
   if (value === null) return null
-  return <span data-numeric="" data-mine-size="" className={cn("rounded-sm bg-primary/15 px-1 text-primary", NUMERIC_CLASS, className)} {...props}>{row.config.formatSize(value)}<span className="sr-only"> {row.config.labels.mine}</span></span>
+  return <span data-numeric="" data-mine-size="" className={cn("rounded-sm bg-primary/15 px-1 text-foreground", NUMERIC_CLASS, className)} {...props}>{row.config.formatSize(value)}<span className="sr-only"> {row.config.labels.mine}</span></span>
 }
 
 function ownsCellClick(event: MouseEvent<HTMLDivElement>) {
@@ -458,7 +458,7 @@ export function DepthLadderSizeCell({ side, ref, className, children, onClick, .
   // points at, and the selected state is what the keyboard contract rests on. Everything else
   // stays overridable — and the selected state follows the rendered role, emitted only where
   // ARIA takes it: gridcell, rowheader, or columnheader.
-  return <div role="gridcell" aria-colindex={row.config.columns.indexOf(side) + 1 || undefined} data-col={side} data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} data-focused-col={row.focusedColumn === side || undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && "bg-muted/50", className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }} id={`${row.domId}-${side}`} aria-selected={(selectable && row.focusedColumn === side) || undefined}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
+  return <div role="gridcell" aria-colindex={row.config.columns.indexOf(side) + 1 || undefined} data-col={side} data-side={side} data-numeric="" data-mine={mine !== null ? "" : undefined} data-focused-col={row.focusedColumn === side || undefined} className={cn("flex h-full min-w-0 cursor-pointer items-center gap-1 truncate px-2", NUMERIC_CLASS, FILL_CLASSES, side === "bid" ? "justify-end text-up" : "justify-start text-down", row.focusedColumn === side && (row.isMid ? "shadow-[inset_0_0_0_1px_var(--ring)]" : "bg-muted/50"), className)} {...props} ref={cellRef} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && ownsCellClick(event)) row.select(side) }} id={`${row.domId}-${side}`} aria-selected={(selectable && row.focusedColumn === side) || undefined}>{children === undefined ? <><DepthLadderOwnSize side={side} /><DepthLadderSize side={side} /></> : children}</div>
 }
 
 export function DepthLadderPriceCell({ className, children, onClick, ...props }: Omit<ComponentProps<"div">, CellOwnedProps> & Partial<Record<CellOwnedProps, never>>) {

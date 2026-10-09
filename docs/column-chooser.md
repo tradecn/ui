@@ -304,4 +304,4 @@ Column definitions, resizing, and persistence belong to the caller and grid. The
 
 ### Tokens
 
-The install adds the grid's `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants if missing. Rule badges use them; `primary` and `destructive` use the host theme's tokens.
+The install adds the grid's `up`, `down`, and `flat` tokens, and the soft variants of those and of `stale` and `expiring`, if missing. Rule badges tint with the soft variants; `primary` and `destructive` use the host theme's tokens.

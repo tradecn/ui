@@ -181,6 +181,9 @@ describe("RfqStack", () => {
     expect(root.dataset.active).toBe("q2")
     expect(rowOf("q2").dataset.state).toBe("active")
     expect(rowOf("q1").dataset.state).toBeUndefined()
+    // The active row's tint carries the foreground, its soon countdown's digits included.
+    expect(rowOf("q2")).toHaveClass("bg-primary/10", "text-foreground", "[&_.text-expiring]:text-inherit")
+    expect(rowOf("q1")).not.toHaveClass("text-foreground")
     expect(screen.getByRole("grid", { name: "Inquiries" })).toBeInTheDocument()
     const grid = screen.getByRole("grid")
     fireEvent.keyDown(grid, { key: "ArrowDown" })

@@ -53,8 +53,10 @@ export interface AlertSeverityProps extends ComponentProps<typeof Badge> {
   tone?: AlertTone
 }
 
+// A toned chip clears any fill a style gives an outline badge: the tones clear 4.5 to 1 on the page and a card, and can
+// fall below on such a fill.
 export function AlertSeverity({ tone, className, ...props }: AlertSeverityProps) {
-  return <Badge variant="outline" data-slot="tradecn-alert-severity" data-alert-severity="" className={cn("h-auto shrink-0 px-1.5 text-xs", tone && ALERT_TONE_TEXT[tone], className)} {...props} />
+  return <Badge variant="outline" data-slot="tradecn-alert-severity" data-alert-severity="" className={cn("h-auto shrink-0 px-1.5 text-xs", tone && ALERT_TONE_TEXT[tone], tone && "bg-transparent dark:bg-transparent", className)} {...props} />
 }
 
 export interface AlertActionButtonProps extends Omit<ComponentProps<typeof Button>, "onClick"> {
@@ -184,7 +186,7 @@ export function alertColumns(options: { time?: (ms: number) => string; labels?: 
   const time = options.time ?? localTime
   const labels = { ...DEFAULT_ALERT_HISTORY_LABELS, ...options.labels }
   return [
-    { key: "at", header: labels.time, width: 80, sortable: true, flash: false, accessor: (a) => a.at, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
+    { key: "at", header: labels.time, width: 80, frozen: "left", sortable: true, flash: false, accessor: (a) => a.at, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
     // The word, in the tone: the tone is a hint on a word that is always there.
     { key: "severity", header: labels.severity, width: 88, sortable: true, flash: false, accessor: (a) => a.severity, cell: ({ row }) => <span className={cn("font-medium", row.tone && ALERT_TONE_TEXT[row.tone])}>{row.severity}</span> },
     { key: "title", header: labels.noticeTitle, width: 200, sortable: true, flash: false, accessor: (a) => a.title },

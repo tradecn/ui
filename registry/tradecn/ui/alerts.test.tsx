@@ -118,6 +118,13 @@ describe("notice composition", () => {
     expect(screen.queryByRole("button", { name: "Clear all" })).toBeNull()
   })
 
+  it("clears a style's outline fill under a toned severity, and keeps the badge as it is with no tone", () => {
+    render(<><AlertSeverity tone="down">critical</AlertSeverity><AlertSeverity>plain</AlertSeverity></>)
+    // A tone's color clears 4.5 to 1 on the page and a card, and can fall below on a style's outline fill.
+    expect(screen.getByText("critical")).toHaveClass("text-down", "bg-transparent", "dark:bg-transparent")
+    expect(screen.getByText("plain")).not.toHaveClass("bg-transparent")
+  })
+
   it("names the default dismiss icon and respects the caller's naming props", () => {
     const { rerender } = render(<AlertDismiss />)
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument()
@@ -336,6 +343,8 @@ describe("AlertHistory and alertColumns", () => {
   it("renders the independent grid and permits caller-owned columns and labels", () => {
     const alerts = seeded(clock().now)
     expect(alertColumns().map((column) => column.key)).toEqual(["at", "severity", "title", "message", "count"])
+    // The time is frozen, so a selected row's bar on it stays in view as the history scrolls sideways.
+    expect(alertColumns()[0]!.frozen).toBe("left")
     expect(alertColumns({ labels: { noticeTitle: "Subject" } })[2]!.header).toBe("Subject")
     const columns = alertColumns({ time: printTime }).filter((column) => column.key !== "severity")
     render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Log" columns={columns} /></div>)

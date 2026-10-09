@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Input } from "@/components/ui/input"
 import { useView } from "@/registry/tradecn/hooks/use-row-store"
 import { NULL_TOKEN, formatNotional, formatPrice, formatQuantity } from "@/registry/tradecn/lib/format"
-import { applyRules, compileComparator, compileFilter, type ReadGridRules, type RuleColumn } from "@/registry/tradecn/lib/grid-rules"
+import { applyRules, compileComparator, compileFilter, ON_TINT_CLASS, type ReadGridRules, type RuleColumn } from "@/registry/tradecn/lib/grid-rules"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 import { Countdown, type CountdownThresholds } from "@/registry/tradecn/ui/countdown"
 import { DataGrid, type ColumnDef, type DataGridProps } from "@/registry/tradecn/ui/data-grid"
@@ -340,7 +340,8 @@ export function RfqStack<T extends RfqStackRow = RfqStackRow>({
         ...own,
         "data-state": active ? "active" : parked ? "parked" : own?.["data-state"],
         "aria-description": own?.["aria-description"] ?? (mark ? [ruled?.getRowProps(row)?.["aria-description"], mark].filter(Boolean).join(", ") : undefined),
-        className: cn(active && "bg-primary/10 shadow-[inset_2px_0_0_var(--primary)]", parked && "text-muted-foreground", own?.className),
+        // The active row's tint carries the foreground, a soon countdown's digits included.
+        className: cn(active && cn("bg-primary/10 shadow-[inset_2px_0_0_var(--primary)]", ON_TINT_CLASS), parked && "text-muted-foreground", own?.className),
       }
     },
     [activeId, parkedIds, getRowProps, activeLabel, parkedLabel, ruled],

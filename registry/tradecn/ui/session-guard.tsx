@@ -258,7 +258,7 @@ function WarningBanner({ className, role = "status", fallbackFocusRef, ref, onFo
       }
     })
   }, [])
-  return <div role={role} data-slot="tradecn-session-guard" data-session-banner="" className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-expiring/50 bg-expiring-soft px-3 py-1.5 text-xs text-foreground lining-nums tabular-nums", className)} {...props} ref={bannerRef} onFocus={(event) => {
+  return <div role={role} data-slot="tradecn-session-guard" data-session-banner="" className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-expiring/50 bg-expiring-soft px-3 py-1.5 text-xs lining-nums tabular-nums text-foreground [&_.text-up]:text-inherit [&_.text-down]:text-inherit [&_.text-flat]:text-inherit [&_.text-stale]:text-inherit [&_.text-expiring]:text-inherit [&_.text-destructive]:text-inherit [&_.text-primary]:text-inherit", className)} {...props} ref={bannerRef} onFocus={(event) => {
     onFocus?.(event)
     // Arriving from outside, focus came from that element, or from nowhere the banner can send it back to.
     const from = event.relatedTarget as HTMLElement | null

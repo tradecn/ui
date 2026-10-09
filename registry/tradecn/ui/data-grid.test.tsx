@@ -384,6 +384,27 @@ describe("DataGrid", () => {
     expect(onSelection.mock.lastCall![0].size).toBe(0)
   })
 
+  it("marks a selected row by a bar at the start of its first cell, never a fill behind its text", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    const view = (selectionColumn: boolean) => <DataGrid store={store} columns={columns} label="Quotes" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} selection={new Set(["r1"])} selectionColumn={selectionColumn} />
+    const marked = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-row-id="${id}"] [role='gridcell']`)].filter((cell) => cell.className.includes("before:bg-primary"))
+    const fills = (id: string) => document.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!.className.split(" ").filter((name) => name.startsWith("bg-"))
+    const { rerender } = render(view(false))
+    expect(fills("r1")).toEqual([])
+    expect(marked("r1").map((cell) => cell.getAttribute("data-col"))).toEqual(["sym"])
+    // A frozen first cell stays frozen under the bar.
+    expect(marked("r1")[0]).toHaveClass("sticky")
+    expect(marked("r1")[0]).not.toHaveClass("relative")
+    expect(marked("r0")).toEqual([])
+    // With the selection box, the bar is the box's.
+    rerender(view(true))
+    expect(fills("r1")).toEqual([])
+    expect(marked("r1").map((cell) => cell.getAttribute("aria-colindex"))).toEqual(["1"])
+    expect(marked("r1")[0]!.querySelector("[role='checkbox']")).not.toBeNull()
+    expect(marked("r2")).toEqual([])
+  })
+
   it("Enter and double-click activate the row; a right-click targets the row under the pointer", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     seed(5, store)
@@ -1609,7 +1630,7 @@ describe("rules as data", () => {
     expect(cell("r9", "px")).toHaveAttribute("data-rule", "rich")
     expect(cell("r9", "px")).toHaveAttribute("data-tone", "up")
     expect(cell("r9", "px")).toHaveAttribute("aria-description", "Rich to the market")
-    expect(cell("r9", "px").className).toContain("text-up")
+    expect(cell("r9", "px").className).toContain("text-foreground")
     expect(cell("r1", "px")).toHaveAttribute("data-rule", "cheap")
     expect(cell("r1", "px")).toHaveAttribute("aria-description", "Price below 101-16")
     expect(cell("r3", "px")).not.toHaveAttribute("data-rule")
@@ -1619,7 +1640,7 @@ describe("rules as data", () => {
     expect(big).toHaveAttribute("data-rule", "big")
     expect(big).toHaveAttribute("data-tone", "primary")
     expect(big).toHaveAttribute("aria-description", "Large")
-    expect(big.className).toContain("text-primary")
+    expect(big.className).toContain("text-foreground")
     expect(cell("r9", "qty")).not.toHaveAttribute("data-rule")
     expect(document.querySelector('[data-row-id="r2"]')).not.toHaveAttribute("data-rule")
     // The frozen cell keeps its opaque background and paints the row's tint over it, so the row's color has no gap; the other cells leave it to the row.
@@ -1924,6 +1945,20 @@ describe("editing", () => {
     fireEvent.keyDown(input, { key: "Enter" })
     expect(onEdit).toHaveBeenCalledTimes(1)
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ key: "px", value: 108 }))
+  })
+
+  it("keeps a frozen cell in the focused column opaque, painting the column's tint as a background image", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    render(<DataGrid store={store} columns={editable} label="Sheet" initialRect={RECT} focusedRowId="r1" onEdit={vi.fn()} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    const sym = grid.querySelector<HTMLElement>('[data-row-id="r0"] [data-col="sym"]')!
+    expect(sym).toHaveAttribute("data-focused-col")
+    expect(sym).toHaveClass("sticky", "bg-background")
+    expect(sym.className).toContain("var(--muted)_50%")
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    expect(grid.querySelector('[data-row-id="r0"] [data-col="px"]')).toHaveClass("bg-muted/50")
   })
 
   it("invalidates a custom-opened editor by its own column, independently of logical grid focus", () => {

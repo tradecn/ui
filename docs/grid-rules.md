@@ -86,7 +86,7 @@ A rule names a column by key and reads each row through its `accessor`. It compa
 | `id` | `string` | Required | Identifies the applied rule in `data-rule`. |
 | `column` | `string` | Required | Key of the column to read. |
 | `when` | `RuleCondition` | Required | Condition that triggers the highlight. |
-| `tone` | `RuleTone` | Required | Token used for the text and background tint. |
+| `tone` | `RuleTone` | Required | Token whose tint goes behind the matched cell or row. |
 | `label` | `string` | Generated description | Accessible description; a blank label also uses the generated words. |
 | `target` | `"cell" \| "row"` | `"cell"` | Paint the cell in `column` or the whole row. |
 
@@ -178,9 +178,9 @@ A condition that is missing, or names an op not in `RULE_OPS`, matches no rows, 
 
 ### Tones are tokens
 
-`RuleTone` is a token name: `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`. `RULE_TONES` lists them; `RULE_TONE_CLASS` maps each to its CSS classes.
+`RuleTone` is a token name: `up`, `down`, `flat`, `stale`, `expiring`, `primary`, or `destructive`. `RULE_TONES` lists them; `RULE_TONE_CLASS` maps each to its CSS classes, `ON_TINT_CLASS` and the tint.
 
-The text uses the token color. The background uses its soft variant, or a 12% tint for `primary` and `destructive`. This tint is a background image: a frozen cell keeps its opaque background, and a selected row's highlight shows through.
+A tone is a tint: the token's soft variant, or a 12% tint for `primary` and `destructive`, painted as a background image so a frozen cell keeps its opaque background under it. Text on the tint is the foreground color, and `text-up`, `text-down`, `text-flat`, `text-stale`, `text-expiring`, `text-destructive`, and `text-primary` text inside takes the foreground too: a state color on a tint can fall below 4.5 to 1 in light mode, and a signed value still shows its direction by its sign. The override reaches the tinted element's descendants only, so a state class on the decorated element itself competes with the tone's `text-foreground`: merged with `cn`, the later class wins. `ON_TINT_CLASS` is that text treatment alone: the foreground and the seven overrides, for a tint of your own behind text.
 
 `ruleDecoration(rule, columns)` returns a `RuleDecoration` for a highlight, written or read, without checking whether it matches:
 
@@ -238,4 +238,4 @@ The helpers compare row values with rule values. Your application owns storage a
 
 ### Tokens
 
-The install adds the `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants, if you do not have them. `primary` and `destructive` are shadcn's own.
+The install adds the soft variants of the `up`, `down`, `flat`, `stale`, and `expiring` tokens, which the tones tint with, if you do not have them. `primary` and `destructive` are shadcn's own.

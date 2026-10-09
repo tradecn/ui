@@ -103,7 +103,7 @@ export function auditTrailColumns<T extends AuditEvent>(options: AuditTrailColum
   const labels = { ...DEFAULT_AUDIT_TRAIL_LABELS, ...options.labels }
   const time = options.time ?? localTime
   return [
-    { key: "at", header: labels.time, width: 104, numeric: true, sortable: true, flash: false, accessor: (r) => r.at, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
+    { key: "at", header: labels.time, width: 104, frozen: "left", numeric: true, sortable: true, flash: false, accessor: (r) => r.at, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
     { key: "event", header: labels.event, width: 128, sortable: true, flash: false, accessor: (r) => r.event, cell: ({ row }) => <span className="font-medium">{row.event}</span> },
     { key: "by", header: labels.by, width: 96, sortable: true, flash: false, accessor: (r) => r.by ?? null },
     { key: "message", header: labels.message, width: 220, flash: false, accessor: (r) => r.message ?? null },

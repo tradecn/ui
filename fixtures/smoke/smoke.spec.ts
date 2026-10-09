@@ -257,6 +257,19 @@ test("a watchlist adds through the field, finds a symbol it already has, and rem
   await page.keyboard.press("Enter")
   await expect(grid).toHaveAttribute("aria-rowcount", "4")
   await expect(row("ZN")).toHaveAttribute("aria-selected", "true")
+  // Selected, the row isn't filled behind its up and down text: the bar at the start of its first cell marks it.
+  const marked = await row("ZN").evaluate((element) => {
+    const first = element.querySelector("[role='gridcell']")!
+    const probe = document.createElement("i")
+    probe.style.color = "var(--primary)"
+    document.body.append(probe)
+    const out = { row: getComputedStyle(element).backgroundColor, width: getComputedStyle(first, "::before").width, bar: getComputedStyle(first, "::before").backgroundColor, primary: getComputedStyle(probe).color }
+    probe.remove()
+    return out
+  })
+  expect(marked.row, "no fill behind a selected row").toBe("rgba(0, 0, 0, 0)")
+  expect(marked.width).toBe("2px")
+  expect(marked.bar, "the bar is the primary token").toBe(marked.primary)
   // One: the button on the row, which only shows on hover.
   await row("CL").hover()
   await row("CL").getByRole("button", { name: "Remove CL" }).click()
@@ -1166,10 +1179,22 @@ test("a countdown says how long is left, turns in the last seconds, and stops at
   const compact = scene.getByRole("timer", { name: "Compact" })
   await expect(compact.locator("span[aria-hidden]")).toHaveCount(0)
   await expect(long.locator("span[aria-hidden] > span")).toHaveCount(1)
-  // The last seconds paint with the expiring token, through the consumer's utility CSS.
-  const color = await soon.evaluate((el) => getComputedStyle(el).color)
-  const plain = await long.evaluate((el) => getComputedStyle(el).color)
-  expect(color).not.toBe(plain)
+  // The last seconds sit on the expiring tint in the foreground color, and the bar turns expiring, through the
+  // consumer's utility CSS: the expiring color on its own tint doesn't read at 4.5 to 1.
+  const shown = await soon.evaluate((el) => {
+    const probe = document.createElement("i")
+    probe.style.color = "var(--foreground)"
+    probe.style.backgroundColor = "var(--expiring)"
+    document.body.append(probe)
+    const bar = el.querySelector("span[aria-hidden] > span")!
+    const out = { color: getComputedStyle(el).color, background: getComputedStyle(el).backgroundColor, bar: getComputedStyle(bar).backgroundColor, foreground: getComputedStyle(probe).color, expiring: getComputedStyle(probe).backgroundColor }
+    probe.remove()
+    return out
+  })
+  const plainBackground = await long.evaluate((el) => getComputedStyle(el).backgroundColor)
+  expect(shown.color, "the soon digits are the foreground").toBe(shown.foreground)
+  expect(shown.background, "the soon countdown has a tint the plain one lacks").not.toBe(plainBackground)
+  expect(shown.bar, "the soon bar is the expiring token").toBe(shown.expiring)
   // Then it runs out, and stays at zero.
   await expect(soon).toHaveAttribute("data-tier", "expired", { timeout: 8000 })
   await expect(soon.locator("[data-countdown-digits]")).toHaveText("0:00")
@@ -1486,9 +1511,10 @@ test("a hotkey editor recovers focus when resets disappear or become disabled", 
 })
 
 // Rules as data through the installed lib: the tone classes live in lib/grid-rules.ts, so this is where
-// it shows whether the consumer's Tailwind found them there. A price rule typed in 32nds colors its cell
-// with the up token and a tint, a row rule marks the row, the filter drops the small inquiry, the sort
-// runs largest first, and every decorated element says its rule in words.
+// it shows whether the consumer's Tailwind found them there. A price rule typed in 32nds tints its cell
+// with the up token behind foreground text, up text inside the tint takes the foreground too, a row rule
+// marks the row, the filter drops the small inquiry, the sort runs largest first, and every decorated
+// element says its rule in words.
 test("a grid under rules colors by the token, filters, orders, and says each rule in words", async ({ page }) => {
   await page.goto("/")
   const scene = page.locator("section[data-scene='grid-rules']")
@@ -1504,13 +1530,19 @@ test("a grid under rules colors by the token, filters, orders, and says each rul
   const painted = await page.evaluate(() => {
     const cell = document.querySelector("section[data-scene='grid-rules'] [data-row-id='rich'] [data-col='px']")!
     const probe = document.createElement("i")
-    probe.style.color = "var(--up)"
+    probe.style.color = "var(--foreground)"
     document.body.append(probe)
-    const out = { color: getComputedStyle(cell).color, up: getComputedStyle(probe).color, image: getComputedStyle(cell).backgroundImage }
+    // Signed text as a preset's change column renders it, inside the tinted cell.
+    const signed = document.createElement("span")
+    signed.className = "text-up"
+    cell.append(signed)
+    const out = { color: getComputedStyle(cell).color, signed: getComputedStyle(signed).color, foreground: getComputedStyle(probe).color, image: getComputedStyle(cell).backgroundImage }
+    signed.remove()
     probe.remove()
     return out
   })
-  expect(painted.color, "text-up from the installed lib resolves to the --up token").toBe(painted.up)
+  expect(painted.color, "the ruled cell's text is the foreground").toBe(painted.foreground)
+  expect(painted.signed, "up text inside the tint takes the foreground, from the installed lib's classes").toBe(painted.foreground)
   expect(painted.image, "the tint is painted as a background image").toContain("linear-gradient")
   const big = scene.locator("[data-row-id='big']")
   await expect(big).toHaveAttribute("data-rule", "large")
@@ -2268,6 +2300,8 @@ test("an alerts strip shows the newest notices in words and tone, folds a repeat
   for (const item of await strip.locator("li[data-tone]").all()) {
     await expect(item.locator("[data-alert-severity]")).toHaveText(await item.getAttribute("data-severity") ?? "")
     await expect(item.locator("[data-alert-severity]")).toBeVisible()
+    // A toned chip sits on the card itself: no style's outline fill under the tone's color.
+    expect(await item.locator("[data-alert-severity]").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)")
     await expect(item.locator("time")).toHaveText(/^\d{2}:\d{2}:\d{2}$/)
     const at = await item.locator("time").getAttribute("datetime")
     const local = await page.evaluate((value) => new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(value!)), at)
@@ -2395,13 +2429,33 @@ test("a status bar names the environment in a word and a tone, ticks its clock, 
   const painted = await page.evaluate(() => {
     const el = document.querySelector("section[data-scene='status-bar'] [data-status-environment]")!
     const probe = document.createElement("i")
-    probe.style.color = "var(--stale)"
+    probe.style.color = "var(--foreground)"
     document.body.append(probe)
-    const out = { color: getComputedStyle(el).color, token: getComputedStyle(probe).color }
+    const out = { color: getComputedStyle(el).color, foreground: getComputedStyle(probe).color, image: getComputedStyle(el).backgroundImage }
     probe.remove()
     return out
   })
-  expect(painted.color, "the environment word is painted with the tone's token").toBe(painted.token)
+  // The word is the foreground on the tone's tint; the tint is a background image, so the badge style's own dark
+  // background can't paint over it in either mode.
+  expect(painted.color, "the environment word is the foreground").toBe(painted.foreground)
+  expect(painted.image, "the tone's tint is painted as a background image").toContain("linear-gradient")
+  const dark = await page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>("section[data-scene='status-bar'] [data-status-environment]")!
+    // Every style's badge transitions its color, so a read in the same frame as the switch gets the light color the
+    // transition starts from; with the transition off, the read is the color the badge settles on.
+    el.style.transition = "none"
+    document.documentElement.classList.add("dark")
+    const probe = document.createElement("i")
+    probe.style.color = "var(--foreground)"
+    document.body.append(probe)
+    const out = { color: getComputedStyle(el).color, foreground: getComputedStyle(probe).color, image: getComputedStyle(el).backgroundImage }
+    probe.remove()
+    document.documentElement.classList.remove("dark")
+    el.style.transition = ""
+    return out
+  })
+  expect(dark.color, "dark: the environment word is the foreground").toBe(dark.foreground)
+  expect(dark.image, "dark: the tint survives the badge's own dark background").toContain("linear-gradient")
   const time = bar.locator("[data-status-clock='UTC'] [data-status-time]")
   await expect(time).toHaveText(/^\d\d:\d\d:\d\d$/)
   const first = (await time.textContent()) ?? ""

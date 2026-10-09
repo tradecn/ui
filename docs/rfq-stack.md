@@ -214,7 +214,7 @@ Filtering it out of a view does not clear the active choice. Countdown expiry al
 | `park`, `unpark` | `(id: RowId) => void` | Excludes or restores a row for automatic selection. |
 | `parked` | `ReadonlySet<RowId>` | Local parked ids, for the stack's `parkedIds` prop. |
 
-Pass `activeId` to mark the row with `data-state="active"` and a left bar. Key the ticket by `active.activeId` so its draft belongs to that inquiry.
+Pass `activeId` to mark the row with `data-state="active"` and a primary tint behind foreground text, with a bar at its start where the first column isn't frozen. Key the ticket by `active.activeId` so its draft belongs to that inquiry.
 
 Parking keeps the row in the stack and skips it during automatic selection; parking the active inquiry advances the ticket. Unparking restores eligibility without replacing another active inquiry.
 

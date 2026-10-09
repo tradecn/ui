@@ -99,7 +99,7 @@ All presentation parts accept their underlying element's props, including `child
 | `AlertBody` | `div` | Wrapping content; accepts block elements and links. |
 | `AlertActions` | `div` | Wrapping controls. |
 | `AlertsEmpty` | `p` | Muted text; visibility and content belong to you. |
-| `AlertSeverity` | Your `Badge` | Optional `tone: AlertTone`; default `variant="outline"`; `data-alert-severity` marker. |
+| `AlertSeverity` | Your `Badge` | Optional `tone: AlertTone`; default `variant="outline"`; `data-alert-severity` marker. With a tone, the text takes the tone's color on the surface beneath the chip, which clears any fill your style gives an outline badge. |
 | `AlertDismiss` | Your `Button` | `type="button"`, `variant="ghost"`, `size="sm"`, and a × child. The default icon is named "Dismiss" unless `aria-labelledby` is supplied. Custom children provide their own name; explicit naming props take precedence. Supply `onClick` and a notice-specific name for icon buttons. |
 
 Each piece has a `data-slot` matching its kebab-case name with the `tradecn-` prefix, such as `tradecn-alert-header`.
@@ -155,7 +155,7 @@ The announcer follows the selected row, including repeats; it is not a queue of 
 
 ### The whole list
 
-`AlertHistory` is an optional DataGrid presentation, ordered newest first by `at`, then `seq`. Give its container a height. It does not supply action or dismiss controls, create a dialog, or start TTL timers. Its default `blotter` preset adjusts scroll position when notices arrive above the first visible row.
+`AlertHistory` is an optional DataGrid presentation, ordered newest first by `at`, then `seq`, with its time column frozen. Give its container a height. It does not supply action or dismiss controls, create a dialog, or start TTL timers. Its default `blotter` preset adjusts scroll position when notices arrive above the first visible row.
 
 The history's view owns its order, so the grid renders without sort affordances, whatever the column definitions say. Under the default `blotter` preset the grid also announces its row count politely, about a second after the count stops changing, including on mount; folded repeats and arrivals into a full store leave the count unchanged and announce nothing. Pass `announceRowCount="off"` to silence it, and keep one announcement path when the history sits beside an `AlertsAnnouncer` or a toast adapter.
 
