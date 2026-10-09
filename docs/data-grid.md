@@ -246,7 +246,7 @@ Give the grid `onEdit` and the column a `CellEdit<T>`:
 |---|---|---|---|
 | `parse` | `(text: string, row: T) => unknown` | Required | Return a value or `editProblem("…")`. |
 | `format` | `(value: unknown, row: T) => string` | Column formatter or `String(value)`; blank for nullish values | Editor and pending text. |
-| `validate` | `(value: unknown, row: T, commit?: EditCommit) => EditProblem \| null \| undefined` | None | Return a problem to refuse the value. The grid passes `commit`, `{ via, repeat, session }`: `via` is `"enter"`, `"tab"`, `"blur"`, or `"value"` for a toggle or a cell control's commit; `repeat` is true for the repeats of a held key, Enter or Tab in an editor and Space or Enter on a toggle, and for a cell control's commit that says so, and false for a blur; `session` numbers each opening of an editor, uniquely across every grid on the page, and value commits share `0`. A check that asks a question can insist on a fresh Enter in the same opening for the answer. |
+| `validate` | `(value: unknown, row: T, commit?: EditCommit) => EditProblem \| null \| undefined` | None | Return a problem to refuse the value. The grid passes `commit`, `{ via, repeat, session }`: `via` is `"enter"`, `"tab"`, `"blur"`, or `"value"` for a toggle or a cell control's commit; `repeat` is true for the repeats of a held Enter or Tab in an editor, and for a cell control's commit that says so, and false for a blur and for a toggle, whose held Space or Enter commits once; `session` numbers each opening of an editor, uniquely across every grid on the page, and value commits share `0`. A check that asks a question can insist on a fresh Enter in the same opening for the answer. |
 | `step` | `(value: unknown, dir: 1 \| -1, big: boolean, row: T) => unknown` | None | Return the next value for Up or Down; Shift sets `big`. |
 | `toggle` | `(value: unknown, row: T) => unknown` | None | Return a value to commit without opening an editor. |
 | `canEdit` | `(row: T) => boolean` | Returns `true` | Make individual cells read-only with `false`. |
@@ -338,15 +338,15 @@ To handle a grid shortcut in a parent, call `preventDefault()` from `onKeyDownCa
 | PageUp / PageDown | Move row focus by a viewport. |
 | Home / End | Focus the first / last row. |
 | Shift + a row navigation key | Extend selection in multi-select mode. |
-| Left / Right | Move column focus. |
-| Space | Toggle selection in multi mode; select in single mode. On an editable toggle cell, commit its toggle instead. Does nothing while the focused row is outside the view. |
-| Enter | Edit the focused editable cell, including toggles; otherwise activate the row. Does nothing while the focused row is outside the view. |
+| Left / Right | Move column focus, scrolling the column into view sideways, clear of the frozen columns. |
+| Space | Toggle selection in multi mode; select in single mode. On an editable toggle cell, commit its toggle instead. A held Space acts once, as a checkbox's does. Does nothing while the focused row is outside the view. |
+| Enter | Edit the focused editable cell, including toggles, whose held Enter commits once; otherwise activate the row. An editor opens with its column scrolled into view. Does nothing while the focused row is outside the view. |
 | F2 | Edit the focused editable cell, including toggles. Does nothing while the focused row is outside the view. |
 | Type a character other than Space | Open an editable text cell with that character. Toggle cells and Ctrl, Cmd, or Alt combinations do not open an editor, and nothing opens while the focused row is outside the view. |
 | Escape | Clear selection. |
 | Ctrl or Cmd+A | Select all rows in the view in multi mode. |
-| Alt+Left / Right | Move the focused column. |
-| Alt+Shift+Left / Right | Resize the focused column by 8 px. |
+| Alt+Left / Right | Move the focused column, keeping it in view. |
+| Alt+Shift+Left / Right | Resize the focused column by 8 px, keeping it in view. |
 | Alt+S | Cycle a sortable column: ascending, descending, off. |
 | Alt+H | Hide the focused column. |
 | Shift+F10 / Menu | Open the context menu on the focused row. |

@@ -148,7 +148,7 @@ Up and Down step when configured. Ctrl, Cmd, or Alt with those arrows passes thr
 
 ### The enable box
 
-The checkbox stays checked according to the store's `enabled` value. Pressing it calls `onEdit` with `key: "enabled"` and the opposite boolean. It is disabled while pending; the acknowledgement and error rules above apply. The grid's Space, Enter, and F2 keys on that cell can send the same request, including while pending.
+The checkbox stays checked according to the store's `enabled` value. Pressing it calls `onEdit` with `key: "enabled"` and the opposite boolean. It is disabled while pending; the acknowledgement and error rules above apply. The grid's Space, Enter, and F2 keys on that cell can send the same request, including while pending, once per press: a held key sends one request, so it can't toggle the value back once the server takes it.
 
 The checkbox uses your installed checkbox component and stays outside the tab order. Its accessible name describes the request, such as `Enable ZN` or `Disable ZN`.
 

@@ -160,7 +160,7 @@
         "blotter",
         "watchlist"
       ],
-      "docs": "Feed it a RowStore (installed alongside) and column definitions. Fixed row height; the grid positions rows itself. Adds @tanstack/react-virtual and the up/down/flat tokens. Composes your checkbox, context-menu, and dropdown-menu.",
+      "docs": "Feed it a RowStore (installed alongside) and column definitions. Fixed row height; the grid positions rows itself. Adds @tanstack/react-virtual and the up, down, and flat tokens with the soft variants the grid tints with. Composes your checkbox, context-menu, and dropdown-menu.",
       "meta": {
         "components": [
           {
@@ -700,7 +700,7 @@
         "watchlist",
         "grid"
       ],
-      "docs": "Installs the data grid, the row store, and format alongside, and adds @tanstack/react-virtual and the up/down/flat tokens. Composes your input, button, and context-menu, plus the checkbox and dropdown-menu the grid uses. Rows are keyed by symbol: createRowStore({ getRowId: (r) => r.symbol }).",
+      "docs": "Installs the data grid, the row store, and format alongside, and adds @tanstack/react-virtual and the up, down, and flat tokens with the soft variants the grid tints with. Composes your input, button, and context-menu, plus the checkbox and dropdown-menu the grid uses. Rows are keyed by symbol: createRowStore({ getRowId: (r) => r.symbol }).",
       "meta": {
         "components": [
           {
@@ -837,7 +837,7 @@
         "blotter",
         "grid"
       ],
-      "docs": "Installs the data grid, the row store, and format alongside, and adds @tanstack/react-virtual and the up/down/flat tokens. Composes your button and context-menu, plus the checkbox and dropdown-menu the grid uses. Delete cancels nothing until you name the action it runs.",
+      "docs": "Installs the data grid, the row store, and format alongside, and adds @tanstack/react-virtual and the up, down, and flat tokens with the soft variants the grid tints with. Composes your button and context-menu, plus the checkbox and dropdown-menu the grid uses. Delete cancels nothing until you name the action it runs.",
       "meta": {
         "components": [
           {

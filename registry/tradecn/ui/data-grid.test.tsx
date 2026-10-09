@@ -384,6 +384,90 @@ describe("DataGrid", () => {
     expect(onSelection.mock.lastCall![0].size).toBe(0)
   })
 
+  it("selects on Space once while the key is held, as a checkbox does", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    const onSelection = vi.fn()
+    render(<DataGrid store={store} columns={columns} label="Quotes" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} onSelectionChange={onSelection} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: " " })
+    expect([...onSelection.mock.lastCall![0]]).toEqual(["r0"])
+    const calls = onSelection.mock.calls.length
+    fireEvent.keyDown(grid, { key: " ", repeat: true })
+    fireEvent.keyDown(grid, { key: " ", repeat: true })
+    expect(onSelection.mock.calls.length).toBe(calls)
+  })
+
+  it("announces the row count a second after it settles, in the singular for one row", () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(1, store)
+      render(<DataGrid store={store} columns={columns} label="Quotes" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} />)
+      // The region appears with its first announcement.
+      const region = () => screen.getByRole("grid").querySelector('[aria-live="polite"]:not([data-grid-row-reading])')
+      act(() => void vi.advanceTimersByTime(1000))
+      expect(region()).toHaveTextContent(/^1 row$/)
+      act(() => seed(2, store))
+      act(() => void vi.advanceTimersByTime(1000))
+      expect(region()).toHaveTextContent(/^2 rows/)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("brings a column the keys move to into view sideways, clear of the frozen ones, and the column an editor opens in", () => {
+    type Wide = { id: string } & Record<string, string | number>
+    const store = createRowStore<Wide>({ getRowId: (r) => r.id })
+    store.applyDeltas({ upsert: [{ id: "a", ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`c${i}`, i])) }] })
+    // Eight columns, 100px wide but for c7's 250px; the first is frozen and c6 is editable.
+    const wide: ColumnDef<Wide>[] = Array.from({ length: 8 }, (_, i) => ({
+      key: `c${i}`,
+      header: `C${i}`,
+      width: i === 7 ? 250 : 100,
+      accessor: (r: Wide) => r[`c${i}`] ?? null,
+      ...(i === 0 ? { frozen: "left" as const } : {}),
+      ...(i === 6 ? { edit: { parse: (t: string) => Number(t) } } : {}),
+    }))
+    render(<DataGrid store={store} columns={wide} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => {}} />)
+    const grid = screen.getByRole("grid")
+    const scroller = grid.querySelector<HTMLElement>(".overflow-auto")!
+    // A 300px viewport: c0 stays in its first 100px, so the other columns show between 100 and 300.
+    Object.defineProperty(scroller, "clientWidth", { configurable: true, get: () => 300 })
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    for (let i = 0; i < 5; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+    // c4 spans 400 to 500: its right edge meets the viewport's.
+    expect(scroller.scrollLeft).toBe(200)
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(scroller.scrollLeft).toBe(200)
+    // c2 spans 200 to 300: its left edge comes clear of the frozen c0.
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(scroller.scrollLeft).toBe(100)
+    // c1 spans 100 to 200, right after c0.
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(scroller.scrollLeft).toBe(0)
+    // The frozen column is always in view, so focusing it moves nothing.
+    scroller.scrollLeft = 150
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(scroller.scrollLeft).toBe(150)
+    // Focus c6, scroll away, and type: the editor opens with its column in view, 600 to 700.
+    for (let i = 0; i < 6; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+    scroller.scrollLeft = 0
+    fireEvent.keyDown(grid, { key: "5" })
+    expect(screen.getByRole("textbox")).toHaveValue("5")
+    expect(scroller.scrollLeft).toBe(400)
+    // c7, 700 to 950, is wider than the 200px past c0: its left edge shows first.
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    expect(scroller.scrollLeft).toBe(600)
+    fireEvent.keyDown(grid, { key: "ArrowLeft" })
+    expect(scroller.scrollLeft).toBe(500)
+    // Moved one place right, past c7, c6 lands at 850 to 950, and comes into view where it now sits.
+    fireEvent.keyDown(grid, { key: "ArrowRight", altKey: true })
+    expect(scroller.scrollLeft).toBe(650)
+  })
+
   it("marks a selected row by a bar at the start of its first cell, never a fill behind its text", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     seed(3, store)
@@ -2408,11 +2492,12 @@ describe("editing", () => {
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     fireEvent.keyDown(grid, { key: " " })
     expect(commit()).toEqual({ via: "value", repeat: false, session: 0 })
-    // A held Space or Enter on a toggle says so, as a held key in an editor does.
+    // A held Space or Enter on a toggle commits once: its repeats send nothing, as a native checkbox's do, so a held key
+    // can't flip the value the server just acknowledged back again.
+    const calls = validate.mock.calls.length
     fireEvent.keyDown(grid, { key: " ", repeat: true })
-    expect(commit()).toEqual({ via: "value", repeat: true, session: 0 })
     fireEvent.keyDown(grid, { key: "Enter", repeat: true })
-    expect(commit()).toEqual({ via: "value", repeat: true, session: 0 })
+    expect(validate.mock.calls.length).toBe(calls)
   })
 
   it("passes a held key's repeat from a cell control's commit to validate", () => {

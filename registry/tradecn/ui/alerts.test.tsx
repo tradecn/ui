@@ -233,6 +233,26 @@ describe("useAlert", () => {
     vi.useRealTimers()
   })
 
+  it("keeps a notice whose own time isn't a finite number, with a finite clock", () => {
+    vi.useFakeTimers()
+    const now = () => 1_700_000_000_000
+    // Infinity either way gives a delay that isn't finite; a time sent as text from untyped JSON is no number at all,
+    // and adding to it would build a delay past the timer range, which runs at once.
+    for (const at of [Infinity, -Infinity, "1700000000000"]) {
+      const alerts = createAlertStore({ now })
+      alerts.store.applyDeltas({ upsert: [{ id: "a", severity: "info", title: "Plain", count: 1, at } as never] })
+      function Row() {
+        useAlert(alerts, "a", { ttlMs: 5000, now })
+        return null
+      }
+      const view = render(<Row />)
+      act(() => void vi.advanceTimersByTime(60_000))
+      expect(alerts.size(), String(at)).toBe(1)
+      view.unmount()
+    }
+    vi.useRealTimers()
+  })
+
   it("keeps hidden rows, cleans up timers on unmount, and follows store and ID replacements", () => {
     vi.useFakeTimers()
     const c = clock()

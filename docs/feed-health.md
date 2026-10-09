@@ -139,7 +139,7 @@ A div that supplies one feed's readings and pending state to its children.
 | `feed` | `FeedDescriptor` | Required | This item's readings. |
 | `pending` | `PendingFeedAction \| null` | — | Request state from `useFeedActions`. |
 
-The item sets small text and `data-feed`, `data-state`, `data-tier`, `data-pending`. Tier colors belong to the badge and tooltip trigger, leaving application content untinted. On the stale tier's tint, text inside the trigger takes the foreground, a lane's gap, its drop count, and the pending marker included: state-colored and muted text on that tint can fall below 4.5 to 1.
+The item sets small text and `data-feed`, `data-state`, `data-tier`, `data-pending`. Tier colors belong to the badge and tooltip trigger, leaving application content untinted. On the stale tier's tint, text inside the trigger takes the foreground, a lane's gap, its drop count, and the pending marker included: state-colored and muted text on that tint can fall below 4.5 to 1. The reset covers the `text-up`, `text-down`, `text-flat`, `text-stale`, `text-expiring`, `text-destructive`, `text-primary`, and `text-muted-foreground` classes; any other color class you put inside, such as `text-muted-foreground/70`, keeps its color.
 
 ### `<FeedHealthList />`
 
@@ -179,7 +179,7 @@ A badge containing the tier word. Use `className="sr-only"` for compact display,
 
 #### `<FeedHealthLane />`
 
-A span containing nonzero coalesced drops or ordered gap age, a replay spinner and an accessible replay/open word. With omitted children, no data renders nothing. Inside the tooltip trigger, as the composition above places it, the gap age and drop count are part of the focused button's name, which changes as they do; give the trigger a fixed `aria-label` when a screen reader shouldn't hear each change.
+A span containing nonzero coalesced drops or ordered gap age, a replay spinner and an accessible replay/open word. With omitted children, no data renders nothing. Inside the tooltip trigger, as the composition above places it, the gap age and drop count are part of the focused button's name, which changes as they do; give the trigger a fixed `aria-label` that starts with its visible label when a screen reader shouldn't hear each change.
 
 #### `<FeedHealthDetails />`
 
@@ -232,7 +232,7 @@ Future timestamps clamp to zero. `formatAge(ms)` returns `now` below one second,
 <details class="api-details" id="feedhealthannouncer-timing">
 <summary>Announcement timing</summary>
 
-It initializes empty, then batches additions and tier changes; aging/stale messages include the age. Every tier change is announced, a recovery to live included, so a feed whose ticks straddle `agingMs` announces each crossing; set `thresholds` above the feed's tick interval. Age-only ticks, label changes, reordering and removals leave the last message unchanged. Repeated wording still inserts a new message node. An idle clock refreshing on subscription can produce a tier change during mounting.
+It initializes empty, then batches additions and tier changes; aging/stale messages include the age. Every tier change is announced, a recovery to live included, so a feed whose ticks straddle `agingMs` announces each crossing; set `agingMs` in `thresholds` above the interval between the feed's messages. Age-only ticks, label changes, reordering and removals leave the last message unchanged. Repeated wording still inserts a new message node. An idle clock refreshing on subscription can produce a tier change during mounting.
 
 </details>
 

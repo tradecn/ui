@@ -1012,6 +1012,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
 
   // Scrolls a row into view. Set once the virtualizer exists; the controller calls it when an editor opens.
   const revealRow = useRef<(rowId: RowId) => void>(() => {})
+  const revealColumn = useRef<(key: string) => void>(() => {})
+  // A column the keys moved or resized, brought into view once the commit has laid it out.
+  const columnToReveal = useRef<string | null>(null)
 
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
@@ -1101,6 +1104,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         activeColumn = key
         tracker.set(k, { ...now, selectAll: true, focused: false })
         revealRow.current(rowId)
+        revealColumn.current(key)
         return
       }
       const text = now?.kind === "pending" ? now.text : editText(col, col.accessor(row!), row!)
@@ -1113,8 +1117,10 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const prior = covered?.kind === "pending" && !covered.tracked ? undefined : covered
       tracker.set(k, { kind: "editing", text: typed ?? text, problem: null, selectAll: typed === undefined, initial: typed === undefined ? text : null, focused: false, prior, session: ++editorOpenings })
       // The editing row is always rendered (see `keep` below), so its editor mounts and takes focus now; bring it
-      // to where the keys are, which for a row scrolled out of the window is not where the viewport is.
+      // to where the keys are, which for a row scrolled out of the window is not where the viewport is, and the same
+      // sideways, so an editor never opens, or commits, in a column out of sight.
       revealRow.current(rowId)
+      revealColumn.current(key)
     }
     const controller: EditController = {
       tracker,
@@ -1314,6 +1320,27 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const i = indexOf.get(rowId)
       if (i !== undefined) virtualizer.scrollToIndex(i, { align: "auto" })
     }
+    // Sideways, a column comes clear of the frozen ones on the left and inside the viewport's right edge, its left
+    // edge first when it is wider than the space between. A frozen column is always in view.
+    revealColumn.current = (key) => {
+      const el = scrollRef.current
+      const i = resolved.findIndex((c) => c.key === key)
+      if (!el || i < 0 || resolved[i]!.frozen === "left") return
+      const lead = selectionColumn ? SELECT_WIDTH : 0
+      let x = lead
+      let stuck = lead
+      for (let j = 0; j < resolved.length; j++) {
+        if (j < i) x += resolved[j]!.width
+        if (resolved[j]!.frozen === "left") stuck += resolved[j]!.width
+      }
+      const start = x - stuck
+      const end = x + resolved[i]!.width - el.clientWidth
+      if (el.scrollLeft > start) el.scrollLeft = start
+      else if (el.scrollLeft < end) el.scrollLeft = Math.min(end, start)
+    }
+    const pending = columnToReveal.current
+    columnToReveal.current = null
+    if (pending !== null) revealColumn.current(pending)
   })
   const uid = useId()
   const domId = (id: RowId) => `${uid}-${id}`
@@ -1488,7 +1515,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const t = setTimeout(() => {
       const fresh = newSinceAnnounce.current
       newSinceAnnounce.current = 0
-      setAnnouncement(`${ids.length.toLocaleString()} rows${fresh ? `, ${fresh.toLocaleString()} new` : ""}`)
+      setAnnouncement(`${ids.length.toLocaleString()} ${ids.length === 1 ? "row" : "rows"}${fresh ? `, ${fresh.toLocaleString()} new` : ""}`)
     }, 1000)
     return () => clearTimeout(t)
   }, [ids.length, announceRowCount])
@@ -1661,19 +1688,28 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         if (e.altKey && focusedColKey) {
           if (e.shiftKey) resizeColumn(focusedColKey, (resolved[ci]?.width ?? 0) + delta * 8)
           else moveColumn(focusedColKey, delta)
+          // The move lands in this key's commit, which brings the column into view where it now sits; a move that
+          // changes nothing leaves no reveal waiting for some later commit.
+          columnToReveal.current = focusedColKey
+          queueMicrotask(() => { columnToReveal.current = null })
           return
         }
         const next = resolved[Math.max(0, Math.min(resolved.length - 1, ci < 0 ? (delta > 0 ? 0 : resolved.length - 1) : ci + delta))]
         setFocusedColKey(next?.key ?? null)
+        // Focus moved into a column whose place hasn't changed: bring it into view now, so a key typed next edits a
+        // column in sight.
+        if (next) revealColumn.current(next.key)
         return
       }
       case " ": {
         e.preventDefault()
-        if (!focusedInView) return
+        // A held Space acts once, as a native checkbox's does: each repeat would toggle the value the server
+        // just acknowledged, or the row's selection, back again.
+        if (!focusedInView || e.repeat) return
         const col = editableFocus()
         if (col?.edit.toggle) {
           const row = store.getRow(focusedRowId!)!
-          edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row), e.repeat)
+          edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row), false)
           return
         }
         if (focusedRowId !== null) select([focusedRowId], selectionMode === "multi" ? "toggle" : "replace")
@@ -1686,8 +1722,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         if (col) {
           e.preventDefault()
           const row = store.getRow(focusedRowId!)!
-          if (col.edit.toggle) edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row), e.repeat)
-          else edits!.open(focusedRowId!, col.key)
+          if (col.edit.toggle) {
+            if (!e.repeat) edits!.commitValue(focusedRowId!, col.key, col.edit.toggle(col.accessor(row), row), false)
+          } else edits!.open(focusedRowId!, col.key)
           return
         }
         if (e.key === "F2") return
