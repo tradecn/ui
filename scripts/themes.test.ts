@@ -115,6 +115,15 @@ describe("the themes", () => {
         }
       })
 
+      it(`${theme.name} ${mode}: destructive clears 4.5 to 1 on a destructive control's own tint, over the background, a card, and a popover`, () => {
+        // Every shadcn style sets a destructive Button's text in destructive on a 10% destructive fill, 20% in dark mode, and
+        // tradecn puts one on a card: a ticket's cancel, an RFQ ticket's pass.
+        const alpha = mode === "light" ? 0.1 : 0.2
+        for (const surface of ["background", "card", "popover"]) {
+          expect(onTint(resolve("destructive"), resolve("destructive"), alpha, resolve(surface)), `destructive on its ${alpha} tint over ${surface}`).toBeGreaterThanOrEqual(4.5)
+        }
+      })
+
       it(`${theme.name} ${mode}: sets every tradecn token`, () => {
         for (const name of tokenNames) expect(vars[name], name).toBeDefined()
       })
