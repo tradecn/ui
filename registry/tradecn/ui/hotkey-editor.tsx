@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from "react"
+import { createContext, useCallback, useContext, useId, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
@@ -341,12 +341,42 @@ export function HotkeyEditorResetAll({ onClick, disabled, className, ref, ...pro
   }} />
 }
 
-export function HotkeyEditorCapture({ onKeyDown, onBlur, className, children, "aria-describedby": describedBy, ...props }: ComponentProps<typeof Button>) {
+// While a capture or a text edit is open, Escape on it cancels the edit and goes no further. It is taken at the
+// window, ahead of a dialog's own Escape handling in either base, so a dialog that holds the editor stays open, and
+// a caller's onKeyDown never sees that Escape.
+function useEscapeCancels<T extends HTMLElement>(cancel: () => void, ref: Ref<T> | undefined) {
+  const latest = useRef(cancel)
+  useInsertionEffect(() => {
+    latest.current = cancel
+  })
+  return useCallback((node: T | null) => {
+    const forwarded = assignRef(ref, node)
+    const view = node?.ownerDocument.defaultView
+    if (!node || !view) return forwarded
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing) return
+      const target = event.composedPath()[0] as Node | undefined
+      if (!target || !node.contains(target)) return
+      event.stopPropagation()
+      event.preventDefault()
+      latest.current()
+    }
+    view.addEventListener("keydown", onKey, true)
+    return () => {
+      view.removeEventListener("keydown", onKey, true)
+      if (typeof forwarded === "function") forwarded()
+      else assignRef(ref, null)
+    }
+  }, [ref])
+}
+
+export function HotkeyEditorCapture({ ref, onKeyDown, onBlur, className, children, "aria-describedby": describedBy, ...props }: ComponentProps<typeof Button>) {
   const { mode, commit, cancel, blur, problem, problemId } = useItemContext()
   const { labels } = useHotkeyEditor()
   const hintId = useId()
+  const own = useEscapeCancels(cancel, ref)
   if (mode !== "capture") return null
-  return <><Button type="button" variant="outline" size="sm" aria-pressed aria-invalid={problem ? true : undefined} aria-describedby={[describedBy, hintId, problem ? problemId : null].filter(Boolean).join(" ")} data-hotkey-capture="true" className={cn("h-auto min-h-7 self-start whitespace-normal px-2 text-start text-xs", className)} {...props} onKeyDown={(event) => {
+  return <><Button type="button" variant="outline" size="sm" aria-pressed aria-invalid={problem ? true : undefined} aria-describedby={[describedBy, hintId, problem ? problemId : null].filter(Boolean).join(" ")} data-hotkey-capture="true" className={cn("h-auto min-h-7 self-start whitespace-normal px-2 text-start text-xs", className)} {...props} ref={own} onKeyDown={(event) => {
     onKeyDown?.(event)
     if (event.defaultPrevented) return
     // A Tab with any move-on modifier is someone leaving, not a binding: Shift reverses
@@ -361,8 +391,9 @@ export function HotkeyEditorCapture({ onKeyDown, onBlur, className, children, "a
     }
     event.preventDefault()
     event.stopPropagation()
-    if (event.key === "Escape") return cancel()
     if (event.key === "Backspace" || event.key === "Delete") return commit("")
+    // The window takes Escape first; in a document with no window, it still cancels and is never a binding.
+    if (event.key === "Escape") return cancel()
     if ((event.key === "Enter" || event.key === " ") && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) return
     const keys = keysFromEvent(event.nativeEvent)
     if (keys) commit(keys)
@@ -374,11 +405,12 @@ export function HotkeyEditorCapture({ onKeyDown, onBlur, className, children, "a
   </Button><span id={hintId} className="sr-only">{labels.cancelHint}</span></>
 }
 
-export function HotkeyEditorInput({ onChange, onKeyDown, onBlur, className, "aria-describedby": describedBy, ...props }: InputProps) {
+export function HotkeyEditorInput({ ref, onChange, onKeyDown, onBlur, className, "aria-describedby": describedBy, ...props }: InputProps) {
   const { entry, mode, draft, setDraft, commit, cancel, blur, problem, problemId } = useItemContext()
   const { labels } = useHotkeyEditor()
+  const own = useEscapeCancels(cancel, ref)
   if (mode !== "text") return null
-  return <Input aria-label={`${labels.keysFor} ${entry.description}`} aria-invalid={problem ? true : undefined} aria-describedby={[describedBy, problem ? problemId : null].filter(Boolean).join(" ") || undefined} spellCheck={false} autoComplete="off" data-hotkey-input="" className={cn("h-7 w-40 font-(family-name:--tradecn-font-mono) text-xs md:text-xs", className)} {...props} value={draft} onChange={(event) => {
+  return <Input aria-label={`${labels.keysFor} ${entry.description}`} aria-invalid={problem ? true : undefined} aria-describedby={[describedBy, problem ? problemId : null].filter(Boolean).join(" ") || undefined} spellCheck={false} autoComplete="off" data-hotkey-input="" className={cn("h-7 w-40 font-(family-name:--tradecn-font-mono) text-xs md:text-xs", className)} {...props} ref={own} value={draft} onChange={(event) => {
     onChange?.(event)
     if (!event.defaultPrevented) setDraft(event.target.value)
   }} onKeyDown={(event) => {
@@ -387,10 +419,9 @@ export function HotkeyEditorInput({ onChange, onKeyDown, onBlur, className, "ari
     // Editing keys stay out of application hotkeys, including editing-scope bindings.
     event.stopPropagation()
     if (event.nativeEvent.isComposing) return
-    if (event.key === "Enter" || event.key === "Escape") {
+    if (event.key === "Enter") {
       event.preventDefault()
-      if (event.key === "Enter") commit(draft)
-      else cancel()
+      commit(draft)
     }
   }} onBlur={(event) => {
     onBlur?.(event)

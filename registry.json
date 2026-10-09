@@ -390,6 +390,10 @@
           {
             "title": "usePendingChord",
             "description": "The chord typed so far, or null."
+          },
+          {
+            "title": "useHotkeyScope",
+            "description": "The nearest scope's element getter, for a scoped palette action's within."
           }
         ]
       }

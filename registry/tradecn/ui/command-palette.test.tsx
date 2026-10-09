@@ -1,6 +1,7 @@
 import * as React from "react"
 import { CommandGroup, CommandShortcut } from "@/components/ui/command"
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
+import { createPortal } from "react-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { HotkeyScope, HotkeysProvider, useHotkeyScope } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
@@ -65,6 +66,32 @@ describe("createActionRegistry", () => {
       { kind: "action", id: "a" },
     ])
     expect(saved).toHaveBeenCalledTimes(3)
+  })
+
+  it("skips stored recents it can't read, and keeps the default count for one that isn't a count", () => {
+    const actions = createActionRegistry({ maxRecents: Number.NaN })
+    actions.loadRecents([
+      { kind: "symbol", symbol: {} },
+      { kind: "symbol", symbol: { symbol: "AAPL", kind: { a: 1 } } },
+      { kind: "action" },
+      null,
+      { kind: "action", id: "a", scope: 7 },
+      { kind: "action", id: "b" },
+      { kind: "symbol", symbol: { symbol: "MSFT", exchange: "XNAS" } },
+    ] as never)
+    expect(actions.recents()).toEqual([{ kind: "action", id: "b" }, { kind: "symbol", symbol: { symbol: "MSFT", exchange: "XNAS" } }])
+    // A field stored as null is a field left out, as JSON stores an adapter's missing exchange.
+    actions.loadRecents([{ kind: "action", id: "c", scope: null }, { kind: "symbol", symbol: { symbol: "ZN", exchange: null, name: null } }] as never)
+    expect(actions.recents()).toEqual([{ kind: "action", id: "c" }, { kind: "symbol", symbol: { symbol: "ZN" } }])
+    for (let i = 0; i < 12; i++) actions.touch({ kind: "action", id: `x${i}` })
+    expect(actions.recents()).toHaveLength(8)
+    // Something that isn't a list reads as no recents.
+    actions.loadRecents("[]" as never)
+    expect(actions.recents()).toEqual([])
+    // Infinity keeps them all.
+    const all = createActionRegistry({ maxRecents: Number.POSITIVE_INFINITY })
+    for (let i = 0; i < 12; i++) all.touch({ kind: "action", id: `x${i}` })
+    expect(all.recents()).toHaveLength(12)
   })
 })
 
@@ -575,6 +602,305 @@ describe("CommandPalette", () => {
     expect(ranB).not.toHaveBeenCalled()
   })
 
+  it("answers the panel in the popout window a key opened it from, and takes that window's keys while open", () => {
+    // A popout window is a document of its own: the registry listens there too, and this document's focus tracker
+    // never hears it. Book A holds focus here; the key comes from Book B there.
+    const popout = document.implementation.createHTMLDocument("popout")
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const cancel = vi.fn()
+    hotkeys.register({ id: "orders.cancel", keys: "x", scope: "global", description: "Cancel" }, cancel)
+    // Keys a desk binds to orders: none may reach the popout while the palette is open there.
+    const kill = vi.fn()
+    const send = vi.fn()
+    hotkeys.register({ id: "orders.kill", keys: "delete", scope: "global", description: "Kill" }, kill)
+    hotkeys.register({ id: "orders.halt", keys: "f9", scope: "global", description: "Halt" }, kill)
+    hotkeys.register({ id: "ticket.send", keys: "mod+enter", scope: "editing", description: "Send" }, send)
+    const actions = createActionRegistry()
+    const home = vi.fn()
+    actions.register({ id: "go.home", title: "Go home", run: home })
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    // A closed dialog stays in the DOM here, its exit animation never finishing, so what opens and closes is read here.
+    const changed = vi.fn()
+    function BookBody({ run: runBook }: { run: () => void }) {
+      const within = useHotkeyScope()
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within }), [runBook, within])
+      return <p>book body</p>
+    }
+    render(
+      <HotkeysProvider registry={hotkeys}>
+        <HotkeyScope scope="panel:book" data-testid="scope-a"><BookBody run={ranA} /></HotkeyScope>
+        {createPortal(<HotkeyScope scope="panel:book" data-book="b"><BookBody run={ranB} /></HotkeyScope>, popout.body)}
+        <ComposedPalette actions={actions} hotkeys={hotkeys} onOpenChange={changed} />
+      </HotkeysProvider>,
+    )
+    const detach = hotkeys.attach(popout)
+    act(() => (screen.getByTestId("scope-a") as HTMLElement).focus())
+    const bookB = popout.querySelector("[data-book='b']")!
+    const press = (key: string, init: KeyboardEventInit = {}) => {
+      let taken = false
+      act(() => void (taken = !bookB.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init }))))
+      return taken
+    }
+    const highlighted = () => document.querySelector('[cmdk-item][aria-selected="true"]')?.getAttribute("data-row")
+    press("k", { ctrlKey: true })
+    expect(screen.getByRole("combobox")).toBeInTheDocument()
+    // While it is open, the popout's keys are the palette's: text goes into the query, not to that window's bindings,
+    // the arrows move through the rows, and Escape closes it.
+    expect(press("x")).toBe(true)
+    expect(cancel).not.toHaveBeenCalled()
+    expect(input()).toHaveValue("x")
+    press("Backspace")
+    expect(input()).toHaveValue("")
+    const first = highlighted()
+    press("ArrowDown")
+    expect(highlighted()).not.toBe(first)
+    // Delete and an F-key stop at the palette too, and mod+Enter runs the highlighted row, not the window's send.
+    expect(press("Delete")).toBe(true)
+    expect(press("F9")).toBe(true)
+    expect(kill).not.toHaveBeenCalled()
+    press("Home")
+    const top = highlighted()
+    press("Enter", { ctrlKey: true })
+    expect(send).not.toHaveBeenCalled()
+    expect(changed).toHaveBeenLastCalledWith(false)
+    expect(top === "action:go.home" ? home : ranB).toHaveBeenCalledTimes(1)
+    home.mockClear()
+    ranB.mockClear()
+    // A press in the popout closes the palette: the person has gone back to that window.
+    press("k", { ctrlKey: true })
+    expect(changed).toHaveBeenLastCalledWith(true)
+    act(() => void bookB.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })))
+    expect(changed).toHaveBeenLastCalledWith(false)
+    press("k", { ctrlKey: true })
+    press("Escape")
+    expect(changed).toHaveBeenLastCalledWith(false)
+    // Book B answers, though Book A holds focus in this window.
+    press("k", { ctrlKey: true })
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranB).toHaveBeenCalledTimes(1)
+    expect(ranA).not.toHaveBeenCalled()
+    // Closed, the popout's keys are its own again; open, the shortcut that opened the palette closes it from there.
+    press("x")
+    expect(cancel).toHaveBeenCalledTimes(1)
+    press("k", { ctrlKey: true })
+    expect(changed).toHaveBeenLastCalledWith(true)
+    press("k", { ctrlKey: true })
+    expect(changed).toHaveBeenLastCalledWith(false)
+    detach()
+  })
+
+  it("takes a popout's keys from the one right after the shortcut", () => {
+    const popout = document.implementation.createHTMLDocument("popout")
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const cancel = vi.fn()
+    hotkeys.register({ id: "orders.cancel", keys: "x", scope: "global", description: "Cancel" }, cancel)
+    render(
+      <HotkeysProvider registry={hotkeys}>
+        {createPortal(<HotkeyScope scope="panel:book" data-book="b"><p>book body</p></HotkeyScope>, popout.body)}
+        <ComposedPalette actions={createActionRegistry()} hotkeys={hotkeys} />
+      </HotkeysProvider>,
+    )
+    const detach = hotkeys.attach(popout)
+    const bookB = popout.querySelector("[data-book='b']")!
+    // Both keys in one batch: nothing renders between them unless the shortcut renders the opening itself.
+    act(() => {
+      bookB.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true }))
+      bookB.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true }))
+    })
+    expect(cancel).not.toHaveBeenCalled()
+    expect(input()).toHaveValue("x")
+    detach()
+  })
+
+  it("keeps every key in a popout from its bindings and its field while the palette is open, a modifier held or not", () => {
+    const popout = document.implementation.createHTMLDocument("popout")
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    // A ticket's bindings, held behind modifiers as the docs advise for orders, and answering in its fields as `editing`.
+    const flip = vi.fn()
+    const down = vi.fn()
+    hotkeys.register({ id: "ticket.flip", keys: "mod+shift+x", scope: "editing", description: "Flip" }, flip)
+    hotkeys.register({ id: "ticket.tick-down", keys: "mod+down", scope: "editing", description: "Tick down" }, down)
+    const changed = vi.fn()
+    render(
+      <HotkeysProvider registry={hotkeys}>
+        {createPortal(<HotkeyScope scope="panel:ticket"><input aria-label="Price" /></HotkeyScope>, popout.body)}
+        <ComposedPalette actions={createActionRegistry()} hotkeys={hotkeys} onOpenChange={changed} />
+      </HotkeysProvider>,
+    )
+    const detach = hotkeys.attach(popout)
+    const price = popout.querySelector("input")!
+    const press = (key: string, init: KeyboardEventInit & { keyCode?: number } = {}) => {
+      const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init })
+      if (init.keyCode !== undefined) Object.defineProperty(event, "keyCode", { value: init.keyCode })
+      act(() => void price.dispatchEvent(event))
+      return event.defaultPrevented
+    }
+    press("k", { ctrlKey: true })
+    expect(changed).toHaveBeenLastCalledWith(true)
+    // The ticket's own shortcuts stop at the palette, and do nothing to its field.
+    expect(press("X", { ctrlKey: true, shiftKey: true })).toBe(true)
+    expect(press("ArrowDown", { ctrlKey: true })).toBe(true)
+    expect(press("z", { ctrlKey: true })).toBe(true)
+    expect(flip).not.toHaveBeenCalled()
+    expect(down).not.toHaveBeenCalled()
+    // Copy keeps its default, and a paste lands in the query.
+    expect(press("c", { ctrlKey: true })).toBe(false)
+    const paste = new Event("paste", { bubbles: true, cancelable: true })
+    Object.defineProperty(paste, "clipboardData", { value: { getData: (type: string) => (type === "text/plain" ? "ZN\n" : "") } })
+    act(() => void price.dispatchEvent(paste))
+    expect(paste.defaultPrevented).toBe(true)
+    expect(input()).toHaveValue("ZN ")
+    // An Option character types; a key an input method holds does not.
+    press("å", { altKey: true })
+    expect(input()).toHaveValue("ZN å")
+    press("a", { keyCode: 229 })
+    expect(input()).toHaveValue("ZN å")
+    // Left and Right stop here and move nothing.
+    expect(press("ArrowLeft")).toBe(true)
+    // The palette's own shortcut closes it.
+    press("k", { ctrlKey: true })
+    expect(changed).toHaveBeenLastCalledWith(false)
+    // Closed, the field's keys are its own again.
+    press("X", { ctrlKey: true, shiftKey: true })
+    expect(flip).toHaveBeenCalledTimes(1)
+    detach()
+  })
+
+  it.each([
+    ["ctrl+enter", { key: "Enter", ctrlKey: true }],
+    ["shift+enter", { key: "Enter", shiftKey: true }],
+    ["x", { key: "x" }],
+  ] as const)("closes from a popout on its own shortcut %s, ahead of Enter and the query, and runs no row", (hotkey, step) => {
+    const popout = document.implementation.createHTMLDocument("popout")
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const changed = vi.fn()
+    render(
+      <HotkeysProvider registry={hotkeys}>
+        {createPortal(<input aria-label="Price" />, popout.body)}
+        <ComposedPalette actions={seed()} hotkeys={hotkeys} hotkey={hotkey} onOpenChange={changed} />
+      </HotkeysProvider>,
+    )
+    const detach = hotkeys.attach(popout)
+    const price = popout.querySelector("input")!
+    const press = () => act(() => void price.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...step })))
+    press()
+    expect(changed).toHaveBeenLastCalledWith(true)
+    // A keydown with no key, as Chrome's autofill sends, goes by the capture untouched.
+    const autofill = new Event("keydown", { bubbles: true, cancelable: true })
+    expect(() => act(() => void price.dispatchEvent(autofill))).not.toThrow()
+    expect(autofill.defaultPrevented).toBe(false)
+    press()
+    expect(changed).toHaveBeenLastCalledWith(false)
+    for (const ran of Object.values(run)) expect(ran).not.toHaveBeenCalled()
+    detach()
+  })
+
+  it("leaves a key, a press, and a paste on the palette to it when its caller renders it in the popout", () => {
+    const popout = document.implementation.createHTMLDocument("popout")
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const changed = vi.fn()
+    // The parts composed without the dialog, in the popout beside its field.
+    render(
+      <HotkeysProvider registry={hotkeys}>
+        {createPortal(
+          <>
+            <input aria-label="Price" />
+            <CommandPalette actions={seed()} hotkeys={hotkeys} onOpenChange={changed}>
+              <CommandPaletteContent><CommandPaletteInput /><CommandPaletteList><PaletteResults /></CommandPaletteList></CommandPaletteContent>
+            </CommandPalette>
+          </>,
+          popout.body,
+        )}
+      </HotkeysProvider>,
+    )
+    const detach = hotkeys.attach(popout)
+    const price = popout.querySelector("input[aria-label='Price']")!
+    act(() => void price.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true })))
+    expect(changed).toHaveBeenLastCalledWith(true)
+    const field = popout.querySelector("[cmdk-input]")!
+    const selected = () => popout.querySelector('[cmdk-item][aria-selected="true"]')?.getAttribute("data-row")
+    const first = selected()
+    // An arrow on the palette's input moves its rows once, as cmdk reads it, and never comes back through the capture.
+    act(() => void field.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true })))
+    expect(selected()).not.toBe(first)
+    const paste = new Event("paste", { bubbles: true, cancelable: true })
+    act(() => void field.dispatchEvent(paste))
+    expect(paste.defaultPrevented).toBe(false)
+    act(() => void field.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })))
+    expect(changed).toHaveBeenLastCalledWith(true)
+    detach()
+  })
+
+  it("keeps the last panel's offer when focus fell to the body here and the shortcut opens the palette", () => {
+    // A row removed under its own button leaves focus on the body with no focusin: the tracker still holds the panel.
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const actions = createActionRegistry()
+    actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: () => {} })
+    const view = (shown: boolean) => (
+      <HotkeysProvider registry={hotkeys}>
+        <HotkeyScope scope="panel:book">{shown && <button type="button">Row action</button>}</HotkeyScope>
+        <ComposedPalette actions={actions} hotkeys={hotkeys} />
+      </HotkeysProvider>
+    )
+    const { rerender } = render(view(true))
+    act(() => screen.getByRole("button", { name: "Row action" }).focus())
+    rerender(view(false))
+    expect(document.activeElement).toBe(document.body)
+    act(() => void document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true })))
+    expect(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)).not.toBeNull()
+  })
+
+  it("forgets a popout key's element when a controlled parent refuses the open", () => {
+    const popout = document.implementation.createHTMLDocument("popout")
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const actions = createActionRegistry()
+    const ranA = vi.fn()
+    const ranB = vi.fn()
+    function BookBody({ run: runBook }: { run: () => void }) {
+      const within = useHotkeyScope()
+      React.useEffect(() => actions.register({ id: "book.refresh", title: "Refresh book", scope: "panel:book", run: runBook, within }), [runBook, within])
+      return <p>book body</p>
+    }
+    const view = (open: boolean) => (
+      <HotkeysProvider registry={hotkeys}>
+        <HotkeyScope scope="panel:book" data-testid="scope-a"><BookBody run={ranA} /></HotkeyScope>
+        {createPortal(<HotkeyScope scope="panel:book" data-book="b"><BookBody run={ranB} /></HotkeyScope>, popout.body)}
+        <ComposedPalette actions={actions} hotkeys={hotkeys} open={open} onOpenChange={() => {}} />
+      </HotkeysProvider>
+    )
+    const { rerender } = render(view(false))
+    const detach = hotkeys.attach(popout)
+    act(() => (screen.getByTestId("scope-a") as HTMLElement).focus())
+    // The key from Book B asks to open; the parent refuses, then opens the palette itself, from a click here.
+    act(() => void popout.querySelector("[data-book='b']")!.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true })))
+    rerender(view(true))
+    fireEvent.click(document.querySelector(`[data-row='action!["panel:book","book.refresh"]']`)!)
+    expect(ranA).toHaveBeenCalledTimes(1)
+    expect(ranB).not.toHaveBeenCalled()
+    detach()
+  })
+
+  it("answers its shortcut from the commit that opened it with what that commit rendered", () => {
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const detach = hotkeys.attach()
+    const changed = vi.fn()
+    // Fires mod+k in the layout phase of the commit that opens the palette, ahead of the palette in the tree: the
+    // shortcut must close what that commit opened, not open it again.
+    function Probe({ fire }: { fire: boolean }) {
+      React.useLayoutEffect(() => {
+        if (fire) document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true }))
+      }, [fire])
+      return null
+    }
+    const ui = (open: boolean) => <><Probe fire={open} /><ComposedPalette actions={seed()} hotkeys={hotkeys} open={open} onOpenChange={changed} /></>
+    const view = render(ui(false))
+    view.rerender(ui(true))
+    expect(changed).toHaveBeenCalledTimes(1)
+    expect(changed).toHaveBeenLastCalledWith(false)
+    detach()
+  })
+
   it("reads an empty scope string as unscoped", () => {
     // Registering with scope: "" and with no scope is one unscoped action: one row,
     // the usual key spelling, and the latest registration answers.
@@ -719,6 +1045,18 @@ describe("symbol search", () => {
     expect(actions.recents()).toEqual([{ kind: "symbol", symbol: AAPL }])
   })
 
+  it("reads a minimum length or a delay that isn't a number at or above zero as the default", async () => {
+    vi.useFakeTimers()
+    const calls: string[] = []
+    const symbols: SymbolSearchAdapter = { minLength: Number.NaN, debounceMs: Number.NaN, search: async (query) => (calls.push(query), []) }
+    render(<ComposedPalette actions={createActionRegistry()} hotkeys={null} open symbols={symbols} />)
+    type("a")
+    await act(() => vi.advanceTimersByTimeAsync(149))
+    expect(calls).toEqual([])
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(calls).toEqual(["a"])
+  })
+
   it("treats a failed search as no results", async () => {
     vi.useFakeTimers()
     const symbols: SymbolSearchAdapter = { debounceMs: 0, search: () => Promise.reject(new Error("offline")) }
@@ -754,6 +1092,41 @@ describe("hotkeys", () => {
     expect(hotkeys.list().map((e) => e.id)).toEqual(["go.blotter"])
   })
 
+  it("closes on its own shortcut in the input ahead of a row's second action", () => {
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const changed = vi.fn()
+    const detach = hotkeys.attach()
+    render(<ComposedPalette actions={seed()} hotkeys={hotkeys} hotkey="shift+enter" onOpenChange={changed} />)
+    fireEvent.keyDown(document.body, { key: "Enter", shiftKey: true })
+    expect(changed).toHaveBeenLastCalledWith(true)
+    // "New ticket" is highlighted, and Shift+Enter is both its second action and the palette's shortcut.
+    type("ticket")
+    fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
+    expect(changed).toHaveBeenLastCalledWith(false)
+    expect(run.ticketSell).not.toHaveBeenCalled()
+    detach()
+  })
+
+  it("closes on its own shortcut before focus arrives, ahead of Enter, and lets a keydown with no key go by", () => {
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    const changed = vi.fn()
+    const detach = hotkeys.attach()
+    // Wherever this base puts focus on open, put it back on the body: the gap Base UI leaves in a browser.
+    const focus = vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(() => {})
+    render(<ComposedPalette actions={seed()} hotkeys={hotkeys} hotkey="shift+enter" open onOpenChange={changed} />)
+    expect(document.activeElement).toBe(document.body)
+    // Chrome's autofill sends a keydown with no key.
+    const autofill = new Event("keydown", { bubbles: true, cancelable: true })
+    expect(() => act(() => void document.body.dispatchEvent(autofill))).not.toThrow()
+    expect(autofill.defaultPrevented).toBe(false)
+    type("ticket")
+    fireEvent.keyDown(document.body, { key: "Enter", shiftKey: true })
+    expect(changed).toHaveBeenLastCalledWith(false)
+    expect(run.ticketSell).not.toHaveBeenCalled()
+    focus.mockRestore()
+    detach()
+  })
+
   it("takes keys typed before focus arrives into the query, and keeps them from the hotkeys", () => {
     const hotkeys = createHotkeyRegistry({ platform: "other" })
     const cancel = vi.fn()
@@ -770,6 +1143,11 @@ describe("hotkeys", () => {
     // A modified key is not text, and still does not reach the dispatcher.
     fireEvent.keyDown(document.body, { key: "x", ctrlKey: true })
     expect(input()).toHaveValue("x")
+    // A key an input method holds is the method's, and no binding's: Safari says so with key code 229 before
+    // isComposing does.
+    fireEvent.keyDown(document.body, { key: "x", keyCode: 229 })
+    expect(input()).toHaveValue("x")
+    expect(cancel).not.toHaveBeenCalled()
     // Enter in the gap runs the highlighted row, and Shift+Enter its second action.
     fireEvent.keyDown(document.body, { key: "Backspace" })
     fireEvent.change(input(), { target: { value: "ticket" } })
@@ -782,6 +1160,34 @@ describe("hotkeys", () => {
     fireEvent.keyDown(document.body, { key: "x" })
     expect(cancel).toHaveBeenCalledTimes(1)
     detach()
+  })
+
+  it("runs a key in the gap against the rows the commit it lands in rendered", () => {
+    const hotkeys = createHotkeyRegistry({ platform: "other" })
+    // Wherever this base puts focus on open, put it back on the body, so the palette's keys still come through the gap.
+    const focus = vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(() => {})
+    const before = vi.fn()
+    const after = vi.fn()
+    const registryWith = (send: () => void) => {
+      const registry = createActionRegistry()
+      registry.register({ id: "send", title: "Send", run: send })
+      return registry
+    }
+    const first = registryWith(before)
+    const second = registryWith(after)
+    // Enter in the layout phase of the commit that swapped what Send does: the row that commit rendered runs.
+    function Probe({ fire }: { fire: boolean }) {
+      React.useLayoutEffect(() => {
+        if (fire) document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }))
+      }, [fire])
+      return null
+    }
+    const ui = (fire: boolean) => <><Probe fire={fire} /><ComposedPalette actions={fire ? second : first} hotkeys={hotkeys} open /></>
+    const view = render(ui(false))
+    expect(document.activeElement).toBe(document.body)
+    view.rerender(ui(true))
+    expect([before.mock.calls.length, after.mock.calls.length]).toEqual([0, 1])
+    focus.mockRestore()
   })
 
   it("leaves a binding the consumer declared alone, and declares nothing when told not to", () => {

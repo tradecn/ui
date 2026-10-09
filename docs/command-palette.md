@@ -125,7 +125,7 @@ This example keeps recents in memory for its lifetime. [Recents](#recents) descr
 | `hotkey` | `string \| false` | `"mod+k"` or `"/"` by variant | Default opening or focus binding; `false` disables its registration and handler. |
 | `labels` | `Partial<CommandPaletteLabels>` | See The rest | Overrides accessible names, default input placeholder, group headings and binding text. |
 
-When `open` is supplied, update it in `onOpenChange` to accept requests to open or close. Without it, the component manages that state.
+When `open` is supplied, update it in `onOpenChange` to accept requests to open or close. Without it, the component manages that state. Accept an open in the same update: the panel a popout's key came from is known only while that key is handled, and an open accepted later, in a transition or after an await, freezes the main window's focus instead and leaves the popout's keys to its bindings while the palette is open.
 
 ### `<CommandPaletteDialog>`
 
@@ -232,7 +232,7 @@ A registered action with `scope: "panel:book"` is offered only when the palette 
 
 Matching is case-insensitive, and every query word must match. Each word scores highest for an exact title, followed by a title prefix, title word start, other title substring, metadata match, or letters in order within the title. Metadata includes the subtitle, group, ID, and keywords. `scorePaletteAction(action, query)` returns the combined score, `-1` for a miss, or `0` for an empty query. Registered actions are ranked, then collected under their group headings.
 
-`createActionRegistry()` accepts an optional `{ maxRecents?: number }`; `maxRecents` defaults to `8`. Register panel actions on mount and use the returned function to remove them on unmount.
+`createActionRegistry()` accepts an optional `{ maxRecents?: number }`; `maxRecents` defaults to `8`, `Infinity` keeps every recent, and a value that isn't a number at or above zero reads as the default. Register panel actions on mount and use the returned function to remove them on unmount.
 
 | Method | Input → output | Behavior |
 |---|---|---|
@@ -240,7 +240,7 @@ Matching is case-insensitive, and every query word must match. Each word scores 
 | `list` | No input → `readonly PaletteAction[]` | Returns the action snapshot. Its reference stays stable between registry changes. |
 | `recents` | No input → `readonly PaletteRecent[]` | Returns the recent snapshot, newest first; stable until recents change. |
 | `touch` | `PaletteRecent` → `void` | Moves an entry to the front, deduplicates it, caps the list, and notifies both kinds of listener. |
-| `loadRecents` | `readonly PaletteRecent[]` → `void` | Replaces recents, caps the list, and notifies subscribers without calling `onRecentsChange` listeners. |
+| `loadRecents` | `readonly PaletteRecent[]` → `void` | Replaces recents, caps the list, and notifies subscribers without calling `onRecentsChange` listeners. It skips an entry it can't read, such as an action without a text `id` or a symbol whose `symbol` isn't text, so stored data you didn't validate can't break the list. |
 | `onRecentsChange` | `(recents: readonly PaletteRecent[]) => void` → `() => void` | Subscribes to `touch` updates; returns cleanup. |
 | `subscribe` | `() => void` → `() => void` | Subscribes to action and recent changes; returns cleanup. |
 
@@ -253,8 +253,8 @@ Previous call shapes and the registry changes are mapped in [Migrating to v2](mi
 | Field | Type | Default | Purpose |
 |---|---|---|---|
 | `search` | `(query: string, signal: AbortSignal) => Promise<readonly SymbolResult[]>` | Required | Searches with the trimmed input and an abort signal. |
-| `minLength` | `number` | `1` | Minimum query length before searching. |
-| `debounceMs` | `number` | `150` | Delay in milliseconds before calling `search`. |
+| `minLength` | `number` | `1` | Minimum query length before searching. A value that isn't a finite number at or above zero reads as the default. |
+| `debounceMs` | `number` | `150` | Delay in milliseconds before calling `search`. A value that isn't a finite number at or above zero reads as the default, and one past 2,147,483,647 as that. |
 
 Query or adapter changes, closure and unmount cancel the pending debounce and abort the previous request. Reopening an inline list starts a fresh lookup. Answers from aborted requests are ignored even if the adapter resolves them, and results for another query are hidden. `loading` is true until the current adapter answers the qualifying query. A rejection or synchronous search error produces no symbol results. Supply searching and empty text through `CommandPaletteEmpty`.
 
@@ -284,9 +284,13 @@ Selecting a row clears the input and requests closure, then updates recents when
 
 If the binding ID already exists — declared on the registry before render, or in the surrounding provider's `bindings`, which the component sees during render — its keys and wording remain yours; the component only attaches its handler. A declaration that replaces the component's default after mount is also yours to keep, unless it matches the default in every field: the component cannot tell that apart from its own registration, so unmount removes it, along with any handler it carried. Otherwise it declares the binding and removes it on unmount. `hotkey="mod+p"` changes the default keys. `hotkey={false}` disables the opening or focus binding but keeps row shortcuts; `hotkeys={null}` disables both.
 
-Row shortcuts follow the current keys for `bindingId`, including remaps. The dispatcher stops at dialogs. A single-step opening shortcut also closes the palette from inside; use Escape for a multi-step binding.
+Row shortcuts follow the current keys for `bindingId`, including remaps. The dispatcher stops at dialogs. A single-step opening shortcut also closes the palette from inside, ahead of the keys the palette reads, so a shortcut on Shift+Enter closes it rather than running a row's second action; use Escape for a multi-step binding.
 
 Dialog focus can arrive after opening. For up to one second, or until focus reaches the palette, it captures keys outside itself: text without Ctrl, Meta, or Alt enters the query; Enter runs the highlighted row under any modifiers, with Shift picking the secondary action; and Escape requests closure under any modifiers. Every other key outside the palette stops there as well: the palette ignores it, bubbling listeners and the hotkey dispatcher never see it, though capture-phase listeners ahead of the palette's still run, as does the browser's own default, such as Tab moving focus. Those events do not reach the hotkey dispatcher. Composition events are left alone.
+
+In a popout window whose document the registry listens on, as `PanelPopout` and `Workspace` attach it, the shortcut opens the dialog in the window that renders the palette, and the panel the key came from answers its scoped actions. The keyboard stays in the popout, so from the key after the shortcut until the palette closes, every key in that window is the palette's, with or without a modifier, and none reaches the popout's bindings: text enters the query, Option and AltGr characters and a paste included, Backspace deletes, Up, Down, Home, and End move through the rows, a single-step opening shortcut closes it, and otherwise Enter runs the highlighted row and Escape closes under any modifiers. Other keys stop at the palette; a shortcut with Ctrl or Meta does nothing to a field in the popout except copy, and outside a field the browser keeps its own. A press in the popout closes the palette too. Keys an input method holds pass to the popout as they would with the palette closed, so text typed through one lands in its focused field, not the query. When you render the palette's parts in the popout itself, a key, a press, or a paste on the palette is its own. From a popout, `/` focuses the go-bar in the window that renders it.
+
+Render the palette on the client: its key caps come from the registry's platform and remaps, which a server doesn't have.
 
 ### Go-bar
 

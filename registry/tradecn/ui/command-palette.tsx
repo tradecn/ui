@@ -1,5 +1,6 @@
 import { cn } from "cn"
-import { createContext, Fragment, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from "react"
+import { createContext, Fragment, useCallback, useContext, useEffect, useInsertionEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from "react"
+import { flushSync } from "react-dom"
 import { Command, CommandDialog, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { useDeclaredHotkeyIds, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
@@ -62,8 +63,30 @@ export interface ActionRegistry {
 
 const recentKey = (r: PaletteRecent) => (r.kind === "action" ? `action:${JSON.stringify([r.scope || null, r.id])}` : `symbol:${JSON.stringify([r.symbol.symbol, r.symbol.exchange || null])}`)
 
+// A count or a delay a caller passes: a finite number at or above zero, or the default.
+const countOr = (value: number | undefined, fallback: number) => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : fallback)
+
+// A recent read back from storage the app may not validate: an action with an id, or a symbol with its symbol, its
+// words text where it has them. Anything else is skipped, so stored data can't take the palette down while it renders.
+const isText = (value: unknown) => value === undefined || value === null || typeof value === "string"
+function isRecent(value: unknown): value is PaletteRecent {
+  if (typeof value !== "object" || value === null) return false
+  const entry = value as { kind?: unknown; id?: unknown; scope?: unknown; symbol?: unknown }
+  if (entry.kind === "action") return typeof entry.id === "string" && isText(entry.scope)
+  if (entry.kind !== "symbol" || typeof entry.symbol !== "object" || entry.symbol === null) return false
+  const symbol = entry.symbol as Record<string, unknown>
+  return typeof symbol.symbol === "string" && isText(symbol.name) && isText(symbol.exchange) && isText(symbol.kind)
+}
+
+// A recent read from storage keeps only the fields it can use: a null field reads as absent, so none is handed on.
+function readRecent(entry: PaletteRecent): PaletteRecent {
+  if (entry.kind === "action") return entry.scope == null ? { kind: "action", id: entry.id } : entry
+  return { kind: "symbol", symbol: Object.fromEntries(Object.entries(entry.symbol).filter(([, value]) => value !== null)) as unknown as SymbolResult }
+}
+
 export function createActionRegistry(options: { maxRecents?: number } = {}): ActionRegistry {
-  const maxRecents = options.maxRecents ?? 8
+  // Infinity keeps every recent; NaN or a negative count keeps the default.
+  const maxRecents = typeof options.maxRecents === "number" && options.maxRecents >= 0 ? Math.floor(options.maxRecents) : 8
   const actions = new Map<string, PaletteAction[]>()
   const listeners = new Set<() => void>()
   const recentListeners = new Set<(recents: readonly PaletteRecent[]) => void>()
@@ -115,7 +138,7 @@ export function createActionRegistry(options: { maxRecents?: number } = {}): Act
       for (const cb of recentListeners) cb(recents)
     },
     loadRecents(next) {
-      recents = next.slice(0, maxRecents)
+      recents = (Array.isArray(next) ? next : []).filter(isRecent).slice(0, maxRecents).map(readRecent)
       for (const cb of listeners) cb()
     },
     onRecentsChange(cb) {
@@ -272,6 +295,8 @@ function subscribeFocusScopes(cb: () => void) {
 }
 
 const getFocusElement = () => focusElement
+// The keys that move through the rows, handed to the list when they come from a popout window.
+const ROW_KEYS: ReadonlySet<string> = new Set(["ArrowUp", "ArrowDown", "Home", "End"])
 
 const getFocusScopes = () => focusScopes
 const getServerFocusScopes = () => AMBIENT_SCOPES
@@ -280,7 +305,7 @@ const getNoEntries = () => NO_ENTRIES
 
 function useSymbolSearch(adapter: SymbolSearchAdapter | undefined, query: string, enabled: boolean) {
   const [found, setFound] = useState<{ adapter?: SymbolSearchAdapter; query: string; results: readonly SymbolResult[]; signal?: AbortSignal }>({ query: "", results: NO_SYMBOLS })
-  const active = enabled && adapter !== undefined && query.length >= (adapter.minLength ?? 1)
+  const active = enabled && adapter !== undefined && query.length >= countOr(adapter.minLength, 1)
   useEffect(() => {
     if (!adapter || !active) return
     const controller = new AbortController()
@@ -292,7 +317,7 @@ function useSymbolSearch(adapter: SymbolSearchAdapter | undefined, query: string
         if (!controller.signal.aborted) return adapter.search(query, controller.signal)
         return NO_SYMBOLS
       }).then(settle, () => settle(NO_SYMBOLS))
-    }, adapter.debounceMs ?? 150)
+    }, Math.min(countOr(adapter.debounceMs, 150), 2_147_483_647))
     return () => {
       clearTimeout(timer)
       controller.abort()
@@ -384,8 +409,9 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
   // Radix focuses the dialog in the commit that mounts it; Base UI does it a few milliseconds later.
   // Keys pressed in that gap land on the body, where a single-key hotkey would take them. Someone who
   // pressed mod+k is already working the palette, so until focus arrives its keys are the palette's:
-  // text goes into the query, Enter runs the highlighted row, Escape closes, and nothing reaches the dispatcher.
-  const early = useRef<{ enter: (shift: boolean) => void; escape: () => void }>({ enter: () => {}, escape: () => {} })
+  // text goes into the query, the palette's own shortcut and Escape close it, Enter runs the highlighted row,
+  // and nothing reaches the dispatcher.
+  const early = useRef<{ enter: (shift: boolean) => void; escape: () => void; own: (event: KeyboardEvent) => boolean }>({ enter: () => {}, escape: () => {}, own: () => false })
   useEffect(() => {
     if (variant !== "palette" || !open) return
     const inside = (node: EventTarget | null) => Boolean(node instanceof Node && root.current?.contains(node))
@@ -395,9 +421,13 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     }
     const onKey = (event: KeyboardEvent) => {
       if (inside(event.target)) return stop()
-      if (event.isComposing) return
+      // 229 is a key an input method takes, which Safari sends before isComposing says so; a keydown with no key,
+      // which Chrome's autofill sends, is no key at all.
+      if (event.isComposing || event.keyCode === 229 || typeof event.key !== "string") return
       event.stopPropagation()
-      if (event.key === "Enter") early.current.enter(event.shiftKey)
+      // The palette's own shortcut comes first, so one on Shift+Enter closes the palette rather than running a row.
+      if (early.current.own(event)) early.current.escape()
+      else if (event.key === "Enter") early.current.enter(event.shiftKey)
       else if (event.key === "Escape") early.current.escape()
       else if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return
       else setInput((typed) => typed + event.key)
@@ -413,6 +443,66 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     document.addEventListener("focusin", onFocus, true)
     return stop
   }, [variant, open])
+
+  // A key from a popout window opens the palette in the window that renders it, and the keyboard stays in the popout,
+  // where this document's focus never reaches. While the palette is open, every key in that window is the palette's,
+  // with or without a modifier, so none reaches the window's own bindings: text goes into the query, Option and AltGr
+  // characters and a paste included, Backspace deletes, Up, Down, Home, and End move through the rows, the palette's
+  // own shortcut closes it, and otherwise Enter runs the highlighted row and Escape closes under any modifiers. Another
+  // shortcut with Ctrl or Meta does nothing to a field there but copy, and elsewhere the browser keeps its own. A press
+  // in the popout closes the palette, since the person has gone back to that window. A key, a press, or a paste on the
+  // palette itself, when its caller renders it in that window, is the palette's own.
+  useEffect(() => {
+    const away = variant === "palette" && open ? capturedEl?.ownerDocument : undefined
+    if (!away || away === document) return
+    // By node type, not instanceof: the popout's nodes can belong to its own window's realm.
+    const editable = (node: EventTarget | null) => (node as Element | null)?.nodeType === 1 && (node as Element).closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])") !== null
+    // The keys this capture hands the palette's input would come back to it if the palette were in that window too.
+    const mine = (node: EventTarget | null) => Boolean((node as Node | null)?.nodeType && root.current?.contains(node as Node))
+    const onKey = (event: KeyboardEvent) => {
+      if (mine(event.target) || event.isComposing || event.keyCode === 229 || typeof event.key !== "string") return
+      event.stopPropagation()
+      // The palette's own shortcut comes first, so one on a modified Enter closes the palette rather than running a row.
+      if (early.current.own(event) || event.key === "Escape") {
+        event.preventDefault()
+        early.current.escape()
+        return
+      }
+      if (event.key === "Enter") {
+        event.preventDefault()
+        early.current.enter(event.shiftKey)
+        return
+      }
+      if ((event.ctrlKey || event.metaKey) && !event.getModifierState("AltGraph")) {
+        // Copy keeps its default, and a paste lands in the query through the paste event.
+        if (editable(event.target) && !/^[cv]$/i.test(event.key)) event.preventDefault()
+        return
+      }
+      event.preventDefault()
+      const field = inputRef.current
+      if (ROW_KEYS.has(event.key) && !event.altKey) field?.dispatchEvent(new (field.ownerDocument.defaultView ?? window).KeyboardEvent("keydown", { key: event.key, bubbles: true, cancelable: true }))
+      else if (event.key === "Backspace") setInput((typed) => typed.slice(0, -1))
+      else if (event.key.length === 1) setInput((typed) => typed + event.key)
+    }
+    const onPaste = (event: ClipboardEvent) => {
+      if (mine(event.target)) return
+      event.stopPropagation()
+      event.preventDefault()
+      const text = event.clipboardData?.getData("text/plain") ?? ""
+      if (text) setInput((typed) => typed + text.replace(/\s+/g, " "))
+    }
+    const onPress = (event: PointerEvent) => {
+      if (!mine(event.target)) early.current.escape()
+    }
+    away.addEventListener("keydown", onKey, true)
+    away.addEventListener("paste", onPaste, true)
+    away.addEventListener("pointerdown", onPress, true)
+    return () => {
+      away.removeEventListener("keydown", onKey, true)
+      away.removeEventListener("paste", onPaste, true)
+      away.removeEventListener("pointerdown", onPress, true)
+    }
+  }, [variant, open, capturedEl, inputRef])
 
   const active = new Set(scopes.split(" "))
   const keysOf = new Map(entries.map((e) => [e.id, e.keys]))
@@ -518,7 +608,8 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
 
   const secondaryDisabled = (item: Element | null | undefined) => Boolean(item?.querySelector("[data-secondary]:disabled"))
 
-  useEffect(() => {
+  // Swapped before any layout effect runs, as the shortcut's handler is.
+  useInsertionEffect(() => {
     early.current = {
       enter(shift) {
         const selected = root.current?.querySelector('[cmdk-item][aria-selected="true"]:not([aria-disabled="true"])')
@@ -526,12 +617,23 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
         if (row && !(shift && row.secondary && secondaryDisabled(selected))) select(row, shift)
       },
       escape: onDone,
+      own(event) {
+        const own = ownBindingId ? keysOf.get(ownBindingId) : undefined
+        return Boolean(own && matchesKeys(event, own, hotkeys?.platform))
+      },
     }
   })
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     onKeyDownProp?.(event)
     if (event.defaultPrevented || event.nativeEvent.isComposing) return
+    // The dispatcher stops at the dialog, so the key that opened the palette closes it from here, ahead of the keys the
+    // palette reads itself: a shortcut on Shift+Enter closes rather than running a row's second action.
+    if (variant === "palette" && early.current.own(event.nativeEvent)) {
+      event.preventDefault()
+      onDone()
+      return
+    }
     if (event.key === "Enter" && event.shiftKey) {
       const selected = event.currentTarget.querySelector('[cmdk-item][aria-selected="true"]:not([aria-disabled="true"])')
       const row = rowsByKey.get(selected?.getAttribute("data-row") ?? "")
@@ -541,12 +643,6 @@ export function CommandPaletteContent({ children, ref, className, onKeyDown: onK
     } else if (variant === "go-bar" && event.key === "Escape") {
       event.preventDefault()
       setInput("")
-      onDone()
-    } else if (variant === "palette" && ownBindingId) {
-      // The dispatcher stops at the dialog, so the key that opened the palette closes it from here.
-      const own = keysOf.get(ownBindingId)
-      if (!own || !matchesKeys(event.nativeEvent, own, hotkeys?.platform)) return
-      event.preventDefault()
       onDone()
     }
   }
@@ -607,6 +703,9 @@ export function CommandPalette(options: CommandPaletteProps) {
   // which panel instance answers. A palette mounted already open reads the live document,
   // since the shared trackers only learn about focus once something subscribes.
   const liveScopes = useSyncExternalStore(subscribeFocusScopes, getFocusScopes, getServerFocusScopes)
+  // The element a key opened the palette from. The shared tracker hears focus in this document only, and the key can
+  // come from a popout window whose panel is the one that should answer.
+  const [keyedFrom, setKeyedFrom] = useState<Element | null>(null)
   const [wasOpen, setWasOpen] = useState(open)
   const [frozen, setFrozen] = useState<{ scopes: string; el: Element | null }>(() => {
     if (!open || typeof document === "undefined") return { scopes: liveScopes, el: null }
@@ -616,7 +715,12 @@ export function CommandPalette(options: CommandPaletteProps) {
   })
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (open) setFrozen({ scopes: liveScopes, el: getFocusElement() })
+    const from = keyedFrom?.isConnected && !keyedFrom.closest(`[data-slot="${SLOT}"]`) ? keyedFrom : null
+    if (open) setFrozen(from ? { scopes: scopeChain(from).join(" "), el: from } : { scopes: liveScopes, el: getFocusElement() })
+    if (keyedFrom) setKeyedFrom(null)
+  } else if (keyedFrom && !open) {
+    // An open a controlled parent refused: the key's element must not stand in for a later click's.
+    setKeyedFrom(null)
   }
   const scopes = frozen.scopes
   const capturedEl = frozen.el
@@ -630,11 +734,26 @@ export function CommandPalette(options: CommandPaletteProps) {
   const keys = hotkey === false ? null : (hotkey ?? (variant === "palette" ? "mod+k" : "/"))
   const description = labels.hotkey
   const group = labels.title
-  const onHotkey = useRef(() => {})
-  useEffect(() => {
-    onHotkey.current = () => {
-      if (variant === "palette") setOpen(!open)
-      else inputRef.current?.focus()
+  const onHotkey = useRef<(event: KeyboardEvent) => void>(() => {})
+  // Swapped before any layout effect runs, as useHotkey's handler is: a key between a commit and its passive effects
+  // reaches what that commit rendered.
+  useInsertionEffect(() => {
+    onHotkey.current = (event) => {
+      if (variant !== "palette") return void inputRef.current?.focus()
+      // Only a key from another document, a popout's, names its element: here the focus tracker already knows
+      // where focus was, and keeps the last panel's offer when focus fell to the body.
+      const target = event.target as Element | null
+      if (!open && target && target.nodeType === 1 && target.ownerDocument !== document) {
+        // React hears a key from another window as no event of its own, so it would render the opening a task later,
+        // and the popout's next key could reach that window's bindings first. The opening renders now, and the
+        // capture listens there before this handler returns.
+        flushSync(() => {
+          setKeyedFrom(target)
+          setOpen(true)
+        })
+        return
+      }
+      setOpen(!open)
     }
   })
   // Keyed to the registry this palette actually uses: an explicit `hotkeys` registry ignores a
@@ -648,7 +767,7 @@ export function CommandPalette(options: CommandPaletteProps) {
     const scope = variant === "palette" ? ("editing" as const) : ("global" as const)
     const declared = declaredByProvider.has(bindingId) || hotkeys.list().some((entry) => entry.id === bindingId)
     if (!declared) hotkeys.register({ id: bindingId, keys, scope, description, group })
-    const unbind = hotkeys.bind(bindingId, () => onHotkey.current())
+    const unbind = hotkeys.bind(bindingId, (event) => onHotkey.current(event))
     return () => {
       unbind()
       if (declared) return

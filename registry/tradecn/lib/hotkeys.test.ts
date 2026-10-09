@@ -205,6 +205,10 @@ describe("dispatch", () => {
     handled.preventDefault()
     document.body.dispatchEvent(handled)
     press("x", { isComposing: true })
+    // Safari reports a key an input method holds with key code 229 before isComposing says so.
+    const held = new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true })
+    Object.defineProperty(held, "keyCode", { value: 229 })
+    document.body.dispatchEvent(held)
     press("Shift", { shiftKey: true })
     expect(run).not.toHaveBeenCalled()
   })
@@ -354,6 +358,17 @@ describe("chords", () => {
     expect(registry.pending()).toBeNull()
     press("h")
     expect(run).not.toHaveBeenCalled()
+  })
+
+  it.each([0, 0.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 31])("reads a timeout of %s as the default, which a timer can wait out", (chordTimeoutMs) => {
+    vi.useFakeTimers()
+    const registry = attached({ chordTimeoutMs })
+    const run = vi.fn()
+    registry.register(binding("go.home", "g h"), run)
+    press("g")
+    vi.advanceTimersByTime(999)
+    press("h")
+    expect(run).toHaveBeenCalledTimes(1)
   })
 
   it("cancels on Escape and swallows it", () => {

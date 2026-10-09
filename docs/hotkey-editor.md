@@ -89,7 +89,7 @@ HotkeysProvider
 
 The root coordinates the registry and search. Each item coordinates one binding's editing state. Choose the readings and controls your layout needs, and supply descriptions, action text, group headings, and empty states in your JSX.
 
-To place the editor in a dialog, install shadcn `dialog` separately and give it a `DialogTitle`.
+To place the editor in a dialog, install shadcn `dialog` separately and give it a `DialogTitle`. While a capture or a text edit is open, Escape on it cancels the edit and stops there: the editor takes it at the window in the capture phase, ahead of the dialog's own Escape handling, so the dialog stays open, and your `onKeyDown` on that field doesn't see that Escape. Only a capture listener on the window added before the edit opened hears it first.
 
 ## Groups
 
@@ -144,7 +144,7 @@ A change to the binding's keys, declaration fields, or provider registry cancels
 
 Inputs accept their installed component's props except `value` and `defaultValue`, which are coordinated. Capture accepts installed Button props.
 
-All three forward refs and native events. Caller handlers run first. `preventDefault()` skips the part's behavior for that event.
+All three forward refs and native events. Caller handlers run first. `preventDefault()` skips the part's behavior for that event, except Escape during a capture or a text edit, which the editor takes at the window before the part's handlers see it.
 
 ### Actions
 
@@ -168,6 +168,8 @@ Passing `disabled` also disables an action. Reset controls remain rendered when 
 | `HotkeyEditorConflicts` | `ul` | One message per conflict involving the item. Renders nothing without conflicts. |
 
 These readings supply their own content and omit `children` from their props. Use `useHotkeyEditorItem` to write a different reading or conflict list.
+
+Render the editor on the client: its key caps come from the registry's platform and saved overrides, which a server doesn't have.
 
 ### Hooks
 

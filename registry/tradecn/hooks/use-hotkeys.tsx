@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from "react"
 import { createHotkeyRegistry, type HandlerScope, type HotkeyBinding, type HotkeyEntry, type HotkeyHandler, type HotkeyRegistry, type HotkeyScopeName, type HotkeyTarget } from "@/registry/tradecn/lib/hotkeys"
 
 // React bindings for the hotkey registry. The registry does the work and knows nothing about React;
@@ -84,10 +84,13 @@ export function useHotkey(id: string, handler: HotkeyHandler, options: UseHotkey
   const scope = useContext(ScopeContext)
   const enabled = options.enabled !== false
   const latest = useRef(handler)
-  useEffect(() => {
+  // A commit no key caused, such as a push that revokes an action, runs every layout effect before the passive ones,
+  // and a key dispatched in between must reach the handler that commit rendered, or none. So the handler is swapped
+  // before any layout effect runs, and the binding detaches in the commit that disables or unmounts it.
+  useInsertionEffect(() => {
     latest.current = handler
   })
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!enabled) return
     return registry.bind(id, (event) => latest.current(event), scope)
   }, [registry, id, enabled, scope])

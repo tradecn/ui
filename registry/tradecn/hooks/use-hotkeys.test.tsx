@@ -1,5 +1,5 @@
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react"
-import { useState, type ReactNode } from "react"
+import { useLayoutEffect, useState, type ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { HotkeyScope, HotkeysProvider, useDeclaredHotkeyIds, useHotkey, useHotkeyList, useHotkeys, useMaybeHotkeys, usePendingChord } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry, type HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
@@ -78,6 +78,30 @@ describe("useHotkey", () => {
     fireEvent.keyDown(document.body, { key: "k", ctrlKey: true })
     expect(seen).toEqual([0, 1])
     expect(bind).toHaveBeenCalledTimes(1)
+  })
+
+  it("answers a key from the commit that changed it with the handler that commit rendered, and none once it disables or unmounts", () => {
+    const registry = createHotkeyRegistry({ platform: "other" })
+    registry.register({ id: "act", keys: "x", scope: "global", description: "Act" })
+    // Fires in the layout phase of the commit that changed the handler, where a real keydown can land before passive
+    // effects run (a push that revokes an action is such a commit). The probe renders first, so it fires first.
+    function Probe({ fire }: { fire: number }) {
+      useLayoutEffect(() => {
+        if (fire) document.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true }))
+      }, [fire])
+      return null
+    }
+    const first = vi.fn(), second = vi.fn()
+    const ui = (fire: number, bound: ReactNode) => <HotkeysProvider registry={registry}><Probe fire={fire} />{bound}</HotkeysProvider>
+    const view = render(ui(0, <Bound id="act" onFire={first} />))
+    view.rerender(ui(1, <Bound id="act" onFire={second} />))
+    expect([first.mock.calls.length, second.mock.calls.length]).toEqual([0, 1])
+    view.rerender(ui(2, <Bound id="act" onFire={second} enabled={false} />))
+    expect(second).toHaveBeenCalledTimes(1)
+    // Enabled again in a commit that fires nothing, then unmounted in one that fires.
+    view.rerender(ui(2, <Bound id="act" onFire={second} />))
+    view.rerender(ui(3, null))
+    expect([first.mock.calls.length, second.mock.calls.length]).toEqual([0, 1])
   })
 
   it("detaches while disabled", () => {
