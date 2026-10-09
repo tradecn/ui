@@ -355,6 +355,10 @@ describe("composition and shared behavior", () => {
     cyclic.self = cyclic
     expect(formatAuditValue({ size: 10n })).toBe('{"size":"10"}')
     expect(formatAuditValue(cyclic)).toBe("[object Object]")
+    // A cycle with no prototype can't become text through String either; it prints its kind.
+    const bare = Object.create(null) as Record<string, unknown>
+    bare.self = bare
+    expect(formatAuditValue(bare)).toBe("[object Object]")
     expect(formatAuditValue(5n)).toBe("5")
   })
 

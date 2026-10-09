@@ -94,10 +94,15 @@ export function formatAuditValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return NULL_TOKEN
   if (typeof value === "object") {
     // A bigint inside prints as its digits; a cycle, or anything else JSON can't hold, as plain text rather than a throw.
+    // A value that can't become text either, a cycle with no prototype among them, prints its kind, which never throws.
     try {
       return JSON.stringify(value, (_key, inner: unknown) => (typeof inner === "bigint" ? inner.toString() : inner)) ?? String(value)
     } catch {
-      return String(value)
+      try {
+        return String(value)
+      } catch {
+        return Object.prototype.toString.call(value)
+      }
     }
   }
   return String(value)

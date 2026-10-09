@@ -1075,7 +1075,7 @@ test("a ticket types a price in 32nds, steps it, sends from a key, and shows onl
   await expect(ticket).toHaveAttribute("data-side", "buy")
   // No quantity: the check stops it and says so. Then a quantity, and mod+enter from inside the field sends.
   await ticket.getByRole("button", { name: /^Send/ }).click()
-  await expect(ticket.getByText("Enter a quantity above zero.")).toBeVisible()
+  await expect(ticket.getByText("Enter a whole number above zero.")).toBeVisible()
   await expect(state).toHaveAttribute("data-ticket-sent", "[]")
   await quantity.click()
   await page.keyboard.type("5")
@@ -1222,7 +1222,7 @@ test("a quote field reads a quote in the instrument's basis, snaps it, steps it,
   await field.fill("4-16")
   await field.blur()
   await expect(field).toHaveAttribute("aria-invalid", "true")
-  await expect(scene.getByText("Not a discount in this instrument's notation.")).toBeVisible()
+  await expect(scene.getByText("Not a quote in this instrument's notation.")).toBeVisible()
   await field.fill("")
   await field.blur()
   await expect(field).not.toHaveAttribute("aria-invalid", "true")
