@@ -1105,11 +1105,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   const ids = useRowIds(view)
   const indexOf = useMemo(() => new Map(ids.map((id, i) => [id, i] as const)), [ids])
   // A focused row the view lets go of hands focus to the row now at its place, the last row if it was last, so the keys
-  // go on from where the trader was and a screen reader hears where focus went. Once per departure: a parent that keeps
-  // the departed id is not asked again on every commit.
-  // Only a row the view held: focus a parent sets on a row that hasn't arrived yet waits for it.
+  // go on from where the trader was and a screen reader hears where focus went. Only a row the view held: focus a parent
+  // sets on a row that hasn't arrived yet waits for it.
   const focusedAt = useRef<{ id: RowId; index: number } | null>(null)
-  const handedOff = useRef<RowId | null>(null)
   useLayoutEffect(() => {
     if (focusedRowId === null) {
       focusedAt.current = null
@@ -1118,14 +1116,13 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const at = indexOf.get(focusedRowId)
     if (at !== undefined) {
       focusedAt.current = { id: focusedRowId, index: at }
-      handedOff.current = null
       return
     }
     const was = focusedAt.current
-    if (was?.id !== focusedRowId || ids.length === 0 || handedOff.current === focusedRowId) return
-    handedOff.current = focusedRowId
+    if (was?.id !== focusedRowId || ids.length === 0) return
     const index = Math.min(was.index, ids.length - 1)
-    // The row asked for is the one recorded now, so a parent that applies it after it has left too gets another.
+    // The row asked for is the one recorded now: a parent that keeps the departed id is asked once, and one that applies
+    // the row asked for after it has left too gets another.
     focusedAt.current = { id: ids[index]!, index }
     setFocusedRowId(ids[index]!)
   })
