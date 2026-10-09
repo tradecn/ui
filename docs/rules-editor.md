@@ -307,4 +307,4 @@ The editor emits rules and evaluates counts. The grid applies them, and the call
 
 ### Tokens
 
-Installation adds missing `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants. `primary` and `destructive` use the host theme.
+Installation adds missing `up`, `down`, and `flat` tokens, and the soft variants of those and of `stale` and `expiring`. `primary` and `destructive` use the host theme.

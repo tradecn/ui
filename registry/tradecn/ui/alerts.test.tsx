@@ -336,6 +336,8 @@ describe("AlertHistory and alertColumns", () => {
   it("renders the independent grid and permits caller-owned columns and labels", () => {
     const alerts = seeded(clock().now)
     expect(alertColumns().map((column) => column.key)).toEqual(["at", "severity", "title", "message", "count"])
+    // The time is frozen, so a selected row's bar on it stays in view as the history scrolls sideways.
+    expect(alertColumns()[0]!.frozen).toBe("left")
     expect(alertColumns({ labels: { noticeTitle: "Subject" } })[2]!.header).toBe("Subject")
     const columns = alertColumns({ time: printTime }).filter((column) => column.key !== "severity")
     render(<div style={{ height: RECT.height }}><AlertHistory alerts={alerts} label="Log" columns={columns} /></div>)

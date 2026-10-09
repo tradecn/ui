@@ -63,7 +63,7 @@ Use `baseState` to initialize an uncontrolled grid and choose its reset defaults
 
 ## Selection and actions
 
-Set `selectionMode="multi"` to extend the RFQ preset's single selection. Use the checkboxes, Shift for a range, or Command/Ctrl to toggle rows. A selected row is marked by a bar at the start of its first cell, the selection box's when there is one, rather than filled, so its up and down text keeps its contrast. Right-click plain content in a selected row, or press Shift+F10 with the grid focused, to act on the selection; an unselected row targets just itself.
+Set `selectionMode="multi"` to extend the RFQ preset's single selection. Use the checkboxes, Shift for a range, or Command/Ctrl to toggle rows. A selected row is marked by a bar at the start of its first cell, the selection box's when there is one, rather than filled, so its up and down text keeps its contrast. In a grid that scrolls sideways, freeze the first column or show the selection box, so the bar stays in view; Watchlist, Positions, RfqStack, AuditTrail, and AlertHistory freeze theirs. Right-click plain content in a selected row, or press Shift+F10 with the grid focused, to act on the selection; an unselected row targets just itself.
 
 Enter on the grid or a double-click on plain cell content activates a row. The Inspect button acts on its own row and preserves selection. This example prints the requested action below the grid; your handler opens a ticket or sends a command.
 
@@ -198,7 +198,7 @@ Rows subscribe individually through `useRow`. A value update that leaves the vie
 
 TanStack Virtual positions fixed-height rows. The focused row and the row being edited render even outside the window, so whenever the grid has a height `aria-activedescendant` names an element that exists, and Shift+F10 brings the focused row into view and opens its menu there. With `pinViewport`, arrivals or removals adjust `scrollTop` by the first visible row's change in index times `rowHeight`, provided that row remains in the view.
 
-Flash memory is keyed by row and column. A cell returning with the same value resumes a flash only while its window remains open. Reduced motion uses a static mark instead of animation. The install adds `up`, `down`, `flat`, `stale`, and `expiring` tokens and their soft variants if absent; flashes use the first three, and rules can use all five.
+Flash memory is keyed by row and column. A cell returning with the same value resumes a flash only while its window remains open. Reduced motion uses a static mark instead of animation. The install adds the `up`, `down`, and `flat` tokens, and the soft variants of those three and of `stale` and `expiring`, if absent; flashes use the first three, and rules tint with all five soft variants.
 
 ### The reorder hold
 

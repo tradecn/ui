@@ -5,6 +5,7 @@ import {
   RULE_OPS,
   RULE_OP_LABELS,
   RULE_TONES,
+  ON_TINT_CLASS,
   RULE_TONE_CLASS,
   TEXT_OPS,
   applyRules,
@@ -211,7 +212,8 @@ describe("applyRules", () => {
     for (const tone of RULE_TONES) {
       const classes = RULE_TONE_CLASS[tone].split(" ")
       expect(classes[0]).toBe("text-foreground")
-      expect(classes).toEqual(expect.arrayContaining(["[&_.text-up]:text-inherit", "[&_.text-down]:text-inherit", "[&_.text-flat]:text-inherit"]))
+      expect(classes).toEqual(expect.arrayContaining(["[&_.text-up]:text-inherit", "[&_.text-down]:text-inherit", "[&_.text-flat]:text-inherit", "[&_.text-stale]:text-inherit", "[&_.text-expiring]:text-inherit", "[&_.text-destructive]:text-inherit", "[&_.text-primary]:text-inherit"]))
+      expect(RULE_TONE_CLASS[tone].startsWith(ON_TINT_CLASS)).toBe(true)
       expect(classes.at(-1)).toMatch(/^bg-\[linear-gradient\(/)
     }
     expect(Object.keys(RULE_TONE_CLASS).sort()).toEqual([...RULE_TONES].sort())

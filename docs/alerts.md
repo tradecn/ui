@@ -155,7 +155,7 @@ The announcer follows the selected row, including repeats; it is not a queue of 
 
 ### The whole list
 
-`AlertHistory` is an optional DataGrid presentation, ordered newest first by `at`, then `seq`. Give its container a height. It does not supply action or dismiss controls, create a dialog, or start TTL timers. Its default `blotter` preset adjusts scroll position when notices arrive above the first visible row.
+`AlertHistory` is an optional DataGrid presentation, ordered newest first by `at`, then `seq`, with its time column frozen. Give its container a height. It does not supply action or dismiss controls, create a dialog, or start TTL timers. Its default `blotter` preset adjusts scroll position when notices arrive above the first visible row.
 
 The history's view owns its order, so the grid renders without sort affordances, whatever the column definitions say. Under the default `blotter` preset the grid also announces its row count politely, about a second after the count stops changing, including on mount; folded repeats and arrivals into a full store leave the count unchanged and announce nothing. Pass `announceRowCount="off"` to silence it, and keep one announcement path when the history sits beside an `AlertsAnnouncer` or a toast adapter.
 

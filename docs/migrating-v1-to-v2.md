@@ -129,6 +129,8 @@ Inside the row, where `alert` comes from `useAlert(store, id)`, add these childr
 
 See [Alerts](alerts.md) for composition examples and the current API, and [alert-store](alert-store.md) for store behavior.
 
+`AlertHistory` freezes its time column, so a selected row's bar on it stays in view as the history scrolls sideways.
+
 ## FeedHealth
 
 FeedHealth keeps the required `feeds` collection prop and now requires caller-owned children. Render public items through `FeedHealthList`, compose their readings, and mount one announcer per collection. The [current reference](feed-health.md) includes complete menu and card recipes.
@@ -160,7 +162,7 @@ Pending now belongs to one hook instance per feed. Share its result between view
 
 The live region is now atomic, so each batched transition is read as one message. The status indicator includes a state word, and compact recipes retain the tier word for assistive technology. The trigger/content pair explicitly links its tooltip description in either supported primitive base. These replace the old compact color-only cue and the missing description relationship observed in the Base UI tooltip.
 
-The stale tier's badge and tooltip trigger put foreground text on the `stale-soft` tint, where v1 colored the text `stale`: stale text on its own tint fell below 4.5 to 1 in light mode. The aging tier keeps its `stale` text on the plain surface.
+The stale tier's badge and tooltip trigger put foreground text on the `stale-soft` tint, a lane's gap inside the trigger included, where v1 colored the text `stale`: stale text on its own tint fell below 4.5 to 1 in light mode. The aging tier keeps its `stale` text on the plain surface.
 
 ## Countdown
 
@@ -434,7 +436,7 @@ Resize handles now start only from an unhandled primary-button press by a primar
 
 The handle is pointer-only. Use Alt+Shift+Left or Right with the grid focused to resize the chosen column.
 
-A selected row is marked by a bar at the start of its first cell, the selection box's when there is one, where v1 filled the row with `bg-accent`, which put up and down text below 4.5 to 1 in light mode. A rule's tone paints foreground text on its tint, and `text-up`, `text-down`, and `text-flat` content inside takes the foreground too, where v1 colored the text with the tone.
+A selected row is marked by a bar at the start of its first cell, the selection box's when there is one, where v1 filled the row with `bg-accent`, which put up and down text below 4.5 to 1 in light mode. A rule's tone paints foreground text on its tint, and up, down, flat, stale, expiring, destructive, and primary text inside takes the foreground too, where v1 colored the text with the tone. A frozen cell in the focused column keeps its opaque background, where v1 let rows scrolling beneath show through it.
 
 ## DepthLadder
 
@@ -488,7 +490,7 @@ Order permissions and submission remain application-owned.
 
 A `convention.tick` that is not a finite positive number shows the empty state and stages nothing, where v1 built rungs at non-finite prices and could hand `onStage` a `NaN` price.
 
-Your own size's chip puts foreground text on its `primary` tint, where v1 colored the text `primary`.
+Your own size's chip puts foreground text on its `primary` tint, where v1 colored the text `primary`. A focused size cell on the mid row is ringed rather than tinted over the row's own tint.
 
 ## SpreadMatrix
 
@@ -634,6 +636,8 @@ The same `getRowProps` change as Positions, and `onEdit` passes straight to the 
 
 A row is named by its client, side, size, and instrument through `getRowLabel`, where v1 named it by its cells, so a test that finds a row by its cells' text now finds it by that name. The grid reads the focused row's cells once through a polite live region inside it, 400 ms after focus rests on the row, and the region repeats the row's text, so a text query scoped to the grid, such as Playwright's `getByText`, can find it twice. Pass `getRowLabel={null}` to name rows by their cells and read nothing, as v1 did; Countdown's name now includes its digits, so such a row's name changes every second, where v1's didn't.
 
+The active row's primary tint carries foreground text, its countdown's digits included, where v1 kept their colors on it.
+
 ## Blotter
 
 `Blotter` now requires children. Replace a self-closing call with `<Blotter store={store}><BlotterGrid /></Blotter>` and add the controls your layout needs.
@@ -736,6 +740,8 @@ Changes and CSV still use the supplied view or raw store order, independent of g
 
 Each changes scope owns its subscriptions and shares one reading with all descendants. Export reads current snapshots at activation, without subscribing the root or controls to store updates. Custom controls can use `useAuditTrail().select(next)` and `useAuditTrail().exportCsv()`.
 
+The time column is frozen, so a selected row's bar on it stays in view as the trail scrolls sideways.
+
 ## InstrumentSearch
 
 `InstrumentSearch` now requires children. Compose the command, input and result list explicitly, and add the recognition hint where your layout needs it. Save the complete [Usage recipe](instrument-search.md#usage) as `instrument-search.tsx` outside `components/ui` before copying this migration:
@@ -833,7 +839,7 @@ Each clock readout retains its local subscription, including when used outside t
 
 Use stable keys when reordering clock descriptors. The helpers, tone classes, descriptor types and default labels remain available.
 
-`STATUS_TONE_CLASS` puts each tone's tint behind foreground text, where v1 colored the text with the tone too, below 4.5 to 1 on its tint in light mode.
+`STATUS_TONE_CLASS` puts each tone's tint behind foreground text, where v1 colored the text with the tone too, below 4.5 to 1 on its tint in light mode. The tint is a background image, which an outline badge's own dark background no longer covers.
 
 ## ColumnChooser
 
@@ -1000,6 +1006,8 @@ Unmounting a provider isolates its completion from a new provider but does not c
 Keep the fallback target outside conditional content. Surrounding drafts remain mounted, while authentication fields inside the dialog follow the installed primitive's normal close lifecycle.
 
 While a request is out, `SessionGuardReauthenticate` is held with `aria-disabled` rather than disabled, so it keeps focus through an awaited sign-in; a press then does nothing and goes no further. A test that asserted `toBeDisabled()` on it while pending reads `aria-disabled` now. When the banner closes with focus inside it, focus moves to `fallbackFocusRef`, or back where it came from, where v1 left it on the page.
+
+Text inside the warning, the remaining time and a refusal included, is the foreground on its expiring tint, where v1 colored them `expiring` and `destructive`.
 
 ## Workspace
 

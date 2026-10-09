@@ -8,8 +8,9 @@ import { ROOT, readRegistry, tokensUsedIn } from "./lib/registry"
 // is listed here with the other channel it carries the direction in, and the test fails on a file that colors
 // by direction and is not in the table, so a new use has to say what else it does. docs/color.md has the why.
 
-// A utility class, or the token itself read for a canvas or an inline style: `--up`, `var(--down-soft)`.
-const DIRECTION_COLOR = /(?<![\w-])(?:[\w-]+:)*(?:text|bg|border(?:-[xysetblr])?|stroke|fill)-(?:up|down)(?:-soft)?(?![\w-])|--(?:up|down)(?:-soft)?(?![\w-])/
+// A utility class, or the token itself read for a canvas or an inline style: `--up`, `var(--down-soft)`. A class named
+// in a selector, as `[&_.text-up]:text-inherit` names one to override it, colors nothing by direction.
+const DIRECTION_COLOR = /(?<![\w.-])(?:[\w-]+:)*(?:text|bg|border(?:-[xysetblr])?|stroke|fill)-(?:up|down)(?:-soft)?(?![\w-])|--(?:up|down)(?:-soft)?(?![\w-])/
 
 /** Source evidence for each channel. This inventory cannot prove the content of arbitrary caller compositions. */
 const CHANNELS: Array<{ file: string; channel: string; proof: RegExp }> = [
@@ -52,6 +53,12 @@ describe("contract rule 15: direction never rides on hue alone", () => {
     expect([...tokensUsedIn(source, ["up", "down", "down-soft"])]).toEqual([token])
   })
 
+  it("reads a class named only to override it as no direction color and no use of its token", () => {
+    const override = "text-foreground [&_.text-up]:text-inherit [&_.text-down]:text-inherit"
+    expect(DIRECTION_COLOR.test(override)).toBe(false)
+    expect([...tokensUsedIn(override, ["up", "down", "foreground"])]).toEqual(["foreground"])
+  })
+
   it.each(["border-s-upward", "border-s-downloader", "setup-down", "text-update"])("does not mistake %s for a direction token", (source) => {
     expect(DIRECTION_COLOR.test(source)).toBe(false)
     expect([...tokensUsedIn(source, ["up", "down"])]).toEqual([])
@@ -86,5 +93,48 @@ describe("contract rule 15: direction never rides on hue alone", () => {
         expect(gray, `${theme.name} ${mode}: up against down in gray`).toBeGreaterThanOrEqual(1.3)
       }
     }
+  })
+})
+
+describe("text on a tint", () => {
+  const registryDir = path.join(ROOT, "registry/tradecn")
+  // A tint the items paint behind text: a soft token, or primary, destructive, or a direction at a fraction.
+  const TINT = /bg-(?:up|down|flat|stale|expiring)-soft|var\(--(?:up|down|flat|stale|expiring)-soft\)|bg-(?:primary|destructive|up|down|stale|expiring)\/\d+|var\(--(?:primary|destructive)\)_\d+%/
+  // A state color on text, behind any variants. A class named in a selector to override it, `.text-up`, is not one.
+  const STATE_TEXT = /(?<![\w.-])(?:[\w[\]=&-]+:)*text-(?:up|down|flat|stale|expiring|destructive|primary)(?![\w-])/
+  const LITERAL = /"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g
+
+  /** Each class string, and each `cn(...)` call whole, so a tint and a color split across its arguments still count. */
+  function* compositions(src: string): Generator<string> {
+    yield* src.match(LITERAL) ?? []
+    for (let at = src.indexOf("cn("); at >= 0; at = src.indexOf("cn(", at + 3)) {
+      let depth = 0
+      let end = at + 2
+      for (; end < src.length; end++) {
+        if (src[end] === "(") depth++
+        else if (src[end] === ")" && --depth === 0) break
+      }
+      yield src.slice(at, end + 1)
+    }
+  }
+
+  it("puts no state color on text over a tint in any item: a state color on its tint reads below 4.5 to 1", () => {
+    const found: string[] = []
+    for (const file of sources(registryDir)) {
+      for (const text of compositions(readFileSync(file, "utf8"))) {
+        if (TINT.test(text) && STATE_TEXT.test(text)) found.push(`${path.relative(registryDir, file)}: ${text.replace(/\s+/g, " ").slice(0, 120)}`)
+      }
+    }
+    expect(found).toEqual([])
+    // The scan sees what it should: a tint with its own color is a finding, the override that names the color is not.
+    expect(TINT.test("bg-up-soft") && STATE_TEXT.test("text-up bg-up-soft")).toBe(true)
+    expect(STATE_TEXT.test("text-foreground [&_.text-up]:text-inherit")).toBe(false)
+    expect(STATE_TEXT.test("dark:text-destructive")).toBe(true)
+  })
+
+  it("keeps the items' copies of the on-tint text identical to the one grid-rules exports", () => {
+    const exported = /export const ON_TINT_CLASS = "([^"]+)"/.exec(readFileSync(path.join(registryDir, "lib/grid-rules.ts"), "utf8"))![1]!
+    expect(exported).toMatch(/^text-foreground /)
+    for (const file of ["ui/feed-health.tsx", "ui/session-guard.tsx"]) expect(readFileSync(path.join(registryDir, file), "utf8"), file).toContain(exported)
   })
 })

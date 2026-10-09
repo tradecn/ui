@@ -126,12 +126,17 @@ export const RULE_OP_LABELS: Record<RuleOp, string> = {
 
 export const RULE_TONES: readonly RuleTone[] = ["up", "down", "flat", "stale", "expiring", "primary", "destructive"]
 
+/**
+ * The text on a tint: the foreground, with any up, down, flat, stale, expiring, destructive, or primary text inside
+ * taking it too. A state color on a tint drops below 4.5 to 1 in the light themes, and every state the library
+ * colors also says itself another way, by a sign, a word, or a description. Put it beside every tint behind text.
+ */
+export const ON_TINT_CLASS = "text-foreground [&_.text-up]:text-inherit [&_.text-down]:text-inherit [&_.text-flat]:text-inherit [&_.text-stale]:text-inherit [&_.text-expiring]:text-inherit [&_.text-destructive]:text-inherit [&_.text-primary]:text-inherit"
+
 // A tone is a tint of the token's soft variant, painted as a background image rather than a background
 // color so it layers over whatever color the element already has: a frozen cell keeps its opaque
-// `bg-background` under the tint and stays opaque as rows scroll beneath it. Text on the tint is the
-// foreground, and up, down, and flat text inside takes the foreground too: a direction color on a tint
-// drops below 4.5 to 1 in the light themes, and a signed value still says its direction by its sign.
-const ON_TINT = "text-foreground [&_.text-up]:text-inherit [&_.text-down]:text-inherit [&_.text-flat]:text-inherit"
+// `bg-background` under the tint and stays opaque as rows scroll beneath it. Literal strings, so Tailwind finds them.
+const ON_TINT = ON_TINT_CLASS
 export const RULE_TONE_CLASS: Record<RuleTone, string> = {
   up: `${ON_TINT} bg-[linear-gradient(var(--up-soft),var(--up-soft))]`,
   down: `${ON_TINT} bg-[linear-gradient(var(--down-soft),var(--down-soft))]`,

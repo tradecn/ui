@@ -216,7 +216,7 @@ Exports: `NULL_TOKEN`, `numberFormat`, `decimalsFromTick`, `roundToTick`, `stepB
 
 Rules as data for a grid: color a cell or a row when a value crosses a line, show only the rows that pass, order by a stack of columns, all as plain objects a desk writes without a build. A value is typed in the column's own format, a tone is a token name, and an applied rule says itself in words beside the color.
 
-Exports: `RULE_OPS`, `NUMBER_OPS`, `TEXT_OPS`, `RULE_OP_LABELS`, `RULE_TONES`, `RULE_TONE_CLASS`, `opsFor`, `columnName`, `normalizeValue`, `compareValues`, `compareDirected`, `readRuleValue`, `readCondition`, `readColumnRule`, `readFilterRule`, `readSortRule`, `readRules`, `compileCondition`, `ruleProblem`, `describeRule`, `compileFilter`, `compileComparator`, `ruleDecoration`, `applyRules`.
+Exports: `RULE_OPS`, `NUMBER_OPS`, `TEXT_OPS`, `RULE_OP_LABELS`, `RULE_TONES`, `ON_TINT_CLASS`, `RULE_TONE_CLASS`, `opsFor`, `columnName`, `normalizeValue`, `compareValues`, `compareDirected`, `readRuleValue`, `readCondition`, `readColumnRule`, `readFilterRule`, `readSortRule`, `readRules`, `compileCondition`, `ruleProblem`, `describeRule`, `compileFilter`, `compileComparator`, `ruleDecoration`, `applyRules`.
 
 ### Limits (`limits`)
 

@@ -238,4 +238,4 @@ The helpers compare row values with rule values. Your application owns storage a
 
 ### Tokens
 
-The install adds the `up`, `down`, `flat`, `stale`, and `expiring` tokens with their soft variants, if you do not have them. `primary` and `destructive` are shadcn's own.
+The install adds the soft variants of the `up`, `down`, `flat`, `stale`, and `expiring` tokens, which the tones tint with, if you do not have them. `primary` and `destructive` are shadcn's own.

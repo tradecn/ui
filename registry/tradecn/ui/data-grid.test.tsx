@@ -1947,6 +1947,20 @@ describe("editing", () => {
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ key: "px", value: 108 }))
   })
 
+  it("keeps a frozen cell in the focused column opaque, painting the column's tint as a background image", () => {
+    const store = createRowStore<Quote>({ getRowId: row => row.id })
+    seed(2, store)
+    render(<DataGrid store={store} columns={editable} label="Sheet" initialRect={RECT} focusedRowId="r1" onEdit={vi.fn()} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    const sym = grid.querySelector<HTMLElement>('[data-row-id="r0"] [data-col="sym"]')!
+    expect(sym).toHaveAttribute("data-focused-col")
+    expect(sym).toHaveClass("sticky", "bg-background")
+    expect(sym.className).toContain("var(--muted)_50%")
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    expect(grid.querySelector('[data-row-id="r0"] [data-col="px"]')).toHaveClass("bg-muted/50")
+  })
+
   it("invalidates a custom-opened editor by its own column, independently of logical grid focus", () => {
     const store = createRowStore<Quote>({ getRowId: row => row.id })
     seed(2, store)

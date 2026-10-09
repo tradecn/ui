@@ -80,6 +80,8 @@ describe("the pure parts", () => {
     const clock = auditTrailColumns().find(column => column.key === "at")!
     expect(clock.format!(-1, EVENTS[0]!)).toMatch(/:\d{2}\.999$/)
     expect(clock.format!(-1000.5, EVENTS[0]!)).toMatch(/:\d{2}\.000$/)
+    // The time is frozen, so a selected row's bar on it stays in view as the trail scrolls sideways.
+    expect(clock.frozen).toBe("left")
   })
 
   it("lays out time, event, by, message, and the count of changed fields", () => {

@@ -214,7 +214,7 @@ CSV comes from `exportCsv(store, columns, ids)` using these inputs. Text that a 
 
 ### Columns
 
-`auditTrailColumns({ time, labels })` returns columns keyed `at`, `event`, `by`, `message`, and `changes`. Spread the list to add, remove, or reorder columns. Its options also accept `value` so one options object can serve the columns and pane, but the columns do not use it. Keep `columns`, `time`, and `value` stable with module constants or memoization.
+`auditTrailColumns({ time, labels })` returns columns keyed `at`, `event`, `by`, `message`, and `changes`, the time frozen. Spread the list to add, remove, or reorder columns. Its options also accept `value` so one options object can serve the columns and pane, but the columns do not use it. Keep `columns`, `time`, and `value` stable with module constants or memoization.
 
 ### Labels
 

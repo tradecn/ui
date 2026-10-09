@@ -758,7 +758,8 @@ function Cell<T>({ col, row, rowId, colIndex, left, memory, flashVariant, flashW
         // Before the frozen position, so a frozen cell stays sticky under the bar's `relative`.
         selectedBar && cn("relative", SELECTED_BAR),
         left !== undefined && "sticky z-10 bg-background",
-        focusedCol && "bg-muted/50",
+        // On a frozen cell the column's tint is a background image, so the cell keeps its opaque background under it.
+        focusedCol && (left !== undefined ? "bg-[linear-gradient(color-mix(in_oklab,var(--muted)_50%,transparent),color-mix(in_oklab,var(--muted)_50%,transparent))]" : "bg-muted/50"),
         status?.kind === "pending" && "text-muted-foreground italic",
         rejected !== null && "text-destructive",
         rule?.className || (left !== undefined ? rowRule?.className : undefined),

@@ -99,8 +99,10 @@ export type { Clock }
 const TIER_CLASS: Record<Tier, string> = {
   live: "text-foreground",
   aging: "text-stale",
-  // On its tint the word is the foreground: stale text on the stale tint drops below 4.5 to 1 in the light themes.
-  stale: "bg-stale-soft text-foreground",
+  // On its tint the text is the foreground, a lane's stale gap inside included: stale text on the stale tint drops
+  // below 4.5 to 1 in the light themes. The tint is a background image, so a badge style's `dark:` background can't
+  // paint over it.
+  stale: "bg-[linear-gradient(var(--stale-soft),var(--stale-soft))] text-foreground [&_.text-up]:text-inherit [&_.text-down]:text-inherit [&_.text-flat]:text-inherit [&_.text-stale]:text-inherit [&_.text-expiring]:text-inherit [&_.text-destructive]:text-inherit [&_.text-primary]:text-inherit",
   offline: "text-destructive",
   closed: "text-muted-foreground",
 }

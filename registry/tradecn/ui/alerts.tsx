@@ -184,7 +184,7 @@ export function alertColumns(options: { time?: (ms: number) => string; labels?: 
   const time = options.time ?? localTime
   const labels = { ...DEFAULT_ALERT_HISTORY_LABELS, ...options.labels }
   return [
-    { key: "at", header: labels.time, width: 80, sortable: true, flash: false, accessor: (a) => a.at, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
+    { key: "at", header: labels.time, width: 80, frozen: "left", sortable: true, flash: false, accessor: (a) => a.at, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
     // The word, in the tone: the tone is a hint on a word that is always there.
     { key: "severity", header: labels.severity, width: 88, sortable: true, flash: false, accessor: (a) => a.severity, cell: ({ row }) => <span className={cn("font-medium", row.tone && ALERT_TONE_TEXT[row.tone])}>{row.severity}</span> },
     { key: "title", header: labels.noticeTitle, width: 200, sortable: true, flash: false, accessor: (a) => a.title },

@@ -100,7 +100,8 @@ export function tokensUsedIn(source: string, tokenNames: readonly string[]): Set
   const used = new Set<string>()
   for (const name of tokenNames) {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    const utility = new RegExp(`(?:^|[^\\w-])(?:[\\w]+:)*(?:bg|text|border(?:-[xysetblr])?|ring|outline|fill|stroke|shadow|from|to|via|decoration|accent|caret|divide|placeholder|inset-ring)-${escaped}(?![\\w-])`)
+    // A class named in a selector, as `[&_.text-up]:text-inherit` names one to override it, is no use of its token.
+    const utility = new RegExp(`(?:^|[^\\w.-])(?:[\\w]+:)*(?:bg|text|border(?:-[xysetblr])?|ring|outline|fill|stroke|shadow|from|to|via|decoration|accent|caret|divide|placeholder|inset-ring)-${escaped}(?![\\w-])`)
     const variable = new RegExp(`--(?:color-)?${escaped}(?![\\w-])`)
     if (utility.test(source) || variable.test(source)) used.add(name)
   }

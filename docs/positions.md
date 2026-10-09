@@ -143,4 +143,4 @@ It does not fetch, price, or net positions, or derive a position from fills. Use
 
 ### Tokens
 
-The install adds the grid's `up`, `down`, `flat`, `stale`, and `expiring` tokens and their soft variants where missing, plus the shared font tokens and the hyperlegible remap. Positive, negative, and flat cells use the first three.
+The install adds the grid's `up`, `down`, and `flat` tokens, and the soft variants of those and of `stale` and `expiring`, where missing, plus the shared font tokens and the hyperlegible remap. Positive, negative, and flat cells use the first three.

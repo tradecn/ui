@@ -2563,7 +2563,7 @@
         "grid",
         "ticket"
       ],
-      "docs": "Installs the data grid, the row store, and format alongside, adds @tanstack/react-virtual and the up, down, flat, stale, and expiring tokens the grid carries, and composes your checkbox plus the context-menu and dropdown-menu the grid uses. An edit is a command: onEdit sends it, and the cell waits for the server's row.",
+      "docs": "Installs the data grid, the row store, and format alongside, adds @tanstack/react-virtual and the up, down, and flat tokens with the soft variants the grid tints with, and composes your checkbox plus the context-menu and dropdown-menu the grid uses. An edit is a command: onEdit sends it, and the cell waits for the server's row.",
       "meta": {
         "components": [
           {
@@ -2675,7 +2675,7 @@
         "grid",
         "blotter"
       ],
-      "docs": "Installs the data grid, the row store, and format alongside, adds @tanstack/react-virtual and the up, down, flat, stale, and expiring tokens the grid carries, and composes the checkbox, context-menu, and dropdown-menu the grid uses. The P&L and the risk are the server's numbers; pass price, pnl, and risk formatters for the desk's notation.",
+      "docs": "Installs the data grid, the row store, and format alongside, adds @tanstack/react-virtual and the up, down, and flat tokens with the soft variants the grid tints with, and composes the checkbox, context-menu, and dropdown-menu the grid uses. The P&L and the risk are the server's numbers; pass price, pnl, and risk formatters for the desk's notation.",
       "meta": {
         "components": [
           {
@@ -2788,7 +2788,7 @@
         "grid",
         "blotter"
       ],
-      "docs": "Compose AuditTrailGrid, AuditTrailChanges and AuditTrailExportButton inside AuditTrail. Supply change markup through the changes render callback or useAuditTrailChanges. Installs DataGrid, RowStore, format helpers, cn and @tanstack/react-virtual; adds the up/down/flat/stale/expiring tokens and your style’s Button, checkbox, context-menu and dropdown-menu primitives.",
+      "docs": "Compose AuditTrailGrid, AuditTrailChanges and AuditTrailExportButton inside AuditTrail. Supply change markup through the changes render callback or useAuditTrailChanges. Installs DataGrid, RowStore, format helpers, cn and @tanstack/react-virtual; adds the up, down, and flat tokens with the soft variants the grid tints with and your style’s Button, checkbox, context-menu and dropdown-menu primitives.",
       "meta": {
         "components": [
           {
@@ -3835,26 +3835,20 @@
           "type": "registry:lib"
         }
       ],
-      "docs": "Pure functions, no dependencies. Hand a GridRules object to the data grid's rules prop, or compile it yourself with compileFilter, compileComparator, and applyRules. Adds the up, down, flat, stale, and expiring tokens with their soft variants, which the tones draw from.",
+      "docs": "Pure functions, no dependencies. Hand a GridRules object to the data grid's rules prop, or compile it yourself with compileFilter, compileComparator, and applyRules. Adds the soft variants of the up, down, flat, stale, and expiring tokens, which the tones tint with.",
       "cssVars": {
         "light": {
-          "down": "oklch(0.46 0.19 40)",
           "down-soft": "oklch(0.46 0.19 40 / 18%)",
           "expiring-soft": "oklch(0.53 0.2 350 / 18%)",
-          "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.55 0 0 / 14%)",
           "stale-soft": "oklch(0.52 0.13 75 / 16%)",
-          "up": "oklch(0.52 0.13 165)",
           "up-soft": "oklch(0.52 0.13 165 / 18%)"
         },
         "dark": {
-          "down": "oklch(0.66 0.19 40)",
           "down-soft": "oklch(0.66 0.19 40 / 18%)",
           "expiring-soft": "oklch(0.74 0.17 350 / 18%)",
-          "flat": "var(--color-muted-foreground)",
           "flat-soft": "oklch(0.7 0 0 / 14%)",
           "stale-soft": "oklch(0.8 0.15 80 / 16%)",
-          "up": "oklch(0.74 0.15 165)",
           "up-soft": "oklch(0.74 0.15 165 / 18%)"
         }
       }

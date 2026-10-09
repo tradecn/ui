@@ -65,16 +65,17 @@ export interface StatusBarUserProps extends Omit<ComponentProps<"span">, "childr
 
 /**
  * The environment badge's classes per tone: the tone's tint behind foreground text. The label is always the word; the
- * tone is the hint. A tone's own color as text on its tint drops below 4.5 to 1 in the light themes.
+ * tone is the hint. A tone's own color as text on its tint drops below 4.5 to 1 in the light themes. The tint is a
+ * background image, so a badge style's own `dark:` background can't paint over it.
  */
 export const STATUS_TONE_CLASS: Record<StatusTone, string> = {
-  up: "text-foreground bg-up-soft",
-  down: "text-foreground bg-down-soft",
-  flat: "text-foreground bg-flat-soft",
-  stale: "text-foreground bg-stale-soft",
-  expiring: "text-foreground bg-expiring-soft",
-  primary: "text-foreground bg-primary/15",
-  destructive: "text-foreground bg-destructive/15",
+  up: "text-foreground bg-[linear-gradient(var(--up-soft),var(--up-soft))]",
+  down: "text-foreground bg-[linear-gradient(var(--down-soft),var(--down-soft))]",
+  flat: "text-foreground bg-[linear-gradient(var(--flat-soft),var(--flat-soft))]",
+  stale: "text-foreground bg-[linear-gradient(var(--stale-soft),var(--stale-soft))]",
+  expiring: "text-foreground bg-[linear-gradient(var(--expiring-soft),var(--expiring-soft))]",
+  primary: "text-foreground bg-[linear-gradient(color-mix(in_oklab,var(--primary)_15%,transparent),color-mix(in_oklab,var(--primary)_15%,transparent))]",
+  destructive: "text-foreground bg-[linear-gradient(color-mix(in_oklab,var(--destructive)_15%,transparent),color-mix(in_oklab,var(--destructive)_15%,transparent))]",
 }
 
 const formats = new Map<string, Intl.DateTimeFormat | null>()

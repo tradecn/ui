@@ -203,4 +203,4 @@ It does not quote, hedge, decide a status, or send anything on its own. The rows
 
 ### Tokens
 
-The install adds the grid's tokens, `up`, `down`, `flat`, `stale`, and `expiring` with their soft variants, if you do not have them.
+The install adds the grid's tokens, `up`, `down`, and `flat`, and the soft variants of those and of `stale` and `expiring`, if you do not have them.
