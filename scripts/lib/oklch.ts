@@ -36,7 +36,7 @@ export function luminance(color: Oklch, backdrop?: Oklch): number {
   if (color.alpha < 1 && backdrop) {
     const under = toLinearSrgb(backdrop)
     // A browser composites in gamma-encoded sRGB, so the blend happens there and comes back to linear light. Blending
-    // in linear light reads a light tint lighter than it shows, and a dark one darker.
+    // in linear light reads every tint lighter than it shows, since decoding sRGB is convex.
     rgb = rgb.map((v, i) => decode(encode(v) * color.alpha + encode(under[i]!) * (1 - color.alpha))) as [number, number, number]
   }
   return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]

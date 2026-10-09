@@ -2481,7 +2481,7 @@
           }
         ]
       },
-      "docs": "Installs the shared clock and format helpers and composes your Badge. Adds environment tone tokens. Place feed-health and perf-monitor in its children after installing those items separately.",
+      "docs": "Installs the shared clock and format helpers and composes your Badge. Adds the soft variants of the up, down, flat, stale, and expiring tokens, which the environment badge tints with. Place feed-health and perf-monitor in its children after installing those items separately.",
       "cssVars": {
         "light": {
           "down-soft": "oklch(0.46 0.19 40 / 18%)",

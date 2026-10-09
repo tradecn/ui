@@ -2438,14 +2438,18 @@ test("a status bar names the environment in a word and a tone, ticks its clock, 
   expect(painted.color, "the environment word is the foreground").toBe(painted.foreground)
   expect(painted.image, "the tone's tint is painted as a background image").toContain("linear-gradient")
   const dark = await page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>("section[data-scene='status-bar'] [data-status-environment]")!
+    // Every style's badge transitions its color, so a read in the same frame as the switch gets the light color the
+    // transition starts from; with the transition off, the read is the color the badge settles on.
+    el.style.transition = "none"
     document.documentElement.classList.add("dark")
-    const el = document.querySelector("section[data-scene='status-bar'] [data-status-environment]")!
     const probe = document.createElement("i")
     probe.style.color = "var(--foreground)"
     document.body.append(probe)
     const out = { color: getComputedStyle(el).color, foreground: getComputedStyle(probe).color, image: getComputedStyle(el).backgroundImage }
     probe.remove()
     document.documentElement.classList.remove("dark")
+    el.style.transition = ""
     return out
   })
   expect(dark.color, "dark: the environment word is the foreground").toBe(dark.foreground)

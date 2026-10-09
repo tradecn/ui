@@ -13,7 +13,7 @@ export type RuleOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between" | "in
 /** What a rule compares against, as typed. A string is read in the column's format; a number or boolean is used as it is. */
 export type RuleValue = string | number | boolean | null
 
-/** A token name. The soft variant tints the background; the token itself colors the text. */
+/** A token name. The soft variant, or a 12% tint for primary and destructive, tints the background; the text on it is the foreground. */
 export type RuleTone = "up" | "down" | "flat" | "stale" | "expiring" | "primary" | "destructive"
 
 export interface RuleCondition {
