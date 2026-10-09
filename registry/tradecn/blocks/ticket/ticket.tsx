@@ -243,7 +243,7 @@ function declareBindings(registry: HotkeyRegistry, bindings: readonly HotkeyBind
 /** Whole numbers, with commas only between thousands. A quantity is contracts or units of notional, never a fraction. */
 export function parseQuantity(text: string): number | null {
   // "2,5" from a decimal-comma keyboard is no quantity, never 25.
-  const clean = stripGrouping(text.trim(), { decimals: false })
+  const clean = stripGrouping(text, { decimals: false })
   if (clean === null || !/^\d+$/.test(clean)) return null
   const n = Number(clean)
   return Number.isSafeInteger(n) ? n : null

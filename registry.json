@@ -1178,7 +1178,7 @@
           },
           {
             "title": "parseQuantity",
-            "description": "Whole numbers with or without separators, or null."
+            "description": "Whole numbers, with commas only between thousands, or null."
           }
         ]
       },

@@ -117,11 +117,11 @@ function isNumber(v: unknown): v is number {
 }
 
 // A size prints whole and grouped, "5,000", so one group reads as thousands; skew and width print decimals, so one
-// comma with no point after it reads either way and is refused. Any other comma is refused: "2,5" is never 25.
+// comma with no point after it reads either way and is refused, and their editor opens on text without separators.
+// Any other comma is refused: "2,5" is never 25.
 function readNumber(text: string, decimals: boolean): number | null | "bad" {
-  const trimmed = text.trim()
-  if (trimmed === "") return null
-  const clean = stripGrouping(trimmed.replace(/−/g, "-"), { decimals })
+  if (text.trim() === "") return null
+  const clean = stripGrouping(text, { decimals })
   if (clean === null) return "bad"
   // Plain decimals only: Number would also read 0x10 and 1e3, which no cell prints, and a run of digits too
   // long to hold reads as Infinity.
@@ -267,7 +267,7 @@ export function quoteEdit<T extends QuoteRow>(field: QuoteField, options: QuoteC
       if (field === "width" && n !== null && n < 0) return editProblem(labels.notAWidth)
       return n
     },
-    format: (value) => (isNumber(value) ? formatTicks(value, { signed: field === "skew" }) : ""),
+    format: (value) => (isNumber(value) ? formatTicks(value, { signed: field === "skew", grouping: false }) : ""),
     // Skew and width count in quote steps; half steps are common, so the arrows move by one and ten with Shift.
     step: (value, dir, big) => Number(((isNumber(value) ? value : 0) + dir * (big ? 10 : 1)).toFixed(10)),
     canEdit,

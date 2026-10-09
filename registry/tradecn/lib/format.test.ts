@@ -268,10 +268,24 @@ describe("stripGrouping", () => {
     expect(stripGrouping("1234.5", { decimals: true })).toBe("1234.5")
     expect(stripGrouping("5,012", { decimals: false })).toBe("5012")
     expect(stripGrouping("5,012", { decimals: true })).toBeNull()
-    for (const text of ["99,5", "1,0,0", "0,995", ",995", "1234,567", "01,234", "1,234.5,6", " 1,234"]) {
+    // Either minus sign, and spaces around the text, the way format prints and a field holds it.
+    expect(stripGrouping("−1,234.50", { decimals: true })).toBe("-1234.50")
+    expect(stripGrouping(" 1,234 ", { decimals: false })).toBe("1234")
+    expect(stripGrouping(" 1,234 ", { decimals: true })).toBeNull()
+    expect(stripGrouping(" −1234.5 ", { decimals: true })).toBe("-1234.5")
+    for (const text of ["99,5", "1,0,0", "0,995", ",995", "1234,567", "01,234", "1,234.5,6", "1 ,234"]) {
       expect(stripGrouping(text, { decimals: false })).toBeNull()
       expect(stripGrouping(text, { decimals: true })).toBeNull()
     }
+  })
+})
+
+describe("formatTicks without grouping", () => {
+  it("prints no thousands separators, for an editor's text, and keeps the sign and the typographic minus", () => {
+    expect(formatTicks(1234)).toBe("+1,234")
+    expect(formatTicks(1234, { grouping: false })).toBe("+1234")
+    expect(formatTicks(-1500.5, { signed: false, grouping: false })).toBe("−1500.5")
+    expect(formatTicks(0, { grouping: false })).toBe("0")
   })
 })
 

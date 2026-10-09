@@ -44,7 +44,7 @@ In 32nds, `99.515625` prints as `99-16+`, or `99-165` with `half: "5"`. With `ei
 | `formatPrice(value, convention, locale?)` | Format a `Nullable` price; the third argument is a `Locale` object |
 | `formatFraction(value, convention)` | Format a `Nullable` price with the fraction variant of `PriceConvention` |
 | `parsePrice(text, convention)` | Read a string in the convention's notation or as a plain decimal; return a number, or `null` for unreadable text or a value too large to print back in the convention's notation |
-| `stripGrouping(text, { decimals })` | Remove the thousands separators from trimmed numeric text; return `null` when a comma isn't one, and with `decimals` also for one comma with nothing after the whole part, such as `4,253` |
+| `stripGrouping(text, { decimals })` | Trim numeric text, read either minus sign as `-`, and remove its thousands separators; return `null` when a comma isn't one, and with `decimals` also for one comma with nothing after the whole part, such as `4,253` |
 | `decimalsFromTick(tick, max = 8)` | Decimal places needed for a numeric tick, capped at `max`; `0.005` gives `3`, `1 / 32` gives `5`; nonpositive or nonfinite ticks give `0` |
 | `roundToTick(value, tick)` | Snap a number to the nearest tick and clean float noise; return `value` unchanged if it or the tick is nonfinite, or the tick is nonpositive |
 | `stepByTick(value, tick, steps)` | Snap to the grid, move by `steps` ticks, then snap again; all inputs are numbers and negative steps are allowed |
@@ -114,7 +114,7 @@ Fraction coupons reduce eighths: `4.5` is `4 1/2` and `4` is `4`. Values off the
 | Function | Inputs and options | Result |
 |---|---|---|
 | `ticksBetween(a, b, tick)` | Three numbers | `(a - b) / tick`, rounded to the nearest eighth; `NaN` if either price is nonfinite or `tick > 0` is false |
-| `formatTicks(value, options?)` | `Nullable`; `signed: boolean` (default `true`), `unit: string` (default none), `locale` | Up to three decimals, no trailing zeros: `+1`, `−0.5`, `0`; a unit adds a space and suffix, such as `+2 ticks` |
+| `formatTicks(value, options?)` | `Nullable`; `signed: boolean` (default `true`), `unit: string` (default none), `grouping: boolean` (default `true`; `false` prints no thousands separators, for an editor's text), `locale` | Up to three decimals, no trailing zeros: `+1`, `−0.5`, `0`; a unit adds a space and suffix, such as `+2 ticks` |
 
 A quote of `99-17` against a composite of `99-16+` on a `1 / 64` tick is one tick: `ticksBetween(99.53125, 99.515625, 1 / 64)` returns `1`. Use `formatBps` for spread differences in basis points.
 

@@ -32,7 +32,7 @@ export interface ParameterDef<T extends ParameterRow> {
   accessor: (row: T) => unknown
   /** Prints the value. Default: a number to `decimals` places, the null token for null, the text for the rest. */
   format?: (value: unknown, row: T) => string
-  /** Reads what was typed. Default: a number, with separators allowed, blank for null. */
+  /** Reads what was typed. Default: a number with commas only between thousands, blank for null; see `decimals`. */
   parse?: (text: string, row: T) => unknown
   /** A check before the commit, after `min` and `max`. */
   validate?: (value: unknown, row: T) => EditProblem | null | undefined
@@ -40,7 +40,7 @@ export interface ParameterDef<T extends ParameterRow> {
   step?: number | ((value: unknown, dir: 1 | -1, big: boolean, row: T) => unknown)
   min?: number
   max?: number
-  /** Places for the default format. Default 2. */
+  /** Places for the default format, and how the default parser reads a comma: above zero, one comma with no point after it is no number. Default 2. */
   decimals?: number
   /** Numeric by default: right-aligned, tabular figures, flashing by direction. False for a text parameter. */
   numeric?: boolean
@@ -110,9 +110,8 @@ function defaultFormat<T extends ParameterRow>(def: ParameterDef<T>): (value: un
 function defaultParse<T extends ParameterRow>(def: ParameterDef<T>, labels: ParameterGridLabels): (text: string) => unknown {
   const decimals = (def.decimals ?? 2) > 0
   return (text) => {
-    const trimmed = text.trim()
-    if (trimmed === "") return null
-    const clean = stripGrouping(trimmed.replace(/−/g, "-"), { decimals })
+    if (text.trim() === "") return null
+    const clean = stripGrouping(text, { decimals })
     if (clean === null) return editProblem(labels.notANumber)
     const n = Number(clean)
     return Number.isFinite(n) ? n : editProblem(labels.notANumber)

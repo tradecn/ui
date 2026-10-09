@@ -125,7 +125,7 @@ Each `ParameterDef<T>` defines one column:
 | `validate` | `(value: unknown, row: T) => EditProblem \| null \| undefined` | None | Return a problem to refuse a value after range checks. |
 | `step` | `number \| ((value: unknown, dir: 1 \| -1, big: boolean, row: T) => unknown)` | None | Change the editor value with Up or Down. |
 | `min` / `max` | `number` | No bounds | Inclusive limits for numeric values. |
-| `decimals` | `number` | `2` | Decimal places in the default formatter. |
+| `decimals` | `number` | `2` | Decimal places in the default formatter. Above zero, the default parser also reads one comma with no point after it, as in `1,234`, as no number, whatever your own `format` prints. |
 | `numeric` | `boolean` | `true` | Right alignment, numeric font, decimal input mode, and directional flashes. |
 | `font` | `"numeric" \| "mono"` | `"numeric"` | Font family for numeric cells; both use tabular figures. |
 | `readOnly` | `boolean` | `false` | Omit editing for this parameter on every row. |

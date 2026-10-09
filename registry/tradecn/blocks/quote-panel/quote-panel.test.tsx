@@ -132,6 +132,24 @@ describe("quotePanelColumns and quoteEdit", () => {
     expect(skew.validate).toBeUndefined()
   })
 
+  it("reads back the text each field's editor opens with, and steps past a thousand", () => {
+    const size = quoteEdit<QuoteRow>("bidSize", { convention: T32 })
+    const skew = quoteEdit<QuoteRow>("skew", { convention: T32 })
+    const width = quoteEdit<QuoteRow>("width", { convention: T32 })
+    for (const n of [0, 1, 999, 1000, 5000, 25_000_000, 9007199254740991]) expect(size.parse(size.format!(n, ROWS[0]!), ROWS[0]!), String(n)).toBe(n)
+    for (const v of [0, 0.5, -1.5, 999, 1000, 1234, -1500, 1234.5, 999_999, 1_000_000, -1234.125]) {
+      expect(skew.parse(skew.format!(v, ROWS[0]!), ROWS[0]!), `skew ${v}`).toBe(v)
+      if (v >= 0) expect(width.parse(width.format!(v, ROWS[0]!), ROWS[0]!), `width ${v}`).toBe(v)
+    }
+    // The editor opens on text without separators, so stepping up from 999 reads its own text at every step.
+    expect(width.format!(1000, ROWS[0]!)).toBe("1000")
+    let text = width.format!(999, ROWS[0]!)
+    for (const want of [1000, 1001]) {
+      text = width.format!(width.step!(width.parse(text, ROWS[0]!), 1, false, ROWS[0]!), ROWS[0]!)
+      expect(width.parse(text, ROWS[0]!)).toBe(want)
+    }
+  })
+
   it("reads plain decimals only, and never a negative width", () => {
     const width = quoteEdit<QuoteRow>("width", { convention: T32 })
     const size = quoteEdit<QuoteRow>("bidSize", { convention: T32 })

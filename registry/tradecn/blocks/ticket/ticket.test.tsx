@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatQuickSize, checkDraft, describeDraft, parseQuantity, Ticket, TICKET_BINDINGS, type TicketDraft, type TicketInstrument, type TicketProps } from "@/registry/tradecn/blocks/ticket/ticket"
 import { HotkeysProvider } from "@/registry/tradecn/hooks/use-hotkeys"
 import { createHotkeyRegistry, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
+import { formatQuantity } from "@/registry/tradecn/lib/format"
 
 const ZN: TicketInstrument = { symbol: "ZN", convention: { price: { kind: "fraction", denominator: 32, half: "+" }, tick: 1 / 64 }, quantityStep: 100 }
 const ES: TicketInstrument = { symbol: "ES", convention: { price: { kind: "decimal", decimals: 2 }, tick: 0.25 } }
@@ -667,6 +668,8 @@ describe("describeDraft, checkDraft, parseQuantity", () => {
     expect(parseQuantity("5")).toBe(5)
     expect(parseQuantity(" 5,000 ")).toBe(5000)
     expect(parseQuantity("1,000,000")).toBe(1_000_000)
+    // A quantity reads back as the field prints it.
+    for (const n of [0, 1, 999, 1000, 5000, 1_000_000, 9007199254740991]) expect(parseQuantity(formatQuantity(n)), String(n)).toBe(n)
     // A comma reads only between thousands: "2,5" from a decimal-comma keyboard is no quantity, never 25.
     for (const text of ["2,5", "10,00", "1,0,0", "0,500", ",500", "5,00,000", "1234,567"]) expect(parseQuantity(text)).toBeNull()
     expect(parseQuantity("2.5")).toBeNull()
