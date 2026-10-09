@@ -707,7 +707,8 @@ export function RulesEditorDirection({ onChange, className, ...props }: SelectPr
 
 export function RulesEditorProblem({ className, ...props }: ComponentProps<"p">) {
   const { problem, problemId } = useRulesEditorItem()
-  return problem ? <p id={problemId} data-rule-problem className={cn("basis-full text-destructive", className)} {...props}>{problem}</p> : null
+  // The generated id comes last: the item and its fields point to it, so a caller's id can't take it away.
+  return problem ? <p data-rule-problem className={cn("basis-full text-destructive", className)} {...props} id={problemId}>{problem}</p> : null
 }
 
 export function RulesEditorMatchCount({ className, ...props }: ComponentProps<"span">) {

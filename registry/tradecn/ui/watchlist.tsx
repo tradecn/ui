@@ -287,7 +287,7 @@ export interface WatchlistAddStatusProps extends Omit<ComponentProps<"span">, "c
 }
 
 /** What the last add came to, in words a screen reader hears as it changes and the input points to. */
-export function WatchlistAddStatus({ added = (symbol) => `${symbol} added`, listed = (symbol) => `${symbol} is already listed`, refused = (symbol) => `${symbol} can't be added`, className, ...props }: WatchlistAddStatusProps) {
+export function WatchlistAddStatus({ added = (symbol) => `Adding ${symbol}`, listed = (symbol) => `${symbol} is already listed`, refused = (symbol) => `${symbol} can't be added`, className, ...props }: WatchlistAddStatusProps) {
   const { notice, noticeId } = useWatchlistAdd()
   const words = notice === null ? null : notice.kind === "added" ? added(notice.symbol) : notice.kind === "listed" ? listed(notice.symbol) : refused(notice.symbol)
   return <span role="status" {...props} id={noticeId} data-watchlist-notice={notice?.kind} className={cn("min-w-0 truncate text-xs", notice?.kind === "refused" ? "text-destructive" : "text-muted-foreground", className)}>{words}</span>

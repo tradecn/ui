@@ -142,7 +142,7 @@ Other [data-grid](data-grid.md) options pass through, including sorting, column 
 
 `WatchlistAddButton` accepts the installed Button's props and ref. It defaults to a compact submit button with an outline style and `Add` text. An explicit `size` uses the installed Button’s dimensions; `className` can override either. It is disabled when adding is unavailable or the draft is blank. Supply children to change its text.
 
-`WatchlistAddStatus` says what the last add came to in a polite live region, and the input points to it while it holds words: `ZN added`, `ZN is already listed`, which also moves focus to that row and brings it into view, or `ZN can't be added` for a symbol `validate` refuses, beside the input's invalid mark. Pass `added`, `listed`, and `refused`, each a function of the symbol, for your own words. Typing again clears it.
+`WatchlistAddStatus` says what the last add came to in a polite live region, and the input points to it while it holds words: `Adding ZN` for a request `onAdd` takes, since the row shows only when your store has it, `ZN is already listed`, which also moves focus to that row and brings it into view, or `ZN can't be added` for a symbol `validate` refuses, beside the input's invalid mark. Pass `added`, `listed`, and `refused`, each a function of the symbol, for your own words. Typing again clears it.
 
 ### Removal controls
 
