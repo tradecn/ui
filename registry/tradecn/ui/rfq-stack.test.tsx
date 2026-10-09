@@ -422,8 +422,8 @@ describe("the stack's word beside a rule's", () => {
     const large: GridRules = { columns: [{ id: "big", column: "size", when: { op: "gte", value: "5,000,000" }, tone: "primary", target: "row", label: "Large" }] }
     const { rerender } = render(<Harness store={store} rules={large} activeId="q2" parkedIds={new Set(["q1"])} />)
     expect(rowOf("q2")).toHaveAttribute("data-rule", "big")
-    expect(rowOf("q2")).toHaveAttribute("aria-description", "Large, In the ticket")
-    expect(rowOf("q1")).toHaveAttribute("aria-description", "Large, Parked")
+    expect(rowOf("q2")).toHaveAttribute("aria-description", "In the ticket, Large")
+    expect(rowOf("q1")).toHaveAttribute("aria-description", "Parked, Large")
     expect(rowOf("q4")).not.toHaveAttribute("aria-description")
     rerender(<Harness store={store} rules={large} activeId="q2" parkedIds={new Set(["q1"])} activeLabel="" />)
     expect(rowOf("q2")).toHaveAttribute("aria-description", "Large")
@@ -478,9 +478,9 @@ describe("parking", () => {
     render(<Harness store={seeded()} activeId="q2" parkedIds={new Set(["q1", "q2"])} />)
     expect(rowOf("q1").dataset.state).toBe("parked")
     expect(rowOf("q1").getAttribute("aria-description")).toBe("Parked")
-    expect(rowOf("q1").className).toContain("text-muted-foreground")
+    expect(rowOf("q1").classList.contains("text-muted-foreground")).toBe(true)
     expect(rowOf("q2").dataset.state).toBe("active")
-    expect(rowOf("q2").className).not.toContain("text-muted-foreground")
+    expect(rowOf("q2").classList.contains("text-muted-foreground")).toBe(false)
     // The active row is said to a screen reader too.
     expect(rowOf("q2").getAttribute("aria-description")).toBe("In the ticket")
     expect(rowOf("q3").dataset.state).toBeUndefined()

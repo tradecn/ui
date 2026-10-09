@@ -218,7 +218,7 @@ Pass `activeId` to mark the row with `data-state="active"` and a primary tint be
 
 Parking keeps the row in the stack and skips it during automatic selection; parking the active inquiry advances the ticket. Unparking restores eligibility without replacing another active inquiry.
 
-Parked rows are muted, use `data-state="parked"`, and have an accessible description of `parkedLabel`, and the active row one of `activeLabel`, joined after a row rule's description, unless `getRowProps` supplies one. An empty label adds nothing. The active mark takes precedence.
+Parked rows are muted, use `data-state="parked"`, and have an accessible description of `parkedLabel`, and the active row one of `activeLabel`, unless `getRowProps` supplies one; the grid joins a row rule's description after it. An empty label adds nothing. The active mark takes precedence.
 
 Each row's timer is named by `Time left`, the inquiry id, and the time left, and the reading of a focused row says that whole name, so it tells apart repeats whose row names match.
 

@@ -6,6 +6,9 @@ import { NULL_TOKEN } from "@/registry/tradecn/lib/format"
 import type { RowId, RowStore, RowView } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, exportCsv, type ColumnDef, type DataGridProps } from "@/registry/tradecn/ui/data-grid"
 
+// An undefined word keeps its default, as DataGrid's labels do.
+const defined = <W extends object>(words: W | undefined): Partial<W> => Object.fromEntries(Object.entries(words ?? {}).filter(([, word]) => word !== undefined)) as Partial<W>
+
 // The caller owns the layout and change markup. The root coordinates selection and export;
 // each changes scope shares one live reading. History order comes from the supplied view or store.
 
@@ -48,8 +51,10 @@ export interface AuditTrailLabels {
   diffTitle: string
   /** Two events that leave every field where it was. */
   same: string
-  /** The changes column's text, with `{n}` as the count. Default: `Fields: {n}`. */
-  fields: string
+  /** A comparison with an event the trail no longer shows. */
+  outside: string
+  /** The changes column's text: a template with `{n}` as the count, or a function of it, for a plural a template can't hold. Default: `Fields: {n}`. */
+  fields: string | ((n: number) => string)
 }
 
 export const DEFAULT_AUDIT_TRAIL_LABELS: AuditTrailLabels = {
@@ -67,6 +72,7 @@ export const DEFAULT_AUDIT_TRAIL_LABELS: AuditTrailLabels = {
   eventTitle: "{event} at {time}",
   diffTitle: "{a} to {b}",
   same: "Nothing differs between these two events.",
+  outside: "One of these events is no longer in the trail, so they can't be compared.",
   fields: "Fields: {n}",
 }
 
@@ -86,7 +92,19 @@ const fill = (template: string, values: Record<string, string>) => template.repl
 /** A value as the pane prints it: the null token for nothing, text for the rest. Pass your own through `value`. */
 export function formatAuditValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return NULL_TOKEN
-  if (typeof value === "object") return JSON.stringify(value)
+  if (typeof value === "object") {
+    // A bigint inside prints as its digits; a cycle, or anything else JSON can't hold, as plain text rather than a throw.
+    // A value that can't become text either, a cycle with no prototype among them, prints its kind, which never throws.
+    try {
+      return JSON.stringify(value, (_key, inner: unknown) => (typeof inner === "bigint" ? inner.toString() : inner)) ?? String(value)
+    } catch {
+      try {
+        return String(value)
+      } catch {
+        return Object.prototype.toString.call(value)
+      }
+    }
+  }
   return String(value)
 }
 
@@ -100,14 +118,14 @@ export interface AuditTrailColumnOptions<T extends AuditEvent> {
 
 /** Time, event, by, message, and how many fields changed. Spread them into your own list to add, drop, or reorder. */
 export function auditTrailColumns<T extends AuditEvent>(options: AuditTrailColumnOptions<T> = {}): ColumnDef<T>[] {
-  const labels = { ...DEFAULT_AUDIT_TRAIL_LABELS, ...options.labels }
+  const labels = { ...DEFAULT_AUDIT_TRAIL_LABELS, ...defined(options.labels) }
   const time = options.time ?? localTime
   return [
     { key: "at", header: labels.time, width: 104, frozen: "left", numeric: true, sortable: true, flash: false, accessor: (r) => r.at, format: (v) => (isInstant(v) ? time(v) : NULL_TOKEN) },
     { key: "event", header: labels.event, width: 128, sortable: true, flash: false, accessor: (r) => r.event, cell: ({ row }) => <span className="font-medium">{row.event}</span> },
     { key: "by", header: labels.by, width: 96, sortable: true, flash: false, accessor: (r) => r.by ?? null },
     { key: "message", header: labels.message, width: 220, flash: false, accessor: (r) => r.message ?? null },
-    { key: "changes", header: labels.changes, width: 96, numeric: true, sortable: true, flash: false, accessor: (r) => r.changes?.length ?? 0, format: (v) => ((v as number) ? fill(labels.fields, { n: String(v) }) : NULL_TOKEN) },
+    { key: "changes", header: labels.changes, width: 96, numeric: true, sortable: true, flash: false, accessor: (r) => r.changes?.length ?? 0, format: (v) => ((v as number) ? (typeof labels.fields === "function" ? labels.fields(v as number) : fill(labels.fields, { n: String(v) })) : NULL_TOKEN) },
   ]
 }
 
@@ -186,7 +204,7 @@ export function useAuditTrail(): AuditTrailState {
 }
 
 export function AuditTrail<T extends AuditEvent = AuditEvent>({ store, view, columns, time = localTime, value = defaultValue, labels: labelsProp, selection: selectionProp, onSelectionChange, children, className, ...props }: AuditTrailProps<T>) {
-  const labels = useMemo(() => ({ ...DEFAULT_AUDIT_TRAIL_LABELS, ...labelsProp }), [labelsProp])
+  const labels = useMemo(() => ({ ...DEFAULT_AUDIT_TRAIL_LABELS, ...defined(labelsProp) }), [labelsProp])
   const all = useMemo(() => columns ?? auditTrailColumns<T>({ time, labels }), [columns, time, labels])
   const [ownSelection, setOwnSelection] = useState<ReadonlySet<RowId>>(() => new Set())
   const selection = selectionProp ?? ownSelection
@@ -261,6 +279,8 @@ export function AuditTrailChanges({ children, className, ...props }: AuditTrailC
     if (chosen.length === 1) return { kind: "event" as const, event: first, title: fill(labels.eventTitle, { event: first.event, time: stamp(first.at) }), changes: [...(first.changes ?? [])], emptyMessage: first.changes?.length ? "" : labels.noChanges }
     const last = chosen[chosen.length - 1]!
     const events = ids.map(id => store.getRow(id)).filter((event): event is AuditEvent => event !== undefined)
+    // An event the trail no longer shows has no place to fold from: say so rather than that nothing differs.
+    if (!events.some((event) => event.id === first.id) || !events.some((event) => event.id === last.id)) return { kind: "diff" as const, event: last, title: fill(labels.diffTitle, { a: `${first.event} ${stamp(first.at)}`, b: `${last.event} ${stamp(last.at)}` }), changes: [], emptyMessage: labels.outside }
     const changes = diffEvents(events, first.id, last.id)
     return { kind: "diff" as const, event: last, title: fill(labels.diffTitle, { a: `${first.event} ${stamp(first.at)}`, b: `${last.event} ${stamp(last.at)}` }), changes, emptyMessage: changes.length ? "" : labels.same }
   }, [meta.version, store, ids, selection, time, labels])

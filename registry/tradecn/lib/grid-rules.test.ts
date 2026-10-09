@@ -26,6 +26,8 @@ import {
   readSortRule,
   ruleDecoration,
   ruleProblem,
+  ruleWords,
+  DEFAULT_RULE_WORDS,
   type ColumnRule,
   type GridRules,
   type RuleColumn,
@@ -218,6 +220,8 @@ describe("applyRules", () => {
       expect(classes[0]).toBe("text-foreground")
       expect(classes).toEqual(expect.arrayContaining(["[&_.text-up]:text-inherit", "[&_.text-down]:text-inherit", "[&_.text-flat]:text-inherit", "[&_.text-stale]:text-inherit", "[&_.text-expiring]:text-inherit", "[&_.text-destructive]:text-inherit", "[&_.text-primary]:text-inherit"]))
       expect(RULE_TONE_CLASS[tone].startsWith(ON_TINT_CLASS)).toBe(true)
+    // Muted text on a tint takes the foreground too: its own gray sits below 4.5 to 1 on a soft tint.
+    expect(ON_TINT_CLASS.split(" ")).toContain("[&_.text-muted-foreground]:text-inherit")
       expect(classes.at(-1)).toMatch(/^bg-\[linear-gradient\(/)
     }
     expect(Object.keys(RULE_TONE_CLASS).sort()).toEqual([...RULE_TONES].sort())
@@ -322,11 +326,20 @@ describe("rules that arrive malformed", () => {
     expect(odd["aria-description"]).toBe("Status is Quoted")
   })
 
-  it("filters out every row for a filter rule it cannot read, as for a value it cannot read, and skips an entry that is not a rule", () => {
+  it("skips a filter rule it cannot read, as one on a missing column, so it hides nothing, and skips an entry that is not a rule", () => {
     expect(byId(rows.filter(compileFilter([{ column: "status", op: "ne", value: "Done away" }, null as never], columns)))).toEqual(["a", "b", "c"])
-    expect(rows.filter(compileFilter([{ column: "status", op: "ne", value: "Done away" }, { column: "px", op: "gtx" as never, value: "99-16" }], columns))).toEqual([])
+    expect(byId(rows.filter(compileFilter([{ column: "status", op: "ne", value: "Done away" }, { column: "px", op: "gtx" as never, value: "99-16" }], columns)))).toEqual(["a", "b", "c"])
+    expect(byId(rows.filter(compileFilter([{ column: "px", op: "gt", value: {} as never }], columns)))).toEqual(["a", "b", "c", "d"])
     const order = compileComparator([null as never, { key: "size", dir: "desc" }], columns)!
     expect(byId([...rows].sort(order))).toEqual(["b", "d", "a", "c"])
+  })
+
+  it("says a rule and its problems in words of your own, a partial map of comparisons included", () => {
+    const words = { ops: { gt: "über" }, needsValue: "{op}: Wert fehlt.", range: "{low} bis {high}" }
+    expect(describeRule({ column: "px", op: "gt", value: "99-16" }, columns, "filter", words)).toBe("Price über 99-16")
+    expect(describeRule({ column: "px", op: "between", values: ["99-16", "100-00"] }, columns, "filter", words)).toBe("Price between 99-16 bis 100-00")
+    expect(ruleProblem({ column: "px", op: "gt" }, columns, "filter", words)).toBe("über: Wert fehlt.")
+    expect(ruleWords({ ops: { gt: "über" } }).ops.lt).toBe("below")
   })
 
   it("says what is wrong with a rule it cannot read, and describes one without throwing", () => {
@@ -460,5 +473,14 @@ describe("reading rules a desk saved", () => {
     expect(compileComparator({ length: 1, 0: { key: "size", dir: "asc" } } as never, columns)).toBeUndefined()
     expect(describeRule(raw[1]!, columns)).toBe('{"key":"px"} is not empty')
     expect(applyRules({ length: 1, 0: raw[3] } as never, columns).byColumn.size).toBe(0)
+  })
+})
+
+describe("ruleWords", () => {
+  it("keeps the default for a word given as undefined, an op's and a tone's included", () => {
+    const words = ruleWords({ range: undefined, ops: { gt: undefined }, tones: { up: undefined } })
+    expect(words.range).toBe(DEFAULT_RULE_WORDS.range)
+    expect(words.ops.gt).toBe(DEFAULT_RULE_WORDS.ops.gt)
+    expect(words.tones.up).toBe("up")
   })
 })

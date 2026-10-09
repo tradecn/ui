@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
@@ -7,9 +7,12 @@ import { useFlash } from "@/registry/tradecn/hooks/use-flash"
 import { HotkeyScope, useMaybeHotkeys } from "@/registry/tradecn/hooks/use-hotkeys"
 import { NUMERIC_CLASS, formatBps, formatNotional, formatQuantity, formatQuote, formatTicks, numericFontClass, quoteBasisOf, quoteInvertedOf, stepQuote, ticksBetween, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { formatKeys, type HotkeyBinding, type HotkeyRegistry } from "@/registry/tradecn/lib/hotkeys"
-import { blocks, checkLimits, confirms, problemsByField, type Limits, type Problem as LimitProblem } from "@/registry/tradecn/lib/limits"
+import { blocks, checkLimits, confirms, problemsByField, type Limits, type LimitsLabels, type Problem as LimitProblem } from "@/registry/tradecn/lib/limits"
 import { Countdown } from "@/registry/tradecn/ui/countdown"
 import { QuoteField } from "@/registry/tradecn/ui/quote-field"
+
+// An undefined word keeps its default, as DataGrid's labels do.
+const defined = <W extends object>(words: W | undefined): Partial<W> => Object.fromEntries(Object.entries(words ?? {}).filter(([, word]) => word !== undefined)) as Partial<W>
 
 // A dealer's ticket for a request for quote. A client asks for a price on a size; this shows the
 // inquiry as it came (who, which way, how much, in what, with the venue's words on it), the market
@@ -92,9 +95,10 @@ export interface RfqInquiry {
 
 export interface RfqQuoteDraft {
   inquiryId: string
+  /** Null on a side the client did not ask for. */
   bid: number | null
   ask: number | null
-  /** The size the quote is for: the inquiry's, unless a quick size was taken. */
+  /** The size the quote is for: the inquiry's as it stands, a resize included, unless a quick size was taken. */
   quantity?: number
 }
 
@@ -137,6 +141,16 @@ export interface RfqTicketLabels {
   for: string
   /** The primary action's words while a limit asks again; `{action}` is its label. */
   anyway: string
+  /** A size's unit where the convention quotes notional. */
+  millions: string
+  /** A distance's unit where the convention quotes a yield, discount, or spread. */
+  bp: string
+  /** What a screen reader hears after a context value with an up or a down tone. */
+  toneUp: string
+  toneDown: string
+  /** The level fields' step buttons, `{label}` the field's label. */
+  stepUp: string
+  stepDown: string
 }
 
 export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
@@ -161,6 +175,12 @@ export const DEFAULT_RFQ_TICKET_LABELS: RfqTicketLabels = {
   nothingAllowed: "Nothing can be done with this inquiry right now.",
   for: "for",
   anyway: "{action} anyway?",
+  millions: "mm",
+  bp: "bp",
+  toneUp: "up",
+  toneDown: "down",
+  stepUp: "{label} up one step",
+  stepDown: "{label} down one step",
 }
 
 /** `mod+1` to `mod+9`: the quick sizes, in order. */
@@ -169,8 +189,8 @@ export const QUICK_SIZE_KEYS: readonly string[] = ["mod+1", "mod+2", "mod+3", "m
 /** The keys a ticket answers to, all `editing`: they run while you type in it. Declared by the ticket as registry defaults your own registration shadows. */
 export const RFQ_TICKET_BINDINGS: readonly HotkeyBinding[] = [
   { id: "rfq.send", keys: "mod+enter", scope: "editing", description: "Send the quote", group: "Inquiry" },
-  { id: "rfq.tick-up", keys: "mod+up", scope: "editing", description: "Level up one tick", group: "Inquiry" },
-  { id: "rfq.tick-down", keys: "mod+down", scope: "editing", description: "Level down one tick", group: "Inquiry" },
+  { id: "rfq.tick-up", keys: "mod+up", scope: "editing", description: "Level up one step", group: "Inquiry" },
+  { id: "rfq.tick-down", keys: "mod+down", scope: "editing", description: "Level down one step", group: "Inquiry" },
   { id: "rfq.suggested", keys: "mod+shift+a", scope: "editing", description: "Take the suggested levels", group: "Inquiry" },
   ...QUICK_SIZE_KEYS.map((keys, i) => ({ id: `rfq.size-${i + 1}`, keys, scope: "editing" as const, description: `Quote for quick size ${i + 1}`, group: "Inquiry" })),
 ]
@@ -180,9 +200,9 @@ export function quotedSides(side: RfqSide): readonly QuoteSide[] {
   return side === "buy" ? ["ask"] : side === "sell" ? ["bid"] : ["bid", "ask"]
 }
 
-/** The inquiry's size the way the desk says it: millions of notional, or a count of contracts. */
-export function formatSize(quantity: number, convention: InstrumentConvention): string {
-  return convention.quantityUnit === "contracts" ? formatQuantity(quantity) : formatNotional(quantity, { unit: "mm" })
+/** The inquiry's size the way the desk says it: millions of notional, in `millions` as the unit, or a count of contracts. */
+export function formatSize(quantity: number, convention: InstrumentConvention, millions = "mm"): string {
+  return convention.quantityUnit === "contracts" ? formatQuantity(quantity) : formatNotional(quantity, { unit: "mm" }).replace(/mm$/, millions)
 }
 
 export interface RfqQuoteProblems {
@@ -190,7 +210,7 @@ export interface RfqQuoteProblems {
   ask?: string
 }
 
-/** What stops a quote from being sent: a needed side that is blank or non-finite, or a crossed pair of finite levels read through the instrument's quote direction — bid above offer normally, bid below offer where a higher quote means a lower price, as `quoteInvertedOf` reads it. Empty when nothing does. */
+/** What stops a quote from being sent: a needed side that is blank or non-finite, or, on a two-way, a crossed pair of finite levels read through the instrument's quote direction — bid above offer normally, bid below offer where a higher quote means a lower price, as `quoteInvertedOf` reads it. A side the client did not ask for is never checked. Empty when nothing does. */
 export function checkQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: RfqTicketLabels = DEFAULT_RFQ_TICKET_LABELS): RfqQuoteProblems {
   const problems: RfqQuoteProblems = {}
   const sides = quotedSides(inquiry.side)
@@ -205,22 +225,22 @@ export function checkQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: Rf
   // inverted, price and spread not, since CDS quotes bid below offer while cash credit
   // quotes the other way.
   const inverted = quoteInvertedOf(inquiry.instrument.convention)
-  if (bid !== null && ask !== null && (inverted ? bid < ask : bid > ask)) problems.ask = labels.crossed
+  if (sides.length === 2 && bid !== null && ask !== null && (inverted ? bid < ask : bid > ask)) problems.ask = labels.crossed
   return problems
 }
 
 /** "Offer 5mm T 4 1/8 05/15/34 @ 99-16+", "Bid 5mm … @ 99-15+", or "99-15+ / 99-16 for 5mm …" for a market. */
 export function describeQuote(draft: RfqQuoteDraft, inquiry: RfqInquiry, labels: RfqTicketLabels = DEFAULT_RFQ_TICKET_LABELS): string {
   const { convention } = inquiry.instrument
-  const what = `${formatSize(draft.quantity ?? inquiry.quantity, convention)} ${inquiry.instrument.description ?? inquiry.instrument.symbol}`
+  const what = `${formatSize(draft.quantity ?? inquiry.quantity, convention, labels.millions)} ${inquiry.instrument.description ?? inquiry.instrument.symbol}`
   const level = (v: number | null) => (v === null ? "" : ` @ ${formatQuote(v, convention)}`)
   if (inquiry.side === "buy") return `${labels.ask} ${what}${level(draft.ask)}`
   if (inquiry.side === "sell") return `${labels.bid} ${what}${level(draft.bid)}`
   return `${formatQuote(draft.bid, convention)} / ${formatQuote(draft.ask, convention)} ${labels.for} ${what}`
 }
 
-/** How far a level sits from the market's same side, in the instrument's own steps: ticks for a price, basis points for a yield, discount, or spread. Null when a side is missing. */
-export function quoteDistance(level: number | null | undefined, market: number | null | undefined, convention: InstrumentConvention): { value: number; text: string } | null {
+/** How far a level sits from the market's same side, in the instrument's own steps: ticks for a price, basis points for a yield, discount, or spread, in `bp` as the unit. Null when a side is missing. */
+export function quoteDistance(level: number | null | undefined, market: number | null | undefined, convention: InstrumentConvention, bp = "bp"): { value: number; text: string } | null {
   if (typeof level !== "number" || typeof market !== "number" || !Number.isFinite(level) || !Number.isFinite(market)) return null
   const basis = quoteBasisOf(convention)
   if (basis === "price") {
@@ -228,7 +248,7 @@ export function quoteDistance(level: number | null | undefined, market: number |
     return { value, text: formatTicks(value) }
   }
   const value = Number(((level - market) * (basis === "spread" ? 1 : 100)).toFixed(2))
-  return { value, text: formatBps(value, { signed: true }) }
+  return { value, text: `${formatBps(value, { signed: true, unit: "" })} ${bp}` }
 }
 
 // Every ticket declares the bindings as registry defaults: the registry refcounts them, a
@@ -296,7 +316,9 @@ export interface RfqTicketProps {
   hotkeys?: boolean
   /** The desk's lines, from `limits`: a block shows under its field and holds the actions that send a quote; a confirm makes the action ask again. Each level is checked against the inquiry's market. */
   limits?: Limits
-  /** Sizes the quote may be for besides the inquiry's, as buttons and `mod+1` to `mod+9`, printed in the convention's unit. */
+  /** The limit sentences' words, over `DEFAULT_LIMITS_LABELS`, whose `ask` reads `offer` here. */
+  limitsLabels?: Partial<LimitsLabels>
+  /** Sizes the quote may be for besides the inquiry's, as buttons and `mod+1` to `mod+9`, printed in the convention's unit. Whole numbers above zero, each once; any other is left out. */
   quickSizes?: readonly number[]
   labels?: Partial<RfqTicketLabels>
   className?: string
@@ -304,15 +326,37 @@ export interface RfqTicketProps {
 
 const TONE_CLASS = { up: "text-up", down: "text-down", flat: "text-muted-foreground" } as const
 
-export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, acknowledged, autoFocus = false, disabled = false, hotkeys: declareHotkeys = true, limits, quickSizes, labels: labelsProp, className }: RfqTicketProps) {
-  const labels = { ...DEFAULT_RFQ_TICKET_LABELS, ...labelsProp }
+/** The quick sizes a ticket offers: whole numbers above zero, each once, in order. */
+const wholeSizes = (sizes: readonly number[] | undefined): readonly number[] => [...new Set((sizes ?? []).filter((size) => Number.isSafeInteger(size) && size > 0))]
+
+// The acknowledgement ring has no direction, whatever the value that rings it.
+const noDirection = () => null
+
+export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, acknowledged, autoFocus = false, disabled = false, hotkeys: declareHotkeys = true, limits, limitsLabels: limitsLabelsProp, quickSizes, labels: labelsProp, className }: RfqTicketProps) {
+  // The ticket calls the ask the offer, and so do its limit sentences.
+  const limitsLabels = { ask: "offer", ...defined(limitsLabelsProp) }
+  const labels = { ...DEFAULT_RFQ_TICKET_LABELS, ...defined(labelsProp) }
   const id = useId()
   const { convention } = inquiry.instrument
   const sides = quotedSides(inquiry.side)
-  const snapped = (v: number | null) => (v === null ? null : stepQuote(v, convention, 0))
-  const [draft, setDraft] = useState<RfqQuoteDraft>(() => ({ inquiryId: inquiry.id, bid: snapped(level(defaultDraft?.bid)), ask: snapped(level(defaultDraft?.ask)), quantity: inquiry.quantity }))
+  // The draft holds only the sides the client asked for, so a default for another side never reaches a check or a send.
+  const seeded = (side: QuoteSide) => {
+    const v = sides.includes(side) ? level(defaultDraft?.[side]) : null
+    return v === null ? null : stepQuote(v, convention, 0)
+  }
+  const [levels, setLevels] = useState<{ bid: number | null; ask: number | null }>(() => ({ bid: seeded("bid"), ask: seeded("ask") }))
+  // A quick size the dealer took, or null for the inquiry's own size as it stands, so a resize under the same id is
+  // what the quote is for.
+  const [size, setSize] = useState<number | null>(null)
+  const quantity = size ?? inquiry.quantity
+  // Only the sides the inquiry asks for now: a level typed for a side it no longer asks for stays out of the draft.
+  const asksBid = sides.includes("bid")
+  const asksAsk = sides.includes("ask")
+  const draft = useMemo<RfqQuoteDraft>(() => ({ inquiryId: inquiry.id, bid: asksBid ? levels.bid : null, ask: asksAsk ? levels.ask : null, quantity }), [inquiry.id, levels, quantity, asksBid, asksAsk])
+  const sizes = useMemo(() => wholeSizes(quickSizes), [quickSizes])
   const [problems, setProblems] = useState<RfqQuoteProblems>({})
-  // The action a limit asked again about; the next click on it sends. Any change to a level withdraws the question.
+  // The action a limit asked about: a fresh press on it sends, unless the market has added a reason since, which asks
+  // again. Any change to the draft withdraws the question: a level, a quick size, or the inquiry's resize.
   const [confirming, setConfirming] = useState<string | null>(null)
   const press = useFreshPress()
 
@@ -327,11 +371,11 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   // The fields are live while some allowed action would send what is in them.
   const quoting = !disabled && allowed.some((action) => action.needsQuote !== false)
 
-  const latest = useRef({ onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes, quoting })
+  const latest = useRef({ onDraftChange, actions, inquiry, draft, labels, disabled, limits, limitsLabels, confirming, quickSizes: sizes, quoting, problems })
   // Layout phase, not passive: a keydown can land between the commit that withdrew an action
   // and the passive effects, and the check at run time must see what the dealer sees.
   useLayoutEffect(() => {
-    latest.current = { onDraftChange, actions, inquiry, draft, labels, disabled, limits, confirming, quickSizes, quoting }
+    latest.current = { onDraftChange, actions, inquiry, draft, labels, disabled, limits, limitsLabels, confirming, quickSizes: sizes, quoting, problems }
   })
 
   // When the control under focus leaves — quoting stops and both fields disable, a sent
@@ -366,21 +410,22 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // The acknowledgement: a ring in primary, once, when the server says so. No direction, because it has none.
-  useFlash(box, acknowledged, { variant: "ring", color: "var(--primary)" })
+  // The acknowledgement: a ring in primary, once, when the server says so, with no direction even when what rings it is a
+  // count.
+  useFlash(box, acknowledged, { variant: "ring", color: "var(--primary)", compare: noDirection })
 
-  /** The size the quote is for: the inquiry's own, or the n-th quick size (from 1). */
-  function setQuantity(quantity: number) {
-    setDraft((d) => (d.quantity === quantity ? d : { ...d, quantity }))
+  /** The size the quote is for: the inquiry's own, which follows a resize, or the n-th quick size (from 1). */
+  function setQuantity(next: number) {
+    setSize(next === latest.current.inquiry.quantity ? null : next)
     setConfirming(null)
   }
   function quick(n: number) {
-    const size = latest.current.quickSizes?.[n - 1]
-    if (size !== undefined && latest.current.quoting) setQuantity(size)
+    const next = latest.current.quickSizes[n - 1]
+    if (next !== undefined && latest.current.quoting) setQuantity(next)
   }
 
   function setLevel(side: QuoteSide, value: number | null) {
-    setDraft((d) => (d[side] === value ? d : { ...d, [side]: value }))
+    setLevels((d) => (d[side] === value ? d : { ...d, [side]: value }))
     // A new level answers its own problem and a crossed pair's, whose message sits on the offer.
     const crossed = latest.current.labels.crossed
     setProblems((p) => (p[side] || p.ask === crossed ? { ...p, [side]: undefined, ...(p.ask === crossed ? { ask: undefined } : {}) } : p))
@@ -389,7 +434,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   // The limits, live: a block shows under its field and holds the actions that send a quote; a confirm waits for the click.
   const quotedDraft = { bid: sides.includes("bid") ? draft.bid : null, ask: sides.includes("ask") ? draft.ask : null }
-  const limitProblems = limits ? checkLimits(quotedDraft, limits, { market: inquiry.market, convention }) : []
+  const limitProblems = limits ? checkLimits(quotedDraft, limits, { market: inquiry.market, convention, labels: limitsLabels }) : []
   const blocking = blocks(limitProblems)
   const blockedBy = problemsByField(blocking)
   const blocked = blocking.length > 0
@@ -397,7 +442,9 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   // and a press on it, from any input, is refused and says why.
   const heldByLimit = (action: RfqAction) => blocked && action.needsQuote !== false
   const shownProblems = { bid: problems.bid ?? blockedBy.bid, ask: problems.ask ?? blockedBy.ask }
-  const otherBlocks = blocking.filter((p) => p.field !== "bid" && p.field !== "ask")
+  // A block with no field drawn for it, a custom rule's on a side the client did not ask for included, shows on the
+  // limits line, so whatever holds Quote is on screen.
+  const otherBlocks = blocking.filter((p) => !(sides as readonly string[]).includes(p.field))
   const asking = confirming !== null ? confirms(limitProblems) : []
   const limitsText = [...otherBlocks, ...asking].map((p) => p.message).join(" ")
   // What a screen reader hears from the limits: what a press met, as it landed — the blocks it was refused for, or
@@ -408,7 +455,12 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const [said, setSaid] = useState<Said>({ text: "", revision: 0, draft: null, action: null, rules: [] })
   const blockingRules = new Set(blocking.map(ruleOf))
   const stands = said.draft === draft && (said.action === null ? said.rules.every((rule) => blockingRules.has(rule)) : confirming === said.action)
-  if (said.draft !== null && !stands) setSaid({ ...said, text: "", draft: null, action: null, rules: [] })
+  if (said.draft !== null && !stands) {
+    // A question asked of another draft goes with its words: a resize under the same id changes the draft and no
+    // control, so nothing else withdraws it.
+    if (said.action !== null && said.draft !== draft && confirming === said.action) setConfirming(null)
+    setSaid({ ...said, text: "", draft: null, action: null, rules: [] })
+  }
   const heard = stands ? said : null
   // The reasons the standing question asked about: a reason the market adds since makes the next press ask again.
   const askedRules = useRef<ReadonlySet<string>>(new Set())
@@ -457,16 +509,21 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
 
   function run(action: RfqAction) {
     // Checked as the click lands, against the props as they are now: an action can stop being allowed.
-    const { draft: current, inquiry: now, labels: words, disabled: off, limits: lines, confirming: asked } = latest.current
+    const { draft: current, inquiry: now, labels: words, disabled: off, limits: lines, limitsLabels: lineWords, confirming: asked, problems: shown } = latest.current
     if (off || !now.allowedActions?.includes(action.id)) return
     if (action.needsQuote !== false) {
       const found = checkQuote(current, now, words)
-      // The limits, as the click lands: a block stops here and shows under its field; a confirm asks once, and the next click on the same action sends.
+      // The limits, as the click lands: a block stops here and shows under its field; a confirm asks, and a fresh
+      // press on the same action sends unless the market has added a reason since.
       const quoted = quotedSides(now.side)
-      const over = lines ? checkLimits({ bid: quoted.includes("bid") ? current.bid : null, ask: quoted.includes("ask") ? current.ask : null }, lines, { market: now.market, convention: now.instrument.convention }) : []
+      const over = lines ? checkLimits({ bid: quoted.includes("bid") ? current.bid : null, ask: quoted.includes("ask") ? current.ask : null }, lines, { market: now.market, convention: now.instrument.convention, labels: lineWords }) : []
       const blocking = blocks(over)
       setProblems({ bid: found.bid, ask: found.ask })
-      if (blocking.length) setSaid((prev) => ({ text: blocking.map((p) => p.message).join(" "), revision: prev.revision + 1, draft: current, action: null, rules: blocking.map(ruleOf) }))
+      // A field's new problem is an alert under it. One it already shows holds the same words, which a screen reader
+      // does not hear again, so the announcer says it, beside the blocks.
+      const again = (["bid", "ask"] as const).filter((side) => found[side] !== undefined && found[side] === shown[side]).map((side) => found[side]!)
+      const refused = [...again, ...blocking.map((p) => p.message)]
+      if (refused.length) setSaid((prev) => ({ text: refused.join(" "), revision: prev.revision + 1, draft: current, action: null, rules: blocking.map(ruleOf) }))
       if (found.bid || found.ask || blocking.length) return
       const reasons = confirms(over)
       if (reasons.length && (asked !== action.id || !reasons.every((p) => askedRules.current.has(ruleOf(p))))) {
@@ -513,7 +570,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       quick,
     }
   })
-  const quickCount = quickSizes?.length ?? 0
+  const quickCount = sizes.length
   useEffect(() => {
     if (!registry) return
     const release = declareHotkeys ? declareBindings(registry, RFQ_CORE_BINDINGS) : noop()
@@ -532,7 +589,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
       // the editing scope meets this fence, and an undeclared absent size's event passes
       // through untouched.
       ...RFQ_SIZE_BINDINGS.map((binding, i) => registry.bind(binding.id, (event) => {
-        if (i >= (latest.current.quickSizes?.length ?? 0)) return
+        if (i >= latest.current.quickSizes.length) return
         event.preventDefault()
         handlers.current.quick(i + 1)
       }, within)),
@@ -556,7 +613,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   )
 
   const sideWord = inquiry.side === "buy" ? labels.buys : inquiry.side === "sell" ? labels.sells : labels.asksMarket
-  const size = formatSize(inquiry.quantity, convention)
+  const sizeText = formatSize(inquiry.quantity, convention, labels.millions)
   const description = inquiry.instrument.description ?? inquiry.instrument.symbol
   const market = inquiry.market
   const marketLabel = market?.label ?? labels.market
@@ -566,7 +623,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
   const hasSuggested = Boolean(inquiry.suggested && sides.some((side) => level(inquiry.suggested![side]) !== null))
 
   return (
-    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${inquiry.id}`} data-slot="tradecn-rfq-ticket" data-inquiry={inquiry.id} data-side={inquiry.side} data-status={inquiry.status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lining-nums tabular-nums", className)}>
+    <HotkeyScope scope="editing" role="group" aria-label={`${labels.ticket} ${inquiry.id}`} data-slot="tradecn-rfq-ticket" data-inquiry={inquiry.id} data-side={inquiry.side} data-status={inquiry.status} className={cn("block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 lining-nums tabular-nums", className)}>
       <div ref={box} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2 text-xs text-card-foreground" onFocusCapture={(event) => { focusedInside.current = event.target as HTMLElement }} onBlurCapture={(event) => {
         // Focus moving somewhere outside the ticket on purpose: the leaving control is still
         // in the document and enabled, so there is nothing to recover from. A window switch
@@ -583,7 +640,7 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
               <span className="font-semibold">{inquiry.client?.name ?? labels.client}</span>{" "}
               <span className="text-muted-foreground">{sideWord}</span>{" "}
               <span className="font-(family-name:--tradecn-font-mono) font-semibold lining-nums tabular-nums" data-numeric="">
-                {size}
+                {sizeText}
               </span>{" "}
               <span className="font-(family-name:--tradecn-font-mono) font-semibold" data-rfq-instrument>
                 {description}
@@ -622,49 +679,64 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
             {inquiry.context.map((item) => (
               <div key={item.label} className="flex gap-1">
                 <dt className="text-muted-foreground">{item.label}</dt>
-                <dd className={cn("font-medium", item.tone && TONE_CLASS[item.tone])}>{item.value}</dd>
+                {/* The tone is a hint in color, so it is also on the value as `data-direction` and said in words. */}
+                <dd className={cn("font-medium", item.tone && TONE_CLASS[item.tone])} data-direction={item.tone}>
+                  {item.value}
+                  {(item.tone === "up" || item.tone === "down") && <span className="sr-only">, {item.tone === "up" ? labels.toneUp : labels.toneDown}</span>}
+                </dd>
               </div>
             ))}
           </dl>
         )}
 
+        {/* A table, so a screen reader reads each level with its row and side. */}
         {showMarket && (
-          <div className={cn("grid gap-x-3 gap-y-0.5", numericFontClass(convention))} style={{ gridTemplateColumns: `auto repeat(${sides.length}, minmax(0, 1fr))` }} data-rfq-market data-numeric="">
-            <span />
-            {sides.map((side) => (
-              <span key={side} className="text-right text-muted-foreground">
-                {labels[side]}
-              </span>
-            ))}
-            {market && (
-              <>
-                <span className="text-muted-foreground">{marketLabel}</span>
+          <table className={cn("w-full border-collapse", numericFontClass(convention))} data-rfq-market data-numeric="">
+            <thead>
+              <tr>
+                <td />
                 {sides.map((side) => (
-                  <span key={side} className="text-right" data-rfq-market-level={side}>
-                    {formatQuote(level(market[side]), convention)}
-                  </span>
+                  <th key={side} scope="col" className="py-px pl-3 text-right font-normal text-muted-foreground">
+                    {labels[side]}
+                  </th>
                 ))}
-              </>
-            )}
-            {quotedLevels && (
-              <>
-                <span className="text-muted-foreground">{labels.quoted}</span>
-                {sides.map((side) => (
-                  <span key={side} className="text-right font-semibold" data-rfq-quoted={side}>
-                    {formatQuote(level(quotedLevels[side]), convention)}
-                  </span>
-                ))}
-              </>
-            )}
-          </div>
+              </tr>
+            </thead>
+            <tbody>
+              {market && (
+                <tr>
+                  <th scope="row" className="w-px py-px text-left font-normal whitespace-nowrap text-muted-foreground">
+                    {marketLabel}
+                  </th>
+                  {sides.map((side) => (
+                    <td key={side} className="py-px pl-3 text-right" data-rfq-market-level={side}>
+                      {formatQuote(level(market[side]), convention)}
+                    </td>
+                  ))}
+                </tr>
+              )}
+              {quotedLevels && (
+                <tr>
+                  <th scope="row" className="w-px py-px text-left font-normal whitespace-nowrap text-muted-foreground">
+                    {labels.quoted}
+                  </th>
+                  {sides.map((side) => (
+                    <td key={side} className="py-px pl-3 text-right font-semibold" data-rfq-quoted={side}>
+                      {formatQuote(level(quotedLevels[side]), convention)}
+                    </td>
+                  ))}
+                </tr>
+              )}
+            </tbody>
+          </table>
         )}
 
         <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${sides.length}, minmax(0, 1fr))` }}>
           {sides.map((side) => {
-            const distance = quoteDistance(draft[side], level(market?.[side]), convention)
+            const distance = quoteDistance(draft[side], level(market?.[side]), convention, labels.bp)
             return (
               <div key={side} className="flex flex-col gap-0.5">
-                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} invalidText={labels.invalidLevel} disabled={!quoting} error={shownProblems[side]} announceError={problems[side] !== undefined} inputRef={inputs[side]} />
+                <QuoteField id={`${id}-${side}`} convention={convention} label={labels[side]} side={side} value={draft[side]} onValueChange={(value) => setLevel(side, value)} stepFrom={stepFrom(side)} invalidText={labels.invalidLevel} disabled={!quoting} error={shownProblems[side]} announceError={problems[side] !== undefined} labels={{ stepUp: labels.stepUp, stepDown: labels.stepDown }} inputRef={inputs[side]} />
                 <span className="h-4 text-right text-muted-foreground lining-nums tabular-nums" data-rfq-distance={side} data-numeric="" aria-live="off">
                   {distance ? `${distance.text} ${labels.vsMarket}` : " "}
                 </span>
@@ -673,12 +745,12 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
           })}
         </div>
 
-        {quickSizes && quickSizes.length > 0 && (
+        {sizes.length > 0 && (
           <div role="group" aria-label={labels.quoteFor} data-rfq-quick-sizes="" className="flex flex-wrap items-center gap-1">
             <span className="text-muted-foreground">{labels.quoteFor}</span>
-            {[inquiry.quantity, ...quickSizes.filter((size) => size !== inquiry.quantity)].map((size) => (
-              <Button key={size} type="button" variant="outline" size="sm" className={cn("h-6 px-1.5 text-xs aria-pressed:bg-accent aria-pressed:text-accent-foreground dark:aria-pressed:bg-accent dark:aria-pressed:text-accent-foreground", NUMERIC_CLASS)} disabled={!quoting} aria-pressed={(draft.quantity ?? inquiry.quantity) === size} aria-label={`${labels.quoteFor} ${formatSize(size, convention)}`} data-quick-size={size} onClick={() => setQuantity(size)}>
-                {formatSize(size, convention)}
+            {[inquiry.quantity, ...sizes.filter((one) => one !== inquiry.quantity)].map((one) => (
+              <Button key={one} type="button" variant="outline" size="sm" className={cn("h-6 px-1.5 text-xs aria-pressed:bg-accent aria-pressed:text-accent-foreground dark:aria-pressed:bg-accent dark:aria-pressed:text-accent-foreground", NUMERIC_CLASS)} disabled={!quoting} aria-pressed={quantity === one} aria-label={`${labels.quoteFor} ${formatSize(one, convention, labels.millions)}`} data-quick-size={one} onClick={() => setQuantity(one)}>
+                {formatSize(one, convention, labels.millions)}
               </Button>
             ))}
           </div>
@@ -699,12 +771,16 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
                 <Button
                   key={action.id}
                   type="button"
-                  variant={action.destructive ? "destructive" : action === primary ? "default" : "outline"}
+                  // A destructive action says so in the destructive color on the outline button, which holds 4.5 to 1
+                  // at rest and turns to the foreground under the pointer: the destructive variant puts that color on
+                  // its own tint, below it.
+                  variant={action === primary && !action.destructive ? "default" : "outline"}
                   size="sm"
-                  className="h-7 gap-2 aria-disabled:opacity-50"
+                  className={cn("h-7 gap-2 aria-disabled:opacity-50", action.destructive && "text-destructive")}
                   disabled={disabled}
                   aria-disabled={heldByLimit(action) || undefined}
                   data-action={action.id}
+                  data-destructive={action.destructive || undefined}
                   data-confirming={confirming === action.id || undefined}
                   onKeyDown={press.onKeyDown}
                   onKeyUp={press.onKeyUp}
@@ -736,8 +812,14 @@ export function RfqTicket({ inquiry, actions, defaultDraft, onDraftChange, ackno
           {heard && <span key={heard.revision}>{heard.text}</span>}
         </span>
 
+        {/* The server's second line, said as it changes: the region is in the page from the first render, so the first
+            message is heard too, and the line a sighted dealer reads is hidden from a screen reader, which reads the
+            region. */}
+        <p role="status" className="sr-only" data-rfq-reply>
+          {inquiry.message}
+        </p>
         {inquiry.message && (
-          <p className="border-t border-border pt-1.5 text-muted-foreground" data-rfq-message>
+          <p aria-hidden className="border-t border-border pt-1.5 text-muted-foreground" data-rfq-message>
             {inquiry.message}
           </p>
         )}

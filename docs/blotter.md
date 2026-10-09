@@ -111,12 +111,12 @@ Use the same row type for `Blotter<T>` and `BlotterGrid<T>` when supplying custo
 | `label` | `string` | `"Blotter"` | Accessible grid name. |
 | `selectionColumn` | `boolean` | `true` | Show checkboxes in multiple-selection mode. |
 | `deleteAction` | `string` | None | Action id for Delete and Backspace on the focused grid. |
-| `renderContextMenu` | `(rows, ids) => ReactNode` | None | Complete caller-owned menu content. |
+| `renderContextMenu` | `(rows, ids, target) => ReactNode` | None | Complete caller-owned menu content; `target` is the row the menu opened on. |
 | `className` | `string` | None | Classes on the `tradecn-blotter-grid` sizing wrapper. |
 | `ref` | `Ref<HTMLDivElement>` | None | Ref to the sizing wrapper. |
 | `onKeyDown` | `(event) => void` | None | Receives bubbling keys before the optional action. Prevent default to cancel it. |
 
-Omitting `columns` builds `blotterColumns({ price, time })`. The menu renderer receives `rows: T[]` and `ids: RowId[]`. `onKeyDown` receives a React `KeyboardEvent<HTMLDivElement>` from the sizing wrapper.
+Omitting `columns` builds `blotterColumns({ price, time })`. The menu renderer receives `rows: T[]`, `ids: RowId[]`, and `target?: RowId | null`, the row the menu opened on. `onKeyDown` receives a React `KeyboardEvent<HTMLDivElement>` from the sizing wrapper.
 
 Other [DataGrid](data-grid.md) inputs pass through, including sorting, column state, filtering, editing, footer totals and activation. Store, preset, selection and focus come from the root.
 
@@ -143,7 +143,7 @@ Explicit ids preserve input order and duplicates in counts and dispatched rows. 
 
 All controls forward refs, classes, events and children.
 
-Button parts default to compact styling and `type="button"`. Explicit sizes pass through to the installed Button; `size={null}` suppresses its size-variant classes. `BlotterActionButton` uses the destructive variant when its definition requests it, unless you override the variant.
+Button parts default to compact styling and `type="button"`. Explicit sizes pass through to the installed Button; `size={null}` suppresses its size-variant classes. `BlotterActionButton` draws an action its definition marks destructive as an outline button with destructive text, which holds 4.5 to 1 at rest and under the pointer in every style, where the destructive variant puts that text on its own tint; pass a `variant` to choose your own.
 
 The menu item keeps the installed default variant.
 
@@ -256,7 +256,7 @@ Use action buttons, menu items or `useBlotterActions().run` for commands elsewhe
 
 `price` gets the order because instruments print differently. Quantity and filled use `formatQuantity`. Missing price, filled, or account values display `NULL_TOKEN` (`–`).
 
-Side displays as `BUY` or `SELL`, with the `up` and `down` colors respectively. The words identify the side without relying on color.
+Side displays as `BUY` or `SELL`, with the `up` and `down` colors respectively, for a side of `buy` or `sell` in any case; any other side the server sends displays as sent, in the text color. The words identify the side without relying on color.
 
 Filled and price flash on change. Quantity and time do not.
 

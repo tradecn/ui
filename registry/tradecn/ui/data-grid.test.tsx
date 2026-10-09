@@ -412,6 +412,11 @@ describe("DataGrid", () => {
       act(() => seed(2, store))
       act(() => void vi.advanceTimersByTime(1000))
       expect(region()).toHaveTextContent(/^2 rows/)
+      // Once said, it goes, so a reader browsing the grid later meets no count the grid no longer stands by.
+      act(() => void vi.advanceTimersByTime(4999))
+      expect(region()).toHaveTextContent(/^2 rows/)
+      act(() => void vi.advanceTimersByTime(1))
+      expect(region()).toBeEmptyDOMElement()
     } finally {
       vi.useRealTimers()
     }
@@ -1111,6 +1116,96 @@ describe("DataGrid", () => {
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Price" }), { key: "Enter" })
     await act(async () => {})
     expect(document.querySelector('[data-row-id="r0"] [data-col="px"]')).toHaveAttribute("data-rejected", "Rejected")
+  })
+
+  it("marks only rows new to the store as arriving: a filter letting rows back in neither flashes nor counts as new", () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(10, store)
+      const ui = (filter?: (row: Quote) => boolean) => <DataGrid store={store} columns={columns} label="Quotes" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} filter={filter} />
+      const { rerender } = render(ui((row) => Number(row.id.slice(1)) < 5))
+      const region = () => screen.getByRole("grid").querySelector('[aria-live="polite"]:not([data-grid-row-reading])')
+      act(() => void vi.advanceTimersByTime(1000))
+      expect(region()).toHaveTextContent(/^5 rows$/)
+      const animate = HTMLElement.prototype.animate as unknown as ReturnType<typeof vi.fn>
+      const flashes = animate.mock.calls.length
+      rerender(ui())
+      expect(animate.mock.calls.length).toBe(flashes)
+      act(() => void vi.advanceTimersByTime(1000))
+      expect(region()).toHaveTextContent(/^10 rows$/)
+      act(() => store.applyDeltas({ upsert: [{ id: "n1", sym: "NEW", px: 1, qty: 1 }] }))
+      expect(animate.mock.calls.length).toBeGreaterThan(flashes)
+      act(() => void vi.advanceTimersByTime(1000))
+      expect(region()).toHaveTextContent(/^11 rows, 1 new$/)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("counts on the tail button only rows the store didn't hold when following stopped", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(6, store)
+    const ui = (filter?: (row: Quote) => boolean) => <DataGrid store={store} columns={columns} label="Tape" preset="tape" rowHeight={ROW_HEIGHT} initialRect={RECT} filter={filter} />
+    const { rerender } = render(ui((row) => row.id !== "r2"))
+    const grid = screen.getByRole("grid")
+    fireEvent.pointerDown(screen.getAllByRole("row")[1]!)
+    // r2 back in view and r5 gone: neither is news.
+    act(() => store.applyDeltas({ remove: ["r5"] }))
+    rerender(ui())
+    expect(grid.querySelector("[data-grid-behind]")).toBeNull()
+    act(() => store.applyDeltas({ upsert: [{ id: "r9", sym: "S0009", px: 109, qty: 90 }] }))
+    expect(grid.querySelector("[data-grid-behind]")).toHaveTextContent(/^1 new$/)
+  })
+
+  it("says a pending edit beside a rule's words, and marks it with more than color", async () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(1, store)
+    const cols: ColumnDef<Quote>[] = [{ key: "px", header: "Price", width: 80, numeric: true, accessor: (r) => r.px, edit: { parse: (t) => Number(t) } }]
+    const rules: GridRules = { columns: [{ id: "rich", column: "px", when: { op: "gte", value: "0" }, tone: "up", label: "Rich" }] }
+    render(<DataGrid store={store} columns={cols} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} rules={rules} onEdit={() => new Promise(() => {})} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "7" })
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Price" }), { key: "Enter" })
+    await act(async () => {})
+    const cell = document.querySelector<HTMLElement>('[data-row-id="r0"] [data-col="px"]')!
+    expect(cell).toHaveAttribute("data-pending")
+    expect(cell).toHaveAttribute("aria-description", "Pending, Rich")
+    expect(cell).toHaveClass("underline", "decoration-dotted")
+  })
+
+  it("marks focus in the foreground: the row, the keyboard's cell, and the editor", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(2, store)
+    const cols: ColumnDef<Quote>[] = [...columns.slice(0, 2), { ...columns[2]!, edit: { parse: (t) => Number(t) } }]
+    render(<DataGrid store={store} columns={cols} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => {}} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    expect(document.querySelector('[data-row-id="r0"]')).toHaveClass("outline-foreground")
+    expect(document.querySelector('[data-row-id="r0"] [data-col="qty"]')).toHaveClass("outline-2", "outline-foreground")
+    expect(document.querySelector('[data-row-id="r0"] [data-col="px"]')).not.toHaveClass("outline-2")
+    expect(grid.className).toContain("focus-visible:ring-foreground/60")
+    fireEvent.keyDown(grid, { key: "F2" })
+    expect(screen.getByRole("textbox", { name: "Qty" })).toHaveClass("ring-2", "ring-foreground")
+  })
+
+  it("brings a row a parent focuses into view, and leaves a row already in view where it is", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(40, store)
+    const view = (focusedRowId: string) => <DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} focusedRowId={focusedRowId} />
+    const { rerender } = render(view("r1"))
+    const scroller = screen.getByRole("grid").querySelector<HTMLElement>(".overflow-auto")!
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 41 * ROW_HEIGHT })
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: RECT.height })
+    const scrollTo = vi.spyOn(Element.prototype, "scrollTo")
+    rerender(view("r30"))
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: expect.any(Number) }))
+    expect(Math.max(...scrollTo.mock.calls.map(([options]) => (options as ScrollToOptions).top ?? 0))).toBeGreaterThan(0)
   })
 
   it("activates a row once for a held Enter", () => {
@@ -2248,13 +2343,69 @@ describe("row names", () => {
       fireEvent.keyDown(grid, { key: "ArrowUp" })
       act(() => vi.advanceTimersByTime(400))
       expect(reading()).toBe("S0001, 150.00, 10")
-      // The grid taking focus again reads its row again, the same words made new for the live region.
+      // Focus leaving takes the reading with it, and the grid taking focus again reads its row again.
       act(() => grid.blur())
+      expect(reading()).toBe("")
       act(() => grid.focus())
       act(() => vi.advanceTimersByTime(400))
+      expect(reading()).toBe("S0001, 150.00, 10")
+      // Resting on the same row reads it again as new words for the live region.
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      fireEvent.keyDown(grid, { key: "ArrowUp" })
+      act(() => vi.advanceTimersByTime(400))
       expect(reading()).toBe("S0001, 150.00, 10\u200b")
+      // Once said, it goes.
+      act(() => vi.advanceTimersByTime(5000))
+      expect(reading()).toBe("")
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  it("paints a row's own decoration on its frozen cells too, so the row's tint and mark have no hole there", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    const marked = (row: Quote) => (row.id === "r1" ? { className: "bg-primary/10 shadow-[inset_2px_0_0_var(--primary)]" } : undefined)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowProps={marked} />)
+    const frozen = document.querySelector('[data-row-id="r1"] [data-col="sym"]')!
+    expect(frozen.classList).toContain("bg-primary/10")
+    expect(frozen.classList).toContain("shadow-[inset_2px_0_0_var(--primary)]")
+    // A cell that scrolls under the row's own background takes nothing.
+    expect(document.querySelector('[data-row-id="r1"] [data-col="px"]')!.classList).not.toContain("bg-primary/10")
+    expect(document.querySelector('[data-row-id="r2"] [data-col="sym"]')!.classList).not.toContain("bg-primary/10")
+  })
+
+  it("keeps the row's decoration on a frozen cell a cell rule also paints, the rule's own last", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    const marked = (row: Quote) => (row.id === "r1" ? { className: "shadow-[inset_2px_0_0_var(--primary)]" } : undefined)
+    render(<DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} getRowProps={marked} rules={{ columns: [{ id: "s1", column: "sym", when: { op: "eq", value: "S0001" }, tone: "up" }] }} />)
+    const frozen = document.querySelector('[data-row-id="r1"] [data-col="sym"]')!
+    expect(frozen).toHaveAttribute("data-rule")
+    expect(frozen.classList).toContain("shadow-[inset_2px_0_0_var(--primary)]")
+  })
+
+  it.each(["document", "open", "closed"] as const)("hands focus to the grid when a focused header menu trigger leaves with its column (%s)", async (where) => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const container = document.createElement("div")
+    if (where === "document") host.append(container)
+    else host.attachShadow({ mode: where }).append(container)
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      const view = (hidden: string[]) => <DataGrid store={store} columns={columns} label="Quotes" initialRect={RECT} columnState={{ ...EMPTY_COLUMN_STATE, hidden }} />
+      const { rerender, unmount } = render(view([]), { container })
+      const grid = container.querySelector<HTMLElement>('[role="grid"]')!
+      const trigger = container.querySelector<HTMLElement>('[aria-label="Price column menu"]')!
+      act(() => trigger.focus())
+      expect((trigger.getRootNode() as Document | ShadowRoot).activeElement).toBe(trigger)
+      rerender(view(["px"]))
+      await act(async () => {})
+      expect((grid.getRootNode() as Document | ShadowRoot).activeElement).toBe(grid)
+      unmount()
+    } finally {
+      host.remove()
     }
   })
 
@@ -2709,6 +2860,40 @@ describe("editing", () => {
     if (result === "matched store") await act(async () => { resolve(); await promise })
   })
 
+  it.each(["open", "closed"] as const)("hands focus to the grid when a focused editor's column is hidden inside a shadow root (%s)", async (mode) => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const container = document.createElement("div")
+    host.attachShadow({ mode }).append(container)
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(3, store)
+      const view = (hidden: string[]) => <DataGrid store={store} columns={editable} label="Sheet" initialRect={RECT} onEdit={vi.fn()} focusedRowId="r1" columnState={{ ...EMPTY_COLUMN_STATE, hidden }} />
+      const { rerender, unmount } = render(view([]), { container })
+      const grid = container.querySelector<HTMLElement>('[role="grid"]')!
+      act(() => grid.focus())
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "F2" })
+      const input = container.querySelector<HTMLInputElement>('[data-cell-editor]')!
+      expect((grid.getRootNode() as ShadowRoot).activeElement).toBe(input)
+      rerender(view(["px"]))
+      await act(async () => {})
+      expect((grid.getRootNode() as ShadowRoot).activeElement).toBe(grid)
+      // A departed row's editor comes home the same way: the quantity's, two columns on now the price is hidden.
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "F2" })
+      expect((grid.getRootNode() as ShadowRoot).activeElement).toBe(container.querySelector('[data-cell-editor]'))
+      act(() => store.applyDeltas({ remove: ["r1"] }))
+      await act(async () => {})
+      expect((grid.getRootNode() as ShadowRoot).activeElement).toBe(grid)
+      unmount()
+    } finally {
+      host.remove()
+    }
+  })
+
   it.each(["hidden", "removed", "disabled editing"])("recovers editor focus when %s is restored before cleanup settles", async disappearance => {
     const onEdit = vi.fn()
     const { store, grid, rerender } = setup(onEdit)
@@ -3053,12 +3238,15 @@ describe("editing", () => {
     fireEvent.change(editor(), { target: { value: "abc" } })
     fireEvent.keyDown(editor(), { key: "Enter" })
     expect(editor()).toHaveAttribute("aria-invalid", "true")
-    expect(editor()).toHaveAttribute("aria-description", "Not a price.")
+    expect(editor()).toHaveAccessibleDescription("Not a price.")
+    // In words a keyboard user sees, over the cell, as well as said.
+    expect(cell("r1", "px").querySelector("[data-cell-problem]")).toHaveTextContent("Not a price.")
     expect(onEdit).not.toHaveBeenCalled()
     fireEvent.change(editor(), { target: { value: "2000" } })
     expect(editor()).not.toHaveAttribute("aria-invalid")
+    expect(cell("r1", "px").querySelector("[data-cell-problem]")).toBeNull()
     fireEvent.keyDown(editor(), { key: "Enter" })
-    expect(editor()).toHaveAttribute("aria-description", "Above 1,000.")
+    expect(editor()).toHaveAccessibleDescription("Above 1,000.")
     fireEvent.keyDown(editor(), { key: "Escape" })
     expect(screen.queryByRole("textbox")).toBeNull()
     expect(cell("r1", "px")).toHaveTextContent("101.00")
@@ -3220,7 +3408,7 @@ describe("editing", () => {
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     fireEvent.keyDown(grid, { key: "ArrowRight" })
     fireEvent.keyDown(grid, { key: " " })
-    expect(commit()).toEqual({ via: "value", repeat: false, session: 0 })
+    expect(commit()).toEqual({ via: "value", repeat: false, session: 0, pending: expect.any(Function) })
     // A held Space or Enter on a toggle commits once: its repeats send nothing, as a native checkbox's do, so a held key
     // can't flip the value the server just acknowledged back again.
     const calls = validate.mock.calls.length
@@ -3238,9 +3426,96 @@ describe("editing", () => {
     setup(vi.fn(), columns)
     const bump = screen.getAllByRole("button", { name: "Bump" })[0]!
     fireEvent.keyDown(bump, { key: "Enter" })
-    expect(validate).toHaveBeenLastCalledWith(1, expect.anything(), { via: "value", repeat: false, session: 0 })
+    expect(validate).toHaveBeenLastCalledWith(1, expect.anything(), { via: "value", repeat: false, session: 0, pending: expect.any(Function) })
     fireEvent.keyDown(bump, { key: "Enter", repeat: true })
-    expect(validate).toHaveBeenLastCalledWith(1, expect.anything(), { via: "value", repeat: true, session: 0 })
+    expect(validate).toHaveBeenLastCalledWith(1, expect.anything(), { via: "value", repeat: true, session: 0, pending: expect.any(Function) })
+  })
+
+  it("tells a check what another cell of the row has sent and not had back, so it reads the row as the row shows", async () => {
+    const seen: unknown[] = []
+    const columns: ColumnDef<Quote>[] = editable.map((column) => (column.key === "qty" ? { ...column, edit: { ...column.edit!, validate: (_value, _row, commit) => (seen.push(commit?.pending?.("px"), commit?.pending?.("qty")), null) } } : column))
+    let settle: () => void = () => {}
+    const onEdit = vi.fn((change: EditChange<Quote>) => (change.key === "px" ? new Promise<void>((resolve) => (settle = resolve)) : undefined))
+    const { grid } = setup(onEdit, columns)
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "5" } })
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(screen.getByRole("textbox", { name: "Qty" }), { target: { value: "7" } })
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Qty" }), { key: "Enter" })
+    expect(seen).toEqual([5, undefined])
+    // Once the price's promise settles, nothing of it is out, and a check reads the row's own price.
+    await act(async () => {
+      settle()
+      await Promise.resolve()
+    })
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(screen.getByRole("textbox", { name: "Qty" }), { target: { value: "8" } })
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Qty" }), { key: "Enter" })
+    expect(seen.slice(2)).toEqual([undefined, undefined])
+  })
+
+  it("reads a pending value under an open editor for a control that commits beside it", async () => {
+    const seen: unknown[] = []
+    const columns: ColumnDef<Quote>[] = [
+      ...editable.filter((column) => column.key !== "qty"),
+      // A control that keeps focus where it is, as a mousedown that prevents its default does, commits beside the editor.
+      { key: "qty", header: "Qty", width: 70, accessor: (r) => r.qty, edit: { parse: (t) => Number(t), validate: (_value, _row, commit) => (seen.push(commit?.pending?.("px")), null) }, cell: ({ edit }) => <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => edit?.commit(9)}>Nine</button> },
+    ]
+    const onEdit = vi.fn((change: EditChange<Quote>) => (change.key === "px" ? new Promise<void>(() => {}) : undefined))
+    const { grid } = setup(onEdit, columns)
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "5" } })
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    // Reopened untouched, the editor covers the pending 5, which is still what the row shows once it closes.
+    fireEvent.keyDown(grid, { key: "F2" })
+    expect(editor()).toHaveValue("5.00")
+    fireEvent.click(screen.getAllByRole("button", { name: "Nine" })[1]!)
+    expect(seen).toEqual([5])
+  })
+
+  it("keeps the typed text in an editor whose cell stopped taking edits, says so, and sends it once edits are allowed again", () => {
+    let allowed = true
+    const columns: ColumnDef<Quote>[] = editable.map((column) => (column.key === "px" ? { ...column, edit: { ...column.edit!, canEdit: () => allowed } } : column))
+    const onEdit = vi.fn()
+    const { grid } = setup(onEdit, columns)
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "5" } })
+    allowed = false
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    expect(onEdit).not.toHaveBeenCalled()
+    expect(editor()).toHaveValue("5")
+    expect(editor()).toHaveAttribute("aria-invalid", "true")
+    expect(editor()).toHaveAccessibleDescription("This cell can't be edited now.")
+    allowed = true
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ key: "px", value: 5 }))
+    // Refused again, Escape lets the text go and sends nothing.
+    fireEvent.keyDown(grid, { key: "F2" })
+    fireEvent.change(editor(), { target: { value: "6" } })
+    allowed = false
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    fireEvent.keyDown(editor(), { key: "Escape" })
+    expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull()
+    expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
+  it("takes its words for a cell that stopped taking edits from labels, and leaves a phone its text keyboard", () => {
+    const columns: ColumnDef<Quote>[] = editable.map((column) => (column.key === "px" ? { ...column, edit: { ...column.edit!, canEdit: () => false } } : column))
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(2, store)
+    const { rerender } = render(<DataGrid store={store} columns={editable} label="Sheet" initialRect={RECT} onEdit={vi.fn()} labels={{ notEditable: "Nicht bearbeitbar." }} focusedRowId="r1" />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "F2" })
+    // A numeric column can go below zero, and a phone's decimal pad has no minus.
+    expect(editor()).not.toHaveAttribute("inputmode")
+    fireEvent.change(editor(), { target: { value: "5" } })
+    rerender(<DataGrid store={store} columns={columns} label="Sheet" initialRect={RECT} onEdit={vi.fn()} labels={{ notEditable: "Nicht bearbeitbar." }} focusedRowId="r1" />)
+    fireEvent.keyDown(editor(), { key: "Enter" })
+    expect(editor()).toHaveAccessibleDescription("Nicht bearbeitbar.")
   })
 
   it("numbers editor openings across every grid, so two grids never share an opening", () => {

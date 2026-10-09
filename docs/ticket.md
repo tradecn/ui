@@ -63,17 +63,18 @@ This is the registry's first block: `ticket.tsx` installs into your `components`
 | `reference` | `TicketReference` | None | Bid, ask, and last for price buttons, stepping, and limits. |
 | `orderTypes` | `readonly TicketOption[]` | `DEFAULT_ORDER_TYPES` | Limit and market. |
 | `timeInForces` | `readonly TicketOption[]` | `DEFAULT_TIME_IN_FORCES` | Day, GTC, and IOC. |
-| `accounts` | `readonly TicketOption[]` | No field | Account choices; an empty list also hides the field. |
+| `accounts` | `readonly TicketOption[]` | No field | Account choices; an empty list also hides the field. Given, a checked action needs the draft to hold one of them. |
 | `defaultDraft` | `Partial<TicketDraft>` | See [The draft](#the-draft) | Initial values. |
 | `onDraftChange` | `(draft: TicketDraft) => void` | None | Receives draft updates after mount. |
 | `limits` | `Limits` | None | Blocks and confirmation rules. |
-| `quickSizes` | `readonly number[]` | No buttons | Quantities to select with a button or shortcut. |
+| `limitsLabels` | `Partial<LimitsLabels>` | `DEFAULT_LIMITS_LABELS` | The words of the limits' sentences. |
+| `quickSizes` | `readonly number[]` | No buttons | Quantities to select with a button or shortcut: whole numbers above zero, each once, and any other is left out. |
 | `status` | `string` | None | Server status, printed as supplied and set as `data-status` on the group. |
-| `message` | `string` | None | Server detail, such as a rejection reason. |
+| `message` | `string` | None | Server detail, such as a rejection reason, printed as supplied. |
 | `acknowledged` | `unknown` | None | A changed value triggers the acknowledgement ring. |
 | `disabled` | `boolean` | `false` | Disables fields and buttons; stops actions and every ticket shortcut — send, flip, price steps, and quick sizes. |
 | `hotkeys` | `boolean` | `true` | Declares `TICKET_BINDINGS` as registry defaults, the size keys for the quick sizes passed. |
-| `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Built-in labels and validation messages. Fixed strings remain: the unpriced `market` placeholder and `at market` wording, the references' `, use it` name suffix, the `up one tick` and `down one tick` tails after your `labels.price` in the step buttons' names, the quick sizes' notional `mm` suffix, the key caps the send target's button shows, and the built-in limit messages. |
+| `labels` | `Partial<TicketLabels>` | `DEFAULT_TICKET_LABELS` | Every word the ticket draws or says beside the limits' and the server's: field labels, validation messages, the unpriced placeholder, `at market`, the reference and step buttons' names, and the quick sizes' notional unit. The key caps the send target's button shows come from the hotkeys library. A word given as `undefined` keeps its default. |
 | `className` | `string` | None | Classes on the outer group. |
 
 `TicketInstrument` requires `symbol: string` and `convention: InstrumentConvention`; `quantityStep?: number` defaults to `1`, and anything but a whole number from `1` to `Number.MAX_SAFE_INTEGER` steps by `1`. See [`format`](format.md) for conventions. `TicketReference` has optional `bid`, `ask`, and `last` fields, each `number | null`.
@@ -95,19 +96,19 @@ Reference prices appear above the fields; click one to use it. Blank or invalid 
 | `run` | `(draft: TicketDraft, instrument: TicketInstrument) => void` | Required | Receives the draft and instrument. |
 | `primary` | `boolean` | First allowed action | Styles the prominent button and steers `ticket.send` and its key hint toward this action while it checks the draft and is not `destructive`. |
 | `checked` | `boolean` | `true` | Checks the draft and limits before calling `run`. |
-| `destructive` | `boolean` | `false` | Uses the destructive button variant. |
+| `destructive` | `boolean` | `false` | Draws the action in the destructive color on the outline button, which holds 4.5:1 at rest and turns to the foreground under the pointer. |
 
-The first allowed action marked `primary` wins; otherwise the first allowed action is primary. Checked actions require a quantity above zero and a finite price for priced order types. Problems appear under the fields and prevent `run`; a price problem clears when the price changes or the order type stops taking one. Use `checked: false` for an action such as cancel that needs neither draft validation nor limit checks. The send shortcut and its key caps pass by every unchecked or `destructive` action, since a shortcut named send must never cancel an order: when only those remain allowed, `mod+enter` does nothing.
+The first allowed action marked `primary` wins; otherwise the first allowed action is primary. Checked actions require a whole quantity above zero, a finite price for priced order types, and a type, time in force, and account that their lists hold. Problems appear under the fields and prevent `run`; a price problem clears when the price changes or the order type stops taking one, and a choice's when it changes. Use `checked: false` for an action such as cancel that needs neither draft validation nor limit checks. The send shortcut and its key caps pass by every unchecked or `destructive` action, since a shortcut named send must never cancel an order: when only those remain allowed, `mod+enter` does nothing.
 
 ### What it does not do
 
 The ticket makes no network request and infers no order state from `run`. As with [`blotter`](blotter.md), the server supplies the allowed actions and status.
 
-Only actions named in `allowedActions` render, in `actions` order. A missing or empty allowlist shows `labels.nothingAllowed`. Permission and `disabled` are checked again when an action runs. `status` and `message` print as supplied; clicking a button never sets “Sent.”
+Only actions named in `allowedActions` render, in `actions` order. A missing or empty allowlist shows `labels.nothingAllowed`. Permission and `disabled` are checked again when an action runs. `status` and `message` print as supplied; clicking a button never sets “Sent.” A screen reader hears them from a status region that is in the page from the first render, so the first status after a send is heard too; the line that shows them is hidden from it, so nothing is read twice.
 
 A press counts once: the second click of a double-click, within the system's double-click time and distance, and the clicks a held Enter repeats on a focused button, run nothing. Two separate presses run the action twice unless `run` takes it out of `allowedActions` at once, as the server-replies demo does; do the same, or have your server refuse the repeat.
 
-Change `acknowledged` when the server acknowledges, using an order id or timestamp. After mount, each change under `Object.is` triggers a 900 ms `useFlash` ring in `primary`, without direction coloring. The initial value does not flash. When the control under focus leaves — a sent action's button unmounts or disables, with or without an acknowledgement, a window switch in between included — focus moves to the ticket itself, so the shortcuts stay live. A deliberate click elsewhere is remembered as leaving, and a re-keyed ticket starts fresh, owning no focus until the trader returns to it. Under `prefers-reduced-motion`, the ticket does not ring.
+Change `acknowledged` when the server acknowledges, using an order id or timestamp. After mount, each change under `Object.is` triggers a 900 ms `useFlash` ring in `primary`, with no direction, a counter's rise included. The initial value does not flash. When the control under focus leaves — a sent action's button unmounts or disables, with or without an acknowledgement, a window switch in between included — focus moves to the ticket itself, so the shortcuts stay live. A deliberate click elsewhere is remembered as leaving, and a re-keyed ticket starts fresh, owning no focus until the trader returns to it. Under `prefers-reduced-motion`, the ticket does not ring.
 
 ### Keys
 
@@ -139,33 +140,33 @@ Plain Enter in a field does not submit an order. The ticket has no `<form>` or i
 | `tif` | `string` | First time-in-force id, or `""`. |
 | `account` | `string \| null` | First account id, or `null`. |
 
-`defaultDraft` applies on mount, and so does everything else the draft reads: the whole draft is built once, from the props of the first render. Changing `instrument`, `orderTypes`, `timeInForces`, `accounts`, or `defaultDraft` later never rewrites it — a new instrument under an old draft keeps the old price and its text, and a select whose list no longer holds the draft's value shows its first option while the draft keeps the old one, so the account `run` receives can differ from the one on screen — so change the React `key` whenever the ticket should start again: a new symbol, an amendment, choices that arrive after mount. A `defaultDraft` price snaps to the quote grid, as a reference click does, so the price sent is the one the field shows. `onDraftChange` receives draft updates, never the initial render. It retains the stored price for unpriced order types; only the draft passed to `run` replaces that price with `null`.
+`defaultDraft` applies on mount, and so does everything else the draft reads: the whole draft is built once, from the props of the first render. Changing `instrument`, `orderTypes`, `timeInForces`, `accounts`, or `defaultDraft` later never rewrites it: a new instrument under an old draft keeps the old price and its text, so change the React `key` whenever the ticket should start again, as for a new symbol or an amendment. A select whose list doesn't hold the draft's value, as when accounts load after mount or a list reloads without it, shows `labels.choose`, and a checked action asks for a choice rather than send a value the field doesn't show. A `defaultDraft` price snaps to the quote grid, as a reference click does, so the price sent is the one the field shows, and a `defaultDraft` quantity that isn't a whole number from zero up starts the field blank, holding `null`. `onDraftChange` receives draft updates, never the initial render. It retains the stored price for unpriced order types; only the draft passed to `run` replaces that price with `null`.
 
 Typed quantities accept nonnegative safe integers, with commas only between thousands (`5,000`). Blank, negative, fractional, or invalid input becomes `null`, and so does any other comma, as in `2,5` typed on a decimal-comma keyboard. Text partway through a grouped number, such as `1,` or `,000` after deleting the first digit of `5,000`, reads as `null` until it is whole again. Quantity arrows add or subtract `quantityStep`, round to its nearest multiple, and clamp at zero. An empty field starts from zero.
 
 | Helper | Result |
 |---|---|
 | `parseQuantity(text)` | Parsed quantity or `null`. |
-| `checkDraft(draft, orderTypes, labels?)` | `TicketProblems`: optional `quantity` and `price` messages, or `{}`. Uses `DEFAULT_TICKET_LABELS`; does not check limits. |
-| `describeDraft(draft, instrument, orderTypes?, labels?)` | Summary such as `Buy 5 ZN @ 99-16+` or `Buy 5 ZN at market`. Defaults to `DEFAULT_ORDER_TYPES` and the default buy/sell labels; the level prints with `formatQuote`, in the instrument's quote basis. |
+| `checkDraft(draft, orderTypes, labels?, choices?)` | `TicketProblems`: optional `quantity`, `price`, `type`, `tif`, and `account` messages, or `{}`. `choices` takes `timeInForces` and `accounts`; an empty or missing list asks for nothing. Uses `DEFAULT_TICKET_LABELS`; does not check limits. |
+| `describeDraft(draft, instrument, orderTypes?, labels?)` | Summary such as `Buy 5 ZN @ 99-16+` or `Buy 5 ZN at market`. Defaults to `DEFAULT_ORDER_TYPES` and the default `buy`, `sell`, and `atMarket` labels; the level prints with `formatQuote`, in the instrument's quote basis. |
 
 Use these helpers in a confirmation dialog, palette row, or test.
 
 ### Limits
 
-Pass a [`limits`](limits.md) table for quantity thresholds, distance from market, permitted sides, or custom rules. Checks run live and again when an action runs, using `reference` as the market. A buyer's price is measured against the offer, a seller's against the bid, falling back to `last` when that side is missing, since the reference carries no midpoint. Distance uses ticks for a price basis and basis points for other quote bases.
+Pass a [`limits`](limits.md) table for quantity thresholds, distance from market, permitted sides, or custom rules. Checks run live and again when an action runs, using `reference` as the market. A buyer's price is measured against the offer, a seller's against the bid, falling back to `last` when that side is missing, since the reference carries no midpoint. Distance uses ticks for a price basis and basis points for other quote bases. The sentences take their words from `limitsLabels`, over `DEFAULT_LIMITS_LABELS`, and say one tick in the singular.
 
 - A `block` appears under its quantity or price field and holds checked actions: each looks disabled, carries `aria-disabled`, and stays focusable, and a press on it is refused. Other fields, including side, appear below the actions. An action with `checked: false` can still run.
 - A `confirm` makes the chosen checked action ask again: its label becomes `{action} anyway?`, and reasons appear below the actions. A reason added while the question stands makes the next press ask again, with every reason, rather than send. A question whose action the server takes away is withdrawn, so if the action comes back, the next press asks again. The next fresh press of that same action runs it if checks still pass: a double-click's second click or a held Enter's repeat does not count. Any draft update clears the confirmation; changes to the market or limits alone do not.
-- A screen reader hears the limits when a press meets them, from one polite announcer: the blocks the press was refused for, or the question it asked, in the words they have as it lands. A held action stays in reach, so a press from a pointer, a key, touch, or assistive technology counts. Nothing is said as typing or the market changes the limits; the fields and the line below the actions keep the live words. A field shows a limit's block without an alert or a description, since its words follow each keystroke and, for a price, the market. A press's own problem with a field, such as a missing price, is the field's alert and its description. What was said goes once the draft changes or any of it stops standing, and a block that comes back waits for the next press.
+- A screen reader hears the limits when a press meets them, from one polite announcer: the blocks the press was refused for, or the question it asked, in the words they have as it lands. A held action stays in reach, so a press from a pointer, a key, touch, or assistive technology counts. Nothing is said as typing or the market changes the limits; the fields and the line below the actions keep the live words. A field shows a limit's block without an alert or a description, since its words follow each keystroke and, for a price, the market. A press's own problem with a field, such as a missing price, is the field's alert and its description, and a later press that meets it again is said by the announcer, since the alert's words haven't changed. What was said goes once the draft changes or any of it stops standing, and a block that comes back waits for the next press.
 
 ### Quick sizes
 
-`quickSizes` renders your sizes below the quantity field; selecting one replaces the quantity. The matching size has `aria-pressed="true"`. `formatQuickSize(size, convention)` is exported: it prints a count, or millions such as `2.5mm` when `quantityUnit` is `"notional"`. Supply raw quantities such as `2_500_000`, not `2.5`. The ticket adds no sizes of its own; the first nine have [shortcuts](#keys).
+`quickSizes` renders your sizes below the quantity field; selecting one replaces the quantity. The matching size has `aria-pressed="true"`. `formatQuickSize(size, convention, millions?)` is exported: it prints a count, or millions such as `2.5mm` when `quantityUnit` is `"notional"`, with `millions` as the unit. Supply raw quantities such as `2_500_000`, not `2.5`; a size that isn't a whole number above zero is left out, and a repeated one shows once. The ticket adds no sizes of its own; the first nine have [shortcuts](#keys).
 
 ### Labels
 
-`labels` overrides `DEFAULT_TICKET_LABELS`. Option labels, action labels, and server text come from their own props; custom limit messages come from limit rules. The group is named `"Order ticket ZN"` by default, side buttons use `aria-pressed`, and invalid fields use `aria-invalid` with a `FieldError` below them.
+`labels` overrides `DEFAULT_TICKET_LABELS`. Option labels, action labels, and server text come from their own props; custom limit messages come from limit rules. The group is named `"Order ticket ZN"` by default, side buttons use `aria-pressed`, and invalid fields use `aria-invalid` with a `FieldError` below them. Focus resting on the ticket itself draws a ring in the foreground at 60%, which holds 3:1.
 
 ### Tokens
 

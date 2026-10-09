@@ -29,7 +29,7 @@ const CHANNELS: Array<{ file: string; channel: string; proof: RegExp }> = [
   { file: "ui/spread-matrix.tsx", channel: "the flash writes data-direction for its window, and the spread it colors is printed with its sign through formatTicks or a signed formatBps", proof: /data-\[direction=/ },
   { file: "ui/feed-health.tsx", channel: "the dot is aria-hidden; omitted indicator children supply a screen-reader state word (feed-health.test.tsx checks this, and the feed-health smoke scene checks compact state and tier words)", proof: /className="sr-only">\{feed.state\}/ },
   { file: "blocks/ticket/ticket.tsx", channel: "the pressed side button says Buy or Sell, and aria-pressed says which", proof: /aria-pressed/ },
-  { file: "blocks/rfq-ticket/rfq-ticket.tsx", channel: "a toned context value prints the consumer's text beside its label; the tone is a hint on it", proof: /TONE_CLASS\[item\.tone\]/ },
+  { file: "blocks/rfq-ticket/rfq-ticket.tsx", channel: "a toned context value carries data-direction and says its direction in screen-reader words from labels", proof: /data-direction=\{item\.tone\}[\s\S]*labels\.toneUp : labels\.toneDown/ },
 ]
 
 function* sources(dir: string): Generator<string> {

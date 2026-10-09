@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { createContext, useCallback, useContext, useInsertionEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNode, type Ref } from "react"
+import { createContext, useCallback, useContext, useId, useInsertionEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNode, type Ref } from "react"
 import { Button } from "@/components/ui/button"
 import { ContextMenuItem } from "@/components/ui/context-menu"
 import { Input } from "@/components/ui/input"
@@ -83,8 +83,17 @@ export interface WatchlistActions {
 
 const defaultNormalize = (raw: string) => raw.trim().toUpperCase()
 const StoreContext = createContext<RowStore<WatchlistRow> | null>(null)
+/** What an add came to: the symbol requested, already listed, or refused by `validate`. */
+export interface WatchlistAddNotice {
+  kind: "added" | "listed" | "refused"
+  symbol: string
+}
+
+// The form reads what an add came to; `add` itself still answers true or false.
+type ActionsValue = WatchlistActions & { addSymbol: (raw: string) => WatchlistAddNotice | "empty" | null }
+
 const StateContext = createContext<WatchlistState | null>(null)
-const ActionsContext = createContext<WatchlistActions | null>(null)
+const ActionsContext = createContext<ActionsValue | null>(null)
 
 function useActions() {
   const actions = useContext(ActionsContext)
@@ -125,26 +134,33 @@ export function Watchlist<T extends WatchlistRow = WatchlistRow>({ store, childr
     if (!focusControlled) setOwnFocused(next)
     latest.current.onFocusedRowChange?.(next)
   }, [focusControlled])
-  const add = useCallback((raw: string): boolean => {
+  const addSymbol = useCallback((raw: string): WatchlistAddNotice | "empty" | null => {
     const current = latest.current
-    if (!current.onAdd || !raw.trim()) return false
+    if (!current.onAdd || !raw.trim()) return null
     const symbol = current.normalize(raw)
-    if (!symbol) return true
+    if (!symbol) return "empty"
     if (store.getRow(symbol)) {
+      // Focus goes to the row already listed, which the grid brings into view.
       focus(symbol)
       select(new Set([symbol]))
-      return true
+      return { kind: "listed", symbol }
     }
-    if (current.validate && !current.validate(symbol)) return false
+    if (current.validate && !current.validate(symbol)) return { kind: "refused", symbol }
     current.onAdd(symbol)
-    return true
+    return { kind: "added", symbol }
   }, [store, focus, select])
+  const add = useCallback((raw: string): boolean => {
+    const outcome = addSymbol(raw)
+    return outcome !== null && (outcome === "empty" || outcome.kind !== "refused")
+  }, [addSymbol])
+  // Only rows the store still holds: a selection the app hasn't pruned would ask again for a symbol already gone.
   const remove = useCallback((ids: readonly RowId[]) => {
-    if (ids.length) latest.current.onRemove?.([...ids])
-  }, [])
+    const live = ids.filter((id) => store.getRow(id) !== undefined)
+    if (live.length) latest.current.onRemove?.(live)
+  }, [store])
   const canAdd = Boolean(onAdd)
   const canRemove = Boolean(onRemove)
-  const actions = useMemo(() => ({ canAdd, canRemove, add, remove }), [canAdd, canRemove, add, remove])
+  const actions = useMemo(() => ({ canAdd, canRemove, add, remove, addSymbol }), [canAdd, canRemove, add, remove, addSymbol])
   const state = useMemo(() => ({ selection, focusedRowId, targets: selection.size ? [...selection] : focusedRowId !== null ? [focusedRowId] : [], select, focus }), [selection, focusedRowId, select, focus])
   // The grid restores its row type at this context boundary; the command hooks expose no row data.
   return <StoreContext.Provider value={store as RowStore<WatchlistRow>}><ActionsContext.Provider value={actions}><StateContext.Provider value={state}>
@@ -197,6 +213,10 @@ export interface WatchlistAddState {
   canSubmit: boolean
   setDraft: (draft: string) => void
   submit: () => void
+  /** What the last add came to, until the draft changes. */
+  notice: WatchlistAddNotice | null
+  /** The id `WatchlistAddStatus` takes, which the input points to while there's a notice. */
+  noticeId: string
 }
 
 const AddContext = createContext<WatchlistAddState | null>(null)
@@ -213,17 +233,27 @@ export interface WatchlistAddFormProps extends Omit<ComponentProps<"form">, "chi
 }
 
 export function WatchlistAddForm({ children, onSubmit, className, ...props }: WatchlistAddFormProps) {
-  const { canAdd, add } = useActions()
+  const { canAdd, addSymbol } = useActions()
   const [draft, setText] = useState("")
   const [invalid, setInvalid] = useState(false)
-  const setDraft = useCallback((next: string) => { setText(next); setInvalid(false) }, [])
+  const [notice, setNotice] = useState<WatchlistAddNotice | null>(null)
+  const noticeId = useId()
+  const setDraft = useCallback((next: string) => { setText(next); setInvalid(false); setNotice(null) }, [])
   const canSubmit = canAdd && Boolean(draft.trim())
   const submit = useCallback(() => {
     if (!canSubmit) return
-    if (add(draft)) setDraft("")
-    else setInvalid(true)
-  }, [canSubmit, add, draft, setDraft])
-  const state = useMemo(() => ({ draft, invalid, canAdd, canSubmit, setDraft, submit }), [draft, invalid, canAdd, canSubmit, setDraft, submit])
+    const outcome = addSymbol(draft)
+    if (outcome === null) return
+    if (outcome !== "empty" && outcome.kind === "refused") {
+      setInvalid(true)
+      setNotice(outcome)
+      return
+    }
+    setText("")
+    setInvalid(false)
+    setNotice(outcome === "empty" ? null : outcome)
+  }, [canSubmit, addSymbol, draft])
+  const state = useMemo(() => ({ draft, invalid, canAdd, canSubmit, setDraft, submit, notice, noticeId }), [draft, invalid, canAdd, canSubmit, setDraft, submit, notice, noticeId])
   return <AddContext.Provider value={state}><form {...props} className={cn("flex shrink-0 items-center gap-1", className)} onSubmit={event => {
     onSubmit?.(event)
     if (event.defaultPrevented) return
@@ -234,9 +264,9 @@ export function WatchlistAddForm({ children, onSubmit, className, ...props }: Wa
 
 export type WatchlistAddInputProps = Omit<ComponentProps<typeof Input>, "value" | "defaultValue" | "aria-invalid"> & { "aria-invalid"?: never }
 
-export function WatchlistAddInput({ onChange, placeholder = "Add symbol", disabled, className, ...props }: WatchlistAddInputProps) {
-  const { draft, setDraft, invalid, canAdd } = useWatchlistAdd()
-  return <Input aria-label={placeholder} placeholder={placeholder} spellCheck={false} autoComplete="off" autoCapitalize="characters" {...props} value={draft} aria-invalid={invalid || undefined} disabled={disabled || !canAdd} className={cn("h-6 flex-1 rounded-sm px-1.5 py-0 font-(family-name:--tradecn-font-mono) text-xs md:text-xs", className)} onChange={event => {
+export function WatchlistAddInput({ onChange, placeholder = "Add symbol", disabled, className, "aria-describedby": describedBy, ...props }: WatchlistAddInputProps) {
+  const { draft, setDraft, invalid, canAdd, notice, noticeId } = useWatchlistAdd()
+  return <Input aria-label={placeholder} placeholder={placeholder} spellCheck={false} autoComplete="off" autoCapitalize="characters" {...props} aria-describedby={[describedBy, notice ? noticeId : undefined].filter(Boolean).join(" ") || undefined} value={draft} aria-invalid={invalid || undefined} disabled={disabled || !canAdd} className={cn("h-6 flex-1 rounded-sm px-1.5 py-0 font-(family-name:--tradecn-font-mono) text-xs md:text-xs", className)} onChange={event => {
     onChange?.(event)
     if (!event.defaultPrevented) setDraft(event.target.value)
   }} />
@@ -245,6 +275,22 @@ export function WatchlistAddInput({ onChange, placeholder = "Add symbol", disabl
 export function WatchlistAddButton({ children = "Add", disabled, size, className, ...props }: ComponentProps<typeof Button>) {
   const { canSubmit } = useWatchlistAdd()
   return <Button type="submit" variant="outline" size={size === undefined ? "sm" : size} {...props} className={cn(size === undefined && "h-6 px-2 text-xs", className)} disabled={disabled || !canSubmit}>{children}</Button>
+}
+
+export interface WatchlistAddStatusProps extends Omit<ComponentProps<"span">, "children" | "id"> {
+  /** What an add of a new symbol says. Default: `ZN added`. */
+  added?: (symbol: string) => ReactNode
+  /** What an add of a symbol already listed says; focus goes to its row. Default: `ZN is already listed`. */
+  listed?: (symbol: string) => ReactNode
+  /** What a symbol `validate` refuses says. Default: `ZN can't be added`. */
+  refused?: (symbol: string) => ReactNode
+}
+
+/** What the last add came to, in words a screen reader hears as it changes and the input points to. */
+export function WatchlistAddStatus({ added = (symbol) => `Adding ${symbol}`, listed = (symbol) => `${symbol} is already listed`, refused = (symbol) => `${symbol} can't be added`, className, ...props }: WatchlistAddStatusProps) {
+  const { notice, noticeId } = useWatchlistAdd()
+  const words = notice === null ? null : notice.kind === "added" ? added(notice.symbol) : notice.kind === "listed" ? listed(notice.symbol) : refused(notice.symbol)
+  return <span role="status" {...props} id={noticeId} data-watchlist-notice={notice?.kind} className={cn("min-w-0 truncate text-xs", notice?.kind === "refused" ? "text-destructive" : "text-muted-foreground", className)}>{words}</span>
 }
 
 const removeLabel = (ids: readonly RowId[]) => ids.length > 1 ? `Remove ${ids.length}` : `Remove ${ids[0] ?? ""}`
@@ -276,6 +322,6 @@ export function WatchlistRemoveMenuItem({ ids, children, disabled, onClick, ...p
 /** The ordinary row removal control; include or position it in your own column list. */
 export function watchlistRemoveColumn<T extends WatchlistRow>(): ColumnDef<T> {
   return { key: "__remove", header: <span className="sr-only">Remove</span>, title: "Remove", width: 28, align: "center", flash: false, accessor: () => null, cell: ({ row }) => (
-    <WatchlistRemoveButton ids={[row.symbol]} tabIndex={-1} aria-label={`Remove ${row.symbol}`} className="size-4 rounded-sm leading-none text-muted-foreground opacity-0 outline-none group-hover/row:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100">×</WatchlistRemoveButton>
+    <WatchlistRemoveButton ids={[row.symbol]} tabIndex={-1} onMouseDown={(event) => event.preventDefault()} aria-label={`Remove ${row.symbol}`} className="size-4 rounded-sm leading-none text-muted-foreground opacity-0 outline-none group-hover/row:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100">×</WatchlistRemoveButton>
   ) }
 }

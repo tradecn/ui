@@ -165,7 +165,7 @@ Use cards to place descriptions beside column settings and move actions below ea
 | `presented` | `readonly string[]` | Search-result keys | Column keys in your collection's render order. |
 | `children` | `ReactNode` | Required | Your controls, collection, and surrounding content. Conditional content is supported. |
 | `rules` | `readonly ReadColumnRule[]` | Omitted | Highlight rules, written or read, shown beside their columns. |
-| `labels` | `Partial<ColumnChooserLabels>` | Default labels | Words used by readings and controls. |
+| `labels` | `Partial<ColumnChooserLabels>` | Default labels | Words used by readings and controls. A word given as `undefined` keeps its default. |
 | `className` | `string` | Omitted | Additional classes to apply to the root. |
 
 ### Public parts
@@ -177,7 +177,7 @@ Use cards to place descriptions beside column settings and move actions below ea
 | `ColumnChooserItem` | Required `columnKey: string`, `children: ReactNode`; native `div` props | Coordinates drag, keyboard reorder, and focus for one column. |
 | `ColumnChooserSearch` | Installed Input props except `value` and `defaultValue` | Reads and writes the root's query. |
 | `ColumnChooserAnnouncer` | Native `span` props except `children` | Announces accepted edits through a polite status region. Mount once per chooser. |
-| `ColumnChooserHiddenCount` | Native `span` props except `children` | Prints the hidden count and its label. |
+| `ColumnChooserHiddenCount` | Native `span` props except `children` | Prints the hidden count in the words of `labels.hiddenCount`, a template with `{n}` or a function of the count. |
 | `ColumnChooserVisibility` | Installed Checkbox props except `checked`, `defaultChecked`, and `indeterminate` | Reads and writes the item's visibility. Outside the tab order by default; Space on the item toggles. |
 | `ColumnChooserName` | Native `span` props except `children` | Prints the column name, with the full name as its title. |
 | `ColumnChooserFrozen` | Installed Badge props except `children` | Prints the frozen label for frozen columns. |
@@ -294,7 +294,7 @@ In the shared recipes, `ColumnSettingsDialog.className` styles `DialogContent`; 
 
 `labels` supplies the root name, search box, `Show` prefix, frozen and hidden words, width label, width reset, and move names. The default root title is `Columns` and search is `Find a column`. Use `aria-label` or `aria-labelledby` to override a part's accessible name.
 
-The retained description, reset-all text, empty message, and drag hint are available through the root hook for your composition. Action children and their placement belong to you. The width reading keeps the `px` suffix; any close-button text belongs to the installed Dialog.
+The retained description, reset-all text, empty message, and drag hint are available through the root hook for your composition. Action children and their placement belong to you. The width reading keeps the `px` suffix and says `labels.width` before it in words only a screen reader hears; any close-button text belongs to the installed Dialog. Rule badges are written in `labels.ruleWords`, as grid-rules' `RuleWords`.
 
 Announcement templates are `announceMove`, `announceReorder`, `announceShow`, `announceHide`, `announceResetWidth` and `announceReset`. Use `{name}` for the column; `announceMove` also receives `{n}` and `{m}`, as in `{name} moved to {n} of {m}.` Missing or undefined templates retain their defaults.
 

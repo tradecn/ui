@@ -79,7 +79,7 @@ export function RulesEditorSections<T>({ columns, columnState, onColumnStateChan
           {rules.columns?.length ? (
             <ul className="flex flex-col gap-1">
               {rules.columns?.map((rule, index) => (
-                <li key={rule.id}>
+                <li key={rule.id ?? index}>
                   <RulesEditorItem kind="highlights" index={index}>
                     <span aria-hidden title={labels.dragHint} className="cursor-grab text-muted-foreground">⠿</span>
                     <RulesEditorColumn />

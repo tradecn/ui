@@ -1,16 +1,16 @@
 import { useMemo, useState } from "react"
 import { ContextMenuSeparator } from "@/components/ui/context-menu"
 import { createRowStore } from "@/registry/tradecn/lib/row-store"
-import { Watchlist, WatchlistGrid, WatchlistAddForm, WatchlistAddInput, WatchlistAddButton, WatchlistRemoveMenuItem, watchlistColumns, watchlistRemoveColumn, type WatchlistGridProps, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
+import { Watchlist, WatchlistGrid, WatchlistAddForm, WatchlistAddInput, WatchlistAddButton, WatchlistAddStatus, WatchlistRemoveMenuItem, watchlistColumns, watchlistRemoveColumn, type WatchlistGridProps, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
 
 export function WatchlistAddControls() {
-  return <WatchlistAddForm><WatchlistAddInput /><WatchlistAddButton /></WatchlistAddForm>
+  return <WatchlistAddForm><WatchlistAddInput /><WatchlistAddButton /><WatchlistAddStatus /></WatchlistAddForm>
 }
 
 export function RemovableWatchlistGrid<T extends WatchlistRow>({ columns, price, renderContextMenu, ...props }: WatchlistGridProps<T>) {
   const all = useMemo(() => [...(columns ?? watchlistColumns<T>({ price })), watchlistRemoveColumn<T>()], [columns, price])
-  return <WatchlistGrid {...props} columns={all} renderContextMenu={(rows, ids) => <>
-    {renderContextMenu?.(rows, ids)}
+  return <WatchlistGrid {...props} columns={all} renderContextMenu={(rows, ids, target) => <>
+    {renderContextMenu?.(rows, ids, target)}
     {renderContextMenu && <ContextMenuSeparator />}
     <WatchlistRemoveMenuItem ids={ids} />
   </>} />

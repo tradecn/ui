@@ -104,7 +104,7 @@ The value formatter has the signature `(field: string, value: unknown, event: T)
 | `columns` | `ColumnDef<T>[]` | Event columns | Shared event columns for the grid and export. |
 | `time` | `(ms: number) => string` | Local `HH:MM:SS.mmm` | Format default time cells, event titles and comparison titles. A time a `Date` can't hold, such as `NaN`, prints `–` instead of calling it. The default reads the runtime's time zone, so server-rendered times use the server's. |
 | `value` | `(field, value, event) => string` | `formatAuditValue` | Format before and after values. |
-| `labels` | `Partial<AuditTrailLabels>` | Default labels | Override column, changes and export text. |
+| `labels` | `Partial<AuditTrailLabels>` | Default labels | Override column, changes and export text. A word given as `undefined` keeps its default. |
 | `selection` | `ReadonlySet<RowId>` | Internal empty set | Control the selected events. |
 | `onSelectionChange` | `(selection: ReadonlySet<RowId>) => void` | - | Receive selection changes; update `selection` when controlled. |
 | `className` | `string` | - | Additional classes to apply to the container. |
@@ -117,7 +117,7 @@ Renders [`DataGrid`](data-grid.md) with the `tape` preset and multi-selection. G
 |---|---|---|---|
 | `label` | `string` | `"Audit trail"` | Accessible name for the grid. |
 | `selectionColumn` | `boolean` | `false` | Show selection checkboxes. |
-| `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | - | Menu items for the selection or the row under the pointer. |
+| `renderContextMenu` | `(rows: T[], ids: RowId[], target?: RowId \| null) => ReactNode` | - | Menu items for the selection or the row under the pointer; `target` is the row the menu opened on. |
 | `className` | `string` | - | Additional classes to apply to the grid wrapper. |
 
 Sorting, filtering, column state, row height, focus, keyboard navigation, `labels`, and row callbacks follow [`DataGridProps`](data-grid.md). Store, view, columns and selection come from the root. The preset and selection mode are fixed. For extended event rows, use the same row type on `<AuditTrail<T>>` and `<AuditTrailGrid<T>>` when supplying row callbacks.
@@ -155,7 +155,7 @@ Calls the required `onExport(csv)` callback with the current history. Inherits p
 
 ### Accessibility
 
-`AuditTrailGrid` supplies grid navigation and selection semantics. A row is named by its cells, and an event doesn't change once written, so its name holds; pass `getRowLabel` for a shorter one. Use Shift, Ctrl or Cmd, or the optional checkbox column to select several events. The changes section is a named region; its headings and collection semantics belong to your composition.
+`AuditTrailGrid` supplies grid navigation and selection semantics. A row is named by its cells, so a correction to an event changes its name; pass `getRowLabel` for a shorter one that holds. Use Shift, Ctrl or Cmd, or the optional checkbox column to select several events. The changes section is a named region; its headings and collection semantics belong to your composition.
 
 `AuditChangesTable` uses a native table with column headers for Field, From and To and row headers for each field. Keep those header associations when adapting the table. Card layouts can use lists and definition lists, as shown in Custom Layout. Before values retain a strikethrough so the distinction does not depend on color.
 
@@ -218,7 +218,7 @@ CSV comes from `exportCsv(store, columns, ids)` using these inputs. Text that a 
 
 ### Labels
 
-`labels` overrides the default column headers, Field/From/To headings, export button, selection prompt, empty-change messages, and pane titles. `fields` uses `{n}` and defaults to `Fields: {n}`, neutral wording a single template can keep grammatical at any count; `eventTitle` uses `{event}` and `{time}`; `diffTitle` uses `{a}` and `{b}` for the event names with their formatted times. The grid's accessible name is the separate `AuditTrailGrid.label` prop.
+`labels` overrides the default column headers, Field/From/To headings, export button, selection prompt, empty-change messages, the message for a comparison with an event the view no longer shows (`outside`), and pane titles. `fields` uses `{n}` and defaults to `Fields: {n}`, neutral wording a single template can keep grammatical at any count, or takes a function of the count for a plural; `eventTitle` uses `{event}` and `{time}`; `diffTitle` uses `{a}` and `{b}` for the event names with their formatted times. The grid's accessible name is the separate `AuditTrailGrid.label` prop.
 
 ### What it does not do
 

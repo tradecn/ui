@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useCallback, useMemo, type ReactNode } from "react"
+import { useCallback, useMemo } from "react"
 import { directionClass, directionOf } from "@/registry/tradecn/hooks/use-flash"
 import { NULL_TOKEN, formatNotional, formatPrice, formatQuantity, formatSigned } from "@/registry/tradecn/lib/format"
 import type { RowId } from "@/registry/tradecn/lib/row-store"
@@ -129,8 +129,8 @@ export interface PositionsProps<T extends PositionRow = PositionRow> extends Omi
   label?: string
   /** The totals row. `positionsTotals(options)` by default; `false` for none; your own record for other sums. */
   totals?: false | Record<string, (rows: T[]) => string>
-  /** Your items for the right-click menu. */
-  renderContextMenu?: (rows: T[], ids: RowId[]) => ReactNode
+  /** Your items for the right-click menu, with the row it opened on as `target`. */
+  renderContextMenu?: DataGridProps<T>["renderContextMenu"]
 }
 
 // A row's name is its instrument, which holds while its mark and P&L tick. One grid per book keeps it unique.

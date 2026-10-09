@@ -267,6 +267,12 @@ describe("TabbedRulesEditor", () => {
     expect(count()).toBe("4")
   })
 
+  it("keeps the default for a word given as undefined, a count's included", () => {
+    render(<TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={seeded()} labels={{ title: undefined, matches: undefined }} />)
+    expect(screen.getByRole("region", { name: "Rules" })).toBeInTheDocument()
+    expect(screen.getAllByText(/\b(row matches|rows match)\b/).length).toBeGreaterThan(0)
+  })
+
   it("takes its words from labels and says when a list is empty", () => {
     render(<TabbedRulesEditor columns={columns} rules={{}} onRulesChange={() => {}} labels={{ title: "Regeln", highlights: "Farben", noHighlights: "Keine." }} />)
     expect(screen.getByRole("region", { name: "Regeln" })).toBeInTheDocument()
@@ -456,6 +462,13 @@ describe("RulesEditor", () => {
     act(() => { store.applyDeltas({ patch: [{ id: "a", fields: { px: 101 } }] }); vi.advanceTimersByTime(250) })
     expect(screen.getAllByText("3 rows match")).toHaveLength(2)
     expect(fields).toHaveBeenCalledOnce()
+  })
+
+  it("keeps a dragged rule's text opaque and marks focus with the foreground", () => {
+    render(<TabbedRulesEditor columns={columns} rules={RULES} onRulesChange={() => {}} store={seeded()} />)
+    const item = document.querySelector<HTMLElement>("[data-rule-kind]")!
+    expect(item.className).not.toContain("opacity-50")
+    expect(item).toHaveClass("data-[dragging]:border-dashed", "focus-visible:border-foreground")
   })
 
   it("puts a count of one in the singular, and takes a template or a function for each count", () => {

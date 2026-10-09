@@ -116,7 +116,7 @@ Exports: `PriceChart`, `PriceChartHeader`, `PriceChartLast`, `PriceChartChange`,
 
 A field that types a quote the way the instrument quotes it: 99-16+ for a note on price, 4.253 for a bill on discount, 12.6 for credit on a spread. It parses on every keystroke and hands the number up, marks what is not a quote on blur and prints a good one back in the notation, and steps by the instrument's own step with the arrows and two buttons, ten with Shift. A held modifier leaves the arrows to the registry above it.
 
-Exports: `QuoteField`.
+Exports: `QuoteField`, `DEFAULT_QUOTE_FIELD_LABELS`, `DEFAULT_INVALID_QUOTE`.
 
 ### Quote Panel (`quote-panel`)
 
@@ -176,7 +176,7 @@ Exports: `Ticket`, `TICKET_BINDINGS`, `describeDraft`, `checkDraft`, `parseQuant
 
 A watchlist with composable add controls, removal actions and a virtual grid. Reuse symbol normalization, validation and selection in your own layout; the list stays in your row store.
 
-Exports: `Watchlist`, `WatchlistGrid`, `WatchlistAddForm`, `WatchlistAddInput`, `WatchlistAddButton`, `WatchlistRemoveButton`, `WatchlistRemoveMenuItem`, `useWatchlist`, `useWatchlistAdd`, `watchlistColumns`, `watchlistRemoveColumn`.
+Exports: `Watchlist`, `WatchlistGrid`, `WatchlistAddForm`, `WatchlistAddInput`, `WatchlistAddButton`, `WatchlistRemoveButton`, `WatchlistRemoveMenuItem`, `useWatchlist`, `useWatchlistAdd`, `watchlistColumns`, `watchlistRemoveColumn`, `WatchlistAddStatus`.
 
 ### Workspace (`workspace`)
 
@@ -216,7 +216,7 @@ Exports: `NULL_TOKEN`, `isInstant`, `numberFormat`, `decimalsFromTick`, `roundTo
 
 Rules as data for a grid: color a cell or a row when a value crosses a line, show only the rows that pass, order by a stack of columns, all as plain objects a desk writes without a build. A value is typed in the column's own format, a tone is a token name, and an applied rule says itself in words beside the color.
 
-Exports: `RULE_OPS`, `NUMBER_OPS`, `TEXT_OPS`, `RULE_OP_LABELS`, `RULE_TONES`, `ON_TINT_CLASS`, `RULE_TONE_CLASS`, `opsFor`, `columnName`, `normalizeValue`, `compareValues`, `compareDirected`, `readRuleValue`, `readCondition`, `readColumnRule`, `readFilterRule`, `readSortRule`, `readRules`, `compileCondition`, `ruleProblem`, `describeRule`, `compileFilter`, `compileComparator`, `ruleDecoration`, `applyRules`.
+Exports: `RULE_OPS`, `NUMBER_OPS`, `TEXT_OPS`, `RULE_OP_LABELS`, `DEFAULT_RULE_WORDS`, `ruleWords`, `RULE_TONES`, `ON_TINT_CLASS`, `RULE_TONE_CLASS`, `opsFor`, `columnName`, `normalizeValue`, `compareValues`, `compareDirected`, `readRuleValue`, `readCondition`, `readColumnRule`, `readFilterRule`, `readSortRule`, `readRules`, `compileCondition`, `ruleProblem`, `describeRule`, `compileFilter`, `compileComparator`, `ruleDecoration`, `applyRules`.
 
 ### Limits (`limits`)
 

@@ -8,16 +8,16 @@ Composable add controls, removal actions, and a virtual price grid.
 import { useMemo, useState } from "react"
 import { ContextMenuSeparator } from "@/components/ui/context-menu"
 import { createRowStore } from "@/lib/row-store"
-import { Watchlist, WatchlistGrid, WatchlistAddForm, WatchlistAddInput, WatchlistAddButton, WatchlistRemoveMenuItem, watchlistColumns, watchlistRemoveColumn, type WatchlistGridProps, type WatchlistRow } from "@/components/ui/watchlist"
+import { Watchlist, WatchlistGrid, WatchlistAddForm, WatchlistAddInput, WatchlistAddButton, WatchlistAddStatus, WatchlistRemoveMenuItem, watchlistColumns, watchlistRemoveColumn, type WatchlistGridProps, type WatchlistRow } from "@/components/ui/watchlist"
 
 export function WatchlistAddControls() {
-  return <WatchlistAddForm><WatchlistAddInput /><WatchlistAddButton /></WatchlistAddForm>
+  return <WatchlistAddForm><WatchlistAddInput /><WatchlistAddButton /><WatchlistAddStatus /></WatchlistAddForm>
 }
 
 export function RemovableWatchlistGrid<T extends WatchlistRow>({ columns, price, renderContextMenu, ...props }: WatchlistGridProps<T>) {
   const all = useMemo(() => [...(columns ?? watchlistColumns<T>({ price })), watchlistRemoveColumn<T>()], [columns, price])
-  return <WatchlistGrid {...props} columns={all} renderContextMenu={(rows, ids) => <>
-    {renderContextMenu?.(rows, ids)}
+  return <WatchlistGrid {...props} columns={all} renderContextMenu={(rows, ids, target) => <>
+    {renderContextMenu?.(rows, ids, target)}
     {renderContextMenu && <ContextMenuSeparator />}
     <WatchlistRemoveMenuItem ids={ids} />
   </>} />
@@ -127,7 +127,7 @@ Apply callbacks when controlling selection or focus. With internal state, callba
 | `label` | `string` | `"Watchlist"` | Accessible name of the grid. |
 | `getRowProps` | `(row: T, id: RowId) => RowDecoration \| undefined` | None | Row decoration, merged with `group/row`. Memoize it: the wrapper follows your function, so a new one re-renders every row and a memoized one is free. |
 | `getRowLabel` | `((row: T, id: RowId) => string) \| null` | The symbol | A row's name that holds while its prices tick. The grid reads the focused row's cells once when focus rests on it, and `null` names rows by their cells and reads nothing. Keep its identity stable. |
-| `renderContextMenu` | `(rows: T[], ids: RowId[]) => ReactNode` | None | Complete menu content, including any removal action. |
+| `renderContextMenu` | `(rows: T[], ids: RowId[], target?: RowId \| null) => ReactNode` | None | Complete menu content, including any removal action; `target` is the row the menu opened on. |
 | `className` | `string` | None | Classes on the grid's sizing wrapper. |
 | `ref` | `Ref<HTMLDivElement>` | None | Ref to the sizing wrapper. |
 | `onKeyDown` | `(event: KeyboardEvent<HTMLDivElement>) => void` | None | Runs before removal keys; prevent the event to cancel removal. |
@@ -141,6 +141,8 @@ Other [data-grid](data-grid.md) options pass through, including sorting, column 
 `WatchlistAddInput` binds the installed Input to that draft. It accepts native input props, a ref, classes and a cancellable `onChange`; `value`, `defaultValue` and `aria-invalid` are reserved for the form. `placeholder` defaults to `"Add symbol"` and supplies the default accessible name; set `aria-label` or `aria-labelledby` when another name is needed. Omitting `onAdd` disables the input.
 
 `WatchlistAddButton` accepts the installed Button's props and ref. It defaults to a compact submit button with an outline style and `Add` text. An explicit `size` uses the installed Button’s dimensions; `className` can override either. It is disabled when adding is unavailable or the draft is blank. Supply children to change its text.
+
+`WatchlistAddStatus` says what the last add came to in a polite live region, and the input points to it while it holds words: `Adding ZN` for a request `onAdd` takes, since the row shows only when your store has it, `ZN is already listed`, which also moves focus to that row and brings it into view, or `ZN can't be added` for a symbol `validate` refuses, beside the input's invalid mark. Pass `added`, `listed`, and `refused`, each a function of the symbol, for your own words. Typing again clears it.
 
 ### Removal controls
 
@@ -200,7 +202,7 @@ Submitting with Enter leaves focus in the input for the next symbol. Clicking Ad
 
 ### Removing
 
-Focus the grid itself, then press Delete or Backspace to request removal of the selection, or the focused row when nothing is selected, once per press: a held key's repeats remove nothing more. Focus then goes to the row now at the removed row's place, so the next Delete asks for that one; prune your selection as `onRemove` lands, or a selected symbol that's gone is asked for again. It does nothing without `onRemove`, without a target, or when the event was already prevented. Keys from cell editors, custom controls, header controls, selection checkboxes, nested grids and portaled content do not request removal. `WatchlistGrid` still passes their bubbling events to your `onKeyDown` handler.
+Focus the grid itself, then press Delete or Backspace to request removal of the selection, or the focused row when nothing is selected, once per press: a held key's repeats remove nothing more. Focus then goes to the row now at the removed row's place, so the next Delete asks for that one. `onRemove` hears only symbols the store still holds, so a selection you haven't pruned asks for nothing twice, and the remove column's button takes no focus from a pointer press, so focus stays where it was when its row goes. It does nothing without `onRemove`, without a target, or when the event was already prevented. Keys from cell editors, custom controls, header controls, selection checkboxes, nested grids and portaled content do not request removal. `WatchlistGrid` still passes their bubbling events to your `onKeyDown` handler.
 
 `watchlistRemoveColumn` adds a `×` that shows on hover and requests removal of only that row. Buttons, menu items and grid deletion keys call `onRemove` with symbols; none changes the store.
 

@@ -77,15 +77,16 @@ This block installs `rfq-ticket.tsx` in your `components` alias. It shares sourc
 |---|---|---|---|
 | `inquiry` | `RfqInquiry` | Required | Server data for this ticket. |
 | `actions` | `readonly RfqAction[]` | Required | Available action definitions, in display order. |
-| `defaultDraft` | `Partial<RfqLevels>` | Both levels `null` | Initial bid and ask, snapped to the quote grid; read only on mount, with the inquiry's quantity. A side the inquiry did not ask for still enters the draft, reaches `run`, and feeds the crossed check, so seed only the requested sides. |
+| `defaultDraft` | `Partial<RfqLevels>` | Both levels `null` | Initial levels for the sides the inquiry asks for, snapped to the quote grid; read only on mount. A level for a side it doesn't ask for is left out of the draft. |
 | `onDraftChange` | `(draft: RfqQuoteDraft) => void` | None | Reports the current draft after a change. |
 | `acknowledged` | `unknown` | `undefined` | Change this value when the server acknowledges a quote. |
 | `autoFocus` | `boolean` | `false` | Requests focus on the first quote field on mount. |
 | `disabled` | `boolean` | `false` | Disables fields and buttons, blocks action execution, and stops every ticket shortcut. |
 | `hotkeys` | `boolean` | `true` | Declares `RFQ_TICKET_BINDINGS` as registry defaults, the size keys for the quick sizes passed. |
 | `limits` | `Limits` | None | Checks quoted sides before sending. |
-| `quickSizes` | `readonly number[]` | None | Alternative quote quantities in raw notional or contracts. |
-| `labels` | `Partial<RfqTicketLabels>` | `DEFAULT_RFQ_TICKET_LABELS` | Overrides the ticket's own wording. |
+| `limitsLabels` | `Partial<LimitsLabels>` | `DEFAULT_LIMITS_LABELS` with `ask: "offer"` | The words of the limits' sentences. |
+| `quickSizes` | `readonly number[]` | None | Alternative quote quantities in raw notional or contracts: whole numbers above zero, each once, and any other is left out. |
+| `labels` | `Partial<RfqTicketLabels>` | `DEFAULT_RFQ_TICKET_LABELS` | Overrides the ticket's own wording. A word given as `undefined` keeps its default. |
 | `className` | `string` | None | Styles the outer group. |
 
 ### The inquiry
@@ -102,11 +103,11 @@ This block installs `rfq-ticket.tsx` in your `components` alias. It shares sourc
 | `tags` | `readonly string[]` | None | Venue badges, such as protocol, dealer count, or list name. |
 | `settlement` | `string` | None | Settlement text. |
 | `receivedAt` | `number` | First countdown render | Arrival in milliseconds since the epoch; sets the countdown bar's full duration. |
-| `context` | `readonly RfqContextItem[]` | None | Preformatted `label` and `value` strings, with optional `tone: "up" \| "down" \| "flat"`. The tone only colors the value, so put the direction in it as a sign or a word. |
+| `context` | `readonly RfqContextItem[]` | None | Preformatted `label` and `value` strings, with optional `tone: "up" \| "down" \| "flat"`. The tone colors the value, sets `data-direction` on it, and adds `labels.toneUp` or `labels.toneDown` for a screen reader. |
 | `market` | `RfqMarket` | None | Reference bid, ask, and optional mid; optional `label` defaults to `"Market"`. |
 | `quoted` | `RfqLevels` | None | This desk's live quote from the server. |
 | `suggested` | `RfqLevels` | None | Proposed levels to copy into the draft. |
-| `message` | `string` | None | Server text below the actions. |
+| `message` | `string` | None | Server text below the actions, said from a status region that is in the page from the first render. |
 | `allowedActions` | `readonly string[]` | No actions | Ids matched against `actions`. |
 
 The headline reads `Client A buys 5mm T 4 1/8 05/15/34`. `instrument.description` falls back to `instrument.symbol`. Size prints in millions of notional, or as a count when `convention.quantityUnit` is `"contracts"`. Tier and tags appear as badges; trader, salesperson, and settlement appear beneath the headline. Context values print unchanged, with tone applied only when supplied.
@@ -131,21 +132,21 @@ The suggested-level button appears when at least one requested side has a sugges
 |---|---|---|
 | `inquiryId` | `string` | `inquiry.id` |
 | `bid`, `ask` | `number \| null` | Corresponding `defaultDraft` level, otherwise `null` |
-| `quantity` | `number` (optional in the type) | `inquiry.quantity`; the ticket includes it in emitted drafts |
+| `quantity` | `number` (optional in the type) | `inquiry.quantity` as it stands, a resize under the same id included, until a quick size other than the inquiry's is taken; the ticket includes it in emitted drafts |
 
-`onDraftChange` reports changes to this draft after render. It does not report the initial draft, unchanged values, or inquiry-only updates. Changing `defaultDraft` later has no effect; remount to reset it.
+`onDraftChange` reports changes to this draft after render, a resize that changes its quantity included. It does not report the initial draft, unchanged values, or other inquiry updates. Changing `defaultDraft` later has no effect; remount to reset it. A side the inquiry doesn't ask for is always `null`.
 
 These helpers are exported for confirmations, palette rows, and tests:
 
 | Helper | Result |
 |---|---|
 | `quotedSides(side)` | Requested dealer sides as `readonly QuoteSide[]`, where `QuoteSide` is `"bid" \| "ask"`. |
-| `formatSize(quantity, convention)` | Millions of notional (`5_000_000` → `5mm`) or a contract count. |
-| `quoteDistance(level, market, convention)` | `{ value, text }`, or `null` for a missing or nonfinite input. Both levels accept `number \| null \| undefined`. |
-| `checkQuote(draft, inquiry, labels?)` | `RfqQuoteProblems`: optional `bid` and `ask` messages for a required level that is null or non-finite, or a crossed pair read through the quote direction. |
+| `formatSize(quantity, convention, millions?)` | Millions of notional (`5_000_000` → `5mm`), with `millions` as the unit, or a contract count. |
+| `quoteDistance(level, market, convention, bp?)` | `{ value, text }`, or `null` for a missing or nonfinite input, with `bp` as a basis-point distance's unit. Both levels accept `number \| null \| undefined`. |
+| `checkQuote(draft, inquiry, labels?)` | `RfqQuoteProblems`: optional `bid` and `ask` messages for a required level that is null or non-finite, or, on a two-way, a crossed pair read through the quote direction. |
 | `describeQuote(draft, inquiry, labels?)` | Text such as `Offer 5mm T 4 1/8 05/15/34 @ 99-16+`; uses `draft.quantity ?? inquiry.quantity`. |
 
-The last two helpers default to `DEFAULT_RFQ_TICKET_LABELS` and accept a full `RfqTicketLabels` object. `checkQuote` does not check limits or quantity; it rejects crossed levels through the instrument's quote direction whenever both are finite — bid above offer normally, bid below offer where `quoteInvertedOf` reads the instrument as inverted — including an unused side supplied through `defaultDraft`, and a required side that is null or non-finite gets its needed message instead.
+The last two helpers default to `DEFAULT_RFQ_TICKET_LABELS` and accept a full `RfqTicketLabels` object. `checkQuote` does not check limits or quantity, and never reads a side the inquiry doesn't ask for; on a two-way it rejects crossed levels through the instrument's quote direction whenever both are finite — bid above offer normally, bid below offer where `quoteInvertedOf` reads the instrument as inverted — and a required side that is null or non-finite gets its needed message instead.
 
 ### The actions are the server's
 
@@ -155,7 +156,7 @@ The last two helpers default to `DEFAULT_RFQ_TICKET_LABELS` and accept a full `R
 | `label` | `string \| ((draft: RfqQuoteDraft) => string)` | Required | Button text, optionally derived from the draft. |
 | `run` | `(draft: RfqQuoteDraft, inquiry: RfqInquiry) => void` | Required | Executes the action with the current draft and inquiry. |
 | `needsQuote` | `boolean` | `true` | Requires quote and limit checks. |
-| `destructive` | `boolean` | `false` | Uses the destructive button style. |
+| `destructive` | `boolean` | `false` | Draws the action in the destructive color on the outline button, which holds 4.5:1 at rest and turns to the foreground under the pointer. |
 | `primary` | `boolean` | Automatic | Preferred by `rfq.send` among quote-sending actions that are not `destructive`; `rfq.send` never runs a destructive action. Uses primary styling unless destructive. |
 
 Only matching actions render, in your `actions` order. No matches produces the nothing-allowed message. The primary action — for styling — is the first allowed action marked `primary`, otherwise the first that needs a quote, otherwise the first allowed action. The send key chooses separately: the first allowed quote-sending action that is not `destructive`, preferring one marked `primary`, so neither a `needsQuote: false` action nor a destructive one ever runs on it, however it is marked.
@@ -170,7 +171,7 @@ Changing `acknowledged` triggers the `primary` ring flash; the first render and 
 
 ### Arrival never moves anything
 
-The parent chooses the active inquiry and owns focus. Key the ticket by inquiry id: reusing a mounted ticket for another inquiry retains the old draft, including its `inquiryId` and quantity. `autoFocus` acts only on mount and cannot focus a disabled field.
+The parent chooses the active inquiry and owns focus. Key the ticket by inquiry id: reusing a mounted ticket for another inquiry retains the old levels and any quick size taken. `autoFocus` acts only on mount and cannot focus a disabled field.
 
 The [`countdown`](countdown.md) uses `receivedAt` to `expiresAt` for its bar, falling back to first render when `receivedAt` is omitted. It announces the label and time left on tier changes, including the provisional last-10-seconds threshold and expiry. Your app decides whether the inquiry has ended from venue status.
 
@@ -183,7 +184,7 @@ Inside a `HotkeysProvider`, the ticket declares these `editing` bindings as regi
 | `rfq.send` | `mod+enter` | Runs the first allowed quote-sending action that is not `destructive`, preferring the primary; its key caps render on that action's button, and it does nothing when no such action is allowed. |
 | `rfq.tick-up`, `rfq.tick-down` | `mod+up`, `mod+down` | Steps the side the key came from — its field or step buttons — else the first field. |
 | `rfq.suggested` | `mod+shift+a` | Copies suggested levels. |
-| `rfq.size-1` … `rfq.size-N` | `mod+1` … `mod+N` | Selects an entry from `quickSizes`, in supplied order; declared through `N = quickSizes.length`, at most nine. |
+| `rfq.size-1` … `rfq.size-N` | `mod+1` … `mod+N` | Selects an entry from `quickSizes`, in supplied order, after any that isn't a whole number above zero and any repeat are left out; declared through `N`, the count of sizes left, at most nine. |
 
 `mod` is Command on Mac and Control elsewhere. `QUICK_SIZE_KEYS` exports the nine size shortcuts. Spread `RFQ_TICKET_BINDINGS` into your own registry list to change keys or descriptions. The defaults stand while any ticket with `hotkeys` enabled remains: your registration of an id shadows the ticket's default whenever it comes, unregistering yours brings the default back, and `unregister("rfq.send")` does nothing while a ticket holds the default — so a binding you declare stays yours through the per-inquiry remounts. Handlers run anywhere inside the ticket, and dialog boundaries keep outside handlers from running.
 
@@ -195,23 +196,23 @@ A disabled ticket runs no shortcuts at all, though its keys are still consumed. 
 
 The [`limits`](limits.md) check receives only requested bid and ask levels, plus the inquiry's market and convention. It receives no quantity, so `maxQuantity` and `minQuantity` do not constrain RFQ quick sizes. Custom rules receive that same limited draft.
 
-`maxDistance` compares each level with the market's same side, falling back to `market.mid` when that side is absent. Use ticks for price and basis points for other quote bases; a spread is compared in the basis points it is quoted in, in the same unit the field's distance readout uses; on a one-sided market the limit measures from its fallback while the field shows no distance. `sides` checks the dealer's side: a bid is a buy and an offer is a sell.
+`maxDistance` compares each level with the market's same side, falling back to `market.mid` when that side is absent. Use ticks for price and basis points for other quote bases; a spread is compared in the basis points it is quoted in, in the same unit the field's distance readout uses; on a one-sided market the limit measures from its fallback while the field shows no distance. `sides` checks the dealer's side: a bid is a buy and an offer is a sell. The sentences take their words from `limitsLabels`, over `DEFAULT_LIMITS_LABELS` with the ask called the offer, and say one tick in the singular.
 
-A block shows under its field, or below the actions for other fields, and holds actions that need a quote: each looks disabled, carries `aria-disabled`, and stays focusable, and a press on it is refused. A confirm applies to any action that needs a quote: its button becomes `Quote anyway?` (using that action's label) and the reason appears below. A reason added while the question stands makes the next press ask again rather than send, and a question whose action the venue takes away is withdrawn, so if the action comes back, the next press asks again; the next fresh press of the same action sends if checks pass; a double-click's second click or a held Enter's repeat does not count. Editing a level or choosing a size clears the confirmation. Both checks run live and again on execution; `needsQuote: false` actions bypass them.
+A block shows under its field, or below the actions for any other field, a side the inquiry doesn't ask for included, so whatever holds Quote is on screen, and holds actions that need a quote: each looks disabled, carries `aria-disabled`, and stays focusable, and a press on it is refused. A confirm applies to any action that needs a quote: its button becomes `Quote anyway?` (using that action's label) and the reason appears below. A reason added while the question stands makes the next press ask again rather than send, and a question whose action the venue takes away is withdrawn, so if the action comes back, the next press asks again; the next fresh press of the same action sends if checks pass; a double-click's second click or a held Enter's repeat does not count. Editing a level, choosing a size, or the venue resizing the inquiry clears the confirmation. Both checks run live and again on execution; `needsQuote: false` actions bypass them.
 
-A screen reader hears the limits when a press meets them, from one polite announcer: the blocks the press was refused for, on a level or any other field, or the question it asked, in the words they have as it lands. A held action stays in reach, so a press from a pointer, a key, touch, or assistive technology counts. Nothing is said as typing or the market changes the limits. A level's block shows under its field without an alert or a description, since the market rewords it; a press's own problem with a level, such as a crossed quote, is the field's alert and its description, and a new level on either side clears a crossed quote's message. What was said goes once the draft changes or any of it stops standing, and a block that comes back waits for the next press.
+A screen reader hears the limits when a press meets them, from one polite announcer: the blocks the press was refused for, on a level or any other field, or the question it asked, in the words they have as it lands. A held action stays in reach, so a press from a pointer, a key, touch, or assistive technology counts. Nothing is said as typing or the market changes the limits. A level's block shows under its field without an alert or a description, since the market rewords it; a press's own problem with a level, such as a crossed quote, is the field's alert and its description, a later press that meets it again is said by the announcer, since the alert's words haven't changed, and a new level on either side clears a crossed quote's message. What was said goes once the draft changes or any of it stops standing, and a block that comes back waits for the next press.
 
 ### Quick sizes
 
-`quickSizes={[1_000_000, 2_000_000]}` adds `For 5mm 1mm 2mm` beneath a 5mm inquiry's fields. The inquiry's size comes first; matching entries are removed from the displayed alternatives. Shortcuts still index your original array. Sizes use the convention's unit, and the selected button has `aria-pressed="true"`.
+`quickSizes={[1_000_000, 2_000_000]}` adds `For 5mm 1mm 2mm` beneath a 5mm inquiry's fields. The inquiry's size comes first; matching entries are removed from the displayed alternatives. A size that isn't a whole number above zero is left out, and a repeated one shows once; shortcuts index what remains, in your order, the inquiry's own size included where you listed it. Sizes use the convention's unit, and the selected button has `aria-pressed="true"`.
 
-Choosing a size changes the draft's `quantity`. Supply sizes the venue accepts; the ticket does not restrict them to less than the inquiry's size. An absent or empty array hides the row. Removing it later retains the selected draft quantity.
+Choosing a size changes the draft's `quantity`, and choosing the inquiry's own size follows the inquiry again through a resize. Supply sizes the venue accepts; the ticket does not restrict them to less than the inquiry's size. An absent or empty array hides the row. Removing it later retains the selected draft quantity.
 
 ### Labels
 
-`labels` overrides entries in `DEFAULT_RFQ_TICKET_LABELS`: side words, field and reference labels, quote-check messages, the nothing-allowed message, the unparsable-level message (`invalidLevel`, shown by the quote fields), and confirmation text (`anyway`, with an `{action}` placeholder). Action labels and server text come from their own inputs. Limit messages, the step buttons' fixed `up one tick` and `down one tick` name tails, and hotkey descriptions are separate from this prop.
+`labels` overrides entries in `DEFAULT_RFQ_TICKET_LABELS`: side words, field and reference labels, quote-check messages, the nothing-allowed message, the unparsable-level message (`invalidLevel`, shown by the quote fields), confirmation text (`anyway`, with an `{action}` placeholder), the step buttons' names (`stepUp` and `stepDown`, with a `{label}` placeholder), the notional unit (`millions`), the basis-point unit (`bp`), and the words a screen reader hears after a toned context value (`toneUp` and `toneDown`). Action labels and server text come from their own inputs, limit messages from `limitsLabels`, hotkey descriptions from the bindings you register, and the send button's key caps from the hotkeys library.
 
-The group is named `Inquiry Q-1` by default, using `labels.ticket` and the inquiry id, and the timer the same with the time left, such as `Inquiry Q-1 0:30`. Fields have visible labels and use `aria-invalid` when an error is shown.
+The group is named `Inquiry Q-1` by default, using `labels.ticket` and the inquiry id, and the timer the same with the time left, such as `Inquiry Q-1 0:30`. Fields have visible labels and use `aria-invalid` when an error is shown. The market and quoted levels are a table, so a screen reader reads each level with its row and side. Focus resting on the ticket itself draws a ring in the foreground at 60%, which holds 3:1.
 
 ### Tokens
 

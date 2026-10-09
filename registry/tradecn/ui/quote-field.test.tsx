@@ -53,7 +53,7 @@ describe("QuoteField", () => {
     expect(input()).not.toHaveAttribute("aria-invalid")
     fireEvent.blur(input())
     expect(input()).toHaveAttribute("aria-invalid", "true")
-    expect(screen.getByText("Not a price in this instrument's notation.")).toBeInTheDocument()
+    expect(screen.getByText("Not a quote in this instrument's notation.")).toBeInTheDocument()
     type(input(), "99-1")
     expect(input()).not.toHaveAttribute("aria-invalid")
     type(input(), "")
@@ -70,11 +70,16 @@ describe("QuoteField", () => {
     expect(input().value).toBe("99-22+")
   })
 
-  it("names the basis in its own words when the text is not a quote, or says what it is told to", () => {
+  it("says text is not a quote in the same words whatever the basis or label, or says what it is told to", () => {
     render(<QuoteField convention={BILL} value={null} onValueChange={() => {}} />)
     type(input("Discount"), "4-16")
     fireEvent.blur(input("Discount"))
-    expect(screen.getByText("Not a discount in this instrument's notation.")).toBeInTheDocument()
+    expect(screen.getByText("Not a quote in this instrument's notation.")).toBeInTheDocument()
+    // A label is never lowercased into the sentence, where "Offer" would read "a offer" and an acronym would lose its case.
+    render(<QuoteField convention={NOTE} label="OAS" value={null} onValueChange={() => {}} />)
+    type(input("OAS"), "x")
+    fireEvent.blur(input("OAS"))
+    expect(screen.getAllByText("Not a quote in this instrument's notation.")).toHaveLength(2)
     render(<QuoteField convention={CREDIT} value={null} onValueChange={() => {}} invalidText="Spreads are decimals." />)
     type(input("Spread"), "x")
     fireEvent.blur(input("Spread"))
@@ -91,10 +96,10 @@ describe("QuoteField", () => {
     expect(last(changes)).toBe(99.359375)
     expect(input().value).toBe("99-11+")
     set(99.359375)
-    fireEvent.click(screen.getByRole("button", { name: "Price up one tick" }))
+    fireEvent.click(screen.getByRole("button", { name: "Price up one step" }))
     expect(input().value).toBe("99-12")
     set(99.375)
-    fireEvent.click(screen.getByRole("button", { name: "Price down one tick" }))
+    fireEvent.click(screen.getByRole("button", { name: "Price down one step" }))
     expect(input().value).toBe("99-11+")
     set(99.359375)
     const before = changes.mock.calls.length
@@ -164,7 +169,7 @@ describe("QuoteField", () => {
   it("steps nowhere from a non-finite stepFrom", () => {
     const { changes } = mount({ value: null, stepFrom: Number.NaN })
     fireEvent.keyDown(input(), { key: "ArrowUp" })
-    fireEvent.click(screen.getByRole("button", { name: "Price up one tick" }))
+    fireEvent.click(screen.getByRole("button", { name: "Price up one step" }))
     expect(changes).not.toHaveBeenCalled()
     expect(input().value).toBe("")
   })
@@ -174,7 +179,7 @@ describe("QuoteField", () => {
     expect(screen.getByText("This order type needs a price.")).toBeInTheDocument()
     expect(input()).toHaveAttribute("aria-invalid", "true")
     expect(input()).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Price up one tick" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Price up one step" })).toBeDisabled()
   })
 
   it("ties its problem to the input and alerts with it, unless the parent says it itself", () => {
@@ -190,8 +195,20 @@ describe("QuoteField", () => {
     set(null, { error: undefined, announceError: false })
     type(input(), "abc")
     fireEvent.blur(input())
-    const own = screen.getByText("Not a price in this instrument's notation.")
+    const own = screen.getByText("Not a quote in this instrument's notation.")
     expect(own).toHaveAttribute("role", "alert")
     expect(input()).toHaveAttribute("aria-describedby", own.id)
+  })
+
+  it("names its step buttons from labels, and leaves the phone its text keyboard, which has the minus and plus a quote needs", () => {
+    render(<QuoteField convention={NOTE} label="Prix" value={99.5} onValueChange={() => {}} labels={{ stepUp: "{label} : un pas de plus", stepDown: "{label} : un pas de moins" }} />)
+    expect(screen.getByRole("button", { name: "Prix : un pas de plus" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Prix : un pas de moins" })).toBeInTheDocument()
+    expect(input("Prix")).not.toHaveAttribute("inputmode")
+  })
+
+  it("keeps the default for a word given as undefined", () => {
+    render(<QuoteField convention={NOTE} value={99.5} onValueChange={() => {}} labels={{ stepUp: undefined }} />)
+    expect(screen.getByRole("button", { name: "Price up one step" })).toBeInTheDocument()
   })
 })

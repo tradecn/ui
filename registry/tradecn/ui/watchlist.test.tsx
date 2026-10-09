@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Button } from "@/components/ui/button"
 import { createRowStore, type RowId, type RowStore } from "@/registry/tradecn/lib/row-store"
-import { Watchlist, WatchlistGrid, WatchlistAddForm, WatchlistAddInput, WatchlistAddButton, WatchlistRemoveButton, WatchlistRemoveMenuItem, useWatchlist, useWatchlistAdd, watchlistColumns, watchlistRemoveColumn, type WatchlistActions, type WatchlistProps, type WatchlistGridProps, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
+import { Watchlist, WatchlistGrid, WatchlistAddForm, WatchlistAddInput, WatchlistAddButton, WatchlistAddStatus, WatchlistRemoveButton, WatchlistRemoveMenuItem, useWatchlist, useWatchlistAdd, watchlistColumns, watchlistRemoveColumn, type WatchlistActions, type WatchlistProps, type WatchlistGridProps, type WatchlistRow } from "@/registry/tradecn/ui/watchlist"
 
 const RECT = { width: 700, height: 220 }
 const saved = new Map<string, PropertyDescriptor | undefined>()
@@ -57,7 +57,7 @@ function Harness({ store, onAdd, onRemove, normalize, validate, selection, onSel
   return (
     <div style={{ height: 300 }}>
       <Watchlist store={store} onAdd={onAdd} onRemove={onRemove} normalize={normalize} validate={validate} selection={selection} onSelectionChange={onSelectionChange} focusedRowId={focusedRowId} onFocusedRowChange={onFocusedRowChange}>
-        {onAdd && <WatchlistAddForm><WatchlistAddInput placeholder={addPlaceholder} /><WatchlistAddButton /></WatchlistAddForm>}
+        {onAdd && <WatchlistAddForm><WatchlistAddInput placeholder={addPlaceholder} /><WatchlistAddButton /><WatchlistAddStatus /></WatchlistAddForm>}
         <WatchlistGrid initialRect={RECT} {...grid} columns={columns} renderContextMenu={onRemove ? (_, ids) => <WatchlistRemoveMenuItem ids={ids} /> : grid.renderContextMenu} />
       </Watchlist>
     </div>
@@ -213,6 +213,39 @@ describe("Watchlist", () => {
     expect(field).toHaveAttribute("aria-invalid", "true")
     await user.type(field, "x")
     expect(field).not.toHaveAttribute("aria-invalid")
+  })
+
+  it("says what an add came to and points the field at it: added, already listed with its row focused, or refused", async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    const onFocus = vi.fn()
+    render(<Harness store={seeded()} onAdd={onAdd} validate={(symbol) => symbol !== "XYZ"} onFocusedRowChange={onFocus} />)
+    const field = screen.getByRole("textbox", { name: "Add symbol" })
+    const status = () => screen.getByRole("status")
+    await user.type(field, "gc{Enter}")
+    expect(onAdd).toHaveBeenCalledExactlyOnceWith("GC")
+    expect(status()).toHaveTextContent("Adding GC")
+    expect(field).toHaveAccessibleDescription("Adding GC")
+    await user.type(field, "es{Enter}")
+    expect(status()).toHaveTextContent("ES is already listed")
+    expect(onFocus).toHaveBeenLastCalledWith("ES")
+    await user.type(field, "xyz{Enter}")
+    expect(field).toHaveAttribute("aria-invalid", "true")
+    expect(field).toHaveAccessibleDescription("XYZ can't be added")
+    // Typing again clears the word and the invalid mark.
+    await user.type(field, "x")
+    expect(status()).toBeEmptyDOMElement()
+    expect(field).not.toHaveAttribute("aria-describedby")
+  })
+
+  it("keeps focus off the remove button a pointer presses, and asks only for symbols the store still holds", () => {
+    const onRemove = vi.fn()
+    const store = seeded()
+    render(<Harness store={store} onRemove={onRemove} selection={new Set(["ZN", "GONE"])} />)
+    const button = screen.getByRole("button", { name: "Remove ES" })
+    expect(fireEvent.mouseDown(button)).toBe(false)
+    fireEvent.keyDown(screen.getByRole("grid"), { key: "Delete" })
+    expect(onRemove).toHaveBeenCalledExactlyOnceWith(["ZN"])
   })
 
   it("names its remove column in words", () => {
