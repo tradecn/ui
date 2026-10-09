@@ -1003,8 +1003,6 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   }, [resolved, selectionColumn])
   const template = useMemo(() => (selectionColumn ? `${SELECT_WIDTH}px ` : "") + resolved.map((c) => `${c.width}px`).join(" "), [resolved, selectionColumn])
   const totalWidth = useMemo(() => resolved.reduce((s, c) => s + c.width, selectionColumn ? SELECT_WIDTH : 0), [resolved, selectionColumn])
-  // The order and widths, so a commit can tell whether the columns moved or resized since a key asked them to.
-  const layoutKey = useMemo(() => resolved.map((c) => `${c.key}:${c.width}`).join("|"), [resolved])
 
   const memory = useMemo(() => createFlashMemory(), [])
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -1015,9 +1013,9 @@ export function DataGrid<T>(props: DataGridProps<T>) {
   // Scrolls a row into view. Set once the virtualizer exists; the controller calls it when an editor opens.
   const revealRow = useRef<(rowId: RowId) => void>(() => {})
   const revealColumn = useRef<(key: string) => void>(() => {})
-  // A column the keys moved or resized, with the layout it was asked under: the first commit whose layout differs,
-  // however late a controlled parent applies the change, brings it into view.
-  const columnToReveal = useRef<{ key: string; from: string } | null>(null)
+  // A column the keys moved or resized, with the place and width the request gives it: the commit that lays the column
+  // out there, however late a controlled parent applies the change, brings it into view, and no other commit does.
+  const columnToReveal = useRef<{ key: string; index: number; width: number } | null>(null)
 
   // Editing: one controller for the grid's life, reading the latest columns and onEdit through a ref, so the
   // memoized rows are handed one object and never re-render for it. Null without `onEdit`: nothing opens.
@@ -1091,7 +1089,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       const row = store.getRow(rowId)
       if (!canEditCell(col, row) || col.edit.toggle) return
       cellsByKey.set(cellKey(rowId, key), rowId)
-      // Sideways as the row is below: an editor never opens, or commits, in a column out of sight.
+      // Sideways as the row is below: the editor opens with its column in sight.
       revealColumn.current(key)
       const k = cellKey(rowId, key)
       const before = tracker.editing()
@@ -1341,10 +1339,13 @@ export function DataGrid<T>(props: DataGridProps<T>) {
       else if (el.scrollLeft < end) el.scrollLeft = Math.min(end, start)
     }
     const pending = columnToReveal.current
-    if (pending !== null && pending.key !== focusedColKey) columnToReveal.current = null
-    else if (pending !== null && pending.from !== layoutKey) {
-      columnToReveal.current = null
-      revealColumn.current(pending.key)
+    if (pending !== null) {
+      const i = resolved.findIndex((c) => c.key === pending.key)
+      if (pending.key !== focusedColKey || i < 0) columnToReveal.current = null
+      else if (i === pending.index && resolved[i]!.width === pending.width) {
+        columnToReveal.current = null
+        revealColumn.current(pending.key)
+      }
     }
   })
   const uid = useId()
@@ -1691,11 +1692,20 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         e.preventDefault()
         const delta = e.key === "ArrowLeft" ? -1 : 1
         if (e.altKey && focusedColKey) {
-          if (e.shiftKey) resizeColumn(focusedColKey, (resolved[ci]?.width ?? 0) + delta * 8)
-          else moveColumn(focusedColKey, delta)
-          // The move lands in whichever commit lays it out, which brings the column into view where it now sits; a
-          // focus or pointer moving on first, or the move never landing, leaves no reveal behind.
-          columnToReveal.current = { key: focusedColKey, from: layoutKey }
+          const at = resolved[ci]
+          // Recorded before the state changes, so a commit the change flushes at once still finds it, and only when the
+          // request can change the layout: past either end, across the frozen boundary, or under the minimum width,
+          // nothing moves. The commit that lays the column out as asked brings it into view; focus or a pointer moving
+          // on first drops the request, and a parent that never applies it never scrolls the grid for it.
+          if (at && e.shiftKey) {
+            const width = Math.max(at.minWidth, Math.round(at.width + delta * 8))
+            if (width !== at.width) columnToReveal.current = { key: at.key, index: ci, width }
+            resizeColumn(focusedColKey, at.width + delta * 8)
+          } else if (at) {
+            const beside = resolved[ci + delta]
+            if (beside && (beside.frozen === "left") === (at.frozen === "left")) columnToReveal.current = { key: at.key, index: ci + delta, width: at.width }
+            moveColumn(focusedColKey, delta)
+          }
           return
         }
         const next = resolved[Math.max(0, Math.min(resolved.length - 1, ci < 0 ? (delta > 0 ? 0 : resolved.length - 1) : ci + delta))]
@@ -1738,7 +1748,7 @@ export function DataGrid<T>(props: DataGridProps<T>) {
         if (e.key === "F2") return
         if (focusedRowId !== null) {
           const row = store.getRow(focusedRowId)
-          // A held Enter activates the row once, as a press counts once everywhere in the library.
+          // A held Enter activates the row once, as a held key commits a toggle once.
           if (row !== undefined && !e.repeat) onRowActivate?.(row, focusedRowId)
         }
         return
@@ -1786,12 +1796,13 @@ export function DataGrid<T>(props: DataGridProps<T>) {
     const el = Array.from(root?.querySelectorAll<HTMLElement>('[role="row"][data-row-id]') ?? []).find(row => row.id === id)
     const ownerWindow = el?.ownerDocument.defaultView
     if (!el || !ownerWindow || !gridTarget(root, el)) return
+    // At the focused cell, brought into view first, as a wheel may have scrolled it away, else the row's visible left
+    // edge: scrolled sideways, the row's own left edge sits off to the left of the grid.
+    if (focusedColKey !== null) revealColumn.current(focusedColKey)
     const r = el.getBoundingClientRect()
-    // At the focused cell, which the keys keep in view, else the row's visible left edge: scrolled sideways, the row's
-    // own left edge sits off to the left of the grid.
-    const cell = focusedColKey === null ? null : el.querySelector<HTMLElement>(`[data-col="${focusedColKey.replace(/["\\]/g, "\\$&")}"]`)
-    const view = scrollRef.current?.getBoundingClientRect()
-    const left = cell ? cell.getBoundingClientRect().left : Math.max(r.left, view?.left ?? r.left)
+    const cell = focusedColKey === null ? undefined : Array.from(el.children).find((child) => child.getAttribute("data-col") === focusedColKey)
+    const port = scrollRef.current?.getBoundingClientRect()
+    const left = cell ? cell.getBoundingClientRect().left : Math.max(r.left, port?.left ?? r.left)
     el.dispatchEvent(new ownerWindow.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: left + 8, clientY: r.top + r.height / 2, button: 2 }))
   }
 

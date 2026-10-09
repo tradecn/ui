@@ -438,6 +438,8 @@ The handle is pointer-only. Use Alt+Shift+Left or Right with the grid focused to
 
 A selected row is marked by a bar at the start of its first cell, the selection box's when there is one, where v1 filled the row with `bg-accent`, which could put up or down text below 4.5 to 1 in light mode. A rule's tone paints foreground text on its tint, and up, down, flat, stale, expiring, destructive, and primary text inside takes the foreground too, where v1 colored the text with the tone. A frozen cell in the focused column keeps its opaque background, where v1 let rows scrolling beneath show through it.
 
+A held key acts once per press: Space, Enter, or F2 on a toggle cell commits once, Space selects or toggles a row once, and Enter activates a row once, where v1 acted again on every key repeat. Left and Right, the Alt moves and resizes, an opening editor, and a toggle's commit scroll the grid sideways to bring their column into view, clear of the frozen columns, where v1 left a sheet wider than its panel where it was scrolled. Shift+F10 and the Menu key open the menu at the focused cell, where v1 opened it 8 px in from the row's left edge, off to the side of a grid scrolled sideways. The row count announces `1 row`, where v1 said `1 rows`.
+
 ## DepthLadder
 
 Replace the self-closing `DepthLadder` with an explicit composition.
