@@ -240,7 +240,7 @@ Action invocation rechecks the store even if the displayed count has become stal
 
 ### Delete cancels nothing by default
 
-`deleteAction="cancel"` runs the matching action when Delete or Backspace is pressed on the focused grid. It uses the selection, or the focused row when the selection is empty, and rechecks permissions before dispatch.
+`deleteAction="cancel"` runs the matching action when Delete or Backspace is pressed on the focused grid. It uses the selection, or the focused row when the selection is empty, rechecks permissions before dispatch, and runs once per press: a held key's repeats run nothing more.
 
 Deletion keys are off by default. Nothing runs when the event was prevented, no rows are in hand, no matching action exists or no target still allows it.
 

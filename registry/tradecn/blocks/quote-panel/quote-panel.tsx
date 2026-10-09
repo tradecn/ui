@@ -6,7 +6,7 @@ import { useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
 import { NULL_TOKEN, NUMERIC_CLASS, formatQuantity, formatQuote, quoteInvertedOf, formatTicks, numericFontClass, parseQuote, stepQuote, stripGrouping, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import { blocks, checkLimits, confirms, type Limits, type LimitsDraft } from "@/registry/tradecn/lib/limits"
 import type { RowId } from "@/registry/tradecn/lib/row-store"
-import { DataGrid, editProblem, type CellEdit, type ColumnDef, type DataGridProps, type EditChange, type EditCommit, type EditProblem } from "@/registry/tradecn/ui/data-grid"
+import { DataGrid, editProblem, type CellEdit, type ColumnDef, type DataGridLabels, type DataGridProps, type EditChange, type EditCommit, type EditProblem } from "@/registry/tradecn/ui/data-grid"
 
 // A market maker's two-way panel: one row per instrument with the market's bid and ask, the desk's bid and
 // ask, the skew and the width, a size per side, the server's status word, and the actions the server allows
@@ -482,7 +482,9 @@ export interface QuotePanelQuestion {
   onQuestion: (question: string | null) => void
 }
 
-export interface QuotePanelProps<T extends QuoteRow = QuoteRow> extends Omit<DataGridProps<T>, "columns" | "preset" | "label" | "onEdit">, Omit<QuoteColumnOptions<T>, "asked" | "onQuestion"> {
+export interface QuotePanelProps<T extends QuoteRow = QuoteRow> extends Omit<DataGridProps<T>, "columns" | "preset" | "label" | "onEdit" | "labels">, Omit<QuoteColumnOptions<T>, "asked" | "onQuestion"> {
+  /** The panel's words beside its own: `QuotePanelLabels` and DataGrid's `DataGridLabels`. */
+  labels?: Partial<QuotePanelLabels & DataGridLabels>
   /**
    * `quotePanelColumns(options)` by default. A list replaces the columns; a function receives the panel's
    * question wiring to spread into `quotePanelColumns` or `quoteEdit`, and keeps the panel's question line.
@@ -647,7 +649,7 @@ export function QuotePanel<T extends QuoteRow = QuoteRow>({ store, convention, l
           </div>
         )}
         <div className="min-h-0 flex-1">
-          <DataGrid<T> {...grid} store={store} preset="parameters" label={label} columns={all} onEdit={edit} renderContextMenu={hasMenu ? menu : undefined} />
+          <DataGrid<T> {...grid} store={store} preset="parameters" label={label} labels={labelsProp} columns={all} onEdit={edit} renderContextMenu={hasMenu ? menu : undefined} />
         </div>
       </div>
     </PendingRunsContext.Provider>

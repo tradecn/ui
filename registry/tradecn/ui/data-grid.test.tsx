@@ -417,6 +417,38 @@ describe("DataGrid", () => {
     }
   })
 
+  it("says its own words through `labels`: a template, or a function of a count", async () => {
+    vi.useFakeTimers()
+    try {
+      const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+      seed(2, store)
+      const labels = {
+        selectRow: "Zeile wählen",
+        columnMenu: "Menü {name}",
+        resizeColumn: "Breite {name}",
+        sortAscending: "Aufsteigend",
+        moveLeft: "Nach links",
+        moveRight: "Nach rechts",
+        hideColumn: "Ausblenden",
+        resetColumns: "Zurücksetzen ({n})",
+        rowCount: (rows: number, arrived: number) => `${rows} Zeilen, ${arrived} neu`,
+      }
+      render(<DataGrid store={store} columns={columns} label="Quotes" preset="blotter" rowHeight={ROW_HEIGHT} initialRect={RECT} selectionMode="multi" selectionColumn labels={labels} />)
+      expect(screen.getAllByRole("checkbox", { name: "Zeile wählen" })).toHaveLength(2)
+      expect(screen.getByRole("separator", { name: "Breite Price" })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Menü Price" }))
+      act(() => void vi.advanceTimersByTime(0))
+      for (const name of ["Aufsteigend", "Nach links", "Nach rechts", "Ausblenden", "Zurücksetzen (0)"]) expect(screen.getByRole("menuitem", { name })).toBeInTheDocument()
+      fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" })
+      act(() => void vi.advanceTimersByTime(1000))
+      act(() => seed(3, store))
+      act(() => void vi.advanceTimersByTime(1000))
+      expect(screen.getByRole("grid").querySelector('[aria-live="polite"]:not([data-grid-row-reading])')).toHaveTextContent(/^3 Zeilen, 1 neu$/)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("brings a column the keys move to into view sideways, clear of the frozen ones, and the column an editor opens in", () => {
     type Wide = { id: string } & Record<string, string | number>
     const store = createRowStore<Wide>({ getRowId: (r) => r.id })
@@ -645,6 +677,103 @@ describe("DataGrid", () => {
       expect(scroller.scrollLeft).toBe(400)
     })
 
+    it("brings the focused column back into view when a key moves row focus", () => {
+      const store = wideStore()
+      store.applyDeltas({ upsert: ["b", "c"].map((id) => ({ id, ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`c${i}`, i])) })) })
+      render(<DataGrid store={store} columns={wideColumns} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} />)
+      const grid = screen.getByRole("grid")
+      const scroller = scrollerOf()
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      for (let i = 0; i < 5; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+      expect(scroller.scrollLeft).toBe(200)
+      // A wheel scrolls c4 away; each key that moves row focus brings it back.
+      for (const key of ["ArrowDown", "ArrowUp", "PageDown", "PageUp", "End", "Home"]) {
+        scroller.scrollLeft = 0
+        fireEvent.keyDown(grid, { key })
+        expect([key, scroller.scrollLeft]).toEqual([key, 200])
+      }
+    })
+
+    it("moves a column from its header menu into view, and offers no move across the frozen column", async () => {
+      const onColumns = vi.fn()
+      render(<DataGrid store={wideStore()} columns={wideColumns} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} onColumnStateChange={onColumns} />)
+      const scroller = scrollerOf()
+      // c1 sits beside the frozen c0, which leads whatever the order says.
+      fireEvent.click(screen.getByRole("button", { name: "C1 column menu" }))
+      expect(await screen.findByRole("menuitem", { name: "Move left" })).toHaveAttribute("aria-disabled", "true")
+      fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" })
+      // c6 moved past c7 lands at 850 to 950, and comes into view.
+      fireEvent.click(screen.getByRole("button", { name: "C6 column menu" }))
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Move right" }))
+      expect(onColumns).toHaveBeenLastCalledWith(expect.objectContaining({ order: ["c0", "c1", "c2", "c3", "c4", "c5", "c7", "c6"] }))
+      expect(scroller.scrollLeft).toBe(650)
+    })
+
+    it("changes nothing for a move across the frozen column or a resize under the minimum width", () => {
+      const onColumns = vi.fn()
+      const floored = wideColumns.map<ColumnDef<Wide>>((c) => (c.key === "c1" ? { ...c, minWidth: 100 } : c))
+      render(<DataGrid store={wideStore()} columns={floored} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} onColumnStateChange={onColumns} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "ArrowRight" })
+      fireEvent.keyDown(grid, { key: "ArrowLeft", altKey: true })
+      fireEvent.keyDown(grid, { key: "ArrowLeft", altKey: true, shiftKey: true })
+      expect(onColumns).not.toHaveBeenCalled()
+      fireEvent.keyDown(grid, { key: "ArrowRight", altKey: true, shiftKey: true })
+      expect(onColumns).toHaveBeenLastCalledWith(expect.objectContaining({ widths: { c1: 108 } }))
+    })
+
+    it("reveals a requested move only in the order it asked for, not when another change lands the column at the same place", () => {
+      const store = wideStore()
+      let set: (state: ColumnState) => void = () => {}
+      function Rejecting() {
+        const [state, setState] = useState<ColumnState>(EMPTY_COLUMN_STATE)
+        set = setState
+        return <DataGrid store={store} columns={wideColumns} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} columnState={state} onColumnStateChange={() => {}} />
+      }
+      render(<Rejecting />)
+      const grid = screen.getByRole("grid")
+      const scroller = scrollerOf()
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      for (let i = 0; i < 7; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+      // c6 asks to go before c5; the parent never applies that, but hides c1, which puts c6 at the place it asked for.
+      fireEvent.keyDown(grid, { key: "ArrowLeft", altKey: true })
+      scroller.scrollLeft = 0
+      act(() => set({ ...EMPTY_COLUMN_STATE, hidden: ["c1"] }))
+      expect(scroller.scrollLeft).toBe(0)
+    })
+
+    it("brings a column into view for an open() a cell calls from its own layout effect, in the commit that shows its column", () => {
+      function Opener({ edit }: { edit?: CellEditHandle }) {
+        useLayoutEffect(() => {
+          edit?.open()
+          // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [])
+        return <span>c6</span>
+      }
+      const opening = wideColumns.map<ColumnDef<Wide>>((c) => (c.key === "c6" ? { ...c, cell: ({ edit }) => <Opener edit={edit} /> } : c))
+      const view = (hidden: string[]) => <DataGrid store={wideStore()} columns={opening} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => {}} columnState={{ ...EMPTY_COLUMN_STATE, hidden }} />
+      const { rerender } = render(view(["c6"]))
+      const scroller = scrollerOf()
+      rerender(view([]))
+      expect(screen.getByRole("textbox", { name: "C6" })).toBeInTheDocument()
+      expect(scroller.scrollLeft).toBe(400)
+    })
+
+    it("acts once for a held key that would open an editor: Enter, F2, or a typed character", () => {
+      render(<DataGrid store={wideStore()} columns={wideColumns} label="Wide" rowHeight={ROW_HEIGHT} initialRect={RECT} onEdit={() => {}} />)
+      const grid = screen.getByRole("grid")
+      fireEvent.keyDown(grid, { key: "ArrowDown" })
+      for (let i = 0; i < 7; i++) fireEvent.keyDown(grid, { key: "ArrowRight" })
+      for (const key of ["Enter", "F2", "7"]) {
+        fireEvent.keyDown(grid, { key, repeat: true })
+        expect([key, screen.queryByRole("textbox", { name: "C6" })]).toEqual([key, null])
+      }
+      fireEvent.keyDown(grid, { key: "F2" })
+      expect(screen.getByRole("textbox", { name: "C6" })).toBeInTheDocument()
+    })
+
     it("opens Shift+F10's menu at the focused cell, brought back into view, or at the grid's visible left edge when the row runs off to the left", () => {
       const seen: number[] = []
       // c1 holds an element that claims c4's column, as a nested grid's cell would; the menu still finds the row's own c4.
@@ -681,6 +810,32 @@ describe("DataGrid", () => {
         rects.mockRestore()
       }
     })
+  })
+
+  it("acts once for a held Alt+S, Ctrl+A, Alt+H, or Shift+F10", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(3, store)
+    const onSort = vi.fn()
+    const onSelection = vi.fn()
+    const onColumns = vi.fn()
+    const opened: number[] = []
+    render(<DataGrid store={store} columns={columns} label="Quotes" rowHeight={ROW_HEIGHT} initialRect={RECT} selectionMode="multi" onSortChange={onSort} onSelectionChange={onSelection} columnState={EMPTY_COLUMN_STATE} onColumnStateChange={onColumns} renderContextMenu={() => <div>menu</div>} />)
+    const grid = screen.getByRole("grid")
+    fireEvent.keyDown(grid, { key: "ArrowDown" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    fireEvent.keyDown(grid, { key: "ArrowRight" })
+    for (const repeat of [false, true, true]) fireEvent.keyDown(grid, { key: "s", altKey: true, repeat })
+    expect(onSort).toHaveBeenCalledTimes(1)
+    onSelection.mockClear()
+    for (const repeat of [false, true, true]) fireEvent.keyDown(grid, { key: "a", ctrlKey: true, repeat })
+    expect(onSelection).toHaveBeenCalledTimes(1)
+    // The parent here never applies the hide, so focus stays on Price and each repeat would ask again.
+    for (const repeat of [false, true, true]) fireEvent.keyDown(grid, { key: "h", altKey: true, repeat })
+    expect(onColumns).toHaveBeenCalledTimes(1)
+    const row = document.querySelector<HTMLElement>('[role="row"][data-row-id="r0"]')!
+    row.addEventListener("contextmenu", () => opened.push(1))
+    for (const repeat of [false, true, true]) fireEvent.keyDown(grid, { key: "F10", shiftKey: true, repeat })
+    expect(opened).toHaveLength(1)
   })
 
   it("activates a row once for a held Enter", () => {
@@ -2092,6 +2247,15 @@ describe("footer totals and the tape", () => {
     expect(grid).toHaveAttribute("aria-rowcount", "6")
   })
 
+  it("says the pill's count in its own words", () => {
+    const store = createRowStore<Quote>({ getRowId: (r) => r.id })
+    seed(5, store)
+    render(<DataGrid store={store} columns={columns} label="Tape" preset="tape" rowHeight={ROW_HEIGHT} initialRect={RECT} labels={{ newRows: (n) => `${n} neue Zeilen` }} />)
+    fireEvent.pointerDown(screen.getAllByRole("row")[1]!)
+    act(() => store.applyDeltas({ upsert: [{ id: "r6", sym: "S0006", px: 106, qty: 60 }, { id: "r7", sym: "S0007", px: 107, qty: 70 }] }))
+    expect(screen.getByRole("grid").querySelector("[data-grid-behind]")).toHaveTextContent(/^2 neue Zeilen$/)
+  })
+
   it("a tape follows the tail and counts arrivals on a pill after a touch, and the pill returns to the tail", () => {
     const store = createRowStore<Quote>({ getRowId: (r) => r.id })
     seed(5, store)
@@ -2113,7 +2277,7 @@ describe("footer totals and the tape", () => {
       }),
     )
     const pill = grid.querySelector("[data-grid-behind]")!
-    expect(pill).toHaveTextContent("2 new")
+    expect(pill).toHaveTextContent(/^2 new$/)
     expect(pill).toHaveAttribute("data-grid-behind", "2")
     fireEvent.click(pill)
     expect(grid.querySelector("[data-grid-behind]")).toBeNull()

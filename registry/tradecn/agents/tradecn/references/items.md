@@ -44,7 +44,7 @@ Exports: `Countdown`, `countdownTier`, `formatRemaining`, `PROVISIONAL_COUNTDOWN
 
 Virtualized grid fed by a row store one row at a time: a delta re-renders one row, numeric cells flash by direction, frozen and resizable columns, keyboard selection by row id, a reorder hold, a right-click menu, footer totals, cells edited in place as commands the server answers, presets for blotter, watchlist, RFQ, option chain, tape, and parameters.
 
-Exports: `DataGrid`, `DATA_GRID_PRESETS`, `exportCsv`, `editProblem`, `isEditProblem`, `EMPTY_COLUMN_STATE`, `compareForSort`, `comparatorFor`, `resolveColumns`.
+Exports: `DataGrid`, `DATA_GRID_PRESETS`, `exportCsv`, `editProblem`, `isEditProblem`, `EMPTY_COLUMN_STATE`, `DEFAULT_DATA_GRID_LABELS`, `compareForSort`, `comparatorFor`, `resolveColumns`.
 
 ### Depth Ladder (`depth-ladder`)
 

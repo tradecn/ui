@@ -224,6 +224,10 @@ describe("Watchlist", () => {
     view.rerender(<Harness store={seeded()} onRemove={onRemove} focusedRowId="ES" selection={new Set(["ZN", "CL"])} />)
     fireEvent.keyDown(screen.getByRole("grid"), { key: "Backspace" })
     expect(onRemove).toHaveBeenLastCalledWith(["ZN", "CL"])
+    // A held key removes once: its repeats would go on to the row focus lands on next.
+    onRemove.mockClear()
+    for (const repeat of [false, true, true]) fireEvent.keyDown(screen.getByRole("grid"), { key: "Delete", repeat })
+    expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
   it("leaves Delete and Backspace alone in the add field, and does nothing with no row in hand", async () => {

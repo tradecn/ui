@@ -57,6 +57,13 @@ function setup(props: Partial<QuotePanelProps> = {}) {
   return { store, grid, cell, open, type, onEdit, onPullAll, actions }
 }
 
+describe("QuotePanel labels", () => {
+  it("takes the grid's words beside its own", () => {
+    setup({ labels: { bid: "Geld", columnMenu: "Menü {name}" } })
+    expect(screen.getByRole("button", { name: "Menü Geld" })).toBeInTheDocument()
+  })
+})
+
 describe("quotePanelColumns and quoteEdit", () => {
   it("lays out the instrument, the status, both two-ways, skew, width, the sizes, and the actions, in the convention's family", () => {
     const columns = quotePanelColumns({ convention: T32, actions: [{ id: "a", label: "A", run: () => {} }] })

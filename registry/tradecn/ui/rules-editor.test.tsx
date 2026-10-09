@@ -458,6 +458,23 @@ describe("RulesEditor", () => {
     expect(fields).toHaveBeenCalledOnce()
   })
 
+  it("puts a count of one in the singular, and takes a template or a function for each count", () => {
+    const store = seeded()
+    // The filter passes one row of one: ALPHA, the only row left.
+    store.applyDeltas({ remove: ["b", "c", "d"] })
+    const one: GridRules = { columns: [{ id: "alpha", column: "client", when: { op: "eq", value: "ALPHA" }, tone: "up" }], filter: [{ column: "client", op: "eq", value: "ALPHA" }] }
+    const view = (labels?: Parameters<typeof RulesEditor>[0]["labels"]) => <RulesEditor columns={columns} rules={one} onRulesChange={() => {}} store={store} labels={labels}>
+      <RulesEditorItem kind="highlights" index={0}><RulesEditorMatchCount /></RulesEditorItem>
+      <RulesEditorFilterCount />
+    </RulesEditor>
+    const { rerender } = render(view())
+    expect(document.querySelector("[data-rule-count]")).toHaveTextContent("1 row matches")
+    expect(document.querySelector("[data-rules-shown]")).toHaveTextContent("1 of 1 row shows")
+    rerender(view({ matches: "Treffer: {n}", shown: (n, m) => `${n}/${m}` }))
+    expect(document.querySelector("[data-rule-count]")).toHaveTextContent("Treffer: 1")
+    expect(document.querySelector("[data-rules-shown]")).toHaveTextContent("1/1")
+  })
+
   it("cancels pending counts and unsubscribes on store replacement and unmount", () => {
     const first = seeded()
     const second = seeded()
@@ -474,7 +491,7 @@ describe("RulesEditor", () => {
     rerender(view(second))
     expect(stop).toHaveBeenCalledOnce()
     expect(vi.getTimerCount()).toBe(0)
-    expect(document.querySelector('[data-rule-id="rich"] [data-rule-count]')).toHaveTextContent("1 rows match")
+    expect(document.querySelector('[data-rule-id="rich"] [data-rule-count]')).toHaveTextContent("1 row matches")
     rerender(view())
     expect(document.querySelector("[data-rule-count]")).toBeNull()
     unmount()

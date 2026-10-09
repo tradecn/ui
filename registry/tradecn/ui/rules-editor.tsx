@@ -64,10 +64,10 @@ export interface RulesEditorLabels {
   remove: string
   moveUp: string
   moveDown: string
-  /** `{n}` is the count. */
-  matches: string
-  /** `{n}` pass of `{m}`. */
-  shown: string
+  /** The rows a highlight or filter matches: a template with `{n}`, or a function of the count, for a plural a template can't hold. */
+  matches: string | ((n: number) => string)
+  /** The rows the filters pass, `{n}`, of all `{m}`: a template, or a function of both counts. */
+  shown: string | ((n: number, m: number) => string)
   noHighlights: string
   noFilters: string
   noSort: string
@@ -100,8 +100,8 @@ export const DEFAULT_RULES_EDITOR_LABELS: RulesEditorLabels = {
   remove: "Remove",
   moveUp: "Move up",
   moveDown: "Move down",
-  matches: "{n} rows match",
-  shown: "{n} of {m} rows show",
+  matches: (n) => `${n.toLocaleString()} ${n === 1 ? "row matches" : "rows match"}`,
+  shown: (n, m) => `${n.toLocaleString()} of ${m.toLocaleString()} ${m === 1 ? "row" : "rows"} ${n === 1 ? "shows" : "show"}`,
   noHighlights: "No highlights. Add one to color a cell or a row when a value crosses a line.",
   noFilters: "No filters. Every row shows.",
   noSort: "No sort keys. Rows keep their arrival order, or the order a header sets.",
@@ -695,13 +695,13 @@ export function RulesEditorMatchCount({ className, ...props }: ComponentProps<"s
   const { labels } = useRulesEditor()
   const counts = useContext(CountsContext)
   const n = kind === "sort" ? null : counts[kind]?.[index] ?? null
-  return n === null ? null : <span data-rule-count={n} className={cn("text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{fill(labels.matches, { n })}</span>
+  return n === null ? null : <span data-rule-count={n} className={cn("text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{typeof labels.matches === "function" ? labels.matches(n) : fill(labels.matches, { n })}</span>
 }
 
 export function RulesEditorFilterCount({ className, ...props }: ComponentProps<"span">) {
   const { labels } = useRulesEditor()
   const { shown } = useContext(CountsContext)
-  return shown ? <span data-rules-shown={shown.n} className={cn("text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{fill(labels.shown, shown)}</span> : null
+  return shown ? <span data-rules-shown={shown.n} className={cn("text-muted-foreground", NUMERIC_CLASS, className)} {...props}>{typeof labels.shown === "function" ? labels.shown(shown.n, shown.m) : fill(labels.shown, shown)}</span> : null
 }
 
 export function RulesEditorRuleCount({ kind, className, ...props }: ComponentProps<"span"> & { kind: RulesEditorKind }) {

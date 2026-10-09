@@ -311,6 +311,8 @@ Rule data that can't be read no longer throws, and `readRules` reads rules a des
 
 Fixed `rules-tab-*` and `rules-panel-*` IDs and the root's `data-tab` marker are removed. Your installed `Tabs` owns tab IDs and state. You can use role/name locators or set explicit IDs on your Tabs parts.
 
+The `matches` and `shown` labels take a function of the counts as well as a template, and their defaults are now functions that put one in the singular, `1 row matches` and `1 of 1 row shows`, where v1's templates said `1 rows match`. A template of your own still works; code that reads `DEFAULT_RULES_EDITOR_LABELS.matches` or `.shown` as a string calls it instead.
+
 ## HotkeyEditor
 
 `HotkeyEditor` now requires `children`. Compose an item for one binding, or map `useHotkeyEditor().groups` into your own sections and items.
@@ -438,7 +440,7 @@ The handle is pointer-only. Use Alt+Shift+Left or Right with the grid focused to
 
 A selected row is marked by a bar at the start of its first cell, the selection box's when there is one, where v1 filled the row with `bg-accent`, which could put up or down text below 4.5 to 1 in light mode. A rule's tone paints foreground text on its tint, and up, down, flat, stale, expiring, destructive, and primary text inside takes the foreground too, where v1 colored the text with the tone. A frozen cell in the focused column keeps its opaque background, where v1 let rows scrolling beneath show through it.
 
-A held key acts once per press: Space, Enter, or F2 on a toggle cell commits once, Space selects or toggles a row once, and Enter activates a row once, where v1 acted again on every key repeat. Left and Right, the Alt moves and resizes, an opening editor, and a toggle's commit scroll the grid sideways to bring their column into view, clear of the frozen columns, where v1 left a sheet wider than its panel where it was scrolled. Shift+F10 and the Menu key open the menu at the focused cell, where v1 opened it 8 px in from the row's left edge, off to the side of a grid scrolled sideways. The row count announces `1 row`, where v1 said `1 rows`.
+A held key acts once per press, where v1 acted again on every key repeat: Space, Enter, or F2 on a toggle cell commits once, Enter, F2, or a typed character opens an editor once, Space selects or toggles a row once, Enter activates a row once, Ctrl or Cmd+A selects all once, Alt+S takes one sort step, Alt+H hides once, Shift+F10 opens the menu once, and Watchlist's and Blotter's Delete and Backspace remove or run their action once. Left and Right, the keys that move row focus, the Alt moves and resizes, a header menu's move, an opening editor, and a toggle's commit scroll the grid sideways to bring their column into view, clear of the frozen columns, where v1 left a sheet wider than its panel where it was scrolled. A move across the frozen columns, which v1 offered in the header menu and took from Alt+Left and Right, and a resize under the minimum width now change nothing and call `onColumnStateChange` with nothing, where v1 stored an order or width the layout never showed. Shift+F10 and the Menu key open the menu at the focused cell, where v1 opened it 8 px in from the row's left edge, off to the side of a grid scrolled sideways. The row count announces `1 row`, where v1 said `1 rows`.
 
 ## DepthLadder
 
@@ -630,7 +632,7 @@ A row is named by its instrument through `getRowLabel`, where v1 named it by its
 
 ## ParameterGrid
 
-The same `getRowProps` change as Positions, and `onEdit` passes straight to the grid, which reads it current on every commit: a commit from a mount-time layout effect lands in this render's handler, not the last one's.
+The same `getRowProps` change as Positions, and `onEdit` passes straight to the grid, which reads it current on every commit: a commit from a mount-time layout effect lands in this render's handler, not the last one's. A held Space or Enter on the enable box sends one request, where v1 sent one on every key repeat, each flipping the value the server had just acknowledged; see the [DataGrid entry](#datagrid).
 
 ## RfqStack
 

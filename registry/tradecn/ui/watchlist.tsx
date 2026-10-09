@@ -182,7 +182,8 @@ export function WatchlistGrid<T extends WatchlistRow = WatchlistRow>({ columns, 
     // The direct DataGrid root owns removal keys; its controls and portals keep theirs.
     if (event.target !== event.currentTarget.firstElementChild || !targets.length) return
     event.preventDefault()
-    remove(targets)
+    // Once per press: a held key would go on to remove the row focus lands on next.
+    if (!event.repeat) remove(targets)
   }
   return <div ref={ref} onKeyDown={keyDown} data-slot="tradecn-watchlist-grid" className={cn("h-full min-h-0 flex-1", className)}>
     <DataGrid<T> {...grid} store={store} preset="watchlist" label={label} columns={all} selection={selection} onSelectionChange={select} focusedRowId={focusedRowId} onFocusedRowChange={focus} getRowProps={rowProps} getRowLabel={getRowLabel} renderContextMenu={renderContextMenu} />
