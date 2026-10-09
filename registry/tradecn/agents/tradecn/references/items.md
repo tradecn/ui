@@ -210,7 +210,7 @@ Exports: `byNewest`, `createAlertStore`.
 
 Number formatting for trading screens: tick-derived precision, 32nds and 64ths with + halves, yields, basis points, DV01, compact notional and millions, coupons in eighths, maturities, ticks between two prices, a quote basis per instrument (price, yield, discount, spread) with its own step, signed values, one null sentinel.
 
-Exports: `NULL_TOKEN`, `numberFormat`, `decimalsFromTick`, `roundToTick`, `stepByTick`, `formatFraction`, `formatPrice`, `stripGrouping`, `parsePrice`, `formatYield`, `formatBps`, `formatDv01`, `formatNotional`, `formatSigned`, `formatPercent`, `formatQuantity`, `formatCoupon`, `formatMaturity`, `daysToMaturity`, `ticksBetween`, `formatTicks`, `NUMERIC_CLASS`, `MONO_NUMERIC_CLASS`, `numericFontClass`, `QUOTE_BASIS_LABELS`, `quoteBasisOf`, `quoteInvertedOf`, `quoteStepOf`, `formatQuote`, `parseQuote`, `stepQuote`, `createInstrumentFormatter`.
+Exports: `NULL_TOKEN`, `isInstant`, `numberFormat`, `decimalsFromTick`, `roundToTick`, `stepByTick`, `formatFraction`, `formatPrice`, `stripGrouping`, `parsePrice`, `formatYield`, `formatBps`, `formatDv01`, `formatNotional`, `formatSigned`, `formatPercent`, `formatQuantity`, `formatCoupon`, `formatMaturity`, `daysToMaturity`, `ticksBetween`, `formatTicks`, `NUMERIC_CLASS`, `MONO_NUMERIC_CLASS`, `numericFontClass`, `QUOTE_BASIS_LABELS`, `quoteBasisOf`, `quoteInvertedOf`, `quoteStepOf`, `formatQuote`, `parseQuote`, `stepQuote`, `createInstrumentFormatter`.
 
 ### Grid Rules (`grid-rules`)
 

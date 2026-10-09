@@ -49,6 +49,9 @@ function isNil(v: Nullable): v is null | undefined {
 // One Intl.NumberFormat per locale and option set; construction is the expensive part.
 const formatters = new Map<string, Intl.NumberFormat>()
 
+/** True for a time a `Date` can hold: a finite number of milliseconds within 8.64e15 of the epoch either way. */
+export const isInstant = (ms: unknown): ms is number => Number.isFinite(ms) && Math.abs(ms as number) <= 8.64e15
+
 export function numberFormat(locale: string | undefined, options: Intl.NumberFormatOptions): Intl.NumberFormat {
   const key = `${locale ?? "en-US"}|${JSON.stringify(options)}`
   let nf = formatters.get(key)
@@ -135,7 +138,8 @@ export function formatPrice(v: Nullable, c: PriceConvention, l?: Locale): string
  * and none after the point or among the 32nds, so "99,5" from a decimal-comma keyboard is no number, never 995. With
  * `decimals`, for text whose notation prints digits after the point, one comma with nothing after the whole part is
  * no number either, since "4,253" reads as 4253 grouped or as 4.253 typed with a decimal comma; two or more groups,
- * or a point or a fraction's dash after them, can only be grouping. Text without a comma comes back as it is.
+ * or a point or a fraction's dash after them, can only be grouping. Text without a comma comes back trimmed with the minus
+ * read, and the rest of any text is left to the caller's own pattern, which decides what is a number.
  */
 export function stripGrouping(input: string, options: { decimals: boolean }): string | null {
   const text = input.trim().replace(/−/g, "-")
@@ -321,7 +325,7 @@ export function ticksBetween(a: number, b: number, tick: number): number {
   return Math.round(((a - b) / tick) * 8) / 8
 }
 
-/** A count of ticks: "+1", "−0.5", "0", up to three decimals and no trailing zeros. Signed unless told otherwise; `unit` adds a word. */
+/** A count of ticks: "+1", "−0.5", "0", up to three decimals and no trailing zeros. Signed unless told otherwise; `unit` adds a word; `grouping: false` drops the thousands separators, for an editor's text. */
 export function formatTicks(v: Nullable, o: { signed?: boolean; unit?: string; grouping?: boolean } & Locale = {}): string {
   if (isNil(v)) return NULL_TOKEN
   const body = typographicMinus(numberFormat(o.locale, { minimumFractionDigits: 0, maximumFractionDigits: 3, signDisplay: o.signed === false ? "auto" : "exceptZero", ...(o.grouping === false ? { useGrouping: false } : {}) }).format(v))

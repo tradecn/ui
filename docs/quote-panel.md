@@ -109,7 +109,7 @@ A quote step is `tick` for a price basis. For yield, discount, or spread, it is 
 
 With the generated columns, Enter, F2, a double click, or typing opens a cell when the row's `allowedActions` includes `editAction`. Enter commits; Escape cancels; Tab and Shift+Tab commit and move to the next or previous editable cell in the row. Up and Down step, with Shift for ten steps. Leaving the editor also commits a valid value, or discards a value that fails parsing or validation.
 
-Bid and ask read the instrument's notation through [`format`](format.md)'s `parseQuote`. Sizes read whole numbers with commas only between thousands, as they print (`5,000,000`). Skew and width read decimals, so one comma with no point after it, as in `1,234`, could be a decimal comma and is not a number; neither is `1,5`.
+Bid and ask read the instrument's notation through [`format`](format.md)'s `parseQuote`. Sizes read whole numbers with commas only between thousands, as they print (`5,000,000`). Skew and width read decimals, so one comma with no point after it, as in `1,234`, could be a decimal comma and is not a number; neither is `1,5`. Their editor opens on text without separators, `1234`, and a pending value shows that text until the store settles.
 
 A valid change calls `onEdit` with `{ rowId, key, value, previous, row }`. The generated keys are `bid`, `ask`, `skew`, `width`, `bidSize`, and `askSize`; `previous` and `row` come from the current store. Committing the same value sends nothing. The panel never writes the store.
 

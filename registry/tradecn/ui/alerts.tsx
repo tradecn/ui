@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useRow, useView } from "@/registry/tradecn/hooks/use-row-store"
 import { byNewest, type Alert, type AlertStore, type AlertTone } from "@/registry/tradecn/lib/alert-store"
-import { NULL_TOKEN } from "@/registry/tradecn/lib/format"
+import { NULL_TOKEN, isInstant } from "@/registry/tradecn/lib/format"
 import type { RowId, RowView } from "@/registry/tradecn/lib/row-store"
 import { DataGrid, type ColumnDef, type DataGridPreset } from "@/registry/tradecn/ui/data-grid"
 
@@ -90,8 +90,12 @@ export function useAlert(alerts: AlertStore, id: RowId, { ttlMs, now = Date.now 
   const latest = useRef(now)
   useEffect(() => { latest.current = now })
   useEffect(() => {
-    if (ttlMs === undefined || at === undefined || actionable) return
-    const timer = setTimeout(() => alerts.dismiss(id), Math.max(0, at + ttlMs - latest.current()))
+    if (ttlMs === undefined || typeof at !== "number" || actionable) return
+    // A time, a TTL, or a clock that isn't a finite number schedules nothing: a timer told NaN or Infinity runs at
+    // once, and would take a notice off the moment it shows.
+    const delay = at + ttlMs - latest.current()
+    if (!Number.isFinite(delay)) return
+    const timer = setTimeout(() => alerts.dismiss(id), Math.max(0, delay))
     return () => clearTimeout(timer)
   }, [alerts, id, at, actionable, ttlMs])
   return alert
@@ -171,7 +175,6 @@ export const ALERT_TONE_TEXT: Record<AlertTone, string> = {
 let clockFormat: Intl.DateTimeFormat | null = null
 // Intl throws on a time that is not an instant (NaN, an infinity, or past the ±8.64e15 ms a Date holds), and a
 // throw in a cell takes the whole grid down: such a time prints the null token, whatever formatter is in use.
-const isInstant = (ms: unknown): ms is number => Number.isFinite(ms) && Math.abs(ms as number) <= 8.64e15
 const localTime = (ms: number) => (clockFormat ??= new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })).format(ms)
 
 const NEWEST_FIRST = { comparator: byNewest }
@@ -203,7 +206,7 @@ export interface AlertHistoryProps {
   announceRowCount?: "off" | "debounced"
   label?: string
   labels?: Partial<AlertHistoryLabels>
-  renderContextMenu?: (rows: Alert[], ids: RowId[]) => ReactNode
+  renderContextMenu?: (rows: Alert[], ids: RowId[], target?: RowId | null) => ReactNode
   className?: string
 }
 

@@ -108,7 +108,7 @@ Each piece has a `data-slot` matching its kebab-case name with the `tradecn-` pr
 
 ### AlertActionButton
 
-`AlertActionButton` accepts Button props, including children and a ref, except `onClick`. It renders only when `alert.allowedActions` contains `action`. Missing or empty permissions render nothing. It defaults to `type="button"`, `variant="outline"`, and `size="sm"`, with `data-alert-action` set to the action ID.
+`AlertActionButton` accepts Button props, including children and a ref, except `onClick`. It renders only when `alert.allowedActions` contains `action`. Missing or empty permissions render nothing. It defaults to `type="button"`, `variant="outline"`, and `size="sm"`, with `data-alert-action` set to the action ID. It doesn't hold repeated presses: a handler that waits for the server should ignore presses while its request is out, or remove the action from `allowedActions` first, or a held Enter sends one request per key repeat.
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
@@ -133,7 +133,7 @@ The button checks the supplied alert when it renders; it does not subscribe or r
 | `options.ttlMs` | `number` | Off | Automatic dismissal while this hook is mounted. |
 | `options.now` | `() => number` | `Date.now` | Clock in milliseconds since the epoch, on the same basis as the store. |
 
-Expiry waits `max(0, alert.at + ttlMs - now())` milliseconds, and the remaining delay must stay within the platform's timer range — about twenty-five days — or the timer fires early. A repeat with a new `at` reschedules it. Any nonempty `allowedActions` disables expiry, including action IDs for which you render no button. Removing those permissions enables the remaining timer, or schedules immediate dismissal if already overdue. Unmounting, changing stores or IDs, or disabling TTL cancels the old timer.
+Expiry waits `max(0, alert.at + ttlMs - now())` milliseconds, and the remaining delay must stay within the platform's timer range — about twenty-five days — or the timer fires early. A notice whose `at` isn't a number, or a delay that comes out as NaN or Infinity from `at`, `ttlMs`, or `now()`, schedules no expiry, so the notice stays until it is dismissed. A repeat with a new `at` reschedules it. Any nonempty `allowedActions` disables expiry, including action IDs for which you render no button. Removing those permissions enables the remaining timer, or schedules immediate dismissal if already overdue. Unmounting, changing stores or IDs, or disabling TTL cancels the old timer.
 
 Timers belong to the hook invocation. Put TTL on the displayed notice row only. Hidden notices and history-only rows have no timer unless your application mounts another expiry-enabled hook for them — and expiry measures from the notice's `at`, not from when it was shown, so an already overdue notice is dismissed the moment it is promoted into view, each dismissal removing its row from history, and a backlog can cascade. When displaying one notice in several places, choose one owner for automatic dismissal; omit TTL from the other subscriptions.
 
@@ -143,7 +143,7 @@ Removal never moves focus: dismissal, TTL expiry, the cap, `clear()`, and an arr
 
 ### AlertsAnnouncer
 
-Mount one announcer for the collection. It keeps two visually hidden regions: polite `role="status"` and assertive `role="alert"`. Only one contains the selected notice's announcement, including severity, title, optional message, and repeat count above one. It does not take focus or open UI.
+Mount one announcer for the collection. It keeps two visually hidden regions: polite `role="status"` and assertive `role="alert"`. Only one contains the selected notice's announcement, including severity, title, optional message, and repeat count above one. It does not take focus or open UI. An announcer mounted with a notice already selected renders its text at once, so a screen reader may speak that notice as the region appears.
 
 | Prop | Type | Default | Purpose |
 |---|---|---|---|
@@ -167,7 +167,7 @@ The history's view owns its order, so the grid renders without sort affordances,
 | `announceRowCount` | `"off" \| "debounced"` | Preset's setting | The embedded grid's row-count announcements. |
 | `label` | `string` | `labels.title` | Accessible grid name. |
 | `labels` | `Partial<AlertHistoryLabels>` | `DEFAULT_ALERT_HISTORY_LABELS` | Empty state, grid name, and default column labels. |
-| `renderContextMenu` | `(rows: Alert[], ids: RowId[]) => ReactNode` | Unset | Caller-composed context menu. |
+| `renderContextMenu` | `(rows: Alert[], ids: RowId[], target?: RowId \| null) => ReactNode` | Unset | Caller-composed context menu. The grid reads the rows when the menu opens, so check `allowedActions` again when an item runs, and find each notice by its id rather than pairing `rows` and `ids` by index: `ids` can still hold a notice the store has since removed. |
 | `className` | `string` | Unset | History wrapper classes. |
 
 Keep `labels` referentially stable when the grid builds its default columns, since they rebuild whenever it changes, and keep a custom `columns` array stable for the same reason; with custom columns, a `labels` change deliberately rebuilds nothing.
@@ -192,7 +192,7 @@ Seven v1 labels moved or fell away; [Migrating to v2](migrating-v1-to-v2.md#labe
 
 ### The toast bridge
 
-`useToastBridge(alerts, toast)` returns `void` and imports no toast package. Pass your own toast adapter.
+`useToastBridge(alerts, toast)` returns `void` and imports no toast package. Pass your own toast adapter. The adapter runs inside the store's `push`, so one that throws throws from your producer's `push` call and skips the store's later listeners: catch inside the adapter.
 
 | Argument | Type | Purpose |
 |---|---|---|

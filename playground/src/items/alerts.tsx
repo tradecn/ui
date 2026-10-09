@@ -2,7 +2,7 @@ import { cn } from "cn"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { createAlertStore, type Alert, type AlertStore, type AlertTone } from "@/registry/tradecn/lib/alert-store"
-import { NUMERIC_CLASS } from "@/registry/tradecn/lib/format"
+import { NULL_TOKEN, NUMERIC_CLASS, isInstant } from "@/registry/tradecn/lib/format"
 import { Alerts, AlertsList, AlertsEmpty, AlertsAnnouncer, AlertItem, AlertHeader, AlertTitle, AlertBody, AlertSeverity, AlertActions, AlertActionButton, AlertDismiss, AlertHistory, useAlert, useAlertView, useToastBridge } from "@/registry/tradecn/ui/alerts"
 import { useRowIds } from "@/registry/tradecn/hooks/use-row-store"
 
@@ -19,7 +19,7 @@ function Notice({ alerts, id, actions, ttlMs }: { alerts: AlertStore; id: string
         <AlertSeverity tone={alert.tone}>{alert.severity}</AlertSeverity>
         <AlertTitle>{alert.title}</AlertTitle>
         {alert.count > 1 && <span className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)} data-alert-count={alert.count}>×{alert.count}</span>}
-        <time dateTime={new Date(alert.at).toISOString()} className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)}>{noticeTime.format(alert.at)}</time>
+        {isInstant(alert.at) ? <time dateTime={new Date(alert.at).toISOString()} className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)}>{noticeTime.format(alert.at)}</time> : <span className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)}>{NULL_TOKEN}</span>}
         <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => alerts.dismiss(id)} />
       </AlertHeader>
       {alert.message && <AlertBody>{alert.message}</AlertBody>}

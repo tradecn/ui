@@ -18,7 +18,7 @@ import { LinkGroupProvider, useLinkGroup } from "@/registry/tradecn/hooks/use-li
 import { useRow, useRowIds, useStoreMeta } from "@/registry/tradecn/hooks/use-row-store"
 import { checkContract, type ContractReport } from "@/registry/tradecn/lib/agent-kit"
 import { createAlertStore, type Alert, type AlertStore } from "@/registry/tradecn/lib/alert-store"
-import { createInstrumentFormatter, formatDv01, formatNotional, formatPrice, formatQuantity, roundToTick, NUMERIC_CLASS, type InstrumentConvention } from "@/registry/tradecn/lib/format"
+import { createInstrumentFormatter, formatDv01, formatNotional, formatPrice, formatQuantity, roundToTick, NULL_TOKEN, NUMERIC_CLASS, isInstant, type InstrumentConvention } from "@/registry/tradecn/lib/format"
 import type { GridRules, ReadGridRules } from "@/registry/tradecn/lib/grid-rules"
 import { formatKeys, type HotkeyBinding } from "@/registry/tradecn/lib/hotkeys"
 import type { Limits } from "@/registry/tradecn/lib/limits"
@@ -1734,7 +1734,7 @@ function Notice({ alerts, id, actions, onDismiss, onDisplaced }: { alerts: Alert
         <AlertSeverity tone={alert.tone}>{alert.severity}</AlertSeverity>
         <AlertTitle>{alert.title}</AlertTitle>
         {alert.count > 1 && <span className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)} data-alert-count={alert.count}>×{alert.count}</span>}
-        <time dateTime={new Date(alert.at).toISOString()} className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)}>{noticeTime.format(alert.at)}</time>
+        {isInstant(alert.at) ? <time dateTime={new Date(alert.at).toISOString()} className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)}>{noticeTime.format(alert.at)}</time> : <span className={cn("shrink-0 text-muted-foreground", NUMERIC_CLASS)}>{NULL_TOKEN}</span>}
         <AlertDismiss aria-label={`Dismiss: ${alert.title}`} onClick={() => onDismiss(id)} />
       </AlertHeader>
       {alert.message && <AlertBody>{alert.message}</AlertBody>}
