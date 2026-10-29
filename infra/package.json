@@ -10,11 +10,11 @@
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",
-    "aws-cdk": "2.1029.2",
+    "aws-cdk": "2.1146.1",
     "typescript": "~6"
   },
   "dependencies": {
-    "aws-cdk-lib": "2.215.0",
+    "aws-cdk-lib": "2.275.0",
     "constructs": "10.4.2"
   }
 }
