@@ -12,7 +12,7 @@ import path from "node:path"
 import { chromium, type Browser } from "@playwright/test"
 import { CONTRACT_RULES, type ContractRule } from "../../registry/tradecn/lib/agent-kit"
 import { ROOT, readJson } from "../lib/registry"
-import { gradePage, itemsImported, sourceFindings, type PageGrade } from "./grade"
+import { gradePage, itemsImported, sourceFindings, typeErrorsOf, type PageGrade } from "./grade"
 import { FRAME, promptFor, readTasks, type Task } from "./tasks"
 
 type Arm = "kit" | "bare"
@@ -81,6 +81,9 @@ const auth = run(["gh", "auth", "token"], ROOT)
 const token = auth.ok ? auth.output.trim() : ""
 if (!token) throw new Error("gh has no token: run `gh auth login` first")
 const shadcn = `shadcn@${readJson<{ devDependencies: Record<string, string> }>(path.join(ROOT, "package.json")).devDependencies.shadcn}`
+// The harness a result came from, and whether the tree it ran from differed from that commit.
+const commit = must(["git", "rev-parse", "HEAD"], ROOT, "reading HEAD").trim()
+const dirty = must(["git", "status", "--porcelain"], ROOT, "reading the working tree").trim().length > 0
 
 if (!argv.includes("--no-build")) must(["bun", "run", "registry:build"], ROOT, "registry build")
 const built = path.join(ROOT, "public/r")
@@ -156,6 +159,20 @@ function killTree(pid: number) {
   } catch {
     // Already gone: a child can exit between pgrep and the kill.
   }
+}
+
+// What a trial runs while other trials run beside it. A synchronous build would block the event loop that fires
+// the other sessions' deadlines and answers their page graders' requests.
+async function runAsync(cmd: string[], cwd: string, timeout: number, env: Record<string, string | undefined>) {
+  const proc = Bun.spawn(cmd, { cwd, env, stdout: "pipe", stderr: "pipe" })
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    killTree(proc.pid)
+  }, timeout)
+  const [stdout, stderr, exitCode] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited])
+  clearTimeout(timer)
+  return { ok: !timedOut && exitCode === 0, timedOut, output: stdout + stderr }
 }
 
 interface Trial {
@@ -234,23 +251,29 @@ async function runTrial(trial: Trial, template: string, browser: Browser): Promi
   const meta = path.join(root, "meta")
   mkdirSync(root, { recursive: true })
   // An APFS clone where the platform has one, so node_modules costs nothing to copy.
-  if (!run(["cp", "-cR", template, work], ROOT).ok) must(["cp", "-R", template, work], ROOT, "copying the template")
+  if (!(await runAsync(["cp", "-cR", template, work], ROOT, 600_000, process.env)).ok) {
+    // A clone that failed halfway leaves a directory the plain copy would nest the template inside.
+    rmSync(work, { recursive: true, force: true })
+    const copied = await runAsync(["cp", "-R", template, work], ROOT, 600_000, process.env)
+    if (!copied.ok) throw new Error(`copying the template failed:\n${copied.output.slice(-2000)}`)
+  }
   mkdirSync(meta, { recursive: true })
   const before = snapshot(work)
   const agent = await runAgent(trial, work, meta)
   const after = snapshot(work)
   const added = [...after.keys()].filter((file) => !before.has(file)).sort()
   const changed = [...after.keys()].filter((file) => before.has(file) && before.get(file) !== after.get(file)).sort()
-  const authored = [...added, ...changed].filter((file) => /\.(tsx?|jsx?|css)$/.test(file) && !file.startsWith(".github/")).map((file) => ({ file, source: readFileSync(path.join(work, file), "utf8") }))
+  const authored = [...added, ...changed]
+    .filter((file) => /\.(tsx?|jsx?|css)$/.test(file) && !file.startsWith(".github/"))
+    .map((file) => ({ file, source: readFileSync(path.join(work, file), "utf8"), original: before.has(file) ? readFileSync(path.join(template, file), "utf8") : undefined }))
 
   rmSync(path.join(work, "dist"), { recursive: true, force: true })
   // The build and the typecheck execute the agent's own vite.config.ts, so they get the agent's environment,
   // not the runner's: no token, and no secret the runner's shell happens to carry.
   const graderEnv = { PATH: process.env.PATH ?? "", LANG: process.env.LANG ?? "en_US.UTF-8", HOME: path.join(meta, "home"), TMPDIR: path.join(meta, "tmp"), NO_COLOR: "1" }
-  const build = run(sandboxed(["bunx", "vite", "build", "--logLevel", "error"]), work, 300_000, graderEnv)
-  const tsc = run(sandboxed(["bunx", "tsc", "-p", "tsconfig.app.json", "--noEmit", "--pretty", "false"]), work, 300_000, graderEnv)
-  const mine = new Set(authored.map((file) => file.file))
-  const typeErrors = tsc.output.split("\n").filter((line) => /\berror TS\d+/.test(line) && mine.has(line.split("(")[0]!.trim()))
+  const build = await runAsync(sandboxed(["bunx", "vite", "build", "--logLevel", "error"]), work, 300_000, graderEnv)
+  const tsc = await runAsync(sandboxed(["bunx", "tsc", "-p", "tsconfig.app.json", "--noEmit", "--pretty", "false"]), work, 300_000, graderEnv)
+  const typeErrors = typeErrorsOf(tsc, new Set([...added, ...changed]))
   const source = sourceFindings(authored)
   const used = itemsImported(authored, itemNames, new Set(before.keys()))
   const page = build.ok ? await gradePage(path.join(work, "dist"), browser, { screenshot: path.join(meta, "screen.png") }) : null
@@ -373,7 +396,7 @@ for (const model of models) {
   }
 }
 
-const result = { writtenAt: new Date().toISOString(), machine: machine ?? null, agent: { cli: "copilot", version: cliVersion }, browser: `Chromium ${browserVersion}`, frame: FRAME, style, trials, tasks: tasks.map((task) => task.name), arms, models, expectations, summary, verdict, records }
+const result = { writtenAt: new Date().toISOString(), machine: machine ?? null, commit, dirty, agent: { cli: "copilot", version: cliVersion }, browser: `Chromium ${browserVersion}`, frame: FRAME, style, trials, tasks: tasks.map((task) => task.name), arms, models, expectations, summary, verdict, records }
 writeFileSync(path.join(runDir, "result.json"), JSON.stringify(result, null, 2))
 if (machine) {
   const out = path.join(ROOT, "bench/agent-kit/results", machine)

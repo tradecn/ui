@@ -2,7 +2,7 @@
 // wrote and from the page that source renders. The source rules are the validator's rule 14 checks; the page rules
 // are checkContract's, the same function the kit hands the agent.
 import path from "node:path"
-import type { Browser } from "@playwright/test"
+import type { Browser, Page } from "@playwright/test"
 import ts from "typescript"
 import { checkContract, CONTRACT_RULES, type ContractFinding, type ContractRule } from "../../registry/tradecn/lib/agent-kit"
 import { fontSizesUnderFloor } from "../lib/registry"
@@ -18,6 +18,8 @@ const HAND_FORMAT = /\.toFixed\(|\.toLocaleString\(|new Intl\.NumberFormat\(/g
 export interface SourceFile {
   file: string
   source: string
+  /** The file as the install wrote it, when the agent changed one rather than adding it. */
+  original?: string
 }
 
 /** Where the contract's source rules break in the files an agent wrote, as `file:line: what`. */
@@ -28,11 +30,15 @@ export interface SourceFindings {
   handFormatted: string[]
 }
 
+// Stylesheets too, so a utility moved into an @apply grades the way it does in a className. In a file the agent
+// changed, only the lines it added: the consumer's own index.css carries shadcn's `@apply font-sans`.
 export function sourceFindings(files: SourceFile[]): SourceFindings {
   const out: SourceFindings = { floor: [], font: [], tabular: [], handFormatted: [] }
-  for (const { file, source } of files) {
-    if (!/\.(tsx?|jsx?)$/.test(file)) continue
+  for (const { file, source, original } of files) {
+    if (!/\.(tsx?|jsx?|css)$/.test(file)) continue
+    const installed = new Set(original?.split("\n"))
     source.split("\n").forEach((line, index) => {
+      if (installed.has(line)) return
       const at = `${file}:${index + 1}`
       for (const size of fontSizesUnderFloor(line)) out.floor.push(`${at}: ${size}`)
       const font = line.match(TAILWIND_FONT)
@@ -42,6 +48,17 @@ export function sourceFindings(files: SourceFile[]): SourceFindings {
     })
   }
   return out
+}
+
+/** The compiler's errors that are the agent's: one in a file it wrote or changed, or one with no file at all, a
+ * missing or broken tsconfig. One in installed source it never touched isn't. A compiler that never finished, or
+ * failed without a diagnostic, fails the grade instead of passing it. */
+export function typeErrorsOf(tsc: { ok: boolean; timedOut: boolean; output: string }, touched: ReadonlySet<string>): string[] {
+  const diagnostics = tsc.output.split("\n").filter((line) => /\berror TS\d+/.test(line))
+  const errors = diagnostics.filter((line) => line.startsWith("error TS") || touched.has(line.split("(")[0]!.trim()))
+  if (tsc.timedOut) errors.push("tsc did not finish")
+  else if (!tsc.ok && !diagnostics.length) errors.push(`tsc failed without a diagnostic: ${tsc.output.trim().slice(-300)}`)
+  return errors
 }
 
 /** The tradecn items the files import, by registry name: `@/components/ui/data-grid`, `./lib/format`,
@@ -92,16 +109,18 @@ export async function gradePage(dist: string, browser: Browser, options: { settl
       return (await file.exists()) ? new Response(file) : new Response(Bun.file(index))
     },
   })
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   const pageErrors: string[] = []
-  page.on("pageerror", (error) => pageErrors.push(String(error).slice(0, 300)))
-  page.on("console", (message) => {
-    if (message.type() === "error") pageErrors.push(message.text().slice(0, 300))
-  })
+  let page: Page | undefined
+  let rendered = false
   try {
+    page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    page.on("pageerror", (error) => pageErrors.push(String(error).slice(0, 300)))
+    page.on("console", (message) => {
+      if (message.type() === "error") pageErrors.push(message.text().slice(0, 300))
+    })
     await page.goto(`http://localhost:${server.port}/`, { waitUntil: "load", timeout: 30_000 })
     await page.waitForTimeout(options.settleMs ?? 2500)
-    const rendered = await page.evaluate(() => (document.getElementById("root")?.innerText ?? "").trim().length > 0)
+    rendered = await page.evaluate(() => (document.getElementById("root")?.innerText ?? "").trim().length > 0)
     if (options.screenshot) await page.screenshot({ path: options.screenshot, fullPage: true })
     const findings = empty()
     const checked = empty()
@@ -119,8 +138,12 @@ export async function gradePage(dist: string, browser: Browser, options: { settl
       visibleCueDirection = visible.findings.length
     }
     return { rendered, pageErrors, findings, checked, examples, visibleCueDirection }
+  } catch (error) {
+    // A page that never loads, or that the check throws on, fails its grades. It doesn't end the run.
+    pageErrors.push(`grading failed: ${String(error).slice(0, 300)}`)
+    return { rendered, pageErrors, findings: empty(), checked: empty(), examples: [], visibleCueDirection: 0 }
   } finally {
-    await page.close()
+    await page?.close().catch(() => {})
     server.stop(true)
   }
 }

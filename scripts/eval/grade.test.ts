@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readRegistry } from "../lib/registry"
-import { itemsImported, sourceFindings } from "./grade"
+import { itemsImported, sourceFindings, typeErrorsOf } from "./grade"
 import { FRAME, promptFor, readTasks } from "./tasks"
 
 // The agent kit eval's graders and tasks. The page grader is checkContract, which the kit's own tests and the smoke
@@ -23,6 +23,36 @@ describe("the agent kit eval", () => {
       tabular: ["src/App.tsx:1: tabular-nums without lining-nums"],
       handFormatted: ["src/App.tsx:1: .toFixed("],
     })
+  })
+
+  it("reads a stylesheet as it reads a className, and in a changed file only the lines the agent added", () => {
+    const findings = sourceFindings([
+      { file: "src/desk.css", source: ".price {\n  @apply font-mono text-[11px];\n}" },
+      // The consumer's index.css already applies font-sans; the agent added the .tag rule.
+      { file: "src/index.css", original: "html {\n  @apply font-sans;\n}", source: "html {\n  @apply font-sans;\n}\n.tag {\n  @apply text-[10px];\n}" },
+    ])
+    expect(findings).toEqual({
+      floor: ["src/desk.css:2: text-[11px]", "src/index.css:5: text-[10px]"],
+      font: ["src/desk.css:2: font-mono"],
+      tabular: [],
+      handFormatted: [],
+    })
+  })
+
+  it("counts a type error in what the agent wrote or in the config, and fails a compiler that never finished", () => {
+    const output = [
+      "src/App.tsx(3,7): error TS2322: Type 'string' is not assignable to type 'number'.",
+      "src/components/ui/data-grid.tsx(9,1): error TS2307: Cannot find module 'x'.",
+      "error TS5058: The specified path does not exist: 'tsconfig.app.json'.",
+    ].join("\n")
+    const touched = new Set(["src/App.tsx"])
+    expect(typeErrorsOf({ ok: false, timedOut: false, output }, touched)).toEqual([
+      "src/App.tsx(3,7): error TS2322: Type 'string' is not assignable to type 'number'.",
+      "error TS5058: The specified path does not exist: 'tsconfig.app.json'.",
+    ])
+    expect(typeErrorsOf({ ok: true, timedOut: false, output: "" }, touched)).toEqual([])
+    expect(typeErrorsOf({ ok: false, timedOut: true, output: "" }, touched)).toEqual(["tsc did not finish"])
+    expect(typeErrorsOf({ ok: false, timedOut: false, output: "bunx: command not found: tsc" }, touched)).toEqual(["tsc failed without a diagnostic: bunx: command not found: tsc"])
   })
 
   it("names the tradecn items a screen imports, and nothing it only mentions or wrote itself", () => {

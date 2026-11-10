@@ -15,10 +15,10 @@
 | Grade | Passes when |
 |---|---|
 | `builds` | `vite build` succeeds. |
-| `types` | `tsc` reports no error in a file the agent wrote or changed. |
-| `renders` | The built page shows text under `#root` and logs no error. |
+| `types` | `tsc` finishes and reports no error in a file the agent wrote or changed, and none outside a file, like a broken `tsconfig`. |
+| `renders` | The built page shows text under `#root` and logs no error. A page that fails to load or to check fails here and in `contract`, and the run goes on. |
 | `contract` | `checkContract` finds nothing on the rendered page after its mock feeds run for 2.5 s, and it checked some text. |
-| `source` | The agent's files break none of the validator's rule 14 checks: no size under the floor, no Tailwind font family, no `tabular-nums` without `lining-nums`. |
+| `source` | The lines the agent wrote, stylesheets included, break none of the validator's rule 14 checks: no size under the floor, no Tailwind font family, no `tabular-nums` without `lining-nums`. In a file it changed, only the lines it added count. |
 | `items` | The screen imports one of the items its task names. |
 
 Each result also counts findings per rule, direction findings under `visibleCue`, numbers formatted by hand (`toFixed`, `toLocaleString`, `Intl.NumberFormat`), minutes, and premium requests.
@@ -35,7 +35,9 @@ just eval-agent-kit --models gemini-3.8-flash --tasks watchlist --trials 1
 just eval-agent-kit --machine m5-max                       # writes results/<machine>/<stamp>.json
 ```
 
-It needs `copilot` on the path and `gh` signed in. Nothing is written to the repository without `--machine`; every run keeps its records, screenshots and session logs in the temp directory it prints, and `--keep` keeps the trials' consumers too. A trial is a whole coding session, and a session costs one premium request times the model's multiplier: on 2026-09-30 a one-word prompt cost 14 on Gemini 3.8 Flash and 1 on either GPT model. Three models, five tasks, both arms and two trials come to about 320, most of it Gemini's; the two GPT models alone come to about 40. Copilot's code reviews draw from the same allowance.
+It needs `copilot` on the path and `gh` signed in. Nothing is written to the repository without `--machine`; every run keeps its records, screenshots and session logs in the temp directory it prints, and `--keep` keeps the trials' consumers too. A result names the commit it ran from, and whether the working tree had changes.
+
+A trial is a whole coding session, billed to the Copilot account that runs it, and Copilot's code reviews draw from the same allowance. Copilot reports each session as one premium request, but the account is billed by tokens now. On 2026-11-10 the two sessions of a GPT-5.6 Sol check on the watchlist, 1.5 and 3.9 minutes long, took 182 of a monthly allowance of 50,000. The default run is 60 sessions.
 
 A handful of screens per arm is a first read, not a benchmark: one model's run can move a rate by a screen either way. The numbers say what these agents did with these requests on the date they ran.
 
