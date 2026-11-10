@@ -54,6 +54,11 @@ style base preset:
 bench *args:
     bun scripts/bench.ts {{args}}
 
+# The agent kit eval (bench/agent-kit/README.md): Copilot CLI builds screens in a consumer with the kit installed
+# and in one without it, and each screen is graded against the item contract.
+eval-agent-kit *args:
+    bun scripts/eval/agent-kit.ts {{args}}
+
 # Render tradecn.dev into site/dist: the pages from registry.json, version.txt, and docs/, and the
 # embedded previews from playground/src/demos through a Vite build of the playground. Twice, as the
 # release job publishes it: the root, and this release's own tree under site/dist/vX.Y.Z/.
