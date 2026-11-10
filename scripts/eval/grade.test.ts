@@ -28,12 +28,12 @@ describe("the agent kit eval", () => {
   it("reads a stylesheet as it reads a className, and in a changed file only the lines the agent added", () => {
     const findings = sourceFindings([
       { file: "src/desk.css", source: ".price {\n  @apply font-mono text-[11px];\n}" },
-      // The consumer's index.css already applies font-sans; the agent added the .tag rule.
-      { file: "src/index.css", original: "html {\n  @apply font-sans;\n}", source: "html {\n  @apply font-sans;\n}\n.tag {\n  @apply text-[10px];\n}" },
+      // The consumer's index.css applies font-sans once; the agent added a .tag rule that applies it again.
+      { file: "src/index.css", original: "html {\n  @apply font-sans;\n}", source: "html {\n  @apply font-sans;\n}\n.tag {\n  @apply font-sans;\n  @apply text-[10px];\n}" },
     ])
     expect(findings).toEqual({
-      floor: ["src/desk.css:2: text-[11px]", "src/index.css:5: text-[10px]"],
-      font: ["src/desk.css:2: font-mono"],
+      floor: ["src/desk.css:2: text-[11px]", "src/index.css:6: text-[10px]"],
+      font: ["src/desk.css:2: font-mono", "src/index.css:5: font-sans"],
       tabular: [],
       handFormatted: [],
     })

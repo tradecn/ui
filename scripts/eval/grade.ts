@@ -31,14 +31,20 @@ export interface SourceFindings {
 }
 
 // Stylesheets too, so a utility moved into an @apply grades the way it does in a className. In a file the agent
-// changed, only the lines it added: the consumer's own index.css carries shadcn's `@apply font-sans`.
+// changed, only the lines it added: the consumer's own index.css carries shadcn's `@apply font-sans`. Each line
+// the install wrote passes as many times as the install wrote it, so a copy the agent adds is still graded.
 export function sourceFindings(files: SourceFile[]): SourceFindings {
   const out: SourceFindings = { floor: [], font: [], tabular: [], handFormatted: [] }
   for (const { file, source, original } of files) {
     if (!/\.(tsx?|jsx?|css)$/.test(file)) continue
-    const installed = new Set(original?.split("\n"))
+    const installed = new Map<string, number>()
+    for (const line of original?.split("\n") ?? []) installed.set(line, (installed.get(line) ?? 0) + 1)
     source.split("\n").forEach((line, index) => {
-      if (installed.has(line)) return
+      const left = installed.get(line) ?? 0
+      if (left > 0) {
+        installed.set(line, left - 1)
+        return
+      }
       const at = `${file}:${index + 1}`
       for (const size of fontSizesUnderFloor(line)) out.floor.push(`${at}: ${size}`)
       const font = line.match(TAILWIND_FONT)
