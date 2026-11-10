@@ -1,0 +1,3692 @@
+{
+  "writtenAt": "2026-11-10T06:43:20.791Z",
+  "machine": "m2-max",
+  "commit": "67f4c71dfa53ff5208461b724331f914e4032c73",
+  "dirty": false,
+  "agent": {
+    "cli": "copilot",
+    "version": "1.0.107"
+  },
+  "browser": "Chromium 153.0.8010.12",
+  "frame": "This is a Vite, React and TypeScript app with shadcn/ui, and the tradecn registry's items are installed under src/components, src/hooks and src/lib. Build with them. The screen goes in src/App.tsx, which src/main.tsx already renders. Add files under src/ as you need them, and mock every piece of data inside the app. When you're done, `bunx vite build` has to succeed. Don't start a dev server or anything else that keeps running.",
+  "style": "base-mira",
+  "trials": 2,
+  "tasks": [
+    "positions",
+    "rfq",
+    "status",
+    "ticket",
+    "watchlist"
+  ],
+  "arms": [
+    "kit",
+    "bare"
+  ],
+  "models": [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra"
+  ],
+  "expectations": {
+    "writtenOn": "2026-09-29",
+    "claim": "With the kit installed, a coding agent builds screens that keep the item contract more often than without it.",
+    "helps": {
+      "higher": "contract",
+      "noLower": [
+        "builds",
+        "renders"
+      ]
+    },
+    "note": "Written before the first run and never edited to fit one. A definition that turns out to measure the wrong thing is replaced by a new file with its own date, and this one stays beside it, unedited."
+  },
+  "summary": {
+    "gpt-5.6-sol": {
+      "kit": {
+        "screens": 10,
+        "sessionFailures": 0,
+        "rates": {
+          "builds": 1,
+          "types": 0.9,
+          "renders": 1,
+          "contract": 1,
+          "source": 1,
+          "items": 0.9
+        },
+        "meanFindings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "meanHandFormatted": 0.3,
+        "meanVisibleCueDirection": 0,
+        "timedOut": 0,
+        "meanMinutes": 3.1503083333333337,
+        "premiumRequests": {
+          "known": 10,
+          "unreported": 0
+        }
+      },
+      "bare": {
+        "screens": 10,
+        "sessionFailures": 0,
+        "rates": {
+          "builds": 1,
+          "types": 1,
+          "renders": 1,
+          "contract": 0,
+          "source": 0,
+          "items": 0.9
+        },
+        "meanFindings": {
+          "floor": 17.5,
+          "numeric": 2.3,
+          "direction": 0.1,
+          "name": 0.2
+        },
+        "meanHandFormatted": 0.9,
+        "meanVisibleCueDirection": 0.1,
+        "timedOut": 0,
+        "meanMinutes": 1.0281083333333334,
+        "premiumRequests": {
+          "known": 10,
+          "unreported": 0
+        }
+      }
+    },
+    "gpt-5.6-terra": {
+      "kit": {
+        "screens": 10,
+        "sessionFailures": 0,
+        "rates": {
+          "builds": 1,
+          "types": 1,
+          "renders": 0.8,
+          "contract": 0.8,
+          "source": 1,
+          "items": 1
+        },
+        "meanFindings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "meanHandFormatted": 0.1,
+        "meanVisibleCueDirection": 0.75,
+        "timedOut": 0,
+        "meanMinutes": 1.3334033333333333,
+        "premiumRequests": {
+          "known": 10,
+          "unreported": 0
+        }
+      },
+      "bare": {
+        "screens": 10,
+        "sessionFailures": 0,
+        "rates": {
+          "builds": 1,
+          "types": 0.7,
+          "renders": 1,
+          "contract": 0,
+          "source": 0,
+          "items": 0.4
+        },
+        "meanFindings": {
+          "floor": 8.8,
+          "numeric": 3.3,
+          "direction": 0,
+          "name": 0.6
+        },
+        "meanHandFormatted": 1.2,
+        "meanVisibleCueDirection": 0,
+        "timedOut": 0,
+        "meanMinutes": 0.7720366666666665,
+        "premiumRequests": {
+          "known": 10,
+          "unreported": 0
+        }
+      }
+    }
+  },
+  "verdict": {
+    "gpt-5.6-sol": {
+      "helps": true,
+      "why": "contract 100% with the kit against 0% without"
+    },
+    "gpt-5.6-terra": {
+      "helps": false,
+      "why": "contract 80% with the kit against 0% without; lower with the kit: renders"
+    }
+  },
+  "records": [
+    {
+      "id": "gpt-5.6-sol-positions-kit-1",
+      "model": "gpt-5.6-sol",
+      "task": "positions",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 3.94925,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": [
+          "src/App.tsx:71: .toFixed("
+        ]
+      },
+      "items": [
+        "format",
+        "panel",
+        "positions",
+        "row-store",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 50,
+          "numeric": 71,
+          "direction": 16,
+          "name": 6
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-positions-bare-1",
+      "model": "gpt-5.6-sol",
+      "task": "positions",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.9474666666666667,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx",
+          "src/index.css"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:62: text-[10px]",
+          "src/App.tsx:159: text-[10px]",
+          "src/App.tsx:160: text-[11px]"
+        ],
+        "font": [],
+        "tabular": [],
+        "handFormatted": [
+          "src/App.tsx:25: new Intl.NumberFormat(",
+          "src/App.tsx:32: new Intl.NumberFormat(",
+          "src/App.tsx:131: .toFixed(",
+          "src/App.tsx:132: .toFixed("
+        ]
+      },
+      "items": [
+        "data-grid",
+        "panel",
+        "positions",
+        "row-store"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 10,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 63,
+          "numeric": 73,
+          "direction": 9,
+          "name": 6
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "8 OPEN",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel div",
+            "text": "Updates every 1s",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "AA",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "NV",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "MS",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "TS",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "AM",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "ME",
+            "detail": "font-size 10px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-positions-kit-1",
+      "model": "gpt-5.6-terra",
+      "task": "positions",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.3099166666666666,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "data-grid",
+        "format",
+        "panel",
+        "positions",
+        "row-store",
+        "workspace"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 51,
+          "numeric": 72,
+          "direction": 8,
+          "name": 8
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-positions-bare-1",
+      "model": "gpt-5.6-terra",
+      "task": "positions",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.7519833333333333,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:159: text-[11px]",
+          "src/App.tsx:162: text-[11px]"
+        ],
+        "font": [],
+        "tabular": [],
+        "handFormatted": [
+          "src/App.tsx:26: new Intl.NumberFormat(",
+          "src/App.tsx:33: new Intl.NumberFormat("
+        ]
+      },
+      "items": [
+        "panel",
+        "positions",
+        "row-store"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 2,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 61,
+          "numeric": 73,
+          "direction": 9,
+          "name": 8
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "8 positions",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "Live feed · 10:24:33 PM",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-rfq-kit-1",
+      "model": "gpt-5.6-sol",
+      "task": "rfq",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 4.651783333333333,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [
+          "tests/rfq-contract.spec.ts"
+        ],
+        "changed": [
+          "src/App.tsx",
+          "src/index.css"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "agent-kit",
+        "feed-health",
+        "format",
+        "rfq-stack",
+        "rfq-ticket",
+        "row-store",
+        "status-bar",
+        "use-hotkeys",
+        "workspace"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 79,
+          "numeric": 44,
+          "direction": 0,
+          "name": 25
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-rfq-bare-1",
+      "model": "gpt-5.6-sol",
+      "task": "rfq",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.07765,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx",
+          "src/index.css"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:169: text-[8px]",
+          "src/App.tsx:209: text-[10px]",
+          "src/App.tsx:227: text-[11px]",
+          "src/App.tsx:233: text-[9px]",
+          "src/App.tsx:251: text-[10px]",
+          "src/App.tsx:270: text-[9px]",
+          "src/App.tsx:293: text-[10px]",
+          "src/App.tsx:298: text-[10px]",
+          "src/App.tsx:308: text-[10px]",
+          "src/App.tsx:309: text-[10px]",
+          "src/App.tsx:315: text-[10px]",
+          "src/App.tsx:319: text-[10px]",
+          "src/App.tsx:323: text-[10px]"
+        ],
+        "font": [
+          "src/App.tsx:240: font-mono",
+          "src/App.tsx:299: font-mono",
+          "src/App.tsx:316: font-mono",
+          "src/App.tsx:320: font-mono",
+          "src/App.tsx:324: font-mono"
+        ],
+        "tabular": [
+          "src/App.tsx:240: tabular-nums without lining-nums",
+          "src/App.tsx:299: tabular-nums without lining-nums",
+          "src/App.tsx:316: tabular-nums without lining-nums",
+          "src/App.tsx:320: tabular-nums without lining-nums",
+          "src/App.tsx:324: tabular-nums without lining-nums"
+        ],
+        "handFormatted": [
+          "src/App.tsx:316: .toFixed(",
+          "src/App.tsx:320: .toFixed(",
+          "src/App.tsx:324: .toFixed("
+        ]
+      },
+      "items": [
+        "countdown",
+        "format",
+        "quote-field"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 19,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 62,
+          "numeric": 6,
+          "direction": 0,
+          "name": 11
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "3",
+            "detail": "font-size 8px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=default]",
+            "text": "3 open",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Request",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Size",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Time",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "NA",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Buy",
+            "detail": "font-size 9px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "PC",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": false
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-rfq-kit-1",
+      "model": "gpt-5.6-terra",
+      "task": "rfq",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.8280333333333334,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "format",
+        "panel",
+        "rfq-stack",
+        "rfq-ticket",
+        "row-store",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 82,
+          "numeric": 54,
+          "direction": 0,
+          "name": 20
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-rfq-bare-1",
+      "model": "gpt-5.6-terra",
+      "task": "rfq",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.0103,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [
+        "src/App.tsx(6,21): error TS6133: 'formatRemaining' is declared but its value is never read."
+      ],
+      "source": {
+        "floor": [
+          "src/App.tsx:162: text-[11px]",
+          "src/App.tsx:167: text-[10px]",
+          "src/App.tsx:190: text-[10px]",
+          "src/App.tsx:210: text-[11px]",
+          "src/App.tsx:212: text-[11px]",
+          "src/App.tsx:214: text-[11px]",
+          "src/App.tsx:215: text-[11px]",
+          "src/App.tsx:236: text-[11px]",
+          "src/App.tsx:239: text-[11px]",
+          "src/App.tsx:257: text-[10px]",
+          "src/App.tsx:259: text-[11px]",
+          "src/App.tsx:260: text-[11px]",
+          "src/App.tsx:266: text-[10px]"
+        ],
+        "font": [
+          "src/App.tsx:212: font-mono",
+          "src/App.tsx:260: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "countdown",
+        "rfq-ticket"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 24,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 78,
+          "numeric": 20,
+          "direction": 1,
+          "name": 18
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Live feed connected",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "JD",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Incoming",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "3 requests",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-countdown span[data-countdown-digits=true][data-numeric]",
+            "text": "1:32",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "UST 4.125% 05/15/34",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Client buys",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "15mm",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": false,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-status-kit-1",
+      "model": "gpt-5.6-sol",
+      "task": "status",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 3.038466666666667,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "alerts",
+        "feed-health",
+        "status-bar",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 26,
+          "numeric": 4,
+          "direction": 0,
+          "name": 6
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-status-bare-1",
+      "model": "gpt-5.6-sol",
+      "task": "status",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.85845,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx",
+          "src/index.css"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:143: text-[9px]",
+          "src/App.tsx:155: text-[10px]",
+          "src/App.tsx:169: text-[10px]",
+          "src/App.tsx:190: text-[10px]",
+          "src/App.tsx:196: text-[10px]",
+          "src/App.tsx:213: text-[10px]",
+          "src/App.tsx:216: text-[11px]"
+        ],
+        "font": [],
+        "tabular": [
+          "src/App.tsx:172: tabular-nums without lining-nums",
+          "src/App.tsx:191: tabular-nums without lining-nums",
+          "src/App.tsx:216: tabular-nums without lining-nums"
+        ],
+        "handFormatted": []
+      },
+      "items": [
+        "alerts",
+        "feed-health",
+        "status-bar"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 39,
+          "numeric": 0,
+          "direction": 0,
+          "name": 2
+        },
+        "checked": {
+          "floor": 100,
+          "numeric": 5,
+          "direction": 6,
+          "name": 14
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "RATES DESK",
+            "detail": "font-size 9px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "⌘K",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Instrument",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Last",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Bid",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Ask",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Chg bp",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "US Treasury Note · 4.375% May 2036",
+            "detail": "font-size 10px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-status-kit-1",
+      "model": "gpt-5.6-terra",
+      "task": "status",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.09845,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "alerts",
+        "feed-health",
+        "status-bar",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 22,
+          "numeric": 4,
+          "direction": 0,
+          "name": 5
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-status-bare-1",
+      "model": "gpt-5.6-terra",
+      "task": "status",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.56815,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:100: text-[11px]"
+        ],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "alerts",
+        "feed-health",
+        "status-bar"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 1,
+          "numeric": 0,
+          "direction": 0,
+          "name": 2
+        },
+        "checked": {
+          "floor": 31,
+          "numeric": 5,
+          "direction": 0,
+          "name": 4
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "T",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "name",
+            "where": "tradecn-alert-dismiss button",
+            "text": "",
+            "detail": "button with no accessible name"
+          },
+          {
+            "rule": "name",
+            "where": "tradecn-alert-dismiss button",
+            "text": "",
+            "detail": "button with no accessible name"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-ticket-kit-1",
+      "model": "gpt-5.6-sol",
+      "task": "ticket",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.7772833333333333,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "format",
+        "ticket",
+        "use-hotkeys",
+        "workspace"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 37,
+          "numeric": 16,
+          "direction": 0,
+          "name": 18
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-ticket-bare-1",
+      "model": "gpt-5.6-sol",
+      "task": "ticket",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.2112333333333334,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx",
+          "src/index.css"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:133: text-[10px]",
+          "src/App.tsx:138: text-[11px]",
+          "src/App.tsx:151: text-[11px]",
+          "src/App.tsx:167: text-[9px]",
+          "src/App.tsx:177: text-[9px]",
+          "src/App.tsx:183: text-[9px]",
+          "src/App.tsx:193: text-[10px]",
+          "src/App.tsx:194: text-[10px]",
+          "src/App.tsx:229: text-[10px]",
+          "src/App.tsx:256: text-[10px]",
+          "src/App.tsx:296: text-[10px]",
+          "src/App.tsx:298: text-[10px]",
+          "src/App.tsx:318: text-[10px]",
+          "src/App.tsx:321: text-[9px]",
+          "src/App.tsx:325: text-[9px]",
+          "src/App.tsx:333: text-[10px]"
+        ],
+        "font": [
+          "src/App.tsx:150: font-mono",
+          "src/App.tsx:168: font-mono",
+          "src/App.tsx:178: font-mono",
+          "src/App.tsx:184: font-mono",
+          "src/App.tsx:237: font-mono",
+          "src/App.tsx:306: font-mono",
+          "src/App.tsx:322: font-mono",
+          "src/App.tsx:326: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "format",
+        "panel",
+        "quote-field",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 20,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 36,
+          "numeric": 7,
+          "direction": 0,
+          "name": 10
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "Treasury execution",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "Market live",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "10-Year T-Note · Dec 2026",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span[data-variant=outline]",
+            "text": "CME",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "Bid",
+            "detail": "font-size 9px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "Ask",
+            "detail": "font-size 9px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "Mid",
+            "detail": "font-size 9px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "Side",
+            "detail": "font-size 10px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-ticket-kit-1",
+      "model": "gpt-5.6-terra",
+      "task": "ticket",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.6848333333333334,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "feed-health",
+        "format",
+        "panel",
+        "row-store",
+        "ticket",
+        "use-hotkeys",
+        "workspace"
+      ],
+      "page": {
+        "rendered": false,
+        "pageErrors": [
+          "Error: Base UI error #82; visit https://base-ui.com/production-error?code=82 for the full message."
+        ],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": false,
+        "contract": false,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-ticket-bare-1",
+      "model": "gpt-5.6-terra",
+      "task": "ticket",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.8508333333333333,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:111: text-[10px]",
+          "src/App.tsx:124: text-[11px]",
+          "src/App.tsx:131: text-[11px]",
+          "src/App.tsx:138: text-[11px]",
+          "src/App.tsx:213: text-[10px]"
+        ],
+        "font": [
+          "src/App.tsx:111: font-mono",
+          "src/App.tsx:126: font-mono",
+          "src/App.tsx:127: font-mono",
+          "src/App.tsx:133: font-mono",
+          "src/App.tsx:134: font-mono",
+          "src/App.tsx:140: font-mono",
+          "src/App.tsx:141: font-mono",
+          "src/App.tsx:172: font-mono",
+          "src/App.tsx:177: font-mono",
+          "src/App.tsx:186: font-mono",
+          "src/App.tsx:198: font-mono",
+          "src/App.tsx:241: font-mono",
+          "src/App.tsx:245: font-mono",
+          "src/App.tsx:249: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 6,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 40,
+          "numeric": 0,
+          "direction": 0,
+          "name": 8
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "ZN Dec 26",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "Last",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "Bid",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "Ask",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "⌘ Enter",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page kbd",
+            "text": "Esc",
+            "detail": "font-size 10px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": false
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-watchlist-kit-1",
+      "model": "gpt-5.6-sol",
+      "task": "watchlist",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 4.337983333333334,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [
+          "src/lib/mock-watchlist.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "data-grid",
+        "feed-health",
+        "format",
+        "panel",
+        "row-store",
+        "use-hotkeys",
+        "watchlist",
+        "workspace"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 52,
+          "numeric": 62,
+          "direction": 20,
+          "name": 20
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-watchlist-bare-1",
+      "model": "gpt-5.6-sol",
+      "task": "watchlist",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.2855166666666666,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx",
+          "src/index.css"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:154: text-[10px]",
+          "src/App.tsx:164: text-[9px]",
+          "src/App.tsx:187: text-[10px]",
+          "src/App.tsx:221: text-[10px]"
+        ],
+        "font": [
+          "src/index.css:206: font-sans"
+        ],
+        "tabular": [
+          "src/App.tsx:129: tabular-nums without lining-nums"
+        ],
+        "handFormatted": []
+      },
+      "items": [
+        "format",
+        "panel",
+        "row-store",
+        "watchlist"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 23,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 95,
+          "numeric": 88,
+          "direction": 20,
+          "name": 20
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Simulated market data",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid div",
+            "text": "Dec 2026",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span[data-variant=outline]",
+            "text": "Futures",
+            "detail": "font-size 9px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid div",
+            "text": "Dec 2026",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span[data-variant=outline]",
+            "text": "Futures",
+            "detail": "font-size 9px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid div",
+            "text": "Dec 2026",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span[data-variant=outline]",
+            "text": "Futures",
+            "detail": "font-size 9px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid div",
+            "text": "Jan 2027",
+            "detail": "font-size 10px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-watchlist-kit-1",
+      "model": "gpt-5.6-terra",
+      "task": "watchlist",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.2985333333333333,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "data-grid",
+        "format",
+        "panel",
+        "row-store",
+        "use-hotkeys",
+        "watchlist",
+        "workspace"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 61,
+          "numeric": 80,
+          "direction": 20,
+          "name": 20
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-watchlist-bare-1",
+      "model": "gpt-5.6-terra",
+      "task": "watchlist",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.8843666666666666,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:122: text-[10px]",
+          "src/App.tsx:135: text-[10px]",
+          "src/App.tsx:183: text-[11px]"
+        ],
+        "font": [
+          "src/App.tsx:208: font-mono",
+          "src/App.tsx:209: font-mono",
+          "src/App.tsx:210: font-mono"
+        ],
+        "tabular": [
+          "src/App.tsx:208: tabular-nums without lining-nums",
+          "src/App.tsx:209: tabular-nums without lining-nums",
+          "src/App.tsx:210: tabular-nums without lining-nums"
+        ],
+        "handFormatted": [
+          "src/App.tsx:52: .toLocaleString(",
+          "src/App.tsx:209: .toFixed(",
+          "src/App.tsx:210: .toFixed("
+        ]
+      },
+      "items": [],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 7,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 78,
+          "numeric": 0,
+          "direction": 0,
+          "name": 31
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "tc",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "JD",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Live",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page th",
+            "text": "INSTRUMENT",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page th",
+            "text": "LAST",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page th",
+            "text": "CHANGE",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page th",
+            "text": "CHANGE %",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": false
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-positions-kit-2",
+      "model": "gpt-5.6-sol",
+      "task": "positions",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.64935,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [
+        "src/App.tsx(293,11): error TS2322: Type '{ store: RowStore<MockPosition>; columns: ColumnDef<MockPosition>[]; totals: { instrument: (rows: MockPosition[]) => string; totalPnl: (rows: MockPosition[]) => string; }; label: string; emptyLabel: string; className: string; }' is not assignable to type 'IntrinsicAttributes & PositionsProps<MockPosition>'."
+      ],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": [
+          "src/App.tsx:245: .toFixed(",
+          "src/App.tsx:252: .toFixed("
+        ]
+      },
+      "items": [
+        "data-grid",
+        "feed-health",
+        "format",
+        "panel",
+        "positions",
+        "row-store",
+        "workspace"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 62,
+          "numeric": 72,
+          "direction": 9,
+          "name": 9
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": false,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-positions-bare-2",
+      "model": "gpt-5.6-sol",
+      "task": "positions",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.8752333333333333,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:53: text-[0.65rem]"
+        ],
+        "font": [],
+        "tabular": [],
+        "handFormatted": [
+          "src/App.tsx:124: .toFixed("
+        ]
+      },
+      "items": [
+        "data-grid",
+        "format",
+        "panel",
+        "positions",
+        "row-store"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 9,
+          "numeric": 0,
+          "direction": 1,
+          "name": 0
+        },
+        "checked": {
+          "floor": 61,
+          "numeric": 72,
+          "direction": 9,
+          "name": 6
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span[data-variant=outline]",
+            "text": "Live · 1s",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "AA",
+            "detail": "font-size 10.4px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "MS",
+            "detail": "font-size 10.4px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "NV",
+            "detail": "font-size 10.4px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "TS",
+            "detail": "font-size 10.4px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "AM",
+            "detail": "font-size 10.4px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "ME",
+            "detail": "font-size 10.4px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-data-grid span",
+            "text": "AM",
+            "detail": "font-size 10.4px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 1
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-positions-kit-2",
+      "model": "gpt-5.6-terra",
+      "task": "positions",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.0934833333333334,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": [
+          "src/App.tsx:46: .toFixed("
+        ]
+      },
+      "items": [
+        "data-grid",
+        "format",
+        "panel",
+        "positions",
+        "row-store"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 49,
+          "numeric": 71,
+          "direction": 16,
+          "name": 6
+        },
+        "examples": [],
+        "visibleCueDirection": 6
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-positions-bare-2",
+      "model": "gpt-5.6-terra",
+      "task": "positions",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.5955333333333334,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:95: text-[11px]",
+          "src/App.tsx:104: text-[11px]"
+        ],
+        "font": [],
+        "tabular": [
+          "src/App.tsx:82: tabular-nums without lining-nums",
+          "src/App.tsx:122: tabular-nums without lining-nums",
+          "src/App.tsx:125: tabular-nums without lining-nums",
+          "src/App.tsx:126: tabular-nums without lining-nums",
+          "src/App.tsx:127: tabular-nums without lining-nums",
+          "src/App.tsx:140: tabular-nums without lining-nums",
+          "src/App.tsx:160: tabular-nums without lining-nums"
+        ],
+        "handFormatted": [
+          "src/App.tsx:25: new Intl.NumberFormat(",
+          "src/App.tsx:32: new Intl.NumberFormat("
+        ]
+      },
+      "items": [
+        "panel"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 6,
+          "numeric": 33,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 71,
+          "numeric": 34,
+          "direction": 0,
+          "name": 0
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "8",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel th",
+            "text": "Instrument",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel th",
+            "text": "Quantity",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel th",
+            "text": "Avg. price",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel th",
+            "text": "Last price",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel th",
+            "text": "Unrealized P&L",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "numeric",
+            "where": "tradecn-panel td",
+            "text": "+420",
+            "detail": "font-variant-numeric is \"tabular-nums\", where lining-nums tabular-nums belongs"
+          },
+          {
+            "rule": "numeric",
+            "where": "tradecn-panel td",
+            "text": "$214.82",
+            "detail": "font-variant-numeric is \"tabular-nums\", where lining-nums tabular-nums belongs"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": false
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-rfq-kit-2",
+      "model": "gpt-5.6-sol",
+      "task": "rfq",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 2.95725,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "format",
+        "panel",
+        "rfq-stack",
+        "rfq-ticket",
+        "row-store",
+        "status-bar",
+        "use-hotkeys",
+        "workspace"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 87,
+          "numeric": 46,
+          "direction": 0,
+          "name": 26
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-rfq-bare-2",
+      "model": "gpt-5.6-sol",
+      "task": "rfq",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.3563,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx",
+          "src/index.css"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:307: text-[10px]",
+          "src/App.tsx:328: text-[11px]",
+          "src/App.tsx:384: text-[10px]",
+          "src/App.tsx:439: text-[10px]",
+          "src/App.tsx:444: text-[11px]",
+          "src/App.tsx:445: text-[10px]",
+          "src/App.tsx:455: text-[10px]",
+          "src/App.tsx:465: text-[10px]",
+          "src/App.tsx:497: text-[10px]"
+        ],
+        "font": [
+          "src/App.tsx:323: font-mono",
+          "src/App.tsx:422: font-mono",
+          "src/App.tsx:432: font-mono",
+          "src/App.tsx:442: font-mono",
+          "src/App.tsx:469: font-mono",
+          "src/App.tsx:499: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "countdown",
+        "rfq-ticket"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 16,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 75,
+          "numeric": 21,
+          "direction": 1,
+          "name": 20
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "Credit Trading",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "LIVE",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "AR",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=default]",
+            "text": "2 open",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Newest first",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "BUYS",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Tradeweb",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "10:35 PM",
+            "detail": "font-size 10px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-rfq-kit-2",
+      "model": "gpt-5.6-terra",
+      "task": "rfq",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.5049666666666666,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "panel",
+        "rfq-stack",
+        "rfq-ticket",
+        "row-store",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 91,
+          "numeric": 56,
+          "direction": 1,
+          "name": 22
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-rfq-bare-2",
+      "model": "gpt-5.6-terra",
+      "task": "rfq",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.7404666666666667,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:132: text-[11px]",
+          "src/App.tsx:132: text-[11px]",
+          "src/App.tsx:233: text-[11px]",
+          "src/App.tsx:267: text-[11px]",
+          "src/App.tsx:268: text-[11px]"
+        ],
+        "font": [
+          "src/App.tsx:234: font-mono",
+          "src/App.tsx:263: font-mono",
+          "src/App.tsx:275: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "countdown"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 11,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 72,
+          "numeric": 5,
+          "direction": 0,
+          "name": 11
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Just now",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Buy",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "1m ago",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Sell",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "2m ago",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Buy",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "3m ago",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Sell",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": false
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-status-kit-2",
+      "model": "gpt-5.6-sol",
+      "task": "status",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 3.2731333333333335,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "alert-store",
+        "alerts",
+        "feed-health",
+        "row-store",
+        "status-bar",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 27,
+          "numeric": 5,
+          "direction": 0,
+          "name": 6
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-status-bare-2",
+      "model": "gpt-5.6-sol",
+      "task": "status",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.6796,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx",
+          "src/index.css"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:127: text-[10px]",
+          "src/App.tsx:133: text-[10px]",
+          "src/App.tsx:213: text-[10px]"
+        ],
+        "font": [],
+        "tabular": [
+          "src/App.tsx:132: tabular-nums without lining-nums",
+          "src/App.tsx:216: tabular-nums without lining-nums"
+        ],
+        "handFormatted": []
+      },
+      "items": [
+        "alerts",
+        "feed-health",
+        "panel",
+        "status-bar"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 13,
+          "numeric": 23,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 76,
+          "numeric": 32,
+          "direction": 0,
+          "name": 7
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "tradecn-alerts div",
+            "text": "Desk alerts",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-alerts span",
+            "text": "3",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "Live",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel th",
+            "text": "Instrument",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel th",
+            "text": "Net",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel th",
+            "text": "Mark",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel th",
+            "text": "P&L",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "Live",
+            "detail": "font-size 10px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-status-kit-2",
+      "model": "gpt-5.6-terra",
+      "task": "status",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.0623333333333334,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "alerts",
+        "feed-health",
+        "row-store",
+        "status-bar",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 24,
+          "numeric": 5,
+          "direction": 0,
+          "name": 5
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-status-bare-2",
+      "model": "gpt-5.6-terra",
+      "task": "status",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.6261666666666666,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [
+        "src/App.tsx(9,3): error TS6133: 'LayoutDashboard' is declared but its value is never read."
+      ],
+      "source": {
+        "floor": [
+          "src/App.tsx:177: text-[10px]"
+        ],
+        "font": [
+          "src/App.tsx:76: font-mono",
+          "src/App.tsx:86: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "alerts",
+        "feed-health",
+        "status-bar"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 1,
+          "numeric": 0,
+          "direction": 0,
+          "name": 2
+        },
+        "checked": {
+          "floor": 44,
+          "numeric": 6,
+          "direction": 3,
+          "name": 8
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "AC",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "name",
+            "where": "tradecn-alert-dismiss button",
+            "text": "",
+            "detail": "button with no accessible name"
+          },
+          {
+            "rule": "name",
+            "where": "tradecn-alert-dismiss button",
+            "text": "",
+            "detail": "button with no accessible name"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": false,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-ticket-kit-2",
+      "model": "gpt-5.6-sol",
+      "task": "ticket",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.6718833333333334,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "format",
+        "panel",
+        "row-store",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 26,
+          "numeric": 7,
+          "direction": 0,
+          "name": 8
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": false
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-ticket-bare-2",
+      "model": "gpt-5.6-sol",
+      "task": "ticket",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.0103333333333333,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:48: text-[10px]",
+          "src/App.tsx:120: text-[11px]",
+          "src/App.tsx:141: text-[11px]",
+          "src/App.tsx:151: text-[10px]",
+          "src/App.tsx:160: text-[10px]",
+          "src/App.tsx:240: text-[11px]",
+          "src/App.tsx:251: text-[10px]",
+          "src/App.tsx:266: text-[10px]",
+          "src/App.tsx:271: text-[10px]",
+          "src/App.tsx:276: text-[10px]"
+        ],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "format",
+        "panel",
+        "quote-field"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 16,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 40,
+          "numeric": 5,
+          "direction": 0,
+          "name": 8
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "US Treasury Futures",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Mock feed live",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=secondary]",
+            "text": "CBOT",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "0-02",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "CME Globex",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel div",
+            "text": "Bid",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel div",
+            "text": "Spread",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel div",
+            "text": "Ask",
+            "detail": "font-size 10px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-ticket-kit-2",
+      "model": "gpt-5.6-terra",
+      "task": "ticket",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.1524833333333333,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "format",
+        "panel",
+        "ticket",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 50,
+          "numeric": 19,
+          "direction": 1,
+          "name": 18
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-ticket-bare-2",
+      "model": "gpt-5.6-terra",
+      "task": "ticket",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.03135,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:122: text-[10px]",
+          "src/App.tsx:135: text-[11px]",
+          "src/App.tsx:150: text-[9px]",
+          "src/App.tsx:162: text-[10px]",
+          "src/App.tsx:164: text-[10px]",
+          "src/App.tsx:167: text-[10px]",
+          "src/App.tsx:168: text-[11px]",
+          "src/App.tsx:169: text-[10px]",
+          "src/App.tsx:172: text-[10px]",
+          "src/App.tsx:174: text-[10px]",
+          "src/App.tsx:190: text-[11px]",
+          "src/App.tsx:198: text-[11px]",
+          "src/App.tsx:216: text-[9px]",
+          "src/App.tsx:216: text-[9px]",
+          "src/App.tsx:219: text-[9px]",
+          "src/App.tsx:222: text-[11px]",
+          "src/App.tsx:229: text-[11px]",
+          "src/App.tsx:232: text-[10px]",
+          "src/App.tsx:233: text-[10px]",
+          "src/App.tsx:234: text-[10px]",
+          "src/App.tsx:235: text-[10px]",
+          "src/App.tsx:236: text-[10px]",
+          "src/App.tsx:240: text-[10px]"
+        ],
+        "font": [
+          "src/App.tsx:122: font-mono",
+          "src/App.tsx:149: font-mono",
+          "src/App.tsx:163: font-mono",
+          "src/App.tsx:168: font-mono",
+          "src/App.tsx:173: font-mono",
+          "src/App.tsx:193: font-mono",
+          "src/App.tsx:200: font-mono",
+          "src/App.tsx:211: font-mono",
+          "src/App.tsx:234: font-mono",
+          "src/App.tsx:235: font-mono",
+          "src/App.tsx:236: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": [
+          "src/App.tsx:57: .toLocaleString("
+        ]
+      },
+      "items": [],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 24,
+          "numeric": 0,
+          "direction": 0,
+          "name": 2
+        },
+        "checked": {
+          "floor": 49,
+          "numeric": 0,
+          "direction": 0,
+          "name": 14
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "OMS",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "Order ticket",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Dec 2026",
+            "detail": "font-size 9px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "Bid",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "42 contracts",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "Last",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "+0'025",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page p",
+            "text": "14:38:07 CT",
+            "detail": "font-size 10px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": false
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-watchlist-kit-2",
+      "model": "gpt-5.6-sol",
+      "task": "watchlist",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 4.1967,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "data-grid",
+        "feed-health",
+        "format",
+        "row-store",
+        "use-hotkeys",
+        "watchlist",
+        "workspace"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 76,
+          "numeric": 73,
+          "direction": 20,
+          "name": 21
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol-watchlist-bare-2",
+      "model": "gpt-5.6-sol",
+      "task": "watchlist",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.9793,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-sol"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx",
+          "src/index.css"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:170: text-[11px]",
+          "src/App.tsx:179: text-[11px]",
+          "src/App.tsx:192: text-[11px]",
+          "src/App.tsx:204: text-[11px]"
+        ],
+        "font": [
+          "src/App.tsx:77: font-mono",
+          "src/App.tsx:206: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": [
+          "src/App.tsx:128: .toFixed("
+        ]
+      },
+      "items": [
+        "panel",
+        "row-store",
+        "watchlist"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 10,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 70,
+          "numeric": 60,
+          "direction": 20,
+          "name": 18
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Mock feed live",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "Open",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "Futures & treasuries",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "Simulated stream",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "Delayed mock data",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span[data-variant=secondary]",
+            "text": "LIVE",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "Click a row to select · Delete to remove",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-watchlist span",
+            "text": "Prices update several times per second",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-watchlist-kit-2",
+      "model": "gpt-5.6-terra",
+      "task": "watchlist",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 1.301,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "data-grid",
+        "feed-health",
+        "format",
+        "panel",
+        "row-store",
+        "use-hotkeys",
+        "watchlist"
+      ],
+      "page": {
+        "rendered": false,
+        "pageErrors": [
+          "Error: Base UI error #82; visit https://base-ui.com/production-error?code=82 for the full message."
+        ],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": false,
+        "contract": false,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra-watchlist-bare-2",
+      "model": "gpt-5.6-terra",
+      "task": "watchlist",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 0.6612166666666667,
+        "premiumRequests": 1,
+        "modelId": "gpt-5.6-terra"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [
+        "src/App.tsx(1,10): error TS1484: 'FormEvent' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled."
+      ],
+      "source": {
+        "floor": [
+          "src/App.tsx:148: text-[11px]",
+          "src/App.tsx:160: text-[11px]"
+        ],
+        "font": [
+          "src/App.tsx:169: font-mono",
+          "src/App.tsx:172: font-mono",
+          "src/App.tsx:173: font-mono",
+          "src/App.tsx:177: font-mono"
+        ],
+        "tabular": [
+          "src/App.tsx:172: tabular-nums without lining-nums",
+          "src/App.tsx:173: tabular-nums without lining-nums",
+          "src/App.tsx:177: tabular-nums without lining-nums"
+        ],
+        "handFormatted": [
+          "src/App.tsx:40: new Intl.NumberFormat(",
+          "src/App.tsx:88: .toFixed(",
+          "src/App.tsx:97: .toFixed(",
+          "src/App.tsx:177: .toFixed("
+        ]
+      },
+      "items": [],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 6,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 71,
+          "numeric": 0,
+          "direction": 0,
+          "name": 14
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Instrument",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Last",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Change",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Change %",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "6 instruments",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "4 instruments",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": false,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": false
+      }
+    }
+  ]
+}

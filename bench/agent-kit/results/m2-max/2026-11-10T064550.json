@@ -1,0 +1,2352 @@
+{
+  "writtenAt": "2026-11-10T07:36:04.071Z",
+  "machine": "m2-max",
+  "commit": "67f4c71dfa53ff5208461b724331f914e4032c73",
+  "dirty": false,
+  "agent": {
+    "cli": "copilot",
+    "version": "1.0.107"
+  },
+  "browser": "Chromium 153.0.8010.12",
+  "frame": "This is a Vite, React and TypeScript app with shadcn/ui, and the tradecn registry's items are installed under src/components, src/hooks and src/lib. Build with them. The screen goes in src/App.tsx, which src/main.tsx already renders. Add files under src/ as you need them, and mock every piece of data inside the app. When you're done, `bunx vite build` has to succeed. Don't start a dev server or anything else that keeps running.",
+  "style": "base-mira",
+  "trials": 2,
+  "tasks": [
+    "positions",
+    "rfq",
+    "status",
+    "ticket",
+    "watchlist"
+  ],
+  "arms": [
+    "kit",
+    "bare"
+  ],
+  "models": [
+    "gemini-3.8-flash"
+  ],
+  "expectations": {
+    "writtenOn": "2026-09-29",
+    "claim": "With the kit installed, a coding agent builds screens that keep the item contract more often than without it.",
+    "helps": {
+      "higher": "contract",
+      "noLower": [
+        "builds",
+        "renders"
+      ]
+    },
+    "note": "Written before the first run and never edited to fit one. A definition that turns out to measure the wrong thing is replaced by a new file with its own date, and this one stays beside it, unedited."
+  },
+  "summary": {
+    "gemini-3.8-flash": {
+      "kit": {
+        "screens": 10,
+        "sessionFailures": 0,
+        "rates": {
+          "builds": 1,
+          "types": 0.6,
+          "renders": 0.8,
+          "contract": 0.6,
+          "source": 0.6,
+          "items": 1
+        },
+        "meanFindings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 1.25,
+          "name": 0
+        },
+        "meanHandFormatted": 1.7,
+        "meanVisibleCueDirection": 1.5,
+        "timedOut": 1,
+        "meanMinutes": 10.280931666666666,
+        "premiumRequests": {
+          "known": 126,
+          "unreported": 1
+        }
+      },
+      "bare": {
+        "screens": 10,
+        "sessionFailures": 0,
+        "rates": {
+          "builds": 1,
+          "types": 0.8,
+          "renders": 1,
+          "contract": 0,
+          "source": 0,
+          "items": 1
+        },
+        "meanFindings": {
+          "floor": 30.8,
+          "numeric": 3.2,
+          "direction": 1.7,
+          "name": 0
+        },
+        "meanHandFormatted": 7.2,
+        "meanVisibleCueDirection": 1.7,
+        "timedOut": 0,
+        "meanMinutes": 8.365821666666667,
+        "premiumRequests": {
+          "known": 140,
+          "unreported": 0
+        }
+      }
+    }
+  },
+  "verdict": {
+    "gemini-3.8-flash": {
+      "helps": false,
+      "why": "contract 60% with the kit against 0% without; lower with the kit: renders"
+    }
+  },
+  "records": [
+    {
+      "id": "gemini-3.8-flash-positions-kit-1",
+      "model": "gemini-3.8-flash",
+      "task": "positions",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 10.000283333333334,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/lib/positions-feed.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "data-grid",
+        "format",
+        "panel",
+        "positions",
+        "row-store",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 51,
+          "numeric": 72,
+          "direction": 16,
+          "name": 6
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-positions-bare-1",
+      "model": "gemini-3.8-flash",
+      "task": "positions",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 10.535466666666666,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/lib/mock-positions.tsx"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [
+          "src/lib/mock-positions.tsx:190: font-mono",
+          "src/lib/mock-positions.tsx:212: font-mono",
+          "src/lib/mock-positions.tsx:228: font-mono",
+          "src/App.tsx:134: font-mono"
+        ],
+        "tabular": [
+          "src/lib/mock-positions.tsx:190: tabular-nums without lining-nums",
+          "src/lib/mock-positions.tsx:212: tabular-nums without lining-nums",
+          "src/lib/mock-positions.tsx:228: tabular-nums without lining-nums",
+          "src/lib/mock-positions.tsx:254: tabular-nums without lining-nums",
+          "src/App.tsx:113: tabular-nums without lining-nums",
+          "src/App.tsx:125: tabular-nums without lining-nums",
+          "src/App.tsx:134: tabular-nums without lining-nums"
+        ],
+        "handFormatted": [
+          "src/lib/mock-positions.tsx:127: new Intl.NumberFormat(",
+          "src/lib/mock-positions.tsx:135: new Intl.NumberFormat(",
+          "src/lib/mock-positions.tsx:142: new Intl.NumberFormat("
+        ]
+      },
+      "items": [
+        "data-grid",
+        "panel",
+        "positions",
+        "row-store"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 32,
+          "direction": 2,
+          "name": 0
+        },
+        "checked": {
+          "floor": 63,
+          "numeric": 73,
+          "direction": 19,
+          "name": 7
+        },
+        "examples": [
+          {
+            "rule": "numeric",
+            "where": "tradecn-data-grid span[data-side=long]",
+            "text": "+500",
+            "detail": "font-variant-numeric is \"tabular-nums\", where lining-nums tabular-nums belongs"
+          },
+          {
+            "rule": "numeric",
+            "where": "tradecn-data-grid span",
+            "text": "$220.00",
+            "detail": "font-variant-numeric is \"tabular-nums\", where lining-nums tabular-nums belongs"
+          },
+          {
+            "rule": "numeric",
+            "where": "tradecn-data-grid span",
+            "text": "$228.09",
+            "detail": "font-variant-numeric is \"tabular-nums\", where lining-nums tabular-nums belongs"
+          },
+          {
+            "rule": "numeric",
+            "where": "tradecn-data-grid span[data-pnl=profit][data-making-money=true][data-losing-money=false]",
+            "text": "+$4,045.00",
+            "detail": "font-variant-numeric is \"tabular-nums\", where lining-nums tabular-nums belongs"
+          },
+          {
+            "rule": "numeric",
+            "where": "tradecn-data-grid span[data-side=long]",
+            "text": "+300",
+            "detail": "font-variant-numeric is \"tabular-nums\", where lining-nums tabular-nums belongs"
+          },
+          {
+            "rule": "numeric",
+            "where": "tradecn-data-grid span",
+            "text": "$425.00",
+            "detail": "font-variant-numeric is \"tabular-nums\", where lining-nums tabular-nums belongs"
+          },
+          {
+            "rule": "numeric",
+            "where": "tradecn-data-grid span",
+            "text": "$418.08",
+            "detail": "font-variant-numeric is \"tabular-nums\", where lining-nums tabular-nums belongs"
+          },
+          {
+            "rule": "numeric",
+            "where": "tradecn-data-grid span[data-pnl=loss][data-making-money=false][data-losing-money=true]",
+            "text": "-$2,076.00",
+            "detail": "font-variant-numeric is \"tabular-nums\", where lining-nums tabular-nums belongs"
+          }
+        ],
+        "visibleCueDirection": 2
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-rfq-kit-1",
+      "model": "gemini-3.8-flash",
+      "task": "rfq",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 9.793533333333333,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/lib/rfq-mock-data.ts"
+        ],
+        "changed": [
+          "src/App.tsx",
+          "src/main.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "agent-kit",
+        "format",
+        "panel",
+        "rfq-stack",
+        "rfq-ticket",
+        "row-store",
+        "status-bar",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 113,
+          "numeric": 78,
+          "direction": 2,
+          "name": 22
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-rfq-bare-1",
+      "model": "gemini-3.8-flash",
+      "task": "rfq",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 12.328466666666667,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/lib/mock-rfqs.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:265: text-[10px]",
+          "src/App.tsx:299: text-[10px]",
+          "src/App.tsx:360: text-[9px]",
+          "src/App.tsx:401: text-[10px]",
+          "src/App.tsx:455: text-[11px]",
+          "src/App.tsx:460: text-[11px]",
+          "src/App.tsx:466: text-[11px]",
+          "src/App.tsx:470: text-[11px]",
+          "src/App.tsx:475: text-[11px]",
+          "src/App.tsx:517: text-[10px]",
+          "src/App.tsx:531: text-[11px]",
+          "src/App.tsx:544: text-[11px]",
+          "src/App.tsx:677: text-[11px]",
+          "src/App.tsx:681: text-[11px]"
+        ],
+        "font": [
+          "src/App.tsx:280: font-mono",
+          "src/App.tsx:379: font-mono",
+          "src/App.tsx:441: font-sans",
+          "src/App.tsx:503: font-mono",
+          "src/App.tsx:706: font-mono"
+        ],
+        "tabular": [
+          "src/App.tsx:503: tabular-nums without lining-nums"
+        ],
+        "handFormatted": []
+      },
+      "items": [
+        "countdown",
+        "data-grid",
+        "format",
+        "panel",
+        "rfq-stack",
+        "rfq-ticket",
+        "row-store",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 24,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 67,
+          "numeric": 39,
+          "direction": 0,
+          "name": 22
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Total: 3",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Open: 3",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Quoted: 0",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=secondary]",
+            "text": "Passed: 0",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Expired: 0",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span[data-variant=secondary]",
+            "text": "3",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel button",
+            "text": "all",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel button",
+            "text": "open",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-status-kit-1",
+      "model": "gemini-3.8-flash",
+      "task": "status",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 8.5396,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/hooks/use-mock-feeds.ts",
+          "src/lib/mock-desk-data.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [
+          "src/App.tsx:78: font-mono",
+          "src/App.tsx:131: font-sans",
+          "src/App.tsx:150: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "alert-store",
+        "alerts",
+        "blotter",
+        "feed-health",
+        "panel",
+        "row-store",
+        "status-bar",
+        "use-hotkeys",
+        "watchlist"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 7,
+          "name": 0
+        },
+        "checked": {
+          "floor": 140,
+          "numeric": 122,
+          "direction": 12,
+          "name": 32
+        },
+        "examples": [
+          {
+            "rule": "direction",
+            "where": "tradecn-data-grid span",
+            "text": "0.00%",
+            "detail": "painted oklch(0.52 0.13 165) with no sign, arrow, word, data-direction or label saying the direction"
+          },
+          {
+            "rule": "direction",
+            "where": "tradecn-data-grid span",
+            "text": "0.00%",
+            "detail": "painted oklch(0.52 0.13 165) with no sign, arrow, word, data-direction or label saying the direction"
+          },
+          {
+            "rule": "direction",
+            "where": "tradecn-data-grid span",
+            "text": "0.00%",
+            "detail": "painted oklch(0.46 0.19 40) with no sign, arrow, word, data-direction or label saying the direction"
+          },
+          {
+            "rule": "direction",
+            "where": "tradecn-data-grid span",
+            "text": "0.00%",
+            "detail": "painted oklch(0.46 0.19 40) with no sign, arrow, word, data-direction or label saying the direction"
+          },
+          {
+            "rule": "direction",
+            "where": "tradecn-data-grid span",
+            "text": "0.00",
+            "detail": "painted oklch(0.52 0.13 165) with no sign, arrow, word, data-direction or label saying the direction"
+          },
+          {
+            "rule": "direction",
+            "where": "tradecn-data-grid span",
+            "text": "0.00%",
+            "detail": "painted oklch(0.52 0.13 165) with no sign, arrow, word, data-direction or label saying the direction"
+          },
+          {
+            "rule": "direction",
+            "where": "tradecn-data-grid span",
+            "text": "0.00%",
+            "detail": "painted oklch(0.52 0.13 165) with no sign, arrow, word, data-direction or label saying the direction"
+          }
+        ],
+        "visibleCueDirection": 7
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-status-bare-1",
+      "model": "gemini-3.8-flash",
+      "task": "status",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 6.701883333333333,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/components/alerts-strip.tsx",
+          "src/components/trading-desk.tsx",
+          "src/hooks/use-mock-feeds.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [
+        "src/components/alerts-strip.tsx(1,1): error TS6133: 'useCallback' is declared but its value is never read.",
+        "src/components/trading-desk.tsx(9,3): error TS6133: 'AlertTriangle' is declared but its value is never read.",
+        "src/components/trading-desk.tsx(12,3): error TS6133: 'CheckCircle2' is declared but its value is never read.",
+        "src/components/trading-desk.tsx(67,9): error TS6133: 'iceFeed' is declared but its value is never read."
+      ],
+      "source": {
+        "floor": [
+          "src/components/alerts-strip.tsx:79: text-[11px]",
+          "src/components/alerts-strip.tsx:84: text-[10px]",
+          "src/components/alerts-strip.tsx:91: text-[10px]",
+          "src/components/alerts-strip.tsx:111: text-[10px]",
+          "src/components/alerts-strip.tsx:117: text-[11px]",
+          "src/components/alerts-strip.tsx:145: text-[11px]",
+          "src/components/alerts-strip.tsx:155: text-[11px]",
+          "src/components/trading-desk.tsx:110: text-[10px]",
+          "src/components/trading-desk.tsx:114: text-[11px]",
+          "src/components/trading-desk.tsx:132: text-[11px]",
+          "src/components/trading-desk.tsx:214: text-[10px]",
+          "src/components/trading-desk.tsx:244: text-[9px]",
+          "src/components/trading-desk.tsx:270: text-[9px]",
+          "src/components/trading-desk.tsx:274: text-[9px]",
+          "src/components/trading-desk.tsx:292: text-[10px]",
+          "src/components/trading-desk.tsx:329: text-[9px]",
+          "src/components/trading-desk.tsx:354: text-[10px]",
+          "src/components/trading-desk.tsx:432: text-[10px]",
+          "src/components/trading-desk.tsx:444: text-[11px]",
+          "src/components/trading-desk.tsx:473: text-[10px]",
+          "src/App.tsx:138: text-[11px]",
+          "src/App.tsx:152: text-[11px]"
+        ],
+        "font": [
+          "src/components/trading-desk.tsx:110: font-mono",
+          "src/components/trading-desk.tsx:114: font-mono",
+          "src/components/trading-desk.tsx:132: font-mono",
+          "src/components/trading-desk.tsx:213: font-mono",
+          "src/components/trading-desk.tsx:291: font-mono",
+          "src/components/trading-desk.tsx:353: font-mono",
+          "src/components/trading-desk.tsx:409: font-mono",
+          "src/App.tsx:152: font-mono",
+          "src/App.tsx:169: font-mono"
+        ],
+        "tabular": [
+          "src/components/alerts-strip.tsx:84: tabular-nums without lining-nums"
+        ],
+        "handFormatted": [
+          "src/components/trading-desk.tsx:80: .toFixed(",
+          "src/components/trading-desk.tsx:81: .toFixed(",
+          "src/components/trading-desk.tsx:82: .toFixed(",
+          "src/components/trading-desk.tsx:88: .toFixed(",
+          "src/components/trading-desk.tsx:253: .toFixed(",
+          "src/components/trading-desk.tsx:254: .toFixed(",
+          "src/components/trading-desk.tsx:256: .toFixed(",
+          "src/components/trading-desk.tsx:259: .toFixed(",
+          "src/components/trading-desk.tsx:259: .toFixed(",
+          "src/components/trading-desk.tsx:264: .toFixed(",
+          "src/components/trading-desk.tsx:323: .toLocaleString(",
+          "src/components/trading-desk.tsx:324: .toFixed(",
+          "src/components/trading-desk.tsx:325: .toLocaleString(",
+          "src/components/trading-desk.tsx:378: .toLocaleString(",
+          "src/components/trading-desk.tsx:378: .toLocaleString(",
+          "src/components/trading-desk.tsx:380: .toFixed(",
+          "src/components/trading-desk.tsx:381: .toFixed(",
+          "src/components/trading-desk.tsx:383: .toLocaleString(",
+          "src/components/trading-desk.tsx:383: .toLocaleString(",
+          "src/components/trading-desk.tsx:386: .toLocaleString(",
+          "src/components/trading-desk.tsx:386: .toLocaleString(",
+          "src/components/trading-desk.tsx:389: .toFixed(",
+          "src/components/trading-desk.tsx:389: .toFixed(",
+          "src/components/trading-desk.tsx:456: .toFixed(",
+          "src/components/trading-desk.tsx:462: .toLocaleString("
+        ]
+      },
+      "items": [
+        "alert-store",
+        "alerts",
+        "feed-health",
+        "status-bar"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 48,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 142,
+          "numeric": 10,
+          "direction": 0,
+          "name": 14
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Alerts Strip",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "3 ACTIVE",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-alert-severity span[data-variant=outline][data-alert-severity]",
+            "text": "CRITICAL",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-alert-item span",
+            "text": "Desk margin usage at 89.4% of total facility ($17.88M / $20.00M). Review tech se",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-alert-severity span[data-variant=outline][data-alert-severity]",
+            "text": "STALE",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-alert-item span",
+            "text": "Multicast packet gap detected on ICE Commodity gateway. Feed may experience inte",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-alert-severity span[data-variant=outline][data-alert-severity]",
+            "text": "NOTICE",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-alert-item span",
+            "text": "Fedwire securities transfer cutoff scheduled for 16:30 ET. Ensure matched block ",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": false,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-ticket-kit-1",
+      "model": "gemini-3.8-flash",
+      "task": "ticket",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": null,
+        "timedOut": true,
+        "minutes": 20.00123333333333,
+        "premiumRequests": null,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/components/last-fill.tsx",
+          "src/lib/mock-data.ts"
+        ],
+        "changed": [
+          "src/App.tsx",
+          "src/components/ticket.tsx",
+          "src/main.tsx"
+        ]
+      },
+      "typeErrors": [
+        "src/App.tsx(116,3): error TS6133: 'isWorking' is declared but its value is never read."
+      ],
+      "source": {
+        "floor": [],
+        "font": [
+          "src/components/last-fill.tsx:72: font-mono",
+          "src/components/last-fill.tsx:79: font-mono",
+          "src/components/last-fill.tsx:127: font-mono",
+          "src/components/last-fill.tsx:144: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": [
+          "src/lib/mock-data.ts:127: .toFixed(",
+          "src/lib/mock-data.ts:128: .toFixed(",
+          "src/lib/mock-data.ts:142: .toFixed("
+        ]
+      },
+      "items": [
+        "agent-kit",
+        "flash-cell",
+        "format",
+        "limits",
+        "panel",
+        "quote-field",
+        "row-store",
+        "ticket",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 73,
+          "numeric": 36,
+          "direction": 1,
+          "name": 20
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": false,
+        "renders": true,
+        "contract": true,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-ticket-bare-1",
+      "model": "gemini-3.8-flash",
+      "task": "ticket",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 7.7438666666666665,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/components/last-fill-card.tsx",
+          "src/components/market-header.tsx",
+          "src/components/order-entry-panel.tsx",
+          "src/hooks/use-mock-treasury.ts",
+          "src/lib/treasury.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/components/last-fill-card.tsx:68: text-[0.625rem]",
+          "src/components/last-fill-card.tsx:77: text-[0.65rem]",
+          "src/components/last-fill-card.tsx:90: text-[0.65rem]",
+          "src/components/last-fill-card.tsx:101: text-[0.7rem]",
+          "src/components/last-fill-card.tsx:107: text-[0.65rem]",
+          "src/components/last-fill-card.tsx:111: text-[0.65rem]",
+          "src/components/last-fill-card.tsx:117: text-[0.65rem]",
+          "src/components/last-fill-card.tsx:121: text-[0.65rem]",
+          "src/components/last-fill-card.tsx:127: text-[0.65rem]",
+          "src/components/last-fill-card.tsx:129: text-[0.6rem]",
+          "src/components/last-fill-card.tsx:132: text-[0.7rem]",
+          "src/components/last-fill-card.tsx:142: text-[0.65rem]",
+          "src/components/last-fill-card.tsx:150: text-[0.7rem]",
+          "src/components/last-fill-card.tsx:151: text-[0.625rem]",
+          "src/components/last-fill-card.tsx:179: text-[0.65rem]",
+          "src/components/last-fill-card.tsx:185: text-[0.65rem]",
+          "src/components/last-fill-card.tsx:202: text-[0.65rem]",
+          "src/components/market-header.tsx:29: text-[0.625rem]",
+          "src/components/market-header.tsx:33: text-[0.65rem]",
+          "src/components/market-header.tsx:67: text-[0.7rem]",
+          "src/components/market-header.tsx:74: text-[0.7rem]",
+          "src/components/market-header.tsx:79: text-[0.7rem]",
+          "src/components/market-header.tsx:86: text-[0.7rem]",
+          "src/components/order-entry-panel.tsx:185: text-[0.625rem]",
+          "src/components/order-entry-panel.tsx:192: text-[0.65rem]",
+          "src/components/order-entry-panel.tsx:200: text-[0.65rem]",
+          "src/components/order-entry-panel.tsx:207: text-[0.6rem]",
+          "src/components/order-entry-panel.tsx:215: text-[0.65rem]",
+          "src/components/order-entry-panel.tsx:222: text-[0.6rem]",
+          "src/components/order-entry-panel.tsx:230: text-[0.65rem]",
+          "src/components/order-entry-panel.tsx:246: text-[0.65rem]",
+          "src/components/order-entry-panel.tsx:247: text-[0.6rem]",
+          "src/components/order-entry-panel.tsx:330: text-[0.65rem]",
+          "src/components/order-entry-panel.tsx:346: text-[0.65rem]",
+          "src/components/order-entry-panel.tsx:374: text-[0.65rem]",
+          "src/components/order-entry-panel.tsx:395: text-[0.65rem]",
+          "src/components/order-entry-panel.tsx:422: text-[0.625rem]",
+          "src/components/order-entry-panel.tsx:423: text-[0.625rem]",
+          "src/components/order-entry-panel.tsx:439: text-[0.625rem]",
+          "src/components/order-entry-panel.tsx:448: text-[0.72rem]",
+          "src/components/order-entry-panel.tsx:462: text-[0.6rem]",
+          "src/App.tsx:82: text-[0.68rem]",
+          "src/App.tsx:120: text-[0.7rem]"
+        ],
+        "font": [
+          "src/components/last-fill-card.tsx:82: font-mono",
+          "src/components/last-fill-card.tsx:129: font-mono",
+          "src/components/last-fill-card.tsx:132: font-mono",
+          "src/components/last-fill-card.tsx:179: font-mono",
+          "src/components/last-fill-card.tsx:195: font-mono",
+          "src/components/market-header.tsx:67: font-mono",
+          "src/components/market-header.tsx:79: font-mono",
+          "src/components/order-entry-panel.tsx:185: font-mono",
+          "src/components/order-entry-panel.tsx:200: font-mono",
+          "src/components/order-entry-panel.tsx:203: font-sans",
+          "src/components/order-entry-panel.tsx:215: font-mono",
+          "src/components/order-entry-panel.tsx:218: font-sans",
+          "src/components/order-entry-panel.tsx:230: font-mono",
+          "src/components/order-entry-panel.tsx:233: font-sans",
+          "src/components/order-entry-panel.tsx:376: font-mono",
+          "src/App.tsx:54: font-sans"
+        ],
+        "tabular": [],
+        "handFormatted": [
+          "src/components/last-fill-card.tsx:112: .toFixed(",
+          "src/components/last-fill-card.tsx:119: .toLocaleString(",
+          "src/components/last-fill-card.tsx:199: .toFixed(",
+          "src/components/market-header.tsx:55: .toFixed(",
+          "src/components/market-header.tsx:98: .toFixed(",
+          "src/components/order-entry-panel.tsx:376: .toFixed(",
+          "src/components/order-entry-panel.tsx:396: .toLocaleString("
+        ]
+      },
+      "items": [
+        "format",
+        "panel",
+        "quote-field",
+        "status-bar",
+        "ticket",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 62,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 97,
+          "numeric": 33,
+          "direction": 0,
+          "name": 20
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=secondary]",
+            "text": "Active Future",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "10-Year U.S. Treasury Note Future • CBOT",
+            "detail": "font-size 10.4px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "345",
+            "detail": "font-size 11.2px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "x",
+            "detail": "font-size 11.2px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "273",
+            "detail": "font-size 11.2px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "High:",
+            "detail": "font-size 11.2px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "110-20",
+            "detail": "font-size 11.2px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Low:",
+            "detail": "font-size 11.2px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-watchlist-kit-1",
+      "model": "gemini-3.8-flash",
+      "task": "watchlist",
+      "arm": "kit",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 10.2967,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/lib/mock-feed.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [
+        "src/App.tsx(396,41): error TS2339: Property 'row' does not exist on type 'WatchlistRow[]'."
+      ],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": [
+          "src/lib/mock-feed.ts:198: .toFixed(",
+          "src/lib/mock-feed.ts:199: .toFixed(",
+          "src/lib/mock-feed.ts:200: .toFixed(",
+          "src/lib/mock-feed.ts:201: .toFixed(",
+          "src/lib/mock-feed.ts:263: .toFixed(",
+          "src/lib/mock-feed.ts:264: .toFixed(",
+          "src/lib/mock-feed.ts:265: .toFixed(",
+          "src/lib/mock-feed.ts:266: .toFixed(",
+          "src/lib/mock-feed.ts:267: .toFixed("
+        ]
+      },
+      "items": [
+        "data-grid",
+        "feed-health",
+        "format",
+        "panel",
+        "row-store",
+        "use-hotkeys",
+        "watchlist"
+      ],
+      "page": {
+        "rendered": false,
+        "pageErrors": [
+          "TypeError: Cannot read properties of undefined (reading 'symbol')"
+        ],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": false,
+        "renders": false,
+        "contract": false,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-watchlist-bare-1",
+      "model": "gemini-3.8-flash",
+      "task": "watchlist",
+      "arm": "bare",
+      "trial": 1,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 8.3249,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/lib/mock-feed.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:170: text-[10px]",
+          "src/App.tsx:171: text-[10px]",
+          "src/App.tsx:291: text-[10px]",
+          "src/App.tsx:310: text-[11px]",
+          "src/App.tsx:381: text-[11px]",
+          "src/App.tsx:418: text-[11px]",
+          "src/App.tsx:425: text-[11px]"
+        ],
+        "font": [],
+        "tabular": [],
+        "handFormatted": [
+          "src/lib/mock-feed.ts:78: .toFixed(",
+          "src/lib/mock-feed.ts:79: .toFixed(",
+          "src/lib/mock-feed.ts:80: .toFixed(",
+          "src/lib/mock-feed.ts:81: .toFixed(",
+          "src/lib/mock-feed.ts:82: .toFixed(",
+          "src/lib/mock-feed.ts:159: .toFixed(",
+          "src/lib/mock-feed.ts:161: .toFixed(",
+          "src/lib/mock-feed.ts:162: .toFixed(",
+          "src/lib/mock-feed.ts:163: .toFixed(",
+          "src/lib/mock-feed.ts:164: .toFixed("
+        ]
+      },
+      "items": [
+        "data-grid",
+        "format",
+        "panel",
+        "row-store",
+        "status-bar",
+        "use-hotkeys",
+        "watchlist"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 18,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 144,
+          "numeric": 133,
+          "direction": 0,
+          "name": 30
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "v1.0",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "~4 ticks/s (20 updates)",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-watchlist span",
+            "text": "Quick Add:",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-watchlist button",
+            "text": "+ BTC",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-watchlist button",
+            "text": "+ SI",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-watchlist button",
+            "text": "+ HG",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-watchlist button",
+            "text": "+ US10Y",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-watchlist button",
+            "text": "+ NG",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-positions-kit-2",
+      "model": "gemini-3.8-flash",
+      "task": "positions",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 8.4628,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/lib/mock-positions.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": [
+          "src/lib/mock-positions.ts:141: .toFixed(",
+          "src/lib/mock-positions.ts:142: .toFixed("
+        ]
+      },
+      "items": [
+        "data-grid",
+        "format",
+        "panel",
+        "positions",
+        "row-store",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 51,
+          "numeric": 72,
+          "direction": 8,
+          "name": 6
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-positions-bare-2",
+      "model": "gemini-3.8-flash",
+      "task": "positions",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 8.7712,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx",
+          "src/components/ui/data-grid.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:348: text-[0.6875rem]",
+          "src/App.tsx:362: text-[0.6875rem]",
+          "src/App.tsx:371: text-[0.6875rem]",
+          "src/App.tsx:380: text-[0.6875rem]"
+        ],
+        "font": [
+          "src/App.tsx:337: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": [
+          "src/App.tsx:126: new Intl.NumberFormat(",
+          "src/App.tsx:136: new Intl.NumberFormat(",
+          "src/App.tsx:172: .toFixed(",
+          "src/App.tsx:173: .toFixed(",
+          "src/App.tsx:174: .toFixed("
+        ]
+      },
+      "items": [
+        "data-grid",
+        "format",
+        "grid-rules",
+        "panel",
+        "positions",
+        "row-store"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 4,
+          "numeric": 0,
+          "direction": 2,
+          "name": 0
+        },
+        "checked": {
+          "floor": 64,
+          "numeric": 71,
+          "direction": 12,
+          "name": 6
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "Total Unrealized P&L",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "Total Quantity",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "Profitable Positions",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page div",
+            "text": "Losing Positions",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "direction",
+            "where": "page div",
+            "text": "5 / 8",
+            "detail": "painted oklch(0.52 0.13 165) with no sign, arrow, word, data-direction or label saying the direction"
+          },
+          {
+            "rule": "direction",
+            "where": "page div",
+            "text": "3 / 8",
+            "detail": "painted oklch(0.46 0.19 40) with no sign, arrow, word, data-direction or label saying the direction"
+          }
+        ],
+        "visibleCueDirection": 2
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-rfq-kit-2",
+      "model": "gemini-3.8-flash",
+      "task": "rfq",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 12.142866666666666,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/lib/mock-rfq.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [
+        "src/App.tsx(38,9): error TS6133: 'ids' is declared but its value is never read."
+      ],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "format",
+        "panel",
+        "rfq-stack",
+        "rfq-ticket",
+        "row-store",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 98,
+          "numeric": 70,
+          "direction": 1,
+          "name": 23
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": false,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-rfq-bare-2",
+      "model": "gemini-3.8-flash",
+      "task": "rfq",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 8.496233333333333,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/lib/mock-rfq.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [
+        "src/App.tsx(486,21): error TS2353: Object literal may only specify known properties, and 'inquiryId' does not exist in type 'Partial<RfqLevels>'."
+      ],
+      "source": {
+        "floor": [
+          "src/App.tsx:276: text-[11px]",
+          "src/App.tsx:323: text-[11px]",
+          "src/App.tsx:333: text-[11px]",
+          "src/App.tsx:340: text-[11px]",
+          "src/App.tsx:347: text-[11px]",
+          "src/App.tsx:354: text-[11px]",
+          "src/App.tsx:361: text-[11px]",
+          "src/App.tsx:399: text-[10px]",
+          "src/App.tsx:446: text-[11px]",
+          "src/App.tsx:456: text-[11px]",
+          "src/App.tsx:467: text-[11px]",
+          "src/App.tsx:516: text-[11px]",
+          "src/App.tsx:523: text-[11px]",
+          "src/App.tsx:535: text-[11px]"
+        ],
+        "font": [
+          "src/App.tsx:319: font-mono",
+          "src/App.tsx:417: font-mono",
+          "src/App.tsx:446: font-mono",
+          "src/App.tsx:535: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": [
+          "src/lib/mock-rfq.ts:110: .toFixed(",
+          "src/App.tsx:61: .toFixed(",
+          "src/App.tsx:296: .toFixed("
+        ]
+      },
+      "items": [
+        "format",
+        "panel",
+        "rfq-stack",
+        "rfq-ticket",
+        "row-store",
+        "status-bar",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 18,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 124,
+          "numeric": 77,
+          "direction": 0,
+          "name": 30
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "LIVE VENUES",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=default]",
+            "text": "All",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "4",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=secondary]",
+            "text": "Open",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "4",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Quoted",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "0",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Passed",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": false,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-status-kit-2",
+      "model": "gemini-3.8-flash",
+      "task": "status",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 6.8329,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/hooks/use-mock-feeds.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [
+          "src/App.tsx:363: font-sans"
+        ],
+        "tabular": [],
+        "handFormatted": []
+      },
+      "items": [
+        "alert-store",
+        "alerts",
+        "blotter",
+        "feed-health",
+        "panel",
+        "row-store",
+        "status-bar",
+        "use-hotkeys",
+        "watchlist"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 3,
+          "name": 0
+        },
+        "checked": {
+          "floor": 117,
+          "numeric": 114,
+          "direction": 10,
+          "name": 27
+        },
+        "examples": [
+          {
+            "rule": "direction",
+            "where": "tradecn-data-grid span",
+            "text": "0.00%",
+            "detail": "painted oklch(0.52 0.13 165) with no sign, arrow, word, data-direction or label saying the direction"
+          },
+          {
+            "rule": "direction",
+            "where": "tradecn-data-grid span",
+            "text": "0.00%",
+            "detail": "painted oklch(0.46 0.19 40) with no sign, arrow, word, data-direction or label saying the direction"
+          },
+          {
+            "rule": "direction",
+            "where": "tradecn-data-grid span",
+            "text": "0.00%",
+            "detail": "painted oklch(0.52 0.13 165) with no sign, arrow, word, data-direction or label saying the direction"
+          }
+        ],
+        "visibleCueDirection": 3
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-status-bare-2",
+      "model": "gemini-3.8-flash",
+      "task": "status",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 5.575283333333333,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/components/top-alerts-strip.tsx",
+          "src/components/trading-desk-status-bar.tsx",
+          "src/components/trading-desk-workspace.tsx",
+          "src/lib/mock-trading-data.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/components/trading-desk-status-bar.tsx:50: text-[11px]",
+          "src/components/trading-desk-status-bar.tsx:60: text-[11px]",
+          "src/components/trading-desk-status-bar.tsx:63: text-[10px]",
+          "src/components/trading-desk-status-bar.tsx:64: text-[11px]",
+          "src/components/trading-desk-status-bar.tsx:65: text-[10px]",
+          "src/components/trading-desk-workspace.tsx:87: text-[10px]",
+          "src/components/trading-desk-workspace.tsx:98: text-[11px]",
+          "src/components/trading-desk-workspace.tsx:155: text-[10px]",
+          "src/components/trading-desk-workspace.tsx:183: text-[11px]",
+          "src/components/trading-desk-workspace.tsx:208: text-[11px]",
+          "src/components/trading-desk-workspace.tsx:246: text-[10px]",
+          "src/components/trading-desk-workspace.tsx:253: text-[11px]",
+          "src/components/trading-desk-workspace.tsx:264: text-[11px]",
+          "src/components/trading-desk-workspace.tsx:265: text-[11px]",
+          "src/components/trading-desk-workspace.tsx:270: text-[9px]",
+          "src/components/trading-desk-workspace.tsx:294: text-[11px]",
+          "src/components/trading-desk-workspace.tsx:301: text-[11px]",
+          "src/components/trading-desk-workspace.tsx:317: text-[10px]",
+          "src/App.tsx:154: text-[10px]",
+          "src/App.tsx:166: text-[11px]",
+          "src/App.tsx:181: text-[11px]",
+          "src/App.tsx:190: text-[11px]",
+          "src/App.tsx:204: text-[10px]"
+        ],
+        "font": [
+          "src/components/trading-desk-status-bar.tsx:63: font-mono",
+          "src/components/trading-desk-workspace.tsx:87: font-mono",
+          "src/components/trading-desk-workspace.tsx:97: font-mono",
+          "src/components/trading-desk-workspace.tsx:155: font-mono",
+          "src/components/trading-desk-workspace.tsx:181: font-mono",
+          "src/components/trading-desk-workspace.tsx:246: font-mono",
+          "src/components/trading-desk-workspace.tsx:252: font-mono",
+          "src/components/trading-desk-workspace.tsx:294: font-mono",
+          "src/components/trading-desk-workspace.tsx:300: font-mono",
+          "src/App.tsx:146: font-sans",
+          "src/App.tsx:154: font-mono",
+          "src/App.tsx:166: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": [
+          "src/components/trading-desk-workspace.tsx:41: .toFixed(",
+          "src/components/trading-desk-workspace.tsx:42: .toFixed(",
+          "src/components/trading-desk-workspace.tsx:43: .toFixed(",
+          "src/components/trading-desk-workspace.tsx:49: .toFixed(",
+          "src/components/trading-desk-workspace.tsx:50: .toFixed(",
+          "src/components/trading-desk-workspace.tsx:211: .toFixed(",
+          "src/components/trading-desk-workspace.tsx:214: .toFixed(",
+          "src/components/trading-desk-workspace.tsx:279: .toLocaleString(",
+          "src/components/trading-desk-workspace.tsx:324: .toLocaleString(",
+          "src/components/trading-desk-workspace.tsx:333: .toLocaleString(",
+          "src/lib/mock-trading-data.ts:257: .toFixed(",
+          "src/lib/mock-trading-data.ts:266: .toFixed("
+        ]
+      },
+      "items": [
+        "alert-store",
+        "alerts",
+        "feed-health",
+        "panel",
+        "row-store",
+        "status-bar"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 68,
+          "numeric": 0,
+          "direction": 13,
+          "name": 0
+        },
+        "checked": {
+          "floor": 192,
+          "numeric": 108,
+          "direction": 23,
+          "name": 21
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "CHROME v4.1",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "Mock Feed:",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "CYCLE AUTO",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page button",
+            "text": "+ Alert",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page button",
+            "text": "Reset",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page button",
+            "text": "PRODUCTION",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page button",
+            "text": "UAT",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page button",
+            "text": "DEV",
+            "detail": "font-size 10px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 13
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-ticket-kit-2",
+      "model": "gemini-3.8-flash",
+      "task": "ticket",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 9.646333333333333,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/components/last-fill.tsx",
+          "src/lib/mock-treasury.ts"
+        ],
+        "changed": [
+          "src/App.tsx",
+          "src/components/ticket.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [],
+        "font": [],
+        "tabular": [],
+        "handFormatted": [
+          "src/components/last-fill.tsx:119: .toLocaleString("
+        ]
+      },
+      "items": [
+        "format",
+        "limits",
+        "panel",
+        "quote-field",
+        "row-store",
+        "ticket",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 79,
+          "numeric": 27,
+          "direction": 3,
+          "name": 18
+        },
+        "examples": [],
+        "visibleCueDirection": 2
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": true,
+        "source": true,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-ticket-bare-2",
+      "model": "gemini-3.8-flash",
+      "task": "ticket",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 7.3109,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:373: text-[10px]",
+          "src/App.tsx:381: text-[10px]",
+          "src/App.tsx:393: text-[11px]",
+          "src/App.tsx:411: text-[10px]",
+          "src/App.tsx:420: text-[11px]",
+          "src/App.tsx:438: text-[10px]",
+          "src/App.tsx:447: text-[11px]",
+          "src/App.tsx:465: text-[10px]",
+          "src/App.tsx:475: text-[11px]",
+          "src/App.tsx:491: text-[11px]",
+          "src/App.tsx:518: text-[11px]",
+          "src/App.tsx:519: text-[9px]",
+          "src/App.tsx:609: text-[10px]",
+          "src/App.tsx:616: text-[11px]",
+          "src/App.tsx:644: text-[10px]",
+          "src/App.tsx:649: text-[10px]",
+          "src/App.tsx:658: text-[10px]",
+          "src/App.tsx:667: text-[10px]",
+          "src/App.tsx:686: text-[11px]",
+          "src/App.tsx:715: text-[10px]",
+          "src/App.tsx:716: text-[10px]",
+          "src/App.tsx:731: text-[10px]",
+          "src/App.tsx:744: text-[11px]",
+          "src/App.tsx:760: text-[10px]",
+          "src/App.tsx:790: text-[10px]",
+          "src/App.tsx:793: text-[11px]",
+          "src/App.tsx:800: text-[11px]",
+          "src/App.tsx:806: text-[11px]",
+          "src/App.tsx:812: text-[11px]",
+          "src/App.tsx:818: text-[11px]",
+          "src/App.tsx:822: text-[11px]",
+          "src/App.tsx:828: text-[11px]",
+          "src/App.tsx:832: text-[11px]",
+          "src/App.tsx:836: text-[11px]",
+          "src/App.tsx:839: text-[11px]",
+          "src/App.tsx:843: text-[11px]",
+          "src/App.tsx:853: text-[10px]",
+          "src/App.tsx:867: text-[11px]",
+          "src/App.tsx:906: text-[10px]",
+          "src/App.tsx:920: text-[11px]",
+          "src/App.tsx:924: text-[10px]",
+          "src/App.tsx:928: text-[10px]",
+          "src/App.tsx:932: text-[10px]",
+          "src/App.tsx:936: text-[10px]",
+          "src/App.tsx:957: text-[10px]"
+        ],
+        "font": [
+          "src/App.tsx:373: font-mono",
+          "src/App.tsx:649: font-mono",
+          "src/App.tsx:658: font-mono",
+          "src/App.tsx:667: font-mono",
+          "src/App.tsx:684: font-mono",
+          "src/App.tsx:790: font-mono",
+          "src/App.tsx:793: font-mono",
+          "src/App.tsx:878: font-mono",
+          "src/App.tsx:957: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": [
+          "src/App.tsx:119: new Intl.NumberFormat(",
+          "src/App.tsx:807: .toFixed("
+        ]
+      },
+      "items": [
+        "flash-cell",
+        "format",
+        "panel",
+        "quote-field",
+        "ticket",
+        "use-hotkeys"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 41,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 73,
+          "numeric": 27,
+          "direction": 0,
+          "name": 23
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "CBOT: ZN",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span[data-variant=outline]",
+            "text": "MOCK LIVE",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel button",
+            "text": "Pause Feed",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "Best Bid",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel button",
+            "text": "Use Bid Price",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "Best Ask",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel button",
+            "text": "Use Ask Price",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span",
+            "text": "Last Traded",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-watchlist-kit-2",
+      "model": "gemini-3.8-flash",
+      "task": "watchlist",
+      "arm": "kit",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 7.093066666666667,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/lib/mock-feed.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [
+        "src/App.tsx(282,35): error TS2339: Property 'row' does not exist on type 'WatchlistInstrumentRow[]'.",
+        "src/App.tsx(306,22): error TS2322: Type '{ id: string; keys: string; scope: string; description: string; }[]' is not assignable to type 'readonly HotkeyBinding[]'."
+      ],
+      "source": {
+        "floor": [],
+        "font": [
+          "src/App.tsx:227: font-mono",
+          "src/App.tsx:275: font-mono",
+          "src/App.tsx:276: font-mono",
+          "src/App.tsx:277: font-mono",
+          "src/App.tsx:278: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": [
+          "src/lib/mock-feed.ts:330: .toFixed(",
+          "src/lib/mock-feed.ts:331: .toFixed("
+        ]
+      },
+      "items": [
+        "data-grid",
+        "format",
+        "panel",
+        "row-store",
+        "use-hotkeys",
+        "watchlist"
+      ],
+      "page": {
+        "rendered": false,
+        "pageErrors": [
+          "TypeError: Cannot read properties of undefined (reading 'symbol')"
+        ],
+        "findings": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 0,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "examples": [],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": false,
+        "renders": false,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    },
+    {
+      "id": "gemini-3.8-flash-watchlist-bare-2",
+      "model": "gemini-3.8-flash",
+      "task": "watchlist",
+      "arm": "bare",
+      "trial": 2,
+      "agent": {
+        "exitCode": 0,
+        "timedOut": false,
+        "minutes": 7.870016666666666,
+        "premiumRequests": 14,
+        "modelId": "gemini-3.8-flash"
+      },
+      "files": {
+        "added": [
+          "src/hooks/use-mock-feed.ts",
+          "src/lib/mock-feed.ts"
+        ],
+        "changed": [
+          "src/App.tsx"
+        ]
+      },
+      "typeErrors": [],
+      "source": {
+        "floor": [
+          "src/App.tsx:97: text-[11px]",
+          "src/App.tsx:103: text-[11px]",
+          "src/App.tsx:158: text-[9px]",
+          "src/App.tsx:198: text-[10px]",
+          "src/App.tsx:214: text-[11px]",
+          "src/App.tsx:221: text-[10px]",
+          "src/App.tsx:239: text-[10px]",
+          "src/App.tsx:249: text-[10px]",
+          "src/App.tsx:260: text-[10px]",
+          "src/App.tsx:280: text-[10px]",
+          "src/App.tsx:327: text-[10px]",
+          "src/App.tsx:327: text-[10px]"
+        ],
+        "font": [
+          "src/App.tsx:103: font-mono",
+          "src/App.tsx:198: font-mono",
+          "src/App.tsx:225: font-mono",
+          "src/App.tsx:239: font-mono",
+          "src/App.tsx:249: font-mono",
+          "src/App.tsx:327: font-mono"
+        ],
+        "tabular": [],
+        "handFormatted": [
+          "src/hooks/use-mock-feed.ts:63: .toFixed(",
+          "src/hooks/use-mock-feed.ts:64: .toFixed(",
+          "src/lib/mock-feed.ts:73: .toFixed(",
+          "src/lib/mock-feed.ts:74: .toFixed(",
+          "src/App.tsx:216: .toLocaleString("
+        ]
+      },
+      "items": [
+        "data-grid",
+        "feed-health",
+        "format",
+        "panel",
+        "row-store",
+        "status-bar",
+        "watchlist"
+      ],
+      "page": {
+        "rendered": true,
+        "pageErrors": [],
+        "findings": {
+          "floor": 25,
+          "numeric": 0,
+          "direction": 0,
+          "name": 0
+        },
+        "checked": {
+          "floor": 137,
+          "numeric": 137,
+          "direction": 0,
+          "name": 30
+        },
+        "examples": [
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "Watchlist",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span",
+            "text": "4 ticks/s (18 ticks)",
+            "detail": "font-size 11px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "page span[data-variant=outline]",
+            "text": "CME / CBOT LIVE",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel span[data-variant=secondary]",
+            "text": "10",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel button",
+            "text": "Quotes: 32nds",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel button",
+            "text": "Pause Feed",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-panel button",
+            "text": "Reset (10)",
+            "detail": "font-size 10px is under the 12 px floor"
+          },
+          {
+            "rule": "floor",
+            "where": "tradecn-watchlist span",
+            "text": "Quick add:",
+            "detail": "font-size 11px is under the 12 px floor"
+          }
+        ],
+        "visibleCueDirection": 0
+      },
+      "passes": {
+        "builds": true,
+        "types": true,
+        "renders": true,
+        "contract": false,
+        "source": false,
+        "items": true
+      }
+    }
+  ]
+}
