@@ -37,7 +37,7 @@ just eval-agent-kit --machine m5-max                       # writes results/<mac
 
 It needs `copilot` on the path and `gh` signed in. Nothing is written to the repository without `--machine`; every run keeps its records, screenshots and session logs in the temp directory it prints, and `--keep` keeps the trials' consumers too. A result names the commit it ran from, and whether the working tree had changes.
 
-A trial is a whole coding session, billed to the Copilot account that runs it, and Copilot's code reviews draw from the same allowance. Copilot reports each session as one premium request, but the account is billed by tokens now. On 2026-11-10 the two sessions of a GPT-5.6 Sol check on the watchlist, 1.5 and 3.9 minutes long, took 182 of a monthly allowance of 50,000. The default run is 60 sessions.
+A trial is a whole coding session, billed to the Copilot account that runs it, and Copilot's code reviews draw from the same allowance. Copilot counts a GPT-5.6 session as one premium request and a Gemini 3.8 Flash session as 14, but the account is billed by tokens now. On 2026-11-10 the default run's 60 sessions took 3,531 of a monthly allowance of 50,000: 1,402 for the 40 GPT sessions and 2,129 for the 20 Gemini ones.
 
 A handful of screens per arm is a first read, not a benchmark: one model's run can move a rate by a screen either way. The numbers say what these agents did with these requests on the date they ran.
 
@@ -69,4 +69,27 @@ The default run, on Copilot CLI 1.0.89, graded in headless Chromium 153 on the b
 | GPT-5.6 Terra | rfq | kit | yes | no | yes | yes | yes | yes | 0 of 90 checked | 0 | 0 | 0 | 0 | 1.9 | 1 |
 | GPT-5.6 Terra | rfq | bare | yes | no | yes | no | no | no | 52 of 82 checked | 0 | 22 | 3 | 0 | 1.3 | 1 |
 
-Every page built with the kit kept the contract. Without it, four of the five pages had text under the floor, and Sol's positions page also set 25 numbers outside lining tabular figures. The one grade the kit arm lost was Terra's types: both of its kit screens had a type error in a file the agent wrote. Two or three screens a side is a first read, not the rate the verdict needs; that run waits for the quota.
+Every page built with the kit kept the contract. Without it, four of the five pages had text under the floor, and Sol's positions page also set 25 numbers outside lining tabular figures. The one grade the kit arm lost was Terra's types: both of its kit screens had a type error in a file the agent wrote. Two or three screens a side is a first read, not the rate the verdict needs; the 2026-11-10 run has ten.
+
+## Apple M2 Max, 2026-11-10: the first full run
+
+With the kit installed, 24 of 30 screens kept the contract, against none of 30 without it. By the rule in `expectations.json`, the kit helps GPT-5.6 Sol and not GPT-5.6 Terra or Gemini 3.8 Flash: two kit screens from each of those never rendered, and every bare screen did.
+
+| Model | Arm | builds | types | renders | contract | source | items |
+| :-- | :-- | --: | --: | --: | --: | --: | --: |
+| GPT-5.6 Sol | kit | 10 | 9 | 10 | 10 | 10 | 9 |
+| | bare | 10 | 10 | 10 | 0 | 0 | 9 |
+| GPT-5.6 Terra | kit | 10 | 10 | 8 | 8 | 10 | 10 |
+| | bare | 10 | 7 | 10 | 0 | 0 | 4 |
+| Gemini 3.8 Flash | kit | 10 | 6 | 8 | 6 | 6 | 10 |
+| | bare | 10 | 8 | 10 | 0 | 0 | 10 |
+
+Screens that passed, of 10 per arm: five tasks, two trials each, one session per screen, and every session ran; one Gemini kit session hit the 20-minute limit and was graded on what it left. Copilot CLI 1.0.107 on an Apple M2 Max, graded in headless Chromium 153 on the base-mira consumer, from 67f4c71, in two runs: `results/m2-max/2026-11-10T062321.json` for the GPT models and `results/m2-max/2026-11-10T064550.json` for Gemini.
+
+Every bare page broke the contract, most of them with text under the floor: a median of 16 floor findings a page for Sol, 6 for Terra and 24.5 for Gemini, against none on any kit page that rendered. The kit's sessions ran longer, with medians of 3.2 minutes against 1.0 for Sol, 1.3 against 0.7 for Terra, and 9.6 against 8.1 for the Gemini sessions that finished.
+
+What the kit screens that failed got wrong:
+
+- Terra's two that never rendered put feed-health's tooltip parts on the page without the `Tooltip` they go inside, and Base UI threw: `<Tooltip.Trigger> must be either used within a <Tooltip.Root> component or provided with a handle`. feed-health's docs say to wrap them; the kit's item reference names the parts and doesn't.
+- Gemini's two that never rendered destructured `{ row }` from the argument of the watchlist's `renderContextMenu`, which is a list of rows: `tsc` flagged it, and the page threw on its first render.
+- Gemini's two status screens failed `direction` in the watchlist item they used. It colors a change by its sign and prints one that rounds to zero without one: `formatPercent(0.0011, { signed: true })` is `0.00%`, painted up.
